@@ -13,7 +13,7 @@ import { BoardContextProvider, type BoardContextValue } from "@/features/boards/
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardHeader } from "@/features/boards/components/board-header";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
-import { BoardViewTabs } from "@/features/boards/components/board-view-tabs";
+import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
@@ -124,11 +124,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
             canEdit,
             canManage: canManageBoard(ws.permissions, board),
             openItem,
+            openItemId: itemId,
             openEditLabels: setEditLabelsColumn,
             now,
           }
         : null,
-    [board, model, mutations, ws.users, ws.permissions, canEdit, openItem, now],
+    [board, model, mutations, ws.users, ws.permissions, canEdit, openItem, itemId, now],
   );
 
   return (
@@ -144,12 +145,16 @@ function BoardScreen({ boardId }: { boardId: string }) {
           )}
         </div>
       )}
-      <BoardViewTabs view={view} onChange={setView} />
+      {!contextValue && (
+        <div className={boardBarClasses}>
+          <BoardViewSwitcher view={view} onChange={setView} />
+        </div>
+      )}
       {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
       {!snapshot.isError && !contextValue && <BoardSkeleton />}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
-          {view === "table" && <BoardToolbar />}
+          <BoardToolbar view={view} onViewChange={setView} />
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}

@@ -14,6 +14,8 @@ export interface BoardContextValue {
   canEdit: boolean;
   canManage: boolean;
   openItem: (itemId: string | null) => void;
+  /** Item whose detail panel is open, so views can highlight it. */
+  openItemId: string | null;
   openEditLabels: (column: BoardColumn) => void;
   now: Date;
 }

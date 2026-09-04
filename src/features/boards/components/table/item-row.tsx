@@ -27,7 +27,7 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, openItem } = useBoardContext();
+  const { board, model, mutations, canEdit, openItem, openItemId } = useBoardContext();
   const ui = useBoardUi(board.id);
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
@@ -37,6 +37,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const [addingSubitem, setAddingSubitem] = React.useState(false);
 
   const selected = ui.selectedItemIds.includes(item.id);
+  const viewing = openItemId === item.id;
   const expanded = ui.expandedItemIds.includes(item.id);
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const done = model.isDone(item.id);
@@ -102,11 +103,13 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             style={{ transform: CSS.Transform.toString(transform), transition, height: TABLE_LAYOUT.rowHeight }}
             role="row"
             aria-selected={selected}
+            aria-current={viewing ? "true" : undefined}
             data-testid="item-row"
             data-item-name={item.name}
             className={cn(
               "group/row flex border-b bg-background hover:bg-accent/50",
               selected && "bg-blue-50/70 hover:bg-blue-50 dark:bg-navy-500/25 dark:hover:bg-navy-500/35",
+              viewing && "bg-accent hover:bg-accent ring-1 ring-inset ring-primary/40",
               isDragging && "opacity-40",
               done && "text-muted-foreground",
             )}
@@ -116,6 +119,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               className={cn(
                 "sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50",
                 selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35",
+                viewing && "bg-accent group-hover/row:bg-accent",
               )}
               style={leadingCellStyle()}
             >
@@ -360,10 +364,11 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem } = useBoardContext();
+  const { model, mutations, canEdit, openItem, openItemId } = useBoardContext();
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
+  const viewing = openItemId === item.id;
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   const actions: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
@@ -378,8 +383,17 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div role="row" data-testid="subitem-row" className={cn("group/row flex border-b hover:bg-accent/40", done && "text-muted-foreground")} style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={leadingCellStyle()}>
+        <div
+          role="row"
+          aria-current={viewing ? "true" : undefined}
+          data-testid="subitem-row"
+          className={cn("group/row flex border-b hover:bg-accent/40", viewing && "bg-accent hover:bg-accent ring-1 ring-inset ring-primary/40", done && "text-muted-foreground")}
+          style={{ height: 32 }}
+        >
+          <div
+            className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40", viewing && "bg-accent group-hover/row:bg-accent")}
+            style={leadingCellStyle()}
+          >
             <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
             <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
               {renaming ? (

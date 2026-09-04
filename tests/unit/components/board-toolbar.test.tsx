@@ -19,11 +19,10 @@ describe("BoardToolbar", () => {
     const app = await createTestApp();
     await app.render(
       <TestBoard boardId={boardId}>
-        <BoardToolbar />
+        <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
     expect(screen.getByText(/16 items/)).toBeInTheDocument();
-    await user.click(screen.getByTestId("search-button"));
     await user.type(screen.getByTestId("search-input"), "Explorer");
     await waitFor(() => expect(useBoardUiStore.getState().boards[boardId]?.search).toBe("Explorer"));
     // The toolbar reads the model from context; in this harness the model is unfiltered, so
@@ -38,7 +37,7 @@ describe("BoardToolbar", () => {
     const app = await createTestApp();
     await app.render(
       <TestBoard boardId={boardId}>
-        <BoardToolbar />
+        <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
     await user.click(screen.getByTestId("filter-button"));
@@ -65,7 +64,7 @@ describe("BoardToolbar", () => {
     const app = await createTestApp();
     await app.render(
       <TestBoard boardId={boardId}>
-        <BoardToolbar />
+        <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
     await user.click(screen.getByTestId("sort-button"));
@@ -81,7 +80,7 @@ describe("BoardToolbar", () => {
     const app = await createTestApp();
     await app.render(
       <TestBoard boardId={boardId}>
-        <BoardToolbar />
+        <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
     await user.click(screen.getByTestId("new-item-button"));

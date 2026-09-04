@@ -8,6 +8,7 @@ test.describe("board management", () => {
   });
 
   test("creates a board from the Campaign template and lands on it", async ({ page }) => {
+    await page.getByTestId("sidebar-add-new").click();
     await page.getByTestId("sidebar-add-board").click();
     await page.getByLabel("Board name").fill("Open Day 2027");
     await page.getByRole("radio", { name: /Campaign/ }).click();

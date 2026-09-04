@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
 
 test.describe("board interactions", () => {
   test.beforeEach(async ({ page }) => {
@@ -74,7 +74,6 @@ test.describe("board interactions", () => {
     await expect(row(page, "Chinese language adaptation")).toBeVisible();
     await expect(row(page, "RMITinerary Explorer")).toHaveCount(0);
 
-    await page.getByTestId("search-button").click();
     await page.getByTestId("search-input").fill("Printer");
     await expect(row(page, "Printer quote and paper stock")).toBeVisible();
     await expect(row(page, "Chinese language adaptation")).toHaveCount(0);
@@ -108,7 +107,7 @@ test.describe("board interactions", () => {
   });
 
   test("kanban moves a card between statuses and reflects in the table", async ({ page }) => {
-    await page.getByTestId("view-kanban").click();
+    await switchView(page, "kanban");
     const card = page.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" });
     const lane = page.getByTestId("lane-Working On It");
     const from = await card.boundingBox();
@@ -120,7 +119,7 @@ test.describe("board interactions", () => {
     await page.mouse.move(to.x + to.width / 2, to.y + 200, { steps: 15 });
     await page.mouse.up();
     await expect(lane.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" })).toBeVisible();
-    await page.getByTestId("view-table").click();
+    await switchView(page, "table");
     await expect(row(page, "RMITinerary Independent").getByTestId("status-cell")).toContainText("Working On It");
   });
 });

@@ -31,6 +31,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { RowMenu, type MenuAction } from "@/components/layout/row-menu";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -241,31 +242,39 @@ export function Sidebar() {
               </ul>
             </div>
           )}
-          {!collapsed && (
-            <div className="mt-2 space-y-0.5">
-              {canCreateTeam(ws.permissions) && (
-                <button type="button" onClick={() => setCreateTeamOpen(true)} className={subtleButtonClasses}>
-                  <Plus className="size-3.5" /> Add Team
-                </button>
-              )}
-              {canCreateBoard(ws.permissions) && (
-                <button type="button" onClick={() => setCreateBoardOpen(true)} className={subtleButtonClasses} data-testid="sidebar-add-board">
-                  <Plus className="size-3.5" /> Add Board
-                </button>
-              )}
-              {canEditTrackers(ws.permissions) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateTrackerTeamId(null);
-                    setCreateTrackerOpen(true);
-                  }}
-                  className={subtleButtonClasses}
-                  data-testid="sidebar-add-tracker"
-                >
-                  <Plus className="size-3.5" /> Add Tracker
-                </button>
-              )}
+          {!collapsed && (canCreateTeam(ws.permissions) || canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)) && (
+            <div className="mt-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className={subtleButtonClasses} data-testid="sidebar-add-new">
+                    <Plus className="size-3.5" /> Add new
+                    <ChevronRight className="ml-auto size-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="right" className="w-44">
+                  {canCreateTeam(ws.permissions) && (
+                    <DropdownMenuItem onSelect={() => setCreateTeamOpen(true)} data-testid="sidebar-add-team">
+                      <Users /> Team
+                    </DropdownMenuItem>
+                  )}
+                  {canCreateBoard(ws.permissions) && (
+                    <DropdownMenuItem onSelect={() => setCreateBoardOpen(true)} data-testid="sidebar-add-board">
+                      <LayoutGrid /> Board
+                    </DropdownMenuItem>
+                  )}
+                  {canEditTrackers(ws.permissions) && (
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setCreateTrackerTeamId(null);
+                        setCreateTrackerOpen(true);
+                      }}
+                      data-testid="sidebar-add-tracker"
+                    >
+                      <FileSpreadsheet /> Tracker
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
@@ -611,8 +620,19 @@ function TeamNode({
 
   const teamActions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
-    ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "New board in team", icon: <LayoutGrid />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
-    ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "New tracker in team", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
+      ? [
+          {
+            type: "sub",
+            label: "Add new",
+            icon: <Plus />,
+            items: [
+              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <LayoutGrid />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+            ],
+          } satisfies MenuAction,
+        ]
+      : []),
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
     { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },

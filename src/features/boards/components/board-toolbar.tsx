@@ -1,9 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, Layers, Plus, Search, UserRound, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, Plus, Search, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -20,8 +19,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { columnLabels } from "@/domain";
+import { columnLabels, type BoardViewKind } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { activeFilterCount, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
@@ -34,137 +34,128 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
   { id: "noDate", label: "No date" },
 ];
 
-export function BoardToolbar() {
+/** The board's single control line: which view is open, plus the tools for it. */
+export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onViewChange: (view: BoardViewKind) => void }) {
   const { board, model, canEdit, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
   const filterCount = activeFilterCount(ui.filters);
   const hiddenCount = model.columns.filter((c) => c.hidden).length;
+  const tableTools = view === "table";
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b px-6 py-2" role="toolbar" aria-label="Board tools">
-      {canEdit && <NewItemButton />}
-      <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />
-      <PersonFilter />
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(filterCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="filter-button">
-            <Filter /> Filter
-            {filterCount > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[520px] p-3">
-          <FilterPanel />
-        </PopoverContent>
-      </Popover>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(ui.sort && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="sort-button">
-            <ArrowUpDown /> Sort
-            {ui.sort && (
-              <span className="flex items-center gap-0.5 text-2xs">
-                {SORT_LABELS[ui.sort.field]} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-              </span>
+    <div className={boardBarClasses} role="toolbar" aria-label="Board tools">
+      <BoardViewSwitcher view={view} onChange={onViewChange} />
+      <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border" />
+      {tableTools && canEdit && <NewItemButton />}
+      {tableTools && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {tableTools && (
+          <>
+            <PersonFilter />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className={cn(filterCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="filter-button">
+                  <Filter /> Filter
+                  {filterCount > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[520px] p-3">
+                <FilterPanel />
+              </PopoverContent>
+            </Popover>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className={cn(ui.sort && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="sort-button">
+                  <ArrowUpDown /> Sort
+                  {ui.sort && (
+                    <span className="flex items-center gap-0.5 text-2xs">
+                      {SORT_LABELS[ui.sort.field]} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={ui.sort?.field ?? ""}
+                  onValueChange={(field) => store.setSort(board.id, { field: field as SortField, direction: ui.sort?.field === field ? ui.sort.direction : "asc" })}
+                >
+                  {(Object.keys(SORT_LABELS) as SortField[]).map((field) => (
+                    <DropdownMenuRadioItem key={field} value={field}>
+                      {SORT_LABELS[field]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={!ui.sort} onSelect={() => ui.sort && store.setSort(board.id, { ...ui.sort, direction: ui.sort.direction === "asc" ? "desc" : "asc" })}>
+                  {ui.sort?.direction === "desc" ? <ArrowUp /> : <ArrowDown />} {ui.sort?.direction === "desc" ? "Ascending" : "Descending"}
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={!ui.sort} onSelect={() => store.setSort(board.id, null)}>
+                  <X /> Clear sort
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className={cn(hiddenCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")}>
+                  <EyeOff /> Hide
+                  {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+                {model.columns.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={!column.hidden}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) => void mutations.updateColumn(column.id, { hidden: !checked })}
+                  >
+                    {column.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {(filterCount > 0 || ui.search || ui.sort) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => {
+                  store.clearFilters(board.id);
+                  store.setSearch(board.id, "");
+                  store.setSort(board.id, null);
+                }}
+              >
+                <X /> Clear all
+              </Button>
             )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={ui.sort?.field ?? ""}
-            onValueChange={(field) => store.setSort(board.id, { field: field as SortField, direction: ui.sort?.field === field ? ui.sort.direction : "asc" })}
-          >
-            {(Object.keys(SORT_LABELS) as SortField[]).map((field) => (
-              <DropdownMenuRadioItem key={field} value={field}>
-                {SORT_LABELS[field]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={!ui.sort} onSelect={() => ui.sort && store.setSort(board.id, { ...ui.sort, direction: ui.sort.direction === "asc" ? "desc" : "asc" })}>
-            {ui.sort?.direction === "desc" ? <ArrowUp /> : <ArrowDown />} {ui.sort?.direction === "desc" ? "Ascending" : "Descending"}
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!ui.sort} onSelect={() => store.setSort(board.id, null)}>
-            <X /> Clear sort
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(hiddenCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")}>
-            <EyeOff /> Hide
-            {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
-          <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-          {model.columns.map((column) => (
-            <DropdownMenuCheckboxItem
-              key={column.id}
-              checked={!column.hidden}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => void mutations.updateColumn(column.id, { hidden: !checked })}
-            >
-              {column.name}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button variant="ghost" size="sm" disabled className="gap-1.5">
-        <Layers /> Group by <Badge variant="muted">Coming later</Badge>
-      </Button>
-      {(filterCount > 0 || ui.search || ui.sort) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-muted-foreground"
-          onClick={() => {
-            store.clearFilters(board.id);
-            store.setSearch(board.id, "");
-            store.setSort(board.id, null);
-          }}
-        >
-          <X /> Clear all
-        </Button>
-      )}
-      <span className="ml-auto text-2xs text-muted-foreground tabular">
-        {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel} items` : `${model.totalTopLevel} items`}
-      </span>
+          </>
+        )}
+        <span className="pl-1 text-2xs text-muted-foreground tabular">
+          {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel} items` : `${model.totalTopLevel} items`}
+        </span>
+      </div>
     </div>
   );
 }
 
+/** Always visible — searching is the toolbar's most-used control. */
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [open, setOpen] = React.useState(!!value);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-  if (!open) {
-    return (
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)} data-testid="search-button">
-        <Search /> Search
-      </Button>
-    );
-  }
   return (
-    <div className="relative">
+    <div className="relative min-w-0 shrink">
       <Search className="pointer-events-none absolute top-1.5 left-2 size-4 text-muted-foreground" />
       <Input
-        ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={() => !value && setOpen(false)}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            onChange("");
-            setOpen(false);
-          }
+          if (e.key === "Escape") onChange("");
         }}
         placeholder="Search items"
         aria-label="Search items"
         data-testid="search-input"
-        className="h-7 w-52 pl-7 pr-7"
+        className="h-7 w-52 min-w-28 pl-7 pr-7"
       />
       {value && (
         <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1.5 right-1.5 rounded p-0.5 text-muted-foreground hover:text-foreground">

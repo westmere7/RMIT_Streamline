@@ -30,6 +30,13 @@ export async function openBoard(page: Page, url = BOARD_URL): Promise<void> {
   await expect(page.getByTestId("item-row").first()).toBeVisible();
 }
 
+/** Picks a view from the board bar's view switcher and waits for the menu to close. */
+export async function switchView(page: Page, kind: "table" | "kanban" | "timeline" | "calendar" | "files"): Promise<void> {
+  await page.getByTestId("view-switcher").click();
+  await page.getByTestId(`view-${kind}`).click();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+}
+
 export function row(page: Page, name: string) {
   return page.locator(`[data-testid="item-row"][data-item-name="${name}"]`);
 }
