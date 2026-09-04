@@ -1,0 +1,80 @@
+"use client";
+
+import * as React from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+export interface CellShellProps extends React.ComponentProps<"div"> {
+  width: number;
+  /** Cells look like display values; `interactive` adds hover affordance. */
+  interactive?: boolean;
+  align?: "left" | "center";
+}
+
+/** Fixed-width table cell container. */
+export function CellShell({ width, interactive = true, align = "left", className, children, ...props }: CellShellProps) {
+  return (
+    <div
+      role="gridcell"
+      style={{ width, minWidth: width }}
+      className={cn(
+        "flex h-full shrink-0 items-center overflow-hidden border-r px-1 text-[13px]",
+        align === "center" && "justify-center",
+        interactive && "hover:bg-black/[0.03]",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+export interface PopoverCellProps {
+  width: number;
+  /** Display content (looks like a value, not an input). */
+  trigger: React.ReactNode;
+  /** Popover content; receives a close function. */
+  children: (close: () => void) => React.ReactNode;
+  disabled?: boolean;
+  align?: "left" | "center";
+  contentClassName?: string;
+  ariaLabel: string;
+  testId?: string;
+}
+
+/** A cell that opens an editor popover when clicked. */
+export function PopoverCell({ width, trigger, children, disabled, align = "left", contentClassName, ariaLabel, testId }: PopoverCellProps) {
+  const [open, setOpen] = React.useState(false);
+  const close = React.useCallback(() => setOpen(false), []);
+  if (disabled) {
+    return (
+      <CellShell width={width} interactive={false} align={align}>
+        {trigger}
+      </CellShell>
+    );
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="gridcell"
+          aria-label={ariaLabel}
+          data-testid={testId}
+          style={{ width, minWidth: width }}
+          className={cn(
+            "flex h-full shrink-0 items-center overflow-hidden border-r px-1 text-left text-[13px] hover:bg-black/[0.03] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+            align === "center" && "justify-center",
+            open && "bg-black/[0.04]",
+          )}
+        >
+          {trigger}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className={cn("w-auto p-0", contentClassName)} align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+        {children(close)}
+      </PopoverContent>
+    </Popover>
+  );
+}

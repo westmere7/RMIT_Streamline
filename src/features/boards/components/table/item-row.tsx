@@ -1,0 +1,364 @@
+"use client";
+
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Maximize2, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
+import * as React from "react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { InlineEdit } from "@/components/shared/inline-edit";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
+import type { BoardGroup, Item } from "@/domain";
+import { useBoardContext } from "@/features/boards/board-context";
+import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
+import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
+import { colorClasses } from "@/lib/colors";
+import { cn } from "@/lib/utils";
+import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+
+export interface ItemRowProps {
+  item: Item;
+  group: BoardGroup;
+  dndEnabled: boolean;
+  widthOverrides: Record<string, number>;
+}
+
+export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
+  const { board, model, mutations, canEdit, openItem } = useBoardContext();
+  const ui = useBoardUi(board.id);
+  const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
+  const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
+  const [renaming, setRenaming] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [addingSubitem, setAddingSubitem] = React.useState(false);
+
+  const selected = ui.selectedItemIds.includes(item.id);
+  const expanded = ui.expandedItemIds.includes(item.id);
+  const subitems = model.subitemsByParent.get(item.id) ?? [];
+  const done = model.isDone(item.id);
+  const blocked = model.isBlocked(item.id);
+  const colors = colorClasses(group.color);
+
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    data: { type: "item", itemId: item.id, groupId: group.id },
+    disabled: !dndEnabled,
+  });
+
+  return (
+    <>
+      <div
+        ref={setNodeRef}
+        style={{ transform: CSS.Transform.toString(transform), transition, height: TABLE_LAYOUT.rowHeight }}
+        role="row"
+        aria-selected={selected}
+        data-testid="item-row"
+        data-item-name={item.name}
+        className={cn("group/row flex border-b bg-background hover:bg-accent/50", selected && "bg-blue-50/70 hover:bg-blue-50", isDragging && "opacity-40", done && "text-muted-foreground")}
+      >
+        <div
+          role="gridcell"
+          className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50", selected && "bg-blue-50/70 group-hover/row:bg-blue-50")}
+          style={{ width: leadingWidth(), minWidth: leadingWidth() }}
+        >
+          <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
+          <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
+            <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
+          </div>
+          <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.handleWidth }}>
+            {dndEnabled && (
+              <button
+                ref={setActivatorNodeRef}
+                type="button"
+                aria-label={`Drag ${item.name}`}
+                className="flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/70 hover:!text-foreground focus-visible:text-muted-foreground active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="size-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
+            <button
+              type="button"
+              aria-label={expanded ? "Hide subitems" : subitems.length ? `Show ${subitems.length} subitems` : "Add subitem"}
+              onClick={() => {
+                if (subitems.length === 0) {
+                  if (!canEdit) return;
+                  setAddingSubitem(true);
+                  if (!expanded) toggleExpanded(board.id, item.id);
+                } else toggleExpanded(board.id, item.id);
+              }}
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground",
+                subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+              )}
+            >
+              {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
+            </button>
+            <div className="flex h-full min-w-0 flex-1 items-center">
+              {renaming ? (
+                <InlineEdit
+                  value={item.name}
+                  editing
+                  onEditingChange={setRenaming}
+                  onSubmit={(name) => void mutations.renameItem(item.id, name)}
+                  ariaLabel="Item name"
+                  inputClassName="h-7 text-[13px]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openItem(item.id)}
+                  onDoubleClick={(e) => {
+                    if (!canEdit) return;
+                    e.preventDefault();
+                    setRenaming(true);
+                  }}
+                  title={item.name}
+                  data-testid="item-name"
+                  className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring", done && "line-through decoration-muted-foreground/40")}
+                >
+                  {item.name}
+                </button>
+              )}
+            </div>
+            {blocked && (
+              <SimpleTooltip label="Blocked: depends on items that are not done">
+                <span className="text-amber-600" aria-label="Blocked">
+                  <TriangleAlert className="size-3.5" />
+                </span>
+              </SimpleTooltip>
+            )}
+            {subitems.length > 0 && <span className="rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
+            <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+              {canEdit && (
+                <SimpleTooltip label="Rename">
+                  <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                    <Pencil className="size-3.5" />
+                  </button>
+                </SimpleTooltip>
+              )}
+              <SimpleTooltip label="Open">
+                <button type="button" aria-label={`Open ${item.name}`} onClick={() => openItem(item.id)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                  <Maximize2 className="size-3.5" />
+                </button>
+              </SimpleTooltip>
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" aria-label={`More actions for ${item.name}`} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                      <MoreHorizontal className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    <DropdownMenuItem onSelect={() => openItem(item.id)}>
+                      <Maximize2 /> Open
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                      <Pencil /> Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setAddingSubitem(true);
+                        if (!expanded) toggleExpanded(board.id, item.id);
+                      }}
+                    >
+                      <Plus /> Add subitem
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
+                      <Copy /> Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <CornerDownRight /> Move to group
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {model.groups
+                          .filter((g) => g.id !== group.id)
+                          .map((g) => (
+                            <DropdownMenuItem key={g.id} onSelect={() => void mutations.moveItemsToGroup([item.id], g.id)}>
+                              <span className={cn("size-2.5 rounded-full", colorClasses(g.color).dot)} /> {g.name}
+                            </DropdownMenuItem>
+                          ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => void mutations.archiveItems([item.id])}>
+                      <Archive /> Archive
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                      <Trash2 /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {model.visibleColumns.map((column) => (
+          <CellRenderer
+            key={column.id}
+            item={item}
+            column={column}
+            width={widthOverrides[column.id] ?? column.width}
+            value={model.getValue(item.id, column.id)}
+            onChange={(value) => void mutations.setValue(item, column, value)}
+            readOnly={!canEdit}
+            isDone={done}
+          />
+        ))}
+        <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+      </div>
+
+      {expanded && (
+        <SubitemRows parent={item} group={group} subitems={subitems} widthOverrides={widthOverrides} adding={addingSubitem} onAddingChange={setAddingSubitem} />
+      )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${item.name}”?`}
+        description={subitems.length ? `This also deletes its ${subitems.length} subitems and all updates.` : "This permanently deletes the item and its updates."}
+        confirmLabel="Delete item"
+        destructive
+        onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
+      />
+    </>
+  );
+});
+
+function SubitemRows({
+  parent,
+  group,
+  subitems,
+  widthOverrides,
+  adding,
+  onAddingChange,
+}: {
+  parent: Item;
+  group: BoardGroup;
+  subitems: Item[];
+  widthOverrides: Record<string, number>;
+  adding: boolean;
+  onAddingChange: (adding: boolean) => void;
+}) {
+  const { model, mutations, canEdit } = useBoardContext();
+  const [draft, setDraft] = React.useState("");
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (adding) requestAnimationFrame(() => inputRef.current?.focus());
+  }, [adding]);
+
+  const submit = () => {
+    const name = draft.trim();
+    if (!name) return;
+    void mutations.createItem({ groupId: group.id, parentItemId: parent.id, name });
+    setDraft("");
+  };
+
+  return (
+    <div className="bg-surface/60" data-testid="subitems">
+      {subitems.map((sub) => (
+        <SubitemRow key={sub.id} item={sub} group={group} widthOverrides={widthOverrides} />
+      ))}
+      {canEdit && (adding || subitems.length > 0) && (
+        <div role="row" className="flex border-b" style={{ height: 32 }}>
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16" style={{ width: leadingWidth(), minWidth: leadingWidth() }}>
+            <CornerDownRight className="mr-1.5 size-3 text-muted-foreground/60" />
+            <input
+              ref={inputRef}
+              aria-label={`Add subitem to ${parent.name}`}
+              placeholder="+ Add subitem"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => onAddingChange(true)}
+              onBlur={() => {
+                if (!draft.trim()) onAddingChange(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+                if (e.key === "Escape") {
+                  setDraft("");
+                  onAddingChange(false);
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="h-7 w-full bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground/70 focus:rounded-sm focus:bg-background focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div style={{ width: model.visibleColumns.reduce((s, c) => s + (widthOverrides[c.id] ?? c.width), 0) + TABLE_LAYOUT.trailingWidth }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubitemRow({ item, group, widthOverrides }: { item: Item; group: BoardGroup; widthOverrides: Record<string, number> }) {
+  const { model, mutations, canEdit, openItem } = useBoardContext();
+  const [renaming, setRenaming] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const done = model.isDone(item.id);
+  return (
+    <div role="row" data-testid="subitem-row" className={cn("group/row flex border-b hover:bg-accent/40", done && "text-muted-foreground")} style={{ height: 32 }}>
+      <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={{ width: leadingWidth(), minWidth: leadingWidth() }}>
+        <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
+        <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
+          {renaming ? (
+            <InlineEdit value={item.name} editing onEditingChange={setRenaming} onSubmit={(name) => void mutations.renameItem(item.id, name)} ariaLabel="Subitem name" inputClassName="h-6 text-xs" />
+          ) : (
+            <button
+              type="button"
+              onClick={() => openItem(item.id)}
+              onDoubleClick={(e) => {
+                if (!canEdit) return;
+                e.preventDefault();
+                setRenaming(true);
+              }}
+              className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
+            >
+              {item.name}
+            </button>
+          )}
+          {canEdit && (
+            <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+              <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                <Pencil className="size-3" />
+              </button>
+              <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-destructive">
+                <Trash2 className="size-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {model.visibleColumns.map((column) => (
+        <CellRenderer
+          key={column.id}
+          item={item}
+          column={column}
+          width={widthOverrides[column.id] ?? column.width}
+          value={model.getValue(item.id, column.id)}
+          onChange={(value) => void mutations.setValue(item, column, value)}
+          readOnly={!canEdit}
+          isDone={done}
+        />
+      ))}
+      <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+      <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={`Delete “${item.name}”?`} confirmLabel="Delete subitem" destructive onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)} />
+    </div>
+  );
+}
