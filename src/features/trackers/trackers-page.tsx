@@ -51,7 +51,7 @@ export function TrackersPage() {
           {trackers.isLoading ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-28" />
+                <Skeleton key={i} className="h-28 rounded-xl" />
               ))}
             </div>
           ) : (trackers.data ?? []).length === 0 ? (
@@ -74,11 +74,11 @@ export function TrackersPage() {
                     <RowMenu label={`Options for ${tracker.name}`} actions={actions} hideButton>
                       <Link
                         href={routes.tracker(ws.slug, tracker.id)}
-                        className="flex h-28 flex-col rounded-md border bg-card p-4 transition-colors hover:border-ring hover:bg-accent"
+                        className="flex min-h-28 flex-col rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md"
                         data-testid="tracker-card"
                       >
                         <span className="flex items-center gap-2.5">
-                          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-navy text-white">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-navy text-white">
                             <FileSpreadsheet className="size-4" />
                           </span>
                           <span className="min-w-0">

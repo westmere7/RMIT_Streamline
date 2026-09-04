@@ -78,7 +78,7 @@ export function MembersPage() {
         {rows.length === 0 ? (
           <EmptyState icon={Users} title="No members match" description="Try a different name or email." />
         ) : (
-          <div className="overflow-hidden rounded-md border">
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
             <table className="w-full min-w-[820px] text-[13px]">
               <thead className="bg-surface text-left text-2xs font-medium text-muted-foreground">
                 <tr className="h-8">

@@ -82,7 +82,7 @@ export function InboxPage() {
           <EmptyState icon={Inbox} title={filter === "unread" ? "No unread notifications" : "No notifications yet"} description="Mentions, assignments and due date changes will land here." />
         )}
         {list.length > 0 && (
-          <ul className="mt-2 divide-y rounded-md border">
+          <ul className="mt-2 divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
             {list.map((n) => {
               const Icon = TYPE_ICONS[n.type];
               const actor = ws.userById(n.actorId);

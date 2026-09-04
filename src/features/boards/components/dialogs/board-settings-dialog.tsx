@@ -206,7 +206,7 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
           </Popover>
         )}
       </div>
-      <ul className="divide-y rounded-md border">
+      <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
         {members.map((member) => {
           const user = ws.userById(member.userId);
           const isOwner = board.ownerId === member.userId;
@@ -256,7 +256,7 @@ function ColumnsSection({ board, manage }: { board: Board; manage: boolean }) {
   return (
     <div className="space-y-2">
       <p className="text-[13px] text-muted-foreground">The Item name column is always shown. Hide, show or delete the others.</p>
-      <ul className="divide-y rounded-md border">
+      <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
         <li className="flex h-10 items-center gap-2 px-3 text-[13px]">
           <span className="flex-1 font-medium">Item</span>
           <Badge variant="muted">Required</Badge>
@@ -330,7 +330,7 @@ function DangerSection({ board, onRequestDelete }: { board: Board; onRequestDele
   const ws = useWorkspace();
   const allowed = canDeleteBoard(ws.permissions, board);
   return (
-    <div className="space-y-3 rounded-md border border-destructive/30 p-4">
+    <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/[0.03] p-4">
       <p className="text-[13px] font-medium">Delete this board</p>
       <p className="text-[13px] text-muted-foreground">Deletes every group, item, update and file on the board. There is no undo.</p>
       <Button variant="destructive" size="sm" disabled={!allowed} onClick={onRequestDelete}>

@@ -117,7 +117,7 @@ export function TeamPage() {
             {boards.length === 0 ? (
               <EmptyState icon={LayoutGrid} title="No boards yet" description="Create a board for this team to start tracking work." compact />
             ) : (
-              <ul className="divide-y rounded-md border">
+              <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                 {boards.map((board) => (
                   <li key={board.id}>
                     <Link href={ws.boardPath(board)} className="flex h-11 items-center gap-3 px-3 text-[13px] hover:bg-accent">
@@ -148,7 +148,7 @@ export function TeamPage() {
               {teamTrackers.length === 0 ? (
                 <EmptyState icon={FileSpreadsheet} title="No trackers yet" description="Spreadsheets for this team — asset trackers, production logs — that used to live in Excel." compact />
               ) : (
-                <ul className="divide-y rounded-md border">
+                <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                   {teamTrackers.map((tracker) => (
                     <li key={tracker.id}>
                       <Link href={routes.tracker(ws.slug, tracker.id)} className="flex h-11 items-center gap-3 px-3 text-[13px] hover:bg-accent">
@@ -205,7 +205,7 @@ export function TeamPage() {
             >
               Members · {members.length}
             </SectionHeading>
-            <ul className="divide-y rounded-md border">
+            <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
               {members.map(({ membership, user }) => (
                 <li key={membership.id} className="group flex h-11 items-center gap-2.5 px-3 text-[13px]">
                   <UserAvatar user={user} size="md" tooltip={false} />

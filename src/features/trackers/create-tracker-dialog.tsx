@@ -162,7 +162,7 @@ function CreateTrackerForm({ defaultTeamId, onClose }: { defaultTeamId?: string 
 
 function LayoutOption({ checked, onChange, title, hint }: { checked: boolean; onChange: () => void; title: string; hint: string }) {
   return (
-    <label className={cn("flex cursor-pointer items-start gap-2.5 rounded-md border p-3 text-[13px] hover:bg-accent", checked && "border-ring bg-accent/60")}>
+    <label className={cn("flex cursor-pointer items-start gap-2.5 rounded-xl border border-border/70 p-3.5 text-[13px] transition-colors hover:bg-accent/60", checked && "border-ring/60 state-on")}>
       <input type="radio" name="tracker-layout" checked={checked} onChange={onChange} className="mt-0.5 accent-primary" />
       <span className="min-w-0">
         <span className="block font-medium">{title}</span>

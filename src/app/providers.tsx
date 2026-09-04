@@ -42,7 +42,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               position="bottom-right"
               toastOptions={{
                 classNames: {
-                  toast: "!rounded-md !border !border-border !bg-popover !text-foreground !shadow-md !text-[13px]",
+                  toast: "!rounded-xl !border !border-border/70 !bg-popover !text-foreground !shadow-lg !text-[13px] !gap-3 !p-4",
                   description: "!text-muted-foreground",
                 },
               }}

@@ -60,7 +60,7 @@ export function LinkedItemsSection({ item }: { item: Item }) {
       ) : views.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share.</p>
       ) : (
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
           {views.map((view) => (
             <LinkedItemRow key={view.link.id} item={item} view={view} />
           ))}

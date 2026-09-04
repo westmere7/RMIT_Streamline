@@ -176,7 +176,7 @@ function Overview({ item }: { item: Item }) {
 
       <section>
         <h3 className="mb-1.5 label-quiet">Fields</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
           {fieldColumns.map((column) => (
             <div key={column.id} className="flex h-10 items-center">
               <span className="w-32 shrink-0 truncate px-3 text-[13px] text-muted-foreground">{column.name}</span>
@@ -210,7 +210,7 @@ function Overview({ item }: { item: Item }) {
           <h3 className="mb-1.5 flex items-center justify-between label-quiet">
             Subitems <span className="tabular">{subitems.length}</span>
           </h3>
-          <ul className="divide-y rounded-md border">
+          <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
             {subitems.map((sub) => {
               const done = model.isDone(sub.id);
               const statusColumn = model.statusColumn;
@@ -339,7 +339,7 @@ function FilesSection({ item, column }: { item: Item; column: BoardColumn | null
       ) : files.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">No files attached. Attachments are stored as metadata only in local mode.</p>
       ) : (
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
           {files.map((file) => (
             <li key={file.id} className="group flex h-10 items-center gap-2 px-3 text-[13px]">
               <FileText className="size-4 text-muted-foreground" />

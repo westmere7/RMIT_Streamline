@@ -180,7 +180,7 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
                         aria-checked={selected}
                         onClick={() => field.onChange(template.id)}
                         className={cn(
-                          "rounded-md border p-3 text-left transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring",
+                          "rounded-xl border border-border/70 p-3.5 text-left transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring",
                           selected ? "border-ring bg-accent" : "border-border",
                         )}
                       >

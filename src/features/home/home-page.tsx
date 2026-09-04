@@ -98,7 +98,7 @@ export function HomePage() {
               >
                 My work
               </SectionHeading>
-              <div className="overflow-hidden rounded-md border">
+              <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
                 {myWork.isLoading ? (
                   <div className="space-y-2 p-3">
                     {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
@@ -211,7 +211,7 @@ function BoardCard({ board }: { board: Board }) {
   const ws = useWorkspace();
   const team = ws.teamById(board.teamId);
   return (
-    <Link href={ws.boardPath(board)} className="flex h-16 items-center gap-3 rounded-md border px-3 transition-colors hover:border-ring hover:bg-accent">
+    <Link href={ws.boardPath(board)} className="flex h-16 items-center gap-3 rounded-xl border border-border/70 bg-card px-3.5 shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md">
       <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-md text-white", colorClasses(board.color).solid)}>
         <DynamicIcon name={board.icon} className="size-4" />
       </span>

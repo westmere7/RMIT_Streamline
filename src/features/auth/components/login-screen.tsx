@@ -93,7 +93,7 @@ export function LoginScreen() {
                       disabled={pendingEmail !== null}
                       data-testid={`login-${user.firstName.toLowerCase()}`}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors hover:border-ring hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
+                        "flex items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3 py-2.5 text-left shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
                         pending && "border-ring bg-accent",
                       )}
                     >

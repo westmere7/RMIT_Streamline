@@ -130,7 +130,7 @@ function MembersSection() {
   return (
     <>
       <SectionTitle title="Members" description="People with access to this workspace." />
-      <div className="flex items-center gap-4 rounded-md border p-4 text-[13px]">
+      <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-[13px] shadow-xs">
         <div>
           <p className="text-lg font-semibold tabular">{active}</p>
           <p className="text-muted-foreground">active</p>
@@ -168,7 +168,7 @@ function TeamsSection() {
           <Plus /> New team
         </Button>
       </div>
-      <ul className="divide-y rounded-md border">
+      <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
         {ws.teams.map((team) => {
           const memberCount = ws.teamMembers.filter((m) => m.teamId === team.id).length;
           return (
@@ -215,7 +215,7 @@ function PermissionsSection() {
   return (
     <>
       <SectionTitle title="Permissions" description="Workspace roles apply everywhere; board roles (owner, editor, viewer) refine access per board." />
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         <table className="w-full text-[13px]">
           <thead className="bg-surface text-left text-2xs text-muted-foreground">
             <tr className="h-8">

@@ -60,7 +60,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           className={cn(
-            "flex h-10 w-full items-center gap-2 rounded-md px-1.5 text-left hover:bg-sidebar-accent/70 focus-visible:outline-2 focus-visible:outline-ring",
+            "flex h-11 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-sidebar-accent/70 focus-visible:outline-2 focus-visible:outline-ring",
             collapsed && "justify-center px-0",
           )}
           aria-label="Account menu"
@@ -84,7 +84,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
-            <Settings /> Workspace settings
+            <Settings /> Settings
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>

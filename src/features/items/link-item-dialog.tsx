@@ -281,7 +281,7 @@ function SectionLabel({ children, as = "p" }: { children: React.ReactNode; as?: 
 
 function PairRow({ name, boardName, color, icon }: { name: string; boardName: string; color: ColorToken; icon: string }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-md border px-2.5 py-2">
+    <div className="flex items-center gap-2.5 rounded-xl border border-border/70 px-3 py-2.5">
       <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-md text-white", colorClasses(color).solid)}>
         <DynamicIcon name={icon} className="size-3.5" />
       </span>
@@ -295,7 +295,7 @@ function PairRow({ name, boardName, color, icon }: { name: string; boardName: st
 
 function SeedOption({ checked, onChange, label, hint }: { checked: boolean; onChange: () => void; label: string; hint: string }) {
   return (
-    <label className={cn("flex cursor-pointer items-center gap-2.5 rounded-md border px-2.5 py-2 hover:bg-accent", checked && "border-ring bg-accent/60")}>
+    <label className={cn("flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/70 px-3 py-2.5 transition-colors hover:bg-accent/60", checked && "border-ring/60 state-on")}>
       <input type="radio" name="seed-from" checked={checked} onChange={onChange} className="accent-primary" />
       <span className="min-w-0">
         <span className="block font-medium">{label}</span>

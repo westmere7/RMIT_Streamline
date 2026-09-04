@@ -22,7 +22,7 @@ export function IconPicker({ value, onChange, className }: IconPickerProps) {
           aria-label={name}
           onClick={() => onChange(name)}
           className={cn(
-            "flex size-8 items-center justify-center rounded-md border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            "flex size-8 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
             name === value && "border-ring bg-accent text-foreground",
           )}
         >

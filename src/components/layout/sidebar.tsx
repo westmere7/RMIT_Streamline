@@ -18,7 +18,6 @@ import {
   PanelLeftClose,
   Plus,
   Search,
-  Settings,
   Settings2,
   Star,
   Trash2,
@@ -201,6 +200,23 @@ export function Sidebar() {
             collapsed={collapsed}
             badge={unread > 0 ? unread : undefined}
           />
+          <li>
+            <SimpleTooltip label="Search (Ctrl/⌘ F)" side="right" disabled={!collapsed}>
+              <button
+                type="button"
+                onClick={() => setCommandPaletteOpen(true)}
+                className={cn(navItemClasses(false), collapsed && "justify-center px-0")}
+              >
+                <Search className="size-4 shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 text-left">Search</span>
+                    <kbd className="rounded-md border border-border/70 bg-card px-1.5 py-0.5 text-2xs text-muted-foreground">⌘F</kbd>
+                  </>
+                )}
+              </button>
+            </SimpleTooltip>
+          </li>
         </ul>
 
         <Section title="Favourites" icon={Star} collapsed={collapsed} storeKey="favourites">
@@ -282,23 +298,6 @@ export function Sidebar() {
 
       <div className="shrink-0 border-t border-sidebar-border/70 p-2">
         <ul className="space-y-1">
-          <li>
-            <SimpleTooltip label="Search (Ctrl/⌘ K)" side="right" disabled={!collapsed}>
-              <button
-                type="button"
-                onClick={() => setCommandPaletteOpen(true)}
-                className={cn(navItemClasses(false), collapsed && "justify-center px-0")}
-              >
-                <Search className="size-4 shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 text-left">Search</span>
-                    <kbd className="rounded-md border border-border/70 bg-card px-1.5 py-0.5 text-2xs text-muted-foreground">⌘K</kbd>
-                  </>
-                )}
-              </button>
-            </SimpleTooltip>
-          </li>
           {canManageMembers(ws.permissions) && (
             <li>
               <SimpleTooltip label="Invite members" side="right" disabled={!collapsed}>
@@ -309,7 +308,6 @@ export function Sidebar() {
               </SimpleTooltip>
             </li>
           )}
-          <NavItem href={routes.settings(ws.slug)} icon={Settings} label="Settings" active={pathname.startsWith(routes.settings(ws.slug))} collapsed={collapsed} />
         </ul>
         <div className="mt-1">
           <UserMenu collapsed={collapsed} />

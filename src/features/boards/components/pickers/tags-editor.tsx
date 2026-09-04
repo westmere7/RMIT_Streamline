@@ -45,7 +45,7 @@ export function TagsEditor({ value, suggestions, onChange }: TagsEditorProps) {
             onChange(value.slice(0, -1));
           }
         }}
-        className="h-8 w-full rounded-md border border-input px-2 text-[13px] outline-none focus:border-ring"
+        className="h-9 w-full rounded-lg border border-border px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
       />
       {remaining.length > 0 && (
         <div className="flex flex-wrap gap-1">

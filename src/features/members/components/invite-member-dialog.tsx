@@ -123,7 +123,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
                   {activeTeams.map((team) => {
                     const checked = field.value.includes(team.id);
                     return (
-                      <label key={team.id} className="flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] hover:bg-accent">
+                      <label key={team.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 px-2.5 py-2 text-[13px] transition-colors hover:bg-accent/60">
                         <Checkbox
                           checked={checked}
                           onCheckedChange={(next) =>
