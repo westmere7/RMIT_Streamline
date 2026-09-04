@@ -71,7 +71,7 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
               <UnderlineTabsTrigger value="activity">Activity</UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-              <Overview item={item} />
+              <Overview key={item.id} item={item} />
             </TabsContent>
             <TabsContent value="updates" className="min-h-0 flex-1">
               <ItemUpdates itemId={item.id} canComment={canEdit} />
@@ -142,7 +142,6 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
 function Overview({ item }: { item: Item }) {
   const { model, mutations, canEdit, openItem } = useBoardContext();
   const [description, setDescription] = React.useState(item.description ?? "");
-  React.useEffect(() => setDescription(item.description ?? ""), [item.id, item.description]);
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const [newSub, setNewSub] = React.useState("");
   const filesColumn = model.columns.find((c) => c.type === "FILES") ?? null;
@@ -194,7 +193,7 @@ function Overview({ item }: { item: Item }) {
           const v = model.getValue(item.id, column.id);
           const text = v?.type === "LONG_TEXT" ? v.text : "";
           return (
-            <LongTextField key={column.id} column={column} text={text} canEdit={canEdit} onSave={(next) => void mutations.setValue(item, column, { type: "LONG_TEXT", text: next })} />
+            <LongTextField key={`${column.id}:${text}`} column={column} text={text} canEdit={canEdit} onSave={(next) => void mutations.setValue(item, column, { type: "LONG_TEXT", text: next })} />
           );
         })}
       </section>
@@ -270,7 +269,6 @@ function SubOwners({ userIds }: { userIds: string[] }) {
 
 function LongTextField({ column, text, canEdit, onSave }: { column: BoardColumn; text: string; canEdit: boolean; onSave: (text: string) => void }) {
   const [draft, setDraft] = React.useState(text);
-  React.useEffect(() => setDraft(text), [text]);
   return (
     <div className="mt-3">
       <p className="mb-1 text-[13px] text-muted-foreground">{column.name}</p>

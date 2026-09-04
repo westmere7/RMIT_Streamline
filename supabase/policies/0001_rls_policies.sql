@@ -243,6 +243,8 @@ begin
     else -- 'PRIVATE'
       return null;
   end case;
+
+  return null;
 end;
 $$;
 

@@ -57,7 +57,7 @@ export function BoardPage() {
   if (!canViewBoard(ws.permissions, board)) {
     return <EmptyState icon={Lock} title="This board is private" description="Ask the board owner to add you as a member." />;
   }
-  return <BoardScreen boardId={board.id} />;
+  return <BoardScreen key={board.id} boardId={board.id} />;
 }
 
 function BoardScreen({ boardId }: { boardId: string }) {
@@ -80,15 +80,10 @@ function BoardScreen({ boardId }: { boardId: string }) {
     void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId);
   }, [services, ws.currentUser.id, boardId]);
 
+  // The URL is the source of truth for the view; the remembered view fills in when it is absent.
   const viewParam = searchParams.get("view");
-  const [view, setViewState] = React.useState<BoardViewKind>(() => (isViewKind(viewParam) ? viewParam : "table"));
-  React.useEffect(() => {
-    if (isViewKind(viewParam)) setViewState(viewParam);
-    else {
-      const remembered = readRememberedView(boardId);
-      if (remembered && remembered !== "table") setViewState(remembered);
-    }
-  }, [viewParam, boardId]);
+  const [rememberedView, setRememberedView] = React.useState<BoardViewKind | null>(() => readRememberedView(boardId));
+  const view: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
 
   const itemId = searchParams.get("item");
 
@@ -106,7 +101,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
   );
 
   const setView = (next: BoardViewKind) => {
-    setViewState(next);
+    setRememberedView(next);
     rememberView(boardId, next);
     replaceParams({ view: next });
   };

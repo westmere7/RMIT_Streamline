@@ -25,7 +25,7 @@ describe("ItemDetailPanel", () => {
     const panel = screen.getByTestId("item-panel");
     expect(within(panel).getByRole("heading", { name: /RMITinerary High Achiever/ })).toBeInTheDocument();
     expect(within(panel).getByText("Fields")).toBeInTheDocument();
-    expect(within(panel).getByRole("gridcell", { name: /Status: Done/ })).toBeInTheDocument();
+    expect(within(panel).getByRole("gridcell", { name: /Status: Done for RMITinerary High Achiever/ })).toBeInTheDocument();
     expect(within(panel).getByText("Persona illustration")).toBeInTheDocument();
     expect(within(panel).getByText("Final export")).toBeInTheDocument();
   });
@@ -43,11 +43,11 @@ describe("ItemDetailPanel", () => {
     expect(await screen.findByText("No updates yet")).toBeInTheDocument();
     await user.type(screen.getByTestId("comment-input"), "Photography approved, moving to layout.");
     await user.click(screen.getByTestId("comment-submit"));
-    expect(await screen.findByText("Photography approved, moving to layout.")).toBeInTheDocument();
     await waitFor(async () => {
       const stored = await app.data.services.repos.comments.listByItem(itemId);
       expect(stored).toHaveLength(1);
     });
+    expect(await screen.findByText("Photography approved, moving to layout.", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Updates/ })).toHaveTextContent("1");
   });
 

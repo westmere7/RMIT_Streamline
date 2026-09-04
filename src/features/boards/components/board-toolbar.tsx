@@ -299,10 +299,8 @@ function NewItemButton() {
   const { board, model, mutations, openItem } = useBoardContext();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
-  const [groupId, setGroupId] = React.useState<string>(model.groups[0]?.id ?? "");
-  React.useEffect(() => {
-    if (open) setGroupId((g) => (model.groups.some((x) => x.id === g) ? g : (model.groups[0]?.id ?? "")));
-  }, [open, model.groups]);
+  const [chosenGroupId, setGroupId] = React.useState<string | null>(null);
+  const groupId = chosenGroupId && model.groups.some((g) => g.id === chosenGroupId) ? chosenGroupId : (model.groups[0]?.id ?? "");
 
   const submit = async (openAfter: boolean) => {
     if (!name.trim() || !groupId) return;

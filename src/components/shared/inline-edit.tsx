@@ -40,17 +40,23 @@ export function InlineEdit({
   selectOnFocus = true,
 }: InlineEditProps) {
   const [draft, setDraft] = React.useState(value);
+  const [wasEditing, setWasEditing] = React.useState(editing);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
+  // Re-seed the draft from the current value whenever editing starts (render-time sync).
+  if (editing !== wasEditing) {
+    setWasEditing(editing);
+    if (editing) setDraft(value);
+  }
+
   React.useEffect(() => {
-    if (editing) {
-      setDraft(value);
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        if (selectOnFocus) inputRef.current?.select();
-      });
-    }
-  }, [editing, value, selectOnFocus]);
+    if (!editing) return;
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      if (selectOnFocus) inputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editing, selectOnFocus]);
 
   const commit = () => {
     const next = draft.trim();

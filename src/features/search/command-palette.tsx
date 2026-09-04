@@ -32,10 +32,6 @@ export function CommandPalette() {
     staleTime: 5_000,
   });
 
-  React.useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
-
   const go = (href: string) => {
     setOpen(false);
     router.push(href);
@@ -47,7 +43,14 @@ export function CommandPalette() {
   const hasResults = visibleBoards.length + visibleItems.length + (data?.teams.length ?? 0) + (data?.users.length ?? 0) > 0;
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog
+      shouldFilter={false}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
       <CommandInput placeholder="Search boards, items, teams and people…" value={query} onValueChange={setQuery} />
       <CommandList>
         {debounced.length > 0 && !results.isLoading && !hasResults && <CommandEmpty>No results for “{debounced}”.</CommandEmpty>}

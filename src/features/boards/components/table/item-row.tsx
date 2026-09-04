@@ -273,7 +273,7 @@ function SubitemRows({
   return (
     <div className="bg-surface/60" data-testid="subitems">
       {subitems.map((sub) => (
-        <SubitemRow key={sub.id} item={sub} group={group} widthOverrides={widthOverrides} />
+        <SubitemRow key={sub.id} item={sub} widthOverrides={widthOverrides} />
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
@@ -307,7 +307,7 @@ function SubitemRows({
   );
 }
 
-function SubitemRow({ item, group, widthOverrides }: { item: Item; group: BoardGroup; widthOverrides: Record<string, number> }) {
+function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
   const { model, mutations, canEdit, openItem } = useBoardContext();
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);

@@ -1,6 +1,6 @@
 import type { Activity, ActivityInput } from "@/domain";
 import type { ActivityRepository } from "@/data/repositories";
-import { newId, nowIso } from "@/lib/ids";
+import { newId } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
 
 function newestFirst(activities: Activity[]): Activity[] {

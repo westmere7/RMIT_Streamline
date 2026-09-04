@@ -72,7 +72,7 @@ export function BoardSettingsDialog({
             ))}
           </nav>
           <div className="scrollbar-thin max-h-[calc(85vh-80px)] flex-1 overflow-y-auto p-5">
-            {section === "general" && <GeneralSection board={board} manage={manage} />}
+            {section === "general" && <GeneralSection key={`${board.name}|${board.description ?? ""}`} board={board} manage={manage} />}
             {section === "members" && <MembersSection board={board} manage={manage} />}
             {section === "columns" && <ColumnsSection manage={manage} />}
             {section === "permissions" && <PermissionsSection board={board} />}
@@ -92,10 +92,6 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
   const actions = useBoardActions(board);
   const [name, setName] = React.useState(board.name);
   const [description, setDescription] = React.useState(board.description ?? "");
-  React.useEffect(() => {
-    setName(board.name);
-    setDescription(board.description ?? "");
-  }, [board.name, board.description]);
   const dirty = name.trim() !== board.name || description.trim() !== (board.description ?? "");
   return (
     <div className="space-y-4">

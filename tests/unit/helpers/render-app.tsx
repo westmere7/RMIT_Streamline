@@ -4,7 +4,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui";
 import * as React from "react";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { AuthProviderContext } from "@/features/auth/auth-context";
+import { AuthProviderContext, useAuth } from "@/features/auth/auth-context";
 import { LocalAuthProvider } from "@/features/auth/providers/local-auth-provider";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
@@ -42,7 +42,9 @@ export async function createTestApp(userKey: keyof typeof SEED_USER_IDS = "danh"
           <DataProviderContext value={data}>
             <AuthProviderContext>
               <TooltipPrimitive.Provider>
-                <WorkspaceProvider workspace={workspace}>{ui}</WorkspaceProvider>
+                <AuthGate>
+                  <WorkspaceProvider workspace={workspace}>{ui}</WorkspaceProvider>
+                </AuthGate>
               </TooltipPrimitive.Provider>
             </AuthProviderContext>
           </DataProviderContext>
@@ -53,6 +55,13 @@ export async function createTestApp(userKey: keyof typeof SEED_USER_IDS = "danh"
       return result;
     },
   };
+}
+
+/** Renders children only once the local session has resolved to a user. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { status } = useAuth();
+  if (status !== "signed-in") return null;
+  return <>{children}</>;
 }
 
 /** Marker rendered once the workspace context is ready. */
@@ -82,7 +91,7 @@ export function TestBoard({ boardId, children, openItem }: TestBoardProps) {
     () => (snapshot.data ? buildBoardModel(snapshot.data, { search: "", filters: EMPTY_FILTERS, sort: null, now }) : null),
     [snapshot.data, now],
   );
-  if (!model) return <span data-testid="app-ready" hidden />;
+  if (!model) return <span data-testid="app-loading" hidden />;
   const value: BoardContextValue = {
     board,
     model,

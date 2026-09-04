@@ -18,13 +18,13 @@ export function DeleteBoardDialog({
   onConfirm: () => Promise<void>;
 }) {
   const [typed, setTyped] = React.useState("");
-  React.useEffect(() => {
-    if (!open) setTyped("");
-  }, [open]);
   return (
     <ConfirmDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next) setTyped("");
+        onOpenChange(next);
+      }}
       title={`Delete “${board.name}”?`}
       description="This permanently deletes the board with all of its groups, items, updates and files. This cannot be undone."
       confirmLabel="Delete board"

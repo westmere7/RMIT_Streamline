@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -44,6 +44,17 @@ export interface CreateBoardDialogProps {
 }
 
 export function CreateBoardDialog({ open, onOpenChange, defaultTeamId }: CreateBoardDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
+        {/* The form lives inside the content so it mounts fresh (with default values) every time the dialog opens. */}
+        <CreateBoardForm onOpenChange={onOpenChange} defaultTeamId={defaultTeamId} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialogProps, "open">) {
   const ws = useWorkspace();
   const user = useCurrentUser();
   const services = useServices();
@@ -61,10 +72,6 @@ export function CreateBoardDialog({ open, onOpenChange, defaultTeamId }: CreateB
       icon: "layout-grid",
     },
   });
-
-  React.useEffect(() => {
-    if (open) form.reset({ name: "", teamId: defaultTeamId ?? NO_TEAM, visibility: "WORKSPACE", templateId: "blank", color: "blue", icon: "layout-grid" });
-  }, [open, defaultTeamId, form]);
 
   const create = useMutation({
     mutationFn: (values: FormValues) =>
@@ -90,13 +97,12 @@ export function CreateBoardDialog({ open, onOpenChange, defaultTeamId }: CreateB
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create board"),
   });
 
-  const teamId = form.watch("teamId");
-  const visibility = form.watch("visibility");
+  const teamId = useWatch({ control: form.control, name: "teamId" });
+  const visibility = useWatch({ control: form.control, name: "visibility" });
   const activeTeams = ws.teams.filter((t) => t.archivedAt === null);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+    <>
         <DialogHeader>
           <DialogTitle>Create board</DialogTitle>
           <DialogDescription>Boards hold groups of items. Pick a template to start with sensible columns.</DialogDescription>
@@ -215,7 +221,6 @@ export function CreateBoardDialog({ open, onOpenChange, defaultTeamId }: CreateB
             {create.isPending ? "Creating…" : "Create Board"}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }
