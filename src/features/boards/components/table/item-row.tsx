@@ -4,19 +4,12 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
+import { type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
@@ -57,186 +50,212 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
     disabled: !dndEnabled,
   });
 
+  // Shared by the hover "…" button and the right-click menu on the row.
+  const actions: MenuAction[] = canEdit
+    ? [
+        { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+        { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => setRenaming(true) },
+        {
+          type: "item",
+          label: "Add subitem",
+          icon: <Plus />,
+          onSelect: () => {
+            setAddingSubitem(true);
+            if (!expanded) toggleExpanded(board.id, item.id);
+          },
+        },
+        { type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) },
+        {
+          type: "item",
+          label: "Link to another item…",
+          icon: <Link2 />,
+          onSelect: () => {
+            setLinkDialogItem(item.id);
+            openItem(item.id);
+          },
+        },
+        {
+          type: "sub",
+          label: "Move to group",
+          icon: <CornerDownRight />,
+          items: model.groups
+            .filter((g) => g.id !== group.id)
+            .map((g) => ({
+              type: "item" as const,
+              label: g.name,
+              icon: <span className={cn("size-2.5 rounded-full", colorClasses(g.color).dot)} />,
+              onSelect: () => void mutations.moveItemsToGroup([item.id], g.id),
+            })),
+        },
+        { type: "separator" },
+        { type: "item", label: "Archive", icon: <Archive />, onSelect: () => void mutations.archiveItems([item.id]) },
+        { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
+      ]
+    : [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }];
+
   return (
     <>
-      <div
-        ref={setNodeRef}
-        style={{ transform: CSS.Transform.toString(transform), transition, height: TABLE_LAYOUT.rowHeight }}
-        role="row"
-        aria-selected={selected}
-        data-testid="item-row"
-        data-item-name={item.name}
-        className={cn("group/row flex border-b bg-background hover:bg-accent/50", selected && "bg-blue-50/70 hover:bg-blue-50 dark:bg-navy-500/25 dark:hover:bg-navy-500/35", isDragging && "opacity-40", done && "text-muted-foreground")}
-      >
-        <div
-          role="gridcell"
-          className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50", selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35")}
-          style={leadingCellStyle()}
-        >
-          <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
-          <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
-            <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
-          </div>
-          <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.handleWidth }}>
-            {dndEnabled && (
-              <button
-                ref={setActivatorNodeRef}
-                type="button"
-                aria-label={`Drag ${item.name}`}
-                className="flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/70 hover:!text-foreground focus-visible:text-muted-foreground active:cursor-grabbing"
-                {...attributes}
-                {...listeners}
-              >
-                <GripVertical className="size-4" />
-              </button>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            ref={setNodeRef}
+            style={{ transform: CSS.Transform.toString(transform), transition, height: TABLE_LAYOUT.rowHeight }}
+            role="row"
+            aria-selected={selected}
+            data-testid="item-row"
+            data-item-name={item.name}
+            className={cn(
+              "group/row flex border-b bg-background hover:bg-accent/50",
+              selected && "bg-blue-50/70 hover:bg-blue-50 dark:bg-navy-500/25 dark:hover:bg-navy-500/35",
+              isDragging && "opacity-40",
+              done && "text-muted-foreground",
             )}
-          </div>
-          <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
-            <button
-              type="button"
-              aria-label={expanded ? "Hide subitems" : subitems.length ? `Show ${subitems.length} subitems` : "Add subitem"}
-              onClick={() => {
-                if (subitems.length === 0) {
-                  if (!canEdit) return;
-                  setAddingSubitem(true);
-                  if (!expanded) toggleExpanded(board.id, item.id);
-                } else toggleExpanded(board.id, item.id);
-              }}
+          >
+            <div
+              role="gridcell"
               className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground",
-                subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                "sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50",
+                selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35",
               )}
+              style={leadingCellStyle()}
             >
-              {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
-            </button>
-            <div className="flex h-full min-w-0 flex-1 items-center">
-              {renaming ? (
-                <InlineEdit
-                  value={item.name}
-                  editing
-                  onEditingChange={setRenaming}
-                  onSubmit={(name) => void mutations.renameItem(item.id, name)}
-                  ariaLabel="Item name"
-                  inputClassName="h-7 text-[13px]"
-                />
-              ) : (
+              <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
+              <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
+                <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
+              </div>
+              <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.handleWidth }}>
+                {dndEnabled && (
+                  <button
+                    ref={setActivatorNodeRef}
+                    type="button"
+                    aria-label={`Drag ${item.name}`}
+                    className="flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/70 hover:!text-foreground focus-visible:text-muted-foreground active:cursor-grabbing"
+                    {...attributes}
+                    {...listeners}
+                  >
+                    <GripVertical className="size-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
                 <button
                   type="button"
-                  onClick={() => openItem(item.id)}
-                  onDoubleClick={(e) => {
-                    if (!canEdit) return;
-                    e.preventDefault();
-                    setRenaming(true);
+                  aria-label={expanded ? "Hide subitems" : subitems.length ? `Show ${subitems.length} subitems` : "Add subitem"}
+                  onClick={() => {
+                    if (subitems.length === 0) {
+                      if (!canEdit) return;
+                      setAddingSubitem(true);
+                      if (!expanded) toggleExpanded(board.id, item.id);
+                    } else toggleExpanded(board.id, item.id);
                   }}
-                  title={item.name}
-                  data-testid="item-name"
-                  className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring", done && "line-through decoration-muted-foreground/40")}
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground",
+                    subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                  )}
                 >
-                  {item.name}
+                  {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
                 </button>
-              )}
-            </div>
-            {blocked && (
-              <SimpleTooltip label="Blocked: depends on items that are not done">
-                <span className="text-amber-600 dark:text-amber-400" aria-label="Blocked">
-                  <TriangleAlert className="size-3.5" />
-                </span>
-              </SimpleTooltip>
-            )}
-            {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
-            {subitems.length > 0 && <span className="rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
-            <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-              {canEdit && (
-                <SimpleTooltip label="Rename">
-                  <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
-                    <Pencil className="size-3.5" />
-                  </button>
-                </SimpleTooltip>
-              )}
-              <SimpleTooltip label="Open">
-                <button type="button" aria-label={`Open ${item.name}`} onClick={() => openItem(item.id)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
-                  <Maximize2 className="size-3.5" />
-                </button>
-              </SimpleTooltip>
-              {canEdit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button type="button" aria-label={`More actions for ${item.name}`} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
-                      <MoreHorizontal className="size-3.5" />
+                <div className="flex h-full min-w-0 flex-1 items-center">
+                  {renaming ? (
+                    <InlineEdit
+                      value={item.name}
+                      editing
+                      onEditingChange={setRenaming}
+                      onSubmit={(name) => void mutations.renameItem(item.id, name)}
+                      ariaLabel="Item name"
+                      inputClassName="h-7 text-[13px]"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openItem(item.id)}
+                      onDoubleClick={(e) => {
+                        if (!canEdit) return;
+                        e.preventDefault();
+                        setRenaming(true);
+                      }}
+                      title={item.name}
+                      data-testid="item-name"
+                      className={cn(
+                        "min-w-0 flex-1 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring",
+                        done && "line-through decoration-muted-foreground/40",
+                      )}
+                    >
+                      {item.name}
                     </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem onSelect={() => openItem(item.id)}>
-                      <Maximize2 /> Open
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setRenaming(true)}>
-                      <Pencil /> Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setAddingSubitem(true);
-                        if (!expanded) toggleExpanded(board.id, item.id);
-                      }}
+                  )}
+                </div>
+                {blocked && (
+                  <SimpleTooltip label="Blocked: depends on items that are not done">
+                    <span className="text-amber-600 dark:text-amber-400" aria-label="Blocked">
+                      <TriangleAlert className="size-3.5" />
+                    </span>
+                  </SimpleTooltip>
+                )}
+                {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+                {subitems.length > 0 && <span className="rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
+                <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                  {canEdit && (
+                    <SimpleTooltip label="Rename">
+                      <button
+                        type="button"
+                        aria-label={`Rename ${item.name}`}
+                        onClick={() => setRenaming(true)}
+                        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    </SimpleTooltip>
+                  )}
+                  <SimpleTooltip label="Open">
+                    <button
+                      type="button"
+                      aria-label={`Open ${item.name}`}
+                      onClick={() => openItem(item.id)}
+                      className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground"
                     >
-                      <Plus /> Add subitem
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
-                      <Copy /> Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setLinkDialogItem(item.id);
-                        openItem(item.id);
-                      }}
-                    >
-                      <Link2 /> Link to another item…
-                    </DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <CornerDownRight /> Move to group
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {model.groups
-                          .filter((g) => g.id !== group.id)
-                          .map((g) => (
-                            <DropdownMenuItem key={g.id} onSelect={() => void mutations.moveItemsToGroup([item.id], g.id)}>
-                              <span className={cn("size-2.5 rounded-full", colorClasses(g.color).dot)} /> {g.name}
-                            </DropdownMenuItem>
-                          ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => void mutations.archiveItems([item.id])}>
-                      <Archive /> Archive
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                      <Trash2 /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                      <Maximize2 className="size-3.5" />
+                    </button>
+                  </SimpleTooltip>
+                  {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`More actions for ${item.name}`}
+                          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground"
+                        >
+                          <MoreHorizontal className="size-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-52">
+                        {renderDropdown(actions)}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {model.visibleColumns.map((column) => (
+              <CellRenderer
+                key={column.id}
+                item={item}
+                column={column}
+                width={widthOverrides[column.id] ?? column.width}
+                value={model.getValue(item.id, column.id)}
+                onChange={(value) => void mutations.setValue(item, column, value)}
+                readOnly={!canEdit}
+                isDone={done}
+              />
+            ))}
+            <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
           </div>
-        </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-52">{renderContext(actions)}</ContextMenuContent>
+      </ContextMenu>
 
-        {model.visibleColumns.map((column) => (
-          <CellRenderer
-            key={column.id}
-            item={item}
-            column={column}
-            width={widthOverrides[column.id] ?? column.width}
-            value={model.getValue(item.id, column.id)}
-            onChange={(value) => void mutations.setValue(item, column, value)}
-            readOnly={!canEdit}
-            isDone={done}
-          />
-        ))}
-        <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
-      </div>
-
-      {expanded && (
-        <SubitemRows parent={item} group={group} subitems={subitems} widthOverrides={widthOverrides} adding={addingSubitem} onAddingChange={setAddingSubitem} />
-      )}
+      {expanded && <SubitemRows parent={item} group={group} subitems={subitems} widthOverrides={widthOverrides} adding={addingSubitem} onAddingChange={setAddingSubitem} />}
 
       <ConfirmDialog
         open={confirmDelete}
@@ -256,7 +275,13 @@ function LinkIndicator({ count, onClick }: { count: number; onClick: () => void 
   const label = count === 1 ? "Linked to an item on another board" : `Linked to ${count} items on other boards`;
   return (
     <SimpleTooltip label={label}>
-      <button type="button" onClick={onClick} aria-label={label} data-testid="link-indicator" className="flex h-5 shrink-0 items-center gap-0.5 rounded px-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        data-testid="link-indicator"
+        className="flex h-5 shrink-0 items-center gap-0.5 rounded px-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+      >
         <Link2 className="size-3.5" />
         {count > 1 && <span className="text-2xs tabular">{count}</span>}
       </button>
@@ -340,54 +365,93 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
+  const actions: MenuAction[] = [
+    { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+    ...(canEdit
+      ? ([
+          { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => setRenaming(true) },
+          { type: "separator" },
+          { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
+        ] as MenuAction[])
+      : []),
+  ];
   return (
-    <div role="row" data-testid="subitem-row" className={cn("group/row flex border-b hover:bg-accent/40", done && "text-muted-foreground")} style={{ height: 32 }}>
-      <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={leadingCellStyle()}>
-        <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
-        <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
-          {renaming ? (
-            <InlineEdit value={item.name} editing onEditingChange={setRenaming} onSubmit={(name) => void mutations.renameItem(item.id, name)} ariaLabel="Subitem name" inputClassName="h-6 text-xs" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => openItem(item.id)}
-              onDoubleClick={(e) => {
-                if (!canEdit) return;
-                e.preventDefault();
-                setRenaming(true);
-              }}
-              className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
-            >
-              {item.name}
-            </button>
-          )}
-          {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
-          {canEdit && (
-            <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-              <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
-                <Pencil className="size-3" />
-              </button>
-              <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-destructive">
-                <Trash2 className="size-3" />
-              </button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div role="row" data-testid="subitem-row" className={cn("group/row flex border-b hover:bg-accent/40", done && "text-muted-foreground")} style={{ height: 32 }}>
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={leadingCellStyle()}>
+            <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
+            <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
+              {renaming ? (
+                <InlineEdit
+                  value={item.name}
+                  editing
+                  onEditingChange={setRenaming}
+                  onSubmit={(name) => void mutations.renameItem(item.id, name)}
+                  ariaLabel="Subitem name"
+                  inputClassName="h-6 text-xs"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openItem(item.id)}
+                  onDoubleClick={(e) => {
+                    if (!canEdit) return;
+                    e.preventDefault();
+                    setRenaming(true);
+                  }}
+                  className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
+                >
+                  {item.name}
+                </button>
+              )}
+              {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+              {canEdit && (
+                <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                  <button
+                    type="button"
+                    aria-label={`Rename ${item.name}`}
+                    onClick={() => setRenaming(true)}
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground"
+                  >
+                    <Pencil className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${item.name}`}
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+          {model.visibleColumns.map((column) => (
+            <CellRenderer
+              key={column.id}
+              item={item}
+              column={column}
+              width={widthOverrides[column.id] ?? column.width}
+              value={model.getValue(item.id, column.id)}
+              onChange={(value) => void mutations.setValue(item, column, value)}
+              readOnly={!canEdit}
+              isDone={done}
+            />
+          ))}
+          <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={`Delete “${item.name}”?`}
+            confirmLabel="Delete subitem"
+            destructive
+            onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
+          />
         </div>
-      </div>
-      {model.visibleColumns.map((column) => (
-        <CellRenderer
-          key={column.id}
-          item={item}
-          column={column}
-          width={widthOverrides[column.id] ?? column.width}
-          value={model.getValue(item.id, column.id)}
-          onChange={(value) => void mutations.setValue(item, column, value)}
-          readOnly={!canEdit}
-          isDone={done}
-        />
-      ))}
-      <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
-      <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={`Delete “${item.name}”?`} confirmLabel="Delete subitem" destructive onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)} />
-    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">{renderContext(actions)}</ContextMenuContent>
+    </ContextMenu>
   );
 }

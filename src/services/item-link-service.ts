@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { columnLabels, emptyValueFor, isEmptyValue, otherEndOf } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, columnLabels, emptyValueFor, isEmptyValue, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
@@ -31,13 +31,24 @@ export interface LinkCandidate {
   linked: boolean;
 }
 
-export type LinkChange = { kind: "name"; name: string } | { kind: "description"; description: string | null } | { kind: "value"; columnId: EntityId; value: ColumnValue };
+export interface LinkSearch {
+  hits: LinkCandidate[];
+  /** Boards already represented in the item's chain; a second item there is not allowed. */
+  blockedBoardIds: EntityId[];
+}
+
+export type LinkChange =
+  | { kind: "name"; name: string }
+  | { kind: "description"; description: string | null }
+  | { kind: "value"; columnId: EntityId; value: ColumnValue };
 
 export type LinkValidation = { ok: true } | { ok: false; reason: string };
 
 export interface LinkOptions {
   /** Which side's values fill in the other's when the link is created. */
   seedFrom: "item" | "target";
+  /** Fields that must not sync across this link: "name", "description" or column ids from either board. */
+  excluded?: string[];
 }
 
 interface BoardBundle {
@@ -48,8 +59,10 @@ interface BoardBundle {
 
 /**
  * Task Linking. Links are symmetric and transitive: a change to any item in a
- * connected set is mirrored to every other item in that set, one write per item,
- * so there is no fan-out loop. Subitems of a linked item are never touched.
+ * connected set is mirrored to every other item it can reach, one write per item,
+ * so there is no fan-out loop. Each link can switch individual fields off, which
+ * also stops that field travelling further along the chain. Subitems of a linked
+ * item are never touched, and a chain never holds two items from the same board.
  */
 export class ItemLinkService {
   constructor(private readonly repos: Repositories) {}
@@ -91,21 +104,32 @@ export class ItemLinkService {
     return mapColumns(a, b);
   }
 
-  /** Items on other boards in the workspace whose name matches `query`. */
-  async searchCandidates(workspaceId: EntityId, itemId: EntityId, query: string, limit = 40): Promise<LinkCandidate[]> {
+  /**
+   * Items on other boards whose name matches `query`. With `boardId` the whole
+   * board is returned in group-then-position order for browsing; without it the
+   * first `limit` hits across all boards. Boards already in the item's chain are
+   * left out (and reported) because a chain may only hold one item per board.
+   */
+  async searchCandidates(workspaceId: EntityId, itemId: EntityId, query: string, options: { boardId?: string | null; limit?: number } = {}): Promise<LinkSearch> {
     const needle = query.trim().toLowerCase();
+    const limit = options.limit ?? (options.boardId ? 500 : 40);
     const item = await this.repos.items.getById(itemId);
-    if (!item) return [];
-    const [boards, links] = await Promise.all([this.repos.boards.listByWorkspace(workspaceId), this.repos.links.listByItem(itemId)]);
+    if (!item) return { hits: [], blockedBoardIds: [] };
+    const [boards, links, chain] = await Promise.all([this.repos.boards.listByWorkspace(workspaceId), this.repos.links.listByItem(itemId), this.chainItems(itemId)]);
     const linkedIds = new Set(links.map((l) => otherEndOf(l, itemId)));
-    const results: LinkCandidate[] = [];
+    const blockedBoardIds = [...new Set(chain.map((i) => i.boardId))];
+    const blocked = new Set(blockedBoardIds);
+    const hits: LinkCandidate[] = [];
     for (const board of boards) {
-      if (board.archivedAt !== null || board.id === item.boardId) continue;
+      if (board.archivedAt !== null || blocked.has(board.id)) continue;
+      if (options.boardId && board.id !== options.boardId) continue;
       const [items, columns, groups] = await Promise.all([this.repos.items.listByBoard(board.id), this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id)]);
-      for (const candidate of items) {
+      const groupOrder = new Map(groups.map((g) => [g.id, g.position]));
+      const ordered = [...items].sort((a, b) => (groupOrder.get(a.groupId) ?? 0) - (groupOrder.get(b.groupId) ?? 0) || a.position - b.position);
+      for (const candidate of ordered) {
         if (needle && !candidate.name.toLowerCase().includes(needle)) continue;
         const itemValues = await this.repos.items.listValuesByItem(candidate.id);
-        results.push({
+        hits.push({
           item: candidate,
           board,
           group: groups.find((g) => g.id === candidate.groupId) ?? null,
@@ -113,10 +137,10 @@ export class ItemLinkService {
           status: statusOf(columns, itemValues),
           linked: linkedIds.has(candidate.id),
         });
-        if (results.length >= limit) return results;
+        if (hits.length >= limit) return { hits, blockedBoardIds };
       }
     }
-    return results;
+    return { hits, blockedBoardIds };
   }
 
   // ---- Link / unlink -------------------------------------------------------
@@ -125,25 +149,26 @@ export class ItemLinkService {
     if (itemId === targetId) return { ok: false, reason: "An item cannot be linked to itself." };
     const [item, target] = await Promise.all([this.repos.items.getById(itemId), this.repos.items.getById(targetId)]);
     if (!item || !target) return { ok: false, reason: "One of the items no longer exists." };
-    if (item.parentItemId === targetId || target.parentItemId === itemId)
-      return {
-        ok: false,
-        reason: "An item cannot be linked to its own subitem.",
-      };
-    if (item.boardId === target.boardId)
-      return {
-        ok: false,
-        reason: "Linked items must live on different boards.",
-      };
+    if (item.parentItemId === targetId || target.parentItemId === itemId) return { ok: false, reason: "An item cannot be linked to its own subitem." };
+    if (item.boardId === target.boardId) return { ok: false, reason: "Linked items must live on different boards." };
     const [boardA, boardB] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(target.boardId)]);
     if (!boardA || !boardB) return { ok: false, reason: "One of the boards no longer exists." };
-    if (boardA.workspaceId !== boardB.workspaceId)
-      return {
-        ok: false,
-        reason: "Items can only be linked within the same space.",
-      };
+    if (boardA.workspaceId !== boardB.workspaceId) return { ok: false, reason: "Items can only be linked within the same space." };
     const links = await this.repos.links.listByItem(itemId);
     if (links.some((l) => otherEndOf(l, itemId) === targetId)) return { ok: false, reason: "These items are already linked." };
+
+    // Joining the two chains must not put two items on one board — they would
+    // just be duplicates of each other kept in lock-step.
+    const chain = [...(await this.chainItems(itemId)), ...(await this.chainItems(targetId))];
+    const seen = new Map<EntityId, Item>();
+    for (const member of chain) {
+      const clash = seen.get(member.boardId);
+      if (clash && clash.id !== member.id) {
+        const board = await this.repos.boards.getById(member.boardId);
+        return { ok: false, reason: `This would put two linked items on ${board?.name ?? "the same board"} (${clash.name} and ${member.name}).` };
+      }
+      seen.set(member.boardId, member);
+    }
     return { ok: true };
   }
 
@@ -157,20 +182,16 @@ export class ItemLinkService {
       workspaceId: boardA.workspaceId,
       itemIds: [itemId, targetId],
       createdBy: actorId,
+      excluded: options.excluded ?? [],
     });
     // Whoever owned the target before seeding is told their item is now mirrored.
     const targetOwners = await this.ownersOf(target);
 
     const [source, dest] = options.seedFrom === "item" ? [item, target] : [target, item];
-    await this.fillFrom(source, dest);
+    await this.fillFrom(source, dest, new Set(link.excluded));
     // The pair (and anything already linked to either side) now agrees; push the
     // merged state through the whole connected set.
-    const merged = await this.getItem(source.id);
-    await this.propagate(merged.id, { kind: "name", name: merged.name }, actorId, { silent: true });
-    await this.propagate(merged.id, { kind: "description", description: merged.description }, actorId, { silent: true });
-    for (const v of await this.repos.items.listValuesByItem(merged.id)) {
-      await this.propagate(merged.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, { silent: true });
-    }
+    await this.resyncFrom(source.id, actorId);
 
     const users = await this.repos.users.list();
     const actorName = users.find((u) => u.id === actorId)?.firstName ?? "Someone";
@@ -191,6 +212,25 @@ export class ItemLinkService {
     return link;
   }
 
+  /**
+   * Changes which fields a link carries. Fields switched back on are filled in
+   * from `fromItemId`'s side (non-destructively) so the pair agrees again.
+   */
+  async setExcluded(linkId: EntityId, excluded: string[], fromItemId: EntityId, actorId: EntityId): Promise<ItemLink> {
+    const before = await this.repos.links.getById(linkId);
+    if (!before) throw new NotFoundError("ItemLink", linkId);
+    const link = await this.repos.links.update(linkId, { excluded: [...new Set(excluded)] });
+    const reenabled = before.excluded.filter((f) => !link.excluded.includes(f));
+    if (reenabled.length > 0) {
+      const source = await this.getItem(fromItemId);
+      const dest = await this.getItem(otherEndOf(link, fromItemId));
+      // Fill only the fields that just came back: everything still excluded stays put.
+      await this.fillFrom(source, dest, new Set(link.excluded));
+      await this.resyncFrom(source.id, actorId);
+    }
+    return link;
+  }
+
   async unlink(linkId: EntityId, actorId: EntityId): Promise<void> {
     const link = await this.repos.links.getById(linkId);
     if (!link) return;
@@ -206,6 +246,11 @@ export class ItemLinkService {
 
   /** Every item reachable through links from `itemId`, excluding itself. */
   async connectedItemIds(itemId: EntityId): Promise<EntityId[]> {
+    return (await this.chainItems(itemId)).filter((i) => i.id !== itemId).map((i) => i.id);
+  }
+
+  /** The item plus everything reachable through links, regardless of field exclusions. */
+  private async chainItems(itemId: EntityId): Promise<Item[]> {
     const seen = new Set<EntityId>([itemId]);
     const queue = [itemId];
     while (queue.length) {
@@ -218,92 +263,108 @@ export class ItemLinkService {
         }
       }
     }
-    seen.delete(itemId);
-    return [...seen];
+    return this.repos.items.listByIds([...seen]);
+  }
+
+  /** Pushes every field of `itemId` through its links without recording activity (used after linking). */
+  private async resyncFrom(itemId: EntityId, actorId: EntityId): Promise<void> {
+    const item = await this.getItem(itemId);
+    await this.propagate(item.id, { kind: "name", name: item.name }, actorId, { silent: true });
+    await this.propagate(item.id, { kind: "description", description: item.description }, actorId, { silent: true });
+    for (const v of await this.repos.items.listValuesByItem(item.id)) {
+      await this.propagate(item.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, { silent: true });
+    }
   }
 
   /**
-   * Mirrors one change from `originId` onto every linked item. Returns the ids of
-   * boards that received a write so callers can refresh them. `silent` suppresses
-   * activity entries (used while seeding a brand-new link).
+   * Mirrors one change from `originId` onto every linked item it can reach.
+   * Links are walked edge by edge: an edge that excludes the changed field is not
+   * crossed, so the field also stops there for anything beyond it. Returns the
+   * boards that received a write. `silent` suppresses activity entries.
    */
   async propagate(originId: EntityId, change: LinkChange, actorId: EntityId, options: { silent?: boolean } = {}): Promise<EntityId[]> {
-    const targets = await this.connectedItemIds(originId);
-    if (targets.length === 0) return [];
     const origin = await this.getItem(originId);
     const boards = new Map<EntityId, BoardBundle>();
     const originBundle = await this.bundle(origin.boardId, boards);
     if (!originBundle) return [];
+    const originColumn = change.kind === "value" ? (originBundle.columns.find((c) => c.id === change.columnId) ?? null) : null;
+    if (change.kind === "value" && !originColumn) return [];
+
     const users = change.kind === "value" && !options.silent ? await this.repos.users.list() : [];
     const touched = new Set<EntityId>();
     const activities: ActivityInput[] = [];
 
-    for (const targetId of targets) {
-      const target = await this.repos.items.getById(targetId);
-      if (!target) continue;
-      const bundle = await this.bundle(target.boardId, boards);
-      if (!bundle) continue;
+    // Breadth-first over links, remembering which column the change lives in at each hop.
+    const visited = new Set<EntityId>([origin.id]);
+    const queue: Array<{ item: Item; bundle: BoardBundle; column: BoardColumn | null }> = [{ item: origin, bundle: originBundle, column: originColumn }];
 
-      if (change.kind === "name") {
-        if (target.name === change.name) continue;
-        await this.repos.items.update(target.id, { name: change.name });
-        touched.add(target.boardId);
-        if (!options.silent) {
-          activities.push({
-            workspaceId: bundle.board.workspaceId,
-            boardId: target.boardId,
-            itemId: target.id,
-            actorId,
-            eventType: "ITEM_RENAMED",
-            metadata: {
-              from: target.name,
-              to: change.name,
-              itemName: change.name,
-              syncedFrom: origin.name,
-            },
-          });
+    while (queue.length) {
+      const node = queue.shift()!;
+      for (const link of await this.repos.links.listByItem(node.item.id)) {
+        const nextId = otherEndOf(link, node.item.id);
+        if (visited.has(nextId)) continue;
+        const excluded = new Set(link.excluded);
+        if (change.kind === "name" && excluded.has(LINK_FIELD_NAME)) continue;
+        if (change.kind === "description" && excluded.has(LINK_FIELD_DESCRIPTION)) continue;
+
+        const next = await this.repos.items.getById(nextId);
+        if (!next) continue;
+        const bundle = await this.bundle(next.boardId, boards);
+        if (!bundle) continue;
+
+        let nextColumn: BoardColumn | null = null;
+        if (change.kind === "value") {
+          const pair = node.column ? mapColumns(node.bundle.columns, bundle.columns).mapped.find((m) => m.source.id === node.column!.id) : undefined;
+          if (!pair || excluded.has(pair.source.id) || excluded.has(pair.target.id)) continue;
+          nextColumn = pair.target;
         }
-        continue;
-      }
 
-      if (change.kind === "description") {
-        if ((target.description ?? null) === (change.description ?? null)) continue;
-        await this.repos.items.update(target.id, {
-          description: change.description,
-        });
-        touched.add(target.boardId);
-        continue;
-      }
+        visited.add(nextId);
+        queue.push({ item: next, bundle, column: nextColumn });
 
-      const sourceColumn = originBundle.columns.find((c) => c.id === change.columnId);
-      if (!sourceColumn) continue;
-      const pair = mapColumns(originBundle.columns, bundle.columns).mapped.find((m) => m.source.id === sourceColumn.id);
-      if (!pair) continue;
-      const translated = translateValue(change.value, sourceColumn, pair.target);
-      if (translated.kind === "skip") continue;
-      const existing = (await this.repos.items.listValuesByItem(target.id)).find((v) => v.columnId === pair.target.id);
-      if (valuesEqual(existing?.value, translated.value)) continue;
-      await this.repos.items.setValue(target.id, pair.target.id, translated.value);
-      touched.add(target.boardId);
-      if (!options.silent) {
-        const from = displayValue(pair.target, existing?.value ?? emptyValueFor(pair.target.type), users);
-        const to = displayValue(pair.target, translated.value, users);
-        if (from !== to) {
-          activities.push({
-            workspaceId: bundle.board.workspaceId,
-            boardId: target.boardId,
-            itemId: target.id,
-            actorId,
-            eventType: "ITEM_COLUMN_VALUE_UPDATED",
-            metadata: {
-              itemName: target.name,
-              columnName: pair.target.name,
-              columnType: pair.target.type,
-              from,
-              to,
-              syncedFrom: origin.name,
-            },
-          });
+        if (change.kind === "name") {
+          if (next.name === change.name) continue;
+          await this.repos.items.update(next.id, { name: change.name });
+          touched.add(next.boardId);
+          if (!options.silent) {
+            activities.push({
+              workspaceId: bundle.board.workspaceId,
+              boardId: next.boardId,
+              itemId: next.id,
+              actorId,
+              eventType: "ITEM_RENAMED",
+              metadata: { from: next.name, to: change.name, itemName: change.name, syncedFrom: origin.name },
+            });
+          }
+          continue;
+        }
+
+        if (change.kind === "description") {
+          if ((next.description ?? null) === (change.description ?? null)) continue;
+          await this.repos.items.update(next.id, { description: change.description });
+          touched.add(next.boardId);
+          continue;
+        }
+
+        const translated = translateValue(change.value, originColumn!, nextColumn!);
+        if (translated.kind === "skip") continue;
+        const existing = (await this.repos.items.listValuesByItem(next.id)).find((v) => v.columnId === nextColumn!.id);
+        if (valuesEqual(existing?.value, translated.value)) continue;
+        await this.repos.items.setValue(next.id, nextColumn!.id, translated.value);
+        touched.add(next.boardId);
+        if (!options.silent) {
+          const from = displayValue(nextColumn!, existing?.value ?? emptyValueFor(nextColumn!.type), users);
+          const to = displayValue(nextColumn!, translated.value, users);
+          if (from !== to) {
+            activities.push({
+              workspaceId: bundle.board.workspaceId,
+              boardId: next.boardId,
+              itemId: next.id,
+              actorId,
+              eventType: "ITEM_COLUMN_VALUE_UPDATED",
+              metadata: { itemName: next.name, columnName: nextColumn!.name, columnType: nextColumn!.type, from, to, syncedFrom: origin.name },
+            });
+          }
         }
       }
     }
@@ -317,26 +378,20 @@ export class ItemLinkService {
   /**
    * Makes a freshly linked pair agree without destroying anything: `source` wins
    * wherever it has a value, and `dest` fills the gaps `source` left empty.
+   * Excluded fields are left exactly as they are on both sides.
    */
-  private async fillFrom(source: Item, dest: Item): Promise<void> {
-    if (dest.name !== source.name) await this.repos.items.update(dest.id, { name: source.name });
-    if (source.description && dest.description !== source.description)
-      await this.repos.items.update(dest.id, {
-        description: source.description,
-      });
-    else if (!source.description && dest.description)
-      await this.repos.items.update(source.id, {
-        description: dest.description,
-      });
+  private async fillFrom(source: Item, dest: Item, excluded: ReadonlySet<string>): Promise<void> {
+    if (!excluded.has(LINK_FIELD_NAME) && dest.name !== source.name) await this.repos.items.update(dest.id, { name: source.name });
+    if (!excluded.has(LINK_FIELD_DESCRIPTION)) {
+      if (source.description && dest.description !== source.description) await this.repos.items.update(dest.id, { description: source.description });
+      else if (!source.description && dest.description) await this.repos.items.update(source.id, { description: dest.description });
+    }
 
     const [sourceColumns, destColumns] = await Promise.all([this.repos.boards.listColumns(source.boardId), this.repos.boards.listColumns(dest.boardId)]);
     const [sourceValues, destValues] = await Promise.all([this.repos.items.listValuesByItem(source.id), this.repos.items.listValuesByItem(dest.id)]);
-    const writes: Array<{
-      itemId: EntityId;
-      columnId: EntityId;
-      value: ColumnValue;
-    }> = [];
+    const writes: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
     for (const { source: sc, target: dc } of mapColumns(sourceColumns, destColumns).mapped) {
+      if (excluded.has(sc.id) || excluded.has(dc.id)) continue;
       const sv = sourceValues.find((v) => v.columnId === sc.id)?.value;
       const dv = destValues.find((v) => v.columnId === dc.id)?.value;
       if (!isEmptyValue(sv)) {
@@ -386,11 +441,7 @@ function linkActivity(eventType: "ITEM_LINKED" | "ITEM_UNLINKED", item: Item, bo
     itemId: item.id,
     actorId,
     eventType,
-    metadata: {
-      itemName: item.name,
-      linkedItemName: other.name,
-      linkedBoardName: otherBoard.name,
-    },
+    metadata: { itemName: item.name, linkedItemName: other.name, linkedBoardName: otherBoard.name },
   };
 }
 

@@ -17,6 +17,9 @@ create table public.item_links (
   -- Stored once per pair, smaller uuid first (see normaliseLinkPair()).
   item_a_id    uuid not null references public.items (id) on delete cascade,
   item_b_id    uuid not null references public.items (id) on delete cascade,
+  -- Fields this link does not carry: 'name', 'description' or board_columns ids
+  -- from either side (see ItemLink.excluded). Empty means everything shared syncs.
+  excluded     text[] not null default '{}',
   created_by   uuid not null references public.profiles (id),
   created_at   timestamptz not null default now(),
   constraint item_links_ordered_pair check (item_a_id < item_b_id),

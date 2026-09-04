@@ -33,7 +33,8 @@ export type MenuAction =
   | { type: "label"; label: string }
   | { type: "separator" };
 
-function renderContext(actions: MenuAction[]): React.ReactNode {
+/** Renders actions as right-click menu entries. */
+export function renderContext(actions: MenuAction[]): React.ReactNode {
   return actions.map((action, index) => {
     switch (action.type) {
       case "separator":
@@ -60,7 +61,8 @@ function renderContext(actions: MenuAction[]): React.ReactNode {
   });
 }
 
-function renderDropdown(actions: MenuAction[]): React.ReactNode {
+/** Renders the same actions inside a "…" dropdown. */
+export function renderDropdown(actions: MenuAction[]): React.ReactNode {
   return actions.map((action, index) => {
     switch (action.type) {
       case "separator":

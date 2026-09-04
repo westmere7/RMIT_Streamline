@@ -49,7 +49,7 @@ import { canCreateBoard, canCreateTeam, canDeleteBoard, canManageBoard, canManag
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/ui-store";
+import { SIDEBAR_MIN_WIDTH, useUiStore } from "@/stores/ui-store";
 
 /** Actions rows can trigger that need dialogs owned by the sidebar itself. */
 interface SidebarActions {
@@ -110,6 +110,8 @@ export function Sidebar() {
     }),
     [],
   );
+  const sidebarWidth = useUiStore((s) => s.sidebarWidth);
+  const [resizing, setResizing] = React.useState(false);
   // Keep the settings dialog's board fresh after renames/moves.
   const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
 
@@ -128,11 +130,14 @@ export function Sidebar() {
     <SidebarActionsContext.Provider value={sidebarActions}>
     <aside
       data-collapsed={collapsed}
+      style={collapsed ? undefined : { width: sidebarWidth }}
       className={cn(
-        "flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-150",
-        collapsed ? "w-14" : "w-60",
+        "relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
+        !resizing && "transition-[width] duration-150",
+        collapsed && "w-14",
       )}
     >
+      {!collapsed && <SidebarResizeHandle onResizing={setResizing} />}
       <div className={cn("flex h-12 items-center gap-2 border-b border-sidebar-border px-3", collapsed && "justify-center px-0")}>
         <Link href={routes.workspace(ws.slug)} className="flex min-w-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
           <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-white">
@@ -614,5 +619,39 @@ function TeamNode({
         </ul>
       )}
     </li>
+  );
+}
+
+/**
+ * Thin grab area on the sidebar's edge. Dragging widens the sidebar (the designed
+ * width is the minimum); double-click snaps it back.
+ */
+function SidebarResizeHandle({ onResizing }: { onResizing: (active: boolean) => void }) {
+  const setSidebarWidth = useUiStore((s) => s.setSidebarWidth);
+  const start = (event: React.PointerEvent) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = useUiStore.getState().sidebarWidth;
+    onResizing(true);
+    const onMove = (e: PointerEvent) => setSidebarWidth(startWidth + (e.clientX - startX));
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      onResizing(false);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      title="Drag to resize · double-click to reset"
+      onPointerDown={start}
+      onDoubleClick={() => setSidebarWidth(SIDEBAR_MIN_WIDTH)}
+      className="absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-ring/50 active:bg-ring"
+      data-testid="sidebar-resize"
+    />
   );
 }

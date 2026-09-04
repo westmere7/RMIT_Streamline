@@ -8,6 +8,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
 
 export function useComments(itemId: string | null) {
   const services = useServices();
@@ -30,6 +31,7 @@ export function useCommentMutations(itemId: string) {
     await queryClient.invalidateQueries({ queryKey: key });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
   };
 
   const add = useMutation({

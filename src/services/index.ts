@@ -34,7 +34,7 @@ export function createServices(repos: Repositories): Services {
 
 export type { BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
 export type { CreateBoardInput } from "./board-service";
-export type { LinkCandidate, LinkChange, LinkedItemView, LinkOptions, LinkValidation } from "./item-link-service";
+export type { LinkCandidate, LinkChange, LinkedItemView, LinkOptions, LinkSearch, LinkValidation } from "./item-link-service";
 export type { ColumnMapping, ColumnMappingReport } from "./item-link-sync";
 export type { MyWorkItem, MyWorkSection } from "./my-work-service";
 export type { SearchResults } from "./search-service";

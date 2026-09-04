@@ -126,6 +126,7 @@ export interface ItemLinkRepository {
   getById(id: EntityId): Promise<ItemLink | null>;
   /** Returns the existing link when the pair is already linked. */
   create(input: ItemLinkInput): Promise<ItemLink>;
+  update(id: EntityId, patch: Partial<Pick<ItemLink, "excluded">>): Promise<ItemLink>;
   delete(id: EntityId): Promise<void>;
 }
 

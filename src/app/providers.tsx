@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { AuthProviderContext } from "@/features/auth/auth-context";
 import { DataProviderContext } from "@/features/data/data-context";
+import { LocalRealtimeSync } from "@/features/data/local-realtime-sync";
 import { useSystemThemeSync } from "@/lib/theme";
 
 function makeQueryClient(): QueryClient {
@@ -32,6 +33,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   useSystemThemeSync();
   return (
     <QueryClientProvider client={queryClient}>
+      <LocalRealtimeSync />
       <DataProviderContext>
         <AuthProviderContext>
           <TooltipPrimitive.Provider delayDuration={300} skipDelayDuration={200}>

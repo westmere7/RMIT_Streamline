@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
 import type { LinkOptions } from "@/services";
 
 export function useItemLinks(itemId: string | null) {
@@ -19,12 +20,12 @@ export function useItemLinks(itemId: string | null) {
 }
 
 /** Items on other boards matching `query`; an empty query lists recent items so the dialog is never blank. */
-export function useLinkCandidates(itemId: string, query: string, enabled: boolean) {
+export function useLinkCandidates(itemId: string, query: string, boardId: string | null, enabled: boolean) {
   const services = useServices();
   const ws = useWorkspace();
   return useQuery({
-    queryKey: queryKeys.linkCandidates(ws.workspace.id, itemId, query),
-    queryFn: () => services.links.searchCandidates(ws.workspace.id, itemId, query),
+    queryKey: queryKeys.linkCandidates(ws.workspace.id, itemId, query, boardId),
+    queryFn: () => services.links.searchCandidates(ws.workspace.id, itemId, query, { boardId }),
     enabled,
     staleTime: 5_000,
     placeholderData: (previous) => previous,
@@ -53,6 +54,7 @@ export function useLinkMutations(itemId: string) {
     void queryClient.invalidateQueries({ queryKey: ["link-candidates"] });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    publishDataChange({ itemIds: [itemId], kinds: ["links", "items"] });
   };
 
   const link = useMutation({
@@ -68,6 +70,12 @@ export function useLinkMutations(itemId: string) {
     onSettled: settle,
   });
 
+  const updateSync = useMutation({
+    mutationFn: ({ linkId, excluded }: { linkId: string; excluded: string[] }) => services.links.setExcluded(linkId, excluded, itemId, user.id),
+    onError: (error) => toast.error("Could not update the link", { description: error instanceof Error ? error.message : undefined }),
+    onSettled: settle,
+  });
+
   const unlink = useMutation({
     mutationFn: (linkId: string) => services.links.unlink(linkId, user.id),
     onSuccess: () => toast.success("Items unlinked"),
@@ -78,5 +86,5 @@ export function useLinkMutations(itemId: string) {
     onSettled: settle,
   });
 
-  return { link, unlink };
+  return { link, unlink, updateSync };
 }

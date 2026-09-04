@@ -26,7 +26,7 @@ export const queryKeys = {
   item: (itemId: string) => ["item", itemId] as const,
   /** Linked items shown in the item panel. */
   itemLinks: (itemId: string) => ["item-links", itemId] as const,
-  linkCandidates: (workspaceId: string, itemId: string, query: string) => ["link-candidates", workspaceId, itemId, query] as const,
+  linkCandidates: (workspaceId: string, itemId: string, query: string, boardId: string | null) => ["link-candidates", workspaceId, itemId, query, boardId] as const,
   linkMapping: (boardId: string, otherBoardId: string) => ["link-mapping", boardId, otherBoardId] as const,
   comments: (itemId: string) => ["comments", itemId] as const,
   itemActivity: (itemId: string) => ["activity", "item", itemId] as const,

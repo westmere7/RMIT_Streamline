@@ -15,7 +15,8 @@ import { useEffect } from "react";
  *   return () => supabase.removeChannel(channel);
  *
  * Notifications would use a user-scoped channel on `notifications` (user_id=eq.<uid>).
- * In local mode there is nothing to subscribe to, so this is a documented no-op.
+ * In local mode cross-tab freshness comes from the BroadcastChannel in
+ * src/lib/realtime/local-realtime.ts (see LocalRealtimeSync), so this is a no-op.
  */
 export function useBoardRealtime(boardId: string | null): void {
   useEffect(() => {

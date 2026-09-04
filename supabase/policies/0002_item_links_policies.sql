@@ -42,6 +42,16 @@ create policy item_links_delete on public.item_links
     and private.can_edit_board(private.item_board(item_b_id))
   );
 
--- Links are immutable apart from deletion; no update policy on purpose.
+-- Only the field list may change after creation; both boards must be editable.
+create policy item_links_update on public.item_links
+  for update to authenticated
+  using (
+    private.can_edit_board(private.item_board(item_a_id))
+    and private.can_edit_board(private.item_board(item_b_id))
+  )
+  with check (
+    private.can_edit_board(private.item_board(item_a_id))
+    and private.can_edit_board(private.item_board(item_b_id))
+  );
 
 alter publication supabase_realtime add table public.item_links;

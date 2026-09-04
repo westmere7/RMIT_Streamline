@@ -4,14 +4,8 @@ import { ArrowLeft, ArrowRight, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucid
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { BoardColumn, BoardGroup, ColumnType } from "@/domain";
@@ -55,13 +49,7 @@ export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll,
         </div>
       </div>
       {model.visibleColumns.map((column, index) => (
-        <ColumnHeaderCell
-          key={column.id}
-          column={column}
-          index={index}
-          width={widthOverrides[column.id] ?? column.width}
-          onWidthOverride={onWidthOverride}
-        />
+        <ColumnHeaderCell key={column.id} column={column} index={index} width={widthOverrides[column.id] ?? column.width} onWidthOverride={onWidthOverride} />
       ))}
       <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.trailingWidth }}>
         {canEdit && <AddColumnMenu />}
@@ -125,82 +113,116 @@ function ColumnHeaderCell({
   const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
 
   return (
-    <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r px-1" style={columnCellStyle(width)}>
-      {canEdit ? (
-        <Popover open={renaming} onOpenChange={setRenaming}>
-          <DropdownMenu>
-            <PopoverTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="flex h-7 max-w-full items-center gap-1 truncate rounded px-1.5 hover:bg-accent hover:text-foreground" aria-label={`${column.name} column options`}>
-                  <span className="truncate">{column.name}</span>
-                </button>
-              </DropdownMenuTrigger>
-            </PopoverTrigger>
-            <DropdownMenuContent align="center" className="w-48">
-              <DropdownMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
-              <DropdownMenuItem
-                onSelect={() => {
-                  setDraft(column.name);
-                  setRenaming(true);
-                }}
-              >
-                <Pencil /> Rename
-              </DropdownMenuItem>
-              {hasLabels && (
-                <DropdownMenuItem onSelect={() => openEditLabels(column)}>
-                  <Tags /> Edit labels
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={index === 0} onSelect={() => move(-1)}>
-                <ArrowLeft /> Move left
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={index === visible.length - 1} onSelect={() => move(1)}>
-                <ArrowRight /> Move right
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void mutations.updateColumn(column.id, { hidden: true })}>
-                <EyeOff /> Hide column
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                <Trash2 /> Delete column
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <PopoverContent className="w-56 p-2" align="center">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (draft.trim() && draft.trim() !== column.name) void mutations.updateColumn(column.id, { name: draft.trim() });
-                setRenaming(false);
-              }}
-            >
-              <Input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Column name" onKeyDown={(e) => e.key === "Escape" && setRenaming(false)} />
-            </form>
-          </PopoverContent>
-        </Popover>
-      ) : (
-        <span className="truncate px-1.5">{column.name}</span>
-      )}
-      {canEdit && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={`Resize ${column.name}`}
-          onPointerDown={startResize}
-          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity hover:bg-ring group-hover/col:opacity-100"
-        />
-      )}
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title={`Delete the “${column.name}” column?`}
-        description="All values stored in this column are permanently removed from every item on the board."
-        confirmLabel="Delete column"
-        destructive
-        onConfirm={() => mutations.deleteColumn(column.id).then(() => undefined)}
-      />
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={!canEdit}>
+        <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r px-1" style={columnCellStyle(width)}>
+          {canEdit ? (
+            <Popover open={renaming} onOpenChange={setRenaming}>
+              <DropdownMenu>
+                <PopoverTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="flex h-7 max-w-full items-center gap-1 truncate rounded px-1.5 hover:bg-accent hover:text-foreground" aria-label={`${column.name} column options`}>
+                      <span className="truncate">{column.name}</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                </PopoverTrigger>
+                <DropdownMenuContent align="center" className="w-48">
+                  <DropdownMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setDraft(column.name);
+                      setRenaming(true);
+                    }}
+                  >
+                    <Pencil /> Rename
+                  </DropdownMenuItem>
+                  {hasLabels && (
+                    <DropdownMenuItem onSelect={() => openEditLabels(column)}>
+                      <Tags /> Edit labels
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={index === 0} onSelect={() => move(-1)}>
+                    <ArrowLeft /> Move left
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={index === visible.length - 1} onSelect={() => move(1)}>
+                    <ArrowRight /> Move right
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void mutations.updateColumn(column.id, { hidden: true })}>
+                    <EyeOff /> Hide column
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                    <Trash2 /> Delete column
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <PopoverContent className="w-56 p-2" align="center">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (draft.trim() && draft.trim() !== column.name) void mutations.updateColumn(column.id, { name: draft.trim() });
+                    setRenaming(false);
+                  }}
+                >
+                  <Input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Column name" onKeyDown={(e) => e.key === "Escape" && setRenaming(false)} />
+                </form>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <span className="truncate px-1.5">{column.name}</span>
+          )}
+          {canEdit && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={`Resize ${column.name}`}
+              onPointerDown={startResize}
+              className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity hover:bg-ring group-hover/col:opacity-100"
+            />
+          )}
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={`Delete the “${column.name}” column?`}
+            description="All values stored in this column are permanently removed from every item on the board."
+            confirmLabel="Delete column"
+            destructive
+            onConfirm={() => mutations.deleteColumn(column.id).then(() => undefined)}
+          />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</ContextMenuLabel>
+        <ContextMenuItem
+          onSelect={() => {
+            setDraft(column.name);
+            setRenaming(true);
+          }}
+        >
+          <Pencil /> Rename
+        </ContextMenuItem>
+        {hasLabels && (
+          <ContextMenuItem onSelect={() => openEditLabels(column)}>
+            <Tags /> Edit labels
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={index === 0} onSelect={() => move(-1)}>
+          <ArrowLeft /> Move left
+        </ContextMenuItem>
+        <ContextMenuItem disabled={index === visible.length - 1} onSelect={() => move(1)}>
+          <ArrowRight /> Move right
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void mutations.updateColumn(column.id, { hidden: true })}>
+          <EyeOff /> Hide column
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+          <Trash2 /> Delete column
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

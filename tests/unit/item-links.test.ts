@@ -222,10 +222,53 @@ describe("Task Linking", () => {
 
   it("searches items on other boards and flags ones already linked", async () => {
     const sem1 = await itemNamed(SEED_BOARD_IDS.sem1, "Sem 1 DOOH adaptation");
-    const hits = await services.links.searchCandidates(SEED_WORKSPACE_ID, sem1.id, "dooh");
-    expect(hits.some((h) => h.board.id === SEED_BOARD_IDS.sem1)).toBe(false);
-    const mirror = hits.find((h) => h.board.id === SEED_BOARD_IDS.dooh && h.item.name === "Sem 1 DOOH adaptation");
-    expect(mirror?.linked).toBe(true);
+    const { hits, blockedBoardIds } = await services.links.searchCandidates(SEED_WORKSPACE_ID, sem1.id, "dooh");
+    // The item's own board and every board already in its chain are off limits.
+    expect(new Set(blockedBoardIds)).toEqual(new Set([SEED_BOARD_IDS.sem1, SEED_BOARD_IDS.dooh]));
+    expect(hits.some((h) => h.board.id === SEED_BOARD_IDS.sem1 || h.board.id === SEED_BOARD_IDS.dooh)).toBe(false);
     expect(hits.some((h) => h.item.name === "DOOH motion loops – 10s" && !h.linked)).toBe(true);
+
+    // Browsing one board lists everything on it, in group then position order.
+    const other = await itemNamed(SEED_BOARD_IDS.rmitinerary, "RMITinerary Explorer");
+    const dooh = (await services.links.searchCandidates(SEED_WORKSPACE_ID, other.id, "", { boardId: SEED_BOARD_IDS.dooh })).hits;
+    expect(new Set(dooh.map((h) => h.board.id))).toEqual(new Set([SEED_BOARD_IDS.dooh]));
+    expect(dooh).toHaveLength((await services.repos.items.listByBoard(SEED_BOARD_IDS.dooh)).length);
+    expect(dooh[0]?.group?.name).toBe("This Fortnight");
+  });
+
+  it("never lets a chain hold two items from the same board", async () => {
+    // sem1 ↔ dooh is seeded; a second dooh item on the same chain would be a duplicate.
+    const sem1 = await itemNamed(SEED_BOARD_IDS.sem1, "Sem 1 DOOH adaptation");
+    const anotherDooh = await itemNamed(SEED_BOARD_IDS.dooh, "Motion test – logo reveal");
+    expect(await services.links.validate(sem1.id, anotherDooh.id)).toMatchObject({ ok: false, reason: expect.stringContaining("DOOH Production") });
+    // …even indirectly: linking through a third board that then reaches dooh again.
+    const via = await itemNamed(SEED_BOARD_IDS.requests, "Alumni newsletter banner");
+    await services.links.link(anotherDooh.id, via.id, SEED_USER_IDS.danh);
+    expect(await services.links.validate(sem1.id, via.id)).toMatchObject({ ok: false, reason: expect.stringContaining("DOOH Production") });
+  });
+
+  it("lets a link switch fields off, stopping them at that hop", async () => {
+    const a = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+    const b = await itemNamed(SEED_BOARD_IDS.alwayson, "Student spotlight – exchange to Barcelona");
+    const statusA = (await services.repos.boards.listColumns(SEED_BOARD_IDS.sem1)).find((c) => c.type === "STATUS")!;
+    const statusB = (await services.repos.boards.listColumns(SEED_BOARD_IDS.alwayson)).find((c) => c.type === "STATUS")!;
+
+    await services.links.link(a.id, b.id, SEED_USER_IDS.danh, { seedFrom: "item", excluded: ["name", statusA.id, statusB.id] });
+    // Excluded fields keep their own values on both sides…
+    expect((await services.repos.items.getById(b.id))?.name).toBe("Student spotlight – exchange to Barcelona");
+    expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "not_started" });
+    await setValue(a.id, SEED_BOARD_IDS.sem1, "Status", { type: "STATUS", labelId: "stuck" });
+    expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "not_started" });
+    // …while everything else still flows.
+    await setValue(a.id, SEED_BOARD_IDS.sem1, "Priority", { type: "PRIORITY", labelId: "critical" });
+    expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Priority")).toEqual({ type: "PRIORITY", labelId: "critical" });
+
+    // Turning the field back on fills the other side and resumes syncing.
+    const [link] = await services.repos.links.listByItem(a.id);
+    await services.links.setExcluded(link!.id, ["name"], a.id, SEED_USER_IDS.danh);
+    expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "stuck" });
+    await setValue(a.id, SEED_BOARD_IDS.sem1, "Status", { type: "STATUS", labelId: "done" });
+    expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "done" });
+    expect((await services.repos.items.getById(b.id))?.name).toBe("Student spotlight – exchange to Barcelona");
   });
 });

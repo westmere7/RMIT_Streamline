@@ -9,6 +9,7 @@ import { ColorPicker } from "@/components/shared/color-picker";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,82 +73,120 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
       className={cn("mb-6", isDragging && "opacity-50")}
       data-testid={`group-${group.name}`}
     >
-      <div className="sticky left-0 z-[5] flex h-10 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth() }}>
-        <div className="flex w-9 items-center justify-center">
-          <button
-            type="button"
-            aria-label={group.collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
-            aria-expanded={!group.collapsed}
-            onClick={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}
-            className={cn("rounded p-0.5 hover:bg-accent", colors.text)}
-          >
-            {group.collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
-          </button>
-        </div>
-        {dndEnabled && (
-          <button
-            ref={setActivatorNodeRef}
-            type="button"
-            aria-label={`Drag to reorder ${group.name}`}
-            className="flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground/50 hover:bg-accent hover:text-foreground active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" />
-          </button>
-        )}
-        <h3 className={cn("flex min-w-0 items-center text-sm font-semibold", colors.text)}>
-          <InlineEdit
-            value={group.name}
-            editing={renaming}
-            onEditingChange={setRenaming}
-            onSubmit={(name) => void mutations.updateGroup(group.id, { name })}
-            trigger="doubleClick"
-            disabled={!canEdit}
-            ariaLabel="Group name"
-            className="max-w-72 rounded px-1 hover:bg-accent/70"
-            inputClassName="h-7 w-72 text-sm font-semibold"
-          />
-        </h3>
-        <span className="ml-1 text-xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
-        {group.collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
-        {canEdit && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" aria-label={`Options for ${group.name}`} className="ml-1 flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
-                <MoreHorizontal className="size-4" />
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={!canEdit}>
+          <div className="sticky left-0 z-[5] flex h-10 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth() }}>
+            <div className="flex w-9 items-center justify-center">
+              <button
+                type="button"
+                aria-label={group.collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+                aria-expanded={!group.collapsed}
+                onClick={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}
+                className={cn("rounded p-0.5 hover:bg-accent", colors.text)}
+              >
+                {group.collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuItem onSelect={() => setRenaming(true)}>
-                <Pencil /> Rename group
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Palette /> Change colour
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="p-2">
-                  <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem onSelect={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}>
-                {group.collapsed ? <ChevronDown /> : <ChevronRight />} {group.collapsed ? "Expand group" : "Collapse group"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
-                <Copy /> Duplicate group
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                <Trash2 /> Delete group
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+            </div>
+            {dndEnabled && (
+              <button
+                ref={setActivatorNodeRef}
+                type="button"
+                aria-label={`Drag to reorder ${group.name}`}
+                className="flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground/50 hover:bg-accent hover:text-foreground active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="size-4" />
+              </button>
+            )}
+            <h3 className={cn("flex min-w-0 items-center text-sm font-semibold", colors.text)}>
+              <InlineEdit
+                value={group.name}
+                editing={renaming}
+                onEditingChange={setRenaming}
+                onSubmit={(name) => void mutations.updateGroup(group.id, { name })}
+                trigger="doubleClick"
+                disabled={!canEdit}
+                ariaLabel="Group name"
+                className="max-w-72 rounded px-1 hover:bg-accent/70"
+                inputClassName="h-7 w-72 text-sm font-semibold"
+              />
+            </h3>
+            <span className="ml-1 text-xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
+            {group.collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
+            {canEdit && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Options for ${group.name}`}
+                    className="ml-1 flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                    <Pencil /> Rename group
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Palette /> Change colour
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="p-2">
+                      <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onSelect={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}>
+                    {group.collapsed ? <ChevronDown /> : <ChevronRight />} {group.collapsed ? "Expand group" : "Collapse group"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
+                    <Copy /> Duplicate group
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                    <Trash2 /> Delete group
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-48">
+          <ContextMenuItem onSelect={() => setRenaming(true)}>
+            <Pencil /> Rename group
+          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <Palette /> Change colour
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="p-2">
+              <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuItem onSelect={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}>
+            {group.collapsed ? <ChevronDown /> : <ChevronRight />} {group.collapsed ? "Expand group" : "Collapse group"}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
+            <Copy /> Duplicate group
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+            <Trash2 /> Delete group
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       {!group.collapsed && (
         <div role="grid" aria-label={`${group.name} items`} className="border-t">
-          <ColumnHeaderRow group={group} allSelected={allSelected} someSelected={selectedInGroup > 0 && !allSelected} onToggleAll={toggleAll} widthOverrides={widthOverrides} onWidthOverride={onWidthOverride} />
+          <ColumnHeaderRow
+            group={group}
+            allSelected={allSelected}
+            someSelected={selectedInGroup > 0 && !allSelected}
+            onToggleAll={toggleAll}
+            widthOverrides={widthOverrides}
+            onWidthOverride={onWidthOverride}
+          />
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
             {items.map((item) => (
               <ItemRow key={item.id} item={item} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} />

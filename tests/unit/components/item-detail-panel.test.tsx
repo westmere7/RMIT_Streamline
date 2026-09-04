@@ -94,10 +94,18 @@ describe("ItemDetailPanel", () => {
     await user.click(within(section).getByTestId("link-item-button"));
     const dialog = await screen.findByTestId("link-item-dialog");
     expect(within(dialog).getByRole("heading", { name: /Link to another item/ })).toBeInTheDocument();
-    // Items on the current board are never offered; the already linked mirror is flagged.
+    // Items on the current board are never offered, and a board already in the chain
+    // (DOOH Production holds the mirror) cannot take a second item.
     const candidates = await within(dialog).findAllByTestId("link-candidate");
     expect(candidates.some((c) => c.textContent?.includes("Sem 1 campaign storyboard"))).toBe(false);
-    expect(candidates.find((c) => c.textContent?.includes("Sem 1 DOOH adaptation"))).toHaveTextContent("Linked");
+    expect(candidates.some((c) => c.textContent?.includes("Sem 1 DOOH adaptation"))).toBe(false);
+    expect(within(dialog).getByRole("button", { name: /DOOH Production/ })).toBeDisabled();
+    // Everything the boards share is on by default.
+    await user.click(within(dialog).getByText("Alumni newsletter banner"));
+    const preview = await within(dialog).findByTestId("sync-preview");
+    const boxes = within(preview).getAllByRole("checkbox");
+    expect(boxes.length).toBeGreaterThan(1);
+    expect(boxes.every((b) => b.getAttribute("aria-checked") === "true")).toBe(true);
   });
 
   it("closes with the Escape key", async () => {

@@ -1,13 +1,14 @@
 "use client";
 
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Link2, Plus } from "lucide-react";
+import { Archive, Link2, Maximize2, Plus } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack } from "@/components/shared/user-avatar";
 import type { ColumnLabel, Item } from "@/domain";
 import { columnLabels } from "@/domain";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useBoardContext } from "@/features/boards/board-context";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue } from "@/lib/dates/dates";
@@ -62,11 +63,18 @@ export function KanbanView() {
     <div className="scrollbar-thin flex flex-1 gap-3 overflow-x-auto p-4" data-testid="kanban">
       <DndContext sensors={sensors} onDragStart={(e) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
         {lanes.map((lane) => (
-          <Lane key={lane.id} id={lane.id} label={lane.label} items={lane.items} canEdit={canEdit} onAdd={(name) => {
-            const group = model.groups[0];
-            if (!group) return;
-            void mutations.createItem({ groupId: group.id, name, values: lane.label ? [{ columnId: column.id, value: { type: "STATUS", labelId: lane.label.id } }] : [] });
-          }} />
+          <Lane
+            key={lane.id}
+            id={lane.id}
+            label={lane.label}
+            items={lane.items}
+            canEdit={canEdit}
+            onAdd={(name) => {
+              const group = model.groups[0];
+              if (!group) return;
+              void mutations.createItem({ groupId: group.id, name, values: lane.label ? [{ columnId: column.id, value: { type: "STATUS", labelId: lane.label.id } }] : [] });
+            }}
+          />
         ))}
         <DragOverlay>{activeItem ? <Card item={activeItem} overlay /> : null}</DragOverlay>
       </DndContext>
@@ -80,7 +88,12 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
   const [adding, setAdding] = React.useState(false);
   const colors = label ? colorClasses(label.color) : null;
   return (
-    <section ref={setNodeRef} aria-label={label?.name ?? "No status"} data-testid={`lane-${label?.name ?? "none"}`} className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-md bg-surface", isOver && "ring-2 ring-ring/50")}>
+    <section
+      ref={setNodeRef}
+      aria-label={label?.name ?? "No status"}
+      data-testid={`lane-${label?.name ?? "none"}`}
+      className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-md bg-surface", isOver && "ring-2 ring-ring/50")}
+    >
       <header className="flex items-center gap-2 px-3 py-2">
         <span className={cn("h-2.5 w-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
         <h3 className="text-[13px] font-semibold">{label?.name ?? "No status"}</h3>
@@ -117,7 +130,11 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
               className="h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none focus:border-ring"
             />
           ) : (
-            <button type="button" onClick={() => setAdding(true)} className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground">
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
               <Plus className="size-3.5" /> Add item
             </button>
           )}
@@ -137,7 +154,7 @@ function DraggableCard({ item, disabled }: { item: Item; disabled: boolean }) {
 }
 
 function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
-  const { model, users, openItem } = useBoardContext();
+  const { model, users, openItem, mutations, canEdit } = useBoardContext();
   const group = model.groups.find((g) => g.id === item.groupId);
   const priority = model.priorityColumn ? model.getValue(item.id, model.priorityColumn.id) : undefined;
   const priorityLabel = model.priorityColumn && priority?.type === "PRIORITY" ? columnLabels(model.priorityColumn).find((l) => l.id === priority.labelId) : null;
@@ -150,23 +167,40 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
   const done = model.isDone(item.id);
   const linked = (model.linksByItem.get(item.id)?.length ?? 0) > 0;
   return (
-    <article data-testid="kanban-card" className={cn("rounded-md border bg-background p-2.5 shadow-xs", overlay && "rotate-1 shadow-lg", done && "opacity-70")}>
-      <button type="button" onClick={() => openItem(item.id)} className="block w-full text-left text-[13px] font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>
-        {item.name}
-      </button>
-      {group && (
-        <p className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
-          <span className={cn("size-1.5 rounded-full", colorClasses(group.color).dot)} /> {group.name}
-        </p>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
-          {linked && <Link2 className="size-3 text-muted-foreground" aria-label="Linked to an item on another board" />}
-          {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
-        </div>
-        {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}
-      </div>
-    </article>
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={overlay}>
+        <article data-testid="kanban-card" className={cn("rounded-md border bg-background p-2.5 shadow-xs", overlay && "rotate-1 shadow-lg", done && "opacity-70")}>
+          <button type="button" onClick={() => openItem(item.id)} className="block w-full text-left text-[13px] font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>
+            {item.name}
+          </button>
+          {group && (
+            <p className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
+              <span className={cn("size-1.5 rounded-full", colorClasses(group.color).dot)} /> {group.name}
+            </p>
+          )}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
+              {linked && <Link2 className="size-3 text-muted-foreground" aria-label="Linked to an item on another board" />}
+              {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
+            </div>
+            {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}
+          </div>
+        </article>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-44">
+        <ContextMenuItem onSelect={() => openItem(item.id)}>
+          <Maximize2 /> Open
+        </ContextMenuItem>
+        {canEdit && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => void mutations.archiveItems([item.id])}>
+              <Archive /> Archive
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

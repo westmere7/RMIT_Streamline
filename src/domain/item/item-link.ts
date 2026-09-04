@@ -10,6 +10,11 @@ export interface ItemLink {
   workspaceId: EntityId;
   itemAId: EntityId;
   itemBId: EntityId;
+  /**
+   * Fields this link does not carry: LINK_FIELD_NAME, LINK_FIELD_DESCRIPTION or
+   * column ids from either board. Everything the boards share syncs unless listed.
+   */
+  excluded: string[];
   createdBy: EntityId;
   createdAt: string;
 }
@@ -18,7 +23,12 @@ export interface ItemLinkInput {
   workspaceId: EntityId;
   itemIds: [EntityId, EntityId];
   createdBy: EntityId;
+  excluded?: string[];
 }
+
+/** Exclusion keys for the two item-level fields (columns use their ids). */
+export const LINK_FIELD_NAME = "name";
+export const LINK_FIELD_DESCRIPTION = "description";
 
 /** Sorted pair so (a, b) and (b, a) map to the same stored link. */
 export function normaliseLinkPair(a: EntityId, b: EntityId): [EntityId, EntityId] {

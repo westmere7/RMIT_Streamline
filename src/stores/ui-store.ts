@@ -3,8 +3,15 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+/** The expanded sidebar can be dragged wider, never narrower than its designed width. */
+export const SIDEBAR_MIN_WIDTH = 240;
+export const SIDEBAR_MAX_WIDTH = 480;
+
 interface UiState {
   sidebarCollapsed: boolean;
+  /** Expanded sidebar width in px (clamped to the min/max above). */
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
   /** Team ids expanded in the sidebar. */
   expandedTeamIds: string[];
   /** Whether the Favourites section is expanded. */
@@ -26,6 +33,8 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
+      sidebarWidth: SIDEBAR_MIN_WIDTH,
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.round(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))) }),
       expandedTeamIds: [],
       favouritesExpanded: true,
       commandPaletteOpen: false,
@@ -54,6 +63,7 @@ export const useUiStore = create<UiState>()(
       skipHydration: true,
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
+        sidebarWidth: s.sidebarWidth,
         expandedTeamIds: s.expandedTeamIds,
         favouritesExpanded: s.favouritesExpanded,
       }),

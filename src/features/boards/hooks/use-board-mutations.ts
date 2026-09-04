@@ -10,6 +10,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
 import type { BoardSnapshot, CreateItemInput, MoveItemInput } from "@/services";
 
 type Updater = (snapshot: BoardSnapshot) => BoardSnapshot;
@@ -35,6 +36,7 @@ export function useBoardMutations(boardId: string) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.myWork(ws.workspace.id, user.id) });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    publishDataChange({ boardIds: [boardId], kinds: ["board", "items"] });
   }, [queryClient, key, boardId, ws.workspace.id, user.id]);
 
   /** Applies `updater` optimistically and runs `action`. */
