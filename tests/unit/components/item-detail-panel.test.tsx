@@ -41,13 +41,17 @@ describe("ItemDetailPanel", () => {
     );
     await user.click(screen.getByRole("tab", { name: /Updates/ }));
     expect(await screen.findByText("No updates yet")).toBeInTheDocument();
-    await user.type(screen.getByTestId("comment-input"), "Photography approved, moving to layout.");
+    // Paste rather than type: character-by-character typing can drop keystrokes under CPU load.
+    await user.click(screen.getByTestId("comment-input"));
+    await user.paste("Photography approved, moving to layout.");
+    expect(screen.getByTestId("comment-input")).toHaveValue("Photography approved, moving to layout.");
     await user.click(screen.getByTestId("comment-submit"));
     await waitFor(async () => {
       const stored = await app.data.services.repos.comments.listByItem(itemId);
       expect(stored).toHaveLength(1);
     });
-    expect(await screen.findByText("Photography approved, moving to layout.", {}, { timeout: 3000 })).toBeInTheDocument();
+    // The optimistic comment is swapped for the persisted record after refetch, so re-query rather than hold a node.
+    await waitFor(() => expect(screen.getByText("Photography approved, moving to layout.")).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: /Updates/ })).toHaveTextContent("1");
   });
 
