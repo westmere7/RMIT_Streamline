@@ -91,7 +91,8 @@ export const SEED_WORKSPACE_SLUG = "rmit";
 
 type UserKey =
   | "danh" | "emily" | "jun" | "joanne" | "duc" | "tuyet" | "hil" | "grace" | "jane"
-  | "minh" | "linh" | "sarah" | "tom" | "priya" | "chloe" | "ravi" | "thao" | "ben";
+  | "minh" | "linh" | "sarah" | "tom" | "priya" | "chloe" | "ravi" | "thao" | "ben"
+  | "admin";
 
 interface SeedUserSpec {
   key: UserKey;
@@ -122,6 +123,10 @@ const USER_SPECS: SeedUserSpec[] = [
   { key: "ravi", firstName: "Ravi", lastName: "Sharma", jobTitle: "Front-end Developer", department: "Digital", timezone: "Australia/Melbourne", role: "MEMBER" },
   { key: "thao", firstName: "Thao", lastName: "Dang", jobTitle: "Studio Coordinator", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
   { key: "ben", firstName: "Ben", lastName: "Walker", jobTitle: "Agency Partner", department: "External", timezone: "Australia/Melbourne", role: "GUEST" },
+  // Test account: workspace OWNER, so it inherits access to every board (see
+  // private.board_role in supabase/policies/0001_rls_policies.sql). Owns nothing,
+  // which keeps the demo boards' authorship intact.
+  { key: "admin", firstName: "Admin", lastName: "Account", jobTitle: "Administrator", department: "IT", timezone: "Australia/Melbourne", role: "OWNER" },
 ];
 
 export const SEED_USER_IDS: Record<UserKey, string> = {
@@ -143,6 +148,7 @@ export const SEED_USER_IDS: Record<UserKey, string> = {
   ravi: sid("user", 16),
   thao: sid("user", 17),
   ben: sid("user", 18),
+  admin: sid("user", 19),
 };
 
 export const SEED_ACCOUNTS = USER_SPECS.map((u) => ({

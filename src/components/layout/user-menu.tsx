@@ -115,7 +115,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
                 <Wrench className="size-3" /> Developer
               </DropdownMenuLabel>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger disabled={providerKind !== "local"}>
                   <UserCog /> Switch user
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-56">
@@ -129,9 +129,11 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
                     ))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              <DropdownMenuItem onSelect={() => setResetOpen(true)}>
-                <RotateCcw /> Reset demo data
-              </DropdownMenuItem>
+              {providerKind === "local" && (
+                <DropdownMenuItem onSelect={() => setResetOpen(true)}>
+                  <RotateCcw /> Reset demo data
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem disabled>
                 <Database /> Provider: {providerKind}
               </DropdownMenuItem>

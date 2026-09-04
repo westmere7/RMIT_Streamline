@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Team } from "@/domain";
 import { isDataExport, type DataExport } from "@/data/repositories";
-import { useServices } from "@/features/data/data-context";
+import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -249,6 +249,7 @@ function PermissionsSection() {
 
 function DataSection() {
   const ws = useWorkspace();
+  const { providerKind } = useDataContext();
   const services = useServices();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -306,7 +307,24 @@ function DataSection() {
 
   return (
     <>
-      <SectionTitle title="Data" description="This prototype stores everything in your browser (IndexedDB). Nothing is sent to a server, so each browser and each device holds its own copy." />
+      <SectionTitle
+        title="Data"
+        description={
+          providerKind === "supabase"
+            ? "This workspace is stored in Supabase Postgres and shared by everyone in it. Row-level security decides what each person can see."
+            : "This prototype stores everything in your browser (IndexedDB). Nothing is sent to a server, so each browser and each device holds its own copy."
+        }
+      />
+      {providerKind === "supabase" ? (
+        <div className="rounded-xl border border-border/70 bg-card p-4 shadow-xs">
+          <p className="text-[13px] font-medium">Managed by the database</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Export, import and reset are local-store tools. For a Supabase project use a Postgres dump for backups, and
+            <code className="mx-1 rounded bg-surface px-1.5 py-0.5 text-2xs">npm run db:seed</code>
+            to restore the demo data.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-4">
         <div className="rounded-md border p-4">
           <p className="text-[13px] font-medium">Export data</p>
@@ -335,6 +353,7 @@ function DataSection() {
           {!manage && <p className="mt-2 text-2xs text-muted-foreground">Only workspace owners and admins can reset data.</p>}
         </div>
       </div>
+      )}
 
       <ConfirmDialog
         open={pendingImport !== null}

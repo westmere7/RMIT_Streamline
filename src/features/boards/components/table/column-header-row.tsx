@@ -4,15 +4,35 @@ import { ArrowLeft, ArrowRight, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucid
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { BoardColumn, BoardGroup, ColumnType } from "@/domain";
-import { COLUMN_TYPES, COLUMN_TYPE_LABELS } from "@/domain";
+import type { BoardColumn, BoardGroup } from "@/domain";
+import { COLUMN_TYPE_LABELS } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
-import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
+import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -111,11 +131,21 @@ function ColumnHeaderCell({
   };
 
   const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
+  const hasTags = column.type === "TAGS";
+  const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
+    void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id });
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={!canEdit}>
-        <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r border-border/60 px-1" style={columnCellStyle(width)}>
+        <div
+          role="columnheader"
+          className={cn(
+            "group/col relative flex h-full shrink-0 items-center border-r border-border/60 px-1",
+            columnAlign(column.type) === "center" ? "justify-center" : "justify-start",
+          )}
+          style={columnCellStyle(width)}
+        >
           {canEdit ? (
             <Popover open={renaming} onOpenChange={setRenaming}>
               <DropdownMenu>
@@ -126,7 +156,7 @@ function ColumnHeaderCell({
                     </button>
                   </DropdownMenuTrigger>
                 </PopoverTrigger>
-                <DropdownMenuContent align="center" className="w-48">
+                <DropdownMenuContent align="center" className="w-56">
                   <DropdownMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
                   <DropdownMenuItem
                     onSelect={() => {
@@ -141,7 +171,20 @@ function ColumnHeaderCell({
                       <Tags /> Edit labels
                     </DropdownMenuItem>
                   )}
+                  {hasTags && (
+                    <DropdownMenuItem onSelect={() => openEditLabels(column)}>
+                      <Tags /> Edit tags
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Plus /> Insert column right
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
+                      <ColumnTypePicker onPick={insertColumn} />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                   <DropdownMenuItem disabled={index === 0} onSelect={() => move(-1)}>
                     <ArrowLeft /> Move left
                   </DropdownMenuItem>
@@ -192,7 +235,7 @@ function ColumnHeaderCell({
           />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-56">
         <ContextMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</ContextMenuLabel>
         <ContextMenuItem
           onSelect={() => {
@@ -207,7 +250,20 @@ function ColumnHeaderCell({
             <Tags /> Edit labels
           </ContextMenuItem>
         )}
+        {hasTags && (
+          <ContextMenuItem onSelect={() => openEditLabels(column)}>
+            <Tags /> Edit tags
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Plus /> Insert column right
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
+            <ColumnTypePicker variant="context" onPick={insertColumn} />
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuItem disabled={index === 0} onSelect={() => move(-1)}>
           <ArrowLeft /> Move left
         </ContextMenuItem>
@@ -226,8 +282,6 @@ function ColumnHeaderCell({
   );
 }
 
-const ADDABLE_TYPES: ColumnType[] = COLUMN_TYPES.filter((t) => t !== "FILES");
-
 export function AddColumnMenu() {
   const { model, mutations } = useBoardContext();
   const hidden = model.columns.filter((c) => c.hidden);
@@ -238,18 +292,9 @@ export function AddColumnMenu() {
           <Plus className="size-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end" className={COLUMN_TYPE_PICKER_WIDTH}>
         <DropdownMenuLabel>Add column</DropdownMenuLabel>
-        <div className="grid grid-cols-2 gap-0.5">
-          {ADDABLE_TYPES.map((type) => {
-            const Icon = COLUMN_TYPE_ICONS[type];
-            return (
-              <DropdownMenuItem key={type} onSelect={() => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type)}>
-                <Icon /> {COLUMN_TYPE_LABELS[type]}
-              </DropdownMenuItem>
-            );
-          })}
-        </div>
+        <ColumnTypePicker onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type)} />
         {hidden.length > 0 && (
           <>
             <DropdownMenuSeparator />

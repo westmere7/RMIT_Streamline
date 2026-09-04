@@ -1,0 +1,54 @@
+name: Apply database migrations
+
+# Keeps the Supabase project in step with supabase/**.sql without anyone
+# opening a dashboard: every push to main that touches SQL applies what is
+# pending. The runner is idempotent, so re-runs are safe.
+#
+# Needs one repository secret: SUPABASE_DB_URL
+# (Settings → Secrets and variables → Actions → New repository secret;
+#  value is the Postgres URI from Supabase → Project Settings → Database.)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**.sql"
+      - "supabase/policies/**.sql"
+      - "scripts/db-migrate.mjs"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List pending files without applying them"
+        type: boolean
+        default: false
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Apply migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set."
+            exit 1
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/db-migrate.mjs --dry
+          else
+            node scripts/db-migrate.mjs
+          fi

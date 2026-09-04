@@ -91,14 +91,15 @@ export interface BoardRepository {
 
   listGroups(boardId: EntityId): Promise<BoardGroup[]>;
   getGroup(id: EntityId): Promise<BoardGroup | null>;
-  createGroup(input: Omit<BoardGroup, "id" | "createdAt">): Promise<BoardGroup>;
+  /** `id` lets an optimistic UI keep the id it already rendered (see useBoardMutations). */
+  createGroup(input: Omit<BoardGroup, "id" | "createdAt"> & { id?: EntityId }): Promise<BoardGroup>;
   updateGroup(id: EntityId, patch: Partial<Omit<BoardGroup, "id" | "boardId" | "createdAt">>): Promise<BoardGroup>;
   /** Deletes the group and every item in it. */
   deleteGroup(id: EntityId): Promise<void>;
   reorderGroups(boardId: EntityId, orderedIds: EntityId[]): Promise<BoardGroup[]>;
 
   listColumns(boardId: EntityId): Promise<BoardColumn[]>;
-  createColumn(input: BoardColumnInput & { position?: number }): Promise<BoardColumn>;
+  createColumn(input: BoardColumnInput & { position?: number; id?: EntityId }): Promise<BoardColumn>;
   updateColumn(id: EntityId, patch: Partial<Omit<BoardColumn, "id" | "boardId" | "createdAt">>): Promise<BoardColumn>;
   /** Deletes the column and every value stored against it. */
   deleteColumn(id: EntityId): Promise<void>;
@@ -109,7 +110,7 @@ export interface ItemRepository {
   listByBoard(boardId: EntityId, options?: { includeArchived?: boolean }): Promise<Item[]>;
   listByIds(ids: EntityId[]): Promise<Item[]>;
   getById(id: EntityId): Promise<Item | null>;
-  create(input: ItemInput & { position: number }): Promise<Item>;
+  create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;
   update(id: EntityId, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item>;
   updateMany(patches: Array<{ id: EntityId; patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">> }>): Promise<Item[]>;
   /** Deletes items, their subitems, values and comments. */

@@ -14,6 +14,10 @@ export default defineConfig({
   },
   webServer: {
     command: "npm run dev -- --port 3100",
+    // The IndexedDB suite always runs on the local provider, even when
+    // .env.local points the app at Supabase. The Supabase audit suite sets
+    // PW_PROVIDER=supabase (npm run test:e2e:supabase) to override that.
+    env: { NEXT_PUBLIC_DATA_PROVIDER: process.env.PW_PROVIDER ?? "local" },
     url: "http://localhost:3100/login",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

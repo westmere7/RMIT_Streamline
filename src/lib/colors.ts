@@ -42,6 +42,18 @@ export function colorClasses(token: ColorToken | undefined | null): ColorClasses
 /** Deterministic avatar colour derived from a string (user id). */
 const AVATAR_TOKENS: ColorToken[] = ["red", "orange", "green", "teal", "sky", "blue", "indigo", "violet", "pink", "navy"];
 
+/**
+ * Colour for a tag that the column's palette does not define yet (e.g. tags that
+ * arrived with seeded data). Deterministic, so the same tag always reads the same.
+ */
+const TAG_TOKENS: ColorToken[] = ["indigo", "violet", "sky", "teal", "green", "amber", "orange", "rose", "pink", "cyan"];
+
+export function tagColorFor(seed: string): ColorToken {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 33 + seed.charCodeAt(i)) >>> 0;
+  return TAG_TOKENS[hash % TAG_TOKENS.length] ?? "indigo";
+}
+
 export function avatarColorFor(seed: string): ColorToken {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;

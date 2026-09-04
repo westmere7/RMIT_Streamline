@@ -74,7 +74,7 @@ as $$
       '{"kind":"priority","labels":[{"id":"critical","name":"Critical","color":"rose"},{"id":"high","name":"High","color":"orange"},{"id":"medium","name":"Medium","color":"blue"},{"id":"low","name":"Low","color":"gray"}]}'::jsonb
     when 'PERSON' then '{"kind":"person","allowMultiple":true}'::jsonb
     when 'NUMBER' then '{"kind":"number","unit":null,"decimals":0}'::jsonb
-    when 'TAGS'   then '{"kind":"tags","suggestions":[]}'::jsonb
+    when 'TAGS'   then '{"kind":"tags","options":[]}'::jsonb
     else '{"kind":"none"}'::jsonb
   end
 $$;

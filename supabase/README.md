@@ -4,69 +4,78 @@
 supabase/
 ├── migrations/
 │   ├── 0001_initial_schema.sql   tables, enums, indexes, triggers
-│   └── 0002_item_links.sql       Task Linking (item_links) + enum values
+│   ├── 0002_item_links.sql       Task Linking (item_links) + enum values
+│   ├── 0003_trackers.sql         trackers + tracker_sheets
+│   └── 0004_realtime.sql         supabase_realtime publication
 ├── policies/
-│   ├── 0001_rls_policies.sql     RLS helpers + policies (apply after migrations)
+│   ├── 0001_rls_policies.sql     RLS helpers + policies
 │   ├── 0002_item_links_policies.sql  RLS for item_links
+│   ├── 0003_trackers_policies.sql    RLS for trackers
 │   └── README.md                 permission model, assumptions, realtime notes
 ├── seed.sql                      demo data (same ids as src/data/seed/seed-data.ts)
 └── README.md                     this file
 ```
+
+Applied by `npm run db:migrate` (see below), which is also what `npm run dev`
+and CI call.
 
 The SQL mirrors the TypeScript domain 1:1 (`src/domain/**`), so switching
 `NEXT_PUBLIC_DATA_PROVIDER` from `local` to `supabase` is a data copy, not a
 remodel. JSON columns (`board_columns.settings`, `item_column_values.value_json`,
 `activities.metadata`) store the TypeScript unions verbatim with camelCase keys.
 
-## Apply order
+## Applying SQL
 
-1. **Migrations** – `supabase/migrations/0001_initial_schema.sql`, then `0002_item_links.sql`
-2. **Policies** – `supabase/policies/0001_rls_policies.sql`, then `0002_item_links_policies.sql`
-3. **Storage bucket + policies** – snippet below
-4. **Seed** – `supabase/seed.sql` (optional; local/dev only)
-
-### With the Supabase CLI
-
-The CLI only auto-applies files in `supabase/migrations/`. Either copy the
-policies file there as the next migration (`0002_rls_policies.sql`), or apply it
-manually after the migrations:
+`npm run db:migrate` applies every file under `migrations/` then `policies/`,
+lexicographically, once each, and records what it did in
+`public.schema_migrations`. Adding a new file with a higher numeric prefix and
+running the command (or `npm run dev`, which calls it first) is the whole
+workflow — no dashboard, no CLI, no `psql`.
 
 ```bash
-# Local stack: `supabase start` / `supabase db reset` apply supabase/migrations/*
-# and then run supabase/seed.sql automatically.
-supabase start
-psql "$DATABASE_URL" -f supabase/policies/0001_rls_policies.sql
-psql "$DATABASE_URL" -f supabase/seed.sql
-
-# Linked hosted project: push migrations, then apply the policies file.
-supabase db push
-psql "$DATABASE_URL" -f supabase/policies/0001_rls_policies.sql
+npm run db:migrate            # apply anything pending
+npm run db:migrate -- --dry   # list what would run, change nothing
+npm run db:migrate -- --baseline
+                              # record files as applied without running them
+                              # (a database that already has the schema)
+npm run db:seed               # demo accounts + seed.sql
+npm run db:setup              # migrate + seed + point .env.local at Supabase
 ```
 
-If you rely on `supabase db reset` running the seed for you, the policies file
-must already live in `migrations/` so it is applied before `seed.sql`.
+Each file runs in a transaction, so a failure leaves nothing half-applied.
+Applied files are fingerprinted: editing one after the fact is reported, because
+the database no longer matches the repo — add a follow-up migration instead.
 
-### With plain psql
+`SUPABASE_DB_URL` (Project Settings → Database → Connection string → URI) is the
+only variable the runner needs. It is server-side only and lives in `.env.local`.
+`.github/workflows/db-migrate.yml` runs the same command on every push to `main`
+that touches SQL, using a `SUPABASE_DB_URL` repository secret.
 
-```bash
-export DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0001_initial_schema.sql
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/policies/0001_rls_policies.sql
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/seed.sql
-```
+## Order
 
-Run these as `postgres` / the service role. RLS is bypassed for that role, which
-is what the seed relies on.
+`migrations/` before `policies/`, so RLS lands after the tables it protects:
+
+1. `migrations/0001_initial_schema.sql` – tables, enums, indexes, triggers
+2. `migrations/0002_item_links.sql` – Task Linking
+3. `migrations/0003_trackers.sql` – trackers and sheets
+4. `migrations/0004_realtime.sql` – publishes the collaborative tables
+5. `policies/0001_rls_policies.sql`, `0002_…`, `0003_…` – RLS helpers and policies
+
+The storage bucket snippet below is still manual (it touches `storage.objects`,
+which the pooler role cannot always alter); paste it into the SQL editor once.
 
 ## Seeding and auth users
 
-`profiles.id` references `auth.users(id)`. The seed's nine profiles therefore
-need matching `auth.users` rows **with the same ids** before `seed.sql` runs.
-The seed contains a commented-out block that creates them for a local stack
-(password `Password123!`); against a hosted project create the users through
-the Auth Admin API instead and pass the fixed ids. The `handle_new_user()`
-trigger creates bare profile rows; the seed then upserts job titles and
-departments.
+`profiles.id` references `auth.users(id)`, so the nine demo profiles need
+matching auth accounts with the same ids. `npm run db:seed` does both:
+
+1. creates (or updates) the nine accounts through the Auth Admin API with the
+   fixed seed ids and password `Password123!` — override with `SEED_PASSWORD`,
+2. runs `seed.sql`, which fills in profiles and everything below them.
+
+It needs `SUPABASE_SERVICE_ROLE_KEY` as well as `SUPABASE_DB_URL`. The
+commented-out `auth.users` block in `seed.sql` is only for a local
+`supabase start` stack, where inserting into `auth` directly is acceptable.
 
 Seed ids follow the TypeScript convention `0000000<ns>-0000-4000-8000-<n>`:
 workspace `00000000-…-000000000001`, users `00000001-…`, teams `00000002-…`,

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { BoardColumn, BoardGroup, ColumnValue, Item, ItemLink } from "@/domain";
+import type { BoardColumn, BoardGroup, ColumnType, ColumnValue, Item, ItemLink } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
 import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
@@ -138,6 +138,16 @@ export const TABLE_LAYOUT = {
   trailingWidth: 48,
   rowHeight: 40,
 } as const;
+
+/**
+ * Values that render as a chip, a date or an icon read better centred under their
+ * header; free text and numbers keep their natural edge.
+ */
+const CENTRED_COLUMNS = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "CHECKBOX", "TAGS", "FILES"]);
+
+export function columnAlign(type: ColumnType): "left" | "center" {
+  return CENTRED_COLUMNS.has(type) ? "center" : "left";
+}
 
 export function leadingWidth(): number {
   return TABLE_LAYOUT.selectWidth + TABLE_LAYOUT.handleWidth + TABLE_LAYOUT.nameWidth;

@@ -3,6 +3,10 @@ import "fake-indexeddb/auto";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// Unit tests run against the in-browser store (fake-indexeddb above); pinning the
+// provider keeps them off the network even though Supabase is the app default.
+process.env.NEXT_PUBLIC_DATA_PROVIDER = "local";
+
 afterEach(() => {
   cleanup();
   window.localStorage.clear();

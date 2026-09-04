@@ -1,37 +1,42 @@
 import type { Repositories } from "@/data/repositories";
-import { NotImplementedRepository } from "./not-implemented";
+import { SupabaseBoardRepository } from "./repositories/board-repository";
+import { SupabaseItemLinkRepository } from "./repositories/item-link-repository";
+import { SupabaseItemRepository } from "./repositories/item-repository";
+import {
+  SupabaseActivityRepository,
+  SupabaseAdminRepository,
+  SupabaseCommentRepository,
+  SupabaseNotificationRepository,
+} from "./repositories/misc-repositories";
+import { SupabaseTeamRepository } from "./repositories/team-repository";
+import { SupabaseTrackerRepository } from "./repositories/tracker-repository";
+import { SupabaseUserRepository } from "./repositories/user-repository";
+import { SupabaseWorkspaceRepository } from "./repositories/workspace-repository";
 
 /**
- * Supabase repositories.
+ * Supabase repositories. Each maps 1:1 to a table in `supabase/migrations/`.
  *
- * Each repository maps 1:1 to a table in `supabase/migrations/0001_initial_schema.sql`.
- * Until they are implemented, every method throws `SupabaseNotImplementedError` so
- * enabling the provider by accident fails loudly rather than silently losing data.
- *
- * Implementation notes for later:
- *  - Table/column names are snake_case; use `mapRow`/`toRow` helpers per repository.
- *  - `item_column_values.value_json` is JSONB and stores the `ColumnValue` union as-is.
- *  - Cascade deletes are handled by foreign keys (`on delete cascade`), so `delete()`
- *    only needs to remove the parent row.
- *  - `item_links` (supabase/migrations/0002_item_links.sql) stores each linked pair once
- *    with item_a_id < item_b_id; the sync itself runs in ItemLinkService, not in the database.
- *  - Realtime: subscribe to `items`, `item_column_values`, `item_links`, `comments`, `activities`
- *    and `notifications` in `src/features/boards/hooks/use-board-realtime.ts`
- *    (currently a documented no-op) and invalidate the matching query keys.
+ * Notes that apply across the set:
+ *  - Table and column names are snake_case; `rows.ts` holds the mappers.
+ *  - `board_columns.settings`, `item_column_values.value_json`,
+ *    `activities.metadata` and the tracker sheet `columns`/`rows` are JSONB and
+ *    store the TypeScript unions verbatim.
+ *  - Deletes lean on `on delete cascade`, so removing a parent row is enough.
+ *  - Ids come from `gen_random_uuid()`; every write returns the stored row.
+ *  - RLS filters reads, so a query returning no rows can mean "not permitted".
  */
 export function createSupabaseRepositories(): Repositories {
-  const stub = new NotImplementedRepository();
   return {
-    users: stub.as("UserRepository"),
-    workspaces: stub.as("WorkspaceRepository"),
-    teams: stub.as("TeamRepository"),
-    boards: stub.as("BoardRepository"),
-    items: stub.as("ItemRepository"),
-    links: stub.as("ItemLinkRepository"),
-    trackers: stub.as("TrackerRepository"),
-    comments: stub.as("CommentRepository"),
-    activities: stub.as("ActivityRepository"),
-    notifications: stub.as("NotificationRepository"),
-    admin: stub.as("DataAdminRepository"),
+    users: new SupabaseUserRepository(),
+    workspaces: new SupabaseWorkspaceRepository(),
+    teams: new SupabaseTeamRepository(),
+    boards: new SupabaseBoardRepository(),
+    items: new SupabaseItemRepository(),
+    links: new SupabaseItemLinkRepository(),
+    trackers: new SupabaseTrackerRepository(),
+    comments: new SupabaseCommentRepository(),
+    activities: new SupabaseActivityRepository(),
+    notifications: new SupabaseNotificationRepository(),
+    admin: new SupabaseAdminRepository(),
   };
 }

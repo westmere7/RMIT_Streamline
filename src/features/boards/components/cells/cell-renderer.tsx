@@ -6,14 +6,16 @@ import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, emptyValueFor } from "@/domain";
+import { columnLabels, columnTagOptions, emptyValueFor } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { useBoardContext } from "@/features/boards/board-context";
-import { colorClasses } from "@/lib/colors";
+import { columnAlign } from "@/features/boards/board-model";
+import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
+import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { CellShell, PopoverCell } from "./cell-shell";
@@ -124,6 +126,7 @@ export function PriorityCell({ item, column, value, onChange, readOnly, width }:
       disabled={readOnly}
       ariaLabel={`${column.name}: ${label?.name ?? "not set"} for ${item.name}`}
       testId="priority-cell"
+      align={columnAlign(column.type)}
       contentClassName="p-2"
       trigger={<LabelPill label={label} appearance="soft" size="sm" emptyText="" className="mx-1" />}
     >
@@ -480,30 +483,43 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
 }
 
 export function TagsCell({ item, column, value, onChange, readOnly, width }: CellProps) {
-  const { model } = useBoardContext();
+  const { model, mutations, openEditLabels } = useBoardContext();
   const v = valueOf("TAGS", value);
-  const suggestions = React.useMemo(() => {
-    const all = new Set<string>();
-    for (const entry of model.snapshot.values) if (entry.columnId === column.id && entry.value.type === "TAGS") entry.value.tags.forEach((t) => all.add(t));
-    return [...all].sort();
-  }, [model.snapshot.values, column.id]);
+  const options = React.useMemo(() => tagOptionsFor(column, model.snapshot.values), [column, model.snapshot.values]);
   return (
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
-      ariaLabel={`${column.name}: ${v.tags.join(", ") || "none"} for ${item.name}`}
+      align={columnAlign(column.type)}
+      ariaLabel={`${column.name}: ${v.tags.map(formatTag).join(", ") || "none"} for ${item.name}`}
       contentClassName="w-64 p-2"
       trigger={
-        <span className="flex items-center gap-1 overflow-hidden px-1">
+        <span className="flex items-center gap-1 overflow-hidden px-1.5">
           {v.tags.map((tag) => (
-            <span key={tag} className="shrink-0 rounded bg-navy-50 px-1.5 py-0.5 text-2xs font-medium text-navy-800 dark:bg-navy-500/40 dark:text-navy-100">
-              {tag}
+            <span key={tag} className={cn("shrink-0 rounded-md px-2 py-0.5 text-2xs font-medium", colorClasses(tagColor(options, tag)).soft)}>
+              {formatTag(tag)}
             </span>
           ))}
         </span>
       }
     >
-      {() => <TagsEditor value={v.tags} suggestions={suggestions} onChange={(tags) => onChange({ type: "TAGS", tags })} />}
+      {() => (
+        <TagsEditor
+          value={v.tags}
+          options={options}
+          onChange={(tags) => onChange({ type: "TAGS", tags })}
+          onCreate={(raw) => {
+            // A tag created here joins the column's palette, so the next item can reuse it.
+            const name = normalizeTagName(raw);
+            if (!name || v.tags.includes(name)) return;
+            if (!columnTagOptions(column).some((o) => o.name.toLowerCase() === name.toLowerCase())) {
+              void mutations.updateColumnTags(column.id, [...columnTagOptions(column), { name, color: tagColorFor(name) }], {});
+            }
+            onChange({ type: "TAGS", tags: [...v.tags, name] });
+          }}
+          onEditTags={() => openEditLabels(column)}
+        />
+      )}
     </PopoverCell>
   );
 }

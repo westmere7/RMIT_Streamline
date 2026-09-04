@@ -26,11 +26,11 @@ export class LocalItemRepository implements ItemRepository {
     return (await db.get("items", id)) ?? null;
   }
 
-  async create(input: ItemInput & { position: number }): Promise<Item> {
+  async create(input: ItemInput & { position: number; id?: string }): Promise<Item> {
     const db = await this.conn.getDb();
     const now = nowIso();
     const item: Item = {
-      id: newId(),
+      id: input.id ?? newId(),
       boardId: input.boardId,
       groupId: input.groupId,
       parentItemId: input.parentItemId ?? null,

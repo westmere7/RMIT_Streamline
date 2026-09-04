@@ -49,9 +49,17 @@ export interface NumberColumnSettings {
   decimals: number;
 }
 
+/** One entry of a TAGS column's palette. Values store tag names, so renaming a
+ * tag also remaps the values that use it (see useBoardMutations.updateColumnTags). */
+export interface TagOption {
+  name: string;
+  color: ColorToken;
+}
+
 export interface TagsColumnSettings {
   kind: "tags";
-  suggestions: string[];
+  /** The tags offered by this column, in the order they are shown. */
+  options: TagOption[];
 }
 
 export interface EmptyColumnSettings {
@@ -144,7 +152,7 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
     case "NUMBER":
       return { kind: "number", unit: null, decimals: 0 };
     case "TAGS":
-      return { kind: "tags", suggestions: [] };
+      return { kind: "tags", options: [] };
     default:
       return { kind: "none" };
   }
@@ -156,6 +164,17 @@ export function statusSettings(column: BoardColumn): StatusColumnSettings | null
 
 export function prioritySettings(column: BoardColumn): PriorityColumnSettings | null {
   return column.settings.kind === "priority" ? column.settings : null;
+}
+
+export function tagsSettings(column: BoardColumn): TagsColumnSettings | null {
+  return column.settings.kind === "tags" ? column.settings : null;
+}
+
+/** The palette of a TAGS column, or an empty list for other types. */
+export function columnTagOptions(column: BoardColumn): TagOption[] {
+  if (column.settings.kind !== "tags") return [];
+  // Boards stored before the palette existed carry no `options`, so default it.
+  return (column.settings as Partial<TagsColumnSettings>).options ?? [];
 }
 
 /** Labels for STATUS/PRIORITY columns, or an empty list for other types. */

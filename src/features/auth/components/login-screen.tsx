@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
+import { IS_DEV } from "@/lib/config";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -20,8 +21,11 @@ export function LoginScreen() {
   const { providerKind } = useDataContext();
   const services = useServices();
   const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = React.useState<string | null>(null);
+  // Supabase authenticates with a password; local mode signs in by email alone.
+  const needsPassword = providerKind === "supabase";
 
   const accounts = useQuery({
     queryKey: ["login-accounts"],
@@ -36,11 +40,11 @@ export function LoginScreen() {
     if (status === "signed-in") router.replace(routes.root());
   }, [status, router]);
 
-  const submit = async (target: string) => {
+  const submit = async (target: string, secret?: string) => {
     setError(null);
     setPendingEmail(target);
     try {
-      await signIn(target);
+      await signIn(target, secret);
       router.replace(routes.root());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in");
@@ -64,7 +68,9 @@ export function LoginScreen() {
             Track campaign production, creative requests and publication work across the Melbourne and Vietnam studios.
           </p>
         </div>
-        <p className="text-xs text-white/50">Local development build · data is stored in this browser.</p>
+        <p className="text-xs text-white/50">
+          {needsPassword ? "Connected to Supabase · data is shared across the workspace." : "Local development build · data is stored in this browser."}
+        </p>
       </section>
 
       <section className="flex flex-1 items-center justify-center p-6">
@@ -123,7 +129,7 @@ export function LoginScreen() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (email.trim()) void submit(email.trim());
+              if (email.trim()) void submit(email.trim(), needsPassword ? password : undefined);
             }}
           >
             <div className="space-y-1.5">
@@ -137,14 +143,47 @@ export function LoginScreen() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+            {needsPassword && (
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  data-testid="login-password"
+                />
+              </div>
+            )}
             {error && (
               <p role="alert" className="text-[13px] text-destructive">
                 {error}
               </p>
             )}
-            <Button type="submit" className="w-full" disabled={!email.trim() || pendingEmail !== null}>
-              Continue
+            <Button type="submit" className="w-full" disabled={!email.trim() || (needsPassword && !password) || pendingEmail !== null}>
+              {pendingEmail !== null ? <LoaderCircle className="animate-spin" /> : null} Continue
             </Button>
+            {needsPassword && IS_DEV && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setEmail("admin@rmit.local");
+                    setPassword("admin");
+                  }}
+                  data-testid="login-fill-admin"
+                >
+                  Use the admin test account
+                </Button>
+                <p className="text-2xs text-muted-foreground">
+                  Demo accounts: <code>admin@rmit.local</code> / <code>admin</code>, or any of danh, emily, joanne … <code>@rmit.local</code> with{" "}
+                  <code>Password123!</code>
+                </p>
+              </>
+            )}
             {providerKind === "local" && (
               <p className="text-2xs text-muted-foreground">
                 Seeded accounts: danh, emily, jun, joanne, duc, tuyet, hil, grace, jane @rmit.local

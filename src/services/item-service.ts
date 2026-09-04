@@ -28,6 +28,8 @@ export interface BoardSnapshot {
 }
 
 export interface CreateItemInput {
+  /** Supplied by the optimistic UI so the rendered row keeps its id. */
+  id?: EntityId;
   boardId: EntityId;
   groupId: EntityId;
   name: string;
@@ -102,6 +104,7 @@ export class ItemService {
     }
 
     const item = await this.repos.items.create({
+      id: input.id,
       boardId: input.boardId,
       groupId: input.groupId,
       parentItemId: input.parentItemId ?? null,

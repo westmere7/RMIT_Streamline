@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import type { BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue } from "@/domain";
+import type { BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -39,15 +39,31 @@ export function useBoardMutations(boardId: string) {
     publishDataChange({ boardIds: [boardId], kinds: ["board", "items"] });
   }, [queryClient, key, boardId, ws.workspace.id, user.id]);
 
-  /** Applies `updater` optimistically and runs `action`. */
+  /**
+   * Applies `updater` optimistically and runs `action`.
+   *
+   * `reconcile` runs the moment the action resolves, before the refetch. Creators
+   * use it to swap their placeholder row for the stored one: against a remote
+   * database the refetch is a round-trip away, and until it lands anything acting
+   * on the new row (delete it, rename it) would send an id the server never saw.
+   */
   const run = useCallback(
-    async <T,>(updater: Updater | null, action: () => Promise<T>, errorMessage: string): Promise<T | undefined> => {
+    async <T,>(
+      updater: Updater | null,
+      action: () => Promise<T>,
+      errorMessage: string,
+      reconcile?: (snapshot: BoardSnapshot, result: T) => BoardSnapshot,
+    ): Promise<T | undefined> => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<BoardSnapshot>(key);
       if (updater && previous) queryClient.setQueryData<BoardSnapshot>(key, updater(previous));
       pending.current += 1;
       try {
         const result = await action();
+        if (reconcile) {
+          const current = queryClient.getQueryData<BoardSnapshot>(key);
+          if (current) queryClient.setQueryData<BoardSnapshot>(key, reconcile(current, result));
+        }
         return result;
       } catch (error) {
         console.error(`[board] ${errorMessage}`, error);
@@ -139,8 +155,15 @@ export function useBoardMutations(boardId: string) {
           }
           return next;
         },
-        () => services.items.createItem({ ...input, boardId }, user.id),
+        // The id travels with the request, so the row the user is looking at keeps
+        // the identity it was rendered with — no remount, no stale id in a menu.
+        () => services.items.createItem({ ...input, boardId, id: tempId }, user.id),
         "Could not create the item",
+        (s, item) => ({
+          ...s,
+          items: s.items.map((i) => (i.id === tempId ? item : i)),
+          values: s.values.map((v) => (v.itemId === tempId ? { ...v, itemId: item.id } : v)),
+        }),
       );
     },
     [run, services, boardId, user.id],
@@ -255,11 +278,12 @@ export function useBoardMutations(boardId: string) {
   // ---- Groups --------------------------------------------------------------
 
   const createGroup = useCallback(
-    (name: string, position?: number) =>
-      run(
+    (name: string, position?: number) => {
+      const tempId = newId();
+      return run(
         (s) => {
           const temp: BoardGroup = {
-            id: newId(),
+            id: tempId,
             boardId,
             name: name.trim() || "New group",
             color: "blue",
@@ -275,9 +299,11 @@ export function useBoardMutations(boardId: string) {
           }
           return { ...s, groups: [...groups, temp] };
         },
-        () => services.boards.createGroup(boardId, name, user.id, position),
+        () => services.boards.createGroup(boardId, name, user.id, position, tempId),
         "Could not create the group",
-      ),
+        (s, group) => ({ ...s, groups: s.groups.map((g) => (g.id === tempId ? group : g)) }),
+      );
+    },
     [run, services, boardId, user.id],
   );
 
@@ -332,30 +358,50 @@ export function useBoardMutations(boardId: string) {
 
   // ---- Columns -------------------------------------------------------------
 
+  /**
+   * Adds a column at the end, or directly after `afterColumnId` when the request
+   * came from a column's own menu.
+   */
   const addColumn = useCallback(
-    (name: string, type: ColumnType) =>
-      run(
-        (s) => ({
-          ...s,
-          columns: [
-            ...s.columns,
-            {
-              id: newId(),
-              boardId,
-              name,
-              type,
-              settings: defaultSettingsFor(type),
-              position: s.columns.length,
-              width: DEFAULT_COLUMN_WIDTHS[type],
-              hidden: false,
-              createdAt: nowIso(),
-            },
-          ],
-        }),
-        () => services.boards.addColumn({ boardId, name, type }),
+    (name: string, type: ColumnType, options?: { afterColumnId?: string }) => {
+      const afterId = options?.afterColumnId;
+      const optimisticId = newId();
+      return run(
+        (s) => {
+          const draft: BoardColumn = {
+            id: optimisticId,
+            boardId,
+            name,
+            type,
+            settings: defaultSettingsFor(type),
+            position: s.columns.length,
+            width: DEFAULT_COLUMN_WIDTHS[type],
+            hidden: false,
+            createdAt: nowIso(),
+          };
+          const ordered = [...s.columns].sort((a, b) => a.position - b.position);
+          const at = afterId ? ordered.findIndex((c) => c.id === afterId) : -1;
+          if (at === -1) ordered.push(draft);
+          else ordered.splice(at + 1, 0, draft);
+          return { ...s, columns: ordered.map((c, i) => ({ ...c, position: i })) };
+        },
+        async () => {
+          const created = await services.boards.addColumn({ boardId, name, type, id: optimisticId });
+          if (!afterId) return created;
+          const previous = queryClient.getQueryData<BoardSnapshot>(key);
+          const ordered = [...(previous?.columns ?? [])].sort((a, b) => a.position - b.position).map((c) => c.id);
+          const withoutNew = ordered.filter((id) => id !== created.id && id !== optimisticId);
+          const at = withoutNew.indexOf(afterId);
+          if (at === -1) return created;
+          withoutNew.splice(at + 1, 0, created.id);
+          await services.boards.reorderColumns(boardId, withoutNew);
+          return created;
+        },
         "Could not add the column",
-      ),
-    [run, services, boardId],
+        (s, column) => ({ ...s, columns: s.columns.map((c) => (c.id === optimisticId ? column : c)) }),
+      );
+    },
+    [run, services, boardId, queryClient, key],
   );
 
   const updateColumn = useCallback(
@@ -366,6 +412,62 @@ export function useBoardMutations(boardId: string) {
         "Could not update the column",
       ),
     [run, services],
+  );
+
+  /**
+   * Saves a TAGS column's palette. Values store tag names, so a rename or a
+   * removal has to be applied to every item that used the old tag.
+   */
+  const updateColumnTags = useCallback(
+    async (columnId: string, options: TagOption[], renames: Record<string, string>) => {
+      const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
+      const column = snapshot?.columns.find((c) => c.id === columnId);
+      const kept = new Set(options.map((o) => o.name));
+      const remap = (tags: string[]) => {
+        const next: string[] = [];
+        for (const tag of tags) {
+          const renamed = renames[tag] ?? tag;
+          if (!kept.has(renamed) || next.includes(renamed)) continue;
+          next.push(renamed);
+        }
+        return next;
+      };
+      const affected = (snapshot?.values ?? []).filter((entry) => {
+        if (entry.columnId !== columnId || entry.value.type !== "TAGS") return false;
+        const tags = entry.value.tags;
+        const next = remap(tags);
+        return next.length !== tags.length || next.some((t, i) => t !== tags[i]);
+      });
+
+      await run(
+        (s) => ({
+          ...s,
+          columns: s.columns.map((c) => (c.id === columnId ? { ...c, settings: { kind: "tags", options } } : c)),
+          values: s.values.map((entry) =>
+            entry.columnId === columnId && entry.value.type === "TAGS" ? { ...entry, value: { type: "TAGS", tags: remap(entry.value.tags) } } : entry,
+          ),
+        }),
+        async () => {
+          await services.boards.updateColumn(columnId, { settings: { kind: "tags", options } });
+          if (!column) return;
+          const board = ws.boardById(boardId);
+          for (const entry of affected) {
+            if (entry.value.type !== "TAGS") continue;
+            const item = snapshot?.items.find((i) => i.id === entry.itemId);
+            if (!item || !board) continue;
+            await services.items.setValue(
+              entry.itemId,
+              columnId,
+              { type: "TAGS", tags: remap(entry.value.tags) },
+              { column, item, board, users: ws.users },
+              user.id,
+            );
+          }
+        },
+        "Could not save the tags",
+      );
+    },
+    [run, services, queryClient, key, boardId, ws, user.id],
   );
 
   const reorderColumns = useCallback(
@@ -413,6 +515,7 @@ export function useBoardMutations(boardId: string) {
       deleteGroup,
       addColumn,
       updateColumn,
+      updateColumnTags,
       reorderColumns,
       deleteColumn,
     }),
@@ -434,6 +537,7 @@ export function useBoardMutations(boardId: string) {
       deleteGroup,
       addColumn,
       updateColumn,
+      updateColumnTags,
       reorderColumns,
       deleteColumn,
     ],

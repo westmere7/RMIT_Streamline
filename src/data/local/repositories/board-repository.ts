@@ -169,9 +169,9 @@ export class LocalBoardRepository implements BoardRepository {
     return (await db.get("boardGroups", id)) ?? null;
   }
 
-  async createGroup(input: Omit<BoardGroup, "id" | "createdAt">): Promise<BoardGroup> {
+  async createGroup(input: Omit<BoardGroup, "id" | "createdAt"> & { id?: string }): Promise<BoardGroup> {
     const db = await this.conn.getDb();
-    const group: BoardGroup = { ...input, id: newId(), createdAt: nowIso() };
+    const group: BoardGroup = { ...input, id: input.id ?? newId(), createdAt: nowIso() };
     await db.put("boardGroups", group);
     return group;
   }
@@ -210,12 +210,12 @@ export class LocalBoardRepository implements BoardRepository {
     return sortByPosition(await db.getAllFromIndex("boardColumns", "byBoard", boardId));
   }
 
-  async createColumn(input: BoardColumnInput & { position?: number }): Promise<BoardColumn> {
+  async createColumn(input: BoardColumnInput & { position?: number; id?: string }): Promise<BoardColumn> {
     const db = await this.conn.getDb();
     const existing = await db.getAllFromIndex("boardColumns", "byBoard", input.boardId);
     const maxPosition = existing.reduce((max, c) => Math.max(max, c.position), -1);
     const column: BoardColumn = {
-      id: newId(),
+      id: input.id ?? newId(),
       boardId: input.boardId,
       name: input.name,
       type: input.type,

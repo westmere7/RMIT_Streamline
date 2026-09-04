@@ -319,7 +319,7 @@ create table public.board_columns (
   --   {"kind":"priority","labels":[...]}
   --   {"kind":"person","allowMultiple":true}
   --   {"kind":"number","unit":null,"decimals":0}
-  --   {"kind":"tags","suggestions":[]}
+  --   {"kind":"tags","options":[{"name":"urgent","color":"rose"}]}
   --   {"kind":"none"}
   -- Keys are camelCase because the JSON is passed through to the client as-is.
   settings   jsonb not null default '{"kind":"none"}'::jsonb,

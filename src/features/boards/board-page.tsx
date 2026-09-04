@@ -15,6 +15,7 @@ import { BoardHeader } from "@/features/boards/components/board-header";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
+import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
 import { FilesView } from "@/features/boards/components/views/files-view";
@@ -24,6 +25,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { tagOptionsFor } from "@/features/boards/tag-palette";
 import { useServices } from "@/features/data/data-context";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -166,10 +168,17 @@ function BoardScreen({ boardId }: { boardId: string }) {
             {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
           </div>
           <EditLabelsDialog
-            column={editLabelsColumn}
-            open={editLabelsColumn !== null}
+            column={editLabelsColumn?.type === "TAGS" ? null : editLabelsColumn}
+            open={editLabelsColumn !== null && editLabelsColumn.type !== "TAGS"}
             onOpenChange={(open) => !open && setEditLabelsColumn(null)}
             onSave={(columnId, settings) => void mutations.updateColumn(columnId, { settings })}
+          />
+          <EditTagsDialog
+            column={editLabelsColumn?.type === "TAGS" ? editLabelsColumn : null}
+            options={editLabelsColumn?.type === "TAGS" && snapshot.data ? tagOptionsFor(editLabelsColumn, snapshot.data.values) : []}
+            open={editLabelsColumn?.type === "TAGS"}
+            onOpenChange={(open) => !open && setEditLabelsColumn(null)}
+            onSave={(columnId, options, renames) => void mutations.updateColumnTags(columnId, options, renames)}
           />
         </BoardContextProvider>
       )}

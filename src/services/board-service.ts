@@ -296,10 +296,11 @@ export class BoardService {
 
   // ---- Groups --------------------------------------------------------------
 
-  async createGroup(boardId: EntityId, name: string, actorId: EntityId, position?: number): Promise<BoardGroup> {
+  async createGroup(boardId: EntityId, name: string, actorId: EntityId, position?: number, id?: EntityId): Promise<BoardGroup> {
     const groups = await this.repos.boards.listGroups(boardId);
     const color = GROUP_COLORS[groups.length % GROUP_COLORS.length] ?? "blue";
     const group = await this.repos.boards.createGroup({
+      id,
       boardId,
       name: name.trim() || "New group",
       color,
@@ -412,7 +413,7 @@ export class BoardService {
 
   // ---- Columns -------------------------------------------------------------
 
-  async addColumn(input: BoardColumnInput): Promise<BoardColumn> {
+  async addColumn(input: BoardColumnInput & { id?: EntityId; position?: number }): Promise<BoardColumn> {
     return this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
   }
 

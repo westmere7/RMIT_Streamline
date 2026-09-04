@@ -4,13 +4,11 @@ import { getAppConfig } from "@/lib/config";
 /**
  * Supabase client factory.
  *
- * TODO(supabase): To connect a real project later:
- *   1. Create a Supabase project and run `supabase/migrations/*.sql` then `supabase/policies/*.sql`.
- *   2. Copy `.env.example` to `.env.local` and fill NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.
- *   3. Finish the repositories in `src/data/supabase/` (they currently throw NotImplemented).
- *   4. Set NEXT_PUBLIC_DATA_PROVIDER=supabase.
- *   5. Swap `LocalAuthProvider` for `SupabaseAuthProvider` in `src/features/auth/auth-provider-factory.ts`
- *      (already wired by config – nothing else in the UI changes).
+ * To point the app at a project: fill NEXT_PUBLIC_SUPABASE_URL and
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY plus SUPABASE_DB_URL in `.env.local`, then run
+ * `npm run db:setup` (applies the SQL, seeds the demo data and switches
+ * NEXT_PUBLIC_DATA_PROVIDER to "supabase"). Repositories live in
+ * `src/data/supabase/`; the auth provider is chosen by the same config value.
  *
  * In local mode this module is never invoked, so no network connection is made.
  */
