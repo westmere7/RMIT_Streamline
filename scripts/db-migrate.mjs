@@ -93,6 +93,11 @@ async function main() {
   const dry = argv.includes("--dry") || argv.includes("--dry-run");
   const baseline = argv.includes("--baseline");
 
+  if (process.env.SKIP_DB_MIGRATE === "1") {
+    console.log("SKIP_DB_MIGRATE=1 — skipping migrations.");
+    return;
+  }
+
   const url = process.env.SUPABASE_DB_URL;
   if (!url && argv.includes("--if-configured")) {
     // Called from predev/prebuild: local-provider development has no database.
@@ -122,6 +127,30 @@ async function main() {
 
   const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 5, connect_timeout: 30, onnotice: () => {} });
   try {
+    try {
+      await sql`select 1`;
+    } catch (error) {
+      const code = error?.code ?? "";
+      console.error(
+        [
+          `Could not connect to the database: ${error?.message ?? error}`,
+          "",
+          "Common causes in CI:",
+          "  · the direct connection string (db.<ref>.supabase.co) is IPv6-only —",
+          "    use Connect → Session pooler instead (port 5432, user postgres.<ref>)",
+          "  · the password in the URI is not percent-encoded (@ : / ? # → %40 %3A %2F %3F %23)",
+          "  · the URI is missing sslmode=require",
+          "",
+          "Set SKIP_DB_MIGRATE=1 to deploy without applying migrations.",
+          code ? `(driver code: ${code})` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     await withLock(sql, async () => {
     await ensureLedger(sql);
     const applied = new Map((await sql`select name, checksum from public.schema_migrations`).map((r) => [r.name, r.checksum]));
