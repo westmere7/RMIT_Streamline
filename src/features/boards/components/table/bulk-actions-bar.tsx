@@ -26,9 +26,9 @@ export function BulkActionsBar() {
         role="toolbar"
         aria-label="Bulk actions"
         data-testid="bulk-actions"
-        className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-popover px-2 py-1.5 shadow-xl animate-in fade-in-0 slide-in-from-bottom-2"
+        className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-border/70 bg-popover px-2.5 py-2 shadow-xl animate-in fade-in-0 slide-in-from-bottom-2"
       >
-        <span className="flex h-7 items-center rounded-md bg-primary px-2.5 text-xs font-semibold text-white tabular">{ids.length}</span>
+        <span className="flex h-7 items-center rounded-full bg-primary px-2.5 text-xs font-semibold text-white tabular">{ids.length}</span>
         <span className="mr-2 text-[13px]">{ids.length === 1 ? "item selected" : "items selected"}</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -20,8 +20,8 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
   };
 
   return (
-    <div role="row" className="flex border-b" style={{ height: TABLE_LAYOUT.rowHeight }}>
-      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background", focused && "bg-accent/40")} style={leadingCellStyle()}>
+    <div role="row" className="flex border-b border-border/60" style={{ height: TABLE_LAYOUT.rowHeight }}>
+      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-accent/40")} style={leadingCellStyle()}>
         <span aria-hidden className="h-full w-1.5 bg-transparent" />
         <div style={{ width: TABLE_LAYOUT.selectWidth - 6 + TABLE_LAYOUT.handleWidth }} className="flex items-center justify-end pr-1 text-muted-foreground/60">
           <Plus className="size-3.5" />
@@ -43,7 +43,7 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
               (e.target as HTMLInputElement).blur();
             }
           }}
-          className="h-7 min-w-0 flex-1 bg-transparent px-1 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:rounded-sm focus:bg-background focus:ring-1 focus:ring-ring"
+          className="h-8 min-w-0 flex-1 rounded-lg bg-transparent px-1.5 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:bg-card focus:ring-2 focus:ring-ring/25"
         />
       </div>
       {model.visibleColumns.map((column) => (

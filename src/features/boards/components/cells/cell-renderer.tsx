@@ -83,11 +83,15 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       contentClassName="p-2"
       trigger={
         label ? (
-          <span className={cn("flex h-full w-full items-center justify-center truncate text-xs font-medium", colorClasses(label.color).solid)}>
-            <span className="truncate px-1">{label.name}</span>
+          <span className="flex h-full w-full items-center p-1.5">
+            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid)}>
+              <span className="truncate px-2">{label.name}</span>
+            </span>
           </span>
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-surface-strong/60 text-2xs text-muted-foreground">—</span>
+          <span className="flex h-full w-full items-center p-1.5">
+            <span className="flex h-full w-full items-center justify-center rounded-lg bg-surface-strong/50 text-2xs text-muted-foreground">—</span>
+          </span>
         )
       }
     >
@@ -267,7 +271,7 @@ export function TextCell({ item, column, value, onChange, readOnly, width }: Cel
             if (e.key === "Enter") finish(true);
             if (e.key === "Escape") finish(false);
           }}
-          className="h-7 w-full rounded-sm border border-ring bg-background px-1.5 text-[13px] outline-none"
+          className="h-8 w-full rounded-lg border border-ring bg-card px-2 text-[13px] outline-none ring-2 ring-ring/20"
         />
       </CellShell>
     );
@@ -307,7 +311,7 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
             onChange={(e) => setDraft(e.target.value)}
             onFocus={() => setDraft(v.text)}
             rows={5}
-            className="w-full resize-y rounded-md border border-input p-2 text-[13px] outline-none focus:border-ring"
+            className="w-full resize-y rounded-lg border border-border p-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={close} className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent">
@@ -353,7 +357,7 @@ export function NumberCell({ item, column, value, onChange, readOnly, width }: C
             if (e.key === "Enter") finish(true);
             if (e.key === "Escape") finish(false);
           }}
-          className="h-7 w-full rounded-sm border border-ring bg-background px-1.5 text-right text-[13px] outline-none tabular"
+          className="h-8 w-full rounded-lg border border-ring bg-card px-2 text-right text-[13px] outline-none ring-2 ring-ring/20 tabular"
         />
       </CellShell>
     );
@@ -386,7 +390,7 @@ export function CheckboxCell({ item, column, value, onChange, readOnly, width }:
         onClick={() => onChange({ type: "CHECKBOX", checked: !v.checked })}
         className={cn(
           "flex size-4 items-center justify-center rounded-[4px] border transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-          v.checked ? "border-green-600 bg-green-600 text-white" : "border-input bg-background hover:border-ring",
+          v.checked ? "border-green-600 bg-green-600 text-white" : "border-input bg-card hover:border-ring",
         )}
       >
         {v.checked && <Check className="size-3" strokeWidth={3} />}
@@ -412,7 +416,7 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 truncate px-1 text-xs text-blue-700 hover:underline dark:text-blue-300"
+            className="flex items-center gap-1 truncate px-1 text-xs text-ring hover:underline"
           >
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{v.text || v.url.replace(/^https?:\/\//, "")}</span>
@@ -443,14 +447,14 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
               setText(v.text ?? "");
             }}
             onChange={(e) => setUrl(e.target.value)}
-            className="h-8 w-full rounded-md border border-input px-2 text-[13px] outline-none focus:border-ring"
+            className="h-9 w-full rounded-lg border border-border px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <input
             aria-label="Link text"
             placeholder="Display text (optional)"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="h-8 w-full rounded-md border border-input px-2 text-[13px] outline-none focus:border-ring"
+            className="h-9 w-full rounded-lg border border-border px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <div className="flex justify-end gap-2">
             {v.url && (

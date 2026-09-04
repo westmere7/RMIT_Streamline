@@ -70,19 +70,19 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       aria-label={`Group ${group.name}`}
-      className={cn("mb-6", isDragging && "opacity-50")}
+      className={cn("mb-7", isDragging && "opacity-50")}
       data-testid={`group-${group.name}`}
     >
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={!canEdit}>
-          <div className="sticky left-0 z-[5] flex h-10 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth() }}>
+          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth() }}>
             <div className="flex w-9 items-center justify-center">
               <button
                 type="button"
                 aria-label={group.collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
                 aria-expanded={!group.collapsed}
                 onClick={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}
-                className={cn("rounded p-0.5 hover:bg-accent", colors.text)}
+                className={cn("rounded-lg p-1 transition-colors hover:bg-accent/70", colors.text)}
               >
                 {group.collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
               </button>
@@ -92,14 +92,14 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
                 ref={setActivatorNodeRef}
                 type="button"
                 aria-label={`Drag to reorder ${group.name}`}
-                className="flex size-6 cursor-grab items-center justify-center rounded text-muted-foreground/50 hover:bg-accent hover:text-foreground active:cursor-grabbing"
+                className="flex size-6 cursor-grab items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent/70 hover:text-foreground active:cursor-grabbing"
                 {...attributes}
                 {...listeners}
               >
                 <GripVertical className="size-4" />
               </button>
             )}
-            <h3 className={cn("flex min-w-0 items-center text-sm font-semibold", colors.text)}>
+            <h3 className={cn("flex min-w-0 items-center text-[15px] font-semibold tracking-tight", colors.text)}>
               <InlineEdit
                 value={group.name}
                 editing={renaming}
@@ -108,11 +108,11 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
                 trigger="doubleClick"
                 disabled={!canEdit}
                 ariaLabel="Group name"
-                className="max-w-72 rounded px-1 hover:bg-accent/70"
-                inputClassName="h-7 w-72 text-sm font-semibold"
+                className="max-w-72 rounded-lg px-1.5 hover:bg-accent/70"
+                inputClassName="h-8 w-72 text-[15px] font-semibold"
               />
             </h3>
-            <span className="ml-1 text-xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
+            <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
             {group.collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
             {canEdit && (
               <DropdownMenu>
@@ -120,7 +120,7 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
                   <button
                     type="button"
                     aria-label={`Options for ${group.name}`}
-                    className="ml-1 flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity transition-colors group-hover/group:opacity-100 focus-visible:opacity-100 hover:bg-accent/70 hover:text-foreground"
                   >
                     <MoreHorizontal className="size-4" />
                   </button>
@@ -178,7 +178,7 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
       </ContextMenu>
 
       {!group.collapsed && (
-        <div role="grid" aria-label={`${group.name} items`} className="border-t">
+        <div role="grid" aria-label={`${group.name} items`} className="border-t border-border/60">
           <ColumnHeaderRow
             group={group}
             allSelected={allSelected}
@@ -193,11 +193,11 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
             ))}
           </SortableContext>
           {items.length === 0 && !canEdit && (
-            <div className="sticky left-0 flex h-9 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth() }}>
+            <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth() }}>
               This group is empty.
             </div>
           )}
-          <div ref={setDropRef} className={cn(isOver && "bg-blue-50/60 dark:bg-navy-500/25")}>
+          <div ref={setDropRef} className={cn(isOver && "bg-accent-soft/50")}>
             {canEdit && <AddItemRow group={group} emptyHint={items.length === 0} widthOverrides={widthOverrides} />}
           </div>
         </div>
@@ -229,7 +229,7 @@ function StatusSummary({ itemIds }: { itemIds: string[] }) {
   }
   const labels = columnLabels(column);
   return (
-    <span className="ml-3 flex h-5 w-40 overflow-hidden rounded-sm" aria-hidden>
+    <span className="ml-3 flex h-2 w-40 overflow-hidden rounded-full" aria-hidden>
       {labels.map((label) => {
         const count = counts.get(label.id) ?? 0;
         if (!count) return null;

@@ -46,7 +46,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
   return (
     <div className={boardBarClasses} role="toolbar" aria-label="Board tools">
       <BoardViewSwitcher view={view} onChange={onViewChange} />
-      <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border" />
+      <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}
       {tableTools && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -55,9 +55,9 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             <PersonFilter />
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn(filterCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="filter-button">
+                <Button variant="ghost" size="sm" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
                   <Filter /> Filter
-                  {filterCount > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
+                  {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[520px] p-3">
@@ -66,7 +66,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             </Popover>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn(ui.sort && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="sort-button">
+                <Button variant="ghost" size="sm" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
                   <ArrowUpDown /> Sort
                   {ui.sort && (
                     <span className="flex items-center gap-0.5 text-2xs">
@@ -98,7 +98,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn(hiddenCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")}>
+                <Button variant="ghost" size="sm" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
                   <EyeOff /> Hide
                   {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
                 </Button>
@@ -121,7 +121,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground"
+                className="rounded-full text-muted-foreground"
                 onClick={() => {
                   store.clearFilters(board.id);
                   store.setSearch(board.id, "");
@@ -133,7 +133,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             )}
           </>
         )}
-        <span className="pl-1 text-2xs text-muted-foreground tabular">
+        <span className="pl-1.5 text-2xs text-muted-foreground tabular">
           {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel} items` : `${model.totalTopLevel} items`}
         </span>
       </div>
@@ -145,7 +145,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <div className="relative min-w-0 shrink">
-      <Search className="pointer-events-none absolute top-1.5 left-2 size-4 text-muted-foreground" />
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -155,10 +155,10 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
         placeholder="Search items"
         aria-label="Search items"
         data-testid="search-input"
-        className="h-7 w-52 min-w-28 pl-7 pr-7"
+        className="h-9 w-56 min-w-28 rounded-full border-transparent bg-surface pl-9 pr-8 hover:bg-surface-strong/70 focus-visible:bg-card"
       />
       {value && (
-        <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1.5 right-1.5 rounded p-0.5 text-muted-foreground hover:text-foreground">
+        <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <X className="size-3.5" />
         </button>
       )}
@@ -174,13 +174,13 @@ function PersonFilter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn(selected.length > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="person-filter">
+        <Button variant="ghost" size="sm" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
           <UserRound /> Person
-          {selected.length > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
+          {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3">
-        <p className="mb-2 text-xs font-medium text-muted-foreground">Filter items by owner</p>
+        <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by owner</p>
         <div className="flex flex-wrap gap-1.5">
           {users
             .filter((u) => u.deactivatedAt === null)
@@ -248,7 +248,7 @@ function FilterPanel() {
         </FilterGroup>
       </div>
       <div>
-        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Date</p>
+        <p className="mb-1.5 label-quiet">Date</p>
         <Select value={ui.filters.date ?? "any"} onValueChange={(v) => setFilters(board.id, { date: v === "any" ? null : (v as DateFilter) })}>
           <SelectTrigger className="w-56" aria-label="Date filter">
             <SelectValue />
@@ -270,7 +270,7 @@ function FilterPanel() {
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="mb-1.5 label-quiet">{title}</p>
       <div className="space-y-1">{children}</div>
     </div>
   );
@@ -340,7 +340,7 @@ function NewItemButton() {
             </Button>
           </div>
         </form>
-        <p className="mt-2 text-2xs text-muted-foreground">Tip: type in the “Add item” row at the bottom of any group for quick entry. Board: {board.name}</p>
+        <p className="mt-3 text-2xs text-muted-foreground">Tip: type in the “Add item” row at the bottom of any group for quick entry. Board: {board.name}</p>
       </PopoverContent>
     </Popover>
   );

@@ -51,7 +51,7 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
         "flex flex-col bg-surface",
         narrow
           ? "fixed inset-0 z-40"
-          : "my-2 mr-2 w-[520px] shrink-0 overflow-hidden rounded-xl border border-border/80 shadow-2xl ring-1 ring-black/5 animate-in slide-in-from-right-4 duration-150 dark:ring-white/10",
+          : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
       )}
     >
       {!item ? (
@@ -156,7 +156,7 @@ function Overview({ item }: { item: Item }) {
   return (
     <div className="space-y-6 p-4">
       <section>
-        <h3 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Description</h3>
+        <h3 className="mb-1.5 label-quiet">Description</h3>
         {canEdit ? (
           <Textarea
             value={description}
@@ -175,7 +175,7 @@ function Overview({ item }: { item: Item }) {
       </section>
 
       <section>
-        <h3 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Fields</h3>
+        <h3 className="mb-1.5 label-quiet">Fields</h3>
         <div className="divide-y rounded-md border">
           {fieldColumns.map((column) => (
             <div key={column.id} className="flex h-10 items-center">
@@ -207,7 +207,7 @@ function Overview({ item }: { item: Item }) {
 
       {item.parentItemId === null && (
         <section>
-          <h3 className="mb-1.5 flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="mb-1.5 flex items-center justify-between label-quiet">
             Subitems <span className="tabular">{subitems.length}</span>
           </h3>
           <ul className="divide-y rounded-md border">
@@ -323,7 +323,7 @@ function FilesSection({ item, column }: { item: Item; column: BoardColumn | null
 
   return (
     <section>
-      <h3 className="mb-1.5 flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="mb-1.5 flex items-center justify-between label-quiet">
         Files
         {column && canEdit && (
           <>

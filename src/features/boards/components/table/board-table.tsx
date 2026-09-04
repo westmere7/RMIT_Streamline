@@ -106,7 +106,7 @@ export function BoardTable() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="scrollbar-thin flex-1 overflow-auto" data-testid="board-table">
+      <div className="scrollbar-thin flex-1 overflow-auto pl-3" data-testid="board-table">
         <CellStretchProvider>
           <div style={{ minWidth: width }} className="pb-24">
             <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)} modifiers={[restrictToVerticalAxis]}>
@@ -117,12 +117,12 @@ export function BoardTable() {
               </SortableContext>
               <DragOverlay dropAnimation={null}>
                 {activeDrag?.type === "item" && (
-                  <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-medium shadow-lg">
+                  <div className="flex h-10 w-80 items-center rounded-xl border border-border/70 bg-card px-3.5 text-[13px] font-medium shadow-xl">
                     {model.itemById.get(activeDrag.itemId)?.name}
                   </div>
                 )}
                 {activeDrag?.type === "group" && (
-                  <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-semibold shadow-lg">
+                  <div className="flex h-10 w-80 items-center rounded-xl border border-border/70 bg-card px-3.5 text-[13px] font-semibold shadow-xl">
                     {model.groups.find((g) => g.id === activeDrag.groupId)?.name}
                   </div>
                 )}
@@ -152,7 +152,7 @@ export function BoardTable() {
             )}
 
             {canEdit && (
-              <div className="sticky left-0 px-4 pt-3">
+              <div className="sticky left-0 px-4 pt-2">
                 <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="add-group">
                   <Plus /> Add new group
                 </Button>

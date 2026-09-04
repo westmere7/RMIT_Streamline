@@ -32,9 +32,9 @@ export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll,
   const { model, canEdit } = useBoardContext();
   const colors = colorClasses(group.color);
   return (
-    <div role="row" className="sticky top-0 z-[6] flex h-9 border-b bg-background text-xs font-medium text-muted-foreground">
-      <div className="sticky left-0 z-[7] flex h-full items-center border-r bg-background" style={leadingCellStyle()}>
-        <span aria-hidden className={cn("h-full w-1.5 rounded-l-sm", colors.dot)} />
+    <div role="row" className="sticky top-0 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground">
+      <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle()}>
+        <span aria-hidden className={cn("my-1.5 h-[calc(100%-12px)] w-1 rounded-full", colors.dot)} />
         <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
           <Checkbox
             aria-label={`Select all items in ${group.name}`}
@@ -115,13 +115,13 @@ function ColumnHeaderCell({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={!canEdit}>
-        <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r px-1" style={columnCellStyle(width)}>
+        <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r border-border/60 px-1" style={columnCellStyle(width)}>
           {canEdit ? (
             <Popover open={renaming} onOpenChange={setRenaming}>
               <DropdownMenu>
                 <PopoverTrigger asChild>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex h-7 max-w-full items-center gap-1 truncate rounded px-1.5 hover:bg-accent hover:text-foreground" aria-label={`${column.name} column options`}>
+                    <button type="button" className="flex h-7 max-w-full items-center gap-1 truncate rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground" aria-label={`${column.name} column options`}>
                       <span className="truncate">{column.name}</span>
                     </button>
                   </DropdownMenuTrigger>
@@ -178,7 +178,7 @@ function ColumnHeaderCell({
               aria-orientation="vertical"
               aria-label={`Resize ${column.name}`}
               onPointerDown={startResize}
-              className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity hover:bg-ring group-hover/col:opacity-100"
+              className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize rounded-full opacity-0 transition-opacity hover:bg-ring/70 group-hover/col:opacity-100"
             />
           )}
           <ConfirmDialog
@@ -234,7 +234,7 @@ export function AddColumnMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="Add column" className="flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground" data-testid="add-column">
+        <button type="button" aria-label="Add column" className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground" data-testid="add-column">
           <Plus className="size-4" />
         </button>
       </DropdownMenuTrigger>

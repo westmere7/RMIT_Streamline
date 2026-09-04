@@ -23,8 +23,8 @@ export function LabelPill({ label, appearance = "solid", emptyText = "", size = 
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center truncate rounded font-medium",
-        size === "md" ? "h-6 px-2 text-xs" : "h-5 px-1.5 text-2xs",
+        "inline-flex max-w-full items-center truncate rounded-md font-medium",
+        size === "md" ? "h-6.5 px-2.5 text-xs" : "h-5.5 px-2 text-2xs",
         appearance === "solid" ? colors.solid : colors.soft,
         className,
       )}

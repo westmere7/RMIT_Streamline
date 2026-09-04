@@ -136,7 +136,7 @@ export const TABLE_LAYOUT = {
   handleWidth: 24,
   nameWidth: 320,
   trailingWidth: 48,
-  rowHeight: 36,
+  rowHeight: 40,
 } as const;
 
 export function leadingWidth(): number {

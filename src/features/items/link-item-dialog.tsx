@@ -121,7 +121,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
             <span className="truncate">All boards</span>
             <span className="ml-auto text-2xs text-muted-foreground tabular">{linkable.length}</span>
           </ScopeButton>
-          <p className="mt-3 px-2 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Teams</p>
+          <p className="mt-3 px-2 pb-1 label-quiet">Teams</p>
           <ul className="space-y-0.5">
             {sections.map(({ team, boards }) => (
               <li key={team?.id ?? "none"}>
@@ -154,7 +154,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
         {/* Items */}
         <Command
           shouldFilter={false}
-          className="min-h-0 rounded-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:first-child_[cmdk-group-heading]]:pt-1"
+          className="min-h-0 rounded-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:first-child_[cmdk-group-heading]]:pt-1"
         >
           <CommandInput placeholder={activeBoard ? `Search ${activeBoard.name}…` : "Search items across all boards…"} value={query} onValueChange={setQuery} autoFocus data-testid="link-search" />
           <CommandList className="scrollbar-thin max-h-none min-h-0 flex-1 px-2 pb-2">
@@ -276,7 +276,7 @@ function CandidateRow({ hit, striped, selected, onSelect }: { hit: LinkCandidate
 
 function SectionLabel({ children, as = "p" }: { children: React.ReactNode; as?: "p" | "legend" }) {
   const Tag = as;
-  return <Tag className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</Tag>;
+  return <Tag className="mb-2 label-quiet">{children}</Tag>;
 }
 
 function PairRow({ name, boardName, color, icon }: { name: string; boardName: string; color: ColorToken; icon: string }) {

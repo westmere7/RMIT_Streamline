@@ -111,7 +111,7 @@ export function LoginScreen() {
                   );
                 })}
               </div>
-              <div className="my-5 flex items-center gap-3 text-2xs uppercase tracking-wide text-muted-foreground">
+              <div className="my-5 flex items-center gap-3 text-2xs text-muted-foreground">
                 <Separator className="flex-1" />
                 or use an email
                 <Separator className="flex-1" />

@@ -47,8 +47,10 @@ export function BoardHeader({ board }: { board: Board }) {
   const team = ws.teamById(board.teamId);
 
   return (
-    <header className="border-b px-6 pt-4 pb-3">
-      <div className="flex items-start gap-3.5">
+    <header className="relative px-7 pt-5 pb-4">
+      {/* A whisper of the board's colour, so each board feels like its own place. */}
+      <span aria-hidden className={cn("pointer-events-none absolute inset-x-0 top-0 h-28 opacity-[0.12]", colorClasses(board.color).dot)} style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
+      <div className="relative flex items-start gap-3.5">
         <SimpleTooltip label="Back to home">
           <Button variant="ghost" size="icon-sm" asChild className="mt-0.5 text-muted-foreground">
             <Link href={routes.workspace(ws.slug)} aria-label="Back to home">
@@ -56,12 +58,12 @@ export function BoardHeader({ board }: { board: Board }) {
             </Link>
           </Button>
         </SimpleTooltip>
-        <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md", colorClasses(board.color).solid)}>
-          <DynamicIcon name={board.icon} className="size-4.5" />
+        <span className={cn("mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl shadow-xs", colorClasses(board.color).solid)}>
+          <DynamicIcon name={board.icon} className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="min-w-0 text-xl font-semibold tracking-tight">
+            <h1 className="min-w-0 text-[22px] font-semibold tracking-tight">
               <InlineEdit
                 value={board.name}
                 editing={renaming}
@@ -69,8 +71,8 @@ export function BoardHeader({ board }: { board: Board }) {
                 onSubmit={(name) => actions.updateBoard.mutate({ name })}
                 disabled={!manage}
                 ariaLabel="Board name"
-                className={cn("rounded px-1 -mx-1", manage && "hover:bg-accent")}
-                inputClassName="h-8 w-96 text-xl font-semibold"
+                className={cn("-mx-1.5 rounded-lg px-1.5", manage && "hover:bg-accent/70")}
+                inputClassName="h-9 w-96 text-[22px] font-semibold"
               />
             </h1>
             {board.archivedAt && <Badge variant="muted">Archived</Badge>}
@@ -80,7 +82,7 @@ export function BoardHeader({ board }: { board: Board }) {
               </Badge>
             )}
           </div>
-          <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+          <p className="mt-1.5 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
             {team && (
               <>
                 <Link href={routes.team(ws.slug, team.id)} className="shrink-0 whitespace-nowrap hover:text-foreground hover:underline">
@@ -97,7 +99,7 @@ export function BoardHeader({ board }: { board: Board }) {
               disabled={!manage}
               placeholder="Add a description"
               ariaLabel="Board description"
-              className={cn("min-w-0 rounded px-1 -mx-1", manage && "hover:bg-accent", !board.description && "italic text-muted-foreground/70")}
+              className={cn("-mx-1.5 min-w-0 rounded-lg px-1.5", manage && "hover:bg-accent/70", !board.description && "italic text-muted-foreground/70")}
               inputClassName="h-7 w-[480px] max-w-full"
             >
               {board.description || (manage ? "Add a description" : "")}
@@ -111,7 +113,7 @@ export function BoardHeader({ board }: { board: Board }) {
               <Star className={cn("size-4", favourite && "fill-amber-400 text-amber-400")} />
             </Button>
           </SimpleTooltip>
-          <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="flex h-8 items-center rounded-md px-1.5 hover:bg-accent">
+          <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="flex h-9 items-center rounded-full px-2 transition-colors hover:bg-accent/70">
             <AvatarStack users={members} size="sm" max={4} />
           </button>
           {manage && (
@@ -119,7 +121,7 @@ export function BoardHeader({ board }: { board: Board }) {
               <UserPlus /> Invite
             </Button>
           )}
-          <span aria-hidden className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden className="mx-1 h-6 w-px bg-border/70" />
           <SimpleTooltip label="Board activity">
             <Button variant="ghost" size="icon-sm" aria-label="Board activity" onClick={() => setActivityOpen(true)}>
               <History />

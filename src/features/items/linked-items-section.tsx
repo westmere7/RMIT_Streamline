@@ -45,7 +45,7 @@ export function LinkedItemsSection({ item }: { item: Item }) {
 
   return (
     <section data-testid="linked-items">
-      <h3 className="mb-1.5 flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="mb-1.5 flex items-center justify-between label-quiet">
         <span className="flex items-center gap-1.5">
           Linked items {views.length > 0 && <span className="tabular">{views.length}</span>}
         </span>
@@ -208,7 +208,7 @@ function SyncSummary({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3">
-        <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">What stays in sync</p>
+        <p className="mb-2 label-quiet">What stays in sync</p>
         <SyncFieldList mapping={view.mapping} excluded={excluded} onToggle={onToggle} boardName={boardName} otherBoardName={view.board.name} />
         <p className="mt-2 text-2xs text-muted-foreground">Fields you switch back on are filled in from this item.</p>
       </PopoverContent>

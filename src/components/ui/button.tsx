@@ -4,25 +4,25 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[13px] font-medium transition-[background-color,border-color,box-shadow,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/92",
         secondary: "bg-secondary text-secondary-foreground hover:bg-surface-strong",
-        outline: "border border-input bg-background hover:bg-accent",
-        ghost: "hover:bg-accent text-foreground",
-        subtle: "text-muted-foreground hover:bg-accent hover:text-foreground",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-border bg-card shadow-xs hover:border-input hover:bg-accent/60",
+        ghost: "text-foreground hover:bg-accent/70",
+        subtle: "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+        destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-8 px-3",
-        sm: "h-7 px-2.5 text-xs",
-        lg: "h-9 px-4",
-        icon: "size-8",
-        "icon-sm": "size-7",
-        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 px-3.5",
+        sm: "h-8 px-3",
+        lg: "h-10 px-4.5",
+        icon: "size-9",
+        "icon-sm": "size-8",
+        "icon-xs": "size-7 [&_svg:not([class*='size-'])]:size-3.5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

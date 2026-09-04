@@ -107,9 +107,9 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             data-testid="item-row"
             data-item-name={item.name}
             className={cn(
-              "group/row flex border-b bg-background hover:bg-accent/50",
-              selected && "bg-blue-50/70 hover:bg-blue-50 dark:bg-navy-500/25 dark:hover:bg-navy-500/35",
-              viewing && "bg-accent hover:bg-accent ring-1 ring-inset ring-primary/40",
+              "group/row flex border-b border-border/60 bg-background transition-colors hover:bg-accent/45",
+              selected && "bg-accent-soft/60 hover:bg-accent-soft/80",
+              viewing && "bg-accent/80 ring-1 ring-inset ring-ring/35 hover:bg-accent/80",
               isDragging && "opacity-40",
               done && "text-muted-foreground",
             )}
@@ -117,13 +117,13 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             <div
               role="gridcell"
               className={cn(
-                "sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50",
-                selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35",
-                viewing && "bg-accent group-hover/row:bg-accent",
+                "sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors group-hover/row:bg-accent/45",
+                selected && "bg-accent-soft/60 group-hover/row:bg-accent-soft/80",
+                viewing && "bg-accent/80 group-hover/row:bg-accent/80",
               )}
               style={leadingCellStyle()}
             >
-              <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
+              <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", colors.dot)} />
               <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
                 <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
               </div>
@@ -153,7 +153,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     } else toggleExpanded(board.id, item.id);
                   }}
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground",
+                    "flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10",
                     subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
                   )}
                 >
@@ -197,7 +197,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     </span>
                   </SimpleTooltip>
                 )}
-                {subitems.length > 0 && <span className="shrink-0 rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
+                {subitems.length > 0 && <span className="shrink-0 rounded-full bg-surface-strong/80 px-1.5 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
                 <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   {canEdit && (
                     <SimpleTooltip label="Rename">
@@ -284,7 +284,7 @@ function LinkIndicator({ count, onClick }: { count: number; onClick: () => void 
         onClick={onClick}
         aria-label={label}
         data-testid="link-indicator"
-        className="flex h-5 shrink-0 items-center gap-0.5 rounded px-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        className="flex h-5 shrink-0 items-center gap-0.5 rounded-md px-1 text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
       >
         <RefreshCw className="size-3.5" />
         {count > 1 && <span className="text-2xs tabular">{count}</span>}
@@ -387,11 +387,11 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           role="row"
           aria-current={viewing ? "true" : undefined}
           data-testid="subitem-row"
-          className={cn("group/row flex border-b hover:bg-accent/40", viewing && "bg-accent hover:bg-accent ring-1 ring-inset ring-primary/40", done && "text-muted-foreground")}
+          className={cn("group/row flex border-b border-border/60 transition-colors hover:bg-accent/40", viewing && "bg-accent/80 ring-1 ring-inset ring-ring/35 hover:bg-accent/80", done && "text-muted-foreground")}
           style={{ height: 32 }}
         >
           <div
-            className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40", viewing && "bg-accent group-hover/row:bg-accent")}
+            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 pl-16 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
             style={leadingCellStyle()}
           >
             <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />

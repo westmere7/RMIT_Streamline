@@ -150,18 +150,18 @@ export function Sidebar() {
       data-collapsed={collapsed}
       style={collapsed ? undefined : { width: sidebarWidth }}
       className={cn(
-        "relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
+        "relative flex h-full shrink-0 flex-col overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm",
         !resizing && "transition-[width] duration-150",
         collapsed && "w-14",
       )}
     >
       {!collapsed && <SidebarResizeHandle onResizing={setResizing} />}
-      <div className={cn("flex h-12 items-center gap-2 border-b border-sidebar-border px-3", collapsed && "justify-center px-0")}>
+      <div className={cn("flex h-14 shrink-0 items-center gap-2.5 px-3", collapsed && "justify-center px-0")}>
         <Link href={routes.workspace(ws.slug)} className="flex min-w-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
-          <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-white">
+          <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-[13px] font-bold text-white shadow-xs">
             R
           </span>
-          {!collapsed && <span className="truncate text-[13px] font-semibold">{ws.workspace.name}</span>}
+          {!collapsed && <span className="truncate text-sm font-semibold tracking-tight">{ws.workspace.name}</span>}
         </Link>
         {!collapsed && (
           <SimpleTooltip label="Collapse sidebar" side="right">
@@ -169,7 +169,7 @@ export function Sidebar() {
               type="button"
               onClick={toggleSidebar}
               aria-label="Collapse sidebar"
-              className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              className="ml-auto rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             >
               <PanelLeftClose className="size-4" />
             </button>
@@ -177,20 +177,20 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 py-2" aria-label="Workspace navigation">
+      <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 pt-1 pb-3" aria-label="Workspace navigation">
         {collapsed && (
           <SimpleTooltip label="Expand sidebar" side="right">
             <button
               type="button"
               onClick={toggleSidebar}
               aria-label="Expand sidebar"
-              className="mb-1 flex size-9 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              className="mb-1 flex size-9 w-full items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             >
               <PanelLeft className="size-4" />
             </button>
           </SimpleTooltip>
         )}
-        <ul className="space-y-0.5">
+        <ul className="space-y-1">
           <NavItem href={routes.workspace(ws.slug)} icon={Home} label="Home" active={isActivePath(routes.workspace(ws.slug))} collapsed={collapsed} />
           <NavItem href={routes.myWork(ws.slug)} icon={ListTodo} label="My Work" active={isActivePath(routes.myWork(ws.slug))} collapsed={collapsed} />
           <NavItem
@@ -214,8 +214,8 @@ export function Sidebar() {
         </Section>
 
         <div className="mt-3">
-          {!collapsed && <p className="px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Teams</p>}
-          <ul className="space-y-0.5">
+          {!collapsed && <p className="label-quiet px-2.5 pt-2 pb-1">Teams</p>}
+          <ul className="space-y-1">
             {teams.map((team) => (
               <TeamNode
                 key={team.id}
@@ -233,7 +233,7 @@ export function Sidebar() {
           </ul>
           {(boardsWithoutTeam.length > 0 || archivedWithoutTeam.length > 0) && (
             <div className="mt-2">
-              {!collapsed && <p className="px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Other boards</p>}
+              {!collapsed && <p className="label-quiet px-2.5 pt-2 pb-1">Other boards</p>}
               <ul className="space-y-0.5">
                 {boardsWithoutTeam.map((board) => (
                   <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} />
@@ -280,8 +280,8 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="border-t border-sidebar-border p-2">
-        <ul className="space-y-0.5">
+      <div className="shrink-0 border-t border-sidebar-border/70 p-2">
+        <ul className="space-y-1">
           <li>
             <SimpleTooltip label="Search (Ctrl/⌘ K)" side="right" disabled={!collapsed}>
               <button
@@ -293,7 +293,7 @@ export function Sidebar() {
                 {!collapsed && (
                   <>
                     <span className="flex-1 text-left">Search</span>
-                    <kbd className="rounded border bg-background px-1 text-2xs text-muted-foreground">⌘K</kbd>
+                    <kbd className="rounded-md border border-border/70 bg-card px-1.5 py-0.5 text-2xs text-muted-foreground">⌘K</kbd>
                   </>
                 )}
               </button>
@@ -423,12 +423,12 @@ function useBoardRowActions(board: Board): MenuAction[] {
 }
 
 const subtleButtonClasses =
-  "flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
+  "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
 function navItemClasses(active: boolean): string {
   return cn(
-    "flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-    active ? "bg-sidebar-accent text-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
+    "flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+    active ? "bg-sidebar-accent font-semibold text-foreground" : "font-medium text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
   );
 }
 
@@ -457,7 +457,7 @@ function NavItem({
           </span>
           {!collapsed && <span className="flex-1 truncate">{label}</span>}
           {!collapsed && badge ? (
-            <span className="rounded-full bg-primary px-1.5 py-px text-2xs font-semibold text-white tabular">{badge}</span>
+            <span className="rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-white tabular">{badge}</span>
           ) : null}
         </Link>
       </SimpleTooltip>
@@ -493,7 +493,7 @@ function Section({
         type="button"
         onClick={toggle}
         aria-expanded={expanded}
-        className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/70"
+        className="label-quiet flex h-8 w-full items-center gap-2 rounded-xl px-2.5 transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
       >
         <Icon className="size-3.5" />
         <span className="flex-1 text-left">{title}</span>
@@ -527,7 +527,7 @@ function BoardLink({
           aria-current={active ? "page" : undefined}
           className={cn(
             navItemClasses(active),
-            "h-7 font-normal",
+            "h-8 font-normal",
             collapsed ? "justify-center px-0" : "pr-7",
             nested && !collapsed && "pl-2",
             archived && "text-muted-foreground italic",
@@ -568,7 +568,7 @@ function ArchivedFolder({ boards, activeBoardSlug }: { boards: Board[]; activeBo
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={expanded}
-        className="flex h-7 w-full items-center gap-2 rounded-md pl-2 pr-2 text-[13px] text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
+        className="flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
         data-testid="archived-folder"
       >
         {expanded ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
@@ -577,7 +577,7 @@ function ArchivedFolder({ boards, activeBoardSlug }: { boards: Board[]; activeBo
         <span className="text-2xs tabular">{boards.length}</span>
       </button>
       {expanded && (
-        <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
+        <ul className="mt-1 ml-[17px] space-y-1 border-l border-sidebar-border/70 pl-2.5">
           {boards.map((board) => (
             <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} nested archived />
           ))}
@@ -654,17 +654,17 @@ function TeamNode({
   return (
     <li>
       <RowMenu label={`Options for ${team.name}`} actions={teamActions}>
-      <div className={cn("flex h-8 items-center rounded-md pr-1", activeTeam ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
+      <div className={cn("flex h-9 items-center rounded-xl pr-1 transition-colors", activeTeam ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
         <button
           type="button"
           onClick={() => toggleTeam(team.id)}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} ${team.name}`}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+          className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
         >
           {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </button>
-        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 flex-1 items-center gap-2 text-[13px] font-medium">
+        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-[13px] font-medium">
           <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
           <span className="truncate">{team.name}</span>
         </Link>
@@ -672,7 +672,7 @@ function TeamNode({
       </div>
       </RowMenu>
       {expanded && (
-        <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
+        <ul className="mt-1 ml-[17px] space-y-1 border-l border-sidebar-border/70 pl-2.5">
           {boards.length === 0 && trackers.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards or trackers yet</li>}
           {boards.map((board) => (
             <BoardLink
@@ -707,7 +707,7 @@ function TrackerLink({ tracker, active }: { tracker: Tracker; active: boolean })
   return (
     <li>
       <RowMenu label={`Options for ${tracker.name}`} actions={actions}>
-        <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), "h-7 pl-2 pr-7 font-normal")} data-testid="sidebar-tracker">
+        <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), "h-8 pl-2.5 pr-7 font-normal")} data-testid="sidebar-tracker">
           <FileSpreadsheet className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
           <span className="truncate">{tracker.name}</span>
         </Link>

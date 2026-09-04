@@ -13,10 +13,10 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-start justify-between gap-3 px-6 pt-5 pb-3", className)}>
+    <div className={cn("flex flex-wrap items-start justify-between gap-3 px-7 pt-6 pb-4", className)}>
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>}
+        <h1 className="text-[22px] font-semibold tracking-tight">{title}</h1>
+        {description && <p className="mt-1 text-[13px] text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -25,8 +25,8 @@ export function PageHeader({
 
 export function SectionHeading({ children, action, className }: { children: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("mb-2 flex items-center justify-between", className)}>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h2>
+    <div className={cn("mb-2.5 flex items-center justify-between", className)}>
+      <h2 className="text-[13px] font-semibold tracking-tight text-muted-foreground">{children}</h2>
       {action}
     </div>
   );

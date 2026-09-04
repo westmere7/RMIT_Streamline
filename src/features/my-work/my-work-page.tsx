@@ -69,19 +69,19 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
   const ws = useWorkspace();
   return (
     <section className="mt-5" data-testid={`my-work-${section}`}>
-      <h2 className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="mb-2 flex items-center gap-2 text-[13px] font-semibold tracking-tight text-muted-foreground">
         <span className={cn(section === "overdue" && "text-red-600 dark:text-red-400")}>{MY_WORK_SECTION_LABELS[section]}</span>
-        <span className="rounded-full bg-surface-strong px-1.5 py-px text-2xs font-medium tabular">{entries.length}</span>
+        <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-2xs font-medium tabular">{entries.length}</span>
       </h2>
-      <div className="overflow-hidden rounded-md border">
-        <div className="hidden h-8 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_130px_110px_90px] items-center gap-3 border-b bg-surface px-3 text-2xs font-medium text-muted-foreground md:grid">
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+        <div className="hidden h-9 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_130px_110px_90px] items-center gap-3 border-b border-border/70 bg-surface/70 px-4 text-2xs font-medium text-muted-foreground md:grid">
           <span>Item</span>
           <span>Board · Group</span>
           <span>Status</span>
           <span>Priority</span>
           <span className="text-right">Due</span>
         </div>
-        <ul className="divide-y">
+        <ul className="divide-y divide-border/60">
           {entries.map((entry) => (
             <li key={entry.item.id}>
               <Link

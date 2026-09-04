@@ -16,7 +16,7 @@ const VIEWS: Array<{ id: BoardViewKind; label: string; icon: React.ComponentType
 ];
 
 /** Shared by the board bar and the bar shown while a board loads, so the two line up. */
-export const boardBarClasses = "flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-b px-6";
+export const boardBarClasses = "flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-border/70 px-6";
 
 /** One button naming the current view; opening it lists every view. */
 export function BoardViewSwitcher({ view, onChange }: { view: BoardViewKind; onChange: (view: BoardViewKind) => void }) {
@@ -25,7 +25,7 @@ export function BoardViewSwitcher({ view, onChange }: { view: BoardViewKind; onC
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="shrink-0 font-medium" aria-label={`Board view: ${current.label}`} data-testid="view-switcher">
+        <Button variant="ghost" size="default" className="shrink-0 rounded-full pl-3 pr-2.5 font-semibold" aria-label={`Board view: ${current.label}`} data-testid="view-switcher">
           <CurrentIcon /> {current.label} <ChevronDown className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>

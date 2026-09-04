@@ -34,9 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [setCommandPaletteOpen]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full gap-2 overflow-hidden bg-canvas p-2">
       <Sidebar />
-      <main id="main" className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main id="main" className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-sm">
         {children}
       </main>
       <CommandPalette />
