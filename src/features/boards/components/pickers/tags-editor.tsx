@@ -22,9 +22,9 @@ export function TagsEditor({ value, suggestions, onChange }: TagsEditorProps) {
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1">
         {value.map((tag) => (
-          <span key={tag} className="inline-flex h-6 items-center gap-1 rounded bg-navy-50 pr-1 pl-1.5 text-xs font-medium text-navy-800">
+          <span key={tag} className="inline-flex h-6 items-center gap-1 rounded bg-navy-50 pr-1 pl-1.5 text-xs font-medium text-navy-800 dark:bg-navy-500/40 dark:text-navy-100">
             {tag}
-            <button type="button" aria-label={`Remove ${tag}`} onClick={() => onChange(value.filter((t) => t !== tag))} className="rounded p-0.5 hover:bg-navy-100">
+            <button type="button" aria-label={`Remove ${tag}`} onClick={() => onChange(value.filter((t) => t !== tag))} className="rounded p-0.5 hover:bg-navy-100 dark:hover:bg-navy-500/60">
               <X className="size-3" />
             </button>
           </span>

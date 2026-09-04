@@ -82,11 +82,11 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
   return (
     <section ref={setNodeRef} aria-label={label?.name ?? "No status"} data-testid={`lane-${label?.name ?? "none"}`} className={cn("flex w-72 shrink-0 flex-col rounded-md bg-surface", isOver && "ring-2 ring-ring/50")}>
       <header className="flex items-center gap-2 px-3 py-2">
-        <span className={cn("h-2.5 w-2.5 rounded-full", colors?.dot ?? "bg-gray-300")} />
+        <span className={cn("h-2.5 w-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
         <h3 className="text-[13px] font-semibold">{label?.name ?? "No status"}</h3>
         <span className="ml-auto text-2xs text-muted-foreground tabular">{items.length}</span>
       </header>
-      <div className={cn("h-1 rounded-t", colors?.dot ?? "bg-gray-300")} />
+      <div className={cn("h-1 rounded-t", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
       <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto p-2">
         {items.map((item) => (
           <DraggableCard key={item.id} item={item} disabled={!canEdit} />
@@ -161,7 +161,7 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
       <div className="mt-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
-          {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
+          {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
         </div>
         {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}
       </div>

@@ -191,7 +191,7 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
       testId="date-cell"
       trigger={
         v.date ? (
-          <span className={cn("flex items-center gap-1 text-xs tabular", overdue ? "font-medium text-red-600" : today ? "font-medium" : isDone ? "text-muted-foreground" : "")}>
+          <span className={cn("flex items-center gap-1 text-xs tabular", overdue ? "font-medium text-red-600 dark:text-red-400" : today ? "font-medium" : isDone ? "text-muted-foreground" : "")}>
             {overdue && <TriangleAlert className="size-3" />}
             {formatShortDate(v.date)}
           </span>
@@ -219,7 +219,7 @@ export function TimelineCell({ item, column, value, onChange, readOnly, isDone, 
           <span
             className={cn(
               "flex h-6 w-[calc(100%-8px)] items-center justify-center rounded-full px-2 text-2xs font-medium tabular",
-              overdue ? "bg-red-100 text-red-800" : isDone ? "bg-surface-strong text-muted-foreground" : "bg-navy-100 text-navy-800",
+              overdue ? "bg-red-100 text-red-800 dark:bg-red-500/25 dark:text-red-200" : isDone ? "bg-surface-strong text-muted-foreground" : "bg-navy-100 text-navy-800 dark:bg-navy-500/50 dark:text-navy-50",
             )}
           >
             <span className="truncate">{formatDateRange(v.start, v.end)}</span>
@@ -412,7 +412,7 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 truncate px-1 text-xs text-blue-700 hover:underline"
+            className="flex items-center gap-1 truncate px-1 text-xs text-blue-700 hover:underline dark:text-blue-300"
           >
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{v.text || v.url.replace(/^https?:\/\//, "")}</span>
@@ -492,7 +492,7 @@ export function TagsCell({ item, column, value, onChange, readOnly, width }: Cel
       trigger={
         <span className="flex items-center gap-1 overflow-hidden px-1">
           {v.tags.map((tag) => (
-            <span key={tag} className="shrink-0 rounded bg-navy-50 px-1.5 py-0.5 text-2xs font-medium text-navy-800">
+            <span key={tag} className="shrink-0 rounded bg-navy-50 px-1.5 py-0.5 text-2xs font-medium text-navy-800 dark:bg-navy-500/40 dark:text-navy-100">
               {tag}
             </span>
           ))}
@@ -538,7 +538,7 @@ export function DependencyCell({ item, column, value, onChange, readOnly, width 
       contentClassName="w-72 p-0"
       trigger={
         deps.length > 0 ? (
-          <span className={cn("flex items-center gap-1 truncate px-1 text-xs", blocked ? "text-amber-700" : "text-muted-foreground")}>
+          <span className={cn("flex items-center gap-1 truncate px-1 text-xs", blocked ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
             {blocked && <TriangleAlert className="size-3 shrink-0" />}
             <span className="truncate">{deps.map((d) => d.name).join(", ")}</span>
           </span>

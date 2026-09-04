@@ -22,7 +22,7 @@ function renderBody(body: string, names: string[]): React.ReactNode {
   const pattern = new RegExp(`(@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))`, "g");
   return body.split(pattern).map((part, i) =>
     part.startsWith("@") && names.includes(part.slice(1)) ? (
-      <span key={i} className="rounded bg-blue-50 px-1 font-medium text-blue-700">
+      <span key={i} className="rounded bg-blue-50 px-1 font-medium text-blue-700 dark:bg-navy-500/40 dark:text-navy-100">
         {part}
       </span>
     ) : (

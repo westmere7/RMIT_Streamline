@@ -67,7 +67,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
   return (
     <section className="mt-5" data-testid={`my-work-${section}`}>
       <h2 className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <span className={cn(section === "overdue" && "text-red-600")}>{MY_WORK_SECTION_LABELS[section]}</span>
+        <span className={cn(section === "overdue" && "text-red-600 dark:text-red-400")}>{MY_WORK_SECTION_LABELS[section]}</span>
         <span className="rounded-full bg-surface-strong px-1.5 py-px text-2xs font-medium tabular">{entries.length}</span>
       </h2>
       <div className="overflow-hidden rounded-md border">
@@ -105,7 +105,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                 <span className="hidden md:block">
                   <LabelPill label={entry.priority} appearance="soft" size="sm" emptyText="—" />
                 </span>
-                <span className={cn("text-right text-xs tabular", section === "overdue" ? "font-medium text-red-600" : "text-muted-foreground")}>
+                <span className={cn("text-right text-xs tabular", section === "overdue" ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                   {entry.dueDate ? formatShortDate(entry.dueDate, now) : "—"}
                 </span>
               </Link>

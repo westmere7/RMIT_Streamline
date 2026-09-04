@@ -48,7 +48,7 @@ export function BoardToolbar() {
       <PersonFilter />
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(filterCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800")} data-testid="filter-button">
+          <Button variant="ghost" size="sm" className={cn(filterCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="filter-button">
             <Filter /> Filter
             {filterCount > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
           </Button>
@@ -59,7 +59,7 @@ export function BoardToolbar() {
       </Popover>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(ui.sort && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800")} data-testid="sort-button">
+          <Button variant="ghost" size="sm" className={cn(ui.sort && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="sort-button">
             <ArrowUpDown /> Sort
             {ui.sort && (
               <span className="flex items-center gap-0.5 text-2xs">
@@ -91,7 +91,7 @@ export function BoardToolbar() {
       </DropdownMenu>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(hiddenCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800")}>
+          <Button variant="ghost" size="sm" className={cn(hiddenCount > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")}>
             <EyeOff /> Hide
             {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
           </Button>
@@ -183,7 +183,7 @@ function PersonFilter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn(selected.length > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800")} data-testid="person-filter">
+        <Button variant="ghost" size="sm" className={cn(selected.length > 0 && "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 dark:bg-navy-500/40 dark:text-navy-100 dark:hover:bg-navy-500/60 dark:hover:text-white")} data-testid="person-filter">
           <UserRound /> Person
           {selected.length > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>

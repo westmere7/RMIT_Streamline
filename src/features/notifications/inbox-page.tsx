@@ -85,7 +85,7 @@ export function InboxPage() {
               const unreadItem = n.readAt === null;
               return (
                 <li key={n.id}>
-                  <div className={cn("flex items-start gap-3 px-3 py-2.5 hover:bg-accent", unreadItem && "bg-blue-50/40")}>
+                  <div className={cn("flex items-start gap-3 px-3 py-2.5 hover:bg-accent", unreadItem && "bg-blue-50/40 dark:bg-navy-500/20")}>
                     <button type="button" onClick={() => open(n)} className="flex min-w-0 flex-1 items-start gap-3 text-left" data-testid="notification">
                       <span className="relative mt-0.5">
                         <UserAvatar user={actor} size="md" tooltip={false} />

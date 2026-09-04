@@ -64,11 +64,11 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         aria-selected={selected}
         data-testid="item-row"
         data-item-name={item.name}
-        className={cn("group/row flex border-b bg-background hover:bg-accent/50", selected && "bg-blue-50/70 hover:bg-blue-50", isDragging && "opacity-40", done && "text-muted-foreground")}
+        className={cn("group/row flex border-b bg-background hover:bg-accent/50", selected && "bg-blue-50/70 hover:bg-blue-50 dark:bg-navy-500/25 dark:hover:bg-navy-500/35", isDragging && "opacity-40", done && "text-muted-foreground")}
       >
         <div
           role="gridcell"
-          className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50", selected && "bg-blue-50/70 group-hover/row:bg-blue-50")}
+          className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50", selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35")}
           style={{ width: leadingWidth(), minWidth: leadingWidth() }}
         >
           <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
@@ -101,7 +101,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 } else toggleExpanded(board.id, item.id);
               }}
               className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground",
+                "flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground",
                 subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
               )}
             >
@@ -136,7 +136,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             </div>
             {blocked && (
               <SimpleTooltip label="Blocked: depends on items that are not done">
-                <span className="text-amber-600" aria-label="Blocked">
+                <span className="text-amber-600 dark:text-amber-400" aria-label="Blocked">
                   <TriangleAlert className="size-3.5" />
                 </span>
               </SimpleTooltip>
@@ -145,20 +145,20 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
               {canEdit && (
                 <SimpleTooltip label="Rename">
-                  <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                  <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
                     <Pencil className="size-3.5" />
                   </button>
                 </SimpleTooltip>
               )}
               <SimpleTooltip label="Open">
-                <button type="button" aria-label={`Open ${item.name}`} onClick={() => openItem(item.id)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                <button type="button" aria-label={`Open ${item.name}`} onClick={() => openItem(item.id)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
                   <Maximize2 className="size-3.5" />
                 </button>
               </SimpleTooltip>
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" aria-label={`More actions for ${item.name}`} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+                    <button type="button" aria-label={`More actions for ${item.name}`} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
                       <MoreHorizontal className="size-3.5" />
                     </button>
                   </DropdownMenuTrigger>
@@ -335,10 +335,10 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           )}
           {canEdit && (
             <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-              <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-foreground">
+              <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">
                 <Pencil className="size-3" />
               </button>
-              <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 hover:text-destructive">
+              <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-destructive">
                 <Trash2 className="size-3" />
               </button>
             </div>

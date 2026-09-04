@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Database, LogOut, RotateCcw, Settings, UserCog, Wrench } from "lucide-react";
+import { ChevronsUpDown, Database, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -23,6 +25,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { IS_DEV } from "@/lib/config";
 import { routes } from "@/lib/routes";
+import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /** Profile menu with a discreet developer section (user switcher, reset seed). */
@@ -35,6 +38,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [resetOpen, setResetOpen] = React.useState(false);
+  const [theme, setTheme] = useThemePreference();
   const showDevTools = IS_DEV || providerKind === "local";
 
   const switchUser = async (email: string) => {
@@ -82,6 +86,28 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
             <Settings /> Workspace settings
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <SunMoon /> Theme
+              <span className="ml-auto text-2xs capitalize text-muted-foreground">{theme}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-44">
+              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as ThemePreference)}>
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="size-4 text-muted-foreground" /> Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dim">
+                  <SunDim className="size-4 text-muted-foreground" /> Dim
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="size-4 text-muted-foreground" /> Dark
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system">
+                  <Monitor className="size-4 text-muted-foreground" /> System
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           {showDevTools && (
             <>
               <DropdownMenuSeparator />

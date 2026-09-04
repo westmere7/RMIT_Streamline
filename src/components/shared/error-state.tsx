@@ -19,7 +19,7 @@ export function ErrorState({ title = "Something went wrong.", error, onRetry, cl
   const message = error instanceof Error ? error.message : undefined;
   return (
     <div role="alert" className={cn("flex flex-col items-center justify-center gap-2 px-6 py-12 text-center", className)}>
-      <span className="flex size-9 items-center justify-center rounded-full bg-red-50 text-red-600">
+      <span className="flex size-9 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400">
         <TriangleAlert className="size-4" />
       </span>
       <p className="text-sm font-medium">{title}</p>

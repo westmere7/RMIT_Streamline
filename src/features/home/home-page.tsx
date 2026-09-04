@@ -131,7 +131,7 @@ export function HomePage() {
                             <span
                               className={cn(
                                 "text-right text-xs tabular",
-                                section === "overdue" ? "font-medium text-red-600" : section === "today" ? "font-medium text-foreground" : "text-muted-foreground",
+                                section === "overdue" ? "font-medium text-red-600 dark:text-red-400" : section === "today" ? "font-medium text-foreground" : "text-muted-foreground",
                               )}
                             >
                               {entry.dueDate ? formatShortDate(entry.dueDate, now) : "—"}

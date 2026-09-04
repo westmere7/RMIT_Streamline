@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { AuthProviderContext } from "@/features/auth/auth-context";
 import { DataProviderContext } from "@/features/data/data-context";
+import { useSystemThemeSync } from "@/lib/theme";
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -28,6 +29,7 @@ function makeQueryClient(): QueryClient {
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
+  useSystemThemeSync();
   return (
     <QueryClientProvider client={queryClient}>
       <DataProviderContext>
