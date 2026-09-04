@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
+import { AtSign, Link2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { Comment } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
+import { useItemLinks } from "@/features/items/link-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,10 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   const ws = useWorkspace();
   const comments = useComments(itemId);
   const { add, edit, remove } = useCommentMutations(itemId);
+  const links = useItemLinks(itemId);
+  const linkedCount = links.data?.length ?? 0;
+  // Default on: if a task is linked, an update usually concerns both sides.
+  const [alsoLinked, setAlsoLinked] = React.useState(true);
   const [draft, setDraft] = React.useState("");
   const [mentionOpen, setMentionOpen] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -60,7 +66,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
 
   const submit = () => {
     if (!draft.trim()) return;
-    add.mutate(draft.trim());
+    add.mutate({ body: draft.trim(), alsoLinked: linkedCount > 0 && alsoLinked });
     setDraft("");
   };
 
@@ -117,7 +123,15 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
                     </Command>
                   </PopoverContent>
                 </Popover>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  {linkedCount > 0 && (
+                    <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground" title="Post this update on the linked task too">
+                      <Link2 className="size-3.5" />
+                      <span className="hidden sm:inline">Post to {linkedCount === 1 ? "linked task" : `${linkedCount} linked tasks`}</span>
+                      <span className="sm:hidden">Linked</span>
+                      <Switch checked={alsoLinked} onCheckedChange={setAlsoLinked} aria-label="Also post this update to linked tasks" data-testid="comment-also-linked" />
+                    </label>
+                  )}
                   <span className="text-2xs text-muted-foreground">Ctrl/⌘ + Enter</span>
                   <Button type="submit" size="sm" disabled={!draft.trim() || add.isPending} data-testid="comment-submit">
                     <Send /> Update

@@ -29,14 +29,17 @@ export function useCommentMutations(itemId: string) {
 
   const settle = async () => {
     await queryClient.invalidateQueries({ queryKey: key });
+    // A comment sent to linked items changes their threads as well.
+    void queryClient.invalidateQueries({ queryKey: ["comments"] });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
   };
 
   const add = useMutation({
-    mutationFn: (body: string) => services.comments.addComment(itemId, body, user.id, ws.users),
-    onMutate: async (body) => {
+    mutationFn: ({ body, alsoLinked }: { body: string; alsoLinked?: boolean }) =>
+      services.comments.addComment(itemId, body, user.id, ws.users, { alsoLinked }),
+    onMutate: async ({ body }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<Comment[]>(key);
       const temp: Comment = { id: newId(), itemId, authorId: user.id, body, mentionUserIds: [], createdAt: nowIso(), updatedAt: nowIso() };

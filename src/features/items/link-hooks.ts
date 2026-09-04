@@ -47,11 +47,17 @@ export function useLinkMutations(itemId: string) {
   const queryClient = useQueryClient();
   const user = useCurrentUser();
 
-  // Both boards changed, so every snapshot and link list may be stale.
+  /**
+   * Both boards changed, so every snapshot and link list may be stale. None of it
+   * is awaited: the dialog closes as soon as the write lands and the panel fills
+   * in behind it, rather than holding a spinner open for a round-trip it does not
+   * need.
+   */
   const settle = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["item-links"] });
+    void queryClient.invalidateQueries({ queryKey: ["item-links"] });
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
-    void queryClient.invalidateQueries({ queryKey: ["link-candidates"] });
+    // Mark the search cache stale without re-running it: the dialog is closing.
+    void queryClient.invalidateQueries({ queryKey: ["link-candidates"], refetchType: "none" });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     publishDataChange({ itemIds: [itemId], kinds: ["links", "items"] });

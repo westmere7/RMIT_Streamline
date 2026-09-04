@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, columnLabels, emptyValueFor, isEmptyValue, otherEndOf } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
@@ -55,6 +55,23 @@ interface BoardBundle {
   board: Board;
   columns: BoardColumn[];
   groups: BoardGroup[];
+}
+
+/**
+ * Reads shared across one sync run. Seeding a new link pushes the name, the
+ * description and every value through the chain, and each of those used to
+ * re-read the same links, items, boards and values — dozens of round-trips
+ * against a remote database. They are read once here and reused.
+ */
+interface SyncCache {
+  items: Map<EntityId, Item | null>;
+  links: Map<EntityId, ItemLink[]>;
+  bundles: Map<EntityId, BoardBundle>;
+  values: Map<EntityId, ItemColumnValue[]>;
+}
+
+function newSyncCache(): SyncCache {
+  return { items: new Map(), links: new Map(), bundles: new Map(), values: new Map() };
 }
 
 /**
@@ -123,18 +140,33 @@ export class ItemLinkService {
     for (const board of boards) {
       if (board.archivedAt !== null || blocked.has(board.id)) continue;
       if (options.boardId && board.id !== options.boardId) continue;
-      const [items, columns, groups] = await Promise.all([this.repos.items.listByBoard(board.id), this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id)]);
+      // Names first: a board with nothing matching costs one read, not four.
+      const items = await this.repos.items.listByBoard(board.id);
+      const hasMatch = needle ? items.some((c) => c.name.toLowerCase().includes(needle)) : items.length > 0;
+      if (!hasMatch) continue;
+
+      const [columns, groups] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id)]);
       const groupOrder = new Map(groups.map((g) => [g.id, g.position]));
       const ordered = [...items].sort((a, b) => (groupOrder.get(a.groupId) ?? 0) - (groupOrder.get(b.groupId) ?? 0) || a.position - b.position);
-      for (const candidate of ordered) {
-        if (needle && !candidate.name.toLowerCase().includes(needle)) continue;
-        const itemValues = await this.repos.items.listValuesByItem(candidate.id);
+      const matches = needle ? ordered.filter((c) => c.name.toLowerCase().includes(needle)) : ordered;
+
+      // One read for the board's values rather than one per candidate: this runs
+      // on every keystroke in the link dialog, and again when linking invalidates
+      // the query, so a per-item read turns into hundreds of round-trips.
+      const byItem = new Map<EntityId, ItemColumnValue[]>();
+      for (const value of await this.repos.items.listValuesByBoard(board.id)) {
+        const list = byItem.get(value.itemId);
+        if (list) list.push(value);
+        else byItem.set(value.itemId, [value]);
+      }
+
+      for (const candidate of matches) {
         hits.push({
           item: candidate,
           board,
           group: groups.find((g) => g.id === candidate.groupId) ?? null,
           parent: candidate.parentItemId ? (items.find((i) => i.id === candidate.parentItemId) ?? null) : null,
-          status: statusOf(columns, itemValues),
+          status: statusOf(columns, byItem.get(candidate.id) ?? []),
           linked: linkedIds.has(candidate.id),
         });
         if (hits.length >= limit) return { hits, blockedBoardIds };
@@ -159,7 +191,8 @@ export class ItemLinkService {
 
     // Joining the two chains must not put two items on one board — they would
     // just be duplicates of each other kept in lock-step.
-    const chain = [...(await this.chainItems(itemId)), ...(await this.chainItems(targetId))];
+    // Both sides at once: each walk is a couple of round-trips and they are independent.
+    const chain = (await Promise.all([this.chainItems(itemId), this.chainItems(targetId)])).flat();
     const seen = new Map<EntityId, Item>();
     for (const member of chain) {
       const clash = seen.get(member.boardId);
@@ -173,10 +206,17 @@ export class ItemLinkService {
   }
 
   async link(itemId: EntityId, targetId: EntityId, actorId: EntityId, options: LinkOptions = { seedFrom: "item" }): Promise<ItemLink> {
-    const valid = await this.validate(itemId, targetId);
+    // Validation and the link itself need the same rows; read them once, in parallel.
+    const [valid, item, target, existingLinks] = await Promise.all([
+      this.validate(itemId, targetId),
+      this.getItem(itemId),
+      this.getItem(targetId),
+      this.repos.links.listByItems([itemId, targetId]),
+    ]);
     if (!valid.ok) throw new Error(valid.reason);
-    const [item, target] = await Promise.all([this.getItem(itemId), this.getItem(targetId)]);
     const [boardA, boardB] = await Promise.all([this.getBoard(item.boardId), this.getBoard(target.boardId)]);
+    /** With no links on either side, the new pair is the whole chain. */
+    const isolatedPair = existingLinks.length === 0;
 
     const link = await this.repos.links.create({
       workspaceId: boardA.workspaceId,
@@ -189,9 +229,9 @@ export class ItemLinkService {
 
     const [source, dest] = options.seedFrom === "item" ? [item, target] : [target, item];
     await this.fillFrom(source, dest, new Set(link.excluded));
-    // The pair (and anything already linked to either side) now agrees; push the
-    // merged state through the whole connected set.
-    await this.resyncFrom(source.id, actorId);
+    // fillFrom already made these two agree. Only when one side was part of a
+    // longer chain does the merged state have to travel further.
+    if (!isolatedPair) await this.resyncFrom(source.id, actorId);
 
     const users = await this.repos.users.list();
     const actorName = users.find((u) => u.id === actorId)?.firstName ?? "Someone";
@@ -249,19 +289,46 @@ export class ItemLinkService {
     return (await this.chainItems(itemId)).filter((i) => i.id !== itemId).map((i) => i.id);
   }
 
-  /** The item plus everything reachable through links, regardless of field exclusions. */
-  private async chainItems(itemId: EntityId): Promise<Item[]> {
+  /**
+   * Items that share their Updates thread with this one. An edge that switched
+   * updates off is not crossed, so the thread stops there for anything beyond it —
+   * the same rule the field sync follows.
+   */
+  async updatesChainIds(itemId: EntityId): Promise<EntityId[]> {
     const seen = new Set<EntityId>([itemId]);
     const queue = [itemId];
     while (queue.length) {
       const current = queue.shift()!;
       for (const link of await this.repos.links.listByItem(current)) {
+        if (link.excluded.includes(LINK_FIELD_UPDATES)) continue;
         const other = otherEndOf(link, current);
-        if (!seen.has(other)) {
-          seen.add(other);
-          queue.push(other);
+        if (seen.has(other)) continue;
+        seen.add(other);
+        queue.push(other);
+      }
+    }
+    seen.delete(itemId);
+    return [...seen];
+  }
+
+  /**
+   * The item plus everything reachable through links, regardless of field
+   * exclusions. Each round reads the links of a whole level at once: chains are
+   * short but every round-trip costs real time against a remote database.
+   */
+  private async chainItems(itemId: EntityId): Promise<Item[]> {
+    const seen = new Set<EntityId>([itemId]);
+    let frontier: EntityId[] = [itemId];
+    while (frontier.length) {
+      const next: EntityId[] = [];
+      for (const link of await this.repos.links.listByItems(frontier)) {
+        for (const end of [link.itemAId, link.itemBId]) {
+          if (seen.has(end)) continue;
+          seen.add(end);
+          next.push(end);
         }
       }
+      frontier = next;
     }
     return this.repos.items.listByIds([...seen]);
   }
@@ -269,11 +336,15 @@ export class ItemLinkService {
   /** Pushes every field of `itemId` through its links without recording activity (used after linking). */
   private async resyncFrom(itemId: EntityId, actorId: EntityId): Promise<void> {
     const item = await this.getItem(itemId);
-    await this.propagate(item.id, { kind: "name", name: item.name }, actorId, { silent: true });
-    await this.propagate(item.id, { kind: "description", description: item.description }, actorId, { silent: true });
-    for (const v of await this.repos.items.listValuesByItem(item.id)) {
-      await this.propagate(item.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, { silent: true });
+    const cache = newSyncCache();
+    const collect: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
+    const options = { silent: true, cache, collect };
+    await this.propagate(item.id, { kind: "name", name: item.name }, actorId, options);
+    await this.propagate(item.id, { kind: "description", description: item.description }, actorId, options);
+    for (const v of await this.valuesOf(item.id, cache)) {
+      await this.propagate(item.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, options);
     }
+    if (collect.length) await this.repos.items.setValues(collect);
   }
 
   /**
@@ -282,9 +353,15 @@ export class ItemLinkService {
    * crossed, so the field also stops there for anything beyond it. Returns the
    * boards that received a write. `silent` suppresses activity entries.
    */
-  async propagate(originId: EntityId, change: LinkChange, actorId: EntityId, options: { silent?: boolean } = {}): Promise<EntityId[]> {
+  async propagate(
+    originId: EntityId,
+    change: LinkChange,
+    actorId: EntityId,
+    options: { silent?: boolean; cache?: SyncCache; collect?: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> } = {},
+  ): Promise<EntityId[]> {
+    const cache = options.cache ?? newSyncCache();
     const origin = await this.getItem(originId);
-    const boards = new Map<EntityId, BoardBundle>();
+    const boards = cache.bundles;
     const originBundle = await this.bundle(origin.boardId, boards);
     if (!originBundle) return [];
     const originColumn = change.kind === "value" ? (originBundle.columns.find((c) => c.id === change.columnId) ?? null) : null;
@@ -300,14 +377,14 @@ export class ItemLinkService {
 
     while (queue.length) {
       const node = queue.shift()!;
-      for (const link of await this.repos.links.listByItem(node.item.id)) {
+      for (const link of await this.linksOf(node.item.id, cache)) {
         const nextId = otherEndOf(link, node.item.id);
         if (visited.has(nextId)) continue;
         const excluded = new Set(link.excluded);
         if (change.kind === "name" && excluded.has(LINK_FIELD_NAME)) continue;
         if (change.kind === "description" && excluded.has(LINK_FIELD_DESCRIPTION)) continue;
 
-        const next = await this.repos.items.getById(nextId);
+        const next = await this.itemOf(nextId, cache);
         if (!next) continue;
         const bundle = await this.bundle(next.boardId, boards);
         if (!bundle) continue;
@@ -348,9 +425,21 @@ export class ItemLinkService {
 
         const translated = translateValue(change.value, originColumn!, nextColumn!);
         if (translated.kind === "skip") continue;
-        const existing = (await this.repos.items.listValuesByItem(next.id)).find((v) => v.columnId === nextColumn!.id);
+        const existingValues = await this.valuesOf(next.id, cache);
+        const existing = existingValues.find((v) => v.columnId === nextColumn!.id);
         if (valuesEqual(existing?.value, translated.value)) continue;
-        await this.repos.items.setValue(next.id, nextColumn!.id, translated.value);
+        if (options.collect) {
+          // Seeding a link pushes every value at once; the caller writes them in
+          // one statement instead of one round-trip per value.
+          options.collect.push({ itemId: next.id, columnId: nextColumn!.id, value: translated.value });
+        } else {
+          await this.repos.items.setValue(next.id, nextColumn!.id, translated.value);
+        }
+        // Keep the cache honest for the rest of the run.
+        cache.values.set(next.id, [
+          ...existingValues.filter((v) => v.columnId !== nextColumn!.id),
+          { id: existing?.id ?? "", itemId: next.id, columnId: nextColumn!.id, value: translated.value, updatedAt: new Date().toISOString() },
+        ]);
         touched.add(next.boardId);
         if (!options.silent) {
           const from = displayValue(nextColumn!, existing?.value ?? emptyValueFor(nextColumn!.type), users);
@@ -403,6 +492,43 @@ export class ItemLinkService {
       }
     }
     if (writes.length) await this.repos.items.setValues(writes);
+  }
+
+  /** Links touching an item, read once per sync run. */
+  private async linksOf(itemId: EntityId, cache: SyncCache): Promise<ItemLink[]> {
+    const hit = cache.links.get(itemId);
+    if (hit) return hit;
+    const links = await this.repos.links.listByItem(itemId);
+    cache.links.set(itemId, links);
+    return links;
+  }
+
+  /** Pre-loads the links of a whole chain in one read, so later lookups are free. */
+  private async warmLinks(itemIds: readonly EntityId[], cache: SyncCache): Promise<void> {
+    const missing = itemIds.filter((id) => !cache.links.has(id));
+    if (missing.length === 0) return;
+    const links = await this.repos.links.listByItems(missing);
+    for (const id of missing) {
+      cache.links.set(
+        id,
+        links.filter((l) => l.itemAId === id || l.itemBId === id),
+      );
+    }
+  }
+
+  private async itemOf(itemId: EntityId, cache: SyncCache): Promise<Item | null> {
+    if (cache.items.has(itemId)) return cache.items.get(itemId) ?? null;
+    const item = await this.repos.items.getById(itemId);
+    cache.items.set(itemId, item);
+    return item;
+  }
+
+  private async valuesOf(itemId: EntityId, cache: SyncCache): Promise<ItemColumnValue[]> {
+    const hit = cache.values.get(itemId);
+    if (hit) return hit;
+    const values = await this.repos.items.listValuesByItem(itemId);
+    cache.values.set(itemId, values);
+    return values;
   }
 
   private async bundle(boardId: EntityId, cache: Map<EntityId, BoardBundle>): Promise<BoardBundle | null> {

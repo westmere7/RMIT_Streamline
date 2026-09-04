@@ -28,7 +28,7 @@ export function createServices(repos: Repositories): Services {
     boards: new BoardService(repos),
     items: new ItemService(repos, links),
     links,
-    comments: new CommentService(repos),
+    comments: new CommentService(repos, links),
     myWork: new MyWorkService(repos),
     search: new SearchService(repos),
     trackers: new TrackerService(repos),

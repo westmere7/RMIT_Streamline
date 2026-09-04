@@ -271,4 +271,30 @@ describe("Task Linking", () => {
     expect(await valueOf(b.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "done" });
     expect((await services.repos.items.getById(b.id))?.name).toBe("Student spotlight – exchange to Barcelona");
   });
+
+  it("posts an update to the linked task when the composer toggle is on", async () => {
+    const a = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+    const b = await itemNamed(SEED_BOARD_IDS.alwayson, "Student spotlight – exchange to Barcelona");
+    await services.links.link(a.id, b.id, SEED_USER_IDS.danh, { seedFrom: "item" });
+    const users = await services.repos.users.list();
+
+    await services.comments.addComment(a.id, "Shared with the other board", SEED_USER_IDS.danh, users, { alsoLinked: true });
+    expect((await services.comments.listByItem(a.id)).map((c) => c.body)).toContain("Shared with the other board");
+    expect((await services.comments.listByItem(b.id)).map((c) => c.body)).toContain("Shared with the other board");
+
+    // Both boards record the update in their own activity feed.
+    const activity = await services.repos.activities.listByBoard(SEED_BOARD_IDS.alwayson, 20);
+    expect(activity.some((entry) => entry.eventType === "COMMENT_ADDED" && entry.itemId === b.id)).toBe(true);
+  });
+
+  it("keeps an update to itself when the toggle is off", async () => {
+    const a = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+    const b = await itemNamed(SEED_BOARD_IDS.alwayson, "Student spotlight – exchange to Barcelona");
+    await services.links.link(a.id, b.id, SEED_USER_IDS.danh, { seedFrom: "item" });
+    const users = await services.repos.users.list();
+
+    await services.comments.addComment(a.id, "Just for this board", SEED_USER_IDS.danh, users);
+    expect((await services.comments.listByItem(a.id)).map((c) => c.body)).toContain("Just for this board");
+    expect((await services.comments.listByItem(b.id)).map((c) => c.body)).not.toContain("Just for this board");
+  });
 });
