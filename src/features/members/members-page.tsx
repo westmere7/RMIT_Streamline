@@ -54,6 +54,7 @@ export function MembersPage() {
 
   return (
     <div className="flex h-full flex-col">
+      <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title="Members"
         description={`${ws.members.filter((m) => m.status === "ACTIVE").length} active members`}
@@ -71,7 +72,9 @@ export function MembersPage() {
           </>
         }
       />
+      </div>
       <div className="scrollbar-thin flex-1 overflow-auto px-6 pb-8">
+        <div className="mx-auto w-full max-w-5xl">
         {rows.length === 0 ? (
           <EmptyState icon={Users} title="No members match" description="Try a different name or email." />
         ) : (
@@ -96,6 +99,7 @@ export function MembersPage() {
             </table>
           </div>
         )}
+        </div>
       </div>
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>

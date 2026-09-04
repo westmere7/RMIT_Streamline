@@ -43,6 +43,7 @@ export function InboxPage() {
 
   return (
     <div className="flex h-full flex-col">
+      <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title="Inbox"
         description={unread > 0 ? `${unread} unread notification${unread === 1 ? "" : "s"}` : "You are all caught up."}
@@ -67,7 +68,9 @@ export function InboxPage() {
           </>
         }
       />
+      </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-6 pb-8">
+        <div className="mx-auto w-full max-w-5xl">
         {notifications.isLoading && (
           <div className="space-y-2 pt-2">
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
@@ -116,6 +119,7 @@ export function InboxPage() {
             })}
           </ul>
         )}
+        </div>
       </div>
     </div>
   );
