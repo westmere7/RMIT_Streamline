@@ -50,7 +50,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   TRACKER_COLUMN_TYPES,
   TRACKER_COLUMN_TYPE_LABELS,
@@ -63,7 +62,8 @@ import {
   type TrackerSheet,
 } from "@/domain";
 import { type CellAddress, type CellRange, clampAddress, clearRange, formatCell, frozenOffsets, inRange, parseTsv, pasteBlock, rangeBetween, rangeToTsv } from "@/features/trackers/grid-model";
-import { STATUS_COLORS, TEMPLATE_STYLE } from "@/features/trackers/tracker-template";
+import { Chip, ChipColorPicker } from "@/features/trackers/chip";
+import { STATUS_COLORS, TEMPLATE_STYLE, chipColor, nextChipColor, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { cn } from "@/lib/utils";
 import { TrackerService } from "@/services/tracker-service";
 import { type TrackerViewSettings, useUiStore } from "@/stores/ui-store";
@@ -428,6 +428,13 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                 onCancelEdit={cancelEdit}
                 onLabelChange={(label) => commit((s) => TrackerService.setRowLabel(s, row.id, label))}
                 onToggleCheckbox={(c) => toggleCheckbox({ row: r, col: c })}
+                onAddOption={(c, option) => {
+                  const column = columns[c];
+                  if (!column) return;
+                  commit((s) =>
+                    TrackerService.updateColumn(s, column.id, { options: [...(column.options ?? []), option], optionColors: { ...resolveOptionColors(column), [option]: nextChipColor(column) } }),
+                  );
+                }}
                 rowMenu={
                   canEdit
                     ? {
@@ -681,34 +688,74 @@ function OptionsDialog({
 
 /** Mounted only while the dialog is open, so it always starts from the current options. */
 function OptionsForm({ column, onSave, onClose }: { column: TrackerColumn; onSave: (options: string[], optionColors?: Record<string, string>) => void; onClose: () => void }) {
-  const [text, setText] = React.useState((column.options ?? []).join("\n"));
+  const [rows, setRows] = React.useState<Array<{ name: string; color: string }>>(() => {
+    const colors = resolveOptionColors(column);
+    return (column.options ?? []).map((name) => ({ name, color: colors[name]! }));
+  });
+  const [draft, setDraft] = React.useState("");
+  const add = () => {
+    const name = draft.trim();
+    if (!name || rows.some((r) => r.name.toLowerCase() === name.toLowerCase())) return;
+    const color = STATUS_COLORS[name.toUpperCase()] ?? nextChipColor({ options: rows.map((r) => r.name), optionColors: Object.fromEntries(rows.map((r) => [r.name, r.color])) });
+    setRows([...rows, { name, color }]);
+    setDraft("");
+  };
   return (
     <>
       <DialogHeader>
         <DialogTitle>Dropdown options — {column.name}</DialogTitle>
-        <DialogDescription>One option per line. Status-style names (Yet to brief, In progress, Completed…) get the tracker&apos;s colours automatically.</DialogDescription>
+        <DialogDescription>Each option is a chip. Pick its colour, rename it, or drop it; values typed into cells that are not listed here stay as neutral chips.</DialogDescription>
       </DialogHeader>
-      <Textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} aria-label="Dropdown options" onMouseDown={(e) => e.stopPropagation()} />
+      <ul className="max-h-72 space-y-1 overflow-y-auto pr-1" data-testid="chip-options">
+        {rows.map((row, i) => (
+          <li key={i} className="flex items-center gap-2">
+            <ChipColorPicker value={row.color} label={row.name || "option"} onChange={(color) => setRows(rows.map((r, j) => (j === i ? { ...r, color } : r)))} />
+            <Input
+              value={row.name}
+              onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))}
+              aria-label={`Option ${i + 1}`}
+              className="h-8"
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <Chip label={row.name || "…"} color={row.color} className="hidden shrink-0 sm:inline-flex" />
+            <Button variant="ghost" size="icon-xs" aria-label={`Remove ${row.name}`} onClick={() => setRows(rows.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive">
+              <Trash2 />
+            </Button>
+          </li>
+        ))}
+        {rows.length === 0 && <li className="py-2 text-center text-2xs text-muted-foreground">No options yet.</li>}
+      </ul>
+      <div className="flex items-center gap-2">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="New option…"
+          aria-label="New option"
+          className="h-8"
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+        <Button variant="outline" size="sm" onClick={add} disabled={!draft.trim()}>
+          <Plus /> Add
+        </Button>
+      </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
         <Button
           onClick={() => {
-            const options = [
-              ...new Set(
-                text
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              ),
-            ];
-            const colors: Record<string, string> = {};
-            for (const o of options) {
-              const known = STATUS_COLORS[o.toUpperCase()] ?? column.optionColors?.[o];
-              if (known) colors[o] = known;
-            }
-            onSave(options, Object.keys(colors).length ? colors : undefined);
+            const seen = new Set<string>();
+            const cleaned = rows.map((r) => ({ ...r, name: r.name.trim() })).filter((r) => r.name && !seen.has(r.name.toLowerCase()) && seen.add(r.name.toLowerCase()));
+            onSave(
+              cleaned.map((r) => r.name),
+              Object.fromEntries(cleaned.map((r) => [r.name, r.color])),
+            );
             onClose();
           }}
         >
@@ -751,6 +798,8 @@ interface GridRowProps {
   onCancelEdit: () => void;
   onLabelChange: (label: string) => void;
   onToggleCheckbox: (col: number) => void;
+  /** Adds a typed value to the column's dropdown before storing it. */
+  onAddOption: (col: number, option: string) => void;
   rowMenu: RowMenuHandlers | null;
   view: TrackerViewSettings;
   rowHeight: number;
@@ -775,6 +824,7 @@ const GridRow = React.memo(function GridRow({
   onCancelEdit,
   onLabelChange,
   onToggleCheckbox,
+  onAddOption,
   rowMenu,
   view,
   rowHeight,
@@ -828,6 +878,7 @@ const GridRow = React.memo(function GridRow({
             onCommit={(raw, move) => onCommitEdit(c, raw, move)}
             onCancel={onCancelEdit}
             onToggle={() => onToggleCheckbox(c)}
+            onAddOption={(option) => onAddOption(c, option)}
           />
         ))}
         <td className={cn(view.gridLines && "border-b")} />
@@ -956,6 +1007,7 @@ interface GridCellProps {
   onCommit: (raw: string, move: "down" | "right" | "none") => void;
   onCancel: () => void;
   onToggle: () => void;
+  onAddOption: (option: string) => void;
   crosshair: boolean;
   gridLines: boolean;
   wrap: boolean;
@@ -979,6 +1031,7 @@ const GridCell = React.memo(function GridCell({
   onCommit,
   onCancel,
   onToggle,
+  onAddOption,
   crosshair,
   gridLines,
   wrap,
@@ -986,7 +1039,8 @@ const GridCell = React.memo(function GridCell({
   rowHeight,
 }: GridCellProps) {
   const text = formatCell(column, value);
-  const tint = column.type === "list" && typeof value === "string" ? column.optionColors?.[value] : undefined;
+  const isChip = column.type === "list" && typeof value === "string" && value !== "";
+  const tint: string | undefined = undefined;
   return (
     <td
       role="gridcell"
@@ -1009,7 +1063,7 @@ const GridCell = React.memo(function GridCell({
       onDoubleClick={onDoubleClick}
     >
       {editing ? (
-        <CellEditor column={column} value={value} initial={editing.initial} onCommit={onCommit} onCancel={onCancel} />
+        <CellEditor column={column} value={value} initial={editing.initial} onCommit={onCommit} onCancel={onCancel} onAddOption={onAddOption} />
       ) : (
         <div
           className={cn(
@@ -1020,7 +1074,26 @@ const GridCell = React.memo(function GridCell({
           )}
           style={{ minHeight: rowHeight - 2, height: wrap && column.type === "longText" ? undefined : rowHeight - 2 }}
         >
-          {column.type === "checkbox" ? (
+          {column.type === "list" ? (
+            <span className="group/chip flex min-w-0 flex-1 items-center justify-between gap-1">
+              {isChip ? (
+                <Chip label={value} color={chipColor(column, value)} size={rowHeight < 30 ? "sm" : "md"} title={chipColor(column, value) ? undefined : "Custom value (not in the dropdown)"} />
+              ) : (
+                <span />
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label="Open dropdown"
+                  onClick={onDoubleClick}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/chip:opacity-100 hover:bg-foreground/10 hover:text-foreground"
+                >
+                  <ChevronDown className="size-3.5" />
+                </button>
+              )}
+            </span>
+          ) : column.type === "checkbox" ? (
             <button
               type="button"
               aria-label={value === true ? "Checked" : "Unchecked"}
@@ -1199,12 +1272,14 @@ function CellEditor({
   initial,
   onCommit,
   onCancel,
+  onAddOption,
 }: {
   column: TrackerColumn;
   value: TrackerCellValue | undefined;
   initial?: string;
   onCommit: (raw: string, move: "down" | "right" | "none") => void;
   onCancel: () => void;
+  onAddOption: (option: string) => void;
 }) {
   const current = initial ?? (column.type === "date" && typeof value === "string" ? value : formatCell(column, value));
   const [draft, setDraft] = React.useState(current);
@@ -1232,11 +1307,14 @@ function CellEditor({
   if (column.type === "list") {
     return (
       <ListEditor
-        options={column.options ?? []}
-        colors={column.optionColors}
+        column={column}
         value={typeof value === "string" ? value : ""}
         initial={initial}
         onCommit={(v) => finish("down", v)}
+        onAddOption={(option) => {
+          onAddOption(option);
+          finish("down", option);
+        }}
         onCancel={onCancel}
       />
     );
@@ -1290,87 +1368,137 @@ function CellEditor({
 }
 
 function ListEditor({
-  options,
-  colors,
+  column,
   value,
   initial,
   onCommit,
+  onAddOption,
   onCancel,
 }: {
-  options: string[];
-  colors?: Record<string, string>;
+  column: TrackerColumn;
   value: string;
   initial?: string;
   onCommit: (value: string) => void;
+  onAddOption: (option: string) => void;
   onCancel: () => void;
 }) {
+  const options = column.options ?? [];
+  const colors = resolveOptionColors(column);
   const [filter, setFilter] = React.useState(initial ?? "");
-  const visible = options.filter((o) => o.toLowerCase().includes(filter.trim().toLowerCase()));
+  const query = filter.trim();
+  const visible = options.filter((o) => o.toLowerCase().includes(query.toLowerCase()));
+  const exact = options.some((o) => o.toLowerCase() === query.toLowerCase());
+  // Rows the arrow keys walk: the matching options, then the two "custom value" actions.
+  const extra = query && !exact ? ["__add__", "__use__"] : [];
+  const items = [...visible, ...extra];
   const [highlight, setHighlight] = React.useState(Math.max(0, options.indexOf(value)));
-  const ref = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    ref.current?.focus();
+    inputRef.current?.focus();
   }, []);
-  const choose = (option: string) => onCommit(option);
+  const pick = (item: string | undefined) => {
+    if (item === undefined) return;
+    if (item === "__add__") onAddOption(query);
+    else if (item === "__use__") onCommit(query);
+    else onCommit(item);
+  };
   return (
     <div
-      ref={ref}
-      tabIndex={-1}
-      className="absolute top-0 left-0 z-40 w-64 rounded-md border bg-popover p-1 shadow-xl outline-none"
+      ref={rootRef}
+      className="absolute top-0 left-0 z-40 w-72 overflow-hidden rounded-lg border bg-popover shadow-xl"
       onMouseDown={(e) => e.stopPropagation()}
       onBlur={(e) => {
-        if (!ref.current?.contains(e.relatedTarget as Node)) onCancel();
-      }}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Escape") onCancel();
-        else if (e.key === "ArrowDown") setHighlight((h) => Math.min(visible.length - 1, h + 1));
-        else if (e.key === "ArrowUp") setHighlight((h) => Math.max(0, h - 1));
-        else if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault();
-          const pick = visible[highlight] ?? (filter.trim() ? filter.trim() : "");
-          choose(pick);
-        } else if (e.key === "Backspace") setFilter((f) => f.slice(0, -1));
-        else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) setFilter((f) => f + e.key);
+        if (!rootRef.current?.contains(e.relatedTarget as Node)) onCancel();
       }}
       role="listbox"
-      aria-label="Choose a value"
+      aria-label={`Choose ${column.name}`}
+      data-testid="chip-picker"
     >
-      <div className="flex h-7 items-center border-b px-2 text-[13px] text-muted-foreground">{filter || <span className="opacity-60">Type to filter…</span>}</div>
-      <ul className="max-h-56 overflow-y-auto py-1">
-        <li>
-          <button
-            type="button"
-            role="option"
-            aria-selected={false}
-            onClick={() => choose("")}
-            className="flex h-7 w-full items-center rounded px-2 text-left text-2xs text-muted-foreground hover:bg-accent"
-          >
+      <div className="flex items-center gap-2 border-b px-2.5">
+        <input
+          ref={inputRef}
+          value={filter}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setHighlight(0);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") onCancel();
+            else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHighlight((h) => Math.min(items.length - 1, h + 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlight((h) => Math.max(0, h - 1));
+            } else if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              pick(items[highlight] ?? (query ? query : ""));
+            } else if (e.key === "Backspace" && filter === "" && value) onCommit("");
+          }}
+          placeholder="Search or type a new value…"
+          aria-label="Search options"
+          className="h-9 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+        />
+        {value && (
+          <button type="button" onClick={() => onCommit("")} className="shrink-0 rounded px-1.5 py-0.5 text-2xs text-muted-foreground hover:bg-accent hover:text-foreground">
             Clear
           </button>
-        </li>
+        )}
+      </div>
+      <ul className="max-h-64 overflow-y-auto p-1.5">
         {visible.map((option, i) => (
           <li key={option}>
             <button
               type="button"
               role="option"
               aria-selected={option === value}
-              onClick={() => choose(option)}
+              onClick={() => pick(option)}
               onMouseEnter={() => setHighlight(i)}
-              className={cn("flex h-7 w-full items-center gap-2 rounded px-2 text-left text-[13px] hover:bg-accent", i === highlight && "bg-accent")}
+              className={cn("flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left", i === highlight && "bg-accent")}
             >
-              <span className="size-2.5 rounded-full border" style={colors?.[option] ? { backgroundColor: `#${colors[option]}`, borderColor: "transparent" } : undefined} />
-              <span className="truncate">{option}</span>
-              {option === value && <Check className="ml-auto size-3.5" />}
+              <Chip label={option} color={colors[option]} />
+              {option === value && <Check className="ml-auto size-3.5 text-muted-foreground" />}
             </button>
           </li>
         ))}
-        {visible.length === 0 && filter.trim() && (
-          <li>
-            <button type="button" role="option" aria-selected={false} onClick={() => choose(filter.trim())} className="flex h-7 w-full items-center rounded px-2 text-left text-[13px] hover:bg-accent">
-              Use “{filter.trim()}”
-            </button>
-          </li>
+        {visible.length === 0 && !query && <li className="px-2 py-3 text-center text-2xs text-muted-foreground">No options yet — type to add one.</li>}
+        {extra.length > 0 && (
+          <>
+            {visible.length > 0 && <li className="my-1 h-px bg-border" aria-hidden />}
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pick("__add__")}
+                onMouseEnter={() => setHighlight(visible.length)}
+                className={cn("flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[13px]", highlight === visible.length && "bg-accent")}
+                data-testid="chip-add-option"
+              >
+                <Plus className="size-3.5 text-muted-foreground" />
+                <span className="truncate">
+                  Add <Chip label={query} color={nextChipColor(column)} size="sm" className="mx-0.5 align-middle" /> to the dropdown
+                </span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pick("__use__")}
+                onMouseEnter={() => setHighlight(visible.length + 1)}
+                className={cn("flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[13px]", highlight === visible.length + 1 && "bg-accent")}
+              >
+                <span className="size-3.5" />
+                <span className="truncate text-muted-foreground">
+                  Use <Chip label={query} size="sm" className="mx-0.5 align-middle" /> once
+                </span>
+              </button>
+            </li>
+          </>
         )}
       </ul>
     </div>

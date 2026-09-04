@@ -1,6 +1,6 @@
 import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
 import { columnLetter } from "@/domain";
-import { STATUS_COLORS, TEMPLATE_STYLE, YES_NO_COLORS } from "@/features/trackers/tracker-template";
+import { STATUS_COLORS, TEMPLATE_STYLE, YES_NO_COLORS, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
 import { TrackerService } from "./tracker-service";
 
@@ -107,10 +107,12 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
     if (list.length <= 255) {
       for (let r = 2; r <= lastRow; r++) ws.getCell(`${letter}${r}`).dataValidation = { type: "list", allowBlank: true, formulae: [`"${list}"`] };
     }
-    for (const [option, color] of Object.entries(column.optionColors ?? {})) {
+    for (const [option, color] of Object.entries(resolveOptionColors(column))) {
       ws.addConditionalFormatting({
         ref,
-        rules: [{ type: "cellIs", operator: "equal", formulae: [`"${option.replace(/"/g, '""')}"`], priority: 1, style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: `FF${color}` } } } }],
+        rules: [
+          { type: "cellIs", operator: "equal", formulae: [`"${option.replace(/"/g, '""')}"`], priority: 1, style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: `FF${color}` } } } },
+        ],
       });
     }
   });
@@ -160,7 +162,10 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
   if (!headerRowNumber) return null;
 
   const headerValues = collectRow(ws, headerRowNumber);
-  const lastColumn = Math.max(1, headerValues.reduce<number>((max, v, i) => (v !== null && v !== "" ? i + 1 : max), 0));
+  const lastColumn = Math.max(
+    1,
+    headerValues.reduce<number>((max, v, i) => (v !== null && v !== "" ? i + 1 : max), 0),
+  );
   const validations = listValidationsByColumn(ws);
   const columns: TrackerColumn[] = [];
   for (let c = 1; c <= lastColumn; c++) {
@@ -307,7 +312,11 @@ function listValidationsByColumn(ws: import("exceljs").Worksheet): Map<number, s
     if (dv.type !== "list" || !dv.formulae?.[0]) continue;
     const formula = dv.formulae[0].trim();
     if (!formula.startsWith('"')) continue; // range references point at another sheet; nothing to import
-    const options = formula.replace(/^"|"$/g, "").split(",").map((s) => s.trim()).filter(Boolean);
+    const options = formula
+      .replace(/^"|"$/g, "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (options.length === 0) continue;
     for (const part of ref.split(/\s+/)) {
       const m = part.match(/^([A-Z]+)/);

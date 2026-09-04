@@ -20,6 +20,47 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export const YES_NO_COLORS: Record<string, string> = { Y: "C6EFCE", N: "FFC7CE" };
 
+/** Soft chip fills in the order new options pick them up (Google Sheets-like pastels). */
+export const CHIP_PALETTE = ["D9E1F2", "C6EFCE", "FFEB9C", "FFDDB3", "FFC7CE", "EBB5DB", "E2D6F7", "C8F0EA", "E5E7EB", "FDE68A", "BFDBFE", "D1FAE5"] as const;
+
+/** Text colour on every chip; the palette is light enough for dark text in both themes. */
+export const CHIP_TEXT = "1C1D2B";
+
+/**
+ * Every dropdown option gets a colour: explicit ones win, the rest take palette
+ * colours by position. Custom values (not in `options`) have none and render as
+ * neutral chips.
+ */
+export function resolveOptionColors(column: Pick<TrackerColumn, "options" | "optionColors">): Record<string, string> {
+  const colors: Record<string, string> = {};
+  const used = new Set(Object.values(column.optionColors ?? {}));
+  let next = 0;
+  for (const option of column.options ?? []) {
+    const explicit = column.optionColors?.[option];
+    if (explicit) {
+      colors[option] = explicit;
+      continue;
+    }
+    while (next < CHIP_PALETTE.length - 1 && used.has(CHIP_PALETTE[next]!)) next++;
+    const pick = CHIP_PALETTE[next % CHIP_PALETTE.length]!;
+    colors[option] = pick;
+    used.add(pick);
+    next++;
+  }
+  return colors;
+}
+
+/** Colour for one value, or `undefined` when it is a custom value outside the dropdown. */
+export function chipColor(column: Pick<TrackerColumn, "options" | "optionColors">, value: string): string | undefined {
+  return resolveOptionColors(column)[value];
+}
+
+/** First palette colour not yet used by the column, for a freshly added option. */
+export function nextChipColor(column: Pick<TrackerColumn, "options" | "optionColors">): string {
+  const used = new Set(Object.values(resolveOptionColors(column)));
+  return CHIP_PALETTE.find((c) => !used.has(c)) ?? CHIP_PALETTE[(column.options?.length ?? 0) % CHIP_PALETTE.length]!;
+}
+
 /** Band colours: phase rows are cyan, channel rows light blue, headers RMIT navy. */
 export const TEMPLATE_STYLE = {
   headerFill: "000054",
