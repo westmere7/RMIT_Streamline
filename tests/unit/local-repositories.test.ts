@@ -23,7 +23,7 @@ describe("local repositories (IndexedDB)", () => {
     const workspace = await repos.workspaces.getBySlug("rmit");
     expect(workspace?.id).toBe(SEED_WORKSPACE_ID);
     const users = await repos.users.list();
-    expect(users).toHaveLength(9);
+    expect(users).toHaveLength(18);
     const boards = await repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
     expect(boards.map((b) => b.name)).toContain("RMITinerary 2026");
     const items = await repos.items.listByBoard(SEED_BOARD_IDS.rmitinerary);

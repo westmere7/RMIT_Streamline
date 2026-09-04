@@ -16,10 +16,10 @@ describe("BoardService", () => {
 
   it("creates a board from the Creative Production template with groups and columns", async () => {
     const { board, groups, columns } = await services.boards.createBoard(
-      { workspaceId: SEED_WORKSPACE_ID, name: "Open Day 2026", teamId: SEED_TEAM_IDS.campaigns, visibility: "TEAM", templateId: "creative-production" },
+      { workspaceId: SEED_WORKSPACE_ID, name: "Open Day 2027", teamId: SEED_TEAM_IDS.campaigns, visibility: "TEAM", templateId: "creative-production" },
       SEED_USER_IDS.danh,
     );
-    expect(board.slug).toBe("open-day-2026");
+    expect(board.slug).toBe("open-day-2027");
     expect(board.ownerId).toBe(SEED_USER_IDS.danh);
     expect(groups.map((g) => g.name)).toEqual(BOARD_TEMPLATES["creative-production"].groups.map((g) => g.name));
     expect(columns.map((c) => c.type)).toEqual(BOARD_TEMPLATES["creative-production"].columns.map((c) => c.type));

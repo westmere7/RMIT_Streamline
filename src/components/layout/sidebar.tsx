@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Home,
   Inbox,
+  LayoutGrid,
   ListTodo,
   PanelLeft,
   PanelLeftClose,
@@ -293,9 +294,9 @@ function BoardLink({ board, href, active, collapsed, nested }: { board: Board; h
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
-          className={cn(navItemClasses(active), "h-7 font-normal", collapsed && "justify-center px-0", nested && !collapsed && "pl-7")}
+          className={cn(navItemClasses(active), "h-7 font-normal", collapsed && "justify-center px-0", nested && !collapsed && "pl-2")}
         >
-          <DynamicIcon name={board.icon} className={cn("size-3.5 shrink-0", colorClasses(board.color).text)} />
+          <LayoutGrid className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
           {!collapsed && <span className="truncate">{board.name}</span>}
         </Link>
       </SimpleTooltip>
@@ -356,8 +357,8 @@ function TeamNode({
         <span className="text-2xs text-muted-foreground tabular">{boards.length}</span>
       </div>
       {expanded && (
-        <ul className="mt-0.5 space-y-0.5">
-          {boards.length === 0 && <li className="py-1 pl-9 text-2xs text-muted-foreground">No boards yet</li>}
+        <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
+          {boards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards yet</li>}
           {boards.map((board) => (
             <BoardLink
               key={board.id}

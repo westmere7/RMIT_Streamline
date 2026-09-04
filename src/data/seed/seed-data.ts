@@ -80,7 +80,9 @@ export const SEED_WORKSPACE_SLUG = "rmit";
 
 // ---- Users -----------------------------------------------------------------
 
-type UserKey = "danh" | "emily" | "jun" | "joanne" | "duc" | "tuyet" | "hil" | "grace" | "jane";
+type UserKey =
+  | "danh" | "emily" | "jun" | "joanne" | "duc" | "tuyet" | "hil" | "grace" | "jane"
+  | "minh" | "linh" | "sarah" | "tom" | "priya" | "chloe" | "ravi" | "thao" | "ben";
 
 interface SeedUserSpec {
   key: UserKey;
@@ -102,6 +104,15 @@ const USER_SPECS: SeedUserSpec[] = [
   { key: "hil", firstName: "Hil", lastName: "Pham", jobTitle: "Web Designer", department: "Digital", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
   { key: "grace", firstName: "Grace", lastName: "Kim", jobTitle: "Content Strategist", department: "Content", timezone: "Australia/Melbourne", role: "MEMBER" },
   { key: "jane", firstName: "Jane", lastName: "Morrison", jobTitle: "Copywriter", department: "Content", timezone: "Australia/Melbourne", role: "GUEST" },
+  { key: "minh", firstName: "Minh", lastName: "Hoang", jobTitle: "Video Editor", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
+  { key: "linh", firstName: "Linh", lastName: "Vo", jobTitle: "Junior Designer", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
+  { key: "sarah", firstName: "Sarah", lastName: "Mitchell", jobTitle: "Brand Manager", department: "Marketing", timezone: "Australia/Melbourne", role: "ADMIN" },
+  { key: "tom", firstName: "Tom", lastName: "Hartley", jobTitle: "UX Designer", department: "Digital", timezone: "Australia/Melbourne", role: "MEMBER" },
+  { key: "priya", firstName: "Priya", lastName: "Nair", jobTitle: "Marketing Coordinator", department: "Marketing", timezone: "Australia/Melbourne", role: "MEMBER" },
+  { key: "chloe", firstName: "Chloe", lastName: "Bennett", jobTitle: "Social Media Manager", department: "Content", timezone: "Australia/Melbourne", role: "MEMBER" },
+  { key: "ravi", firstName: "Ravi", lastName: "Sharma", jobTitle: "Front-end Developer", department: "Digital", timezone: "Australia/Melbourne", role: "MEMBER" },
+  { key: "thao", firstName: "Thao", lastName: "Dang", jobTitle: "Studio Coordinator", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
+  { key: "ben", firstName: "Ben", lastName: "Walker", jobTitle: "Agency Partner", department: "External", timezone: "Australia/Melbourne", role: "GUEST" },
 ];
 
 export const SEED_USER_IDS: Record<UserKey, string> = {
@@ -114,6 +125,15 @@ export const SEED_USER_IDS: Record<UserKey, string> = {
   hil: sid("user", 7),
   grace: sid("user", 8),
   jane: sid("user", 9),
+  minh: sid("user", 10),
+  linh: sid("user", 11),
+  sarah: sid("user", 12),
+  tom: sid("user", 13),
+  priya: sid("user", 14),
+  chloe: sid("user", 15),
+  ravi: sid("user", 16),
+  thao: sid("user", 17),
+  ben: sid("user", 18),
 };
 
 export const SEED_ACCOUNTS = USER_SPECS.map((u) => ({
@@ -126,7 +146,7 @@ export const SEED_ACCOUNTS = USER_SPECS.map((u) => ({
 
 // ---- Teams -----------------------------------------------------------------
 
-type TeamKey = "vietnam" | "melbourne" | "campaigns" | "digital" | "brand" | "content";
+type TeamKey = "vietnam" | "melbourne" | "campaigns" | "digital" | "brand" | "content" | "video" | "events";
 
 interface SeedTeamSpec {
   key: TeamKey;
@@ -139,12 +159,14 @@ interface SeedTeamSpec {
 }
 
 const TEAM_SPECS: SeedTeamSpec[] = [
-  { key: "vietnam", name: "Vietnam Creative", description: "Design and production studio based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil"] },
-  { key: "melbourne", name: "Melbourne Creative", description: "Campaign creative and brand design for the Melbourne campuses.", color: "navy", icon: "paintbrush", lead: "emily", members: ["jun", "grace", "jane"] },
-  { key: "campaigns", name: "Campaigns", description: "Integrated campaign planning and delivery.", color: "orange", icon: "megaphone", lead: "joanne", members: ["emily", "danh", "jun"] },
-  { key: "digital", name: "Digital", description: "Web, landing pages and digital out-of-home.", color: "cyan", icon: "monitor", lead: "jun", members: ["hil", "grace"] },
-  { key: "brand", name: "Brand", description: "Brand governance, guidelines and identity assets.", color: "purple", icon: "sparkles", lead: "joanne", members: ["emily", "duc"] },
-  { key: "content", name: "Content", description: "Always-on social and editorial content.", color: "green", icon: "newspaper", lead: "grace", members: ["jane", "tuyet"] },
+  { key: "vietnam", name: "Vietnam Creative", description: "Design and production studio based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil", "linh", "thao", "minh"] },
+  { key: "melbourne", name: "Melbourne Creative", description: "Campaign creative and brand design for the Melbourne campuses.", color: "navy", icon: "paintbrush", lead: "emily", members: ["jun", "grace", "jane", "sarah", "tom", "priya"] },
+  { key: "campaigns", name: "Campaigns", description: "Integrated campaign planning and delivery.", color: "orange", icon: "megaphone", lead: "joanne", members: ["emily", "danh", "jun", "priya", "ben"] },
+  { key: "digital", name: "Digital", description: "Web, landing pages and digital out-of-home.", color: "cyan", icon: "monitor", lead: "jun", members: ["hil", "grace", "tom", "ravi"] },
+  { key: "brand", name: "Brand", description: "Brand governance, guidelines and identity assets.", color: "purple", icon: "sparkles", lead: "sarah", members: ["joanne", "emily", "duc"] },
+  { key: "content", name: "Content", description: "Always-on social and editorial content.", color: "green", icon: "newspaper", lead: "grace", members: ["jane", "tuyet", "chloe"] },
+  { key: "video", name: "Video & Motion", description: "Film, motion graphics and post-production.", color: "pink", icon: "film", lead: "minh", members: ["duc", "linh", "chloe"] },
+  { key: "events", name: "Events", description: "Open days, ceremonies and campus activations.", color: "amber", icon: "calendar-days", lead: "priya", members: ["joanne", "thao", "tuyet"] },
 ];
 
 export const SEED_TEAM_IDS: Record<TeamKey, string> = {
@@ -154,11 +176,13 @@ export const SEED_TEAM_IDS: Record<TeamKey, string> = {
   digital: sid("team", 4),
   brand: sid("team", 5),
   content: sid("team", 6),
+  video: sid("team", 7),
+  events: sid("team", 8),
 };
 
 // ---- Boards ----------------------------------------------------------------
 
-type BoardKey = "sem1" | "masterclass" | "rmitinerary" | "dooh" | "requests" | "alwayson";
+type BoardKey = "sem1" | "masterclass" | "rmitinerary" | "dooh" | "requests" | "alwayson" | "openday" | "video" | "brand" | "website" | "social" | "sem2archive";
 
 interface SeedColumnSpec {
   key: string;
@@ -207,6 +231,7 @@ interface SeedBoardSpec {
   columns: SeedColumnSpec[];
   items: SeedItemSpec[];
   viewers?: UserKey[];
+  archived?: boolean;
 }
 
 export const SEED_BOARD_IDS: Record<BoardKey, string> = {
@@ -216,6 +241,12 @@ export const SEED_BOARD_IDS: Record<BoardKey, string> = {
   dooh: sid("board", 4),
   requests: sid("board", 5),
   alwayson: sid("board", 6),
+  openday: sid("board", 7),
+  video: sid("board", 8),
+  brand: sid("board", 9),
+  website: sid("board", 10),
+  social: sid("board", 11),
+  sem2archive: sid("board", 12),
 };
 
 const BOARD_SPECS: SeedBoardSpec[] = [
@@ -470,6 +501,245 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { group: "Published", name: "Open day countdown series", owner: ["grace"], status: "done", priority: "medium", due: -8, tags: ["Instagram", "Facebook"], createdBy: "grace", createdDaysAgo: 15 },
     ],
   },
+  {
+    key: "openday",
+    name: "Open Day 2026",
+    description: "Campus Open Day: signage, wayfinding, stage content and social coverage across three campuses.",
+    team: "events",
+    owner: "priya",
+    visibility: "WORKSPACE",
+    type: "MAIN",
+    color: "amber",
+    icon: "calendar-days",
+    groups: [
+      { name: "Planning", color: "sky" },
+      { name: "Production", color: "orange" },
+      { name: "Review", color: "violet" },
+      { name: "Live", color: "green" },
+      { name: "Completed", color: "gray" },
+    ],
+    columns: [
+      { key: "owner", name: "Owner", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "timeline", name: "Timeline", type: "TIMELINE" },
+      { key: "due", name: "Due Date", type: "DATE" },
+      { key: "channel", name: "Campus", type: "TAGS" },
+      { key: "budget", name: "Budget (AUD)", type: "NUMBER" },
+    ],
+    items: [
+      { group: "Planning", name: "Open Day run sheet v3", owner: ["priya"], status: "working", priority: "critical", due: 3, timeline: [-4, 3], tags: ["City", "Brunswick", "Bundoora"], number: { budget: 0 }, createdBy: "priya", createdDaysAgo: 9, description: "Master run sheet covering stage program, tours and volunteer briefings." },
+      { group: "Planning", name: "Volunteer t-shirt design", owner: ["linh"], status: "not_started", priority: "medium", due: 12, timeline: [6, 12], tags: ["City"], number: { budget: 4200 }, createdBy: "priya", createdDaysAgo: 3 },
+      { group: "Planning", name: "Campus wayfinding map update", owner: ["tuyet", "thao"], status: "working", priority: "high", due: 6, timeline: [-2, 6], tags: ["City", "Brunswick"], number: { budget: 1800 }, createdBy: "priya", createdDaysAgo: 6 },
+      { group: "Planning", name: "Stage backdrop concept", owner: ["danh"], status: "waiting", priority: "high", due: 4, timeline: [-6, 4], tags: ["City"], number: { budget: 6500 }, createdBy: "joanne", createdDaysAgo: 8 },
+      { group: "Production", name: "Directional signage – 120 units", owner: ["tuyet"], status: "working", priority: "high", due: 9, timeline: [2, 9], tags: ["City", "Brunswick", "Bundoora"], number: { budget: 9800 }, createdBy: "priya", createdDaysAgo: 5 },
+      { group: "Production", name: "Faculty stall kits", owner: ["linh", "thao"], status: "not_started", priority: "medium", due: 14, timeline: [8, 14], tags: ["Bundoora"], number: { budget: 3200 }, createdBy: "priya", createdDaysAgo: 2 },
+      { group: "Production", name: "Welcome video loop – 60s", owner: ["minh"], status: "working", priority: "high", due: 7, timeline: [-1, 7], tags: ["City"], number: { budget: 2500 }, createdBy: "priya", createdDaysAgo: 5 },
+      { group: "Production", name: "Social story templates", owner: ["chloe"], status: "not_started", priority: "low", due: 10, tags: ["Global"], number: { budget: 0 }, createdBy: "chloe", createdDaysAgo: 1 },
+      { group: "Review", name: "Accessibility check – signage contrast", owner: ["tom"], status: "waiting", priority: "medium", due: 2, tags: ["Global"], number: { budget: 0 }, createdBy: "priya", createdDaysAgo: 4 },
+      { group: "Review", name: "Campus banner artwork – round 2", owner: ["danh", "linh"], status: "stuck", priority: "critical", due: -1, timeline: [-7, -1], tags: ["City"], number: { budget: 7400 }, createdBy: "joanne", createdDaysAgo: 10, description: "Facilities flagged the new banner sizes; waiting on final measurements for the Building 80 frontage." },
+      { group: "Live", name: "Save-the-date email", owner: ["priya"], status: "done", priority: "high", due: -8, tags: ["Global"], number: { budget: 0 }, createdBy: "priya", createdDaysAgo: 16 },
+      { group: "Completed", name: "Open Day brief and objectives", owner: ["joanne"], status: "done", priority: "high", due: -25, timeline: [-35, -25], tags: ["Global"], number: { budget: 0 }, createdBy: "joanne", createdDaysAgo: 36 },
+      { group: "Completed", name: "Venue and stage booking", owner: ["thao"], status: "done", priority: "critical", due: -20, tags: ["City"], number: { budget: 15000 }, createdBy: "priya", createdDaysAgo: 30 },
+    ],
+  },
+  {
+    key: "video",
+    name: "Video Production Pipeline",
+    description: "Every film and motion job from brief to delivery, with client approvals.",
+    team: "video",
+    owner: "minh",
+    visibility: "TEAM",
+    type: "MAIN",
+    color: "pink",
+    icon: "film",
+    viewers: ["emily", "joanne", "danh"],
+    groups: [
+      { name: "Briefed", color: "gray" },
+      { name: "Pre-production", color: "sky" },
+      { name: "Shooting", color: "pink" },
+      { name: "Post-production", color: "violet" },
+      { name: "Client Review", color: "amber" },
+      { name: "Delivered", color: "green" },
+    ],
+    columns: [
+      { key: "owner", name: "Editor", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "timeline", name: "Timeline", type: "TIMELINE" },
+      { key: "due", name: "Delivery", type: "DATE" },
+      { key: "format", name: "Deliverables", type: "TEXT", width: 200 },
+      { key: "approved", name: "Client approved", type: "CHECKBOX" },
+      { key: "files", name: "Files", type: "FILES" },
+    ],
+    items: [
+      { group: "Briefed", name: "Alumni testimonial series – 4 films", owner: [], status: "not_started", priority: "medium", due: 30, timeline: [10, 30], text: { format: "4 x 90s, 16:9 + 9:16" }, checkbox: { approved: false }, createdBy: "emily", createdDaysAgo: 2 },
+      { group: "Briefed", name: "Research impact explainer", owner: ["minh"], status: "not_started", priority: "low", due: 24, text: { format: "1 x 2min animated" }, checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 1 },
+      { group: "Pre-production", name: "Sem 1 hero film – shot list", owner: ["minh", "duc"], status: "working", priority: "critical", due: 1, timeline: [-3, 1], text: { format: "Shot list + call sheet" }, checkbox: { approved: true }, createdBy: "emily", createdDaysAgo: 6 },
+      { group: "Pre-production", name: "Casting – student talent", owner: ["thao"], status: "waiting", priority: "high", due: 2, timeline: [-5, 2], text: { format: "6 talent, release forms" }, checkbox: { approved: false }, createdBy: "minh", createdDaysAgo: 7 },
+      { group: "Shooting", name: "Saigon South campus b-roll", owner: ["minh"], status: "working", priority: "high", due: 3, timeline: [1, 3], text: { format: "4K, 2 days" }, checkbox: { approved: true }, createdBy: "minh", createdDaysAgo: 4 },
+      { group: "Shooting", name: "Masterclass speaker interviews", owner: ["minh", "linh"], status: "not_started", priority: "medium", due: 8, timeline: [7, 8], text: { format: "3 interviews, 2 cam" }, checkbox: { approved: true }, createdBy: "danh", createdDaysAgo: 3 },
+      { group: "Post-production", name: "Hero film – colour grade", owner: ["duc"], status: "working", priority: "critical", due: 5, timeline: [2, 5], text: { format: "Master + 6 cutdowns" }, checkbox: { approved: false }, files: ["HeroFilm_v2_offline.mp4"], createdBy: "minh", createdDaysAgo: 5 },
+      { group: "Post-production", name: "DOOH motion loops – 10s", owner: ["duc"], status: "stuck", priority: "high", due: 0, timeline: [-4, 0], text: { format: "6 formats" }, checkbox: { approved: false }, createdBy: "jun", createdDaysAgo: 8, description: "Blocked on final network specs from the media agency." },
+      { group: "Post-production", name: "Open Day welcome loop", owner: ["minh"], status: "not_started", priority: "medium", due: 7, timeline: [4, 7], text: { format: "60s loop, no audio" }, checkbox: { approved: false }, createdBy: "priya", createdDaysAgo: 3 },
+      { group: "Client Review", name: "Scholarship campaign 30s TVC", owner: ["minh"], status: "waiting", priority: "high", due: 2, timeline: [-9, 2], text: { format: "30s + 15s" }, checkbox: { approved: false }, createdBy: "joanne", createdDaysAgo: 12 },
+      { group: "Client Review", name: "Campus tour 360° video", owner: ["duc", "ravi"], status: "waiting", priority: "medium", due: -2, timeline: [-12, -2], text: { format: "360°, web embed" }, checkbox: { approved: false }, createdBy: "jun", createdDaysAgo: 14 },
+      { group: "Delivered", name: "Graduation highlights reel", owner: ["minh"], status: "done", priority: "medium", due: -11, timeline: [-18, -11], text: { format: "2min + 30s social" }, checkbox: { approved: true }, createdBy: "emily", createdDaysAgo: 22 },
+      { group: "Delivered", name: "Welcome week recap", owner: ["linh"], status: "done", priority: "low", due: -16, text: { format: "45s vertical" }, checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 24 },
+    ],
+  },
+  {
+    key: "brand",
+    name: "Brand Guidelines Refresh",
+    description: "Refreshing the visual identity system: typography, colour, photography and templates.",
+    team: "brand",
+    owner: "sarah",
+    visibility: "WORKSPACE",
+    type: "MAIN",
+    color: "purple",
+    icon: "sparkles",
+    groups: [
+      { name: "Discovery", color: "gray" },
+      { name: "Design", color: "purple" },
+      { name: "Internal Review", color: "sky" },
+      { name: "Stakeholder Review", color: "amber" },
+      { name: "Approved", color: "green" },
+    ],
+    columns: [
+      { key: "owner", name: "Owner", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "due", name: "Due Date", type: "DATE" },
+      { key: "dependency", name: "Dependency", type: "DEPENDENCY" },
+      { key: "brief", name: "Reference", type: "LINK" },
+      { key: "notes", name: "Notes", type: "LONG_TEXT", width: 240 },
+    ],
+    items: [
+      { group: "Discovery", name: "Audit of current brand assets", owner: ["sarah"], status: "done", priority: "high", due: -12, link: { brief: { url: "https://example.rmit.local/brand/audit", text: "Audit deck" } }, createdBy: "sarah", createdDaysAgo: 20 },
+      { group: "Discovery", name: "Stakeholder interviews – 8 faculties", owner: ["sarah", "priya"], status: "working", priority: "medium", due: 5, text: { notes: "5 of 8 complete. Business and Design remaining." }, createdBy: "sarah", createdDaysAgo: 12 },
+      { group: "Design", name: "Typography system – secondary typeface", owner: ["danh"], status: "working", priority: "high", due: 4, createdBy: "sarah", createdDaysAgo: 8, dependsOn: ["Audit of current brand assets"] },
+      { group: "Design", name: "Colour palette extension", owner: ["duc"], status: "not_started", priority: "medium", due: 9, createdBy: "sarah", createdDaysAgo: 4, dependsOn: ["Typography system – secondary typeface"] },
+      { group: "Design", name: "Photography style guide", owner: ["emily"], status: "waiting", priority: "medium", due: 7, text: { notes: "Waiting on sample shoot from Video & Motion." }, createdBy: "sarah", createdDaysAgo: 6 },
+      { group: "Design", name: "PowerPoint and Word templates", owner: ["linh"], status: "not_started", priority: "low", due: 18, createdBy: "sarah", createdDaysAgo: 2, dependsOn: ["Typography system – secondary typeface", "Colour palette extension"] },
+      { group: "Internal Review", name: "Logo clear-space rules", owner: ["danh"], status: "waiting", priority: "medium", due: 1, createdBy: "sarah", createdDaysAgo: 9 },
+      { group: "Stakeholder Review", name: "Co-branding guidance for partners", owner: ["sarah", "ben"], status: "waiting", priority: "high", due: -3, link: { brief: { url: "https://example.rmit.local/brand/cobrand", text: "Draft v2" } }, createdBy: "joanne", createdDaysAgo: 15 },
+      { group: "Approved", name: "Brand refresh objectives", owner: ["sarah"], status: "done", priority: "critical", due: -22, createdBy: "sarah", createdDaysAgo: 30 },
+      { group: "Approved", name: "Accessibility colour contrast matrix", owner: ["tom"], status: "done", priority: "high", due: -6, createdBy: "sarah", createdDaysAgo: 14 },
+    ],
+  },
+  {
+    key: "website",
+    name: "Website Redesign",
+    description: "Course pages, navigation and landing templates for the 2027 intake.",
+    team: "digital",
+    owner: "tom",
+    visibility: "TEAM",
+    type: "MAIN",
+    color: "cyan",
+    icon: "monitor",
+    viewers: ["emily", "sarah"],
+    groups: [
+      { name: "Backlog", color: "gray" },
+      { name: "This Sprint", color: "cyan" },
+      { name: "In Progress", color: "orange" },
+      { name: "QA", color: "violet" },
+      { name: "Done", color: "green" },
+    ],
+    columns: [
+      { key: "owner", name: "Assignee", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "due", name: "Due Date", type: "DATE" },
+      { key: "points", name: "Story points", type: "NUMBER" },
+      { key: "channel", name: "Area", type: "TAGS" },
+      { key: "brief", name: "Design", type: "LINK" },
+    ],
+    items: [
+      { group: "Backlog", name: "Dark mode for course finder", owner: [], status: "not_started", priority: "low", number: { points: 5 }, tags: ["Course finder"], createdBy: "tom", createdDaysAgo: 1 },
+      { group: "Backlog", name: "Compare courses side by side", owner: [], status: "not_started", priority: "medium", number: { points: 8 }, tags: ["Course finder"], createdBy: "tom", createdDaysAgo: 2 },
+      { group: "Backlog", name: "Alumni stories hub", owner: ["grace"], status: "not_started", priority: "low", due: 28, number: { points: 8 }, tags: ["Content"], createdBy: "grace", createdDaysAgo: 3 },
+      { group: "This Sprint", name: "Course page hero redesign", owner: ["tom"], status: "working", priority: "high", due: 4, number: { points: 5 }, tags: ["Course pages"], link: { brief: { url: "https://example.rmit.local/figma/course-hero", text: "Figma" } }, createdBy: "tom", createdDaysAgo: 6 },
+      { group: "This Sprint", name: "Mega menu navigation", owner: ["tom", "ravi"], status: "working", priority: "critical", due: 3, number: { points: 13 }, tags: ["Navigation"], link: { brief: { url: "https://example.rmit.local/figma/mega-menu", text: "Figma" } }, createdBy: "jun", createdDaysAgo: 9 },
+      { group: "This Sprint", name: "Fee calculator component", owner: ["ravi"], status: "not_started", priority: "high", due: 6, number: { points: 8 }, tags: ["Course pages"], createdBy: "jun", createdDaysAgo: 4 },
+      { group: "In Progress", name: "Landing page template – campaigns", owner: ["hil"], status: "working", priority: "high", due: 2, number: { points: 8 }, tags: ["Templates"], link: { brief: { url: "https://example.rmit.local/figma/landing", text: "Figma" } }, createdBy: "jun", createdDaysAgo: 10 },
+      { group: "In Progress", name: "Masterclass registration form", owner: ["ravi", "hil"], status: "stuck", priority: "critical", due: 0, number: { points: 5 }, tags: ["Forms"], createdBy: "jun", createdDaysAgo: 7, description: "CRM endpoint keeps timing out for international phone formats." },
+      { group: "In Progress", name: "Image optimisation pipeline", owner: ["ravi"], status: "working", priority: "medium", due: 5, number: { points: 3 }, tags: ["Performance"], createdBy: "ravi", createdDaysAgo: 5 },
+      { group: "QA", name: "Accessibility audit – course pages", owner: ["tom"], status: "waiting", priority: "high", due: 1, number: { points: 5 }, tags: ["Course pages", "Accessibility"], createdBy: "jun", createdDaysAgo: 8 },
+      { group: "QA", name: "Cross-browser test – navigation", owner: ["hil"], status: "waiting", priority: "medium", due: -1, number: { points: 2 }, tags: ["Navigation"], createdBy: "jun", createdDaysAgo: 9 },
+      { group: "Done", name: "Design tokens exported to CSS", owner: ["ravi"], status: "done", priority: "high", due: -5, number: { points: 3 }, tags: ["Design system"], createdBy: "tom", createdDaysAgo: 12 },
+      { group: "Done", name: "Analytics events spec", owner: ["jun"], status: "done", priority: "medium", due: -9, number: { points: 3 }, tags: ["Analytics"], createdBy: "jun", createdDaysAgo: 15 },
+      { group: "Done", name: "Component library kickoff", owner: ["tom", "ravi"], status: "done", priority: "high", due: -18, number: { points: 5 }, tags: ["Design system"], createdBy: "tom", createdDaysAgo: 25 },
+    ],
+  },
+  {
+    key: "social",
+    name: "Social Content Calendar Q4",
+    description: "Planned posts across Instagram, TikTok, LinkedIn and Facebook for October–December.",
+    team: "content",
+    owner: "chloe",
+    visibility: "WORKSPACE",
+    type: "MAIN",
+    color: "teal",
+    icon: "message-square",
+    groups: [
+      { name: "Ideas", color: "gray" },
+      { name: "Writing", color: "orange" },
+      { name: "Design", color: "teal" },
+      { name: "Scheduled", color: "sky" },
+      { name: "Published", color: "green" },
+    ],
+    columns: [
+      { key: "owner", name: "Owner", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "due", name: "Publish Date", type: "DATE" },
+      { key: "channel", name: "Channel", type: "TAGS" },
+      { key: "copy", name: "Caption", type: "LONG_TEXT", width: 260 },
+      { key: "approved", name: "Approved", type: "CHECKBOX" },
+    ],
+    items: [
+      { group: "Ideas", name: "Day in the life – exchange student", owner: ["chloe"], status: "not_started", priority: "low", tags: ["TikTok", "Instagram"], checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 1 },
+      { group: "Ideas", name: "Meet the makers – fashion studio", owner: ["jane"], status: "not_started", priority: "low", due: 21, tags: ["Instagram"], checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 2 },
+      { group: "Ideas", name: "Graduate outcomes infographic", owner: ["grace"], status: "not_started", priority: "medium", due: 19, tags: ["LinkedIn"], checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 3 },
+      { group: "Writing", name: "Scholarship applications open", owner: ["jane"], status: "working", priority: "critical", due: 2, tags: ["Facebook", "Instagram", "LinkedIn"], text: { copy: "Applications for 2027 scholarships are now open. Find out if you're eligible…" }, checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 4 },
+      { group: "Writing", name: "Open Day countdown – 2 weeks", owner: ["chloe"], status: "working", priority: "high", due: 3, tags: ["Instagram", "TikTok"], checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 3 },
+      { group: "Writing", name: "Research spotlight – urban water", owner: ["grace"], status: "waiting", priority: "medium", due: 6, tags: ["LinkedIn"], text: { copy: "Draft with the research office for fact check." }, checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 5 },
+      { group: "Design", name: "Study tips carousel – part 2", owner: ["tuyet"], status: "working", priority: "medium", due: 4, tags: ["Instagram"], checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 6 },
+      { group: "Design", name: "Alumni quote tiles – 6 pack", owner: ["linh"], status: "not_started", priority: "low", due: 9, tags: ["LinkedIn", "Instagram"], checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 2 },
+      { group: "Design", name: "Campus in spring – reel", owner: ["minh"], status: "working", priority: "medium", due: 1, tags: ["Instagram", "TikTok"], checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 5 },
+      { group: "Scheduled", name: "Library extended hours", owner: ["jane"], status: "done", priority: "low", due: 1, tags: ["Facebook", "Instagram"], checkbox: { approved: true }, createdBy: "jane", createdDaysAgo: 4 },
+      { group: "Scheduled", name: "Masterclass registration reminder", owner: ["chloe"], status: "done", priority: "high", due: 0, tags: ["LinkedIn", "Facebook"], checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 3 },
+      { group: "Published", name: "Welcome to semester – campus tour", owner: ["chloe", "minh"], status: "done", priority: "medium", due: -6, tags: ["TikTok", "Instagram"], checkbox: { approved: true }, createdBy: "chloe", createdDaysAgo: 13 },
+      { group: "Published", name: "Industry partner announcement", owner: ["grace"], status: "done", priority: "high", due: -9, tags: ["LinkedIn"], checkbox: { approved: true }, createdBy: "grace", createdDaysAgo: 16 },
+    ],
+  },
+  {
+    key: "sem2archive",
+    name: "Semester 2 2025 Campaign",
+    description: "Archived: last year's Semester 2 recruitment campaign.",
+    team: "campaigns",
+    owner: "joanne",
+    visibility: "WORKSPACE",
+    type: "MAIN",
+    color: "gray",
+    icon: "megaphone",
+    archived: true,
+    groups: [
+      { name: "Live", color: "green" },
+      { name: "Completed", color: "gray" },
+    ],
+    columns: [
+      { key: "owner", name: "Owner", type: "PERSON" },
+      { key: "status", name: "Status", type: "STATUS" },
+      { key: "priority", name: "Priority", type: "PRIORITY" },
+      { key: "due", name: "Due Date", type: "DATE" },
+    ],
+    items: [
+      { group: "Completed", name: "Sem 2 key visual", owner: ["danh"], status: "done", priority: "high", due: -120, createdBy: "joanne", createdDaysAgo: 150 },
+      { group: "Completed", name: "Sem 2 paid social", owner: ["jun"], status: "done", priority: "high", due: -100, createdBy: "jun", createdDaysAgo: 140 },
+      { group: "Completed", name: "Sem 2 campaign wrap report", owner: ["joanne"], status: "done", priority: "medium", due: -80, createdBy: "joanne", createdDaysAgo: 120 },
+    ],
+  },
 ];
 
 // ---- Builder ---------------------------------------------------------------
@@ -561,9 +831,9 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
       ownerId: SEED_USER_IDS[spec.owner],
       color: spec.color,
       icon: spec.icon,
-      archivedAt: null,
+      archivedAt: spec.archived ? iso(subDays(now, 60)) : null,
       createdAt: iso(boardCreated),
-      updatedAt: iso(subDays(now, 1)),
+      updatedAt: iso(subDays(now, spec.archived ? 60 : 1)),
     });
 
     // Members: owner + team members as editors, optional viewers.
@@ -760,6 +1030,10 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("comment"), itemId: itemId("sem1", "Media plan sign-off"), authorId: SEED_USER_IDS.joanne, body: "Budget still not confirmed. Escalating to the Director this afternoon.", mentionUserIds: [], createdAt: iso(subDays(now, 1)), updatedAt: iso(subDays(now, 1)) },
     { id: sid("comment"), itemId: itemId("dooh", "Shopping centre network – 6 sites"), authorId: SEED_USER_IDS.duc, body: "Two of the six sites use 1080x1350. @Jun Tanaka can you chase the agency for the full spec sheet?", mentionUserIds: [SEED_USER_IDS.jun], createdAt: iso(subDays(now, 1)), updatedAt: iso(subDays(now, 1)) },
     { id: sid("comment"), itemId: itemId("sem1", "Sem 1 campaign storyboard"), authorId: SEED_USER_IDS.emily, body: "Frames 4–7 need to show the Saigon South campus. Let's review together on Thursday.", mentionUserIds: [], createdAt: iso(subDays(now, 2)), updatedAt: iso(subDays(now, 2)) },
+    { id: sid("comment"), itemId: itemId("openday", "Campus banner artwork – round 2"), authorId: SEED_USER_IDS.priya, body: "@Danh Nguyen Facilities have sent revised measurements for Building 80 – 3.2m x 9m, not 3m x 8m. Can we adjust before Friday?", mentionUserIds: [SEED_USER_IDS.danh], createdAt: iso(subHours(now, 6)), updatedAt: iso(subHours(now, 6)) },
+    { id: sid("comment"), itemId: itemId("website", "Masterclass registration form"), authorId: SEED_USER_IDS.ravi, body: "Root cause found: the CRM rejects +84 numbers with spaces. Normalising on submit. @Hil Pham can you retest the Vietnam flow after the deploy?", mentionUserIds: [SEED_USER_IDS.hil], createdAt: iso(subHours(now, 3)), updatedAt: iso(subHours(now, 3)) },
+    { id: sid("comment"), itemId: itemId("video", "Hero film – colour grade"), authorId: SEED_USER_IDS.emily, body: "Loving the warmer look on the campus exteriors. Interviews still feel a touch green.", mentionUserIds: [], createdAt: iso(subHours(now, 9)), updatedAt: iso(subHours(now, 9)) },
+    { id: sid("comment"), itemId: itemId("brand", "Co-branding guidance for partners"), authorId: SEED_USER_IDS.ben, body: "From the agency side this reads well. One request: a minimum size rule for the partner logo when the lockup is stacked.", mentionUserIds: [], createdAt: iso(subDays(now, 1)), updatedAt: iso(subDays(now, 1)) },
   ];
   for (const c of comments) {
     activities.push({
@@ -784,6 +1058,11 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("notification"), userId: SEED_USER_IDS.joanne, type: "MENTION", title: "Danh mentioned you in Review stakeholder feedback", body: "I'll rework the opening spread tomorrow and push the export.", entityType: "ITEM", entityId: itemId("rmitinerary", "Review stakeholder feedback"), boardId: SEED_BOARD_IDS.rmitinerary, actorId: SEED_USER_IDS.danh, readAt: null, createdAt: iso(subHours(now, 19)) },
     { id: sid("notification"), userId: SEED_USER_IDS.jun, type: "MENTION", title: "Duc mentioned you in Shopping centre network – 6 sites", body: "can you chase the agency for the full spec sheet?", entityType: "ITEM", entityId: itemId("dooh", "Shopping centre network – 6 sites"), boardId: SEED_BOARD_IDS.dooh, actorId: SEED_USER_IDS.duc, readAt: null, createdAt: iso(subDays(now, 1)) },
     { id: sid("notification"), userId: SEED_USER_IDS.emily, type: "STATUS_CHANGED", title: "RMITinerary High Achiever is now Done", body: "Danh changed the status from Working On It", entityType: "ITEM", entityId: itemId("rmitinerary", "RMITinerary High Achiever"), boardId: SEED_BOARD_IDS.rmitinerary, actorId: SEED_USER_IDS.danh, readAt: null, createdAt: iso(subMinutes(now, 35)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.danh, type: "MENTION", title: "Priya mentioned you in Campus banner artwork – round 2", body: "Facilities have sent revised measurements for Building 80", entityType: "ITEM", entityId: itemId("openday", "Campus banner artwork – round 2"), boardId: SEED_BOARD_IDS.openday, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subHours(now, 6)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.hil, type: "MENTION", title: "Ravi mentioned you in Masterclass registration form", body: "can you retest the Vietnam flow after the deploy?", entityType: "ITEM", entityId: itemId("website", "Masterclass registration form"), boardId: SEED_BOARD_IDS.website, actorId: SEED_USER_IDS.ravi, readAt: null, createdAt: iso(subHours(now, 3)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.minh, type: "ASSIGNED", title: "Priya assigned you to Open Day welcome loop", body: "Video Production Pipeline · Post-production", entityType: "ITEM", entityId: itemId("video", "Open Day welcome loop"), boardId: SEED_BOARD_IDS.video, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subDays(now, 3)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.sarah, type: "COMMENT", title: "Ben commented on Co-branding guidance for partners", body: "One request: a minimum size rule for the partner logo when the lockup is stacked.", entityType: "ITEM", entityId: itemId("brand", "Co-branding guidance for partners"), boardId: SEED_BOARD_IDS.brand, actorId: SEED_USER_IDS.ben, readAt: null, createdAt: iso(subDays(now, 1)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.tom, type: "STATUS_CHANGED", title: "Masterclass registration form is now Stuck", body: "Ravi changed the status from Working On It", entityType: "ITEM", entityId: itemId("website", "Masterclass registration form"), boardId: SEED_BOARD_IDS.website, actorId: SEED_USER_IDS.ravi, readAt: null, createdAt: iso(subHours(now, 4)) },
   ];
 
   const boardFavourites: BoardFavourite[] = [
@@ -791,6 +1070,11 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("member"), boardId: SEED_BOARD_IDS.rmitinerary, userId: SEED_USER_IDS.danh, createdAt: iso(subDays(now, 9)) },
     { id: sid("member"), boardId: SEED_BOARD_IDS.sem1, userId: SEED_USER_IDS.emily, createdAt: iso(subDays(now, 20)) },
     { id: sid("member"), boardId: SEED_BOARD_IDS.alwayson, userId: SEED_USER_IDS.grace, createdAt: iso(subDays(now, 8)) },
+    { id: sid("member"), boardId: SEED_BOARD_IDS.openday, userId: SEED_USER_IDS.danh, createdAt: iso(subDays(now, 2)) },
+    { id: sid("member"), boardId: SEED_BOARD_IDS.website, userId: SEED_USER_IDS.tom, createdAt: iso(subDays(now, 5)) },
+    { id: sid("member"), boardId: SEED_BOARD_IDS.video, userId: SEED_USER_IDS.minh, createdAt: iso(subDays(now, 5)) },
+    { id: sid("member"), boardId: SEED_BOARD_IDS.social, userId: SEED_USER_IDS.chloe, createdAt: iso(subDays(now, 4)) },
+    { id: sid("member"), boardId: SEED_BOARD_IDS.brand, userId: SEED_USER_IDS.sarah, createdAt: iso(subDays(now, 4)) },
   ];
 
   const boardVisits: BoardVisit[] = [
@@ -798,6 +1082,9 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: `${SEED_USER_IDS.danh}:${SEED_BOARD_IDS.masterclass}`, userId: SEED_USER_IDS.danh, boardId: SEED_BOARD_IDS.masterclass, visitedAt: iso(subHours(now, 5)) },
     { id: `${SEED_USER_IDS.danh}:${SEED_BOARD_IDS.requests}`, userId: SEED_USER_IDS.danh, boardId: SEED_BOARD_IDS.requests, visitedAt: iso(subDays(now, 1)) },
     { id: `${SEED_USER_IDS.emily}:${SEED_BOARD_IDS.sem1}`, userId: SEED_USER_IDS.emily, boardId: SEED_BOARD_IDS.sem1, visitedAt: iso(subHours(now, 2)) },
+    { id: `${SEED_USER_IDS.danh}:${SEED_BOARD_IDS.openday}`, userId: SEED_USER_IDS.danh, boardId: SEED_BOARD_IDS.openday, visitedAt: iso(subHours(now, 7)) },
+    { id: `${SEED_USER_IDS.tom}:${SEED_BOARD_IDS.website}`, userId: SEED_USER_IDS.tom, boardId: SEED_BOARD_IDS.website, visitedAt: iso(subHours(now, 1)) },
+    { id: `${SEED_USER_IDS.minh}:${SEED_BOARD_IDS.video}`, userId: SEED_USER_IDS.minh, boardId: SEED_BOARD_IDS.video, visitedAt: iso(subHours(now, 2)) },
   ];
 
   return {

@@ -9,14 +9,14 @@ test.describe("board management", () => {
 
   test("creates a board from the Campaign template and lands on it", async ({ page }) => {
     await page.getByTestId("sidebar-add-board").click();
-    await page.getByLabel("Board name").fill("Open Day 2026");
+    await page.getByLabel("Board name").fill("Open Day 2027");
     await page.getByRole("radio", { name: /Campaign/ }).click();
     await page.getByTestId("create-board-submit").click();
-    await expect(page).toHaveURL(/boards\/open-day-2026/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Open Day 2026");
+    await expect(page).toHaveURL(/boards\/open-day-2027/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Open Day 2027");
     await expect(page.getByTestId("group-Planning")).toBeVisible();
     await expect(page.getByTestId("group-Completed")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open Day 2026" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open Day 2027" })).toBeVisible();
     await page.reload();
     await expect(page.getByTestId("group-Planning")).toBeVisible();
   });
