@@ -172,14 +172,14 @@ export function LoginScreen() {
                   className="w-full"
                   onClick={() => {
                     setEmail("admin@rmit.local");
-                    setPassword("admin");
+                    setPassword("admin123");
                   }}
                   data-testid="login-fill-admin"
                 >
                   Use the admin test account
                 </Button>
                 <p className="text-2xs text-muted-foreground">
-                  Demo accounts: <code>admin@rmit.local</code> / <code>admin</code>, or any of danh, emily, joanne … <code>@rmit.local</code> with{" "}
+                  Demo accounts: <code>admin@rmit.local</code> / <code>admin123</code>, or any of danh, emily, joanne … <code>@rmit.local</code> with{" "}
                   <code>Password123!</code>
                 </p>
               </>

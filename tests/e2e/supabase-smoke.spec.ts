@@ -14,7 +14,7 @@ import { row } from "./helpers";
  */
 const PROVIDER = process.env.E2E_PROVIDER ?? "local";
 const ADMIN_EMAIL = process.env.E2E_EMAIL ?? "admin@rmit.local";
-const ADMIN_PASSWORD = process.env.E2E_PASSWORD ?? "admin";
+const ADMIN_PASSWORD = process.env.E2E_PASSWORD ?? "admin123";
 const BOARD = "/workspace/rmit/boards/rmitinerary-2026";
 /** Unique per run so a failed run never collides with the next one. */
 const RUN = `smoke-${Date.now().toString(36)}`;

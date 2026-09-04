@@ -23,8 +23,12 @@ import { buildSeed, SEED_ACCOUNTS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "../s
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DEMO_PASSWORD = process.env.SEED_PASSWORD || "Password123!";
-/** The test login the team uses; short on purpose, see ADMIN_FALLBACK. */
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
+/**
+ * The shared test login. Supabase rejects passwords under six characters, so a
+ * literal "admin" cannot be set (it only slips through on the very first create);
+ * lower Auth → Providers → Password minimum length if you want a shorter one.
+ */
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 const ADMIN_FALLBACK = "admin123";
 
 function loadEnv(): void {
@@ -139,6 +143,17 @@ async function main(): Promise<void> {
 
     console.log("\nReplacing seed data …");
     await sql.begin(async (tx) => {
+      const seedUserIds = new Set(seed.users.map((u) => u.id));
+      // Real people added with scripts/add-user.mjs are not part of the seed, and
+      // dropping the workspace would cascade their membership away with it.
+      const outsiders = (
+        await tx<Array<{ user_id: string; role: string; status: string; joined_at: string }>>`
+          select user_id, role::text as role, status::text as status, joined_at
+          from public.workspace_members
+          where workspace_id = ${SEED_WORKSPACE_ID}
+        `
+      ).filter((m) => !seedUserIds.has(m.user_id));
+
       // Notifications are user-scoped, so they do not cascade with the workspace.
       await tx`delete from public.notifications where user_id in ${tx(seed.users.map((u) => u.id))}`;
       await tx`delete from public.workspaces where id = ${SEED_WORKSPACE_ID}`;
@@ -175,6 +190,19 @@ async function main(): Promise<void> {
       await tx`insert into public.workspace_members ${tx(
         seed.workspaceMembers.map((m) => ({ id: m.id, workspace_id: m.workspaceId, user_id: m.userId, role: m.role, status: m.status, joined_at: m.joinedAt })),
       )}`;
+
+      if (outsiders.length) {
+        await tx`insert into public.workspace_members ${tx(
+          outsiders.map((m) => ({
+            workspace_id: SEED_WORKSPACE_ID,
+            user_id: m.user_id,
+            role: m.role,
+            status: m.status,
+            joined_at: m.joined_at,
+          })),
+        )}`;
+        console.log(`  kept ${outsiders.length} member(s) who are not part of the seed`);
+      }
 
       await tx`insert into public.teams ${tx(
         seed.teams.map((t) => ({ id: t.id, workspace_id: t.workspaceId, name: t.name, description: t.description, color: t.color, icon: t.icon, archived_at: t.archivedAt })),
