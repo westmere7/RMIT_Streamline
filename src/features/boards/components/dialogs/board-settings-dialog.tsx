@@ -15,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BOARD_ROLES, COLUMN_TYPE_LABELS, type Board, type BoardRole } from "@/domain";
-import { useBoardContext } from "@/features/boards/board-context";
+import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
+import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { boardRoleFor, canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
@@ -74,7 +75,7 @@ export function BoardSettingsDialog({
           <div className="scrollbar-thin max-h-[calc(85vh-80px)] flex-1 overflow-y-auto p-5">
             {section === "general" && <GeneralSection key={`${board.name}|${board.description ?? ""}`} board={board} manage={manage} />}
             {section === "members" && <MembersSection board={board} manage={manage} />}
-            {section === "columns" && <ColumnsSection manage={manage} />}
+            {section === "columns" && <ColumnsSection board={board} manage={manage} />}
             {section === "permissions" && <PermissionsSection board={board} />}
             {section === "archive" && <ArchiveSection board={board} manage={manage} />}
             {section === "danger" && <DangerSection board={board} onRequestDelete={onRequestDelete} />}
@@ -247,8 +248,11 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
   );
 }
 
-function ColumnsSection({ manage }: { manage: boolean }) {
-  const { model, mutations } = useBoardContext();
+function ColumnsSection({ board, manage }: { board: Board; manage: boolean }) {
+  // The dialog is mounted from the header, outside the board context, so load columns directly.
+  const snapshot = useBoardSnapshot(board.id);
+  const mutations = useBoardMutations(board.id);
+  const columns = [...(snapshot.data?.columns ?? [])].sort((a, b) => a.position - b.position);
   return (
     <div className="space-y-2">
       <p className="text-[13px] text-muted-foreground">The Item name column is always shown. Hide, show or delete the others.</p>
@@ -257,7 +261,7 @@ function ColumnsSection({ manage }: { manage: boolean }) {
           <span className="flex-1 font-medium">Item</span>
           <Badge variant="muted">Required</Badge>
         </li>
-        {model.columns.map((column) => (
+        {columns.map((column) => (
           <li key={column.id} className={cn("flex h-10 items-center gap-2 px-3 text-[13px]", column.hidden && "text-muted-foreground")}>
             <span className="flex-1 truncate font-medium">{column.name}</span>
             <span className="text-2xs text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]}</span>
