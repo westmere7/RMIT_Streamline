@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Archive,
   ChevronDown,
   ChevronRight,
   Home,
@@ -47,10 +48,13 @@ export function Sidebar() {
   const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
 
-  const visibleBoards = ws.boards.filter((b) => b.archivedAt === null && canViewBoard(ws.permissions, b));
+  const accessibleBoards = ws.boards.filter((b) => canViewBoard(ws.permissions, b));
+  const visibleBoards = accessibleBoards.filter((b) => b.archivedAt === null);
   const favouriteBoards = visibleBoards.filter((b) => ws.isFavourite(b.id));
   const teams = ws.teams.filter((t) => t.archivedAt === null);
-  const boardsWithoutTeam = visibleBoards.filter((b) => !b.teamId || !teams.some((t) => t.id === b.teamId));
+  const hasTeam = (b: Board) => !!b.teamId && teams.some((t) => t.id === b.teamId);
+  const boardsWithoutTeam = visibleBoards.filter((b) => !hasTeam(b));
+  const archivedWithoutTeam = accessibleBoards.filter((b) => b.archivedAt !== null && !hasTeam(b));
   const activeBoardSlug = pathname.includes("/boards/") ? pathname.split("/boards/")[1]?.split("/")[0] : null;
   const activeTeamId = pathname.includes("/teams/") ? pathname.split("/teams/")[1]?.split("/")[0] : null;
   const isActivePath = (path: string) => pathname === path;
@@ -128,6 +132,7 @@ export function Sidebar() {
                 key={team.id}
                 team={team}
                 boards={ws.boardsForTeam(team.id).filter((b) => canViewBoard(ws.permissions, b))}
+                archivedBoards={accessibleBoards.filter((b) => b.archivedAt !== null && b.teamId === team.id)}
                 collapsed={collapsed}
                 activeBoardSlug={activeBoardSlug}
                 activeTeam={activeTeamId === team.id}
@@ -135,13 +140,14 @@ export function Sidebar() {
               />
             ))}
           </ul>
-          {boardsWithoutTeam.length > 0 && (
+          {(boardsWithoutTeam.length > 0 || archivedWithoutTeam.length > 0) && (
             <div className="mt-2">
               {!collapsed && <p className="px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Other boards</p>}
               <ul className="space-y-0.5">
                 {boardsWithoutTeam.map((board) => (
                   <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} />
                 ))}
+                {!collapsed && <ArchivedFolder boards={archivedWithoutTeam} activeBoardSlug={activeBoardSlug} />}
               </ul>
             </div>
           )}
@@ -287,16 +293,40 @@ function Section({
   );
 }
 
-function BoardLink({ board, href, active, collapsed, nested }: { board: Board; href: string; active: boolean; collapsed: boolean; nested?: boolean }) {
+function BoardLink({
+  board,
+  href,
+  active,
+  collapsed,
+  nested,
+  archived,
+}: {
+  board: Board;
+  href: string;
+  active: boolean;
+  collapsed: boolean;
+  nested?: boolean;
+  archived?: boolean;
+}) {
   return (
     <li>
-      <SimpleTooltip label={board.name} side="right" disabled={!collapsed}>
+      <SimpleTooltip label={archived ? `${board.name} (archived)` : board.name} side="right" disabled={!collapsed}>
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
-          className={cn(navItemClasses(active), "h-7 font-normal", collapsed && "justify-center px-0", nested && !collapsed && "pl-2")}
+          className={cn(
+            navItemClasses(active),
+            "h-7 font-normal",
+            collapsed && "justify-center px-0",
+            nested && !collapsed && "pl-2",
+            archived && "text-muted-foreground italic",
+          )}
         >
-          <LayoutGrid className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
+          {archived ? (
+            <Archive className="size-3.5 shrink-0 text-muted-foreground/60" />
+          ) : (
+            <LayoutGrid className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
+          )}
           {!collapsed && <span className="truncate">{board.name}</span>}
         </Link>
       </SimpleTooltip>
@@ -304,9 +334,42 @@ function BoardLink({ board, href, active, collapsed, nested }: { board: Board; h
   );
 }
 
+/** Collapsed-by-default folder listing archived boards; they open read-only with a Restore action. */
+function ArchivedFolder({ boards, activeBoardSlug }: { boards: Board[]; activeBoardSlug: string | null | undefined }) {
+  const ws = useWorkspace();
+  const containsActive = boards.some((b) => b.slug === activeBoardSlug);
+  const [open, setOpen] = React.useState(false);
+  const expanded = open || containsActive;
+  if (boards.length === 0) return null;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="flex h-7 w-full items-center gap-2 rounded-md pl-2 pr-2 text-[13px] text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
+        data-testid="archived-folder"
+      >
+        {expanded ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+        <Archive className="size-3.5 shrink-0" />
+        <span className="flex-1 truncate text-left">Archived</span>
+        <span className="text-2xs tabular">{boards.length}</span>
+      </button>
+      {expanded && (
+        <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
+          {boards.map((board) => (
+            <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} nested archived />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 function TeamNode({
   team,
   boards,
+  archivedBoards,
   collapsed,
   activeBoardSlug,
   activeTeam,
@@ -314,6 +377,7 @@ function TeamNode({
 }: {
   team: Team;
   boards: Board[];
+  archivedBoards: Board[];
   collapsed: boolean;
   activeBoardSlug: string | null | undefined;
   activeTeam: boolean;
@@ -322,7 +386,7 @@ function TeamNode({
   const ws = useWorkspace();
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
-  const containsActive = boards.some((b) => b.slug === activeBoardSlug);
+  const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug);
   const expanded = expandedIds.includes(team.id) || containsActive;
   const colors = colorClasses(team.color);
 
@@ -358,7 +422,7 @@ function TeamNode({
       </div>
       {expanded && (
         <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
-          {boards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards yet</li>}
+          {boards.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards yet</li>}
           {boards.map((board) => (
             <BoardLink
               key={board.id}
@@ -369,6 +433,7 @@ function TeamNode({
               nested
             />
           ))}
+          <ArchivedFolder boards={archivedBoards} activeBoardSlug={activeBoardSlug} />
         </ul>
       )}
     </li>

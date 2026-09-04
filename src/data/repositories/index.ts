@@ -146,6 +146,24 @@ export interface DataAdminRepository {
   /** Marks the current user as having visited a board (for "Recently visited"). */
   recordBoardVisit(userId: EntityId, boardId: EntityId): Promise<void>;
   listRecentBoardIds(userId: EntityId, limit: number): Promise<EntityId[]>;
+  /** Serialises every store so the state can be moved to another browser. */
+  exportAll(): Promise<DataExport>;
+  /** Replaces every store with the contents of a previous export. */
+  importAll(data: DataExport): Promise<void>;
+}
+
+/** Portable snapshot of the local database (Settings → Data → Export). */
+export interface DataExport {
+  format: "streamline-export";
+  version: 1;
+  exportedAt: string;
+  stores: Record<string, unknown[]>;
+}
+
+export function isDataExport(value: unknown): value is DataExport {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Partial<DataExport>;
+  return v.format === "streamline-export" && v.version === 1 && typeof v.stores === "object" && v.stores !== null;
 }
 
 export interface Repositories {

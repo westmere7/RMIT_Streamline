@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Pencil, Plus, RotateCcw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Team } from "@/domain";
+import { isDataExport, type DataExport } from "@/data/repositories";
 import { useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -252,18 +253,109 @@ function DataSection() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [confirm, setConfirm] = React.useState(false);
+  const [pendingImport, setPendingImport] = React.useState<{ data: DataExport; filename: string } | null>(null);
+  const [exporting, setExporting] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const manage = canManageWorkspace(ws.permissions);
+
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const data = await services.repos.admin.exportAll();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `streamline-${ws.slug}-${data.exportedAt.slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      const count = Object.values(data.stores).reduce((sum, rows) => sum + rows.length, 0);
+      toast.success("Data exported", { description: `${count.toLocaleString()} records saved to ${anchor.download}` });
+    } catch (error) {
+      console.error("[data] export failed", error);
+      toast.error("Could not export data");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const pickFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!isDataExport(parsed)) {
+        toast.error("That file is not a Streamline export");
+        return;
+      }
+      setPendingImport({ data: parsed, filename: file.name });
+    } catch (error) {
+      console.error("[data] import parse failed", error);
+      toast.error("Could not read that file");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const importCounts = pendingImport
+    ? {
+        boards: pendingImport.data.stores.boards?.length ?? 0,
+        items: pendingImport.data.stores.items?.length ?? 0,
+        users: pendingImport.data.stores.users?.length ?? 0,
+      }
+    : null;
+
   return (
     <>
-      <SectionTitle title="Data" description="This prototype stores everything in your browser (IndexedDB). Nothing is sent to a server." />
-      <div className="rounded-md border p-4">
-        <p className="text-[13px] font-medium">Reset demo data</p>
-        <p className="mb-3 text-[13px] text-muted-foreground">Restore the original seeded boards, items, comments and notifications. All local changes are lost.</p>
-        <Button variant="destructive" size="sm" disabled={!manage} onClick={() => setConfirm(true)}>
-          <RotateCcw /> Reset demo data
-        </Button>
-        {!manage && <p className="mt-2 text-2xs text-muted-foreground">Only workspace owners and admins can reset data.</p>}
+      <SectionTitle title="Data" description="This prototype stores everything in your browser (IndexedDB). Nothing is sent to a server, so each browser and each device holds its own copy." />
+      <div className="space-y-4">
+        <div className="rounded-md border p-4">
+          <p className="text-[13px] font-medium">Export data</p>
+          <p className="mb-3 text-[13px] text-muted-foreground">Download everything in this browser as a JSON file: boards, items, comments, activity, notifications and preferences. Use it to move your work to another browser or share a scenario.</p>
+          <Button variant="outline" size="sm" disabled={exporting} onClick={() => void exportData()} data-testid="export-data">
+            <Download /> {exporting ? "Exporting…" : "Export data"}
+          </Button>
+        </div>
+
+        <div className="rounded-md border p-4">
+          <p className="text-[13px] font-medium">Import data</p>
+          <p className="mb-3 text-[13px] text-muted-foreground">Replace everything in this browser with a previously exported file. Your current local data is overwritten.</p>
+          <input ref={fileInputRef} type="file" accept="application/json,.json" hidden aria-label="Choose export file" onChange={(e) => void pickFile(e.target.files?.[0])} />
+          <Button variant="outline" size="sm" disabled={!manage} onClick={() => fileInputRef.current?.click()} data-testid="import-data">
+            <Upload /> Import data…
+          </Button>
+          {!manage && <p className="mt-2 text-2xs text-muted-foreground">Only workspace owners and admins can import data.</p>}
+        </div>
+
+        <div className="rounded-md border p-4">
+          <p className="text-[13px] font-medium">Reset demo data</p>
+          <p className="mb-3 text-[13px] text-muted-foreground">Restore the original seeded boards, items, comments and notifications. All local changes are lost.</p>
+          <Button variant="destructive" size="sm" disabled={!manage} onClick={() => setConfirm(true)}>
+            <RotateCcw /> Reset demo data
+          </Button>
+          {!manage && <p className="mt-2 text-2xs text-muted-foreground">Only workspace owners and admins can reset data.</p>}
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingImport !== null}
+        onOpenChange={(open) => !open && setPendingImport(null)}
+        title="Import and replace local data?"
+        description={
+          pendingImport && importCounts
+            ? `${pendingImport.filename} contains ${importCounts.boards} boards, ${importCounts.items} items and ${importCounts.users} people (exported ${new Date(pendingImport.data.exportedAt).toLocaleString()}). Everything currently in this browser will be replaced. You will be signed out if your account is not in the file.`
+            : undefined
+        }
+        confirmLabel="Import data"
+        destructive
+        onConfirm={async () => {
+          if (!pendingImport) return;
+          await services.repos.admin.importAll(pendingImport.data);
+          queryClient.clear();
+          toast.success("Data imported");
+          // Full reload so auth, workspace and board queries all start from the imported state.
+          window.location.assign(routes.root());
+        }}
+      />
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}

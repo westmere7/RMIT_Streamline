@@ -29,6 +29,7 @@ export function MyWorkPage() {
 
   return (
     <div className="flex h-full flex-col">
+      <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title="My Work"
         description={`${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`}
@@ -41,7 +42,8 @@ export function MyWorkPage() {
           </div>
         }
       />
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-6 pb-8">
+      </div>
+      <div className="scrollbar-thin flex-1 overflow-y-auto px-6 pb-8"><div className="mx-auto w-full max-w-5xl">
         {myWork.isLoading && (
           <div className="space-y-2 pt-2">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
@@ -58,6 +60,7 @@ export function MyWorkPage() {
             return <WorkSection key={section} section={section} entries={entries} now={now} />;
           })}
       </div>
+      </div>
     </div>
   );
 }
@@ -71,7 +74,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
         <span className="rounded-full bg-surface-strong px-1.5 py-px text-2xs font-medium tabular">{entries.length}</span>
       </h2>
       <div className="overflow-hidden rounded-md border">
-        <div className="hidden h-8 grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_130px_110px_90px] items-center gap-3 border-b bg-surface px-3 text-2xs font-medium text-muted-foreground md:grid">
+        <div className="hidden h-8 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_130px_110px_90px] items-center gap-3 border-b bg-surface px-3 text-2xs font-medium text-muted-foreground md:grid">
           <span>Item</span>
           <span>Board · Group</span>
           <span>Status</span>
@@ -84,7 +87,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
               <Link
                 href={ws.boardPath(entry.board, { itemId: entry.item.id })}
                 className={cn(
-                  "grid min-h-10 grid-cols-[minmax(0,1fr)_90px] items-center gap-3 px-3 py-1.5 text-[13px] hover:bg-accent md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_130px_110px_90px]",
+                  "grid min-h-10 grid-cols-[minmax(0,1fr)_90px] items-center gap-3 px-3 py-1.5 text-[13px] hover:bg-accent md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_130px_110px_90px]",
                   entry.isDone && "text-muted-foreground",
                 )}
               >
