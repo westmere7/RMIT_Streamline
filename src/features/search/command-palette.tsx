@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Home, Inbox, ListTodo, Settings, Users } from "lucide-react";
+import { FileSpreadsheet, Home, Inbox, ListTodo, Settings, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -64,6 +64,9 @@ export function CommandPalette() {
             </CommandItem>
             <CommandItem onSelect={() => go(routes.inbox(ws.slug))}>
               <Inbox /> Inbox
+            </CommandItem>
+            <CommandItem onSelect={() => go(routes.trackers(ws.slug))}>
+              <FileSpreadsheet /> Trackers
             </CommandItem>
             <CommandItem onSelect={() => go(routes.members(ws.slug))}>
               <Users /> Members

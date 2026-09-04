@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, LayoutGrid, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
+import { Archive, FileSpreadsheet, LayoutGrid, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -16,11 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
+import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
+import { useTrackers } from "@/features/trackers/hooks";
 import { useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canEditTrackers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,9 @@ export function TeamPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
+  const [createTrackerOpen, setCreateTrackerOpen] = React.useState(false);
+  const trackersQuery = useTrackers();
+  const teamTrackers = (trackersQuery.data ?? []).filter((t) => t.teamId === params.teamId);
   const [addOpen, setAddOpen] = React.useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
@@ -127,6 +132,38 @@ export function TeamPage() {
                 ))}
               </ul>
             )}
+
+            <div className="mt-8">
+              <SectionHeading
+                action={
+                  canEditTrackers(ws.permissions) && (
+                    <Button variant="ghost" size="sm" onClick={() => setCreateTrackerOpen(true)} data-testid="team-new-tracker">
+                      <Plus /> New tracker
+                    </Button>
+                  )
+                }
+              >
+                Trackers
+              </SectionHeading>
+              {teamTrackers.length === 0 ? (
+                <EmptyState icon={FileSpreadsheet} title="No trackers yet" description="Spreadsheets for this team — asset trackers, production logs — that used to live in Excel." compact />
+              ) : (
+                <ul className="divide-y rounded-md border">
+                  {teamTrackers.map((tracker) => (
+                    <li key={tracker.id}>
+                      <Link href={routes.tracker(ws.slug, tracker.id)} className="flex h-11 items-center gap-3 px-3 text-[13px] hover:bg-accent">
+                        <FileSpreadsheet className="size-4 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{tracker.name}</span>
+                          {tracker.description && <span className="block truncate text-2xs text-muted-foreground">{tracker.description}</span>}
+                        </span>
+                        <Badge variant="muted">tracker</Badge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
 
           <section>
@@ -197,6 +234,7 @@ export function TeamPage() {
 
       <CreateTeamDialog open={editOpen} onOpenChange={setEditOpen} team={team} />
       <CreateBoardDialog open={createBoardOpen} onOpenChange={setCreateBoardOpen} defaultTeamId={team.id} />
+      <CreateTrackerDialog open={createTrackerOpen} onOpenChange={setCreateTrackerOpen} defaultTeamId={team.id} />
       <ConfirmDialog
         open={archiveOpen}
         onOpenChange={setArchiveOpen}

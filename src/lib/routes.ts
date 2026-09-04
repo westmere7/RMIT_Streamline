@@ -9,6 +9,8 @@ export const routes = {
   members: (slug: string) => `/workspace/${slug}/members`,
   settings: (slug: string, section?: string) => `/workspace/${slug}/settings${section ? `?section=${section}` : ""}`,
   team: (slug: string, teamId: string) => `/workspace/${slug}/teams/${teamId}`,
+  trackers: (slug: string) => `/workspace/${slug}/trackers`,
+  tracker: (slug: string, trackerId: string, sheetId?: string | null) => `/workspace/${slug}/trackers/${trackerId}${sheetId ? `?sheet=${sheetId}` : ""}`,
   board: (slug: string, boardSlug: string, options?: { view?: BoardViewKind; itemId?: string | null }) => {
     const params = new URLSearchParams();
     if (options?.view && options.view !== "table") params.set("view", options.view);

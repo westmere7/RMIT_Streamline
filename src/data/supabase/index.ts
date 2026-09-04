@@ -28,6 +28,7 @@ export function createSupabaseRepositories(): Repositories {
     boards: stub.as("BoardRepository"),
     items: stub.as("ItemRepository"),
     links: stub.as("ItemLinkRepository"),
+    trackers: stub.as("TrackerRepository"),
     comments: stub.as("CommentRepository"),
     activities: stub.as("ActivityRepository"),
     notifications: stub.as("NotificationRepository"),

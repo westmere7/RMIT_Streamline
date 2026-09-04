@@ -8,6 +8,7 @@ import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
 import { LocalNotificationRepository } from "./repositories/notification-repository";
 import { LocalTeamRepository } from "./repositories/team-repository";
+import { LocalTrackerRepository } from "./repositories/tracker-repository";
 import { LocalUserRepository } from "./repositories/user-repository";
 import { LocalWorkspaceRepository } from "./repositories/workspace-repository";
 
@@ -30,6 +31,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     boards: new LocalBoardRepository(connection),
     items: new LocalItemRepository(connection),
     links: new LocalItemLinkRepository(connection),
+    trackers: new LocalTrackerRepository(connection),
     comments: new LocalCommentRepository(connection),
     activities: new LocalActivityRepository(connection),
     notifications: new LocalNotificationRepository(connection),

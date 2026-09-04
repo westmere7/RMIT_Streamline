@@ -7,8 +7,22 @@ import { persist, createJSONStorage } from "zustand/middleware";
 export const SIDEBAR_MIN_WIDTH = 240;
 export const SIDEBAR_MAX_WIDTH = 480;
 
+/** How tracker grids are drawn; one preference set shared by every tracker. */
+export interface TrackerViewSettings {
+  gridLines: boolean;
+  stripes: boolean;
+  wrap: boolean;
+  density: "compact" | "default" | "comfortable";
+  /** Wash the active cell's whole row and column so the eye can follow them. */
+  crosshair: boolean;
+}
+
+export const DEFAULT_TRACKER_VIEW: TrackerViewSettings = { gridLines: true, stripes: false, wrap: false, density: "default", crosshair: true };
+
 interface UiState {
   sidebarCollapsed: boolean;
+  trackerView: TrackerViewSettings;
+  setTrackerView: (patch: Partial<TrackerViewSettings>) => void;
   /** Expanded sidebar width in px (clamped to the min/max above). */
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
@@ -34,6 +48,8 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       sidebarCollapsed: false,
       sidebarWidth: SIDEBAR_MIN_WIDTH,
+      trackerView: DEFAULT_TRACKER_VIEW,
+      setTrackerView: (patch) => set((s) => ({ trackerView: { ...s.trackerView, ...patch } })),
       setSidebarWidth: (width) => set({ sidebarWidth: Math.round(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))) }),
       expandedTeamIds: [],
       favouritesExpanded: true,
@@ -42,17 +58,11 @@ export const useUiStore = create<UiState>()(
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleTeam: (teamId) =>
         set((s) => ({
-          expandedTeamIds: s.expandedTeamIds.includes(teamId)
-            ? s.expandedTeamIds.filter((id) => id !== teamId)
-            : [...s.expandedTeamIds, teamId],
+          expandedTeamIds: s.expandedTeamIds.includes(teamId) ? s.expandedTeamIds.filter((id) => id !== teamId) : [...s.expandedTeamIds, teamId],
         })),
       setTeamExpanded: (teamId, expanded) =>
         set((s) => ({
-          expandedTeamIds: expanded
-            ? s.expandedTeamIds.includes(teamId)
-              ? s.expandedTeamIds
-              : [...s.expandedTeamIds, teamId]
-            : s.expandedTeamIds.filter((id) => id !== teamId),
+          expandedTeamIds: expanded ? (s.expandedTeamIds.includes(teamId) ? s.expandedTeamIds : [...s.expandedTeamIds, teamId]) : s.expandedTeamIds.filter((id) => id !== teamId),
         })),
       toggleFavourites: () => set((s) => ({ favouritesExpanded: !s.favouritesExpanded })),
       setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
@@ -64,6 +74,7 @@ export const useUiStore = create<UiState>()(
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         sidebarWidth: s.sidebarWidth,
+        trackerView: s.trackerView,
         expandedTeamIds: s.expandedTeamIds,
         favouritesExpanded: s.favouritesExpanded,
       }),

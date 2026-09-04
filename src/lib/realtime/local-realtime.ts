@@ -14,7 +14,7 @@ export interface DataChange {
   /** Items whose panel data (links, comments, activity) may have changed. */
   itemIds?: string[];
   /** Coarse kinds so listeners can skip refetches they do not care about. */
-  kinds: Array<"board" | "items" | "links" | "comments" | "workspace">;
+  kinds: Array<"board" | "items" | "links" | "comments" | "workspace" | "trackers">;
 }
 
 const CHANNEL_NAME = "streamline.data-changes";

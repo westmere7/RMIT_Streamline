@@ -33,6 +33,10 @@ export const queryKeys = {
   boardActivity: (boardId: string) => ["activity", "board", boardId] as const,
   workspaceActivity: (workspaceId: string) => ["activity", "workspace", workspaceId] as const,
 
+  trackers: (workspaceId: string) => ["trackers", workspaceId] as const,
+  tracker: (trackerId: string) => ["tracker", trackerId] as const,
+  trackerSheets: (trackerId: string) => ["tracker-sheets", trackerId] as const,
+
   notifications: (userId: string) => ["notifications", userId] as const,
   myWork: (workspaceId: string, userId: string) => ["my-work", workspaceId, userId] as const,
   search: (workspaceId: string, query: string) => ["search", workspaceId, query] as const,

@@ -22,6 +22,10 @@ import type {
   NotificationInput,
   Team,
   TeamInput,
+  Tracker,
+  TrackerInput,
+  TrackerSheet,
+  TrackerSheetInput,
   TeamMember,
   TeamRole,
   User,
@@ -130,6 +134,22 @@ export interface ItemLinkRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+export interface TrackerRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<Tracker[]>;
+  getById(id: EntityId): Promise<Tracker | null>;
+  create(input: TrackerInput): Promise<Tracker>;
+  update(id: EntityId, patch: Partial<Omit<Tracker, "id" | "workspaceId" | "createdAt">>): Promise<Tracker>;
+  /** Deletes the tracker and every sheet in it. */
+  delete(id: EntityId): Promise<void>;
+
+  listSheets(trackerId: EntityId): Promise<TrackerSheet[]>;
+  getSheet(id: EntityId): Promise<TrackerSheet | null>;
+  createSheet(input: TrackerSheetInput): Promise<TrackerSheet>;
+  updateSheet(id: EntityId, patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>): Promise<TrackerSheet>;
+  deleteSheet(id: EntityId): Promise<void>;
+  reorderSheets(trackerId: EntityId, orderedIds: EntityId[]): Promise<TrackerSheet[]>;
+}
+
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
   create(input: CommentInput): Promise<Comment>;
@@ -187,6 +207,7 @@ export interface Repositories {
   boards: BoardRepository;
   items: ItemRepository;
   links: ItemLinkRepository;
+  trackers: TrackerRepository;
   comments: CommentRepository;
   activities: ActivityRepository;
   notifications: NotificationRepository;

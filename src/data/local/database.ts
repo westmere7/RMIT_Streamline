@@ -13,6 +13,8 @@ import type {
   Notification,
   Team,
   TeamMember,
+  Tracker,
+  TrackerSheet,
   User,
   Workspace,
   WorkspaceMember,
@@ -58,6 +60,8 @@ export interface StreamlineDB extends DBSchema {
     indexes: { byItem: string; byColumn: string };
   };
   itemLinks: { key: string; value: ItemLink; indexes: { byItemA: string; byItemB: string; byWorkspace: string } };
+  trackers: { key: string; value: Tracker; indexes: { byWorkspace: string } };
+  trackerSheets: { key: string; value: TrackerSheet; indexes: { byTracker: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
   activities: {
     key: string;
@@ -85,6 +89,8 @@ export const ALL_STORES: StoreName[] = [
   "items",
   "itemColumnValues",
   "itemLinks",
+  "trackers",
+  "trackerSheets",
   "comments",
   "activities",
   "notifications",
@@ -94,7 +100,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -169,10 +175,23 @@ function createItemLinksStore(db: IDBPDatabase<StreamlineDB>): void {
   links.createIndex("byWorkspace", "workspaceId");
 }
 
+/** v3: trackers (in-app spreadsheets) and their sheets. */
+function createTrackerStores(db: IDBPDatabase<StreamlineDB>): void {
+  if (!db.objectStoreNames.contains("trackers")) {
+    const trackers = db.createObjectStore("trackers", { keyPath: "id" });
+    trackers.createIndex("byWorkspace", "workspaceId");
+  }
+  if (!db.objectStoreNames.contains("trackerSheets")) {
+    const sheets = db.createObjectStore("trackerSheets", { keyPath: "id" });
+    sheets.createIndex("byTracker", "trackerId");
+  }
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
   if (oldVersion < 2) createItemLinksStore(db);
+  if (oldVersion < 3) createTrackerStores(db);
 }
 
 export interface OpenDatabaseOptions {

@@ -52,6 +52,11 @@ export function canManageTeam(ctx: PermissionContext, teamId: string): boolean {
   return isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
 }
 
+/** Trackers are workspace-wide sheets: every member except guests can edit them. */
+export function canEditTrackers(ctx: PermissionContext): boolean {
+  return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
+}
+
 export function canCreateBoard(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
 }

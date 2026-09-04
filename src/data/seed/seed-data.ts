@@ -17,6 +17,8 @@ import type {
   Notification,
   Team,
   TeamMember,
+  Tracker,
+  TrackerSheet,
   User,
   Workspace,
   WorkspaceMember,
@@ -24,6 +26,7 @@ import type {
 } from "@/domain";
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
+import { buildDemoTracker } from "./seed-tracker";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 
@@ -46,6 +49,8 @@ export interface SeedBundle {
   items: Item[];
   itemColumnValues: ItemColumnValue[];
   itemLinks: ItemLink[];
+  trackers: Tracker[];
+  trackerSheets: TrackerSheet[];
   comments: Comment[];
   activities: Activity[];
   notifications: Notification[];
@@ -66,6 +71,7 @@ const ID_NAMESPACES = {
   notification: "a",
   member: "b",
   link: "c",
+  tracker: "d",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
@@ -1051,6 +1057,9 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     }
   }
 
+  // ---- Trackers (in-app asset tracker workbook, demo data only) --------------
+  const { trackers, trackerSheets } = buildDemoTracker({ workspaceId: workspace.id, teamId: SEED_TEAM_IDS.campaigns, createdBy: SEED_USER_IDS.joanne, now, idFor: () => sid("tracker") });
+
   // ---- Comments -------------------------------------------------------------
   const comments: Comment[] = [
     { id: sid("comment"), itemId: itemId("masterclass", "Masterclass landing page hero"), authorId: SEED_USER_IDS.emily, body: "@Danh Nguyen can you check the crop on the hero for the Vietnam version? The speaker's name is being cut off at 1280px.", mentionUserIds: [SEED_USER_IDS.danh], createdAt: iso(subHours(now, 4)), updatedAt: iso(subHours(now, 4)) },
@@ -1132,6 +1141,8 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     items,
     itemColumnValues,
     itemLinks,
+    trackers,
+    trackerSheets,
     comments,
     activities,
     notifications,

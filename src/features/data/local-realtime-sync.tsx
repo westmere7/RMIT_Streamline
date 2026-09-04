@@ -30,6 +30,11 @@ export function LocalRealtimeSync() {
         invalidate(["activity"]);
         invalidate(["notifications"]);
       }
+      if (kinds.has("trackers")) {
+        invalidate(["trackers"]);
+        invalidate(["tracker"]);
+        invalidate(["tracker-sheets"]);
+      }
       if (kinds.has("workspace")) {
         invalidate(["workspace-context"]);
         invalidate(["boards"]);
