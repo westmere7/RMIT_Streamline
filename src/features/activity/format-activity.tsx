@@ -27,6 +27,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
   const actor = nameOf(users, activity.actorId);
   const m = activity.metadata;
   const item = includeItem && m.itemName ? <> on <Strong>{m.itemName}</Strong></> : null;
+  const synced = m.syncedFrom ? <span className="text-muted-foreground"> · synced from {m.syncedFrom}</span> : null;
 
   switch (activity.eventType) {
     case "ITEM_CREATED":
@@ -40,6 +41,21 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       return (
         <>
           <Strong>{actor}</Strong> renamed <Strong>{m.from}</Strong> to <Strong>{m.to}</Strong>
+          {synced}
+        </>
+      );
+    case "ITEM_LINKED":
+      return (
+        <>
+          <Strong>{actor}</Strong> linked {includeItem && m.itemName ? <Strong>{m.itemName}</Strong> : "this item"} with <Strong>{m.linkedItemName}</Strong>
+          {m.linkedBoardName ? <span className="text-muted-foreground"> on {m.linkedBoardName}</span> : null}
+        </>
+      );
+    case "ITEM_UNLINKED":
+      return (
+        <>
+          <Strong>{actor}</Strong> unlinked {includeItem && m.itemName ? <Strong>{m.itemName}</Strong> : "this item"} from <Strong>{m.linkedItemName}</Strong>
+          {m.linkedBoardName ? <span className="text-muted-foreground"> on {m.linkedBoardName}</span> : null}
         </>
       );
     case "ITEM_MOVED":
@@ -108,6 +124,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
           ) : null}{" "}
           to <Strong>{formatValue(m.columnType, m.to)}</Strong>
           {item}
+          {synced}
         </>
       );
     }
@@ -183,6 +200,10 @@ export function describeActivityText(activity: Activity, users: readonly User[])
       return `${actor} moved the item to ${m.toGroupName}`;
     case "ITEM_CREATED":
       return `${actor} created ${m.itemName}`;
+    case "ITEM_LINKED":
+      return `${actor} linked ${m.itemName} with ${m.linkedItemName}`;
+    case "ITEM_UNLINKED":
+      return `${actor} unlinked ${m.itemName} from ${m.linkedItemName}`;
     case "COMMENT_ADDED":
       return `${actor} posted an update`;
     default:

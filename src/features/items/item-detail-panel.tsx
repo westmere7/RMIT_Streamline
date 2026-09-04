@@ -17,6 +17,7 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
+import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { newId, nowIso } from "@/lib/ids";
@@ -197,6 +198,8 @@ function Overview({ item }: { item: Item }) {
           );
         })}
       </section>
+
+      <LinkedItemsSection item={item} />
 
       {item.parentItemId === null && (
         <section>

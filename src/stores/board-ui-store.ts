@@ -39,6 +39,9 @@ export interface BoardUiState {
 
 interface BoardUiStore {
   boards: Record<string, BoardUiState>;
+  /** Item whose panel should open the link dialog as soon as it mounts. */
+  linkDialogItemId: string | null;
+  setLinkDialogItem: (itemId: string | null) => void;
   setSearch: (boardId: string, search: string) => void;
   setFilters: (boardId: string, filters: Partial<BoardFilters>) => void;
   clearFilters: (boardId: string) => void;
@@ -67,6 +70,8 @@ function update(state: BoardUiStore, boardId: string, patch: Partial<BoardUiStat
 /** Transient per-board table state (filters, sort, search, selection). Not persisted. */
 export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   boards: {},
+  linkDialogItemId: null,
+  setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),
   setFilters: (boardId, filters) =>
     set((s) => update(s, boardId, { filters: { ...(s.boards[boardId]?.filters ?? EMPTY_FILTERS), ...filters } })),

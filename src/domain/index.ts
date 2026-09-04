@@ -5,6 +5,7 @@ export * from "./team/team";
 export * from "./board/board";
 export * from "./board/column";
 export * from "./item/item";
+export * from "./item/item-link";
 export * from "./comment/comment";
 export * from "./activity/activity";
 export * from "./notification/notification";

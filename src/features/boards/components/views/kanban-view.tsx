@@ -1,7 +1,7 @@
 "use client";
 
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
@@ -80,7 +80,7 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
   const [adding, setAdding] = React.useState(false);
   const colors = label ? colorClasses(label.color) : null;
   return (
-    <section ref={setNodeRef} aria-label={label?.name ?? "No status"} data-testid={`lane-${label?.name ?? "none"}`} className={cn("flex w-72 shrink-0 flex-col rounded-md bg-surface", isOver && "ring-2 ring-ring/50")}>
+    <section ref={setNodeRef} aria-label={label?.name ?? "No status"} data-testid={`lane-${label?.name ?? "none"}`} className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-md bg-surface", isOver && "ring-2 ring-ring/50")}>
       <header className="flex items-center gap-2 px-3 py-2">
         <span className={cn("h-2.5 w-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
         <h3 className="text-[13px] font-semibold">{label?.name ?? "No status"}</h3>
@@ -148,6 +148,7 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
   const ownerUsers = [...new Set(owners)].map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const due = model.dueDateOf(item.id);
   const done = model.isDone(item.id);
+  const linked = (model.linksByItem.get(item.id)?.length ?? 0) > 0;
   return (
     <article data-testid="kanban-card" className={cn("rounded-md border bg-background p-2.5 shadow-xs", overlay && "rotate-1 shadow-lg", done && "opacity-70")}>
       <button type="button" onClick={() => openItem(item.id)} className="block w-full text-left text-[13px] font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>
@@ -161,6 +162,7 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
       <div className="mt-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
+          {linked && <Link2 className="size-3 text-muted-foreground" aria-label="Linked to an item on another board" />}
           {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
         </div>
         {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}

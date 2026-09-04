@@ -16,6 +16,8 @@ import type {
   Item,
   ItemColumnValue,
   ItemInput,
+  ItemLink,
+  ItemLinkInput,
   Notification,
   NotificationInput,
   Team,
@@ -116,6 +118,17 @@ export interface ItemRepository {
   setValues(values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }>): Promise<ItemColumnValue[]>;
 }
 
+export interface ItemLinkRepository {
+  /** Links touching the item, from either side. */
+  listByItem(itemId: EntityId): Promise<ItemLink[]>;
+  /** Links touching any of the items (de-duplicated). */
+  listByItems(itemIds: EntityId[]): Promise<ItemLink[]>;
+  getById(id: EntityId): Promise<ItemLink | null>;
+  /** Returns the existing link when the pair is already linked. */
+  create(input: ItemLinkInput): Promise<ItemLink>;
+  delete(id: EntityId): Promise<void>;
+}
+
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
   create(input: CommentInput): Promise<Comment>;
@@ -172,6 +185,7 @@ export interface Repositories {
   teams: TeamRepository;
   boards: BoardRepository;
   items: ItemRepository;
+  links: ItemLinkRepository;
   comments: CommentRepository;
   activities: ActivityRepository;
   notifications: NotificationRepository;

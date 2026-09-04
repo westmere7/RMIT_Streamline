@@ -1,4 +1,5 @@
-import type { BoardColumn, BoardGroup, ColumnValue, Item } from "@/domain";
+import type { CSSProperties } from "react";
+import type { BoardColumn, BoardGroup, ColumnValue, Item, ItemLink } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
 import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
@@ -19,6 +20,8 @@ export interface BoardModel {
   itemsByGroup: Map<string, Item[]>;
   /** Subitems per parent id (position order). */
   subitemsByParent: Map<string, Item[]>;
+  /** Task links per item id (either side of the link). */
+  linksByItem: Map<string, ItemLink[]>;
   getValue: ValueLookup;
   isDone: (itemId: string) => boolean;
   /** True when the item depends on at least one item that is not done. */
@@ -68,6 +71,15 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     subitemsByParent.set(item.parentItemId, list);
   }
   for (const list of subitemsByParent.values()) list.sort((a, b) => a.position - b.position);
+  const linksByItem = new Map<string, ItemLink[]>();
+  for (const link of snapshot.links ?? []) {
+    for (const id of [link.itemAId, link.itemBId]) {
+      if (!itemById.has(id)) continue;
+      const list = linksByItem.get(id) ?? [];
+      list.push(link);
+      linksByItem.set(id, list);
+    }
+  }
 
   const isDone = (itemId: string): boolean => {
     if (!statusColumn || statusColumn.settings.kind !== "status") return false;
@@ -107,6 +119,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     itemById,
     itemsByGroup,
     subitemsByParent,
+    linksByItem,
     getValue,
     isDone,
     isBlocked,
@@ -132,4 +145,21 @@ export function leadingWidth(): number {
 
 export function tableWidth(columns: BoardColumn[]): number {
   return leadingWidth() + columns.reduce((sum, c) => sum + c.width, 0) + TABLE_LAYOUT.trailingWidth;
+}
+
+/**
+ * A board with few columns leaves the right half of a wide screen blank. Rows share that surplus
+ * out with flexbox instead: the item name takes the biggest share because names truncate first,
+ * and the caps stop a three-column board from stretching a status pill across the screen.
+ */
+export const TABLE_STRETCH = { nameGrow: 3, nameMaxWidth: 720, columnGrow: 1, columnMaxScale: 1.7 } as const;
+
+/** Style for the sticky leading (item name) cell of a table row. */
+export function leadingCellStyle(): CSSProperties {
+  return { width: leadingWidth(), minWidth: leadingWidth(), maxWidth: TABLE_STRETCH.nameMaxWidth, flexGrow: TABLE_STRETCH.nameGrow };
+}
+
+/** Style for a column cell of a table row — data cells, header cells and blank spacers alike. */
+export function columnCellStyle(width: number): CSSProperties {
+  return { width, minWidth: width, maxWidth: Math.round(width * TABLE_STRETCH.columnMaxScale), flexGrow: TABLE_STRETCH.columnGrow };
 }

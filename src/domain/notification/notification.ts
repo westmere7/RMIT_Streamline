@@ -6,7 +6,8 @@ export type NotificationType =
   | "DUE_DATE_CHANGED"
   | "STATUS_CHANGED"
   | "COMMENT"
-  | "BOARD_INVITE";
+  | "BOARD_INVITE"
+  | "ITEM_LINKED";
 
 export type NotificationEntityType = "ITEM" | "BOARD" | "COMMENT";
 

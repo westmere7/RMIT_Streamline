@@ -19,10 +19,11 @@ import type { StreamlineDatabase } from "../database";
 /** Deletes items (and their subitems), values and comments for the given item ids inside a transaction. */
 export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string[]): Promise<void> {
   if (itemIds.length === 0) return;
-  const tx = db.transaction(["items", "itemColumnValues", "comments"], "readwrite");
+  const tx = db.transaction(["items", "itemColumnValues", "comments", "itemLinks"], "readwrite");
   const items = tx.objectStore("items");
   const values = tx.objectStore("itemColumnValues");
   const comments = tx.objectStore("comments");
+  const links = tx.objectStore("itemLinks");
 
   const toDelete = new Set(itemIds);
   for (const id of itemIds) {
@@ -35,6 +36,8 @@ export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string
     await Promise.all(valueKeys.map((k) => values.delete(k)));
     const commentKeys = await comments.index("byItem").getAllKeys(id);
     await Promise.all(commentKeys.map((k) => comments.delete(k)));
+    const linkKeys = [...(await links.index("byItemA").getAllKeys(id)), ...(await links.index("byItemB").getAllKeys(id))];
+    await Promise.all(linkKeys.map((k) => links.delete(k)));
     await items.delete(id);
   }
   await tx.done;

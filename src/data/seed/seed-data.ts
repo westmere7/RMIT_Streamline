@@ -13,6 +13,7 @@ import type {
   Comment,
   Item,
   ItemColumnValue,
+  ItemLink,
   Notification,
   Team,
   TeamMember,
@@ -21,7 +22,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
@@ -44,6 +45,7 @@ export interface SeedBundle {
   boardColumns: BoardColumn[];
   items: Item[];
   itemColumnValues: ItemColumnValue[];
+  itemLinks: ItemLink[];
   comments: Comment[];
   activities: Activity[];
   notifications: Notification[];
@@ -63,6 +65,7 @@ const ID_NAMESPACES = {
   activity: "9",
   notification: "a",
   member: "b",
+  link: "c",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
@@ -414,7 +417,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { key: "specs", name: "Specs confirmed", type: "CHECKBOX" },
     ],
     items: [
-      { group: "This Fortnight", name: "DOOH artwork adaptation", owner: ["danh"], status: "working", priority: "high", due: 2, text: { format: "1080x1920 @ 10s" }, checkbox: { specs: true }, createdBy: "duc", createdDaysAgo: 4 },
+      { group: "This Fortnight", name: "Sem 1 DOOH adaptation", owner: ["danh"], status: "working", priority: "high", due: 0, text: { format: "1080x1920 @ 10s" }, checkbox: { specs: true }, createdBy: "duc", createdDaysAgo: 4, description: "Adapt hero key visual to the Melbourne CBD DOOH network. Portrait and landscape formats." },
       { group: "This Fortnight", name: "Airport lounge screen – arrivals", owner: ["duc"], status: "not_started", priority: "medium", due: 6, text: { format: "3840x1080 @ 15s" }, checkbox: { specs: false }, createdBy: "duc", createdDaysAgo: 2 },
       { group: "This Fortnight", name: "Metro station wall – Ben Thanh", owner: ["tuyet"], status: "not_started", priority: "medium", due: 8, text: { format: "1920x1080 @ 8s" }, checkbox: { specs: true }, createdBy: "duc", createdDaysAgo: 2 },
       { group: "In Progress", name: "Bourke St Mall large format", owner: ["danh", "duc"], status: "working", priority: "critical", due: 1, text: { format: "2160x3840 @ 10s" }, checkbox: { specs: true }, createdBy: "jun", createdDaysAgo: 7 },
@@ -581,7 +584,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { group: "Shooting", name: "Masterclass speaker interviews", owner: ["minh", "linh"], status: "not_started", priority: "medium", due: 8, timeline: [7, 8], text: { format: "3 interviews, 2 cam" }, checkbox: { approved: true }, createdBy: "danh", createdDaysAgo: 3 },
       { group: "Post-production", name: "Hero film – colour grade", owner: ["duc"], status: "working", priority: "critical", due: 5, timeline: [2, 5], text: { format: "Master + 6 cutdowns" }, checkbox: { approved: false }, files: ["HeroFilm_v2_offline.mp4"], createdBy: "minh", createdDaysAgo: 5 },
       { group: "Post-production", name: "DOOH motion loops – 10s", owner: ["duc"], status: "stuck", priority: "high", due: 0, timeline: [-4, 0], text: { format: "6 formats" }, checkbox: { approved: false }, createdBy: "jun", createdDaysAgo: 8, description: "Blocked on final network specs from the media agency." },
-      { group: "Post-production", name: "Open Day welcome loop", owner: ["minh"], status: "not_started", priority: "medium", due: 7, timeline: [4, 7], text: { format: "60s loop, no audio" }, checkbox: { approved: false }, createdBy: "priya", createdDaysAgo: 3 },
+      { group: "Post-production", name: "Welcome video loop – 60s", owner: ["minh"], status: "working", priority: "high", due: 7, timeline: [-1, 7], text: { format: "60s loop, no audio" }, checkbox: { approved: false }, createdBy: "priya", createdDaysAgo: 3 },
       { group: "Client Review", name: "Scholarship campaign 30s TVC", owner: ["minh"], status: "waiting", priority: "high", due: 2, timeline: [-9, 2], text: { format: "30s + 15s" }, checkbox: { approved: false }, createdBy: "joanne", createdDaysAgo: 12 },
       { group: "Client Review", name: "Campus tour 360° video", owner: ["duc", "ravi"], status: "waiting", priority: "medium", due: -2, timeline: [-12, -2], text: { format: "360°, web embed" }, checkbox: { approved: false }, createdBy: "jun", createdDaysAgo: 14 },
       { group: "Delivered", name: "Graduation highlights reel", owner: ["minh"], status: "done", priority: "medium", due: -11, timeline: [-18, -11], text: { format: "2min + 30s social" }, checkbox: { approved: true }, createdBy: "emily", createdDaysAgo: 22 },
@@ -1020,6 +1023,34 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
   ];
   for (const a of recent) activities.push({ ...a, id: sid("activity"), workspaceId: workspace.id });
 
+  // ---- Task links (cross-team pairs kept in sync) ---------------------------
+  const linkPair = (a: [BoardKey, string], b: [BoardKey, string], createdBy: UserKey, daysAgo: number): ItemLink => {
+    const [itemAId, itemBId] = normaliseLinkPair(itemId(a[0], a[1]), itemId(b[0], b[1]));
+    return { id: sid("link"), workspaceId: workspace.id, itemAId, itemBId, createdBy: SEED_USER_IDS[createdBy], createdAt: iso(subDays(now, daysAgo)) };
+  };
+  const itemLinks: ItemLink[] = [
+    // Melbourne campaign task mirrored on the Vietnam studio's production board.
+    linkPair(["sem1", "Sem 1 DOOH adaptation"], ["dooh", "Sem 1 DOOH adaptation"], "jun", 4),
+    // Events brief mirrored on the video pipeline.
+    linkPair(["openday", "Welcome video loop – 60s"], ["video", "Welcome video loop – 60s"], "priya", 3),
+  ];
+  for (const link of itemLinks) {
+    const a = items.find((i) => i.id === link.itemAId)!;
+    const b = items.find((i) => i.id === link.itemBId)!;
+    for (const [from, to] of [[a, b], [b, a]] as const) {
+      activities.push({
+        id: sid("activity"),
+        workspaceId: workspace.id,
+        boardId: from.boardId,
+        itemId: from.id,
+        actorId: link.createdBy,
+        eventType: "ITEM_LINKED",
+        metadata: { itemName: from.name, linkedItemName: to.name, linkedBoardName: boards.find((bd) => bd.id === to.boardId)?.name },
+        createdAt: link.createdAt,
+      });
+    }
+  }
+
   // ---- Comments -------------------------------------------------------------
   const comments: Comment[] = [
     { id: sid("comment"), itemId: itemId("masterclass", "Masterclass landing page hero"), authorId: SEED_USER_IDS.emily, body: "@Danh Nguyen can you check the crop on the hero for the Vietnam version? The speaker's name is being cut off at 1280px.", mentionUserIds: [SEED_USER_IDS.danh], createdAt: iso(subHours(now, 4)), updatedAt: iso(subHours(now, 4)) },
@@ -1060,7 +1091,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("notification"), userId: SEED_USER_IDS.emily, type: "STATUS_CHANGED", title: "RMITinerary High Achiever is now Done", body: "Danh changed the status from Working On It", entityType: "ITEM", entityId: itemId("rmitinerary", "RMITinerary High Achiever"), boardId: SEED_BOARD_IDS.rmitinerary, actorId: SEED_USER_IDS.danh, readAt: null, createdAt: iso(subMinutes(now, 35)) },
     { id: sid("notification"), userId: SEED_USER_IDS.danh, type: "MENTION", title: "Priya mentioned you in Campus banner artwork – round 2", body: "Facilities have sent revised measurements for Building 80", entityType: "ITEM", entityId: itemId("openday", "Campus banner artwork – round 2"), boardId: SEED_BOARD_IDS.openday, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subHours(now, 6)) },
     { id: sid("notification"), userId: SEED_USER_IDS.hil, type: "MENTION", title: "Ravi mentioned you in Masterclass registration form", body: "can you retest the Vietnam flow after the deploy?", entityType: "ITEM", entityId: itemId("website", "Masterclass registration form"), boardId: SEED_BOARD_IDS.website, actorId: SEED_USER_IDS.ravi, readAt: null, createdAt: iso(subHours(now, 3)) },
-    { id: sid("notification"), userId: SEED_USER_IDS.minh, type: "ASSIGNED", title: "Priya assigned you to Open Day welcome loop", body: "Video Production Pipeline · Post-production", entityType: "ITEM", entityId: itemId("video", "Open Day welcome loop"), boardId: SEED_BOARD_IDS.video, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subDays(now, 3)) },
+    { id: sid("notification"), userId: SEED_USER_IDS.minh, type: "ASSIGNED", title: "Priya assigned you to Welcome video loop – 60s", body: "Video Production Pipeline · Post-production", entityType: "ITEM", entityId: itemId("video", "Welcome video loop – 60s"), boardId: SEED_BOARD_IDS.video, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subDays(now, 3)) },
     { id: sid("notification"), userId: SEED_USER_IDS.sarah, type: "COMMENT", title: "Ben commented on Co-branding guidance for partners", body: "One request: a minimum size rule for the partner logo when the lockup is stacked.", entityType: "ITEM", entityId: itemId("brand", "Co-branding guidance for partners"), boardId: SEED_BOARD_IDS.brand, actorId: SEED_USER_IDS.ben, readAt: null, createdAt: iso(subDays(now, 1)) },
     { id: sid("notification"), userId: SEED_USER_IDS.tom, type: "STATUS_CHANGED", title: "Masterclass registration form is now Stuck", body: "Ravi changed the status from Working On It", entityType: "ITEM", entityId: itemId("website", "Masterclass registration form"), boardId: SEED_BOARD_IDS.website, actorId: SEED_USER_IDS.ravi, readAt: null, createdAt: iso(subHours(now, 4)) },
   ];
@@ -1100,6 +1131,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     boardColumns,
     items,
     itemColumnValues,
+    itemLinks,
     comments,
     activities,
     notifications,

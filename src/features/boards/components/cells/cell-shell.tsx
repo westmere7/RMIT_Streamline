@@ -2,7 +2,22 @@
 
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { columnCellStyle } from "@/features/boards/board-model";
 import { cn } from "@/lib/utils";
+
+/**
+ * Table rows stretch their cells to fill a wide screen; other hosts (the item detail panel)
+ * keep the width they ask for.
+ */
+const StretchContext = React.createContext(false);
+
+export function CellStretchProvider({ children }: { children: React.ReactNode }) {
+  return <StretchContext.Provider value={true}>{children}</StretchContext.Provider>;
+}
+
+function useCellStyle(width: number): React.CSSProperties {
+  return React.useContext(StretchContext) ? columnCellStyle(width) : { width, minWidth: width };
+}
 
 export interface CellShellProps extends React.ComponentProps<"div"> {
   width: number;
@@ -13,10 +28,11 @@ export interface CellShellProps extends React.ComponentProps<"div"> {
 
 /** Fixed-width table cell container. */
 export function CellShell({ width, interactive = true, align = "left", className, children, ...props }: CellShellProps) {
+  const style = useCellStyle(width);
   return (
     <div
       role="gridcell"
-      style={{ width, minWidth: width }}
+      style={style}
       className={cn(
         "flex h-full shrink-0 items-center overflow-hidden border-r px-1 text-[13px]",
         align === "center" && "justify-center",
@@ -47,6 +63,7 @@ export interface PopoverCellProps {
 export function PopoverCell({ width, trigger, children, disabled, align = "left", contentClassName, ariaLabel, testId }: PopoverCellProps) {
   const [open, setOpen] = React.useState(false);
   const close = React.useCallback(() => setOpen(false), []);
+  const style = useCellStyle(width);
   if (disabled) {
     return (
       <CellShell width={width} interactive={false} align={align}>
@@ -62,7 +79,7 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
           role="gridcell"
           aria-label={ariaLabel}
           data-testid={testId}
-          style={{ width, minWidth: width }}
+          style={style}
           className={cn(
             "flex h-full shrink-0 items-center overflow-hidden border-r px-1 text-left text-[13px] hover:bg-black/[0.03] dark:hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
             align === "center" && "justify-center",

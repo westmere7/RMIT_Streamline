@@ -135,7 +135,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
     <div className="flex h-full min-h-0 flex-col" data-testid="board-page">
       <BoardHeader board={board} />
       {board.archivedAt && (
-        <div className="flex items-center gap-2 border-b bg-amber-50 px-5 py-1.5 text-[13px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+        <div className="flex items-center gap-2 border-b bg-amber-50 px-6 py-2 text-[13px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           <Archive className="size-4" /> This board is archived and read-only.
           {canManageBoard(ws.permissions, board) && (
             <Button variant="outline" size="sm" className="ml-auto bg-background" onClick={() => actions.restoreBoard.mutate()}>

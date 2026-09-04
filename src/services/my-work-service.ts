@@ -14,6 +14,8 @@ export interface MyWorkItem {
   /** Column used for the due date, for editing from My Work. */
   dueColumn: BoardColumn | null;
   statusColumn: BoardColumn | null;
+  /** Other boards where this task appears as a linked (synced) item. */
+  linkedBoards: Board[];
 }
 
 export type MyWorkSection = DateBucket | "completed";
@@ -93,16 +95,53 @@ export class MyWorkService {
             dueDate,
             dueColumn,
             statusColumn,
+            linkedBoards: [],
           });
         }
       }),
     );
 
-    return results.sort((a, b) => {
+    results.sort((a, b) => {
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       if (a.dueDate) return -1;
       if (b.dueDate) return 1;
       return a.item.name.localeCompare(b.item.name);
     });
+    return this.collapseLinked(results);
+  }
+
+  /**
+   * Linked items are the same task mirrored on several boards. Showing each copy
+   * would double up the list, so the first copy (earliest due) stands for the set
+   * and remembers the other boards it lives on.
+   */
+  private async collapseLinked(entries: MyWorkItem[]): Promise<MyWorkItem[]> {
+    const byId = new Map(entries.map((e) => [e.item.id, e]));
+    const links = await this.repos.links.listByItems([...byId.keys()]);
+    if (links.length === 0) return entries;
+
+    const leader = new Map<EntityId, EntityId>();
+    const find = (id: EntityId): EntityId => {
+      const parent = leader.get(id);
+      if (!parent || parent === id) return id;
+      const root = find(parent);
+      leader.set(id, root);
+      return root;
+    };
+    for (const link of links) {
+      if (!byId.has(link.itemAId) || !byId.has(link.itemBId)) continue;
+      const a = find(link.itemAId);
+      const b = find(link.itemBId);
+      if (a !== b) leader.set(b, a);
+    }
+
+    const shown = new Map<EntityId, MyWorkItem>();
+    for (const entry of entries) {
+      const root = find(entry.item.id);
+      const first = shown.get(root);
+      if (!first) shown.set(root, entry);
+      else if (!first.linkedBoards.some((b) => b.id === entry.board.id)) first.linkedBoards.push(entry.board);
+    }
+    return [...shown.values()];
   }
 }

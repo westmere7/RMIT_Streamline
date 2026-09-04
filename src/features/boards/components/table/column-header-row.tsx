@@ -17,7 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { BoardColumn, BoardGroup, ColumnType } from "@/domain";
 import { COLUMN_TYPES, COLUMN_TYPE_LABELS } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
+import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
+import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll,
   const colors = colorClasses(group.color);
   return (
     <div role="row" className="sticky top-0 z-[6] flex h-9 border-b bg-background text-xs font-medium text-muted-foreground">
-      <div className="sticky left-0 z-[7] flex h-full items-center border-r bg-background" style={{ width: leadingWidth(), minWidth: leadingWidth() }}>
+      <div className="sticky left-0 z-[7] flex h-full items-center border-r bg-background" style={leadingCellStyle()}>
         <span aria-hidden className={cn("h-full w-1.5 rounded-l-sm", colors.dot)} />
         <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
           <Checkbox
@@ -124,7 +125,7 @@ function ColumnHeaderCell({
   const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
 
   return (
-    <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r px-1" style={{ width, minWidth: width }}>
+    <div role="columnheader" className="group/col relative flex h-full shrink-0 items-center justify-center border-r px-1" style={columnCellStyle(width)}>
       {canEdit ? (
         <Popover open={renaming} onOpenChange={setRenaming}>
           <DropdownMenu>
@@ -218,11 +219,14 @@ export function AddColumnMenu() {
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Add column</DropdownMenuLabel>
         <div className="grid grid-cols-2 gap-0.5">
-          {ADDABLE_TYPES.map((type) => (
-            <DropdownMenuItem key={type} onSelect={() => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type)}>
-              {COLUMN_TYPE_LABELS[type]}
-            </DropdownMenuItem>
-          ))}
+          {ADDABLE_TYPES.map((type) => {
+            const Icon = COLUMN_TYPE_ICONS[type];
+            return (
+              <DropdownMenuItem key={type} onSelect={() => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type)}>
+                <Icon /> {COLUMN_TYPE_LABELS[type]}
+              </DropdownMenuItem>
+            );
+          })}
         </div>
         {hidden.length > 0 && (
           <>

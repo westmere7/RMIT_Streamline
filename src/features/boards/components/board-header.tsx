@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, Copy, History, MoreHorizontal, Palette, Plug, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ArrowLeft, Copy, History, MoreHorizontal, Palette, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -23,7 +23,6 @@ import {
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { Board } from "@/domain";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
-import { AutomationsDialog, IntegrationsDialog } from "@/features/boards/components/dialogs/placeholder-dialogs";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
@@ -41,8 +40,6 @@ export function BoardHeader({ board }: { board: Board }) {
   const [editingDescription, setEditingDescription] = React.useState(false);
   const [settings, setSettings] = React.useState<BoardSettingsSection | null>(null);
   const [activityOpen, setActivityOpen] = React.useState(false);
-  const [automationsOpen, setAutomationsOpen] = React.useState(false);
-  const [integrationsOpen, setIntegrationsOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   const favourite = ws.isFavourite(board.id);
@@ -50,8 +47,8 @@ export function BoardHeader({ board }: { board: Board }) {
   const team = ws.teamById(board.teamId);
 
   return (
-    <header className="border-b px-5 pt-3 pb-0">
-      <div className="flex items-start gap-3">
+    <header className="border-b px-6 pt-4 pb-3">
+      <div className="flex items-start gap-3.5">
         <SimpleTooltip label="Back to home">
           <Button variant="ghost" size="icon-sm" asChild className="mt-0.5 text-muted-foreground">
             <Link href={routes.workspace(ws.slug)} aria-label="Back to home">
@@ -59,12 +56,12 @@ export function BoardHeader({ board }: { board: Board }) {
             </Link>
           </Button>
         </SimpleTooltip>
-        <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md", colorClasses(board.color).solid)}>
-          <DynamicIcon name={board.icon} className="size-4" />
+        <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md", colorClasses(board.color).solid)}>
+          <DynamicIcon name={board.icon} className="size-4.5" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="min-w-0 text-lg font-semibold tracking-tight">
+          <div className="flex items-center gap-2.5">
+            <h1 className="min-w-0 text-xl font-semibold tracking-tight">
               <InlineEdit
                 value={board.name}
                 editing={renaming}
@@ -73,7 +70,7 @@ export function BoardHeader({ board }: { board: Board }) {
                 disabled={!manage}
                 ariaLabel="Board name"
                 className={cn("rounded px-1 -mx-1", manage && "hover:bg-accent")}
-                inputClassName="h-8 w-96 text-lg font-semibold"
+                inputClassName="h-8 w-96 text-xl font-semibold"
               />
             </h1>
             {board.archivedAt && <Badge variant="muted">Archived</Badge>}
@@ -83,10 +80,10 @@ export function BoardHeader({ board }: { board: Board }) {
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+          <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
             {team && (
               <>
-                <Link href={routes.team(ws.slug, team.id)} className="hover:text-foreground hover:underline">
+                <Link href={routes.team(ws.slug, team.id)} className="shrink-0 whitespace-nowrap hover:text-foreground hover:underline">
                   {team.name}
                 </Link>
                 <span aria-hidden>·</span>
@@ -108,7 +105,7 @@ export function BoardHeader({ board }: { board: Board }) {
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           <SimpleTooltip label={favourite ? "Remove from favourites" : "Add to favourites"}>
             <Button variant="ghost" size="icon-sm" aria-pressed={favourite} aria-label={favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => actions.toggleFavourite.mutate(!favourite)} data-testid="favourite-toggle">
               <Star className={cn("size-4", favourite && "fill-amber-400 text-amber-400")} />
@@ -122,19 +119,10 @@ export function BoardHeader({ board }: { board: Board }) {
               <UserPlus /> Invite
             </Button>
           )}
+          <span aria-hidden className="mx-1 h-6 w-px bg-border" />
           <SimpleTooltip label="Board activity">
             <Button variant="ghost" size="icon-sm" aria-label="Board activity" onClick={() => setActivityOpen(true)}>
               <History />
-            </Button>
-          </SimpleTooltip>
-          <SimpleTooltip label="Automations (coming later)">
-            <Button variant="ghost" size="icon-sm" aria-label="Automations" onClick={() => setAutomationsOpen(true)}>
-              <Zap />
-            </Button>
-          </SimpleTooltip>
-          <SimpleTooltip label="Integrations (coming later)">
-            <Button variant="ghost" size="icon-sm" aria-label="Integrations" onClick={() => setIntegrationsOpen(true)}>
-              <Plug />
             </Button>
           </SimpleTooltip>
           <DropdownMenu>
@@ -210,8 +198,6 @@ export function BoardHeader({ board }: { board: Board }) {
 
       <BoardSettingsDialog board={board} section={settings} onSectionChange={setSettings} onRequestDelete={() => setDeleteOpen(true)} />
       <BoardActivityDialog board={board} open={activityOpen} onOpenChange={setActivityOpen} />
-      <AutomationsDialog open={automationsOpen} onOpenChange={setAutomationsOpen} />
-      <IntegrationsDialog open={integrationsOpen} onOpenChange={setIntegrationsOpen} />
       <DeleteBoardDialog board={board} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />
     </header>
   );

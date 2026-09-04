@@ -56,7 +56,7 @@ export function HomePage() {
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-6xl px-6 py-6">
+      <div className="mx-auto w-full max-w-6xl px-6 py-6 xl:max-w-7xl xl:px-8">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
@@ -67,7 +67,7 @@ export function HomePage() {
           <p className="text-[13px] text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
         </header>
 
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-8">
             <section>
               <SectionHeading>Recently visited</SectionHeading>
@@ -100,8 +100,8 @@ export function HomePage() {
               </SectionHeading>
               <div className="overflow-hidden rounded-md border">
                 {myWork.isLoading ? (
-                  <div className="space-y-px p-2">
-                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
+                  <div className="space-y-2 p-3">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
                   </div>
                 ) : importantWork.length === 0 ? (
                   <EmptyState icon={ListTodo} title="Nothing assigned to you right now" compact />
@@ -113,13 +113,14 @@ export function HomePage() {
                         <li key={entry.item.id}>
                           <Link
                             href={ws.boardPath(entry.board, { itemId: entry.item.id })}
-                            className="grid h-10 grid-cols-[minmax(0,1fr)_120px_90px] items-center gap-3 px-3 text-[13px] hover:bg-accent sm:grid-cols-[minmax(0,1fr)_140px_120px_90px]"
+                            className="grid min-h-14 grid-cols-[minmax(0,1fr)_110px_90px] items-center gap-4 px-4 py-2.5 text-[13px] hover:bg-accent sm:grid-cols-[minmax(0,1fr)_150px_130px_100px]"
                           >
                             <span className="min-w-0">
                               <span className="block truncate font-medium">{entry.item.name}</span>
-                              <span className="block truncate text-2xs text-muted-foreground">
+                              <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
                                 {entry.board.name}
                                 {entry.group ? ` · ${entry.group.name}` : ""}
+                                {entry.linkedBoards.length > 0 ? ` · also on ${entry.linkedBoards.map((b) => b.name).join(", ")}` : ""}
                               </span>
                             </span>
                             <span className="hidden sm:block">

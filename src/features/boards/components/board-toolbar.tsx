@@ -42,7 +42,7 @@ export function BoardToolbar() {
   const hiddenCount = model.columns.filter((c) => c.hidden).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b px-5 py-1.5" role="toolbar" aria-label="Board tools">
+    <div className="flex flex-wrap items-center gap-1.5 border-b px-6 py-2" role="toolbar" aria-label="Board tools">
       {canEdit && <NewItemButton />}
       <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />
       <PersonFilter />

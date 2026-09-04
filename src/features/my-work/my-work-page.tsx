@@ -1,6 +1,6 @@
 "use client";
 
-import { ListTodo } from "lucide-react";
+import { Link2, ListTodo } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -101,6 +101,11 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                     {entry.board.name}
                     {entry.group ? <span className="text-muted-foreground/70"> · {entry.group.name}</span> : null}
                   </span>
+                  {entry.linkedBoards.length > 0 && (
+                    <span className="flex shrink-0 items-center gap-0.5 text-muted-foreground/70" title={`Also on ${entry.linkedBoards.map((b) => b.name).join(", ")}`}>
+                      <Link2 className="size-3" /> +{entry.linkedBoards.length}
+                    </span>
+                  )}
                 </span>
                 <span className="hidden md:block">
                   <LabelPill label={entry.status} size="sm" emptyText="—" />

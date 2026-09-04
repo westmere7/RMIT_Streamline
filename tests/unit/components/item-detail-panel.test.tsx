@@ -73,6 +73,33 @@ describe("ItemDetailPanel", () => {
     expect(screen.getByText("Working On It", { selector: "span" })).toBeInTheDocument();
   });
 
+  it("lists linked items from other boards and opens the link dialog", async () => {
+    const user = userEvent.setup();
+    const app = await createTestApp();
+    const sem1 = SEED_BOARD_IDS.sem1;
+    const items = await app.data.services.repos.items.listByBoard(sem1);
+    const itemId = items.find((i) => i.name === "Sem 1 DOOH adaptation")!.id;
+    await app.render(
+      <TestBoard boardId={sem1}>
+        <ItemDetailPanel itemId={itemId} onClose={() => undefined} />
+      </TestBoard>,
+    );
+    const section = screen.getByTestId("linked-items");
+    // Seeded mirror on the Vietnam studio's DOOH board, with the columns that flow between them.
+    const linked = await within(section).findByTestId("linked-item");
+    expect(within(linked).getByRole("link", { name: "Sem 1 DOOH adaptation" })).toBeInTheDocument();
+    expect(linked).toHaveTextContent("DOOH Production");
+    expect(linked).toHaveTextContent("Syncs name, description, Owner, Status, Priority, Due Date");
+
+    await user.click(within(section).getByTestId("link-item-button"));
+    const dialog = await screen.findByTestId("link-item-dialog");
+    expect(within(dialog).getByRole("heading", { name: /Link to another item/ })).toBeInTheDocument();
+    // Items on the current board are never offered; the already linked mirror is flagged.
+    const candidates = await within(dialog).findAllByTestId("link-candidate");
+    expect(candidates.some((c) => c.textContent?.includes("Sem 1 campaign storyboard"))).toBe(false);
+    expect(candidates.find((c) => c.textContent?.includes("Sem 1 DOOH adaptation"))).toHaveTextContent("Linked");
+  });
+
   it("closes with the Escape key", async () => {
     const user = userEvent.setup();
     const app = await createTestApp();

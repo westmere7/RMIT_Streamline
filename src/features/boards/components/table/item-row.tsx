@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Maximize2, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
@@ -20,7 +20,7 @@ import {
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
+import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const ui = useBoardUi(board.id);
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
+  const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [addingSubitem, setAddingSubitem] = React.useState(false);
@@ -47,6 +48,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const done = model.isDone(item.id);
   const blocked = model.isBlocked(item.id);
+  const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   const colors = colorClasses(group.color);
 
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -69,7 +71,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         <div
           role="gridcell"
           className={cn("sticky left-0 z-[4] flex h-full items-center border-r bg-background group-hover/row:bg-accent/50", selected && "bg-blue-50/70 group-hover/row:bg-blue-50 dark:bg-navy-500/25 dark:group-hover/row:bg-navy-500/35")}
-          style={{ width: leadingWidth(), minWidth: leadingWidth() }}
+          style={leadingCellStyle()}
         >
           <span aria-hidden className={cn("h-full w-1.5", colors.dot)} />
           <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
@@ -141,6 +143,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 </span>
               </SimpleTooltip>
             )}
+            {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
             {subitems.length > 0 && <span className="rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
             <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
               {canEdit && (
@@ -179,6 +182,14 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
                       <Copy /> Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setLinkDialogItem(item.id);
+                        openItem(item.id);
+                      }}
+                    >
+                      <Link2 /> Link to another item…
                     </DropdownMenuItem>
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
@@ -240,6 +251,19 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   );
 });
 
+/** Small chain icon on rows that are kept in sync with items on other boards. */
+function LinkIndicator({ count, onClick }: { count: number; onClick: () => void }) {
+  const label = count === 1 ? "Linked to an item on another board" : `Linked to ${count} items on other boards`;
+  return (
+    <SimpleTooltip label={label}>
+      <button type="button" onClick={onClick} aria-label={label} data-testid="link-indicator" className="flex h-5 shrink-0 items-center gap-0.5 rounded px-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10">
+        <Link2 className="size-3.5" />
+        {count > 1 && <span className="text-2xs tabular">{count}</span>}
+      </button>
+    </SimpleTooltip>
+  );
+}
+
 function SubitemRows({
   parent,
   group,
@@ -277,7 +301,7 @@ function SubitemRows({
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16" style={{ width: leadingWidth(), minWidth: leadingWidth() }}>
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16" style={leadingCellStyle()}>
             <CornerDownRight className="mr-1.5 size-3 text-muted-foreground/60" />
             <input
               ref={inputRef}
@@ -300,7 +324,10 @@ function SubitemRows({
               className="h-7 w-full bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground/70 focus:rounded-sm focus:bg-background focus:ring-1 focus:ring-ring"
             />
           </div>
-          <div style={{ width: model.visibleColumns.reduce((s, c) => s + (widthOverrides[c.id] ?? c.width), 0) + TABLE_LAYOUT.trailingWidth }} />
+          {model.visibleColumns.map((column) => (
+            <div key={column.id} style={columnCellStyle(widthOverrides[column.id] ?? column.width)} />
+          ))}
+          <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
         </div>
       )}
     </div>
@@ -312,9 +339,10 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
+  const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   return (
     <div role="row" data-testid="subitem-row" className={cn("group/row flex border-b hover:bg-accent/40", done && "text-muted-foreground")} style={{ height: 32 }}>
-      <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={{ width: leadingWidth(), minWidth: leadingWidth() }}>
+      <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16 group-hover/row:bg-accent/40" style={leadingCellStyle()}>
         <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
         <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
           {renaming ? (
@@ -333,6 +361,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
               {item.name}
             </button>
           )}
+          {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
           {canEdit && (
             <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
               <button type="button" aria-label={`Rename ${item.name}`} onClick={() => setRenaming(true)} className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground">

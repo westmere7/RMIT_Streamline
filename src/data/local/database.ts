@@ -9,6 +9,7 @@ import type {
   Comment,
   Item,
   ItemColumnValue,
+  ItemLink,
   Notification,
   Team,
   TeamMember,
@@ -56,6 +57,7 @@ export interface StreamlineDB extends DBSchema {
     value: ItemColumnValue;
     indexes: { byItem: string; byColumn: string };
   };
+  itemLinks: { key: string; value: ItemLink; indexes: { byItemA: string; byItemB: string; byWorkspace: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
   activities: {
     key: string;
@@ -82,6 +84,7 @@ export const ALL_STORES: StoreName[] = [
   "boardColumns",
   "items",
   "itemColumnValues",
+  "itemLinks",
   "comments",
   "activities",
   "notifications",
@@ -90,7 +93,8 @@ export const ALL_STORES: StoreName[] = [
 ];
 
 export const DB_NAME = "rmit-streamline";
-export const DB_VERSION = 1;
+/** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
+export const DB_VERSION = 2;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -156,14 +160,29 @@ function createSchema(db: IDBPDatabase<StreamlineDB>): void {
   db.createObjectStore("meta", { keyPath: "key" });
 }
 
+/** v2: item links (Task Linking). */
+function createItemLinksStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("itemLinks")) return;
+  const links = db.createObjectStore("itemLinks", { keyPath: "id" });
+  links.createIndex("byItemA", "itemAId");
+  links.createIndex("byItemB", "itemBId");
+  links.createIndex("byWorkspace", "workspaceId");
+}
+
+/** Applies every schema step between the installed version and DB_VERSION. */
+function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
+  if (oldVersion < 1) createSchema(db);
+  if (oldVersion < 2) createItemLinksStore(db);
+}
+
 export interface OpenDatabaseOptions {
   name?: string;
 }
 
 export async function openStreamlineDatabase(options: OpenDatabaseOptions = {}): Promise<StreamlineDatabase> {
   return openDB<StreamlineDB>(options.name ?? DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      createSchema(db);
+    upgrade(db, oldVersion) {
+      upgradeSchema(db, oldVersion);
     },
     blocked() {
       console.warn("[local-db] Database upgrade blocked by another open tab.");

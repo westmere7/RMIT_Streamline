@@ -17,7 +17,7 @@ const VIEWS: Array<{ id: BoardViewKind; label: string; icon: React.ComponentType
 
 export function BoardViewTabs({ view, onChange }: { view: BoardViewKind; onChange: (view: BoardViewKind) => void }) {
   return (
-    <div role="tablist" aria-label="Board views" className="flex items-end gap-0.5 border-b px-5">
+    <div role="tablist" aria-label="Board views" className="flex items-end gap-1 border-b px-6">
       {VIEWS.map(({ id, label, icon: Icon }) => {
         const active = view === id;
         return (
@@ -29,7 +29,7 @@ export function BoardViewTabs({ view, onChange }: { view: BoardViewKind; onChang
             data-testid={`view-${id}`}
             onClick={() => onChange(id)}
             className={cn(
-              "relative -mb-px flex h-9 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+              "relative -mb-px flex h-10 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
               active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >

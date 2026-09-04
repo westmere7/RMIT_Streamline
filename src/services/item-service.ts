@@ -7,13 +7,15 @@ import type {
   EntityId,
   Item,
   ItemColumnValue,
+  ItemLink,
   NotificationInput,
   User,
 } from "@/domain";
-import { columnLabels, emptyValueFor } from "@/domain";
+import { emptyValueFor } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
-import { formatShortDate } from "@/lib/dates/dates";
+import { displayValue } from "./column-display";
+import type { ItemLinkService } from "./item-link-service";
 
 export interface BoardSnapshot {
   board: Board;
@@ -21,6 +23,8 @@ export interface BoardSnapshot {
   columns: BoardColumn[];
   items: Item[];
   values: ItemColumnValue[];
+  /** Task links touching any item on the board. */
+  links: ItemLink[];
 }
 
 export interface CreateItemInput {
@@ -52,40 +56,12 @@ export interface MoveItemInput {
   orderedIdsInSourceGroup?: EntityId[];
 }
 
-function displayValue(column: BoardColumn, value: ColumnValue | undefined, users: readonly User[]): string | null {
-  if (!value) return null;
-  switch (value.type) {
-    case "STATUS":
-    case "PRIORITY": {
-      const label = columnLabels(column).find((l) => l.id === value.labelId);
-      return label?.name ?? null;
-    }
-    case "DATE":
-      return value.date ? formatShortDate(value.date) : null;
-    case "TIMELINE":
-      return value.start || value.end ? `${formatShortDate(value.start)} – ${formatShortDate(value.end)}` : null;
-    case "PERSON":
-      return value.userIds.map((id) => users.find((u) => u.id === id)?.displayName ?? "Unknown").join(", ") || null;
-    case "TEXT":
-    case "LONG_TEXT":
-      return value.text || null;
-    case "NUMBER":
-      return value.number === null ? null : String(value.number);
-    case "CHECKBOX":
-      return value.checked ? "Checked" : "Unchecked";
-    case "LINK":
-      return value.url || null;
-    case "TAGS":
-      return value.tags.join(", ") || null;
-    case "FILES":
-      return value.files.length ? `${value.files.length} file(s)` : null;
-    case "DEPENDENCY":
-      return value.itemIds.length ? `${value.itemIds.length} item(s)` : null;
-  }
-}
-
 export class ItemService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    /** Mirrors name, description and value changes onto linked items. */
+    private readonly links: ItemLinkService,
+  ) {}
 
   async loadBoardSnapshot(boardId: EntityId): Promise<BoardSnapshot> {
     const board = await this.repos.boards.getById(boardId);
@@ -96,7 +72,8 @@ export class ItemService {
       this.repos.items.listByBoard(boardId),
       this.repos.items.listValuesByBoard(boardId),
     ]);
-    return { board, groups, columns, items, values };
+    const links = await this.repos.links.listByItems(items.map((i) => i.id));
+    return { board, groups, columns, items, values, links };
   }
 
   async getItem(itemId: EntityId): Promise<Item> {
@@ -173,16 +150,21 @@ export class ItemService {
       eventType: "ITEM_RENAMED",
       metadata: { from: before.name, to: trimmed, itemName: trimmed },
     });
+    await this.links.propagate(itemId, { kind: "name", name: trimmed }, actorId);
     return item;
   }
 
-  async updateDescription(itemId: EntityId, description: string | null): Promise<Item> {
-    return this.repos.items.update(itemId, { description: description?.trim() || null });
+  async updateDescription(itemId: EntityId, description: string | null, actorId: EntityId): Promise<Item> {
+    const next = description?.trim() || null;
+    const item = await this.repos.items.update(itemId, { description: next });
+    await this.links.propagate(itemId, { kind: "description", description: next }, actorId);
+    return item;
   }
 
   async setValue(itemId: EntityId, columnId: EntityId, value: ColumnValue, ctx: SetValueContext, actorId: EntityId): Promise<ItemColumnValue> {
     const existing = (await this.repos.items.listValuesByItem(itemId)).find((v) => v.columnId === columnId);
     const result = await this.repos.items.setValue(itemId, columnId, value);
+    await this.links.propagate(itemId, { kind: "value", columnId, value }, actorId);
 
     const from = displayValue(ctx.column, existing?.value ?? emptyValueFor(ctx.column.type), ctx.users);
     const to = displayValue(ctx.column, value, ctx.users);

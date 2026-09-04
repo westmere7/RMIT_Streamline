@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, Inbox, MessageSquare, UserPlus } from "lucide-react";
+import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, Inbox, Link2, MessageSquare, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -22,6 +22,7 @@ const TYPE_ICONS: Record<NotificationType, React.ComponentType<{ className?: str
   STATUS_CHANGED: CircleDot,
   COMMENT: MessageSquare,
   BOARD_INVITE: Bell,
+  ITEM_LINKED: Link2,
 };
 
 export function InboxPage() {

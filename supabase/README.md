@@ -3,9 +3,11 @@
 ```
 supabase/
 ├── migrations/
-│   └── 0001_initial_schema.sql   tables, enums, indexes, triggers
+│   ├── 0001_initial_schema.sql   tables, enums, indexes, triggers
+│   └── 0002_item_links.sql       Task Linking (item_links) + enum values
 ├── policies/
 │   ├── 0001_rls_policies.sql     RLS helpers + policies (apply after migrations)
+│   ├── 0002_item_links_policies.sql  RLS for item_links
 │   └── README.md                 permission model, assumptions, realtime notes
 ├── seed.sql                      demo data (same ids as src/data/seed/seed-data.ts)
 └── README.md                     this file
@@ -18,8 +20,8 @@ remodel. JSON columns (`board_columns.settings`, `item_column_values.value_json`
 
 ## Apply order
 
-1. **Migrations** – `supabase/migrations/0001_initial_schema.sql`
-2. **Policies** – `supabase/policies/0001_rls_policies.sql`
+1. **Migrations** – `supabase/migrations/0001_initial_schema.sql`, then `0002_item_links.sql`
+2. **Policies** – `supabase/policies/0001_rls_policies.sql`, then `0002_item_links_policies.sql`
 3. **Storage bucket + policies** – snippet below
 4. **Seed** – `supabase/seed.sql` (optional; local/dev only)
 

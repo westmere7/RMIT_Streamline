@@ -8,6 +8,8 @@ export const ACTIVITY_EVENT_TYPES = [
   "ITEM_RESTORED",
   "ITEM_DELETED",
   "ITEM_COLUMN_VALUE_UPDATED",
+  "ITEM_LINKED",
+  "ITEM_UNLINKED",
   "COMMENT_ADDED",
   "BOARD_CREATED",
   "BOARD_RENAMED",
@@ -41,6 +43,11 @@ export interface ActivityMetadata {
   removedUserIds?: EntityId[];
   memberName?: string;
   count?: number;
+  /** For ITEM_LINKED / ITEM_UNLINKED: the item on the other side of the link. */
+  linkedItemName?: string;
+  linkedBoardName?: string;
+  /** Set when the change was mirrored from a linked item rather than made directly. */
+  syncedFrom?: string;
 }
 
 export interface Activity {

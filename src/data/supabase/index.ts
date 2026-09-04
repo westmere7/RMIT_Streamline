@@ -13,7 +13,9 @@ import { NotImplementedRepository } from "./not-implemented";
  *  - `item_column_values.value_json` is JSONB and stores the `ColumnValue` union as-is.
  *  - Cascade deletes are handled by foreign keys (`on delete cascade`), so `delete()`
  *    only needs to remove the parent row.
- *  - Realtime: subscribe to `items`, `item_column_values`, `comments`, `activities`
+ *  - `item_links` (supabase/migrations/0002_item_links.sql) stores each linked pair once
+ *    with item_a_id < item_b_id; the sync itself runs in ItemLinkService, not in the database.
+ *  - Realtime: subscribe to `items`, `item_column_values`, `item_links`, `comments`, `activities`
  *    and `notifications` in `src/features/boards/hooks/use-board-realtime.ts`
  *    (currently a documented no-op) and invalidate the matching query keys.
  */
@@ -25,6 +27,7 @@ export function createSupabaseRepositories(): Repositories {
     teams: stub.as("TeamRepository"),
     boards: stub.as("BoardRepository"),
     items: stub.as("ItemRepository"),
+    links: stub.as("ItemLinkRepository"),
     comments: stub.as("CommentRepository"),
     activities: stub.as("ActivityRepository"),
     notifications: stub.as("NotificationRepository"),

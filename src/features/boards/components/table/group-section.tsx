@@ -159,7 +159,7 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
             </div>
           )}
           <div ref={setDropRef} className={cn(isOver && "bg-blue-50/60 dark:bg-navy-500/25")}>
-            {canEdit && <AddItemRow group={group} emptyHint={items.length === 0} />}
+            {canEdit && <AddItemRow group={group} emptyHint={items.length === 0} widthOverrides={widthOverrides} />}
           </div>
         </div>
       )}

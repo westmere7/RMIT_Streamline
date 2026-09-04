@@ -1,11 +1,16 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ArchiveRestore,
+  ArrowRight,
   ChevronDown,
   ChevronRight,
+  Copy,
   Home,
   Inbox,
+  Kanban,
   LayoutGrid,
   ListTodo,
   PanelLeft,
@@ -13,40 +18,100 @@ import {
   Plus,
   Search,
   Settings,
+  Settings2,
   Star,
+  Trash2,
   UserPlus,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { RowMenu, type MenuAction } from "@/components/layout/row-menu";
 import { UserMenu } from "@/components/layout/user-menu";
 import type { Board, Team } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
+import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
+import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
+import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
+import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { useUnreadCount } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canManageMembers, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canDeleteBoard, canManageBoard, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
+
+/** Actions rows can trigger that need dialogs owned by the sidebar itself. */
+interface SidebarActions {
+  openBoardSettings: (board: Board, section: BoardSettingsSection) => void;
+  requestDeleteBoard: (board: Board) => void;
+  newBoardInTeam: (teamId: string) => void;
+  editTeam: (team: Team) => void;
+  archiveTeam: (team: Team) => void;
+}
+
+const SidebarActionsContext = React.createContext<SidebarActions | null>(null);
+
+function useSidebarActions(): SidebarActions {
+  const ctx = React.useContext(SidebarActionsContext);
+  if (!ctx) throw new Error("useSidebarActions must be used inside Sidebar");
+  return ctx;
+}
 
 export function Sidebar() {
   const ws = useWorkspace();
   const { user } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const services = useServices();
+  const queryClient = useQueryClient();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCount(user?.id ?? "");
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
+  const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
   const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [boardSettings, setBoardSettings] = React.useState<{ board: Board; section: BoardSettingsSection } | null>(null);
+  const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
+  const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
+  const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
+
+  const archiveTeam = useMutation({
+    mutationFn: (team: Team) => services.workspace.archiveTeam(team.id, true),
+    onSuccess: async (team) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+      toast.success(`${team.name} archived`, { description: "Restore it from Settings → Teams." });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not archive team"),
+  });
+
+  const sidebarActions = React.useMemo<SidebarActions>(
+    () => ({
+      openBoardSettings: (board, section) => setBoardSettings({ board, section }),
+      requestDeleteBoard: (board) => setDeletingBoard(board),
+      newBoardInTeam: (teamId) => {
+        setCreateBoardTeamId(teamId);
+        setCreateBoardOpen(true);
+      },
+      editTeam: (team) => setEditingTeam(team),
+      archiveTeam: (team) => setArchivingTeam(team),
+    }),
+    [],
+  );
+  // Keep the settings dialog's board fresh after renames/moves.
+  const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
 
   const accessibleBoards = ws.boards.filter((b) => canViewBoard(ws.permissions, b));
   const visibleBoards = accessibleBoards.filter((b) => b.archivedAt === null);
@@ -60,6 +125,7 @@ export function Sidebar() {
   const isActivePath = (path: string) => pathname === path;
 
   return (
+    <SidebarActionsContext.Provider value={sidebarActions}>
     <aside
       data-collapsed={collapsed}
       className={cn(
@@ -204,11 +270,98 @@ export function Sidebar() {
         </div>
       </div>
 
-      <CreateBoardDialog open={createBoardOpen} onOpenChange={setCreateBoardOpen} />
+      <CreateBoardDialog
+        open={createBoardOpen}
+        onOpenChange={(open) => {
+          setCreateBoardOpen(open);
+          if (!open) setCreateBoardTeamId(null);
+        }}
+        defaultTeamId={createBoardTeamId}
+      />
       <CreateTeamDialog open={createTeamOpen} onOpenChange={setCreateTeamOpen} />
+      <CreateTeamDialog open={editingTeam !== null} onOpenChange={(open) => !open && setEditingTeam(null)} team={editingTeam} />
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      {settingsBoard && boardSettings && (
+        <BoardSettingsDialog
+          board={settingsBoard}
+          section={boardSettings.section}
+          onSectionChange={(section) => setBoardSettings(section ? { board: settingsBoard, section } : null)}
+          onRequestDelete={() => {
+            setBoardSettings(null);
+            setDeletingBoard(settingsBoard);
+          }}
+        />
+      )}
+      {deletingBoard && <SidebarDeleteBoard board={deletingBoard} onClose={() => setDeletingBoard(null)} />}
+      <ConfirmDialog
+        open={archivingTeam !== null}
+        onOpenChange={(open) => !open && setArchivingTeam(null)}
+        title={`Archive ${archivingTeam?.name ?? "team"}?`}
+        description="The team is hidden from the sidebar. Its boards stay available and can be reassigned. You can restore it from Settings → Teams."
+        confirmLabel="Archive team"
+        onConfirm={async () => {
+          if (archivingTeam) await archiveTeam.mutateAsync(archivingTeam);
+        }}
+      />
     </aside>
+    </SidebarActionsContext.Provider>
   );
+}
+
+/** Owns the delete flow for a board chosen from a sidebar row. */
+function SidebarDeleteBoard({ board, onClose }: { board: Board; onClose: () => void }) {
+  const actions = useBoardActions(board);
+  return <DeleteBoardDialog board={board} open onOpenChange={(open) => !open && onClose()} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />;
+}
+
+/** Context/hover menu actions for a board row. */
+function useBoardRowActions(board: Board): MenuAction[] {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const actions = useBoardActions(board);
+  const sidebar = useSidebarActions();
+  const manage = canManageBoard(ws.permissions, board);
+  const favourite = ws.isFavourite(board.id);
+  const teams = ws.teams.filter((t) => t.archivedAt === null);
+
+  const list: MenuAction[] = [
+    { type: "item", label: "Open", icon: <LayoutGrid />, onSelect: () => router.push(ws.boardPath(board)) },
+    { type: "item", label: "Open as Kanban", icon: <Kanban />, onSelect: () => router.push(ws.boardPath(board, { view: "kanban" })) },
+    { type: "item", label: favourite ? "Remove from favourites" : "Add to favourites", icon: <Star />, onSelect: () => actions.toggleFavourite.mutate(!favourite) },
+    { type: "separator" },
+    { type: "item", label: "Board settings", icon: <Settings2 />, onSelect: () => sidebar.openBoardSettings(board, "general") },
+    { type: "item", label: "Manage members", icon: <Users />, onSelect: () => sidebar.openBoardSettings(board, "members") },
+    {
+      type: "sub",
+      label: "Move to team",
+      icon: <ArrowRight />,
+      disabled: !manage,
+      items: [
+        { type: "item", label: "No team", disabled: board.teamId === null, onSelect: () => actions.updateBoard.mutate({ teamId: null }) },
+        { type: "separator" },
+        ...teams.map<MenuAction>((t) => ({
+          type: "item",
+          label: t.name,
+          icon: <DynamicIcon name={t.icon} className={colorClasses(t.color).text} />,
+          disabled: t.id === board.teamId,
+          onSelect: () => actions.updateBoard.mutate({ teamId: t.id }),
+        })),
+      ],
+    },
+    { type: "item", label: "Duplicate board", icon: <Copy />, onSelect: () => actions.duplicateBoard.mutate() },
+  ];
+  if (manage) {
+    list.push({ type: "separator" });
+    list.push(
+      board.archivedAt
+        ? { type: "item", label: "Restore board", icon: <ArchiveRestore />, onSelect: () => actions.restoreBoard.mutate() }
+        : { type: "item", label: "Archive board", icon: <Archive />, onSelect: () => actions.archiveBoard.mutate() },
+    );
+  }
+  if (canDeleteBoard(ws.permissions, board)) {
+    list.push({ type: "item", label: "Delete board", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.requestDeleteBoard(board) });
+  }
+  return list;
 }
 
 const subtleButtonClasses =
@@ -308,8 +461,8 @@ function BoardLink({
   nested?: boolean;
   archived?: boolean;
 }) {
-  return (
-    <li>
+  const actions = useBoardRowActions(board);
+  const link = (
       <SimpleTooltip label={archived ? `${board.name} (archived)` : board.name} side="right" disabled={!collapsed}>
         <Link
           href={href}
@@ -317,7 +470,7 @@ function BoardLink({
           className={cn(
             navItemClasses(active),
             "h-7 font-normal",
-            collapsed && "justify-center px-0",
+            collapsed ? "justify-center px-0" : "pr-7",
             nested && !collapsed && "pl-2",
             archived && "text-muted-foreground italic",
           )}
@@ -330,6 +483,16 @@ function BoardLink({
           {!collapsed && <span className="truncate">{board.name}</span>}
         </Link>
       </SimpleTooltip>
+  );
+  return (
+    <li>
+      {collapsed ? (
+        link
+      ) : (
+        <RowMenu label={`Options for ${board.name}`} actions={actions}>
+          {link}
+        </RowMenu>
+      )}
     </li>
   );
 }
@@ -384,11 +547,23 @@ function TeamNode({
   searchView: string | null;
 }) {
   const ws = useWorkspace();
+  const router = useRouter();
+  const sidebar = useSidebarActions();
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
   const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug);
   const expanded = expandedIds.includes(team.id) || containsActive;
   const colors = colorClasses(team.color);
+  const manage = canManageTeam(ws.permissions, team.id);
+
+  const teamActions: MenuAction[] = [
+    { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
+    ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "New board in team", icon: <Plus />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
+    { type: "separator" },
+    { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
+    ...(manage ? [{ type: "separator" } satisfies MenuAction, { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction] : []),
+  ];
 
   if (collapsed) {
     return (
@@ -404,6 +579,7 @@ function TeamNode({
 
   return (
     <li>
+      <RowMenu label={`Options for ${team.name}`} actions={teamActions}>
       <div className={cn("flex h-8 items-center rounded-md pr-1", activeTeam ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
         <button
           type="button"
@@ -418,8 +594,9 @@ function TeamNode({
           <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
           <span className="truncate">{team.name}</span>
         </Link>
-        <span className="text-2xs text-muted-foreground tabular">{boards.length}</span>
+        <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length}</span>
       </div>
+      </RowMenu>
       {expanded && (
         <ul className="mt-0.5 ml-[15px] space-y-0.5 border-l border-sidebar-border pl-2">
           {boards.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards yet</li>}

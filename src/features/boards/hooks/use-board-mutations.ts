@@ -29,10 +29,13 @@ export function useBoardMutations(boardId: string) {
 
   const invalidateRelated = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: key });
+    // A change here may have been mirrored onto linked items on other boards.
+    void queryClient.invalidateQueries({ queryKey: ["board-snapshot"], predicate: (q) => q.queryKey[1] !== boardId });
+    void queryClient.invalidateQueries({ queryKey: ["item-links"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.myWork(ws.workspace.id, user.id) });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-  }, [queryClient, key, ws.workspace.id, user.id]);
+  }, [queryClient, key, boardId, ws.workspace.id, user.id]);
 
   /** Applies `updater` optimistically and runs `action`. */
   const run = useCallback(
@@ -99,10 +102,10 @@ export function useBoardMutations(boardId: string) {
     (itemId: string, description: string | null) =>
       run(
         (s) => patchItem(s, itemId, { description }),
-        () => services.items.updateDescription(itemId, description),
+        () => services.items.updateDescription(itemId, description, user.id),
         "Could not save the description",
       ),
-    [run, services],
+    [run, services, user.id],
   );
 
   const createItem = useCallback(

@@ -19,6 +19,7 @@ import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/features/boards/board-context";
+import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
 import { tableWidth } from "@/features/boards/board-model";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 import { BulkActionsBar } from "./bulk-actions-bar";
@@ -106,57 +107,59 @@ export function BoardTable() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="scrollbar-thin flex-1 overflow-auto" data-testid="board-table">
-        <div style={{ minWidth: width }} className="pb-24">
-          <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)} modifiers={[restrictToVerticalAxis]}>
-            <SortableContext items={model.groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
-              {model.groups.map((group) => (
-                <GroupSection key={group.id} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} onWidthOverride={setWidthOverrides} />
-              ))}
-            </SortableContext>
-            <DragOverlay dropAnimation={null}>
-              {activeDrag?.type === "item" && (
-                <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-medium shadow-lg">
-                  {model.itemById.get(activeDrag.itemId)?.name}
-                </div>
-              )}
-              {activeDrag?.type === "group" && (
-                <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-semibold shadow-lg">
-                  {model.groups.find((g) => g.id === activeDrag.groupId)?.name}
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
+        <CellStretchProvider>
+          <div style={{ minWidth: width }} className="pb-24">
+            <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)} modifiers={[restrictToVerticalAxis]}>
+              <SortableContext items={model.groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
+                {model.groups.map((group) => (
+                  <GroupSection key={group.id} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} onWidthOverride={setWidthOverrides} />
+                ))}
+              </SortableContext>
+              <DragOverlay dropAnimation={null}>
+                {activeDrag?.type === "item" && (
+                  <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-medium shadow-lg">
+                    {model.itemById.get(activeDrag.itemId)?.name}
+                  </div>
+                )}
+                {activeDrag?.type === "group" && (
+                  <div className="flex h-9 w-80 items-center rounded-md border bg-background px-3 text-[13px] font-semibold shadow-lg">
+                    {model.groups.find((g) => g.id === activeDrag.groupId)?.name}
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
 
-          {nothingVisible && (
-            <div className="sticky left-0 w-[min(100%,60rem)]">
-              <EmptyState
-                icon={SearchX}
-                title="No tasks match these filters."
-                description="Try widening the filters or clearing the search."
-                action={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      clearFilters(board.id);
-                      setSearch(board.id, "");
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                }
-              />
-            </div>
-          )}
+            {nothingVisible && (
+              <div className="sticky left-0 w-[min(100%,60rem)]">
+                <EmptyState
+                  icon={SearchX}
+                  title="No tasks match these filters."
+                  description="Try widening the filters or clearing the search."
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        clearFilters(board.id);
+                        setSearch(board.id, "");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  }
+                />
+              </div>
+            )}
 
-          {canEdit && (
-            <div className="sticky left-0 px-4 pt-3">
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="add-group">
-                <Plus /> Add new group
-              </Button>
-            </div>
-          )}
-        </div>
+            {canEdit && (
+              <div className="sticky left-0 px-4 pt-3">
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="add-group">
+                  <Plus /> Add new group
+                </Button>
+              </div>
+            )}
+          </div>
+        </CellStretchProvider>
       </div>
       <BulkActionsBar />
     </div>
