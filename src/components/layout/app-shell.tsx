@@ -22,7 +22,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      // Ctrl/⌘ F takes over the browser's find bar: in here, search is the app's own.
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === "k" || key === "f")) {
         event.preventDefault();
         setCommandPaletteOpen(true);
       }

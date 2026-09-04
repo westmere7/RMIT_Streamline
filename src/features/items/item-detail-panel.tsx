@@ -46,8 +46,12 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
       aria-label={item ? item.name : "Item"}
       data-testid="item-panel"
       className={cn(
-        "flex flex-col border-l bg-background shadow-xl",
-        narrow ? "fixed inset-0 z-40" : "w-[520px] shrink-0 animate-in slide-in-from-right-4 duration-150",
+        // Reads as a card floating above the board: its own surface and elevation,
+        // with the board beside it left untouched so items stay glanceable.
+        "flex flex-col bg-surface",
+        narrow
+          ? "fixed inset-0 z-40"
+          : "my-2 mr-2 w-[520px] shrink-0 overflow-hidden rounded-xl border border-border/80 shadow-2xl ring-1 ring-black/5 animate-in slide-in-from-right-4 duration-150 dark:ring-white/10",
       )}
     >
       {!item ? (

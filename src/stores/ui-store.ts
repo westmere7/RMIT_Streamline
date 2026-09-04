@@ -31,12 +31,15 @@ interface UiState {
   /** Whether the Favourites section is expanded. */
   favouritesExpanded: boolean;
   commandPaletteOpen: boolean;
+  /** Chosen search scope, or null to follow whatever the user is looking at. */
+  searchScope: "view" | "workspace" | null;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleTeam: (teamId: string) => void;
   setTeamExpanded: (teamId: string, expanded: boolean) => void;
   toggleFavourites: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
+  setSearchScope: (scope: "view" | "workspace" | null) => void;
 }
 
 /**
@@ -54,6 +57,7 @@ export const useUiStore = create<UiState>()(
       expandedTeamIds: [],
       favouritesExpanded: true,
       commandPaletteOpen: false,
+      searchScope: null,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleTeam: (teamId) =>
@@ -65,7 +69,9 @@ export const useUiStore = create<UiState>()(
           expandedTeamIds: expanded ? (s.expandedTeamIds.includes(teamId) ? s.expandedTeamIds : [...s.expandedTeamIds, teamId]) : s.expandedTeamIds.filter((id) => id !== teamId),
         })),
       toggleFavourites: () => set((s) => ({ favouritesExpanded: !s.favouritesExpanded })),
-      setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
+      // Opening search always starts from the current view's scope again.
+      setCommandPaletteOpen: (commandPaletteOpen) => set(commandPaletteOpen ? { commandPaletteOpen, searchScope: null } : { commandPaletteOpen }),
+      setSearchScope: (searchScope) => set({ searchScope }),
     }),
     {
       name: "streamline.ui",

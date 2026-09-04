@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -159,7 +159,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 >
                   {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
                 </button>
-                <div className="flex h-full min-w-0 flex-1 items-center">
+                <div className="flex h-full min-w-0 items-center">
                   {renaming ? (
                     <InlineEdit
                       value={item.name}
@@ -181,7 +181,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                       title={item.name}
                       data-testid="item-name"
                       className={cn(
-                        "min-w-0 flex-1 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring",
+                        "min-w-0 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring",
                         done && "line-through decoration-muted-foreground/40",
                       )}
                     >
@@ -189,16 +189,16 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     </button>
                   )}
                 </div>
+                {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
                 {blocked && (
                   <SimpleTooltip label="Blocked: depends on items that are not done">
-                    <span className="text-amber-600 dark:text-amber-400" aria-label="Blocked">
+                    <span className="shrink-0 text-amber-600 dark:text-amber-400" aria-label="Blocked">
                       <TriangleAlert className="size-3.5" />
                     </span>
                   </SimpleTooltip>
                 )}
-                {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
-                {subitems.length > 0 && <span className="rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
-                <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                {subitems.length > 0 && <span className="shrink-0 rounded bg-surface-strong px-1 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
+                <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   {canEdit && (
                     <SimpleTooltip label="Rename">
                       <button
@@ -286,7 +286,7 @@ function LinkIndicator({ count, onClick }: { count: number; onClick: () => void 
         data-testid="link-indicator"
         className="flex h-5 shrink-0 items-center gap-0.5 rounded px-0.5 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
       >
-        <Link2 className="size-3.5" />
+        <RefreshCw className="size-3.5" />
         {count > 1 && <span className="text-2xs tabular">{count}</span>}
       </button>
     </SimpleTooltip>
@@ -414,14 +414,14 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                     e.preventDefault();
                     setRenaming(true);
                   }}
-                  className={cn("min-w-0 flex-1 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
+                  className={cn("min-w-0 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
                 >
                   {item.name}
                 </button>
               )}
               {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
               {canEdit && (
-                <div className="flex items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   <button
                     type="button"
                     aria-label={`Rename ${item.name}`}
