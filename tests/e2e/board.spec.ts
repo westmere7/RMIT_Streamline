@@ -66,6 +66,91 @@ test.describe("board interactions", () => {
     await expect(page.getByTestId("group-Design").locator('[data-item-name="Accessibility review of PDF export"]')).toBeVisible();
   });
 
+  test("previews the landing slot in the group being dragged over", async ({ page }) => {
+    const source = row(page, "Accessibility review of PDF export");
+    const handle = source.getByRole("button", { name: /Drag Accessibility/ });
+    const target = row(page, "RMITinerary Independent");
+    await source.hover();
+    const from = await handle.boundingBox();
+    const to = await target.boundingBox();
+    if (!from || !to) throw new Error("rows not visible");
+
+    // No preview before anything moves.
+    await expect(page.getByTestId("drop-slot")).toHaveCount(0);
+
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + 20, { steps: 5 });
+    await page.mouse.move(to.x + 100, to.y + to.height / 2, { steps: 15 });
+
+    // The line belongs to the group under the pointer, not the one dragged from.
+    const slot = page.getByTestId("drop-slot");
+    await expect(slot).toHaveCount(1, { timeout: 5_000 });
+    await expect(page.getByTestId("group-Design").getByTestId("drop-slot")).toHaveCount(1);
+    await expect(page.getByTestId("group-Backlog").getByTestId("drop-slot")).toHaveCount(0);
+
+    // It is a line across the table, not a gap: it takes no vertical space and
+    // the rows around it have not moved.
+    const line = await slot.evaluate((el) => {
+      const bar = el.firstElementChild as HTMLElement;
+      const table = el.closest('[role="grid"]') as HTMLElement;
+      return {
+        wrapperHeight: Math.round(el.getBoundingClientRect().height),
+        barHeight: Math.round(bar.getBoundingClientRect().height),
+        barWidth: Math.round(bar.getBoundingClientRect().width),
+        tableWidth: Math.round(table.getBoundingClientRect().width),
+      };
+    });
+    expect(line.wrapperHeight).toBe(0);
+    expect(line.barHeight).toBeGreaterThanOrEqual(3);
+    // Full width bar the panel's 1px borders.
+    expect(line.tableWidth - line.barWidth).toBeLessThanOrEqual(4);
+
+    const movedTo = await target.boundingBox();
+    expect(Math.round(movedTo?.y ?? -1)).toBe(Math.round(to.y));
+
+    await page.mouse.up();
+    await expect(page.getByTestId("drop-slot")).toHaveCount(0);
+    await expect(page.getByTestId("group-Design").locator('[data-item-name="Accessibility review of PDF export"]')).toBeVisible();
+  });
+
+  test("previews a landing slot in an empty group", async ({ page }) => {
+    await page.getByTestId("add-group").click();
+    const empty = page.getByTestId("group-New group");
+    await expect(empty).toBeVisible({ timeout: 20_000 });
+    await empty.scrollIntoViewIfNeeded();
+
+    // Drag a row from the group above onto the empty one.
+    const source = row(page, "Photography shortlist");
+    await source.scrollIntoViewIfNeeded();
+    await source.hover();
+    const handle = source.getByRole("button", { name: /Drag Photography shortlist/ });
+    const from = await handle.boundingBox();
+    const to = await empty.boundingBox();
+    if (!from || !to) throw new Error("rows not visible");
+
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + 20, { steps: 5 });
+    // Aim at the body of the empty group, below its header row.
+    await page.mouse.move(from.x + 100, to.y + to.height - 12, { steps: 15 });
+
+    const emptyLine = empty.getByTestId("drop-slot");
+    await expect(emptyLine).toHaveCount(1, { timeout: 5_000 });
+    // Full width and thick in the empty group too.
+    const geometry = await emptyLine.evaluate((el) => {
+      const bar = el.firstElementChild as HTMLElement;
+      const table = el.closest('[role="grid"]') as HTMLElement;
+      return { barHeight: Math.round(bar.getBoundingClientRect().height), barWidth: Math.round(bar.getBoundingClientRect().width), tableWidth: Math.round(table.getBoundingClientRect().width) };
+    });
+    expect(geometry.barHeight).toBeGreaterThanOrEqual(3);
+    expect(geometry.tableWidth - geometry.barWidth).toBeLessThanOrEqual(4);
+
+    await page.mouse.up();
+    await expect(page.getByTestId("drop-slot")).toHaveCount(0);
+    await expect(empty.locator('[data-item-name="Photography shortlist"]')).toBeVisible({ timeout: 20_000 });
+  });
+
   test("filters by owner and by search", async ({ page }) => {
     await page.getByTestId("person-filter").click();
     await page.getByRole("button", { name: "Duc Tran" }).click();

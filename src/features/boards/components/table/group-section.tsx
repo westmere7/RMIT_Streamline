@@ -36,9 +36,31 @@ export interface GroupSectionProps {
   dndEnabled: boolean;
   widthOverrides: Record<string, number>;
   onWidthOverride: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  /** An item is being dragged somewhere on the board. */
+  draggingItem?: boolean;
+  /**
+   * Row index the dragged item would land at in this group, or null when the
+   * pointer is elsewhere. The group the drag started in passes null: dnd-kit
+   * already opens a gap there.
+   */
+  dropIndex?: number | null;
 }
 
-export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverride }: GroupSectionProps) {
+/**
+ * Where the dragged item will land. Drawn as a line in the group's colour across
+ * the whole table, in a zero-height wrapper so no row moves when it appears —
+ * shifting rows was the laggy part, and a line reads more clearly anyway.
+ */
+function DropLine({ color }: { color: BoardGroup["color"] }) {
+  const colors = colorClasses(color);
+  return (
+    <div className="relative z-[5] h-0" data-testid="drop-slot" aria-hidden>
+      <div className={cn("absolute inset-x-0 -top-[2px] h-[3px] rounded-full", colors.dot)} />
+    </div>
+  );
+}
+
+export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverride, draggingItem = false, dropIndex = null }: GroupSectionProps) {
   const { board, model, mutations, canEdit } = useBoardContext();
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
@@ -178,7 +200,14 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
       </ContextMenu>
 
       {!group.collapsed && (
-        <div role="grid" aria-label={`${group.name} items`} className="border-t border-border/60">
+        <div
+          role="grid"
+          aria-label={`${group.name} items`}
+          /* No overflow-hidden: it would become the scrollport and unpin the frozen
+             first column. Rows share the panel background, so square corners
+             behind the rounded border are invisible. */
+          className="rounded-xl border border-border/60 bg-background shadow-xs"
+        >
           <ColumnHeaderRow
             group={group}
             allSelected={allSelected}
@@ -188,17 +217,24 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
             onWidthOverride={onWidthOverride}
           />
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {items.map((item) => (
-              <ItemRow key={item.id} item={item} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} />
+            {items.map((item, index) => (
+              <React.Fragment key={item.id}>
+                {dropIndex === index && <DropLine color={group.color} />}
+                <ItemRow item={item} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} />
+              </React.Fragment>
             ))}
           </SortableContext>
-          {items.length === 0 && !canEdit && (
+          {/* Landing at the end, and the only line an empty group can show. */}
+          {dropIndex !== null && dropIndex >= items.length && <DropLine color={group.color} />}
+          {items.length === 0 && !canEdit && dropIndex === null && (
             <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth() }}>
               This group is empty.
             </div>
           )}
-          <div ref={setDropRef} className={cn(isOver && "bg-accent-soft/50")}>
-            {canEdit && <AddItemRow group={group} emptyHint={items.length === 0} widthOverrides={widthOverrides} />}
+          {/* While an item is in flight this strip is the drop zone, so it needs
+              a target even in a group with no rows and no add-item row. */}
+          <div ref={setDropRef} className={cn(draggingItem && "min-h-10", isOver && dropIndex === null && "bg-accent-soft/40")}>
+            {canEdit && <AddItemRow group={group} emptyHint={items.length === 0 && dropIndex === null} widthOverrides={widthOverrides} />}
           </div>
         </div>
       )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
@@ -45,7 +44,9 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   const colors = colorClasses(group.color);
 
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+  // `transform`/`transition` are deliberately unused: a drop line marks the
+  // landing position instead of shifting every row (see GroupSection).
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useSortable({
     id: item.id,
     data: { type: "item", itemId: item.id, groupId: group.id },
     disabled: !dndEnabled,
@@ -100,7 +101,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         <ContextMenuTrigger asChild>
           <div
             ref={setNodeRef}
-            style={{ transform: CSS.Transform.toString(transform), transition, height: TABLE_LAYOUT.rowHeight }}
+            style={{ height: TABLE_LAYOUT.rowHeight }}
             role="row"
             aria-selected={selected}
             aria-current={viewing ? "true" : undefined}

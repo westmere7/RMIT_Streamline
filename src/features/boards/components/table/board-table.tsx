@@ -10,6 +10,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
@@ -27,6 +28,12 @@ import { GroupSection } from "./group-section";
 
 export type DragData = { type: "group"; groupId: string } | { type: "item"; itemId: string; groupId: string } | { type: "group-drop"; groupId: string };
 
+/** Where the dragged item would land: which group, and at which index within it. */
+export interface DropTarget {
+  groupId: string;
+  index: number;
+}
+
 const collisionDetection: CollisionDetection = (args) => {
   const activeType = (args.active.data.current as DragData | undefined)?.type;
   const containers = args.droppableContainers.filter((c) => {
@@ -42,6 +49,7 @@ export function BoardTable() {
   const clearFilters = useBoardUiStore((s) => s.clearFilters);
   const setSearch = useBoardUiStore((s) => s.setSearch);
   const [activeDrag, setActiveDrag] = React.useState<DragData | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null);
   const [widthOverrides, setWidthOverrides] = React.useState<Record<string, number>>({});
 
   const sensors = useSensors(
@@ -56,8 +64,36 @@ export function BoardTable() {
     setActiveDrag((event.active.data.current as DragData | undefined) ?? null);
   };
 
+  /**
+   * Tracks the landing slot while dragging. Each group is its own
+   * SortableContext, so dnd-kit only opens a gap in the group the item came
+   * from; every other group — including an empty one — needs the slot drawn
+   * explicitly (see GroupSection's `dropIndex`).
+   */
+  const onDragOver = (event: DragOverEvent) => {
+    const activeData = event.active.data.current as DragData | undefined;
+    const overData = event.over?.data.current as DragData | undefined;
+    if (!activeData || activeData.type !== "item" || !overData) {
+      setDropTarget(null);
+      return;
+    }
+    if (overData.type === "item") {
+      const groupItems = model.itemsByGroup.get(overData.groupId) ?? [];
+      const index = groupItems.findIndex((i) => i.id === overData.itemId);
+      setDropTarget({ groupId: overData.groupId, index: index === -1 ? groupItems.length : index });
+      return;
+    }
+    if (overData.type === "group-drop") {
+      // The strip under the last row: the item goes to the end of that group.
+      setDropTarget({ groupId: overData.groupId, index: (model.itemsByGroup.get(overData.groupId) ?? []).length });
+      return;
+    }
+    setDropTarget(null);
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     setActiveDrag(null);
+    setDropTarget(null);
     const { active, over } = event;
     if (!over) return;
     const activeData = active.data.current as DragData | undefined;
@@ -106,13 +142,32 @@ export function BoardTable() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="scrollbar-thin flex-1 overflow-auto pl-6" data-testid="board-table">
+      <div className="scrollbar-thin flex-1 overflow-auto bg-surface pl-6" data-testid="board-table">
         <CellStretchProvider>
           <div style={{ minWidth: width }} className="pb-24">
-            <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)} modifiers={[restrictToVerticalAxis]}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={collisionDetection}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragEnd={onDragEnd}
+              onDragCancel={() => {
+                setActiveDrag(null);
+                setDropTarget(null);
+              }}
+              modifiers={[restrictToVerticalAxis]}
+            >
               <SortableContext items={model.groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
                 {model.groups.map((group) => (
-                  <GroupSection key={group.id} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} onWidthOverride={setWidthOverrides} />
+                  <GroupSection
+                    key={group.id}
+                    group={group}
+                    dndEnabled={dndEnabled}
+                    widthOverrides={widthOverrides}
+                    onWidthOverride={setWidthOverrides}
+                    draggingItem={activeDrag?.type === "item"}
+                    dropIndex={activeDrag?.type === "item" && dropTarget?.groupId === group.id ? dropTarget.index : null}
+                  />
                 ))}
               </SortableContext>
               <DragOverlay dropAnimation={null}>
