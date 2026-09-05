@@ -428,6 +428,7 @@ export interface CommentRow {
   author_id: string;
   body: string;
   mention_user_ids: string[];
+  shared_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -439,6 +440,7 @@ export function toComment(row: CommentRow): Comment {
     authorId: row.author_id,
     body: row.body,
     mentionUserIds: row.mention_user_ids ?? [],
+    sharedId: row.shared_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -1067,7 +1067,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
   const { trackers, trackerSheets } = buildDemoTracker({ workspaceId: workspace.id, teamId: SEED_TEAM_IDS.campaigns, createdBy: SEED_USER_IDS.joanne, now, idFor: () => sid("tracker") });
 
   // ---- Comments -------------------------------------------------------------
-  const comments: Comment[] = [
+  const comments: Comment[] = ([
     { id: sid("comment"), itemId: itemId("masterclass", "Masterclass landing page hero"), authorId: SEED_USER_IDS.emily, body: "@Danh Nguyen can you check the crop on the hero for the Vietnam version? The speaker's name is being cut off at 1280px.", mentionUserIds: [SEED_USER_IDS.danh], createdAt: iso(subHours(now, 4)), updatedAt: iso(subHours(now, 4)) },
     { id: sid("comment"), itemId: itemId("masterclass", "Masterclass landing page hero"), authorId: SEED_USER_IDS.hil, body: "Still blocked on the approved photography from Melbourne. Using placeholders for now so we can review layout.", mentionUserIds: [], createdAt: iso(subHours(now, 5)), updatedAt: iso(subHours(now, 5)) },
     { id: sid("comment"), itemId: itemId("rmitinerary", "Review stakeholder feedback"), authorId: SEED_USER_IDS.joanne, body: "Student Recruitment want the High Achiever spread to lead with the scholarship pathway. I've added their notes to the shared folder.", mentionUserIds: [], createdAt: iso(subHours(now, 22)), updatedAt: iso(subHours(now, 22)) },
@@ -1080,7 +1080,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("comment"), itemId: itemId("website", "Masterclass registration form"), authorId: SEED_USER_IDS.ravi, body: "Root cause found: the CRM rejects +84 numbers with spaces. Normalising on submit. @Hil Pham can you retest the Vietnam flow after the deploy?", mentionUserIds: [SEED_USER_IDS.hil], createdAt: iso(subHours(now, 3)), updatedAt: iso(subHours(now, 3)) },
     { id: sid("comment"), itemId: itemId("video", "Hero film – colour grade"), authorId: SEED_USER_IDS.emily, body: "Loving the warmer look on the campus exteriors. Interviews still feel a touch green.", mentionUserIds: [], createdAt: iso(subHours(now, 9)), updatedAt: iso(subHours(now, 9)) },
     { id: sid("comment"), itemId: itemId("brand", "Co-branding guidance for partners"), authorId: SEED_USER_IDS.ben, body: "From the agency side this reads well. One request: a minimum size rule for the partner logo when the lockup is stacked.", mentionUserIds: [], createdAt: iso(subDays(now, 1)), updatedAt: iso(subDays(now, 1)) },
-  ];
+  ] as Array<Omit<Comment, "sharedId">>).map((c) => ({ ...c, sharedId: null }));
   for (const c of comments) {
     activities.push({
       id: sid("activity"),

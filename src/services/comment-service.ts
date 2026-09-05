@@ -1,6 +1,8 @@
 import type { Comment, EntityId, User } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import { newId } from "@/lib/ids";
+import { richTextToPlain } from "@/lib/rich-text";
 import { truncate } from "@/lib/utils";
 import type { ItemLinkService } from "./item-link-service";
 import { NotificationService } from "./notification-service";
@@ -46,7 +48,15 @@ export class CommentService {
     if (!item) throw new NotFoundError("Item", itemId);
     const board = await this.repos.boards.getById(item.boardId);
     const mentionUserIds = extractMentions(trimmed, users);
-    const comment = await this.repos.comments.create({ itemId, authorId: actorId, body: trimmed, mentionUserIds });
+
+    // Copies posted to linked items in one action share an id, which is how an
+    // edit later finds them and how the update says it lives on more than one
+    // task. It is only assigned when there is actually somewhere else to post.
+    const linkedIds = options.alsoLinked && this.links ? await this.links.connectedItemIds(itemId) : [];
+    const linkedItems = linkedIds.length ? await this.repos.items.listByIds(linkedIds) : [];
+    const sharedId = linkedItems.length ? newId() : null;
+
+    const comment = await this.repos.comments.create({ itemId, authorId: actorId, body: trimmed, mentionUserIds, sharedId });
 
     const activities = [
       {
@@ -59,10 +69,9 @@ export class CommentService {
       },
     ];
 
-    if (options.alsoLinked && this.links) {
-      const linkedIds = await this.links.connectedItemIds(itemId);
-      for (const linked of await this.repos.items.listByIds(linkedIds)) {
-        await this.repos.comments.create({ itemId: linked.id, authorId: actorId, body: trimmed, mentionUserIds });
+    if (linkedItems.length) {
+      for (const linked of linkedItems) {
+        await this.repos.comments.create({ itemId: linked.id, authorId: actorId, body: trimmed, mentionUserIds, sharedId });
         activities.push({
           workspaceId: board?.workspaceId ?? "",
           boardId: linked.boardId,
@@ -86,7 +95,7 @@ export class CommentService {
           userId,
           type: "MENTION" as const,
           title: `${actorName} mentioned you in ${item.name}`,
-          body: truncate(trimmed, 140),
+          body: truncate(richTextToPlain(trimmed), 140),
           entityType: "ITEM" as const,
           entityId: itemId,
           boardId: item.boardId,
@@ -97,10 +106,21 @@ export class CommentService {
     return comment;
   }
 
+  /**
+   * Edits an update — and every copy of it. An update posted to linked tasks is
+   * one thing said once, so changing it on one task and leaving a stale copy on
+   * the other would be worse than not offering the edit at all.
+   */
   async editComment(commentId: EntityId, body: string, users: readonly User[]): Promise<Comment> {
     const trimmed = body.trim();
     if (!trimmed) throw new Error("Comment cannot be empty");
-    return this.repos.comments.update(commentId, { body: trimmed, mentionUserIds: extractMentions(trimmed, users) });
+    const patch = { body: trimmed, mentionUserIds: extractMentions(trimmed, users) };
+    const updated = await this.repos.comments.update(commentId, patch);
+    if (!updated.sharedId) return updated;
+
+    const copies = await this.repos.comments.listBySharedId(updated.sharedId);
+    await Promise.all(copies.filter((copy) => copy.id !== updated.id).map((copy) => this.repos.comments.update(copy.id, patch)));
+    return updated;
   }
 
   deleteComment(commentId: EntityId): Promise<void> {

@@ -39,6 +39,11 @@ export interface ColumnMappingReport {
 const LONE_MATCH_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "FILES"]);
 
 const norm = (name: string): string => name.trim().toLowerCase();
+
+/** Two column names that the mapping treats as the same header. */
+export function sameColumnName(a: string, b: string): boolean {
+  return norm(a) === norm(b);
+}
 const isText = (type: ColumnType): boolean => type === "TEXT" || type === "LONG_TEXT";
 
 /** Same type, or text/long text which share a text payload. */

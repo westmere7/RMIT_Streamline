@@ -42,7 +42,7 @@ export function useCommentMutations(itemId: string) {
     onMutate: async ({ body }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<Comment[]>(key);
-      const temp: Comment = { id: newId(), itemId, authorId: user.id, body, mentionUserIds: [], createdAt: nowIso(), updatedAt: nowIso() };
+      const temp: Comment = { id: newId(), itemId, authorId: user.id, body, mentionUserIds: [], sharedId: null, createdAt: nowIso(), updatedAt: nowIso() };
       queryClient.setQueryData<Comment[]>(key, (old = []) => [...old, temp]);
       return { previous };
     },

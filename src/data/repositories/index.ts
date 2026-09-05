@@ -159,6 +159,8 @@ export interface TrackerRepository {
 
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
+  /** Every copy of one update, including the one it was posted from. */
+  listBySharedId(sharedId: EntityId): Promise<Comment[]>;
   create(input: CommentInput): Promise<Comment>;
   update(id: EntityId, patch: Pick<Comment, "body" | "mentionUserIds">): Promise<Comment>;
   delete(id: EntityId): Promise<void>;

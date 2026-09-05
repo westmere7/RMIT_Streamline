@@ -1,37 +1,21 @@
 "use client";
 
-import { AtSign, Link2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
+import { Link2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
+import { RichText } from "@/components/shared/rich-text";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { Comment } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
-import { cn } from "@/lib/utils";
-
-/** Renders @Full Name mentions as highlighted chips. */
-function renderBody(body: string, names: string[]): React.ReactNode {
-  if (names.length === 0) return body;
-  const pattern = new RegExp(`(@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))`, "g");
-  return body.split(pattern).map((part, i) =>
-    part.startsWith("@") && names.includes(part.slice(1)) ? (
-      <span key={i} className="rounded bg-blue-50 px-1 font-medium text-blue-700 dark:bg-navy-500/40 dark:text-navy-100">
-        {part}
-      </span>
-    ) : (
-      <React.Fragment key={i}>{part}</React.Fragment>
-    ),
-  );
-}
 
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
@@ -42,27 +26,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   // Default on: if a task is linked, an update usually concerns both sides.
   const [alsoLinked, setAlsoLinked] = React.useState(true);
   const [draft, setDraft] = React.useState("");
-  const [mentionOpen, setMentionOpen] = React.useState(false);
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
-
-  const insertMention = (name: string) => {
-    const el = textareaRef.current;
-    const insertion = `@${name} `;
-    if (!el) {
-      setDraft((d) => d + insertion);
-      return;
-    }
-    const start = el.selectionStart ?? draft.length;
-    const end = el.selectionEnd ?? draft.length;
-    const next = `${draft.slice(0, start)}${insertion}${draft.slice(end)}`;
-    setDraft(next);
-    setMentionOpen(false);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + insertion.length, start + insertion.length);
-    });
-  };
 
   const submit = () => {
     if (!draft.trim()) return;
@@ -83,60 +47,34 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
           <div className="flex gap-2.5">
             <UserAvatar user={ws.currentUser} size="md" tooltip={false} />
             <div className="min-w-0 flex-1 space-y-2">
-              <Textarea
-                ref={textareaRef}
+              <RichTextEditor
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    submit();
-                  }
-                }}
-                placeholder="Write an update… use @ to mention a teammate"
-                rows={3}
-                aria-label="New update"
-                data-testid="comment-input"
+                onChange={setDraft}
+                onSubmit={submit}
+                people={ws.users}
+                placeholder="Write an update… type @ to mention a teammate"
+                ariaLabel="New update"
+                testId="comment-input"
               />
-              <div className="flex items-center justify-between">
-                <Popover open={mentionOpen} onOpenChange={setMentionOpen}>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="ghost" size="sm" aria-label="Mention someone">
-                      <AtSign /> Mention
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-60 p-0">
-                    <Command>
-                      <CommandInput placeholder="Who?" autoFocus />
-                      <CommandList className="max-h-56">
-                        <CommandEmpty>No one found.</CommandEmpty>
-                        <CommandGroup>
-                          {ws.users
-                            .filter((u) => u.deactivatedAt === null)
-                            .map((u) => (
-                              <CommandItem key={u.id} value={u.displayName} onSelect={() => insertMention(u.displayName)}>
-                                <UserAvatar user={u} size="xs" tooltip={false} /> {u.displayName}
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <div className="flex items-center gap-2.5">
-                  {linkedCount > 0 && (
-                    <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground" title="Post this update on the linked task too">
-                      <Link2 className="size-3.5" />
-                      <span className="hidden sm:inline">Post to {linkedCount === 1 ? "linked task" : `${linkedCount} linked tasks`}</span>
-                      <span className="sm:hidden">Linked</span>
-                      <Switch checked={alsoLinked} onCheckedChange={setAlsoLinked} aria-label="Also post this update to linked tasks" data-testid="comment-also-linked" />
-                    </label>
-                  )}
-                  <span className="text-2xs text-muted-foreground">Ctrl/⌘ + Enter</span>
-                  <Button type="submit" size="sm" disabled={!draft.trim() || add.isPending} data-testid="comment-submit">
-                    <Send /> Update
-                  </Button>
-                </div>
+              <div className="flex flex-wrap items-center justify-end gap-2.5">
+                {linkedCount > 0 && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground" title="Post this update on the linked task too">
+                    <Link2 className="size-3.5" />
+                    <span className="hidden sm:inline">Post to {linkedCount === 1 ? "linked task" : `${linkedCount} linked tasks`}</span>
+                    <span className="sm:hidden">Linked</span>
+                    <Switch
+                      size="sm"
+                      checked={alsoLinked}
+                      onCheckedChange={setAlsoLinked}
+                      aria-label="Also post this update to linked tasks"
+                      data-testid="comment-also-linked"
+                    />
+                  </label>
+                )}
+                <span className="text-2xs text-muted-foreground">Ctrl/⌘ + Enter</span>
+                <Button type="submit" size="sm" disabled={!draft.trim() || add.isPending} data-testid="comment-submit">
+                  <Send /> Update
+                </Button>
               </div>
             </div>
           </div>
@@ -151,7 +89,13 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
         {comments.data && comments.data.length === 0 && <EmptyState icon={MessageSquare} title="No updates yet" description="Post the first update to start the conversation." compact />}
         <ul className="space-y-4">
           {[...(comments.data ?? [])].reverse().map((comment) => (
-            <CommentItem key={comment.id} comment={comment} names={names} onEdit={(body) => edit.mutate({ id: comment.id, body })} onDelete={() => remove.mutate(comment.id)} />
+            <CommentItem
+              key={comment.id}
+              comment={comment}
+              names={names}
+              onEdit={(body) => edit.mutate({ id: comment.id, body })}
+              onDelete={() => remove.mutate(comment.id)}
+            />
           ))}
         </ul>
       </div>
@@ -173,6 +117,16 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
           <span className="font-medium">{author?.displayName ?? "Unknown"}</span>
           <RelativeTime iso={comment.createdAt} className="text-2xs text-muted-foreground" />
           {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
+          {comment.sharedId && (
+            <SimpleTooltip label="Posted on the linked task as well — editing changes both">
+              <span
+                className="flex items-center gap-1 rounded-full bg-surface-strong px-1.5 py-0.5 text-2xs font-medium text-muted-foreground"
+                data-testid="comment-linked-badge"
+              >
+                <Link2 className="size-3" /> Linked
+              </span>
+            </SimpleTooltip>
+          )}
           <span className="ml-auto flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100">
             {canEditComment(ws.permissions, comment) && (
               <Button variant="ghost" size="icon-xs" aria-label="Edit update" onClick={() => setEditing(true)}>
@@ -195,7 +149,18 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
               setEditing(false);
             }}
           >
-            <Textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} aria-label="Edit update" />
+            <RichTextEditor
+              value={draft}
+              onChange={setDraft}
+              onSubmit={() => {
+                if (draft.trim()) onEdit(draft.trim());
+                setEditing(false);
+              }}
+              people={ws.users}
+              ariaLabel="Edit update"
+              testId="comment-edit-input"
+              autoFocus
+            />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
                 Cancel
@@ -206,7 +171,7 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
             </div>
           </form>
         ) : (
-          <p className={cn("mt-0.5 whitespace-pre-wrap text-[13px] leading-relaxed")}>{renderBody(comment.body, names)}</p>
+          <RichText body={comment.body} mentionNames={names} className="mt-0.5 leading-relaxed" />
         )}
       </div>
     </li>
