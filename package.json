@@ -17,7 +17,8 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "tsx scripts/db-seed.mts",
     "db:setup": "node scripts/db-setup.mjs",
-    "test:e2e:supabase": "node scripts/e2e-supabase.mjs"
+    "test:e2e:supabase": "node scripts/e2e-supabase.mjs",
+    "test:e2e:deployment": "playwright test --config playwright.deployment.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
