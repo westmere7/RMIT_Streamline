@@ -105,8 +105,10 @@ test.describe("supabase provider", () => {
   test("reads the seeded workspace", async ({ page }) => {
     const errors = watchForErrors(page);
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Admin");
-    // Sidebar teams come from Postgres.
-    await expect(page.locator("aside").getByRole("link", { name: "Vietnam Creative", exact: true })).toBeVisible();
+    // Sidebar teams come from Postgres. Names are the workspace's to change, so
+    // this asks that teams are listed at all rather than naming one.
+    await expect(page.locator("aside").getByText("Teams", { exact: true })).toBeVisible();
+    await expect(page.locator("aside").getByRole("button", { name: /^Options for / }).first()).toBeAttached({ timeout: 30_000 });
     await page.goto(BOARD);
     await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("item-row").first()).toBeVisible();

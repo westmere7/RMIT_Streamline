@@ -19,7 +19,7 @@ import type {
   NotificationRepository,
 } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
-import { assertOk, db, NotSupportedError, unwrap, unwrapList } from "../client";
+import { assertOk, db, NotSupportedError, unwrap, unwrapList, unwrapMaybe } from "../client";
 import {
   toActivity,
   toComment,
@@ -173,7 +173,7 @@ export class SupabaseNotificationRepository implements NotificationRepository {
 export class SupabaseNotificationPreferencesRepository implements NotificationPreferencesRepository {
   async get(userId: string): Promise<NotificationPreferences | null> {
     const result = await db().from("notification_preferences").select(NOTIFICATION_PREFERENCES).eq("user_id", userId).maybeSingle();
-    const row = unwrap<NotificationPreferencesRow | null>(result, "notificationPreferences.get");
+    const row = unwrapMaybe<NotificationPreferencesRow>(result, "notificationPreferences.get");
     return row ? toNotificationPreferences(row) : null;
   }
 

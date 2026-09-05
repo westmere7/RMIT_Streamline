@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { Notification, NotificationPreferences, NotificationPreferencesInput, StoredDelivery, UnreadCounts } from "@/domain";
 import { countUnread, defaultNotificationPreferences } from "@/domain";
 import { useServices } from "@/features/data/data-context";
@@ -57,8 +58,9 @@ export function useNotificationPreferenceMutations(userId: string) {
       });
       return { previous };
     },
-    onError: (_error, _patch, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+    onError: (error, _patch, ctx) => {
+      queryClient.setQueryData(key, ctx?.previous);
+      toast.error("Could not save your notification settings", { description: error instanceof Error ? error.message : undefined });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
@@ -76,8 +78,9 @@ export function useNotificationPreferenceMutations(userId: string) {
       queryClient.setQueryData<NotificationPreferences>(key, { ...base, mutedBoardIds: [...muted] });
       return { previous };
     },
-    onError: (_error, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+    onError: (error, _vars, ctx) => {
+      queryClient.setQueryData(key, ctx?.previous);
+      toast.error("Could not change your subscription", { description: error instanceof Error ? error.message : undefined });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
