@@ -80,10 +80,12 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
             <div className="grid gap-1.5">
               <Label htmlFor="invite-first">First name</Label>
               <Input id="invite-first" {...form.register("firstName")} aria-invalid={!!form.formState.errors.firstName} />
+              {form.formState.errors.firstName && <p className="text-2xs text-destructive">{form.formState.errors.firstName.message}</p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="invite-last">Last name</Label>
               <Input id="invite-last" {...form.register("lastName")} aria-invalid={!!form.formState.errors.lastName} />
+              {form.formState.errors.lastName && <p className="text-2xs text-destructive">{form.formState.errors.lastName.message}</p>}
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

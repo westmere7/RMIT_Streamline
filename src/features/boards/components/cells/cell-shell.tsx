@@ -65,8 +65,10 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
   const close = React.useCallback(() => setOpen(false), []);
   const style = useCellStyle(width);
   if (disabled) {
+    // A read-only cell still says what it is: without the label a screen reader
+    // would read the value with no column or item to hang it on.
     return (
-      <CellShell width={width} interactive={false} align={align}>
+      <CellShell width={width} interactive={false} align={align} aria-label={ariaLabel} data-testid={testId}>
         {trigger}
       </CellShell>
     );

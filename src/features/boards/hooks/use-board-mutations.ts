@@ -12,6 +12,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { BoardSnapshot, CreateItemInput, MoveItemInput } from "@/services";
 
 type Updater = (snapshot: BoardSnapshot) => BoardSnapshot;
@@ -59,6 +60,8 @@ export function useBoardMutations(boardId: string) {
       const previous = queryClient.getQueryData<BoardSnapshot>(key);
       if (updater && previous) queryClient.setQueryData<BoardSnapshot>(key, updater(previous));
       pending.current += 1;
+      // Leaving now would cancel the write and lose the change silently.
+      const settled = beginUnsavedWork();
       try {
         const result = await action();
         if (reconcile) {
@@ -72,6 +75,7 @@ export function useBoardMutations(boardId: string) {
         toast.error(errorMessage, { description: error instanceof Error ? error.message : undefined });
         return undefined;
       } finally {
+        settled();
         pending.current -= 1;
         if (pending.current === 0) void invalidateRelated();
       }

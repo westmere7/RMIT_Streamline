@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -18,10 +19,11 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/lib/routes";
 
 const schema = z.object({
-  name: z.string().trim().min(1, "Give the team a name").max(60),
-  description: z.string().trim().max(200).optional(),
+  name: z.string().trim().min(1, "Give the team a name").max(60, "Keep the name under 60 characters"),
+  description: z.string().trim().max(200, "Keep the description under 200 characters").optional(),
   color: z.enum(COLOR_TOKENS as readonly [ColorToken, ...ColorToken[]]),
   icon: z.string(),
 });
@@ -40,6 +42,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
   const user = useCurrentUser();
   const services = useServices();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const editing = !!team;
 
   const form = useForm<FormValues>({
@@ -69,6 +72,9 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
       onOpenChange(false);
       toast.success(editing ? "Team updated" : `Team “${saved.name}” created`);
+      // Creating a board or a tracker opens it; a new team should behave the same
+      // way rather than leaving you on the page you started from.
+      if (!editing) router.push(routes.team(ws.slug, saved.id));
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save team"),
   });
@@ -88,7 +94,14 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="team-description">Description</Label>
-            <Textarea id="team-description" rows={2} placeholder="What does this team look after?" {...form.register("description")} />
+            <Textarea
+              id="team-description"
+              rows={2}
+              placeholder="What does this team look after?"
+              {...form.register("description")}
+              aria-invalid={!!form.formState.errors.description}
+            />
+            {form.formState.errors.description && <p className="text-2xs text-destructive">{form.formState.errors.description.message}</p>}
           </div>
           <div className="grid gap-1.5">
             <Label>Colour</Label>

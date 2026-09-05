@@ -9,6 +9,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { CreateTrackerInput } from "@/services";
 
 export function useTrackers() {
@@ -141,6 +142,7 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
   // mutable object (never replaced) keeps them out of React's render cycle.
   const [store] = React.useState<{ past: TrackerSheet[]; future: TrackerSheet[]; dirty: boolean }>(() => ({ past: [], future: [], dirty: false }));
   const timer = React.useRef<number | null>(null);
+  const pendingSave = React.useRef<(() => void) | null>(null);
   const [saving, setSaving] = React.useState<"idle" | "pending" | "saving" | "error">("idle");
 
   // A newer server copy (another tab saved) replaces the local one while nothing
@@ -154,6 +156,10 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
     (next: TrackerSheet) => {
       if (timer.current) window.clearTimeout(timer.current);
       setSaving("pending");
+      // The sheet waits for typing to stop before it saves, so an edit is only
+      // in memory for up to a second: hold the unload guard for that whole time.
+      const settled = pendingSave.current ?? beginUnsavedWork();
+      pendingSave.current = settled;
       timer.current = window.setTimeout(async () => {
         setSaving("saving");
         try {
@@ -165,6 +171,9 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
         } catch (error) {
           setSaving("error");
           toast.error("Could not save the sheet", { description: error instanceof Error ? error.message : undefined });
+        } finally {
+          pendingSave.current = null;
+          settled();
         }
       }, 600);
     },
