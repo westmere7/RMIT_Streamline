@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, Search, UserPlus, Users } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ import { InviteMemberDialog } from "@/features/members/components/invite-member-
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageMembers } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<WorkspaceRole, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member", GUEST: "Guest" };
@@ -144,13 +146,13 @@ function MemberRow({ member, user, manage }: { member: WorkspaceMember; user: Us
   return (
     <tr className={cn("h-11 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground")}>
       <td className="px-3">
-        <span className="flex items-center gap-2">
+        <Link href={routes.person(ws.slug, user.id)} className="flex items-center gap-2 hover:underline" data-testid="member-profile-link">
           <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status === "DEACTIVATED" && "opacity-50")} />
           <span className="font-medium">
             {user.displayName}
             {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
           </span>
-        </span>
+        </Link>
       </td>
       <td className="px-3 text-muted-foreground">{user.email}</td>
       <td className="px-3">{user.jobTitle ?? "—"}</td>

@@ -18,6 +18,9 @@ const ADMIN_PASSWORD = process.env.E2E_PASSWORD ?? "admin123";
 const BOARD = "/workspace/rmit/boards/rmitinerary-2026";
 /** Unique per run so a failed run never collides with the next one. */
 const RUN = `smoke-${Date.now().toString(36)}`;
+/** Fixed seed ids (src/data/seed/seed-data.ts). */
+const EMILY_ID = "00000001-0000-4000-8000-000000000002";
+const ADMIN_ID = "00000001-0000-4000-8000-000000000019";
 
 test.skip(PROVIDER !== "supabase", "Supabase audit; set E2E_PROVIDER=supabase to run");
 test.describe.configure({ mode: "serial" });
@@ -345,6 +348,120 @@ test.describe("supabase provider", () => {
     await page.keyboard.press("Control+f");
     await page.getByPlaceholder(/Search/).first().fill("Explorer");
     await expect(page.getByText("RMITinerary Explorer").first()).toBeVisible({ timeout: 20_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test("opens a person's profile from the members list", async ({ page }) => {
+    const errors = watchForErrors(page);
+    await page.goto("/workspace/rmit/members");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Members", { timeout: 30_000 });
+
+    await page.getByTestId("member-profile-link").filter({ hasText: "Emily Carter" }).click();
+    await expect(page.getByTestId("profile-name")).toHaveText("Emily Carter", { timeout: 30_000 });
+    // Contact details, and the three things a profile is for.
+    await expect(page.getByText("emily@rmit.local")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Teams/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Boards/ })).toBeVisible();
+    await expect(page.getByTestId("profile-task").first()).toBeVisible({ timeout: 20_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test("edits contact details on a profile", async ({ page }) => {
+    const errors = watchForErrors(page);
+    await page.goto(`/workspace/rmit/people/${EMILY_ID}`);
+    await expect(page.getByTestId("profile-name")).toBeVisible({ timeout: 30_000 });
+
+    const title = `Creative Lead ${RUN}`;
+    await page.getByTestId("profile-edit").click();
+    await expect(page.getByTestId("edit-profile-dialog")).toBeVisible({ timeout: 10_000 });
+    await page.getByLabel("Job title").fill(title);
+    await expectWrite(page, "profiles", "PATCH", async () => {
+      await page.getByTestId("profile-save").click();
+    });
+    await expect(page.getByText(title)).toBeVisible({ timeout: 20_000 });
+
+    // Stored, not just cached.
+    await page.reload();
+    await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
+
+    // Put it back.
+    await page.getByTestId("profile-edit").click();
+    await page.getByLabel("Job title").fill("Creative Lead");
+    await expectWrite(page, "profiles", "PATCH", async () => {
+      await page.getByTestId("profile-save").click();
+    });
+    expect(errors).toEqual([]);
+  });
+
+  test("converts an uploaded avatar to WebP and stores it", async ({ page }) => {
+    const errors = watchForErrors(page);
+    await page.goto(`/workspace/rmit/people/${ADMIN_ID}`);
+    await expect(page.getByTestId("profile-name")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("profile-edit").click();
+    await expect(page.getByTestId("edit-profile-dialog")).toBeVisible({ timeout: 10_000 });
+
+    // A real 512x512 PNG drawn in the page, so the test covers the downscale to
+    // 256 and the WebP re-encode, not just the upload call.
+    const [upload] = await Promise.all([
+      page.waitForRequest((r) => r.url().includes("/storage/v1/object/") && r.method() !== "GET", { timeout: 30_000 }),
+      page.evaluate(async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const context = canvas.getContext("2d")!;
+        context.fillStyle = "#e61e2b";
+        context.fillRect(0, 0, 512, 512);
+        context.fillStyle = "#ffffff";
+        context.fillRect(128, 128, 256, 256);
+        const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+        const input = document.querySelector('[data-testid="avatar-input"]') as HTMLInputElement;
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([png!], "avatar.png", { type: "image/png" }));
+        input.files = transfer.files;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }),
+    ]);
+    // Stored in the avatars bucket, as a .webp file, and small: the source PNG is
+    // 512x512 while what leaves the browser is a 256px WebP.
+    expect(upload.url()).toContain("avatars");
+    expect(upload.url()).toContain("avatar.webp");
+    expect(upload.postDataBuffer()?.byteLength ?? 0).toBeLessThan(30_000);
+
+    // The profile now points at the stored WebP.
+    const avatar = page.getByTestId("edit-profile-dialog").locator("img").first();
+    await expect(avatar).toHaveAttribute("src", /\.webp/, { timeout: 30_000 });
+
+    // Clean up so the demo workspace looks untouched.
+    await page.getByRole("button", { name: "Remove photo" }).click();
+    await expect(page.getByTestId("edit-profile-dialog").locator("img")).toHaveCount(0, { timeout: 20_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test("sends a direct message and reads it back", async ({ page }) => {
+    const errors = watchForErrors(page);
+    await page.goto(`/workspace/rmit/messages?to=${EMILY_ID}`);
+    await expect(page.getByTestId("message-thread")).toBeVisible({ timeout: 30_000 });
+
+    const body = `${RUN} direct message`;
+    await page.getByTestId("message-input").fill(body);
+    await expectWrite(page, "direct_messages", "POST", async () => {
+      await page.getByTestId("message-send").click();
+    });
+    await expect(page.getByTestId("message-bubble").filter({ hasText: body })).toBeVisible({ timeout: 20_000 });
+
+    // In the database, not just the cache.
+    await page.reload();
+    await expect(page.getByTestId("message-bubble").filter({ hasText: body })).toBeVisible({ timeout: 30_000 });
+
+    // The conversation is now at the top of the people list.
+    await expect(page.getByTestId("message-person").first()).toContainText("Emily Carter");
+
+    // Unsend it, which also leaves the workspace as it was found.
+    await page.getByTestId("message-bubble").filter({ hasText: body }).hover();
+    await expectWrite(page, "direct_messages", "DELETE", async () => {
+      await page.getByRole("button", { name: "Delete message" }).last().click();
+    });
+    await expect(page.getByTestId("message-bubble").filter({ hasText: body })).toHaveCount(0, { timeout: 20_000 });
     expect(errors).toEqual([]);
   });
 });

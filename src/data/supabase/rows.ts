@@ -15,6 +15,7 @@ import type {
   ColumnType,
   ColumnValue,
   Comment,
+  DirectMessage,
   Item,
   ItemColumnValue,
   ItemLink,
@@ -437,6 +438,28 @@ export function toComment(row: CommentRow): Comment {
     mentionUserIds: row.mention_user_ids ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export interface DirectMessageRow {
+  id: string;
+  workspace_id: string;
+  sender_id: string;
+  recipient_id: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export function toDirectMessage(row: DirectMessageRow): DirectMessage {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    body: row.body,
+    readAt: row.read_at,
+    createdAt: row.created_at,
   };
 }
 

@@ -6,6 +6,7 @@ import { LocalBoardRepository } from "./repositories/board-repository";
 import { LocalCommentRepository } from "./repositories/comment-repository";
 import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
+import { LocalMessageRepository } from "./repositories/message-repository";
 import { LocalNotificationRepository } from "./repositories/notification-repository";
 import { LocalTeamRepository } from "./repositories/team-repository";
 import { LocalTrackerRepository } from "./repositories/tracker-repository";
@@ -33,6 +34,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     links: new LocalItemLinkRepository(connection),
     trackers: new LocalTrackerRepository(connection),
     comments: new LocalCommentRepository(connection),
+    messages: new LocalMessageRepository(connection),
     activities: new LocalActivityRepository(connection),
     notifications: new LocalNotificationRepository(connection),
     admin: new LocalAdminRepository(connection),

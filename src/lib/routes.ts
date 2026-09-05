@@ -7,6 +7,8 @@ export const routes = {
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
   inbox: (slug: string) => `/workspace/${slug}/inbox`,
   members: (slug: string) => `/workspace/${slug}/members`,
+  person: (slug: string, userId: string) => `/workspace/${slug}/people/${userId}`,
+  messages: (slug: string, withUserId?: string | null) => `/workspace/${slug}/messages${withUserId ? `?to=${withUserId}` : ""}`,
   settings: (slug: string, section?: string) => `/workspace/${slug}/settings${section ? `?section=${section}` : ""}`,
   team: (slug: string, teamId: string) => `/workspace/${slug}/teams/${teamId}`,
   trackers: (slug: string) => `/workspace/${slug}/trackers`,

@@ -12,6 +12,8 @@ import type {
   ColumnValue,
   Comment,
   CommentInput,
+  DirectMessage,
+  DirectMessageInput,
   EntityId,
   Item,
   ItemColumnValue,
@@ -158,6 +160,17 @@ export interface CommentRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+export interface MessageRepository {
+  /** Every message between two people, oldest first. */
+  listThread(workspaceId: EntityId, userId: EntityId, otherUserId: EntityId): Promise<DirectMessage[]>;
+  /** Every message the user sent or received in the workspace, newest first. */
+  listForUser(workspaceId: EntityId, userId: EntityId): Promise<DirectMessage[]>;
+  create(input: DirectMessageInput): Promise<DirectMessage>;
+  /** Marks everything the user received from `otherUserId` as read. */
+  markThreadRead(workspaceId: EntityId, userId: EntityId, otherUserId: EntityId): Promise<void>;
+  delete(id: EntityId): Promise<void>;
+}
+
 export interface ActivityRepository {
   listByWorkspace(workspaceId: EntityId, limit: number): Promise<Activity[]>;
   listByBoard(boardId: EntityId, limit: number): Promise<Activity[]>;
@@ -210,6 +223,7 @@ export interface Repositories {
   links: ItemLinkRepository;
   trackers: TrackerRepository;
   comments: CommentRepository;
+  messages: MessageRepository;
   activities: ActivityRepository;
   notifications: NotificationRepository;
   admin: DataAdminRepository;

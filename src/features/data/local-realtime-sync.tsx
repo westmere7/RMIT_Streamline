@@ -25,6 +25,11 @@ export function LocalRealtimeSync() {
         invalidate(["activity"]);
         invalidate(["notifications"]);
       }
+      if (kinds.has("messages")) {
+        invalidate(["message-thread"]);
+        invalidate(["message-threads"]);
+        invalidate(["unread-messages"]);
+      }
       if (kinds.has("comments")) {
         invalidate(["comments"]);
         invalidate(["activity"]);

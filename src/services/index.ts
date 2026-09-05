@@ -3,7 +3,9 @@ import { BoardService } from "./board-service";
 import { CommentService } from "./comment-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
+import { MessageService } from "./message-service";
 import { MyWorkService } from "./my-work-service";
+import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
 import { WorkspaceService } from "./workspace-service";
@@ -15,6 +17,8 @@ export interface Services {
   items: ItemService;
   links: ItemLinkService;
   comments: CommentService;
+  messages: MessageService;
+  profiles: ProfileService;
   myWork: MyWorkService;
   search: SearchService;
   trackers: TrackerService;
@@ -22,6 +26,7 @@ export interface Services {
 
 export function createServices(repos: Repositories): Services {
   const links = new ItemLinkService(repos);
+  const myWork = new MyWorkService(repos);
   return {
     repos,
     workspace: new WorkspaceService(repos),
@@ -29,7 +34,9 @@ export function createServices(repos: Repositories): Services {
     items: new ItemService(repos, links),
     links,
     comments: new CommentService(repos, links),
-    myWork: new MyWorkService(repos),
+    messages: new MessageService(repos),
+    profiles: new ProfileService(repos, myWork),
+    myWork,
     search: new SearchService(repos),
     trackers: new TrackerService(repos),
   };
@@ -42,5 +49,7 @@ export type { ColumnMapping, ColumnMappingReport } from "./item-link-sync";
 export type { CellEdit, CreateTrackerInput } from "./tracker-service";
 export type { ImportedWorkbook } from "./tracker-xlsx";
 export type { MyWorkItem, MyWorkSection } from "./my-work-service";
+export type { DirectThreadView } from "./message-service";
+export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service";
 export type { SearchResults } from "./search-service";
 export type { WorkspaceContext, InviteMemberInput } from "./workspace-service";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Database, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, Wrench } from "lucide-react";
+import { ChevronsUpDown, Database, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -83,6 +83,9 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
             <span className="block text-2xs font-normal text-muted-foreground">{user.email}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => router.push(routes.person(ws.slug, user.id))} data-testid="menu-your-profile">
+            <UserRound /> Your profile
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
             <Settings /> Settings
           </DropdownMenuItem>

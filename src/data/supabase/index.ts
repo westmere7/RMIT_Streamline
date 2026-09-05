@@ -8,6 +8,7 @@ import {
   SupabaseCommentRepository,
   SupabaseNotificationRepository,
 } from "./repositories/misc-repositories";
+import { SupabaseMessageRepository } from "./repositories/message-repository";
 import { SupabaseTeamRepository } from "./repositories/team-repository";
 import { SupabaseTrackerRepository } from "./repositories/tracker-repository";
 import { SupabaseUserRepository } from "./repositories/user-repository";
@@ -35,6 +36,7 @@ export function createSupabaseRepositories(): Repositories {
     links: new SupabaseItemLinkRepository(),
     trackers: new SupabaseTrackerRepository(),
     comments: new SupabaseCommentRepository(),
+    messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),
     notifications: new SupabaseNotificationRepository(),
     admin: new SupabaseAdminRepository(),

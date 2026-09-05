@@ -7,6 +7,7 @@ import type {
   BoardGroup,
   BoardMember,
   Comment,
+  DirectMessage,
   Item,
   ItemColumnValue,
   ItemLink,
@@ -69,6 +70,11 @@ export interface StreamlineDB extends DBSchema {
     indexes: { byWorkspace: string; byBoard: string; byItem: string };
   };
   notifications: { key: string; value: Notification; indexes: { byUser: string } };
+  directMessages: {
+    key: string;
+    value: DirectMessage;
+    indexes: { bySender: string; byRecipient: string; byWorkspace: string };
+  };
   boardVisits: { key: string; value: BoardVisit; indexes: { byUser: string } };
   meta: { key: string; value: MetaRecord };
 }
@@ -94,13 +100,14 @@ export const ALL_STORES: StoreName[] = [
   "comments",
   "activities",
   "notifications",
+  "directMessages",
   "boardVisits",
   "meta",
 ];
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -187,11 +194,21 @@ function createTrackerStores(db: IDBPDatabase<StreamlineDB>): void {
   }
 }
 
+/** v4: direct messages between two people. */
+function createDirectMessageStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("directMessages")) return;
+  const messages = db.createObjectStore("directMessages", { keyPath: "id" });
+  messages.createIndex("bySender", "senderId");
+  messages.createIndex("byRecipient", "recipientId");
+  messages.createIndex("byWorkspace", "workspaceId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
   if (oldVersion < 2) createItemLinksStore(db);
   if (oldVersion < 3) createTrackerStores(db);
+  if (oldVersion < 4) createDirectMessageStore(db);
 }
 
 export interface OpenDatabaseOptions {
