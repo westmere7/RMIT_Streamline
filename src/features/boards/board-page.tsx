@@ -31,7 +31,7 @@ import { ItemDetailPanel } from "@/features/items/item-detail-panel";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
-import { readRememberedView, rememberView, useBoardUi } from "@/stores/board-ui-store";
+import { readRememberedView, rememberView, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
@@ -91,7 +91,11 @@ function BoardScreen({ boardId }: { boardId: string }) {
 
   const replaceParams = React.useCallback(
     (patch: Record<string, string | null>) => {
-      const next = new URLSearchParams(searchParams.toString());
+      // Read the query at call time rather than closing over `searchParams`:
+      // depending on it made this callback — and with it the board context —
+      // change on every navigation, which re-rendered every row and cell on the
+      // board each time the detail panel opened.
+      const next = new URLSearchParams(window.location.search);
       for (const [k, v] of Object.entries(patch)) {
         if (v === null || v === "" || (k === "view" && v === "table")) next.delete(k);
         else next.set(k, v);
@@ -99,7 +103,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
       const query = next.toString();
       router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
     },
-    [router, pathname, searchParams],
+    [router, pathname],
   );
 
   const setView = (next: BoardViewKind) => {
@@ -108,6 +112,14 @@ function BoardScreen({ boardId }: { boardId: string }) {
     replaceParams({ view: next });
   };
   const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
+
+  // The URL owns which item is open; the store mirrors it so rows can subscribe
+  // to a boolean rather than re-rendering the whole table on every open.
+  const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  React.useEffect(() => {
+    setOpenItemId(itemId);
+    return () => setOpenItemId(null);
+  }, [itemId, setOpenItemId]);
 
   const model = React.useMemo(
     () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now }) : null),
@@ -126,12 +138,11 @@ function BoardScreen({ boardId }: { boardId: string }) {
             canEdit,
             canManage: canManageBoard(ws.permissions, board),
             openItem,
-            openItemId: itemId,
             openEditLabels: setEditLabelsColumn,
             now,
           }
         : null,
-    [board, model, mutations, ws.users, ws.permissions, canEdit, openItem, itemId, now],
+    [board, model, mutations, ws.users, ws.permissions, canEdit, openItem, now],
   );
 
   return (

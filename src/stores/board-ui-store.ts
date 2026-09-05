@@ -39,6 +39,14 @@ export interface BoardUiState {
 
 interface BoardUiStore {
   boards: Record<string, BoardUiState>;
+  /**
+   * Item whose detail panel is open, mirrored from the URL. It lives here rather
+   * than in the board context so a row can subscribe to "is it me?" instead of
+   * to the id: on a board of a few hundred rows, re-rendering every row each
+   * time the panel opened cost seconds.
+   */
+  openItemId: string | null;
+  setOpenItemId: (itemId: string | null) => void;
   /** Item whose panel should open the link dialog as soon as it mounts. */
   linkDialogItemId: string | null;
   setLinkDialogItem: (itemId: string | null) => void;
@@ -70,6 +78,8 @@ function update(state: BoardUiStore, boardId: string, patch: Partial<BoardUiStat
 /** Transient per-board table state (filters, sort, search, selection). Not persisted. */
 export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   boards: {},
+  openItemId: null,
+  setOpenItemId: (openItemId) => set({ openItemId }),
   linkDialogItemId: null,
   setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),

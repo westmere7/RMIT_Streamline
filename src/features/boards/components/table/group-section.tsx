@@ -20,7 +20,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { BoardGroup } from "@/domain";
+import type { BoardGroup, Item } from "@/domain";
 import { columnLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
@@ -60,13 +60,21 @@ function DropLine({ color }: { color: BoardGroup["color"] }) {
   );
 }
 
+/** One shared empty list, so a group with no rows keeps a stable identity. */
+const NO_ITEMS: Item[] = [];
+
 export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverride, draggingItem = false, dropIndex = null }: GroupSectionProps) {
   const { board, model, mutations, canEdit } = useBoardContext();
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const items = model.itemsByGroup.get(group.id) ?? [];
+  const items = model.itemsByGroup.get(group.id) ?? NO_ITEMS;
+  // A fresh array here would give SortableContext a new value on every render of
+  // this group, and dnd-kit would re-render every row through its context — the
+  // memo on ItemRow cannot stop that. Keyed on the item list, which only changes
+  // when the board does.
+  const itemIds = React.useMemo(() => items.map((i) => i.id), [items]);
   const colors = colorClasses(group.color);
 
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -216,7 +224,7 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
             widthOverrides={widthOverrides}
             onWidthOverride={onWidthOverride}
           />
-          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
             {items.map((item, index) => (
               <React.Fragment key={item.id}>
                 {dropIndex === index && <DropLine color={group.color} />}

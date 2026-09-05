@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
 import { tableWidth } from "@/features/boards/board-model";
-import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { useBoardUiStore } from "@/stores/board-ui-store";
 import { BulkActionsBar } from "./bulk-actions-bar";
 import { GroupSection } from "./group-section";
 
@@ -43,9 +43,20 @@ const collisionDetection: CollisionDetection = (args) => {
   return closestCenter({ ...args, droppableContainers: containers });
 };
 
-export function BoardTable() {
+/**
+ * Memoised deliberately: the board page re-renders whenever the URL changes (the
+ * detail panel puts the open item in the query), and without this the table —
+ * and through dnd-kit's context every row on it — re-rendered each time. With
+ * no props of its own it re-renders exactly when the board data or the view
+ * state it reads changes.
+ */
+export const BoardTable = React.memo(function BoardTable() {
   const { board, model, mutations, canEdit } = useBoardContext();
-  const ui = useBoardUi(board.id);
+  // Only the two flags this component actually reads: subscribing to the whole
+  // per-board slice re-rendered the table (and every row under dnd-kit's
+  // context) whenever anything was selected or expanded.
+  const sorted = useBoardUiStore((s) => !!s.boards[board.id]?.sort);
+  const searching = useBoardUiStore((s) => !!s.boards[board.id]?.search);
   const clearFilters = useBoardUiStore((s) => s.clearFilters);
   const setSearch = useBoardUiStore((s) => s.setSearch);
   const [activeDrag, setActiveDrag] = React.useState<DragData | null>(null);
@@ -58,7 +69,7 @@ export function BoardTable() {
   );
 
   // Drag-and-drop reorders positions, which is ambiguous while filtered or sorted.
-  const dndEnabled = canEdit && !ui.sort && !ui.search && !model.isFiltered;
+  const dndEnabled = canEdit && !sorted && !searching && !model.isFiltered;
 
   const onDragStart = (event: DragStartEvent) => {
     setActiveDrag((event.active.data.current as DragData | undefined) ?? null);
@@ -219,4 +230,4 @@ export function BoardTable() {
       <BulkActionsBar />
     </div>
   );
-}
+});

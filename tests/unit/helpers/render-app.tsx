@@ -100,7 +100,6 @@ export function TestBoard({ boardId, children, openItem }: TestBoardProps) {
     canEdit: canEditBoard(ws.permissions, board),
     canManage: canManageBoard(ws.permissions, board),
     openItem: openItem ?? (() => undefined),
-    openItemId: null,
     openEditLabels: () => undefined,
     now,
   };

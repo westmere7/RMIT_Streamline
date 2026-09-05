@@ -16,7 +16,7 @@ import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boar
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
 
 export interface ItemRowProps {
   item: Item;
@@ -26,8 +26,13 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, openItem, openItemId } = useBoardContext();
-  const ui = useBoardUi(board.id);
+  const { board, model, mutations, canEdit, openItem } = useBoardContext();
+  // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
+  // subscribing to the slice re-rendered every row whenever anything was
+  // selected, expanded or opened.
+  const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
+  const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
+  const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
@@ -35,9 +40,6 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [addingSubitem, setAddingSubitem] = React.useState(false);
 
-  const selected = ui.selectedItemIds.includes(item.id);
-  const viewing = openItemId === item.id;
-  const expanded = ui.expandedItemIds.includes(item.id);
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const done = model.isDone(item.id);
   const blocked = model.isBlocked(item.id);
@@ -365,11 +367,11 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem, openItemId } = useBoardContext();
+  const { model, mutations, canEdit, openItem } = useBoardContext();
+  const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
-  const viewing = openItemId === item.id;
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   const actions: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
