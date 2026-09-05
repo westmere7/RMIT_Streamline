@@ -148,7 +148,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             now,
           }
         : null,
-    [board, model, mutations, ws.users, ws.permissions, canEdit, openItem, now],
+    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, now],
   );
 
   return (
