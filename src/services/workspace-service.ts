@@ -1,5 +1,20 @@
-import type { EntityId, Team, TeamInput, TeamMember, TeamRole, User, Workspace, WorkspaceMember, WorkspaceRole } from "@/domain";
-import type { Repositories } from "@/data/repositories";
+import type {
+  CompleteOnboardingInput,
+  EntityId,
+  InvitationPreview,
+  InviteMemberInput,
+  Team,
+  TeamInput,
+  TeamMember,
+  TeamRole,
+  User,
+  Workspace,
+  WorkspaceInvitation,
+  WorkspaceMember,
+  WorkspaceRole,
+} from "@/domain";
+import { invitationStatus } from "@/domain";
+import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 
 export interface WorkspaceContext {
@@ -8,16 +23,6 @@ export interface WorkspaceContext {
   users: User[];
   teams: Team[];
   teamMembers: TeamMember[];
-}
-
-export interface InviteMemberInput {
-  workspaceId: EntityId;
-  email: string;
-  firstName: string;
-  lastName: string;
-  jobTitle: string | null;
-  role: WorkspaceRole;
-  teamIds: EntityId[];
 }
 
 export class WorkspaceService {
@@ -54,32 +59,60 @@ export class WorkspaceService {
 
   // ---- Members -------------------------------------------------------------
 
-  async inviteMember(input: InviteMemberInput): Promise<{ user: User; member: WorkspaceMember }> {
+  /**
+   * Adds someone to the workspace. They appear in the member list at once as
+   * "pending onboarding" and can do nothing until they open the returned link,
+   * set a password and finish their profile. Nothing is emailed: the admin
+   * passes the link on themselves.
+   */
+  async inviteMember(input: InviteMemberInput): Promise<InviteResult> {
     const email = input.email.trim().toLowerCase();
-    let user = await this.repos.users.getByEmail(email);
-    if (!user) {
-      user = await this.repos.users.create({
-        email,
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        displayName: `${input.firstName.trim()} ${input.lastName.trim()}`.trim(),
-        avatarUrl: null,
-        jobTitle: input.jobTitle?.trim() || null,
-        department: null,
-        timezone: "Australia/Melbourne",
-      });
+    if (!email) throw new Error("An email address is required");
+    if (!input.firstName.trim() || !input.lastName.trim()) throw new Error("First and last name are required");
+    return this.repos.onboarding.invite({ ...input, email, jobTitle: input.jobTitle?.trim() || null, teamIds: Array.from(new Set(input.teamIds)) });
+  }
+
+  /** The live (unused, unexpired, unrevoked) invitation per pending member, keyed by user id. */
+  async listLiveInvitations(workspaceId: EntityId): Promise<Map<EntityId, WorkspaceInvitation>> {
+    const live = new Map<EntityId, WorkspaceInvitation>();
+    for (const invitation of await this.repos.onboarding.listInvitations(workspaceId)) {
+      if (invitationStatus(invitation) === "PENDING" && !live.has(invitation.userId)) live.set(invitation.userId, invitation);
     }
-    const existing = (await this.repos.workspaces.listMembers(input.workspaceId)).find((m) => m.userId === user!.id);
-    if (existing) throw new Error(`${user.displayName} is already a member of this workspace`);
-    const member = await this.repos.workspaces.addMember({
-      workspaceId: input.workspaceId,
-      userId: user.id,
-      role: input.role,
-      status: "INVITED",
-      joinedAt: new Date().toISOString(),
-    });
-    for (const teamId of input.teamIds) await this.repos.teams.addMember(teamId, user.id, "MEMBER");
-    return { user, member };
+    return live;
+  }
+
+  /** Issues a fresh link for a pending member; the previous one stops working. */
+  async regenerateInvitation(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation> {
+    return this.repos.onboarding.regenerate(workspaceId, userId);
+  }
+
+  /** Takes a pending member out of the workspace again, before they ever signed in. */
+  async cancelInvitation(workspaceId: EntityId, userId: EntityId): Promise<void> {
+    return this.repos.onboarding.cancel(workspaceId, userId);
+  }
+
+  /** What the join page shows for a link. Safe while signed out. */
+  async previewInvitation(token: string): Promise<InvitationPreview> {
+    return this.repos.onboarding.preview(token);
+  }
+
+  /** The invited person sets their password and details; their membership becomes ACTIVE. */
+  async completeOnboarding(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId }> {
+    return this.repos.onboarding.complete(input);
+  }
+
+  /** Accounts the local sign-in screen offers: active people who have finished onboarding somewhere. */
+  async listSignInAccounts(): Promise<User[]> {
+    const users = await this.repos.users.list();
+    const results = await Promise.all(
+      users
+        .filter((u) => u.deactivatedAt === null)
+        .map(async (u) => {
+          const memberships = await this.repos.workspaces.listMembershipsForUser(u.id);
+          return memberships.some((m) => m.status === "ACTIVE") ? u : null;
+        }),
+    );
+    return results.filter((u): u is User => u !== null);
   }
 
   async changeMemberRole(memberId: EntityId, role: WorkspaceRole): Promise<WorkspaceMember> {
@@ -89,10 +122,6 @@ export class WorkspaceService {
   async setMemberActive(memberId: EntityId, userId: EntityId, active: boolean): Promise<WorkspaceMember> {
     await this.repos.users.update(userId, { deactivatedAt: active ? null : new Date().toISOString() });
     return this.repos.workspaces.updateMember(memberId, { status: active ? "ACTIVE" : "DEACTIVATED" });
-  }
-
-  async acceptInvite(memberId: EntityId): Promise<WorkspaceMember> {
-    return this.repos.workspaces.updateMember(memberId, { status: "ACTIVE" });
   }
 
   // ---- Teams ---------------------------------------------------------------

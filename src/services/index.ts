@@ -56,4 +56,4 @@ export type { MyWorkItem, MyWorkSection } from "./my-work-service";
 export type { DirectThreadView } from "./message-service";
 export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service";
 export type { SearchResults } from "./search-service";
-export type { WorkspaceContext, InviteMemberInput } from "./workspace-service";
+export type { WorkspaceContext } from "./workspace-service";

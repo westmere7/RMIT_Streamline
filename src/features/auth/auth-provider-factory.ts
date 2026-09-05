@@ -1,4 +1,5 @@
 import type { AuthProvider } from "@/domain";
+import { isLocalRepositories } from "@/data/local";
 import type { Repositories } from "@/data/repositories";
 import type { DataProviderKind } from "@/lib/config";
 import { LocalAuthProvider } from "./providers/local-auth-provider";
@@ -10,6 +11,6 @@ export function createAuthProvider(kind: DataProviderKind, repositories: Reposit
       return new SupabaseAuthProvider();
     case "local":
     default:
-      return new LocalAuthProvider(repositories.users);
+      return new LocalAuthProvider(repositories.users, repositories.workspaces, isLocalRepositories(repositories) ? repositories.onboarding : null);
   }
 }

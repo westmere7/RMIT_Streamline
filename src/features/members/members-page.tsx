@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Search, UserPlus, Users } from "lucide-react";
+import { Link2, MoreHorizontal, Search, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -27,9 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { WORKSPACE_ROLES, type User, type WorkspaceMember, type WorkspaceRole } from "@/domain";
+import { WORKSPACE_ROLES, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
 import { useServices } from "@/features/data/data-context";
+import { InviteLinkDialog } from "@/features/members/components/invite-link-dialog";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
+import { copyToClipboard, invitationUrl, useLiveInvitations, useMemberMutations } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageMembers } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
@@ -44,6 +46,7 @@ export function MembersPage() {
   const [query, setQuery] = React.useState(searchParams.get("q") ?? "");
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const manage = canManageMembers(ws.permissions);
+  const invitations = useLiveInvitations();
 
   const rows = ws.members
     .map((member) => ({ member, user: ws.userById(member.userId) }))
@@ -54,12 +57,20 @@ export function MembersPage() {
     })
     .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName));
 
+  const activeCount = ws.members.filter((m) => m.status === "ACTIVE").length;
+  const pendingCount = ws.members.filter((m) => m.status === "INVITED").length;
+
   return (
     <div className="flex h-full flex-col">
       <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title="Members"
-        description={`${ws.members.filter((m) => m.status === "ACTIVE").length} active members`}
+        description={
+          <span data-testid="members-summary">
+            {activeCount} active {activeCount === 1 ? "member" : "members"}
+            {pendingCount > 0 && ` · ${pendingCount} pending onboarding`}
+          </span>
+        }
         actions={
           <>
             <div className="relative">
@@ -67,8 +78,8 @@ export function MembersPage() {
               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members" className="w-56 pl-7" aria-label="Search members" />
             </div>
             {manage && (
-              <Button onClick={() => setInviteOpen(true)}>
-                <UserPlus /> Invite
+              <Button onClick={() => setInviteOpen(true)} data-testid="add-member">
+                <UserPlus /> Add member
               </Button>
             )}
           </>
@@ -95,7 +106,7 @@ export function MembersPage() {
               </thead>
               <tbody className="divide-y">
                 {rows.map(({ member, user }) => (
-                  <MemberRow key={member.id} member={member} user={user} manage={manage} />
+                  <MemberRow key={member.id} member={member} user={user} manage={manage} invitation={invitations.data?.get(user.id) ?? null} />
                 ))}
               </tbody>
             </table>
@@ -108,13 +119,17 @@ export function MembersPage() {
   );
 }
 
-function MemberRow({ member, user, manage }: { member: WorkspaceMember; user: User; manage: boolean }) {
+function MemberRow({ member, user, manage, invitation }: { member: WorkspaceMember; user: User; manage: boolean; invitation: WorkspaceInvitation | null }) {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
+  const { cancel } = useMemberMutations();
   const [confirmDeactivate, setConfirmDeactivate] = React.useState(false);
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [linkOpen, setLinkOpen] = React.useState(false);
   const teams = ws.teamMembers.filter((m) => m.userId === user.id).map((m) => ws.teamById(m.teamId)).filter((t): t is NonNullable<typeof t> => !!t && t.archivedAt === null);
   const isSelf = user.id === ws.currentUser.id;
+  const pending = member.status === "INVITED";
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
 
   const changeRole = useMutation({
@@ -138,16 +153,12 @@ function MemberRow({ member, user, manage }: { member: WorkspaceMember; user: Us
       toast.success(active ? `${user.firstName} reactivated` : `${user.firstName} deactivated`);
     },
   });
-  const accept = useMutation({
-    mutationFn: () => services.workspace.acceptInvite(member.id),
-    onSuccess: invalidate,
-  });
 
   return (
-    <tr className={cn("h-11 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground")}>
+    <tr className={cn("h-11 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground")} data-testid="member-row" data-member-status={member.status}>
       <td className="px-3">
         <Link href={routes.person(ws.slug, user.id)} className="flex items-center gap-2 hover:underline" data-testid="member-profile-link">
-          <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status === "DEACTIVATED" && "opacity-50")} />
+          <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
           <span className="font-medium">
             {user.displayName}
             {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
@@ -163,54 +174,74 @@ function MemberRow({ member, user, manage }: { member: WorkspaceMember; user: Us
       </td>
       <td className="px-3">{ROLE_LABEL[member.role]}</td>
       <td className="px-3">
-        <Badge variant={member.status === "ACTIVE" ? "success" : member.status === "INVITED" ? "warning" : "muted"}>
-          {member.status === "ACTIVE" ? "Active" : member.status === "INVITED" ? "Invited" : "Deactivated"}
+        <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
+          {member.status === "ACTIVE" ? "Active" : pending ? "Pending onboarding" : "Deactivated"}
         </Badge>
       </td>
       {manage && (
         <td className="px-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${user.displayName}`}>
-                <MoreHorizontal />
+          <div className="flex items-center justify-end gap-1">
+            {pending && (
+              <Button variant="ghost" size="icon-sm" aria-label={`Invitation link for ${user.displayName}`} onClick={() => setLinkOpen(true)} data-testid="invite-link-button">
+                <Link2 />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Workspace role</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
-                {WORKSPACE_ROLES.map((role) => (
-                  <DropdownMenuRadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
-                    {ROLE_LABEL[role]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Teams</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-48">
-                  {ws.teams
-                    .filter((t) => t.archivedAt === null)
-                    .map((team) => {
-                      const inTeam = teams.some((t) => t.id === team.id);
-                      return (
-                        <DropdownMenuCheckboxItem key={team.id} checked={inTeam} onCheckedChange={(next) => toggleTeam.mutate({ teamId: team.id, join: !!next })}>
-                          {team.name}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              {member.status === "INVITED" && <DropdownMenuItem onSelect={() => accept.mutate()}>Mark invitation accepted</DropdownMenuItem>}
-              {member.status === "DEACTIVATED" ? (
-                <DropdownMenuItem onSelect={() => setActive.mutate(true)}>Reactivate</DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem variant="destructive" disabled={isSelf} onSelect={() => setConfirmDeactivate(true)}>
-                  Deactivate
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${user.displayName}`}>
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {pending && (
+                  <>
+                    <DropdownMenuLabel>Invitation</DropdownMenuLabel>
+                    <DropdownMenuItem disabled={!invitation} onSelect={() => invitation && void copyToClipboard(invitationUrl(invitation))}>
+                      Copy invite link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setLinkOpen(true)}>Show or renew link</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuLabel>Workspace role</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
+                  {WORKSPACE_ROLES.map((role) => (
+                    <DropdownMenuRadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
+                      {ROLE_LABEL[role]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>Teams</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    {ws.teams
+                      .filter((t) => t.archivedAt === null)
+                      .map((team) => {
+                        const inTeam = teams.some((t) => t.id === team.id);
+                        return (
+                          <DropdownMenuCheckboxItem key={team.id} checked={inTeam} onCheckedChange={(next) => toggleTeam.mutate({ teamId: team.id, join: !!next })}>
+                            {team.name}
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                {pending ? (
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmCancel(true)} data-testid="cancel-invitation">
+                    Cancel invitation
+                  </DropdownMenuItem>
+                ) : member.status === "DEACTIVATED" ? (
+                  <DropdownMenuItem onSelect={() => setActive.mutate(true)}>Reactivate</DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem variant="destructive" disabled={isSelf} onSelect={() => setConfirmDeactivate(true)}>
+                    Deactivate
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <ConfirmDialog
             open={confirmDeactivate}
             onOpenChange={setConfirmDeactivate}
@@ -220,6 +251,20 @@ function MemberRow({ member, user, manage }: { member: WorkspaceMember; user: Us
             destructive
             onConfirm={() => setActive.mutateAsync(false).then(() => undefined)}
           />
+          <ConfirmDialog
+            open={confirmCancel}
+            onOpenChange={setConfirmCancel}
+            title={`Cancel ${user.displayName}'s invitation?`}
+            description="They are removed from the member list and their invitation link stops working. Since they never signed in, nothing else is lost; you can add them again later."
+            confirmLabel="Cancel invitation"
+            destructive
+            onConfirm={() =>
+              cancel.mutateAsync(user.id).then(() => {
+                toast.success(`${user.displayName}'s invitation was cancelled`);
+              })
+            }
+          />
+          {pending && <InviteLinkDialog user={user} invitation={invitation} open={linkOpen} onOpenChange={setLinkOpen} />}
         </td>
       )}
     </tr>

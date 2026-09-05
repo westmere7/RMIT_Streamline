@@ -50,8 +50,8 @@ export function MessagesPage() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [thread.data?.length, openWith]);
 
-  const people = ws.users
-    .filter((u) => u.id !== me.id && u.deactivatedAt === null)
+  const people = ws.activeUsers
+    .filter((u) => u.id !== me.id)
     .filter((u) => {
       const q = query.trim().toLowerCase();
       return !q || u.displayName.toLowerCase().includes(q) || (u.jobTitle ?? "").toLowerCase().includes(q);

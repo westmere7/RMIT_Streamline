@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { IS_DEV } from "@/lib/config";
+import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -27,12 +28,10 @@ export function LoginScreen() {
   // Supabase authenticates with a password; local mode signs in by email alone.
   const needsPassword = providerKind === "supabase";
 
+  // Only people who have finished onboarding: pending members have no password yet.
   const accounts = useQuery({
-    queryKey: ["login-accounts"],
-    queryFn: async () => {
-      const users = await services.repos.users.list();
-      return users.filter((u) => u.deactivatedAt === null);
-    },
+    queryKey: queryKeys.signInAccounts,
+    queryFn: () => services.workspace.listSignInAccounts(),
     enabled: providerKind === "local",
   });
 
@@ -80,7 +79,7 @@ export function LoginScreen() {
             <p className="text-[13px] text-muted-foreground">
               {providerKind === "local"
                 ? "Development mode. Choose a seeded account or enter its email — no password required."
-                : "Enter your credentials to continue."}
+                : "Enter your email and password. New here? Open the invitation link your workspace admin sent you."}
             </p>
           </div>
 

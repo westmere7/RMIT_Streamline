@@ -1,6 +1,7 @@
 export * from "./common/types";
 export * from "./user/user";
 export * from "./workspace/workspace";
+export * from "./workspace/invitation";
 export * from "./team/team";
 export * from "./board/board";
 export * from "./board/column";

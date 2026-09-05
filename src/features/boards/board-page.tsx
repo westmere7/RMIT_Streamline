@@ -140,7 +140,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             board,
             model,
             mutations,
-            users: ws.users.filter((u) => u.deactivatedAt === null),
+            users: ws.activeUsers,
             canEdit,
             canManage: canManageBoard(ws.permissions, board),
             openItem,

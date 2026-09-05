@@ -19,6 +19,7 @@ import type {
   TrackerSheet,
   User,
   Workspace,
+  WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
 
@@ -35,6 +36,18 @@ export interface BoardVisit {
   visitedAt: string;
 }
 
+/**
+ * Local stand-in for Supabase Auth's password: a salted SHA-256 so the onboarding
+ * flow can be exercised end to end in the browser store. Only ever compared,
+ * never shown.
+ */
+export interface LocalCredential {
+  userId: string;
+  salt: string;
+  hash: string;
+  createdAt: string;
+}
+
 export interface MetaRecord {
   key: string;
   value: string;
@@ -48,6 +61,12 @@ export interface StreamlineDB extends DBSchema {
     value: WorkspaceMember;
     indexes: { byWorkspace: string; byUser: string };
   };
+  workspaceInvitations: {
+    key: string;
+    value: WorkspaceInvitation;
+    indexes: { byWorkspace: string; byUser: string; byToken: string };
+  };
+  credentials: { key: string; value: LocalCredential };
   teams: { key: string; value: Team; indexes: { byWorkspace: string } };
   teamMembers: { key: string; value: TeamMember; indexes: { byTeam: string; byUser: string } };
   boards: { key: string; value: Board; indexes: { byWorkspace: string } };
@@ -87,6 +106,8 @@ export const ALL_STORES: StoreName[] = [
   "users",
   "workspaces",
   "workspaceMembers",
+  "workspaceInvitations",
+  "credentials",
   "teams",
   "teamMembers",
   "boards",
@@ -110,7 +131,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -212,6 +233,19 @@ function createNotificationPreferencesStore(db: IDBPDatabase<StreamlineDB>): voi
   db.createObjectStore("notificationPreferences", { keyPath: "userId" });
 }
 
+/** v6: onboarding links and the local password stand-in. */
+function createOnboardingStores(db: IDBPDatabase<StreamlineDB>): void {
+  if (!db.objectStoreNames.contains("workspaceInvitations")) {
+    const invitations = db.createObjectStore("workspaceInvitations", { keyPath: "id" });
+    invitations.createIndex("byWorkspace", "workspaceId");
+    invitations.createIndex("byUser", "userId");
+    invitations.createIndex("byToken", "token", { unique: true });
+  }
+  if (!db.objectStoreNames.contains("credentials")) {
+    db.createObjectStore("credentials", { keyPath: "userId" });
+  }
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -219,6 +253,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 3) createTrackerStores(db);
   if (oldVersion < 4) createDirectMessageStore(db);
   if (oldVersion < 5) createNotificationPreferencesStore(db);
+  if (oldVersion < 6) createOnboardingStores(db);
 }
 
 export interface OpenDatabaseOptions {

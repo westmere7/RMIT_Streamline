@@ -25,7 +25,8 @@ export class SearchService {
       this.repos.users.list(),
       this.repos.workspaces.listMembers(workspaceId),
     ]);
-    const memberIds = new Set(members.map((m) => m.userId));
+    // Pending and deactivated people are not searchable: you cannot assign or message them yet.
+    const memberIds = new Set(members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     const activeBoards = boards.filter((b) => b.archivedAt === null);
 
     const itemMatches: Array<{ item: Item; board: Board }> = [];

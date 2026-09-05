@@ -10,6 +10,7 @@ import {
   SupabaseNotificationRepository,
 } from "./repositories/misc-repositories";
 import { SupabaseMessageRepository } from "./repositories/message-repository";
+import { SupabaseOnboardingRepository } from "./repositories/onboarding-repository";
 import { SupabaseTeamRepository } from "./repositories/team-repository";
 import { SupabaseTrackerRepository } from "./repositories/tracker-repository";
 import { SupabaseUserRepository } from "./repositories/user-repository";
@@ -31,6 +32,7 @@ export function createSupabaseRepositories(): Repositories {
   return {
     users: new SupabaseUserRepository(),
     workspaces: new SupabaseWorkspaceRepository(),
+    onboarding: new SupabaseOnboardingRepository(),
     teams: new SupabaseTeamRepository(),
     boards: new SupabaseBoardRepository(),
     items: new SupabaseItemRepository(),

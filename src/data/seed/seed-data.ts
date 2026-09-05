@@ -21,10 +21,11 @@ import type {
   TrackerSheet,
   User,
   Workspace,
+  WorkspaceInvitation,
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, normaliseLinkPair } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { toISODate } from "@/lib/dates/dates";
@@ -39,6 +40,7 @@ export interface SeedBundle {
   users: User[];
   workspaces: Workspace[];
   workspaceMembers: WorkspaceMember[];
+  workspaceInvitations: WorkspaceInvitation[];
   teams: Team[];
   teamMembers: TeamMember[];
   boards: Board[];
@@ -92,7 +94,8 @@ export const SEED_WORKSPACE_SLUG = "rmit";
 type UserKey =
   | "danh" | "emily" | "jun" | "joanne" | "duc" | "tuyet" | "hil" | "grace" | "jane"
   | "minh" | "linh" | "sarah" | "tom" | "priya" | "chloe" | "ravi" | "thao" | "ben"
-  | "admin";
+  | "admin"
+  | "anh" | "lucas" | "mai";
 
 interface SeedUserSpec {
   key: UserKey;
@@ -102,6 +105,8 @@ interface SeedUserSpec {
   department: string;
   timezone: string;
   role: WorkspaceRole;
+  /** Added to the member list but has not opened their invitation link yet: no password, cannot sign in. */
+  pending?: true;
 }
 
 const USER_SPECS: SeedUserSpec[] = [
@@ -127,6 +132,12 @@ const USER_SPECS: SeedUserSpec[] = [
   // private.board_role in supabase/policies/0001_rls_policies.sql). Owns nothing,
   // which keeps the demo boards' authorship intact.
   { key: "admin", firstName: "Admin", lastName: "Account", jobTitle: "Administrator", department: "IT", timezone: "Australia/Melbourne", role: "OWNER" },
+  // Pending onboarding: in the member list, waiting on their invitation link
+  // (see src/domain/workspace/invitation.ts). They own nothing and appear in no
+  // picker until they finish.
+  { key: "anh", firstName: "Anh", lastName: "Pham", jobTitle: "Production Designer", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER", pending: true },
+  { key: "lucas", firstName: "Lucas", lastName: "Reid", jobTitle: "Motion Designer", department: "Digital", timezone: "Australia/Melbourne", role: "MEMBER", pending: true },
+  { key: "mai", firstName: "Mai", lastName: "Tran", jobTitle: "Account Coordinator", department: "Marketing", timezone: "Asia/Ho_Chi_Minh", role: "GUEST", pending: true },
 ];
 
 export const SEED_USER_IDS: Record<UserKey, string> = {
@@ -149,6 +160,9 @@ export const SEED_USER_IDS: Record<UserKey, string> = {
   thao: sid("user", 17),
   ben: sid("user", 18),
   admin: sid("user", 19),
+  anh: sid("user", 20),
+  lucas: sid("user", 21),
+  mai: sid("user", 22),
 };
 
 export const SEED_ACCOUNTS = USER_SPECS.map((u) => ({
@@ -157,7 +171,20 @@ export const SEED_ACCOUNTS = USER_SPECS.map((u) => ({
   name: `${u.firstName} ${u.lastName}`,
   jobTitle: u.jobTitle,
   role: u.role,
+  pending: u.pending === true,
 }));
+
+/**
+ * Fixed invitation tokens for the seeded pending members, so the local demo and
+ * the tests can open /join/<token> without reading it off the members page. The
+ * Supabase seed (scripts/db-seed.mts) swaps these for random ones, because that
+ * database is shared.
+ */
+export const SEED_INVITATION_TOKENS: Partial<Record<UserKey, string>> = {
+  anh: "demo-invite-anh-pham-2026",
+  lucas: "demo-invite-lucas-reid-2026",
+  mai: "demo-invite-mai-tran-2026",
+};
 
 // ---- Teams -----------------------------------------------------------------
 
@@ -174,10 +201,10 @@ interface SeedTeamSpec {
 }
 
 const TEAM_SPECS: SeedTeamSpec[] = [
-  { key: "vietnam", name: "Vietnam Creative", description: "Design and production studio based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil", "linh", "thao", "minh"] },
+  { key: "vietnam", name: "Vietnam Creative", description: "Design and production studio based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil", "linh", "thao", "minh", "anh"] },
   { key: "melbourne", name: "Melbourne Creative", description: "Campaign creative and brand design for the Melbourne campuses.", color: "navy", icon: "paintbrush", lead: "emily", members: ["jun", "grace", "jane", "sarah", "tom", "priya"] },
   { key: "campaigns", name: "Campaigns", description: "Integrated campaign planning and delivery.", color: "orange", icon: "megaphone", lead: "joanne", members: ["emily", "danh", "jun", "priya", "ben"] },
-  { key: "digital", name: "Digital", description: "Web, landing pages and digital out-of-home.", color: "cyan", icon: "monitor", lead: "jun", members: ["hil", "grace", "tom", "ravi"] },
+  { key: "digital", name: "Digital", description: "Web, landing pages and digital out-of-home.", color: "cyan", icon: "monitor", lead: "jun", members: ["hil", "grace", "tom", "ravi", "lucas"] },
   { key: "brand", name: "Brand", description: "Brand governance, guidelines and identity assets.", color: "purple", icon: "sparkles", lead: "sarah", members: ["joanne", "emily", "duc"] },
   { key: "content", name: "Content", description: "Always-on social and editorial content.", color: "green", icon: "newspaper", lead: "grace", members: ["jane", "tuyet", "chloe"] },
   { key: "video", name: "Video & Motion", description: "Film, motion graphics and post-production.", color: "pink", icon: "film", lead: "minh", members: ["duc", "linh", "chloe"] },
@@ -796,8 +823,20 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     workspaceId: workspace.id,
     userId: SEED_USER_IDS[spec.key],
     role: spec.role,
-    status: "ACTIVE",
-    joinedAt: iso(createdBase),
+    status: spec.pending ? "INVITED" : "ACTIVE",
+    joinedAt: iso(spec.pending ? subDays(now, 2) : createdBase),
+  }));
+
+  const workspaceInvitations: WorkspaceInvitation[] = USER_SPECS.filter((spec) => spec.pending).map((spec) => ({
+    id: sid("member"),
+    workspaceId: workspace.id,
+    userId: SEED_USER_IDS[spec.key],
+    token: SEED_INVITATION_TOKENS[spec.key] ?? `demo-invite-${spec.key}-2026`,
+    createdBy: SEED_USER_IDS.danh,
+    createdAt: iso(subDays(now, 2)),
+    expiresAt: iso(addDays(now, INVITATION_TTL_DAYS - 2)),
+    acceptedAt: null,
+    revokedAt: null,
   }));
 
   const teams: Team[] = TEAM_SPECS.map((spec) => ({
@@ -1139,6 +1178,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     users,
     workspaces: [workspace],
     workspaceMembers,
+    workspaceInvitations,
     teams,
     teamMembers,
     boards,

@@ -28,7 +28,7 @@ export async function createTestApp(userKey: keyof typeof SEED_USER_IDS = "danh"
   counter += 1;
   const repos = createLocalRepositories({ databaseName: `component-${Date.now()}-${counter}` });
   const services = createServices(repos);
-  const auth = new LocalAuthProvider(repos.users);
+  const auth = new LocalAuthProvider(repos.users, repos.workspaces, repos.onboarding);
   await auth.signIn({ email: `${userKey}@rmit.local` });
   const workspace = (await repos.workspaces.getById(SEED_WORKSPACE_ID))!;
   const data: DataContextValue = { providerKind: "local", services, auth };

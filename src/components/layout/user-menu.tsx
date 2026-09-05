@@ -136,9 +136,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
                   <UserCog /> Switch user
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-56">
-                  {ws.users
-                    .filter((u) => u.deactivatedAt === null)
-                    .map((u) => (
+                  {ws.activeUsers.map((u) => (
                       <DropdownMenuItem key={u.id} disabled={u.id === user.id} onSelect={() => void switchUser(u.email)}>
                         <UserAvatar user={u} size="xs" tooltip={false} />
                         <span className="truncate">{u.displayName}</span>

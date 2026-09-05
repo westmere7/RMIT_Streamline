@@ -51,7 +51,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
                 value={draft}
                 onChange={setDraft}
                 onSubmit={submit}
-                people={ws.users}
+                people={ws.activeUsers}
                 placeholder="Write an update… type @ to mention a teammate"
                 ariaLabel="New update"
                 testId="comment-input"
@@ -156,7 +156,7 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
                 if (draft.trim()) onEdit(draft.trim());
                 setEditing(false);
               }}
-              people={ws.users}
+              people={ws.activeUsers}
               ariaLabel="Edit update"
               testId="comment-edit-input"
               autoFocus

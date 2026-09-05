@@ -70,7 +70,7 @@ export function TeamPage() {
   const manage = canManageTeam(ws.permissions, team.id);
   const members = ws.teamMembers.filter((m) => m.teamId === team.id).map((m) => ({ membership: m, user: ws.userById(m.userId) }));
   const boards = ws.boardsForTeam(team.id).filter((b) => canViewBoard(ws.permissions, b));
-  const candidates = ws.users.filter((u) => u.deactivatedAt === null && !members.some((m) => m.user?.id === u.id));
+  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.user?.id === u.id));
   const colors = colorClasses(team.color);
 
   return (

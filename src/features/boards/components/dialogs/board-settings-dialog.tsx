@@ -165,7 +165,7 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
   const actions = useBoardActions(board);
   const [addOpen, setAddOpen] = React.useState(false);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id);
-  const candidates = ws.users.filter((u) => u.deactivatedAt === null && !members.some((m) => m.userId === u.id));
+  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.userId === u.id));
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">

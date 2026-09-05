@@ -33,6 +33,7 @@ import type {
   TrackerSheet,
   User,
   Workspace,
+  WorkspaceInvitation,
   WorkspaceMember,
   WorkspaceMemberStatus,
   WorkspaceRole,
@@ -119,6 +120,34 @@ export interface WorkspaceMemberRow {
 
 export function toWorkspaceMember(row: WorkspaceMemberRow): WorkspaceMember {
   return { id: row.id, workspaceId: row.workspace_id, userId: row.user_id, role: row.role, status: row.status, joinedAt: row.joined_at };
+}
+
+export interface WorkspaceInvitationRow {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  token: string;
+  created_by: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+}
+
+export const INVITATION_COLUMNS = "id, workspace_id, user_id, token, created_by, created_at, expires_at, accepted_at, revoked_at";
+
+export function toWorkspaceInvitation(row: WorkspaceInvitationRow): WorkspaceInvitation {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    userId: row.user_id,
+    token: row.token,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at,
+    revokedAt: row.revoked_at,
+  };
 }
 
 export interface TeamRow {

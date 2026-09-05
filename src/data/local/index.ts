@@ -8,6 +8,7 @@ import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
 import { LocalMessageRepository } from "./repositories/message-repository";
 import { LocalNotificationPreferencesRepository, LocalNotificationRepository } from "./repositories/notification-repository";
+import { LocalOnboardingRepository } from "./repositories/onboarding-repository";
 import { LocalTeamRepository } from "./repositories/team-repository";
 import { LocalTrackerRepository } from "./repositories/tracker-repository";
 import { LocalUserRepository } from "./repositories/user-repository";
@@ -20,14 +21,23 @@ export interface LocalRepositoriesOptions {
   seed?: boolean;
 }
 
-export function createLocalRepositories(options: LocalRepositoriesOptions = {}): Repositories & {
+/** The local set carries two extras: its connection, and the password stand-in the auth provider checks. */
+export type LocalRepositories = Repositories & {
   connection: LocalConnection;
-} {
+  onboarding: LocalOnboardingRepository;
+};
+
+export function isLocalRepositories(repos: Repositories): repos is LocalRepositories {
+  return repos.onboarding instanceof LocalOnboardingRepository;
+}
+
+export function createLocalRepositories(options: LocalRepositoriesOptions = {}): LocalRepositories {
   const connection = new LocalConnection({ name: options.databaseName, seed: options.seed });
   return {
     connection,
     users: new LocalUserRepository(connection),
     workspaces: new LocalWorkspaceRepository(connection),
+    onboarding: new LocalOnboardingRepository(connection),
     teams: new LocalTeamRepository(connection),
     boards: new LocalBoardRepository(connection),
     items: new LocalItemRepository(connection),

@@ -14,7 +14,10 @@ export interface WorkspaceContextValue {
   slug: string;
   currentUser: User;
   members: WorkspaceMember[];
+  /** Everyone with a membership row, including pending and deactivated people, so history always resolves a name. */
   users: User[];
+  /** People who can be assigned, mentioned or messaged: onboarded (ACTIVE) and not deactivated. */
+  activeUsers: User[];
   teams: Team[];
   teamMembers: TeamMember[];
   boards: Board[];
@@ -78,6 +81,7 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   const value = useMemo<WorkspaceContextValue | null>(() => {
     if (!ctx || !boards || !boardMembers || !favourites) return null;
     const usersById = new Map(ctx.users.map((u) => [u.id, u]));
+    const activeMemberIds = new Set(ctx.members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     const teamsById = new Map(ctx.teams.map((t) => [t.id, t]));
     const boardsById = new Map(boards.map((b) => [b.id, b]));
     const favouriteIds = new Set(favourites.map((f) => f.boardId));
@@ -88,6 +92,7 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       currentUser,
       members: ctx.members,
       users: ctx.users,
+      activeUsers: ctx.users.filter((u) => u.deactivatedAt === null && activeMemberIds.has(u.id)),
       teams: ctx.teams,
       teamMembers: ctx.teamMembers,
       boards,

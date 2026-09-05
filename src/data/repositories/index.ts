@@ -12,6 +12,7 @@ import type {
   ColumnValue,
   Comment,
   CommentInput,
+  CompleteOnboardingInput,
   DirectMessage,
   DirectMessageInput,
   EntityId,
@@ -20,6 +21,8 @@ import type {
   ItemInput,
   ItemLink,
   ItemLinkInput,
+  InvitationPreview,
+  InviteMemberInput,
   Notification,
   NotificationInput,
   NotificationPreferences,
@@ -36,6 +39,7 @@ import type {
   User,
   UserInput,
   Workspace,
+  WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
 
@@ -62,6 +66,37 @@ export interface WorkspaceRepository {
   addMember(input: Omit<WorkspaceMember, "id">): Promise<WorkspaceMember>;
   updateMember(id: EntityId, patch: Partial<Omit<WorkspaceMember, "id">>): Promise<WorkspaceMember>;
   removeMember(id: EntityId): Promise<void>;
+}
+
+/** The result of adding someone to a workspace: the person, their pending membership and the link to send them. */
+export interface InviteResult {
+  user: User;
+  member: WorkspaceMember;
+  invitation: WorkspaceInvitation;
+}
+
+/**
+ * Onboarding without email. An admin adds a person (they appear as a pending
+ * member straight away) and receives a unique link; opening the link lets the
+ * person set a password and finish their profile, which activates them.
+ *
+ * Coarse-grained on purpose: with Supabase every step that touches auth
+ * accounts has to run server-side with the service role, so each method is one
+ * round trip there and one IndexedDB transaction locally.
+ */
+export interface OnboardingRepository {
+  /** Creates the account (if new), the INVITED membership, team memberships and a fresh invitation. */
+  invite(input: InviteMemberInput): Promise<InviteResult>;
+  /** Every invitation of the workspace, live or not. Admin only. */
+  listInvitations(workspaceId: EntityId): Promise<WorkspaceInvitation[]>;
+  /** Revokes any live invitation for the member and issues a new one. */
+  regenerate(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation>;
+  /** Removes a member who never finished onboarding, together with their invitations and (when unused elsewhere) their account. */
+  cancel(workspaceId: EntityId, userId: EntityId): Promise<void>;
+  /** What the join page may show for a token; safe to call signed out. */
+  preview(token: string): Promise<InvitationPreview>;
+  /** Sets the password and profile, activates the membership and burns the token. Returns the sign-in email. */
+  complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId }>;
 }
 
 export interface TeamRepository {
@@ -239,6 +274,7 @@ export function isDataExport(value: unknown): value is DataExport {
 export interface Repositories {
   users: UserRepository;
   workspaces: WorkspaceRepository;
+  onboarding: OnboardingRepository;
   teams: TeamRepository;
   boards: BoardRepository;
   items: ItemRepository;

@@ -3,6 +3,8 @@ import type { BoardViewKind } from "@/domain";
 export const routes = {
   root: () => "/",
   login: () => "/login",
+  /** The onboarding page an invited person opens; needs no session. */
+  join: (token: string) => `/join/${encodeURIComponent(token)}`,
   workspace: (slug: string) => `/workspace/${slug}`,
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
   inbox: (slug: string) => `/workspace/${slug}/inbox`,

@@ -9,6 +9,12 @@ export const queryKeys = {
   workspace: (slug: string) => ["workspace", slug] as const,
   workspaceContext: (workspaceId: string) => ["workspace-context", workspaceId] as const,
   workspaceMembers: (workspaceId: string) => ["workspace-members", workspaceId] as const,
+  /** Live onboarding links of a workspace, for the members page (admins only). */
+  workspaceInvitations: (workspaceId: string) => ["workspace-invitations", workspaceId] as const,
+  /** What a join link resolves to, before anyone is signed in. */
+  invitationPreview: (token: string) => ["invitation-preview", token] as const,
+  /** Accounts the local sign-in screen offers. */
+  signInAccounts: ["sign-in-accounts"] as const,
   teams: (workspaceId: string) => ["teams", workspaceId] as const,
 
   boards: (workspaceId: string) => ["boards", workspaceId] as const,
