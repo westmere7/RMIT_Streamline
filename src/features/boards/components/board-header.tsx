@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, Copy, History, MoreHorizontal, Palette, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
+import { Archive, ArrowLeft, Bell, BellOff, Copy, History, MoreHorizontal, Palette, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -26,7 +26,9 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
+import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { isBoardMuted } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
@@ -44,6 +46,11 @@ export function BoardHeader({ board }: { board: Board }) {
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
+  // Unsubscribing is per person: nothing from this board reaches their inbox,
+  // and their access to the board itself is untouched.
+  const preferences = useNotificationPreferences(ws.currentUser.id);
+  const { setBoardSubscribed } = useNotificationPreferenceMutations(ws.currentUser.id);
+  const muted = isBoardMuted(preferences.data, board.id);
   const team = ws.teamById(board.teamId);
 
   return (
@@ -173,6 +180,12 @@ export function BoardHeader({ board }: { board: Board }) {
               )}
               <DropdownMenuItem onSelect={() => actions.duplicateBoard.mutate()}>
                 <Copy /> Duplicate board
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setBoardSubscribed.mutate({ boardId: board.id, subscribed: muted })}
+                data-testid="toggle-board-subscription"
+              >
+                {muted ? <Bell /> : <BellOff />} {muted ? "Resume notifications" : "Mute notifications"}
               </DropdownMenuItem>
               {manage && (
                 <>

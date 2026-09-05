@@ -6,6 +6,7 @@ import {
   SupabaseActivityRepository,
   SupabaseAdminRepository,
   SupabaseCommentRepository,
+  SupabaseNotificationPreferencesRepository,
   SupabaseNotificationRepository,
 } from "./repositories/misc-repositories";
 import { SupabaseMessageRepository } from "./repositories/message-repository";
@@ -39,6 +40,7 @@ export function createSupabaseRepositories(): Repositories {
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),
     notifications: new SupabaseNotificationRepository(),
+    notificationPreferences: new SupabaseNotificationPreferencesRepository(),
     admin: new SupabaseAdminRepository(),
   };
 }

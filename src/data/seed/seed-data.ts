@@ -24,7 +24,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseLinkPair } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { toISODate } from "@/lib/dates/dates";
@@ -1095,7 +1095,9 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
   }
 
   // ---- Notifications --------------------------------------------------------
-  const notifications: Notification[] = [
+  // Delivery follows the shipped defaults, so the demo shows both a red and a
+  // grey badge without anyone changing a setting first.
+  const notifications: Notification[] = ([
     { id: sid("notification"), userId: SEED_USER_IDS.danh, type: "MENTION", title: "Emily mentioned you in Masterclass landing page hero", body: "can you check the crop on the hero for the Vietnam version?", entityType: "ITEM", entityId: itemId("masterclass", "Masterclass landing page hero"), boardId: SEED_BOARD_IDS.masterclass, actorId: SEED_USER_IDS.emily, readAt: null, createdAt: iso(subHours(now, 4)) },
     { id: sid("notification"), userId: SEED_USER_IDS.danh, type: "ASSIGNED", title: "Jun assigned you to Sem 1 DOOH adaptation", body: "Semester 1 Campaign · Production", entityType: "ITEM", entityId: itemId("sem1", "Sem 1 DOOH adaptation"), boardId: SEED_BOARD_IDS.sem1, actorId: SEED_USER_IDS.jun, readAt: null, createdAt: iso(subHours(now, 2)) },
     { id: sid("notification"), userId: SEED_USER_IDS.danh, type: "DUE_DATE_CHANGED", title: "Due date changed for Cover concept – final artwork", body: `Joanne moved the due date to ${toISODate(addDays(now, 3))}`, entityType: "ITEM", entityId: itemId("rmitinerary", "Cover concept – final artwork"), boardId: SEED_BOARD_IDS.rmitinerary, actorId: SEED_USER_IDS.joanne, readAt: null, createdAt: iso(subHours(now, 3)) },
@@ -1109,7 +1111,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: sid("notification"), userId: SEED_USER_IDS.minh, type: "ASSIGNED", title: "Priya assigned you to Welcome video loop – 60s", body: "Video Production Pipeline · Post-production", entityType: "ITEM", entityId: itemId("video", "Welcome video loop – 60s"), boardId: SEED_BOARD_IDS.video, actorId: SEED_USER_IDS.priya, readAt: null, createdAt: iso(subDays(now, 3)) },
     { id: sid("notification"), userId: SEED_USER_IDS.sarah, type: "COMMENT", title: "Ben commented on Co-branding guidance for partners", body: "One request: a minimum size rule for the partner logo when the lockup is stacked.", entityType: "ITEM", entityId: itemId("brand", "Co-branding guidance for partners"), boardId: SEED_BOARD_IDS.brand, actorId: SEED_USER_IDS.ben, readAt: null, createdAt: iso(subDays(now, 1)) },
     { id: sid("notification"), userId: SEED_USER_IDS.tom, type: "STATUS_CHANGED", title: "Masterclass registration form is now Stuck", body: "Ravi changed the status from Working On It", entityType: "ITEM", entityId: itemId("website", "Masterclass registration form"), boardId: SEED_BOARD_IDS.website, actorId: SEED_USER_IDS.ravi, readAt: null, createdAt: iso(subHours(now, 4)) },
-  ];
+  ] as Array<Omit<Notification, "delivery">>).map((n) => ({ ...n, delivery: DEFAULT_TYPE_DELIVERY[n.type] === "UPDATE" ? "UPDATE" : "NOTIFICATION" }));
 
   const boardFavourites: BoardFavourite[] = [
     { id: sid("member"), boardId: SEED_BOARD_IDS.sem1, userId: SEED_USER_IDS.danh, createdAt: iso(subDays(now, 10)) },

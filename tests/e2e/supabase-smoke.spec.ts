@@ -523,4 +523,83 @@ test.describe("supabase provider", () => {
     const after = (await (await rest(admin, `items?id=eq.${target.id}&select=name`)).json()) as Array<{ name: string }>;
     expect(after[0]!.name).toBe(target.name);
   });
+
+  /**
+   * Notification settings: stored per person, honoured when the next
+   * notification is written, and readable only by their owner.
+   */
+  test("notification settings round-trip and are private to their owner", async ({ page, request }) => {
+    const errors = watchForErrors(page);
+    await signIn(page);
+    await page.goto("/workspace/rmit/inbox");
+    await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible({ timeout: 30_000 });
+
+    await page.getByTestId("notification-settings-button").click();
+    await expect(page.getByTestId("notification-settings")).toBeVisible({ timeout: 30_000 });
+
+    // Change one, and watch it reach Postgres.
+    await expectWrite(page, "notification_preferences", "POST", async () => {
+      await page.getByTestId("delivery-MENTION-UPDATE").click();
+    });
+    await expect(page.getByTestId("delivery-MENTION-UPDATE")).toHaveAttribute("aria-checked", "true");
+
+    // It is stored, not just on screen.
+    await page.reload();
+    await page.getByTestId("notification-settings-button").click();
+    await expect(page.getByTestId("delivery-MENTION-UPDATE")).toHaveAttribute("aria-checked", "true", { timeout: 30_000 });
+
+    // Nobody else can read the row, even though the delivery view can answer
+    // the one question a sender needs.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (url && key) {
+      const token = await (async () => {
+        const response = await request.post(`${url}/auth/v1/token?grant_type=password`, {
+          headers: { apikey: key, "Content-Type": "application/json" },
+          data: { email: "jun@rmit.local", password: DEMO_PASSWORD },
+        });
+        expect(response.ok(), `sign in as jun → ${response.status()}`).toBeTruthy();
+        return (await response.json()).access_token as string;
+      })();
+      const headers = { apikey: key, Authorization: `Bearer ${token}` };
+
+      const others = await request.get(`${url}/rest/v1/notification_preferences?user_id=eq.${ADMIN_ID}&select=user_id`, { headers });
+      expect(await others.json(), "one person's settings are not readable by another").toEqual([]);
+
+      const rules = await request.get(`${url}/rest/v1/notification_delivery_rules?user_id=eq.${ADMIN_ID}&select=user_id,types`, { headers });
+      const ruleRows = (await rules.json()) as Array<{ types: Record<string, string> }>;
+      expect(ruleRows.length, "a colleague can read the delivery rule it needs to address them").toBe(1);
+      expect(ruleRows[0]!.types.MENTION).toBe("UPDATE");
+    }
+
+    // Put it back the way it was found.
+    await page.getByTestId("delivery-MENTION-NOTIFICATION").click();
+    await expect(page.getByTestId("delivery-MENTION-NOTIFICATION")).toHaveAttribute("aria-checked", "true", { timeout: 30_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test("unsubscribing from a board is stored, and does not touch access to it", async ({ page }) => {
+    const errors = watchForErrors(page);
+    await signIn(page);
+    await page.goto(BOARD);
+    await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 30_000 });
+
+    await page.getByTestId("board-menu").click();
+    await expectWrite(page, "notification_preferences", "POST", async () => {
+      await page.getByTestId("toggle-board-subscription").click();
+    });
+
+    await page.reload();
+    await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("board-menu").click();
+    await expect(page.getByTestId("toggle-board-subscription")).toContainText("Resume notifications", { timeout: 30_000 });
+
+    // Resubscribe, leaving the workspace as it was found.
+    await page.getByTestId("toggle-board-subscription").click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await page.getByTestId("board-menu").click();
+    await expect(page.getByTestId("toggle-board-subscription")).toContainText("Mute notifications", { timeout: 30_000 });
+    expect(errors).toEqual([]);
+  });
+
 });

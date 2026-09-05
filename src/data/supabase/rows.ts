@@ -21,7 +21,9 @@ import type {
   ItemLink,
   Notification,
   NotificationEntityType,
+  NotificationPreferences,
   NotificationType,
+  StoredDelivery,
   Team,
   TeamMember,
   TeamRole,
@@ -35,6 +37,7 @@ import type {
   WorkspaceMemberStatus,
   WorkspaceRole,
 } from "@/domain";
+import { defaultNotificationPreferences } from "@/domain";
 
 /**
  * Row shapes for `supabase/migrations/*.sql` and the mappers between them and the
@@ -491,6 +494,7 @@ export interface NotificationRow {
   id: string;
   user_id: string;
   type: NotificationType;
+  delivery: StoredDelivery | null;
   title: string;
   body: string | null;
   entity_type: NotificationEntityType;
@@ -506,6 +510,8 @@ export function toNotification(row: NotificationRow): Notification {
     id: row.id,
     userId: row.user_id,
     type: row.type,
+    // Rows written before deliveries existed were the loud kind.
+    delivery: row.delivery ?? "NOTIFICATION",
     title: row.title,
     body: row.body,
     entityType: row.entity_type,
@@ -514,6 +520,25 @@ export function toNotification(row: NotificationRow): Notification {
     actorId: row.actor_id,
     readAt: row.read_at,
     createdAt: row.created_at,
+  };
+}
+
+export interface NotificationPreferencesRow {
+  user_id: string;
+  types: Record<string, string> | null;
+  muted_board_ids: string[] | null;
+  browser_enabled: boolean | null;
+  updated_at: string;
+}
+
+export function toNotificationPreferences(row: NotificationPreferencesRow): NotificationPreferences {
+  const base = defaultNotificationPreferences(row.user_id);
+  return {
+    userId: row.user_id,
+    types: { ...base.types, ...((row.types ?? {}) as NotificationPreferences["types"]) },
+    mutedBoardIds: row.muted_board_ids ?? [],
+    browserEnabled: row.browser_enabled ?? false,
+    updatedAt: row.updated_at,
   };
 }
 

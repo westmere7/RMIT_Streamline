@@ -4,6 +4,7 @@ import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
 import { mapColumns, translateValue, valuesEqual, type ColumnMappingReport } from "./item-link-sync";
+import { NotificationService } from "./notification-service";
 
 /** A linked item as shown in the item panel. */
 export interface LinkedItemView {
@@ -84,7 +85,10 @@ function newSyncCache(): SyncCache {
  * item are never touched, and a chain never holds two items from the same board.
  */
 export class ItemLinkService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    private readonly notifications: NotificationService,
+  ) {}
 
   // ---- Reads ---------------------------------------------------------------
 
@@ -251,7 +255,7 @@ export class ItemLinkService {
         boardId: boardB.id,
         actorId,
       }));
-    if (notifications.length) await this.repos.notifications.createMany(notifications);
+    if (notifications.length) await this.notifications.deliver(notifications);
     return link;
   }
 

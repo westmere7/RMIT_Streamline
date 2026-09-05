@@ -3,6 +3,7 @@ import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { truncate } from "@/lib/utils";
 import type { ItemLinkService } from "./item-link-service";
+import { NotificationService } from "./notification-service";
 
 
 /** Finds `@Full Name` mentions for known users. */
@@ -17,6 +18,7 @@ export function extractMentions(body: string, users: readonly User[]): EntityId[
 export class CommentService {
   constructor(
     private readonly repos: Repositories,
+    private readonly notifications: NotificationService,
     private readonly links?: ItemLinkService,
   ) {}
 
@@ -79,7 +81,7 @@ export class CommentService {
     const actorName = actor?.firstName ?? "Someone";
     const recipients = mentionUserIds.filter((id) => id !== actorId);
     if (recipients.length) {
-      await this.repos.notifications.createMany(
+      await this.notifications.deliver(
         recipients.map((userId) => ({
           userId,
           type: "MENTION" as const,

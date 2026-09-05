@@ -12,6 +12,7 @@ import type {
   ItemColumnValue,
   ItemLink,
   Notification,
+  NotificationPreferences,
   Team,
   TeamMember,
   Tracker,
@@ -70,6 +71,7 @@ export interface StreamlineDB extends DBSchema {
     indexes: { byWorkspace: string; byBoard: string; byItem: string };
   };
   notifications: { key: string; value: Notification; indexes: { byUser: string } };
+  notificationPreferences: { key: string; value: NotificationPreferences };
   directMessages: {
     key: string;
     value: DirectMessage;
@@ -100,6 +102,7 @@ export const ALL_STORES: StoreName[] = [
   "comments",
   "activities",
   "notifications",
+  "notificationPreferences",
   "directMessages",
   "boardVisits",
   "meta",
@@ -107,7 +110,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -203,12 +206,19 @@ function createDirectMessageStore(db: IDBPDatabase<StreamlineDB>): void {
   messages.createIndex("byWorkspace", "workspaceId");
 }
 
+/** v5: per-person notification preferences. */
+function createNotificationPreferencesStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("notificationPreferences")) return;
+  db.createObjectStore("notificationPreferences", { keyPath: "userId" });
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
   if (oldVersion < 2) createItemLinksStore(db);
   if (oldVersion < 3) createTrackerStores(db);
   if (oldVersion < 4) createDirectMessageStore(db);
+  if (oldVersion < 5) createNotificationPreferencesStore(db);
 }
 
 export interface OpenDatabaseOptions {

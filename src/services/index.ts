@@ -5,6 +5,7 @@ import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
 import { MessageService } from "./message-service";
 import { MyWorkService } from "./my-work-service";
+import { NotificationService } from "./notification-service";
 import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
@@ -12,6 +13,7 @@ import { WorkspaceService } from "./workspace-service";
 
 export interface Services {
   repos: Repositories;
+  notifications: NotificationService;
   workspace: WorkspaceService;
   boards: BoardService;
   items: ItemService;
@@ -25,15 +27,17 @@ export interface Services {
 }
 
 export function createServices(repos: Repositories): Services {
-  const links = new ItemLinkService(repos);
+  const notifications = new NotificationService(repos);
+  const links = new ItemLinkService(repos, notifications);
   const myWork = new MyWorkService(repos);
   return {
     repos,
+    notifications,
     workspace: new WorkspaceService(repos),
-    boards: new BoardService(repos),
-    items: new ItemService(repos, links),
+    boards: new BoardService(repos, notifications),
+    items: new ItemService(repos, links, notifications),
     links,
-    comments: new CommentService(repos, links),
+    comments: new CommentService(repos, notifications, links),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
     myWork,

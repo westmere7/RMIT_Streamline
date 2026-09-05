@@ -13,6 +13,7 @@ import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { BOARD_TEMPLATES, type BoardTemplateId } from "@/features/boards/templates";
 import { slugify, uniqueSlug } from "@/lib/slug";
+import { NotificationService } from "./notification-service";
 
 export interface CreateBoardInput {
   workspaceId: EntityId;
@@ -34,7 +35,11 @@ export interface BoardBundle {
 const GROUP_COLORS: ColorToken[] = ["blue", "orange", "violet", "green", "sky", "amber", "teal", "pink", "gray"];
 
 export class BoardService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    /** Applies each recipient's preferences to what gets written. */
+    private readonly notifications: NotificationService,
+  ) {}
 
   async listBoards(workspaceId: EntityId): Promise<Board[]> {
     return this.repos.boards.listByWorkspace(workspaceId);
@@ -267,7 +272,7 @@ export class BoardService {
         metadata: { boardName: board.name, memberName },
       });
       if (userId !== actorId) {
-        await this.repos.notifications.create({
+        await this.notifications.deliverOne({
           userId,
           type: "BOARD_INVITE",
           title: `You were added to ${board.name}`,

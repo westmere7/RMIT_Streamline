@@ -16,6 +16,7 @@ import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
 import type { ItemLinkService } from "./item-link-service";
+import { NotificationService } from "./notification-service";
 
 export interface BoardSnapshot {
   board: Board;
@@ -63,6 +64,8 @@ export class ItemService {
     private readonly repos: Repositories,
     /** Mirrors name, description and value changes onto linked items. */
     private readonly links: ItemLinkService,
+    /** Applies each recipient's preferences to what gets written. */
+    private readonly notifications: NotificationService,
   ) {}
 
   async loadBoardSnapshot(boardId: EntityId): Promise<BoardSnapshot> {
@@ -239,7 +242,7 @@ export class ItemService {
     }
 
     await this.repos.activities.create(activity);
-    if (notifications.length) await this.repos.notifications.createMany(notifications);
+    if (notifications.length) await this.notifications.deliver(notifications);
     return result;
   }
 

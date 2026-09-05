@@ -1,12 +1,40 @@
-import type { Activity, ActivityInput, Comment, CommentInput, Notification, NotificationInput } from "@/domain";
-import type { ActivityRepository, CommentRepository, DataAdminRepository, DataExport, NotificationRepository } from "@/data/repositories";
+import type {
+  Activity,
+  ActivityInput,
+  Comment,
+  CommentInput,
+  Notification,
+  NotificationPreferences,
+  NotificationPreferencesInput,
+  StoredDelivery,
+} from "@/domain";
+import { defaultNotificationPreferences } from "@/domain";
+import type {
+  ActivityRepository,
+  CommentRepository,
+  DataAdminRepository,
+  DataExport,
+  DeliverableNotification,
+  NotificationPreferencesRepository,
+  NotificationRepository,
+} from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
 import { assertOk, db, NotSupportedError, unwrap, unwrapList } from "../client";
-import { toActivity, toComment, toNotification, type ActivityRow, type CommentRow, type NotificationRow } from "../rows";
+import {
+  toActivity,
+  toComment,
+  toNotification,
+  toNotificationPreferences,
+  type ActivityRow,
+  type CommentRow,
+  type NotificationPreferencesRow,
+  type NotificationRow,
+} from "../rows";
 
 const COMMENT = "id, item_id, author_id, body, mention_user_ids, created_at, updated_at";
 const ACTIVITY = "id, workspace_id, board_id, item_id, actor_id, event_type, metadata, created_at";
-const NOTIFICATION = "id, user_id, type, title, body, entity_type, entity_id, board_id, actor_id, read_at, created_at";
+const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, actor_id, read_at, created_at";
+const NOTIFICATION_PREFERENCES = "user_id, types, muted_board_ids, browser_enabled, updated_at";
 
 export class SupabaseCommentRepository implements CommentRepository {
   async listByItem(itemId: string): Promise<Comment[]> {
@@ -87,7 +115,7 @@ export class SupabaseNotificationRepository implements NotificationRepository {
     return unwrapList<NotificationRow>(result, "notifications.listByUser").map(toNotification);
   }
 
-  async create(input: NotificationInput): Promise<Notification> {
+  async create(input: DeliverableNotification): Promise<Notification> {
     const [notification] = await this.createMany([input]);
     if (!notification) throw new Error("createMany produced no result");
     return notification;
@@ -100,13 +128,14 @@ export class SupabaseNotificationRepository implements NotificationRepository {
    * security policy"). Ids are therefore generated here and the rows are
    * returned from the input instead of from the database.
    */
-  async createMany(inputs: NotificationInput[]): Promise<Notification[]> {
+  async createMany(inputs: DeliverableNotification[]): Promise<Notification[]> {
     if (inputs.length === 0) return [];
     const created: Notification[] = inputs.map((input) => ({ ...input, id: newId(), readAt: null, createdAt: nowIso() }));
     const payload = created.map((n) => ({
       id: n.id,
       user_id: n.userId,
       type: n.type,
+      delivery: n.delivery,
       title: n.title,
       body: n.body,
       entity_type: n.entityType,
@@ -129,11 +158,61 @@ export class SupabaseNotificationRepository implements NotificationRepository {
     return toNotification(unwrap<NotificationRow>(result, "notifications.markRead"));
   }
 
-  async markAllRead(userId: string): Promise<void> {
-    assertOk(
-      await db().from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null),
-      "notifications.markAllRead",
-    );
+  async markAllRead(userId: string, delivery?: StoredDelivery): Promise<void> {
+    let query = db().from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null);
+    if (delivery) query = query.eq("delivery", delivery);
+    assertOk(await query, "notifications.markAllRead");
+  }
+}
+
+/**
+ * A person's notification choices. The row is created on first save, so an
+ * account that has never opened the settings simply has no row and gets the
+ * shipped defaults.
+ */
+export class SupabaseNotificationPreferencesRepository implements NotificationPreferencesRepository {
+  async get(userId: string): Promise<NotificationPreferences | null> {
+    const result = await db().from("notification_preferences").select(NOTIFICATION_PREFERENCES).eq("user_id", userId).maybeSingle();
+    const row = unwrap<NotificationPreferencesRow | null>(result, "notificationPreferences.get");
+    return row ? toNotificationPreferences(row) : null;
+  }
+
+  async save(userId: string, patch: NotificationPreferencesInput): Promise<NotificationPreferences> {
+    const current = (await this.get(userId)) ?? defaultNotificationPreferences(userId);
+    const next: NotificationPreferences = {
+      ...current,
+      ...patch,
+      types: { ...current.types, ...(patch.types ?? {}) },
+      userId,
+      updatedAt: nowIso(),
+    };
+    const result = await db()
+      .from("notification_preferences")
+      .upsert(
+        {
+          user_id: userId,
+          types: next.types,
+          muted_board_ids: next.mutedBoardIds,
+          browser_enabled: next.browserEnabled,
+          updated_at: next.updatedAt,
+        },
+        { onConflict: "user_id" },
+      )
+      .select(NOTIFICATION_PREFERENCES)
+      .single();
+    return toNotificationPreferences(unwrap<NotificationPreferencesRow>(result, "notificationPreferences.save"));
+  }
+
+  /**
+   * Used when writing notifications for other people, so it reads rows the
+   * caller cannot select for themselves: `notification_preferences_delivery`
+   * exposes exactly the columns the decision needs to anyone in the workspace.
+   */
+  async getMany(userIds: readonly string[]): Promise<Map<string, NotificationPreferences>> {
+    if (userIds.length === 0) return new Map();
+    const result = await db().from("notification_delivery_rules").select(NOTIFICATION_PREFERENCES).in("user_id", [...new Set(userIds)]);
+    const rows = unwrapList<NotificationPreferencesRow>(result, "notificationPreferences.getMany");
+    return new Map(rows.map((row) => [row.user_id, toNotificationPreferences(row)] as const));
   }
 }
 

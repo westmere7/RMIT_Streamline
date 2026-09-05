@@ -7,7 +7,7 @@ import { LocalCommentRepository } from "./repositories/comment-repository";
 import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
 import { LocalMessageRepository } from "./repositories/message-repository";
-import { LocalNotificationRepository } from "./repositories/notification-repository";
+import { LocalNotificationPreferencesRepository, LocalNotificationRepository } from "./repositories/notification-repository";
 import { LocalTeamRepository } from "./repositories/team-repository";
 import { LocalTrackerRepository } from "./repositories/tracker-repository";
 import { LocalUserRepository } from "./repositories/user-repository";
@@ -37,6 +37,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     messages: new LocalMessageRepository(connection),
     activities: new LocalActivityRepository(connection),
     notifications: new LocalNotificationRepository(connection),
+    notificationPreferences: new LocalNotificationPreferencesRepository(connection),
     admin: new LocalAdminRepository(connection),
   };
 }

@@ -22,6 +22,9 @@ import type {
   ItemLinkInput,
   Notification,
   NotificationInput,
+  NotificationPreferences,
+  NotificationPreferencesInput,
+  StoredDelivery,
   Team,
   TeamInput,
   Tracker,
@@ -179,12 +182,28 @@ export interface ActivityRepository {
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
 }
 
+/** A notification with the delivery its recipient's preferences decided. */
+export type DeliverableNotification = NotificationInput & { delivery: StoredDelivery };
+
 export interface NotificationRepository {
   listByUser(userId: EntityId): Promise<Notification[]>;
-  create(input: NotificationInput): Promise<Notification>;
-  createMany(inputs: NotificationInput[]): Promise<Notification[]>;
+  create(input: DeliverableNotification): Promise<Notification>;
+  createMany(inputs: DeliverableNotification[]): Promise<Notification[]>;
   markRead(id: EntityId, read: boolean): Promise<Notification>;
-  markAllRead(userId: EntityId): Promise<void>;
+  /** Marks read; `delivery` narrows it to one badge (used by "mark all read"). */
+  markAllRead(userId: EntityId, delivery?: StoredDelivery): Promise<void>;
+}
+
+/**
+ * One row per person: which events interrupt them, which boards they have
+ * unsubscribed from, and whether the browser may raise an OS notification.
+ */
+export interface NotificationPreferencesRepository {
+  /** Null when the person has never changed anything, so defaults apply. */
+  get(userId: EntityId): Promise<NotificationPreferences | null>;
+  save(userId: EntityId, patch: NotificationPreferencesInput): Promise<NotificationPreferences>;
+  /** Preferences for several recipients at once, for the delivery decision. */
+  getMany(userIds: readonly EntityId[]): Promise<Map<EntityId, NotificationPreferences>>;
 }
 
 /** Administrative operations that only make sense for a resettable local store. */
@@ -226,6 +245,7 @@ export interface Repositories {
   messages: MessageRepository;
   activities: ActivityRepository;
   notifications: NotificationRepository;
+  notificationPreferences: NotificationPreferencesRepository;
   admin: DataAdminRepository;
 }
 

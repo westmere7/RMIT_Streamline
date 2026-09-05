@@ -42,7 +42,8 @@ import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-b
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
-import { useUnreadCount } from "@/features/notifications/hooks";
+import type { UnreadCounts } from "@/domain";
+import { useUnreadCounts } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
@@ -83,7 +84,7 @@ export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
-  const unread = useUnreadCount(user?.id ?? "");
+  const unread = useUnreadCounts(user?.id ?? "");
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
   const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
   const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
@@ -198,7 +199,7 @@ export function Sidebar() {
             label="Inbox"
             active={isActivePath(routes.inbox(ws.slug))}
             collapsed={collapsed}
-            badge={unread > 0 ? unread : undefined}
+            badges={unread}
           />
           <li>
             <SimpleTooltip label="Search (Ctrl/⌘ F)" side="right" disabled={!collapsed}>
@@ -436,31 +437,67 @@ function NavItem({
   label,
   active,
   collapsed,
-  badge,
+  badges,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   active: boolean;
   collapsed: boolean;
-  badge?: number;
+  /** Loud ones in red, quiet ones in grey; both appear when both are waiting. */
+  badges?: UnreadCounts;
 }) {
+  const loud = badges?.notifications ?? 0;
+  const quiet = badges?.updates ?? 0;
+  const anything = loud + quiet > 0;
   return (
     <li>
-      <SimpleTooltip label={label} side="right" disabled={!collapsed}>
-        <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), collapsed && "justify-center px-0")}>
+      <SimpleTooltip label={badgeLabel(label, loud, quiet)} side="right" disabled={!collapsed}>
+        <Link
+          href={href}
+          aria-current={active ? "page" : undefined}
+          aria-label={anything ? badgeLabel(label, loud, quiet) : undefined}
+          className={cn(navItemClasses(active), collapsed && "justify-center px-0")}
+        >
           <span className="relative">
             <Icon className="size-4 shrink-0" />
-            {collapsed && badge ? <span className="absolute -top-1 -right-1 size-2 rounded-full bg-primary" /> : null}
+            {collapsed && anything ? (
+              <span className="absolute -top-1 -right-1 flex items-center gap-px">
+                {loud > 0 && <span className="size-2 rounded-full bg-primary" data-testid="badge-dot-notifications" />}
+                {quiet > 0 && <span className="size-2 rounded-full bg-muted-foreground/70" data-testid="badge-dot-updates" />}
+              </span>
+            ) : null}
           </span>
           {!collapsed && <span className="flex-1 truncate">{label}</span>}
-          {!collapsed && badge ? (
-            <span className="rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-white tabular">{badge}</span>
+          {!collapsed && anything ? (
+            <span className="flex shrink-0 items-center gap-1">
+              {loud > 0 && (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-white tabular" data-testid="badge-notifications">
+                  {loud}
+                </span>
+              )}
+              {quiet > 0 && (
+                <span
+                  className="rounded-full bg-surface-strong px-2 py-0.5 text-2xs font-semibold text-muted-foreground tabular"
+                  data-testid="badge-updates"
+                >
+                  {quiet}
+                </span>
+              )}
+            </span>
           ) : null}
         </Link>
       </SimpleTooltip>
     </li>
   );
+}
+
+/** "Inbox, 3 notifications and 2 updates" — the badges read out loud. */
+function badgeLabel(label: string, loud: number, quiet: number): string {
+  const parts: string[] = [];
+  if (loud > 0) parts.push(`${loud} notification${loud === 1 ? "" : "s"}`);
+  if (quiet > 0) parts.push(`${quiet} update${quiet === 1 ? "" : "s"}`);
+  return parts.length ? `${label}, ${parts.join(" and ")}` : label;
 }
 
 function Section({

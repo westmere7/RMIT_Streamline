@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ConfettiCanvas } from "@/components/shared/confetti";
+import { useOsNotifications } from "@/features/notifications/use-os-notifications";
 import { CommandPalette } from "@/features/search/command-palette";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useUiStore } from "@/stores/ui-store";
@@ -11,6 +12,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
   const isNarrow = useMediaQuery("(max-width: 1023px)");
+
+  // Raises an operating-system notification when something loud arrives while
+  // the app is open in a tab the reader is not looking at.
+  useOsNotifications();
 
   // Rehydrate persisted UI preferences after mount to avoid SSR mismatches.
   React.useEffect(() => {
