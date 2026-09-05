@@ -22,7 +22,7 @@ interface Bar {
 }
 
 export function TimelineView() {
-  const { model, openItem, now } = useBoardContext();
+  const { model } = useBoardContext();
   const bars = React.useMemo<Bar[]>(() => {
     const result: Bar[] = [];
     for (const group of model.groups) {
@@ -55,6 +55,15 @@ export function TimelineView() {
     );
   }
 
+  return <TimelineChart bars={bars} />;
+}
+
+/** The chart itself, once there is something to plot. */
+function TimelineChart({ bars }: { bars: Bar[] }) {
+  const { model, openItem, now } = useBoardContext();
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const boardId = model.groups[0]?.boardId ?? "";
+
   const lastBarId = bars[bars.length - 1]!.itemId;
   const minStart = bars.reduce((min, b) => (b.start < min ? b.start : min), bars[0]!.start);
   const maxEnd = bars.reduce((max, b) => (b.end > max ? b.end : max), bars[0]!.end);
@@ -63,6 +72,17 @@ export function TimelineView() {
   const totalDays = differenceInCalendarDays(rangeEnd, rangeStart) + 1;
   const days = Array.from({ length: totalDays }, (_, i) => addDays(rangeStart, i));
   const todayOffset = differenceInCalendarDays(startOfDay(now), rangeStart);
+
+  const todayLeft = LABEL_WIDTH + todayOffset * DAY_WIDTH;
+
+  // The range starts at the earliest dated item, so a board carrying older work
+  // would open on empty weeks with everything off to the right. Start on today,
+  // once per board, and leave the reader's own scrolling alone after that.
+  React.useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = Math.max(0, todayLeft - el.clientWidth / 2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId]);
 
   const months: Array<{ label: string; days: number }> = [];
   for (const day of days) {
@@ -73,8 +93,8 @@ export function TimelineView() {
   }
 
   return (
-    <div className="scrollbar-thin flex-1 overflow-auto bg-surface/50 pl-6" data-testid="timeline">
-      <div style={{ width: LABEL_WIDTH + totalDays * DAY_WIDTH }} className="relative my-4 mr-6 rounded-xl border border-border/60 bg-background shadow-xs">
+    <div ref={scroller} className="scrollbar-thin flex-1 overflow-auto bg-surface/50" data-testid="timeline">
+      <div style={{ width: LABEL_WIDTH + totalDays * DAY_WIDTH }} className="relative m-4 ml-6 rounded-xl border border-border/60 bg-background shadow-xs">
         <div className="sticky top-0 z-10 flex rounded-t-xl bg-background">
           <div className="sticky left-0 z-20 shrink-0 rounded-tl-xl border-r border-b bg-background" style={{ width: LABEL_WIDTH }} />
           <div>

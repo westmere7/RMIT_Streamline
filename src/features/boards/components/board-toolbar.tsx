@@ -55,8 +55,8 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             <PersonFilter />
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
-                  <Filter /> Filter
+                <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
+                  <Filter /> <span className="hidden xl:inline">Filter</span>
                   {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
                 </Button>
               </PopoverTrigger>
@@ -66,8 +66,8 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             </Popover>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
-                  <ArrowUpDown /> Sort
+                <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
+                  <ArrowUpDown /> <span className="hidden xl:inline">Sort</span>
                   {ui.sort && (
                     <span className="flex items-center gap-0.5 text-2xs">
                       {SORT_LABELS[ui.sort.field]} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
@@ -98,8 +98,8 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
-                  <EyeOff /> Hide
+                <Button variant="ghost" size="sm" aria-label="Hide columns" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
+                  <EyeOff /> <span className="hidden xl:inline">Hide</span>
                   {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
                 </Button>
               </DropdownMenuTrigger>
@@ -141,10 +141,17 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
   );
 }
 
-/** Always visible — searching is the toolbar's most-used control. */
+/**
+ * Always visible — searching is the toolbar's most-used control.
+ *
+ * The wrapper carries the width and shrinks with the toolbar; the input fills
+ * it. With the width on the input instead, it overflowed the wrapper on a narrow
+ * window and painted over the Person and Filter buttons, which could then not be
+ * clicked at all between roughly 1000 and 1200 pixels.
+ */
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <div className="relative min-w-0 shrink">
+    <div className="relative w-56 min-w-28 shrink">
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
@@ -155,7 +162,7 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
         placeholder="Search items"
         aria-label="Search items"
         data-testid="search-input"
-        className="h-9 w-56 min-w-28 rounded-full border-transparent bg-surface pl-9 pr-8 hover:bg-surface-strong/70 focus-visible:bg-card"
+        className="h-9 w-full rounded-full border-transparent bg-surface pl-9 pr-8 hover:bg-surface-strong/70 focus-visible:bg-card"
       />
       {value && (
         <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
@@ -174,8 +181,8 @@ function PersonFilter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
-          <UserRound /> Person
+        <Button variant="ghost" size="sm" aria-label="Filter by person" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
+          <UserRound /> <span className="hidden xl:inline">Person</span>
           {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>

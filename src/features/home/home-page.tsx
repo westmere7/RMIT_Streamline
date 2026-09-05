@@ -114,7 +114,7 @@ export function HomePage() {
                         <li key={entry.item.id}>
                           <Link
                             href={ws.boardPath(entry.board, { itemId: entry.item.id })}
-                            className="grid min-h-14 grid-cols-[minmax(0,1fr)_110px_90px] items-center gap-4 px-4 py-2.5 text-[13px] hover:bg-accent sm:grid-cols-[minmax(0,1fr)_150px_130px_100px]"
+                            className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-accent sm:grid-cols-[minmax(0,1fr)_150px_130px_100px] sm:gap-4"
                           >
                             <span className="min-w-0">
                               <span className="block truncate font-medium">{entry.item.name}</span>
@@ -127,7 +127,7 @@ export function HomePage() {
                             <span className="hidden sm:block">
                               <LabelPill label={entry.status} size="sm" striped={isStuckLabel(entry.statusColumn, entry.status?.id)} />
                             </span>
-                            <span>
+                            <span className="hidden sm:block">
                               <LabelPill label={entry.priority} appearance="soft" size="sm" />
                             </span>
                             <span

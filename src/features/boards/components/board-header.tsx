@@ -58,12 +58,12 @@ export function BoardHeader({ board }: { board: Board }) {
             </Link>
           </Button>
         </SimpleTooltip>
-        <span className={cn("mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl shadow-xs", colorClasses(board.color).solid)}>
+        <span className={cn("mt-0.5 hidden size-10 shrink-0 items-center justify-center rounded-xl shadow-xs sm:flex", colorClasses(board.color).solid)}>
           <DynamicIcon name={board.icon} className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="min-w-0 text-[22px] font-semibold tracking-tight">
+            <h1 className="min-w-0 text-lg font-semibold tracking-tight sm:text-[22px]">
               <InlineEdit
                 value={board.name}
                 editing={renaming}
@@ -113,11 +113,11 @@ export function BoardHeader({ board }: { board: Board }) {
               <Star className={cn("size-4", favourite && "fill-amber-400 text-amber-400")} />
             </Button>
           </SimpleTooltip>
-          <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="flex h-9 items-center rounded-full px-2 transition-colors hover:bg-accent/70">
+          <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="hidden h-9 items-center rounded-full px-2 transition-colors hover:bg-accent/70 sm:flex">
             <AvatarStack users={members} size="sm" max={4} />
           </button>
           {manage && (
-            <Button variant="outline" size="sm" onClick={() => setSettings("members")}>
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setSettings("members")}>
               <UserPlus /> Invite
             </Button>
           )}
