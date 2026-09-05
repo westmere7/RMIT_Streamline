@@ -83,6 +83,7 @@ test.describe("board lifecycle", () => {
     await page.goto(url);
     await expect(page.getByText(/archived/i).first()).toBeVisible({ timeout: 15000 });
     await page.getByRole("button", { name: /restore board/i }).click();
+    await expect(page.getByText(/archived/i)).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: "Archive me" })).toBeVisible();
   });

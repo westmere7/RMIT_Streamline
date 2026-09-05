@@ -72,6 +72,7 @@ test.describe("teams and members", () => {
     const row = page.locator("tr", { hasText: "Tuyet Le" }).first();
     await row.getByRole("button", { name: "Actions for Tuyet Le" }).click();
     await page.getByRole("menuitemradio", { name: "Admin" }).click();
+    await expect(page.locator("tr", { hasText: "Tuyet Le" }).first()).toContainText(/admin/i, { timeout: 15000 });
     await page.reload();
     await expect(page.locator("tr", { hasText: "Tuyet Le" }).first()).toContainText(/admin/i, { timeout: 10000 });
   });

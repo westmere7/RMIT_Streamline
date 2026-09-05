@@ -114,6 +114,7 @@ test.describe("column types", () => {
 
     await cell(page, "Brief").click();
     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Remove" }).click();
+    await expect(row(page, ITEM).getByRole("link")).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(row(page, ITEM).getByRole("link")).toHaveCount(0, { timeout: 15000 });
   });
@@ -181,6 +182,9 @@ test.describe("column types", () => {
     await target.getByRole("button", { name: /More actions/ }).click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
+    // Wait for the delete to land: reloading inside the write window would only
+    // prove that an unfinished delete is unfinished.
+    await expect(target).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(row(page, ITEM)).toBeVisible({ timeout: 15000 });
     await expect(cell(page, "Dependency")).not.toContainText("Cover concept");

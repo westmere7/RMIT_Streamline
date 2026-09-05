@@ -172,6 +172,7 @@ test.describe("groups, items and subitems", () => {
     await parent.getByRole("button", { name: /More actions/ }).click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
+    await expect(parent).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(page.getByTestId("subitem-row")).toHaveCount(0, { timeout: 15000 });
     await expect(page.getByText("Sub one")).toHaveCount(0);

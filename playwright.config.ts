@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // The deployment smoke test drives a deployed build and brings its own
+  // config (playwright.deployment.config.ts); it has no business here.
+  testIgnore: /deployment-smoke\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
