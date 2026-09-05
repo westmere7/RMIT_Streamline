@@ -9,9 +9,11 @@ export interface LabelPillProps extends React.ComponentProps<"span"> {
   appearance?: "solid" | "soft";
   emptyText?: string;
   size?: "sm" | "md";
+  /** Stuck statuses wear hazard stripes. */
+  striped?: boolean;
 }
 
-export function LabelPill({ label, appearance = "solid", emptyText = "", size = "md", className, ...props }: LabelPillProps) {
+export function LabelPill({ label, appearance = "solid", emptyText = "", size = "md", striped = false, className, ...props }: LabelPillProps) {
   if (!label) {
     return (
       <span className={cn("inline-flex items-center text-[13px] text-muted-foreground/70", className)} {...props}>
@@ -26,6 +28,7 @@ export function LabelPill({ label, appearance = "solid", emptyText = "", size = 
         "inline-flex max-w-full items-center truncate rounded-md font-medium",
         size === "md" ? "h-6.5 px-2.5 text-xs" : "h-5.5 px-2 text-2xs",
         appearance === "solid" ? colors.solid : colors.soft,
+        striped && "zebra",
         className,
       )}
       {...props}

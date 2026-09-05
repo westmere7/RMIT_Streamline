@@ -24,13 +24,43 @@ export interface ColumnLabel {
   color: ColorToken;
 }
 
+/**
+ * What a status label means, over and above its name. Every board words these
+ * differently — "Done" may be "Shipped", "Stuck" may be "Blocked" — so the
+ * meaning is a property of the label, not of its text. A label carries at most
+ * one role, and most labels carry none.
+ */
+export const STATUS_LABEL_ROLES = ["done", "stuck", "progress"] as const;
+export type StatusLabelRole = (typeof STATUS_LABEL_ROLES)[number];
+
 export interface StatusColumnSettings {
   kind: "status";
   labels: ColumnLabel[];
   /** Label ids that count as "done" (used for de-emphasis and My Work completion). */
   doneLabelIds: string[];
+  /** Label ids that mean the work is stuck. Their chips are striped. */
+  stuckLabelIds?: string[];
+  /** Label ids that mean the work is under way. */
+  progressLabelIds?: string[];
   /** Label used when no value exists. */
   defaultLabelId: string | null;
+}
+
+/** The ids carrying `role`. Boards saved before roles existed have only "done". */
+export function statusRoleIds(settings: StatusColumnSettings, role: StatusLabelRole): string[] {
+  if (role === "done") return settings.doneLabelIds ?? [];
+  return (role === "stuck" ? settings.stuckLabelIds : settings.progressLabelIds) ?? [];
+}
+
+/** The role of one label, or null when it carries none. */
+export function statusLabelRole(settings: StatusColumnSettings, labelId: string | null | undefined): StatusLabelRole | null {
+  if (!labelId) return null;
+  return STATUS_LABEL_ROLES.find((role) => statusRoleIds(settings, role).includes(labelId)) ?? null;
+}
+
+/** True when this label means the item is stuck — the one role with a look of its own. */
+export function isStuckLabel(column: BoardColumn | null | undefined, labelId: string | null | undefined): boolean {
+  return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "stuck";
 }
 
 export interface PriorityColumnSettings {
@@ -143,6 +173,8 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
         kind: "status",
         labels: DEFAULT_STATUS_LABELS.map((l) => ({ ...l })),
         doneLabelIds: ["done"],
+        stuckLabelIds: ["stuck"],
+        progressLabelIds: ["working"],
         defaultLabelId: "not_started",
       };
     case "PRIORITY":

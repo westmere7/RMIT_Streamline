@@ -27,6 +27,35 @@ test.describe("board interactions", () => {
     await expect(row(page, "RMITinerary Explorer").getByTestId("status-cell")).toContainText("Done");
   });
 
+  test("celebrates finishing a task and clears within three seconds", async ({ page }) => {
+    // Counts the pixels the confetti canvas has painted.
+    const painted = () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="confetti"]') as HTMLCanvasElement;
+        if (!canvas.width) return 0;
+        const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+        let count = 0;
+        for (let i = 3; i < data.length; i += 4 * 97) if (data[i]! > 0) count++;
+        return count;
+      });
+
+    const explorer = row(page, "RMITinerary Explorer");
+    expect(await painted()).toBe(0);
+
+    await explorer.getByTestId("status-cell").click();
+    await page.getByRole("option", { name: "Done" }).click();
+    await expect.poll(painted, { timeout: 2_000 }).toBeGreaterThan(0);
+
+    // And it gets out of the way on its own.
+    await expect.poll(painted, { timeout: 3_500 }).toBe(0);
+
+    // Setting the same done status again does not fire it a second time.
+    await explorer.getByTestId("status-cell").click();
+    await page.getByRole("option", { name: "Done" }).click();
+    await page.waitForTimeout(500);
+    expect(await painted()).toBe(0);
+  });
+
   test("assigns an owner with the person picker", async ({ page }) => {
     const item = row(page, "RMITinerary Independent");
     await item.getByTestId("person-cell").click();
@@ -112,6 +141,37 @@ test.describe("board interactions", () => {
     await page.mouse.up();
     await expect(page.getByTestId("drop-slot")).toHaveCount(0);
     await expect(page.getByTestId("group-Design").locator('[data-item-name="Accessibility review of PDF export"]')).toBeVisible();
+  });
+
+  test("keeps the drop line the same weight at the top of a group", async ({ page }) => {
+    // The line at the very first row sits level with the sticky column header,
+    // which used to paint over most of it and make it look thinner there.
+    const source = row(page, "Accessibility review of PDF export");
+    const handle = source.getByRole("button", { name: /Drag Accessibility/ });
+    const first = row(page, "RMITinerary High Achiever");
+    await source.hover();
+    const from = await handle.boundingBox();
+    const to = await first.boundingBox();
+    if (!from || !to) throw new Error("rows not visible");
+
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + 20, { steps: 5 });
+    await page.mouse.move(to.x + 100, to.y + 6, { steps: 15 });
+
+    const slot = page.getByTestId("group-Design").getByTestId("drop-slot");
+    await expect(slot).toHaveCount(1, { timeout: 5_000 });
+    const painted = await slot.evaluate((el) => {
+      const bar = el.firstElementChild as HTMLElement;
+      const header = el.closest('[role="grid"]')!.querySelector('[role="row"]') as HTMLElement;
+      const layer = (node: Element) => Number(getComputedStyle(node).zIndex) || 0;
+      return { barHeight: Math.round(bar.getBoundingClientRect().height), line: layer(el), header: layer(header) };
+    });
+    expect(painted.barHeight).toBeGreaterThanOrEqual(3);
+    expect(painted.line).toBeGreaterThan(painted.header);
+
+    await page.mouse.up();
+    await expect(page.getByTestId("drop-slot")).toHaveCount(0);
   });
 
   test("previews a landing slot in an empty group", async ({ page }) => {

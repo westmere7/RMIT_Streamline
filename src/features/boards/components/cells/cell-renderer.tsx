@@ -6,7 +6,7 @@ import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, emptyValueFor } from "@/domain";
+import { columnLabels, columnTagOptions, emptyValueFor, isStuckLabel, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -67,6 +67,36 @@ export function CellRenderer(props: CellProps) {
   }
 }
 
+/**
+ * How many chips fit in a cell before the rest become "+N".
+ *
+ * Estimated from the column width rather than measured: a board renders
+ * hundreds of these cells and measuring each one costs a layout pass per row.
+ * The estimate errs on the low side, so a chip is dropped before it would be
+ * half-clipped — a cut-off chip reads as "there is more, but no idea how much".
+ */
+function fitChips(labels: readonly string[], width: number): number {
+  const CHAR = 6.6;
+  const CHIP_PADDING = 18;
+  const GAP = 4;
+  const MORE_BADGE = 26;
+  const CELL_PADDING = 14;
+
+  let used = CELL_PADDING;
+  for (let index = 0; index < labels.length; index++) {
+    const chip = (labels[index]?.length ?? 0) * CHAR + CHIP_PADDING + (index > 0 ? GAP : 0);
+    const rest = labels.length - index - 1;
+    if (used + chip + (rest > 0 ? MORE_BADGE : 0) > width) return Math.max(1, index);
+    used += chip;
+  }
+  return labels.length;
+}
+
+/** The "+N" marker shown when a cell holds more than it can show. */
+function MoreCount({ count }: { count: number }) {
+  return <span className="shrink-0 text-2xs font-medium text-muted-foreground">+{count}</span>;
+}
+
 // ---- Status / Priority -----------------------------------------------------
 
 export function StatusCell({ item, column, value, onChange, readOnly, width }: CellProps) {
@@ -74,6 +104,7 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   const v = valueOf("STATUS", value);
   const labels = columnLabels(column);
   const label = labels.find((l) => l.id === v.labelId) ?? null;
+  const stuck = isStuckLabel(column, v.labelId);
   const w = width ?? column.width;
   return (
     <PopoverCell
@@ -86,7 +117,7 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       trigger={
         label ? (
           <span className="flex h-full w-full items-center p-1.5">
-            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid)}>
+            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}>
               <span className="truncate px-2">{label.name}</span>
             </span>
           </span>
@@ -101,6 +132,7 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
         <LabelPicker
           labels={labels}
           value={v.labelId}
+          stripedIds={column.settings.kind === "status" ? statusRoleIds(column.settings, "stuck") : []}
           onChange={(labelId) => {
             onChange({ type: "STATUS", labelId });
             close();
@@ -486,6 +518,7 @@ export function TagsCell({ item, column, value, onChange, readOnly, width }: Cel
   const { model, mutations, openEditLabels } = useBoardContext();
   const v = valueOf("TAGS", value);
   const options = React.useMemo(() => tagOptionsFor(column, model.snapshot.values), [column, model.snapshot.values]);
+  const visibleTags = fitChips(v.tags.map(formatTag), width ?? column.width);
   return (
     <PopoverCell
       width={width ?? column.width}
@@ -495,11 +528,12 @@ export function TagsCell({ item, column, value, onChange, readOnly, width }: Cel
       contentClassName="w-64 p-2"
       trigger={
         <span className="flex items-center gap-1 overflow-hidden px-1.5">
-          {v.tags.map((tag) => (
-            <span key={tag} className={cn("shrink-0 rounded-md px-2 py-0.5 text-2xs font-medium", colorClasses(tagColor(options, tag)).soft)}>
+          {v.tags.slice(0, visibleTags).map((tag) => (
+            <span key={tag} className={cn("min-w-0 shrink-0 truncate rounded-md px-2 py-0.5 text-2xs font-medium", colorClasses(tagColor(options, tag)).soft)}>
               {formatTag(tag)}
             </span>
           ))}
+          {v.tags.length > visibleTags && <MoreCount count={v.tags.length - visibleTags} />}
         </span>
       }
     >
@@ -550,6 +584,9 @@ export function DependencyCell({ item, column, value, onChange, readOnly, width 
   const v = valueOf("DEPENDENCY", value);
   const deps = v.itemIds.map((id) => model.itemById.get(id)).filter((i): i is Item => !!i);
   const blocked = model.isBlocked(item.id);
+  const names = deps.map((d) => d.name);
+  // Names run together as text rather than chips, so the alarm icon is the only extra width.
+  const visibleDeps = fitChips(names, (width ?? column.width) - (blocked ? 18 : 0));
   return (
     <PopoverCell
       width={width ?? column.width}
@@ -558,9 +595,10 @@ export function DependencyCell({ item, column, value, onChange, readOnly, width 
       contentClassName="w-72 p-0"
       trigger={
         deps.length > 0 ? (
-          <span className={cn("flex items-center gap-1 truncate px-1 text-xs", blocked ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+          <span className={cn("flex items-center gap-1 overflow-hidden px-1 text-xs", blocked ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
             {blocked && <TriangleAlert className="size-3 shrink-0" />}
-            <span className="truncate">{deps.map((d) => d.name).join(", ")}</span>
+            <span className="truncate">{names.slice(0, visibleDeps).join(", ")}</span>
+            {names.length > visibleDeps && <MoreCount count={names.length - visibleDeps} />}
           </span>
         ) : (
           <span className="px-1 text-2xs text-muted-foreground/60">—</span>

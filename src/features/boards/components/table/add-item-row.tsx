@@ -20,7 +20,7 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
   };
 
   return (
-    <div role="row" className="flex border-b border-border/60" style={{ height: TABLE_LAYOUT.rowHeight }}>
+    <div role="row" className="flex" style={{ height: TABLE_LAYOUT.rowHeight }}>
       <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-accent/40")} style={leadingCellStyle()}>
         <span aria-hidden className="h-full w-1.5 bg-transparent" />
         <div style={{ width: TABLE_LAYOUT.selectWidth - 6 + TABLE_LAYOUT.handleWidth }} className="flex items-center justify-end pr-1 text-muted-foreground/60">

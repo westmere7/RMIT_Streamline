@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { isStuckLabel } from "@/domain";
 import { useMyWork } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -108,7 +109,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                   )}
                 </span>
                 <span className="hidden md:block">
-                  <LabelPill label={entry.status} size="sm" emptyText="—" />
+                  <LabelPill label={entry.status} size="sm" emptyText="—" striped={isStuckLabel(entry.statusColumn, entry.status?.id)} />
                 </span>
                 <span className="hidden md:block">
                   <LabelPill label={entry.priority} appearance="soft" size="sm" emptyText="—" />

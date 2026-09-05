@@ -56,6 +56,15 @@ test.describe("authentication and navigation", () => {
     await expect(page.getByText("You are all caught up.")).toBeVisible();
   });
 
+  test("messages open from the account menu, not the sidebar", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Messages" })).toHaveCount(0);
+    await page.getByTestId("user-menu").click();
+    await page.getByTestId("menu-messages").click();
+    await expect(page).toHaveURL(/\/messages$/);
+    await expect(page.getByRole("heading", { name: "Messages" })).toBeVisible();
+  });
+
   test("board is reachable directly and persists across reload", async ({ page }) => {
     await signInAs(page, "Danh");
     await openBoard(page);

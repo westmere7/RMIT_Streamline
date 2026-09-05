@@ -54,7 +54,7 @@ export interface GroupSectionProps {
 function DropLine({ color }: { color: BoardGroup["color"] }) {
   const colors = colorClasses(color);
   return (
-    <div className="relative z-[5] h-0" data-testid="drop-slot" aria-hidden>
+    <div className="relative z-[8] h-0" data-testid="drop-slot" aria-hidden>
       <div className={cn("absolute inset-x-0 -top-[2px] h-[3px] rounded-full", colors.dot)} />
     </div>
   );

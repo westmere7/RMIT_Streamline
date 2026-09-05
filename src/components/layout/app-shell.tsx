@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ConfettiCanvas } from "@/components/shared/confetti";
 import { CommandPalette } from "@/features/search/command-palette";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useUiStore } from "@/stores/ui-store";
@@ -40,6 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <CommandPalette />
+      <ConfettiCanvas />
     </div>
   );
 }

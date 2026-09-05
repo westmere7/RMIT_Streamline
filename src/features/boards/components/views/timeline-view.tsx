@@ -48,9 +48,14 @@ export function TimelineView() {
   }, [model]);
 
   if (bars.length === 0) {
-    return <EmptyState title="Nothing to plot yet" description="Add a Timeline or Date column value to items to see them here." />;
+    return (
+      <div className="flex flex-1 items-center justify-center bg-surface/50">
+        <EmptyState title="Nothing to plot yet" description="Add a Timeline or Date column value to items to see them here." />
+      </div>
+    );
   }
 
+  const lastBarId = bars[bars.length - 1]!.itemId;
   const minStart = bars.reduce((min, b) => (b.start < min ? b.start : min), bars[0]!.start);
   const maxEnd = bars.reduce((max, b) => (b.end > max ? b.end : max), bars[0]!.end);
   const rangeStart = startOfDay(subDays(minStart < now ? minStart : now, 3));
@@ -68,10 +73,10 @@ export function TimelineView() {
   }
 
   return (
-    <div className="scrollbar-thin flex-1 overflow-auto" data-testid="timeline">
-      <div style={{ width: LABEL_WIDTH + totalDays * DAY_WIDTH }} className="relative">
-        <div className="sticky top-0 z-10 flex bg-background">
-          <div className="sticky left-0 z-20 shrink-0 border-r border-b bg-background" style={{ width: LABEL_WIDTH }} />
+    <div className="scrollbar-thin flex-1 overflow-auto bg-surface/50 pl-6" data-testid="timeline">
+      <div style={{ width: LABEL_WIDTH + totalDays * DAY_WIDTH }} className="relative my-4 mr-6 rounded-xl border border-border/60 bg-background shadow-xs">
+        <div className="sticky top-0 z-10 flex rounded-t-xl bg-background">
+          <div className="sticky left-0 z-20 shrink-0 rounded-tl-xl border-r border-b bg-background" style={{ width: LABEL_WIDTH }} />
           <div>
             <div className="flex border-b">
               {months.map((m) => (
@@ -110,7 +115,7 @@ export function TimelineView() {
                   const offset = differenceInCalendarDays(bar.start, rangeStart);
                   const span = differenceInCalendarDays(bar.end, bar.start) + 1;
                   return (
-                    <div key={bar.itemId} className="flex h-9 items-center border-b border-border/60">
+                    <div key={bar.itemId} className={cn("flex h-9 items-center border-b border-border/60", bar.itemId === lastBarId && "border-b-0")}>
                       <div className="sticky left-0 z-[2] h-full shrink-0 border-r bg-background" style={{ width: LABEL_WIDTH }}>
                         <button type="button" onClick={() => openItem(bar.itemId)} className={cn("flex h-full w-full items-center truncate px-3 pl-6 text-left text-[13px] hover:underline", bar.done && "text-muted-foreground line-through")}>
                           <span className="truncate">{bar.name}</span>

@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, otherEndOf } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
@@ -14,6 +14,8 @@ export interface LinkedItemView {
   /** Set when the linked item is a subitem. */
   parent: Item | null;
   status: ColumnLabel | null;
+  /** The status means "stuck" on that board, so the chip is striped. */
+  statusStuck: boolean;
   ownerIds: EntityId[];
   dueDate: string | null;
   /** How the viewing item's columns map onto this item's board. */
@@ -107,6 +109,7 @@ export class ItemLinkService {
         group: bundle.groups.find((g) => g.id === other.groupId) ?? null,
         parent: other.parentItemId ? await this.repos.items.getById(other.parentItemId) : null,
         status: statusOf(bundle.columns, values),
+        statusStuck: stuckStatus(bundle.columns, values),
         ownerIds: ownersOf(bundle.columns, values),
         dueDate: dueDateOf(bundle.columns, values),
         mapping: own ? mapColumns(own.columns, bundle.columns) : { mapped: [], unmapped: [], targetOnly: [] },
@@ -576,6 +579,12 @@ function statusOf(columns: readonly BoardColumn[], values: readonly ItemColumnVa
   if (!column) return null;
   const v = values.find((x) => x.columnId === column.id)?.value;
   return v?.type === "STATUS" ? (columnLabels(column).find((l) => l.id === v.labelId) ?? null) : null;
+}
+
+function stuckStatus(columns: readonly BoardColumn[], values: readonly ItemColumnValue[]): boolean {
+  const column = columns.find((c) => c.type === "STATUS");
+  const v = column ? values.find((x) => x.columnId === column.id)?.value : undefined;
+  return v?.type === "STATUS" && isStuckLabel(column, v.labelId);
 }
 
 function ownersOf(columns: readonly BoardColumn[], values: readonly ItemColumnValue[]): EntityId[] {

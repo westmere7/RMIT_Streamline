@@ -11,12 +11,14 @@ export interface LabelPickerProps {
   value: string | null;
   onChange: (labelId: string | null) => void;
   appearance?: "solid" | "soft";
+  /** Labels drawn with hazard stripes — the ones that mean "stuck". */
+  stripedIds?: string[];
   allowClear?: boolean;
   onEditLabels?: () => void;
 }
 
 /** Grid of status/priority labels used inside popovers. */
-export function LabelPicker({ labels, value, onChange, appearance = "solid", allowClear = true, onEditLabels }: LabelPickerProps) {
+export function LabelPicker({ labels, value, onChange, appearance = "solid", stripedIds = [], allowClear = true, onEditLabels }: LabelPickerProps) {
   return (
     <div className="w-56">
       <div role="listbox" aria-label="Choose a label" className="grid grid-cols-2 gap-1">
@@ -33,6 +35,7 @@ export function LabelPicker({ labels, value, onChange, appearance = "solid", all
               className={cn(
                 "flex h-8 items-center justify-center gap-1 rounded px-2 text-xs font-medium transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring",
                 appearance === "solid" ? colors.solid : colors.soft,
+                stripedIds.includes(label.id) && "zebra",
                 selected && "ring-2 ring-foreground/60 ring-offset-1",
               )}
             >

@@ -10,13 +10,13 @@ import { StatusCell } from "@/features/boards/components/cells/cell-renderer";
 const column: BoardColumn = { id: "status", boardId: "b", name: "Status", type: "STATUS", settings: defaultSettingsFor("STATUS"), position: 0, width: 150, hidden: false, createdAt: "" };
 const item: Item = { id: "i1", boardId: "b", groupId: "g", parentItemId: null, name: "Hero film", description: null, position: 0, createdBy: "u", archivedAt: null, createdAt: "", updatedAt: "" };
 
-function renderCell(onChange = vi.fn(), openEditLabels = vi.fn(), readOnly = false) {
+function renderCell(onChange = vi.fn(), openEditLabels = vi.fn(), readOnly = false, labelId = "working") {
   const ctx = { openEditLabels } as unknown as BoardContextValue;
   render(
     <TooltipPrimitive.Provider>
       <BoardContextProvider value={ctx}>
         <div style={{ height: 36 }}>
-          <StatusCell item={item} column={column} value={{ type: "STATUS", labelId: "working" }} onChange={onChange} readOnly={readOnly} />
+          <StatusCell item={item} column={column} value={{ type: "STATUS", labelId }} onChange={onChange} readOnly={readOnly} />
         </div>
       </BoardContextProvider>
     </TooltipPrimitive.Provider>,
@@ -49,6 +49,17 @@ describe("StatusCell", () => {
     await user.click(screen.getByRole("gridcell", { name: /Status:/ }));
     await user.click(await screen.findByRole("button", { name: /Edit labels/ }));
     expect(openEditLabels).toHaveBeenCalledWith(column);
+  });
+
+  it("stripes a status that means stuck, and only that one", async () => {
+    const user = userEvent.setup();
+    renderCell(vi.fn(), vi.fn(), false, "stuck");
+    expect(screen.getByRole("gridcell", { name: /Status: Stuck/ }).querySelector(".zebra")).not.toBeNull();
+
+    // The picker stripes it too, so the meaning is visible while choosing.
+    await user.click(screen.getByRole("gridcell", { name: /Status: Stuck/ }));
+    expect(await screen.findByRole("option", { name: "Stuck" })).toHaveClass("zebra");
+    expect(screen.getByRole("option", { name: "Done" })).not.toHaveClass("zebra");
   });
 
   it("is not interactive when read only", () => {

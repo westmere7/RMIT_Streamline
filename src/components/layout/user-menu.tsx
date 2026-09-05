@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Database, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Wrench } from "lucide-react";
+import { ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useCurrentUser } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
+import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { IS_DEV } from "@/lib/config";
 import { routes } from "@/lib/routes";
@@ -39,6 +40,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const router = useRouter();
   const [resetOpen, setResetOpen] = React.useState(false);
   const [theme, setTheme] = useThemePreference();
+  const unreadMessages = useUnreadMessages().data ?? 0;
   const showDevTools = IS_DEV || providerKind === "local";
 
   const switchUser = async (email: string) => {
@@ -66,7 +68,13 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           aria-label="Account menu"
           data-testid="user-menu"
         >
-          <UserAvatar user={user} size="md" tooltip={false} />
+          <span className="relative">
+            <UserAvatar user={user} size="md" tooltip={false} />
+            {/* Messages left the sidebar, so unread ones announce themselves here. */}
+            {unreadMessages > 0 && (
+              <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-sidebar bg-primary" />
+            )}
+          </span>
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1 leading-tight">
@@ -85,6 +93,12 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => router.push(routes.person(ws.slug, user.id))} data-testid="menu-your-profile">
             <UserRound /> Your profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push(routes.messages(ws.slug))} data-testid="menu-messages">
+            <MessageSquare /> Messages
+            {unreadMessages > 0 && (
+              <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold text-primary-foreground">{unreadMessages}</span>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
             <Settings /> Settings

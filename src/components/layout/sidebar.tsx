@@ -14,7 +14,6 @@ import {
   Kanban,
   LayoutGrid,
   ListTodo,
-  MessageSquare,
   PanelLeft,
   PanelLeftClose,
   Plus,
@@ -43,7 +42,6 @@ import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-b
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
-import { useUnreadMessages } from "@/features/messages/hooks";
 import { useUnreadCount } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
@@ -86,7 +84,6 @@ export function Sidebar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCount(user?.id ?? "");
-  const unreadMessages = useUnreadMessages().data ?? 0;
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
   const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
   const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
@@ -202,14 +199,6 @@ export function Sidebar() {
             active={isActivePath(routes.inbox(ws.slug))}
             collapsed={collapsed}
             badge={unread > 0 ? unread : undefined}
-          />
-          <NavItem
-            href={routes.messages(ws.slug)}
-            icon={MessageSquare}
-            label="Messages"
-            active={isActivePath(routes.messages(ws.slug))}
-            collapsed={collapsed}
-            badge={unreadMessages > 0 ? unreadMessages : undefined}
           />
           <li>
             <SimpleTooltip label="Search (Ctrl/⌘ F)" side="right" disabled={!collapsed}>

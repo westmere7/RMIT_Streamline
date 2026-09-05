@@ -132,7 +132,7 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
             <div className="flex shrink-0 items-center gap-2">
               {view.dueDate && <span className={cn("text-xs tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(view.dueDate)}</span>}
               {owners.length > 0 && <AvatarStack users={owners} size="xs" max={3} />}
-              <LabelPill label={view.status} size="sm" emptyText="" />
+              <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
               {removable && <UnlinkButton name={view.item.name} onClick={() => unlink.mutate(view.link.id)} />}
             </div>
           </div>

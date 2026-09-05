@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { celebrate } from "@/components/shared/confetti";
 import type { BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
@@ -96,14 +97,34 @@ export function useBoardMutations(boardId: string) {
 
   // ---- Items ---------------------------------------------------------------
 
+  /**
+   * True when this write is what finishes the task: the column marks the new
+   * label as done and the item was not already done. Every way of completing a
+   * task — the cell picker, the item panel, dragging a kanban card — comes
+   * through setValue, so this is the one place that has to notice.
+   */
+  const completesTask = useCallback(
+    (item: Item, column: BoardColumn, value: ColumnValue) => {
+      if (column.type !== "STATUS" || column.settings.kind !== "status" || value.type !== "STATUS") return false;
+      const doneIds = column.settings.doneLabelIds;
+      if (value.labelId === null || !doneIds.includes(value.labelId)) return false;
+      const current = queryClient.getQueryData<BoardSnapshot>(key)?.values.find((v) => v.itemId === item.id && v.columnId === column.id)?.value;
+      const wasDone = current?.type === "STATUS" && current.labelId !== null && doneIds.includes(current.labelId);
+      return !wasDone;
+    },
+    [queryClient, key],
+  );
+
   const setValue = useCallback(
-    (item: Item, column: BoardColumn, value: ColumnValue) =>
-      run(
+    (item: Item, column: BoardColumn, value: ColumnValue) => {
+      if (completesTask(item, column, value)) celebrate();
+      return run(
         (s) => upsertValue(s, item.id, column.id, value),
         () => services.items.setValue(item.id, column.id, value, { column, item, board: ws.boardById(boardId)!, users: ws.users }, user.id),
         "Could not save the change",
-      ),
-    [run, services, ws, boardId, user.id],
+      );
+    },
+    [run, services, ws, boardId, user.id, completesTask],
   );
 
   const renameItem = useCallback(

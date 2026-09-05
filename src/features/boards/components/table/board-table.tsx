@@ -142,7 +142,7 @@ export function BoardTable() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="scrollbar-thin flex-1 overflow-auto bg-surface pl-6" data-testid="board-table">
+      <div className="scrollbar-thin flex-1 overflow-auto bg-surface/50 pl-6" data-testid="board-table">
         <CellStretchProvider>
           <div style={{ minWidth: width }} className="pb-24">
             <DndContext

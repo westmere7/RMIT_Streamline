@@ -11,6 +11,7 @@ import { SectionHeading } from "@/components/shared/page-header";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Board } from "@/domain";
+import { isStuckLabel } from "@/domain";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useWorkspaceActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
@@ -124,7 +125,7 @@ export function HomePage() {
                               </span>
                             </span>
                             <span className="hidden sm:block">
-                              <LabelPill label={entry.status} size="sm" />
+                              <LabelPill label={entry.status} size="sm" striped={isStuckLabel(entry.statusColumn, entry.status?.id)} />
                             </span>
                             <span>
                               <LabelPill label={entry.priority} appearance="soft" size="sm" />

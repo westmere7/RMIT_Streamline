@@ -4,14 +4,18 @@ import { GripVertical, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { BoardColumn, ColumnLabel, ColumnSettings, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { BoardColumn, ColumnLabel, ColumnSettings, PriorityColumnSettings, StatusColumnSettings, StatusLabelRole } from "@/domain";
+import { statusLabelRole } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
+
+/** Radix selects cannot hold an empty value, so "no meaning" needs a token of its own. */
+const NO_ROLE = "none";
 
 export interface EditLabelsDialogProps {
   column: BoardColumn | null;
@@ -47,22 +51,41 @@ function LabelsEditor({
 }) {
   const isStatus = settings.kind === "status";
   const [labels, setLabels] = React.useState<ColumnLabel[]>(() => settings.labels.map((l) => ({ ...l })));
-  const [doneIds, setDoneIds] = React.useState<string[]>(() => (settings.kind === "status" ? [...settings.doneLabelIds] : []));
+  // One role per label, so picking a role can only ever move it, never duplicate it.
+  const [roles, setRoles] = React.useState<Record<string, StatusLabelRole>>(() => {
+    if (settings.kind !== "status") return {};
+    const initial: Record<string, StatusLabelRole> = {};
+    for (const label of settings.labels) {
+      const role = statusLabelRole(settings, label.id);
+      if (role) initial[label.id] = role;
+    }
+    return initial;
+  });
 
   const update = (id: string, patch: Partial<ColumnLabel>) => setLabels((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  const setRole = (id: string, role: StatusLabelRole | null) =>
+    setRoles((current) => {
+      const next = { ...current };
+      if (role) next[id] = role;
+      else delete next[id];
+      return next;
+    });
   const remove = (id: string) => {
     setLabels((ls) => ls.filter((l) => l.id !== id));
-    setDoneIds((ids) => ids.filter((x) => x !== id));
+    setRole(id, null);
   };
   const add = () => setLabels((ls) => [...ls, { id: newId().slice(0, 8), name: "New label", color: "gray" }]);
 
   const save = () => {
     const cleaned = labels.map((l) => ({ ...l, name: l.name.trim() || "Untitled" }));
     if (settings.kind === "status") {
+      const withRole = (role: StatusLabelRole) => cleaned.filter((l) => roles[l.id] === role).map((l) => l.id);
       onSave({
         kind: "status",
         labels: cleaned,
-        doneLabelIds: doneIds.filter((id) => cleaned.some((l) => l.id === id)),
+        doneLabelIds: withRole("done"),
+        stuckLabelIds: withRole("stuck"),
+        progressLabelIds: withRole("progress"),
         defaultLabelId: cleaned.some((l) => l.id === settings.defaultLabelId) ? settings.defaultLabelId : (cleaned[0]?.id ?? null),
       });
     } else {
@@ -76,7 +99,10 @@ function LabelsEditor({
       <DialogHeader>
         <DialogTitle>Edit {column.name} labels</DialogTitle>
         <DialogDescription>
-          Rename, recolour, add or remove labels.{isStatus ? " Labels marked as done de-emphasise items and complete them in My Work." : ""}
+          Rename, recolour, add or remove labels.
+          {isStatus
+            ? " Give a label a meaning so the board can act on it: done de-emphasises the item and completes it in My Work, stuck marks it with stripes. Each label takes one meaning at most."
+            : ""}
         </DialogDescription>
       </DialogHeader>
       <ul className="space-y-1.5">
@@ -93,13 +119,17 @@ function LabelsEditor({
             </Popover>
             <Input value={label.name} onChange={(e) => update(label.id, { name: e.target.value })} aria-label="Label name" className="flex-1" />
             {isStatus && (
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={doneIds.includes(label.id)}
-                  onCheckedChange={(next) => setDoneIds((ids) => (next ? [...ids, label.id] : ids.filter((x) => x !== label.id)))}
-                />
-                Done
-              </label>
+              <Select value={roles[label.id] ?? NO_ROLE} onValueChange={(next) => setRole(label.id, next === NO_ROLE ? null : (next as StatusLabelRole))}>
+                <SelectTrigger className="h-8 w-34 shrink-0 text-xs" aria-label={`Meaning of ${label.name}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ROLE}>No meaning</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                  <SelectItem value="stuck">Stuck</SelectItem>
+                  <SelectItem value="progress">In progress</SelectItem>
+                </SelectContent>
+              </Select>
             )}
             <Button variant="ghost" size="icon-sm" aria-label={`Remove ${label.name}`} disabled={labels.length <= 1} onClick={() => remove(label.id)}>
               <Trash2 />
