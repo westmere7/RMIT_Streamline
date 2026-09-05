@@ -90,6 +90,29 @@ test.describe("column types", () => {
     await expect(cell(page, "Budget")).toHaveAttribute("aria-label", /empty/, { timeout: 15000 });
   });
 
+  test("priority: every level, cleared, and reflected in the item panel", async ({ page }) => {
+    const priority = row(page, ITEM).getByTestId("priority-cell");
+    for (const level of ["Critical", "High", "Low", "Medium"]) {
+      await priority.click();
+      await page.getByRole("option", { name: level, exact: true }).click();
+      await expect(priority).toContainText(level);
+    }
+    await page.reload();
+    await expect(row(page, ITEM).getByTestId("priority-cell")).toContainText("Medium", { timeout: 15000 });
+
+    // The item panel shows the same value.
+    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await expect(page.getByTestId("item-panel")).toContainText("Medium");
+    await page.getByTestId("close-panel").click();
+
+    // And it can be cleared.
+    await row(page, ITEM).getByTestId("priority-cell").click();
+    await page.getByRole("option", { name: "Clear" }).click();
+    await expect(row(page, ITEM).getByTestId("priority-cell")).toHaveAttribute("aria-label", /not set/, { timeout: 15000 });
+    await page.reload();
+    await expect(row(page, ITEM).getByTestId("priority-cell")).toHaveAttribute("aria-label", /not set/, { timeout: 15000 });
+  });
+
   test("checkbox toggles and persists", async ({ page }) => {
     await addColumn(page, "Checkbox", "Signed off");
     const box = row(page, ITEM).getByRole("checkbox", { name: /Signed off/ });

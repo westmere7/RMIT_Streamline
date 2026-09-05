@@ -281,6 +281,27 @@ frozen first column while scrolled; empty states; long names; 1440/1280/1024/768
 | `npm run lint` | clean |
 | `npm run typecheck` | clean |
 | `npm test` (unit + component, 19 files) | 104 passed |
-| `npx playwright test` (local provider) | 106 passed, 15 Supabase tests skipped |
+| `npx playwright test` (local provider) | 108 passed, twice in a row, 15 Supabase tests skipped |
 | `npm run test:e2e:supabase` | 15 passed against the live project |
+| `npm run test:e2e:deployment` | 5 passed against rmit-streamline.vercel.app |
 | `npm run build` | succeeds, 14 routes |
+
+### 15. Regression pass
+
+After every fix landed, the whole list from the brief was retested by the suite above: login,
+workspace load, team and board navigation, creating a board and an item, editing an item, status,
+owner, priority and date changes, dragging within and between groups, filters, sorting, search, the
+item panel, comments, My Work, notifications, kanban, refresh persistence, destructive operations,
+permissions, and the board at four widths. Two consecutive full local runs were clean, so nothing
+here depends on ordering or timing.
+
+### 16. Deployment
+
+Pushing to `main` builds on Vercel. Commits `9e76d0c`, `9a9b682`, `af58c61`, `b24cb0f` went up, the
+build succeeded, and the new code was confirmed live by finding a string it introduced
+("Filter by person") in the served bundle. `npm run test:e2e:deployment` then drove the deployed app
+end to end — sign in, board, every view, create an item with a status, owner, date and update, drag
+it between groups, reload, delete it, walk every page, follow a deep link, and check an unknown board
+says so — with no console errors and no failed requests. The only production-specific finding was in
+the test rather than the app: Next prefetches the sidebar's routes and aborts them on navigation, so
+cancelled RSC prefetches are ignored.
