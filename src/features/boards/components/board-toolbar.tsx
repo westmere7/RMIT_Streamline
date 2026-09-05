@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, Plus, Search, UserRound, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, LoaderCircle, Plus, Search, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -150,9 +150,16 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
  * clicked at all between roughly 1000 and 1200 pixels.
  */
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const loading = useBoardUiStore((s) => s.boardLoading);
   return (
     <div className="relative w-56 min-w-28 shrink">
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      {loading && (
+        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground" data-testid="search-loading">
+          <LoaderCircle className="size-3.5 animate-spin" />
+          <span className="sr-only">Still loading items</span>
+        </span>
+      )}
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}

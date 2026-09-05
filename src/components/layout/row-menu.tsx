@@ -33,6 +33,38 @@ export type MenuAction =
   | { type: "label"; label: string }
   | { type: "separator" };
 
+/**
+ * For menu actions that open a field and focus it — Rename, Add subitem.
+ *
+ * A Radix menu keeps a focus trap until it has finished closing, so a field
+ * mounted straight from `onSelect` is focused into a DOM that is still tearing
+ * down: the trap takes the focus back, the field's blur handler saves and closes
+ * it, and the rename appears to flash and vanish. Wrapping the action in `run`
+ * holds it until the menu is gone, and stops the menu handing focus back to its
+ * own button on the way out.
+ *
+ * Pass `onCloseAutoFocus` to the menu content — both DropdownMenuContent and
+ * ContextMenuContent take it.
+ */
+export function useMenuFocusGuard() {
+  const pending = React.useRef<(() => void) | null>(null);
+  return React.useMemo(
+    () => ({
+      run: (action: () => void) => {
+        pending.current = action;
+      },
+      onCloseAutoFocus: (event: Event) => {
+        const action = pending.current;
+        if (!action) return;
+        pending.current = null;
+        event.preventDefault();
+        action();
+      },
+    }),
+    [],
+  );
+}
+
 /** Renders actions as right-click menu entries. */
 export function renderContext(actions: MenuAction[]): React.ReactNode {
   return actions.map((action, index) => {

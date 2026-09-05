@@ -210,6 +210,11 @@ export class LocalBoardRepository implements BoardRepository {
     return sortByPosition(await db.getAllFromIndex("boardColumns", "byBoard", boardId));
   }
 
+  async getColumn(id: string): Promise<BoardColumn | null> {
+    const db = await this.conn.getDb();
+    return (await db.get("boardColumns", id)) ?? null;
+  }
+
   async createColumn(input: BoardColumnInput & { position?: number; id?: string }): Promise<BoardColumn> {
     const db = await this.conn.getDb();
     const existing = await db.getAllFromIndex("boardColumns", "byBoard", input.boardId);

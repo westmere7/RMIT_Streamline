@@ -140,13 +140,15 @@ export const TABLE_LAYOUT = {
 } as const;
 
 /**
- * Values that render as a chip, a date or an icon read better centred under their
- * header; free text and numbers keep their natural edge.
+ * Anything whose value is short — a chip, a date, an icon, a number, a link, a
+ * word or two of text — reads better centred under its header. Only the two that
+ * are long by nature stay against the left edge: a long text column, and a
+ * dependency column that lists item names.
  */
-const CENTRED_COLUMNS = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "CHECKBOX", "TAGS", "FILES"]);
+const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "DEPENDENCY"]);
 
 export function columnAlign(type: ColumnType): "left" | "center" {
-  return CENTRED_COLUMNS.has(type) ? "center" : "left";
+  return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";
 }
 
 export function leadingWidth(): number {

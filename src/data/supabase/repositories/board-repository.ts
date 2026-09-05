@@ -183,6 +183,12 @@ export class SupabaseBoardRepository implements BoardRepository {
     return unwrapList<BoardColumnRow>(result, "board_columns.listColumns").map(toBoardColumn);
   }
 
+  async getColumn(id: string): Promise<BoardColumn | null> {
+    const result = await db().from("board_columns").select(COLUMN).eq("id", id).maybeSingle();
+    const row = unwrapMaybe<BoardColumnRow>(result, "board_columns.getColumn");
+    return row ? toBoardColumn(row) : null;
+  }
+
   async createColumn(input: BoardColumnInput & { position?: number; id?: string }): Promise<BoardColumn> {
     let position = input.position;
     if (position === undefined) {

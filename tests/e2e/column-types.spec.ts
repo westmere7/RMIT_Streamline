@@ -11,7 +11,9 @@ async function addColumn(page: Page, type: string, name: string) {
   await expect(header).toBeVisible({ timeout: 15000 });
   await header.getByRole("button").click();
   await page.getByRole("menuitem", { name: "Rename" }).click();
-  const input = page.getByRole("textbox").last();
+  // Renaming happens in the header itself now, not in a popover.
+  const input = page.getByTestId("column-name-input");
+  await expect(input).toBeVisible({ timeout: 15000 });
   await input.fill(name);
   await input.press("Enter");
   await expect(page.getByRole("columnheader", { name: new RegExp(name) }).first()).toBeVisible({ timeout: 15000 });
@@ -131,9 +133,11 @@ test.describe("column types", () => {
     await page.getByRole("button", { name: "Save" }).click();
     await expect(cell(page, "Brief")).toContainText("The brief");
     await page.reload();
-    const link = row(page, ITEM).getByRole("link", { name: "The brief" });
+    // The address opens from the icon; the cell itself belongs to the editor.
+    const link = row(page, ITEM).getByRole("link", { name: "Open The brief" });
     await expect(link).toHaveAttribute("href", "https://example.com/brief.pdf", { timeout: 15000 });
     await expect(link).toHaveAttribute("rel", /noreferrer/);
+    await expect(cell(page, "Brief")).toContainText("The brief");
 
     await cell(page, "Brief").click();
     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Remove" }).click();

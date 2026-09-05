@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileSpreadsheet, Globe, Home, Inbox, ListTodo, Settings, Users } from "lucide-react";
+import { FileSpreadsheet, Globe, Home, Inbox, ListTodo, LoaderCircle, Settings, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -85,7 +85,12 @@ export function CommandPalette() {
         </ScopeChip>
       </div>
       <CommandList>
-        {debounced.length > 0 && !results.isLoading && !hasResults && <CommandEmpty>No results for “{debounced}”.</CommandEmpty>}
+        {debounced.length > 0 && results.isFetching && (
+          <p className="flex items-center justify-center gap-2 px-3 py-6 text-[13px] text-muted-foreground" data-testid="palette-loading">
+            <LoaderCircle className="size-3.5 animate-spin" /> Searching…
+          </p>
+        )}
+        {debounced.length > 0 && !results.isFetching && !hasResults && <CommandEmpty>No results for “{debounced}”.</CommandEmpty>}
         {debounced.length === 0 && scopedBoard && <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">Type to search items in this board.</p>}
         {debounced.length === 0 && !scopedBoard && (
           <CommandGroup heading="Go to">

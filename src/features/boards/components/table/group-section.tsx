@@ -44,6 +44,8 @@ export interface GroupSectionProps {
    * already opens a gap there.
    */
   dropIndex?: number | null;
+  /** Boundary a dragged column header would land at, or null when none is moving. */
+  columnDropIndex?: number | null;
 }
 
 /**
@@ -63,7 +65,15 @@ function DropLine({ color }: { color: BoardGroup["color"] }) {
 /** One shared empty list, so a group with no rows keeps a stable identity. */
 const NO_ITEMS: Item[] = [];
 
-export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverride, draggingItem = false, dropIndex = null }: GroupSectionProps) {
+export function GroupSection({
+  group,
+  dndEnabled,
+  widthOverrides,
+  onWidthOverride,
+  draggingItem = false,
+  dropIndex = null,
+  columnDropIndex = null,
+}: GroupSectionProps) {
   const { board, model, mutations, canEdit } = useBoardContext();
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
@@ -217,6 +227,7 @@ export function GroupSection({ group, dndEnabled, widthOverrides, onWidthOverrid
           className="rounded-xl border border-border/60 bg-background shadow-xs"
         >
           <ColumnHeaderRow
+            dropIndex={columnDropIndex}
             group={group}
             allSelected={allSelected}
             someSelected={selectedInGroup > 0 && !allSelected}

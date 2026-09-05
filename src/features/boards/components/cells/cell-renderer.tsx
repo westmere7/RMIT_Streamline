@@ -112,7 +112,7 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       disabled={readOnly}
       ariaLabel={`${column.name}: ${label?.name ?? "not set"} for ${item.name}`}
       testId="status-cell"
-      align="center"
+      align={columnAlign(column.type)}
       contentClassName="p-2"
       trigger={
         label ? (
@@ -192,7 +192,7 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
-      align="center"
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${assigned.map((u) => u.displayName).join(", ") || "unassigned"} for ${item.name}`}
       testId="person-cell"
       trigger={
@@ -225,7 +225,7 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
-      align="center"
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${v.date ? formatShortDate(v.date) : "not set"} for ${item.name}`}
       testId="date-cell"
       trigger={
@@ -251,7 +251,7 @@ export function TimelineCell({ item, column, value, onChange, readOnly, isDone, 
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
-      align="center"
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${formatDateRange(v.start, v.end) || "not set"} for ${item.name}`}
       trigger={
         v.start || v.end ? (
@@ -293,6 +293,7 @@ export function TextCell({ item, column, value, onChange, readOnly, width }: Cel
   const v = valueOf("TEXT", value);
   const { editing, draft, setDraft, start, finish } = useInlineText(v.text, (text) => onChange({ type: "TEXT", text }));
   const w = width ?? column.width;
+  const align = columnAlign(column.type);
   if (editing) {
     return (
       <CellShell width={w} interactive={false} className="px-0.5">
@@ -306,7 +307,7 @@ export function TextCell({ item, column, value, onChange, readOnly, width }: Cel
             if (e.key === "Enter") finish(true);
             if (e.key === "Escape") finish(false);
           }}
-          className="h-8 w-full rounded-lg border border-ring bg-card px-2 text-[13px] outline-none ring-2 ring-ring/20"
+          className={cn("h-8 w-full rounded-lg border border-ring bg-card px-2 text-[13px] outline-none ring-2 ring-ring/20", align === "center" && "text-center")}
         />
       </CellShell>
     );
@@ -314,6 +315,7 @@ export function TextCell({ item, column, value, onChange, readOnly, width }: Cel
   return (
     <CellShell
       width={w}
+      align={align}
       interactive={!readOnly}
       onClick={readOnly ? undefined : start}
       onKeyDown={(e) => !readOnly && e.key === "Enter" && start()}
@@ -333,6 +335,7 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name} for ${item.name}`}
       contentClassName="w-80 p-2"
       trigger={<span className="truncate px-1 text-muted-foreground">{v.text}</span>}
@@ -378,6 +381,7 @@ export function NumberCell({ item, column, value, onChange, readOnly, width }: C
     if (parsed === null || Number.isFinite(parsed)) onChange({ type: "NUMBER", number: parsed });
   });
   const w = width ?? column.width;
+  const align = columnAlign(column.type);
   if (editing) {
     return (
       <CellShell width={w} interactive={false} className="px-0.5">
@@ -392,7 +396,7 @@ export function NumberCell({ item, column, value, onChange, readOnly, width }: C
             if (e.key === "Enter") finish(true);
             if (e.key === "Escape") finish(false);
           }}
-          className="h-8 w-full rounded-lg border border-ring bg-card px-2 text-right text-[13px] outline-none ring-2 ring-ring/20 tabular"
+          className={cn("h-8 w-full rounded-lg border border-ring bg-card px-2 text-[13px] outline-none ring-2 ring-ring/20 tabular", align === "center" ? "text-center" : "text-right")}
         />
       </CellShell>
     );
@@ -405,7 +409,8 @@ export function NumberCell({ item, column, value, onChange, readOnly, width }: C
       onKeyDown={(e) => !readOnly && e.key === "Enter" && start()}
       tabIndex={readOnly ? -1 : 0}
       aria-label={`${column.name}: ${display || "empty"} for ${item.name}`}
-      className={cn("justify-end", !readOnly && "cursor-text")}
+      align={align}
+      className={cn(align === "left" && "justify-end", !readOnly && "cursor-text")}
     >
       <span className="truncate px-1 tabular">{display}</span>
     </CellShell>
@@ -415,7 +420,7 @@ export function NumberCell({ item, column, value, onChange, readOnly, width }: C
 export function CheckboxCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const v = valueOf("CHECKBOX", value);
   return (
-    <CellShell width={width ?? column.width} align="center" interactive={!readOnly}>
+    <CellShell width={width ?? column.width} align={columnAlign(column.type)} interactive={!readOnly}>
       <button
         type="button"
         role="checkbox"
@@ -442,20 +447,29 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${v.url || "empty"} for ${item.name}`}
       contentClassName="w-72 p-2"
       trigger={
         v.url ? (
-          <a
-            href={v.url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 truncate px-1 text-xs text-ring hover:underline"
-          >
-            <ExternalLink className="size-3 shrink-0" />
-            <span className="truncate">{v.text || v.url.replace(/^https?:\/\//, "")}</span>
-          </a>
+          // The text is not the link: clicking anywhere in the cell edits it,
+          // like every other cell, and the icon is what opens the address. With
+          // the value centred, an anchor across the middle would swallow the
+          // click that opens the editor.
+          <span className="flex min-w-0 items-center gap-1 px-1 text-xs text-ring">
+            <a
+              href={v.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${v.text || v.url}`}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="shrink-0 rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <ExternalLink className="size-3" />
+            </a>
+            <span className="truncate hover:underline">{v.text || v.url.replace(/^https?:\/\//, "")}</span>
+          </span>
         ) : (
           <span className="flex items-center px-1 text-muted-foreground/50">
             <Link2 className="size-3.5" />
@@ -562,7 +576,7 @@ export function FilesCell({ item, column, value, readOnly, width }: CellProps) {
   const v = valueOf("FILES", value);
   const { openItem } = useBoardContext();
   return (
-    <CellShell width={width ?? column.width} align="center" interactive={!readOnly}>
+    <CellShell width={width ?? column.width} align={columnAlign(column.type)} interactive={!readOnly}>
       {v.files.length > 0 ? (
         <SimpleTooltip label={v.files.map((f) => f.filename).join(", ")}>
           <button type="button" onClick={() => openItem(item.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -591,6 +605,7 @@ export function DependencyCell({ item, column, value, onChange, readOnly, width 
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
+      align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${deps.map((d) => d.name).join(", ") || "none"} for ${item.name}`}
       contentClassName="w-72 p-0"
       trigger={

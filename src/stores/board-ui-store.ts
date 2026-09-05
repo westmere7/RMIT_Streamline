@@ -47,6 +47,13 @@ interface BoardUiStore {
    */
   openItemId: string | null;
   setOpenItemId: (itemId: string | null) => void;
+  /**
+   * The open board is still loading or refetching. Kept here rather than in the
+   * board context so that saying "still loading" re-renders the search box and
+   * the empty state, not every row on the board.
+   */
+  boardLoading: boolean;
+  setBoardLoading: (loading: boolean) => void;
   /** Item whose panel should open the link dialog as soon as it mounts. */
   linkDialogItemId: string | null;
   setLinkDialogItem: (itemId: string | null) => void;
@@ -80,6 +87,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   boards: {},
   openItemId: null,
   setOpenItemId: (openItemId) => set({ openItemId }),
+  boardLoading: false,
+  setBoardLoading: (boardLoading) => set({ boardLoading }),
   linkDialogItemId: null,
   setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),

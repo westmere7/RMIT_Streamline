@@ -14,6 +14,7 @@ import { NotFoundError } from "@/data/repositories";
 import { BOARD_TEMPLATES, type BoardTemplateId } from "@/features/boards/templates";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { NotificationService } from "./notification-service";
+import { sameColumnName } from "./item-link-sync";
 
 export interface CreateBoardInput {
   workspaceId: EntityId;
@@ -427,7 +428,42 @@ export class BoardService {
     patch: Partial<Pick<BoardColumn, "name" | "width" | "hidden">> & { settings?: ColumnSettings },
   ): Promise<BoardColumn> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Column name cannot be empty");
-    return this.repos.boards.updateColumn(columnId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
+    const before = patch.name !== undefined ? await this.repos.boards.getColumn(columnId) : null;
+    const updated = await this.repos.boards.updateColumn(columnId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
+    if (before && before.name !== updated.name) await this.renameLinkedColumns(before, updated);
+    return updated;
+  }
+
+  /**
+   * Linked items keep their columns paired by name, so renaming one here would
+   * quietly break the pair. The matching column on every board this board is
+   * linked to is renamed with it.
+   *
+   * Only a column that still carries the old name is touched: a pair that was
+   * matched some other way already has names that differ on purpose. A board
+   * that already has a column with the new name is left alone rather than given
+   * two columns with the same name.
+   */
+  private async renameLinkedColumns(before: BoardColumn, after: BoardColumn): Promise<void> {
+    const items = await this.repos.items.listByBoard(before.boardId);
+    if (items.length === 0) return;
+    const links = await this.repos.links.listByItems(items.map((item) => item.id));
+    if (links.length === 0) return;
+
+    const ours = new Set(items.map((item) => item.id));
+    const partnerIds = [...new Set(links.map((link) => (ours.has(link.itemAId) ? link.itemBId : link.itemAId)))];
+    const partners = await Promise.all(partnerIds.map((id) => this.repos.items.getById(id)));
+    const boardIds = [...new Set(partners.filter((item) => item && item.boardId !== before.boardId).map((item) => item!.boardId))];
+
+    await Promise.all(
+      boardIds.map(async (boardId) => {
+        const columns = await this.repos.boards.listColumns(boardId);
+        const match = columns.find((c) => c.type === before.type && sameColumnName(c.name, before.name));
+        if (!match) return;
+        if (columns.some((c) => c.id !== match.id && sameColumnName(c.name, after.name))) return;
+        await this.repos.boards.updateColumn(match.id, { name: after.name });
+      }),
+    );
   }
 
   async reorderColumns(boardId: EntityId, orderedIds: EntityId[]): Promise<BoardColumn[]> {

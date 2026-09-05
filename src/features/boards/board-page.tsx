@@ -115,6 +115,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
 
   // The URL owns which item is open; the store mirrors it so rows can subscribe
   // to a boolean rather than re-rendering the whole table on every open.
+  const setBoardLoading = useBoardUiStore((s) => s.setBoardLoading);
+  React.useEffect(() => {
+    setBoardLoading(snapshot.isFetching);
+    return () => setBoardLoading(false);
+  }, [snapshot.isFetching, setBoardLoading]);
+
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
   React.useEffect(() => {
     setOpenItemId(itemId);

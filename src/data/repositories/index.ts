@@ -104,6 +104,7 @@ export interface BoardRepository {
   reorderGroups(boardId: EntityId, orderedIds: EntityId[]): Promise<BoardGroup[]>;
 
   listColumns(boardId: EntityId): Promise<BoardColumn[]>;
+  getColumn(id: EntityId): Promise<BoardColumn | null>;
   createColumn(input: BoardColumnInput & { position?: number; id?: EntityId }): Promise<BoardColumn>;
   updateColumn(id: EntityId, patch: Partial<Omit<BoardColumn, "id" | "boardId" | "createdAt">>): Promise<BoardColumn>;
   /** Deletes the column and every value stored against it. */

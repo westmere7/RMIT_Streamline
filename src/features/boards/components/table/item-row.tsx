@@ -3,7 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
-import { type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
+import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,19 +54,24 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
     disabled: !dndEnabled,
   });
 
+  // Rename and Add subitem open a field: they wait for the menu to finish
+  // closing so the field is not mounted inside a focus trap on its way out.
+  const menuFocus = useMenuFocusGuard();
+
   // Shared by the hover "…" button and the right-click menu on the row.
   const actions: MenuAction[] = canEdit
     ? [
         { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
-        { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => setRenaming(true) },
+        { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
         {
           type: "item",
           label: "Add subitem",
           icon: <Plus />,
-          onSelect: () => {
-            setAddingSubitem(true);
-            if (!expanded) toggleExpanded(board.id, item.id);
-          },
+          onSelect: () =>
+            menuFocus.run(() => {
+              setAddingSubitem(true);
+              if (!expanded) toggleExpanded(board.id, item.id);
+            }),
         },
         { type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) },
         {
@@ -235,7 +240,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                           <MoreHorizontal className="size-3.5" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-52">
+                      <DropdownMenuContent align="start" className="w-52" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
                         {renderDropdown(actions)}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -259,7 +264,9 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-52">{renderContext(actions)}</ContextMenuContent>
+        <ContextMenuContent className="w-52" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
+          {renderContext(actions)}
+        </ContextMenuContent>
       </ContextMenu>
 
       {expanded && <SubitemRows parent={item} group={group} subitems={subitems} widthOverrides={widthOverrides} adding={addingSubitem} onAddingChange={setAddingSubitem} />}
@@ -373,11 +380,13 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
+  // Renaming waits for the menu to close, as on a top-level row.
+  const menuFocus = useMenuFocusGuard();
   const actions: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
     ...(canEdit
       ? ([
-          { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => setRenaming(true) },
+          { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
           { type: "separator" },
           { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
         ] as MenuAction[])
@@ -468,7 +477,9 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">{renderContext(actions)}</ContextMenuContent>
+      <ContextMenuContent className="w-48" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
+        {renderContext(actions)}
+      </ContextMenuContent>
     </ContextMenu>
   );
 }

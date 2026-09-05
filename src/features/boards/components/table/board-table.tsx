@@ -13,9 +13,9 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { restrictToHorizontalAxis, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, SearchX } from "lucide-react";
+import { LoaderCircle, Plus, SearchX } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,16 @@ import { useBoardUiStore } from "@/stores/board-ui-store";
 import { BulkActionsBar } from "./bulk-actions-bar";
 import { GroupSection } from "./group-section";
 
-export type DragData = { type: "group"; groupId: string } | { type: "item"; itemId: string; groupId: string } | { type: "group-drop"; groupId: string };
+export type DragData =
+  | { type: "group"; groupId: string }
+  | { type: "item"; itemId: string; groupId: string }
+  | { type: "group-drop"; groupId: string }
+  /**
+   * A column header. Columns belong to the board, but each group draws its own
+   * header row, so the group is part of the identity: a column is dragged within
+   * the row it was picked up from.
+   */
+  | { type: "column"; columnId: string; groupId: string; index: number };
 
 /** Where the dragged item would land: which group, and at which index within it. */
 export interface DropTarget {
@@ -34,11 +43,21 @@ export interface DropTarget {
   index: number;
 }
 
+/** Where a dragged column header would land: the boundary the line is drawn at. */
+export interface ColumnDropTarget {
+  groupId: string;
+  boundary: number;
+}
+
 const collisionDetection: CollisionDetection = (args) => {
-  const activeType = (args.active.data.current as DragData | undefined)?.type;
+  const active = args.active.data.current as DragData | undefined;
   const containers = args.droppableContainers.filter((c) => {
-    const type = (c.data.current as DragData | undefined)?.type;
-    return activeType === "group" ? type === "group" : type === "item" || type === "group-drop";
+    const data = c.data.current as DragData | undefined;
+    if (active?.type === "group") return data?.type === "group";
+    // A column stays in the header row it came from: every group shows the same
+    // columns, so crossing between rows would mean nothing.
+    if (active?.type === "column") return data?.type === "column" && data.groupId === active.groupId;
+    return data?.type === "item" || data?.type === "group-drop";
   });
   return closestCenter({ ...args, droppableContainers: containers });
 };
@@ -55,12 +74,14 @@ export const BoardTable = React.memo(function BoardTable() {
   // Only the two flags this component actually reads: subscribing to the whole
   // per-board slice re-rendered the table (and every row under dnd-kit's
   // context) whenever anything was selected or expanded.
+  const loading = useBoardUiStore((s) => s.boardLoading);
   const sorted = useBoardUiStore((s) => !!s.boards[board.id]?.sort);
   const searching = useBoardUiStore((s) => !!s.boards[board.id]?.search);
   const clearFilters = useBoardUiStore((s) => s.clearFilters);
   const setSearch = useBoardUiStore((s) => s.setSearch);
   const [activeDrag, setActiveDrag] = React.useState<DragData | null>(null);
   const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null);
+  const [columnDrop, setColumnDrop] = React.useState<ColumnDropTarget | null>(null);
   const [widthOverrides, setWidthOverrides] = React.useState<Record<string, number>>({});
 
   const sensors = useSensors(
@@ -84,6 +105,19 @@ export const BoardTable = React.memo(function BoardTable() {
   const onDragOver = (event: DragOverEvent) => {
     const activeData = event.active.data.current as DragData | undefined;
     const overData = event.over?.data.current as DragData | undefined;
+
+    if (activeData?.type === "column") {
+      if (overData?.type !== "column" || overData.columnId === activeData.columnId) {
+        setColumnDrop(null);
+        return;
+      }
+      // Moving right lands after the column being hovered and moving left before
+      // it, so the line is drawn where the column will actually end up.
+      const boundary = activeData.index < overData.index ? overData.index + 1 : overData.index;
+      setColumnDrop({ groupId: activeData.groupId, boundary });
+      return;
+    }
+
     if (!activeData || activeData.type !== "item" || !overData) {
       setDropTarget(null);
       return;
@@ -105,11 +139,23 @@ export const BoardTable = React.memo(function BoardTable() {
   const onDragEnd = (event: DragEndEvent) => {
     setActiveDrag(null);
     setDropTarget(null);
+    setColumnDrop(null);
     const { active, over } = event;
     if (!over) return;
     const activeData = active.data.current as DragData | undefined;
     const overData = over.data.current as DragData | undefined;
     if (!activeData || !overData) return;
+
+    if (activeData.type === "column") {
+      if (overData.type !== "column" || activeData.columnId === overData.columnId) return;
+      const visible = model.visibleColumns.map((c) => c.id);
+      const from = visible.indexOf(activeData.columnId);
+      const to = visible.indexOf(overData.columnId);
+      if (from === -1 || to === -1) return;
+      const hidden = model.columns.filter((c) => c.hidden).map((c) => c.id);
+      void mutations.reorderColumns([...arrayMove(visible, from, to), ...hidden]);
+      return;
+    }
 
     if (activeData.type === "group" && overData.type === "group") {
       if (active.id === over.id) return;
@@ -165,8 +211,9 @@ export const BoardTable = React.memo(function BoardTable() {
               onDragCancel={() => {
                 setActiveDrag(null);
                 setDropTarget(null);
+                setColumnDrop(null);
               }}
-              modifiers={[restrictToVerticalAxis]}
+              modifiers={activeDrag?.type === "column" ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]}
             >
               <SortableContext items={model.groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
                 {model.groups.map((group) => (
@@ -178,6 +225,7 @@ export const BoardTable = React.memo(function BoardTable() {
                     onWidthOverride={setWidthOverrides}
                     draggingItem={activeDrag?.type === "item"}
                     dropIndex={activeDrag?.type === "item" && dropTarget?.groupId === group.id ? dropTarget.index : null}
+                    columnDropIndex={activeDrag?.type === "column" && columnDrop?.groupId === group.id ? columnDrop.boundary : null}
                   />
                 ))}
               </SortableContext>
@@ -192,15 +240,20 @@ export const BoardTable = React.memo(function BoardTable() {
                     {model.groups.find((g) => g.id === activeDrag.groupId)?.name}
                   </div>
                 )}
+                {activeDrag?.type === "column" && (
+                  <div className="flex h-8 items-center rounded-lg border border-border/70 bg-card px-3 text-xs font-medium shadow-xl">
+                    {model.columns.find((c) => c.id === activeDrag.columnId)?.name}
+                  </div>
+                )}
               </DragOverlay>
             </DndContext>
 
             {nothingVisible && (
               <div className="sticky left-0 w-[min(100%,60rem)]">
                 <EmptyState
-                  icon={SearchX}
-                  title="No tasks match these filters."
-                  description="Try widening the filters or clearing the search."
+                  icon={loading ? LoaderCircle : SearchX}
+                  title={loading ? "Still loading items…" : "No tasks match these filters."}
+                  description={loading ? "The board is still coming in; results will fill out in a moment." : "Try widening the filters or clearing the search."}
                   action={
                     <Button
                       variant="outline"

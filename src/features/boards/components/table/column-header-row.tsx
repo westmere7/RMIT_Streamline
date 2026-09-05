@@ -26,14 +26,14 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { BoardColumn, BoardGroup } from "@/domain";
 import { COLUMN_TYPE_LABELS } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
+import { useSortable } from "@dnd-kit/sortable";
 import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
+import type { DragData } from "./board-table";
 import { cn } from "@/lib/utils";
 
 const MIN_WIDTH = 80;
@@ -46,9 +46,19 @@ export interface ColumnHeaderRowProps {
   onToggleAll: (checked: boolean) => void;
   widthOverrides: Record<string, number>;
   onWidthOverride: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  /** Boundary a dragged column would land at, or null when none is moving. */
+  dropIndex?: number | null;
 }
 
-export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll, widthOverrides, onWidthOverride }: ColumnHeaderRowProps) {
+export function ColumnHeaderRow({
+  group,
+  allSelected,
+  someSelected,
+  onToggleAll,
+  widthOverrides,
+  onWidthOverride,
+  dropIndex = null,
+}: ColumnHeaderRowProps) {
   const { model, canEdit } = useBoardContext();
   const colors = colorClasses(group.color);
   return (
@@ -69,7 +79,16 @@ export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll,
         </div>
       </div>
       {model.visibleColumns.map((column, index) => (
-        <ColumnHeaderCell key={column.id} column={column} index={index} width={widthOverrides[column.id] ?? column.width} onWidthOverride={onWidthOverride} />
+        <ColumnHeaderCell
+          key={column.id}
+          column={column}
+          index={index}
+          group={group}
+          width={widthOverrides[column.id] ?? column.width}
+          onWidthOverride={onWidthOverride}
+          dropBefore={dropIndex === index}
+          dropAfter={dropIndex === model.visibleColumns.length && index === model.visibleColumns.length - 1}
+        />
       ))}
       <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.trailingWidth }}>
         {canEdit && <AddColumnMenu />}
@@ -78,20 +97,67 @@ export function ColumnHeaderRow({ group, allSelected, someSelected, onToggleAll,
   );
 }
 
+/**
+ * Where a dragged column will land: a line in the group's colour down the header
+ * boundary, matching the one a row drag draws across the table.
+ */
+function ColumnDropLine({ color, side }: { color: BoardGroup["color"]; side: "left" | "right" }) {
+  return (
+    <span
+      aria-hidden
+      data-testid="column-drop-line"
+      className={cn(
+        "pointer-events-none absolute inset-y-0 z-[9] w-[3px] rounded-full",
+        colorClasses(color).dot,
+        side === "left" ? "-left-[2px]" : "-right-[2px]",
+      )}
+    />
+  );
+}
+
 function ColumnHeaderCell({
   column,
   index,
+  group,
   width,
   onWidthOverride,
+  dropBefore,
+  dropAfter,
 }: {
   column: BoardColumn;
   index: number;
+  group: BoardGroup;
   width: number;
   onWidthOverride: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  /** The dragged column would land immediately before this one. */
+  dropBefore: boolean;
+  /** ...or after it, when it is the last column. */
+  dropAfter: boolean;
 }) {
   const { model, mutations, canEdit, openEditLabels } = useBoardContext();
   const [renaming, setRenaming] = React.useState(false);
   const [draft, setDraft] = React.useState(column.name);
+  /** Set while the rename field is being opened from the menu. */
+  const renameRequested = React.useRef(false);
+
+  // autoFocus alone is not enough: the menu this was chosen from is still
+  // closing, and its focus juggling lands after the field has mounted.
+  const renameInput = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (!renaming) return;
+    const frame = requestAnimationFrame(() => {
+      renameInput.current?.focus();
+      renameInput.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [renaming]);
+
+  const commitRename = () => {
+    const name = draft.trim();
+    setRenaming(false);
+    if (!name || name === column.name) return;
+    void mutations.updateColumn(column.id, { name });
+  };
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const visible = model.visibleColumns;
 
@@ -130,6 +196,22 @@ function ColumnHeaderCell({
     void mutations.reorderColumns([...next, ...hidden]);
   };
 
+  // Dragging a header moves the column. The transform is ignored on purpose:
+  // nothing shifts while dragging, a line shows where it will land — the same
+  // preview a row drag uses.
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+    id: `column:${group.id}:${column.id}`,
+    data: { type: "column", columnId: column.id, groupId: group.id, index } satisfies DragData,
+    disabled: !canEdit,
+  });
+
+  // The header is both the drag handle and the menu button, so the two have to
+  // be told apart. Radix opens its menu on pointer down, which would put a menu
+  // in front of every drag; the menu is controlled here and opens on a click
+  // that did not turn into a drag instead.
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const dragged = React.useRef(false);
+
   const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
   const hasTags = column.type === "TAGS";
   const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
@@ -139,27 +221,91 @@ function ColumnHeaderCell({
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={!canEdit}>
         <div
+          ref={setNodeRef}
           role="columnheader"
           className={cn(
             "group/col relative flex h-full shrink-0 items-center border-r border-border/60 px-1",
             columnAlign(column.type) === "center" ? "justify-center" : "justify-start",
+            isDragging && "opacity-40",
           )}
           style={columnCellStyle(width)}
         >
-          {canEdit ? (
-            <Popover open={renaming} onOpenChange={setRenaming}>
-              <DropdownMenu>
-                <PopoverTrigger asChild>
+          {dropBefore && <ColumnDropLine color={group.color} side="left" />}
+          {dropAfter && <ColumnDropLine color={group.color} side="right" />}
+          {renaming ? (
+            <form
+              className="w-full px-0.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                commitRename();
+              }}
+            >
+              <input
+                ref={renameInput}
+                aria-label="Column name"
+                data-testid="column-name-input"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setDraft(column.name);
+                    setRenaming(false);
+                  }
+                }}
+                className="h-7 w-full rounded-lg border border-ring bg-card px-2 text-center text-xs font-medium outline-none ring-2 ring-ring/20"
+              />
+            </form>
+          ) : canEdit ? (
+            <>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex h-7 max-w-full items-center gap-1 truncate rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground" aria-label={`${column.name} column options`}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex h-7 max-w-full items-center gap-1 truncate rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground",
+                        canEdit && "cursor-grab active:cursor-grabbing",
+                      )}
+                      aria-label={`${column.name} column options`}
+                      {...attributes}
+                      // Only the pointer starts a drag: leaving the keyboard
+                      // alone keeps Enter opening the menu, which is where a
+                      // keyboard user moves a column from ("Move left/right").
+                      onPointerDown={(event) => {
+                        dragged.current = false;
+                        listeners?.onPointerDown?.(event as unknown as PointerEvent);
+                        event.preventDefault();
+                      }}
+                      onPointerMove={(event) => {
+                        // Four pixels is dnd-kit's own threshold for "this is a
+                        // drag, not a click".
+                        if (event.buttons === 1) dragged.current = true;
+                      }}
+                      onClick={() => {
+                        if (!dragged.current) setMenuOpen((open) => !open);
+                      }}
+                    >
                       <span className="truncate">{column.name}</span>
                     </button>
                   </DropdownMenuTrigger>
-                </PopoverTrigger>
-                <DropdownMenuContent align="center" className="w-56">
+                <DropdownMenuContent
+                  align="center"
+                  className="w-56"
+                  // The menu puts focus back on its trigger as it closes, which
+                  // would take it straight off the rename field that has just
+                  // replaced that trigger. When Rename is what was chosen, the
+                  // menu leaves focus alone.
+                  onCloseAutoFocus={(event) => {
+                    if (renameRequested.current) {
+                      event.preventDefault();
+                      renameRequested.current = false;
+                    }
+                  }}
+                >
                   <DropdownMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
                   <DropdownMenuItem
                     onSelect={() => {
+                      renameRequested.current = true;
                       setDraft(column.name);
                       setRenaming(true);
                     }}
@@ -200,18 +346,7 @@ function ColumnHeaderCell({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <PopoverContent className="w-56 p-2" align="center">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (draft.trim() && draft.trim() !== column.name) void mutations.updateColumn(column.id, { name: draft.trim() });
-                    setRenaming(false);
-                  }}
-                >
-                  <Input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Column name" onKeyDown={(e) => e.key === "Escape" && setRenaming(false)} />
-                </form>
-              </PopoverContent>
-            </Popover>
+            </>
           ) : (
             <span className="truncate px-1.5">{column.name}</span>
           )}
@@ -235,10 +370,18 @@ function ColumnHeaderCell({
           />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent
+        className="w-56"
+        onCloseAutoFocus={(event) => {
+          if (!renameRequested.current) return;
+          renameRequested.current = false;
+          event.preventDefault();
+        }}
+      >
         <ContextMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</ContextMenuLabel>
         <ContextMenuItem
           onSelect={() => {
+            renameRequested.current = true;
             setDraft(column.name);
             setRenaming(true);
           }}
