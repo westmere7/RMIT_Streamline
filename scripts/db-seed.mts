@@ -8,7 +8,9 @@
  *
  * Two steps, because public.profiles.id references auth.users(id):
  *   1. create the demo accounts through the Auth Admin API with the seed's
- *      fixed ids (00000001-0000-4000-8000-0000000000NN),
+ *      fixed ids (00000001-0000-4000-8000-0000000000NN). Pending members are
+ *      recreated without a password so they cannot sign in until they open
+ *      their invitation link (printed at the end),
  *   2. delete the seed workspace and insert the bundle fresh.
  *
  * Needs SUPABASE_DB_URL, NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
@@ -19,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
+import { randomBytes } from "node:crypto";
 import { buildSeed, SEED_ACCOUNTS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "../src/data/seed/seed-data";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -62,6 +65,33 @@ async function admin<T>(base: string, key: string, path: string, init: RequestIn
     throw Object.assign(new Error(`Auth Admin ${init.method ?? "GET"} ${path} → ${response.status}: ${message}`), { status: response.status });
   }
   return body as T;
+}
+
+/**
+ * A pending member's account has no password: it is deleted and recreated so a
+ * previous onboarding test run cannot leave one behind. Deleting cascades to the
+ * profile, which the seed re-inserts below.
+ */
+async function recreatePendingAccount(base: string, key: string, account: { id: string; email: string; firstName: string; lastName: string }) {
+  const existing = await admin<AdminUser | null>(base, key, `/users/${account.id}`).catch(() => null);
+  if (existing?.id) await admin(base, key, `/users/${account.id}`, { method: "DELETE" });
+  const created = await admin<AdminUser>(base, key, "/users", {
+    method: "POST",
+    body: JSON.stringify({
+      id: account.id,
+      email: account.email,
+      email_confirm: true,
+      user_metadata: { first_name: account.firstName, last_name: account.lastName },
+    }),
+  });
+  if (created.id !== account.id) {
+    throw new Error(`Supabase assigned ${created.id} instead of ${account.id}; the seed's foreign keys need the fixed id.`);
+  }
+}
+
+/** Random, URL-safe and unguessable: this database is shared, unlike the browser store. */
+function randomToken(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 /** Creates or refreshes one account, tolerating a password the project rejects as too short. */
@@ -119,6 +149,11 @@ async function main(): Promise<void> {
     const user = byId.get(account.id);
     if (!user) continue;
     const isAdmin = account.id === SEED_USER_IDS.admin;
+    if (account.pending) {
+      await recreatePendingAccount(projectUrl!, serviceKey!, { id: account.id, email: account.email, firstName: user.firstName, lastName: user.lastName });
+      console.log(`  ~ ${account.email}  (pending onboarding, no password)`);
+      continue;
+    }
     const result = await upsertAccount(
       projectUrl!,
       serviceKey!,
@@ -141,6 +176,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    let seededInvitations: Array<{ token: string; email: string }> = [];
     console.log("\nReplacing seed data …");
     await sql.begin(async (tx) => {
       const seedUserIds = new Set(seed.users.map((u) => u.id));
@@ -190,6 +226,24 @@ async function main(): Promise<void> {
       await tx`insert into public.workspace_members ${tx(
         seed.workspaceMembers.map((m) => ({ id: m.id, workspace_id: m.workspaceId, user_id: m.userId, role: m.role, status: m.status, joined_at: m.joinedAt })),
       )}`;
+
+      // Invitation links for the pending members. Fresh random tokens every seed;
+      // the browser store keeps the fixed ones from seed-data.ts.
+      const invitations = seed.workspaceInvitations.map((i) => ({ ...i, token: randomToken() }));
+      if (invitations.length) {
+        await tx`insert into public.workspace_invitations ${tx(
+          invitations.map((i) => ({
+            id: i.id,
+            workspace_id: i.workspaceId,
+            user_id: i.userId,
+            token: i.token,
+            created_by: i.createdBy,
+            created_at: i.createdAt,
+            expires_at: i.expiresAt,
+          })),
+        )}`;
+      }
+      seededInvitations = invitations.map((i) => ({ token: i.token, email: byId.get(i.userId)?.email ?? i.userId }));
 
       if (outsiders.length) {
         await tx`insert into public.workspace_members ${tx(
@@ -366,6 +420,11 @@ async function main(): Promise<void> {
     `;
     console.log("Seeded:", Object.entries(counts[0]!).map(([k, v]) => `${v} ${k}`).join(", "));
     console.log(`\nSign in with admin@rmit.local / ${adminPassword}`);
+    if (seededInvitations.length) {
+      const base = (process.env.SEED_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+      console.log("\nPending members: open these links to finish onboarding (SEED_APP_URL sets the host):");
+      for (const invitation of seededInvitations) console.log(`  ${invitation.email}  ${base}/join/${invitation.token}`);
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }
