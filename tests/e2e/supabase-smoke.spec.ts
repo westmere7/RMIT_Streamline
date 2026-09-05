@@ -13,6 +13,8 @@ import { row } from "./helpers";
  *   npm run test:e2e:supabase
  */
 const PROVIDER = process.env.E2E_PROVIDER ?? "local";
+/** Seeded accounts share one password (scripts/db-seed.mts). */
+const DEMO_PASSWORD = process.env.SEED_PASSWORD ?? "Password123!";
 const ADMIN_EMAIL = process.env.E2E_EMAIL ?? "admin@rmit.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD ?? "admin123";
 const BOARD = "/workspace/rmit/boards/rmitinerary-2026";
@@ -463,5 +465,62 @@ test.describe("supabase provider", () => {
     });
     await expect(page.getByTestId("message-bubble").filter({ hasText: body })).toHaveCount(0, { timeout: 20_000 });
     expect(errors).toEqual([]);
+  });
+
+  /**
+   * The database has to refuse what the UI hides. This talks to PostgREST
+   * directly as a guest, so it tests row-level security rather than the buttons:
+   * a guest inherits nothing from workspace-visible boards (see
+   * private.board_role in supabase/policies/0001_rls_policies.sql).
+   */
+  test("row-level security refuses a guest, not just the UI", async ({ request }) => {
+    // scripts/e2e-supabase.mjs puts these in the environment of the test process.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    test.skip(!url || !key, "Supabase URL/anon key not available to the test process");
+
+    const rest = (token: string, path: string) =>
+      request.get(`${url}/rest/v1/${path}`, { headers: { apikey: key!, Authorization: `Bearer ${token}` } });
+
+    const signInAs = async (email: string) => {
+      const response = await request.post(`${url}/auth/v1/token?grant_type=password`, {
+        headers: { apikey: key!, "Content-Type": "application/json" },
+        data: { email, password: DEMO_PASSWORD },
+      });
+      expect(response.ok(), `sign in as ${email} → ${response.status()}`).toBeTruthy();
+      return (await response.json()).access_token as string;
+    };
+
+    // Jane is a GUEST. Creative Requests is workspace-visible, which guests do
+    // not inherit, so the rows must not come back at all.
+    const guest = await signInAs("jane@rmit.local");
+    const boards = await rest(guest, "boards?slug=eq.creative-requests&select=id,name");
+    expect(boards.ok()).toBeTruthy();
+    expect(await boards.json(), "a guest must not see a workspace-visible board").toEqual([]);
+
+    // An admin can see it, which proves the query itself is right.
+    const admin = await signInAs(ADMIN_EMAIL === "admin@rmit.local" ? "danh@rmit.local" : ADMIN_EMAIL);
+    const adminBoards = await rest(admin, "boards?slug=eq.creative-requests&select=id,name");
+    const adminRows = (await adminBoards.json()) as Array<{ id: string }>;
+    expect(adminRows.length, "the board exists for someone allowed to see it").toBe(1);
+    const boardId = adminRows[0]!.id;
+
+    // The items are hidden from the guest too, and a write is refused.
+    const guestItems = await rest(guest, `items?board_id=eq.${boardId}&select=id`);
+    expect(await guestItems.json()).toEqual([]);
+
+    const adminItems = (await (await rest(admin, `items?board_id=eq.${boardId}&select=id,name&limit=1`)).json()) as Array<{ id: string; name: string }>;
+    const target = adminItems[0]!;
+    const write = await request.patch(`${url}/rest/v1/items?id=eq.${target.id}`, {
+      headers: { apikey: key!, Authorization: `Bearer ${guest}`, "Content-Type": "application/json", Prefer: "return=representation" },
+      data: { name: "guest should not be able to write this" },
+    });
+    // PostgREST reports an RLS-blocked update as "nothing matched", never as a success.
+    expect(write.status(), "a guest write must not be applied").toBeLessThan(500);
+    expect(await write.json().catch(() => []), "no row may be updated").toEqual([]);
+
+    // And the row really is untouched.
+    const after = (await (await rest(admin, `items?id=eq.${target.id}&select=name`)).json()) as Array<{ name: string }>;
+    expect(after[0]!.name).toBe(target.name);
   });
 });
