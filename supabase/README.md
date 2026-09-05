@@ -6,11 +6,15 @@ supabase/
 │   ├── 0001_initial_schema.sql   tables, enums, indexes, triggers
 │   ├── 0002_item_links.sql       Task Linking (item_links) + enum values
 │   ├── 0003_trackers.sql         trackers + tracker_sheets
-│   └── 0004_realtime.sql         supabase_realtime publication
+│   ├── 0004_realtime.sql         supabase_realtime publication
+│   ├── 0005 … 0008               direct messages, status roles, notification delivery, shared comments
+│   └── 0009_workspace_invitations.sql  onboarding links for pending members
 ├── policies/
 │   ├── 0001_rls_policies.sql     RLS helpers + policies
 │   ├── 0002_item_links_policies.sql  RLS for item_links
 │   ├── 0003_trackers_policies.sql    RLS for trackers
+│   ├── 0004_notification_preferences_policies.sql
+│   ├── 0005_workspace_invitations_policies.sql  admins may read their workspace's links
 │   └── README.md                 permission model, assumptions, realtime notes
 ├── seed.sql                      demo data (same ids as src/data/seed/seed-data.ts)
 └── README.md                     this file
@@ -81,6 +85,31 @@ Seed ids follow the TypeScript convention `0000000<ns>-0000-4000-8000-<n>`:
 workspace `00000000-…-000000000001`, users `00000001-…`, teams `00000002-…`,
 boards `00000003-…`, groups `00000004-…`, columns `00000005-…`, items
 `00000006-…`.
+
+## Onboarding without email (`workspace_invitations`)
+
+Nobody receives a confirmation email. An admin adds a person from the members
+page; the app's own route handlers (`src/app/api/invitations`, backed by
+`src/server/onboarding.ts`) use the **service role** to create an Auth account
+with no password, insert the `INVITED` membership and one row here holding the
+link token. Opening `/join/<token>` resolves it through `GET /api/join/<token>`
+and `POST /api/join/<token>` sets the password with `auth.admin.updateUserById`,
+updates the profile and flips the membership to `ACTIVE`.
+
+Consequences for the database side:
+
+- The server needs `SUPABASE_SERVICE_ROLE_KEY` at runtime (Vercel: Secret).
+  Nothing else in the app does.
+- `workspace_invitations` has one RLS policy: workspace admins may `select`
+  their workspace's rows, so the members page can offer "copy invite link"
+  again. No client can insert, update or delete a row; the join page never
+  touches PostgREST for it.
+- Pending accounts have no password, so `signInWithPassword` fails for them
+  regardless of what the app shows. `private.workspace_role()` only counts
+  `ACTIVE` memberships, so even a pending person with a session would see
+  nothing.
+- `npm run db:seed` recreates the seeded pending members' accounts without a
+  password on every run and prints fresh invitation links.
 
 ## Storage: `workspace-files` bucket
 

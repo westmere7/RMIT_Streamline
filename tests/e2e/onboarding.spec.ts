@@ -33,7 +33,7 @@ test.describe("member onboarding", () => {
     await expect(page.getByTestId("login-anh")).toHaveCount(0);
     await page.getByLabel(/email/i).fill("anh@rmit.local");
     await page.getByRole("button", { name: /continue/i }).click();
-    await expect(page.getByRole("alert")).toContainText(/not finished onboarding/i);
+    await expect(page.getByRole("alert").filter({ hasText: /onboarding/ })).toContainText(/not finished onboarding/i);
 
     await signInAs(page, "Danh");
     await page.goto("/workspace/rmit/members");
@@ -45,8 +45,8 @@ test.describe("member onboarding", () => {
     // Not assignable: the owner picker on a board does not offer them.
     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
     await expect(page.getByTestId("item-row").first()).toBeVisible();
-    await page.getByTestId("item-row").first().locator('[data-column-type="PERSON"]').first().click();
-    const picker = page.getByPlaceholder(/search people/i);
+    await page.getByTestId("item-row").first().getByTestId("person-cell").click();
+    const picker = page.getByPlaceholder("Search people…");
     await expect(picker).toBeVisible();
     await picker.fill("Anh");
     await expect(page.getByRole("option", { name: /Anh Pham/ })).toHaveCount(0);
@@ -131,6 +131,7 @@ test.describe("member onboarding", () => {
     await expect(page.getByTestId("onboarding-unusable")).toContainText(/already been used/i);
 
     // Signing out and back in works, and they now appear on the login screen.
+    await page.goto("/workspace/rmit");
     await signOut(page);
     await expect(page.getByTestId("login-samuel")).toBeVisible();
     await page.getByLabel(/email/i).fill("sam.rivera@rmit.edu.au");

@@ -164,6 +164,8 @@ All accounts use the `@rmit.local` domain and sign in without a password in loca
 | `grace@rmit.local` | Grace Kim | Content Strategist | MEMBER | Content (lead), Melbourne Creative, Digital |
 | `jane@rmit.local` | Jane Morrison | Copywriter | GUEST | Melbourne Creative, Content |
 
+Three more people are seeded as **pending onboarding**: Anh Pham (`anh@rmit.local`), Lucas Reid (`lucas@rmit.local`) and Mai Tran (`mai@rmit.local`). They are in the member list but have no password and cannot sign in until they open their invitation link. In local mode their links are fixed (`/join/demo-invite-anh-pham-2026` and so on); the Supabase seed prints random ones.
+
 The seed also creates one workspace (`RMIT Creative Team`, slug `rmit`), six teams, six boards with groups/columns/items/subitems/values, comments, an activity history, notifications (mostly addressed to Danh), favourites and recent-visit records. IDs are deterministic pseudo-UUIDs; dates are generated relative to "now" so My Work and Overdue always have content.
 
 ## Project structure
@@ -342,6 +344,30 @@ unset), and `.github/workflows/db-migrate.yml` applies pending SQL on any push t
 whole workflow — the runner takes a Postgres advisory lock, so two builds racing
 each other is safe.
 
+### Adding people (onboarding without email)
+
+Streamline is standalone and sends no email, so nobody is asked to click a
+confirmation message. Instead:
+
+1. An admin opens **Members → Add member**, enters the person's email, name,
+   role and teams. The person appears in the list at once as **Pending
+   onboarding**. On Supabase this creates an Auth account with no password
+   through `POST /api/invitations` (service role, server-side).
+2. The dialog shows a unique link, `/join/<token>`, for the admin to pass on
+   however they like. The link can be copied again later from the row's link
+   icon, renewed (the old one stops working), or the invitation cancelled, which
+   removes the pending member and their unused account.
+3. The person opens the link, sets a password, checks their name and job title
+   and optionally adds a photo. `POST /api/join/<token>` sets the password and
+   flips the membership to **Active**; the app then signs them in and lands
+   them in the workspace. Links are single-use and expire after 30 days.
+
+Until they finish, pending people cannot sign in and do not appear in owner
+pickers, mentions, messages or search. The pieces: `src/domain/workspace/invitation.ts`,
+`OnboardingRepository` (`src/data/repositories/index.ts`) with a local and a
+Supabase implementation, `src/server/onboarding.ts` behind the route handlers,
+and `src/features/onboarding/onboarding-screen.tsx` for the join page.
+
 ### Environment variables
 
 | Variable | Where | Purpose |
@@ -349,7 +375,7 @@ each other is safe.
 | `NEXT_PUBLIC_SUPABASE_URL` | browser + build | Project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser + build | Publishable key. Browser-safe: RLS decides what it can read. |
 | `SUPABASE_DB_URL` | server only | Postgres URI (Connect → **Session pooler**, port 5432). Used by the migrator. |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | Secret. Only `db:seed` needs it, to create auth users. |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only | Secret. Needed at runtime by the onboarding route handlers (adding a member creates an Auth account; the invitation link sets its password) and by `db:seed`. |
 
 ### Deploying to Vercel
 
@@ -357,8 +383,10 @@ each other is safe.
    `vercel.json` pins `npm ci --legacy-peer-deps` — the default install fails on
    this dependency tree.
 2. Add the environment variables above to the Vercel project (Production and
-   Preview). `SUPABASE_SERVICE_ROLE_KEY` is not needed there unless you plan to
-   seed from a build.
+   Preview). `SUPABASE_SERVICE_ROLE_KEY` goes in as a **Secret**: the route
+   handlers under `src/app/api/` use it to create accounts for new members and
+   to set their passwords when they open their link. Without it the rest of the
+   app works, but "Add member" fails with a message saying so.
 3. Deploy. `prebuild` applies any pending migrations before Next builds, so the
    database and the deployment go out together.
 4. In Supabase → Authentication → URL Configuration, set the Site URL to the
