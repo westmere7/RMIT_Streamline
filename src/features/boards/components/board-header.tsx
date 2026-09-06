@@ -160,7 +160,7 @@ export function BoardHeader({ board }: { board: Board }) {
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
+                    <DropdownMenuSubTrigger disabled={!!board.system}>
                       <Users /> Move to team
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
@@ -187,7 +187,7 @@ export function BoardHeader({ board }: { board: Board }) {
               >
                 {muted ? <Bell /> : <BellOff />} {muted ? "Resume notifications" : "Mute notifications"}
               </DropdownMenuItem>
-              {manage && (
+              {manage && !board.system && (
                 <>
                   <DropdownMenuSeparator />
                   {board.archivedAt ? (
@@ -201,7 +201,7 @@ export function BoardHeader({ board }: { board: Board }) {
                   )}
                 </>
               )}
-              {canDeleteBoard(ws.permissions, board) && (
+              {canDeleteBoard(ws.permissions, board) && !board.system && (
                 <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
                   <Trash2 /> Delete board
                 </DropdownMenuItem>

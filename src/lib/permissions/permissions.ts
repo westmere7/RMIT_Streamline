@@ -61,8 +61,17 @@ export function canCreateBoard(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
 }
 
+/** The shape the board checks need; `system` marks the built-in Task Allocation board. */
+export type BoardAccessInput = Pick<Board, "id" | "ownerId" | "visibility" | "teamId"> & Partial<Pick<Board, "system">>;
+
+/** Built-in rows (the Admin team, the Task Allocation board) exist for workspace admins only. */
+export function canSeeSystemEntities(ctx: PermissionContext): boolean {
+  return isWorkspaceAdmin(ctx);
+}
+
 /** Effective board role considering ownership, explicit membership and visibility. */
-export function boardRoleFor(ctx: PermissionContext, board: Pick<Board, "id" | "ownerId" | "visibility" | "teamId">): BoardRole | null {
+export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): BoardRole | null {
+  if (board.system && !canSeeSystemEntities(ctx)) return null;
   if (board.ownerId === ctx.userId) return "OWNER";
   const explicit = ctx.boardRoles.get(board.id);
   if (explicit) return explicit;
@@ -79,20 +88,20 @@ export function boardRoleFor(ctx: PermissionContext, board: Pick<Board, "id" | "
   }
 }
 
-export function canViewBoard(ctx: PermissionContext, board: Pick<Board, "id" | "ownerId" | "visibility" | "teamId">): boolean {
+export function canViewBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
   return boardRoleFor(ctx, board) !== null;
 }
 
-export function canEditBoard(ctx: PermissionContext, board: Pick<Board, "id" | "ownerId" | "visibility" | "teamId">): boolean {
+export function canEditBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
   const role = boardRoleFor(ctx, board);
   return role === "OWNER" || role === "EDITOR";
 }
 
-export function canManageBoard(ctx: PermissionContext, board: Pick<Board, "id" | "ownerId" | "visibility" | "teamId">): boolean {
+export function canManageBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
   return boardRoleFor(ctx, board) === "OWNER" || isWorkspaceAdmin(ctx);
 }
 
-export function canDeleteBoard(ctx: PermissionContext, board: Pick<Board, "id" | "ownerId" | "visibility" | "teamId">): boolean {
+export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
   return board.ownerId === ctx.userId || isWorkspaceAdmin(ctx);
 }
 

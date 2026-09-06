@@ -27,6 +27,7 @@ export const queryKeys = {
   /** Groups, columns, items and values of a board in one snapshot. */
   boardSnapshot: (boardId: string) => ["board-snapshot", boardId] as const,
   boardGroups: (boardId: string) => ["board-groups", boardId] as const,
+  boardColumns: (boardId: string) => ["board-columns", boardId] as const,
   boardItems: (boardId: string) => ["board-items", boardId] as const,
 
   item: (itemId: string) => ["item", itemId] as const,
@@ -56,4 +57,6 @@ export const queryKeys = {
   unreadMessages: (workspaceId: string, userId: string) => ["unread-messages", workspaceId, userId] as const,
   myWork: (workspaceId: string, userId: string) => ["my-work", workspaceId, userId] as const,
   search: (workspaceId: string, query: string) => ["search", workspaceId, query] as const,
+  /** The booking form's options: null key from inside the app, the link's key on the public page. */
+  bookingForm: (workspaceSlug: string, key: string | null) => ["booking-form", workspaceSlug, key] as const,
 };

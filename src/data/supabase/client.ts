@@ -1,9 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
-/** Shorthand for the shared browser client. */
+let override: SupabaseClient | null = null;
+
+/**
+ * Points every repository at a different client. Server only: the booking route
+ * handlers run the ordinary repositories and services with the service role
+ * (there is no signed-in user behind a public booking), and the admin client is
+ * one process-wide singleton, so a module-level switch is enough. Never call
+ * this in the browser.
+ */
+export function routeRepositoriesThrough(client: SupabaseClient | null): void {
+  override = client;
+}
+
+/** The client repositories talk to: the browser session, unless the server has switched it. */
 export function db(): SupabaseClient {
-  return getSupabaseClient();
+  return override ?? getSupabaseClient();
 }
 
 interface Result<T> {

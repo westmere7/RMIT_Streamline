@@ -207,17 +207,20 @@ function TeamsSection() {
                 </span>
               </span>
               {team.archivedAt && <Badge variant="muted">Archived</Badge>}
+              {team.system && <Badge variant="primary">Built in</Badge>}
               <Button variant="ghost" size="icon-sm" aria-label={`Edit ${team.name}`} onClick={() => setEditing(team)}>
                 <Pencil />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={team.archivedAt ? `Restore ${team.name}` : `Archive ${team.name}`}
-                onClick={() => archive.mutate({ team, archived: !team.archivedAt })}
-              >
-                {team.archivedAt ? <ArchiveRestore /> : <Archive />}
-              </Button>
+              {!team.system && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={team.archivedAt ? `Restore ${team.name}` : `Archive ${team.name}`}
+                  onClick={() => archive.mutate({ team, archived: !team.archivedAt })}
+                >
+                  {team.archivedAt ? <ArchiveRestore /> : <Archive />}
+                </Button>
+              )}
             </li>
           );
         })}

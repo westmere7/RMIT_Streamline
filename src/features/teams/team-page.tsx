@@ -85,6 +85,11 @@ export function TeamPage() {
               <h1 className="text-xl font-semibold tracking-tight">{team.name}</h1>
               <p className="text-[13px] text-muted-foreground">{team.description ?? "No description yet."}</p>
               {team.archivedAt && <Badge variant="muted" className="mt-1">Archived</Badge>}
+              {team.system && (
+                <Badge variant="primary" className="mt-1" data-testid="team-built-in">
+                  Built in
+                </Badge>
+              )}
             </div>
           </div>
           {manage && (
@@ -92,7 +97,7 @@ export function TeamPage() {
               <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                 <Pencil /> Edit
               </Button>
-              {!team.archivedAt && (
+              {!team.archivedAt && !team.system && (
                 <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
                   <Archive /> Archive
                 </Button>

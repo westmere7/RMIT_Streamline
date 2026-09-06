@@ -113,6 +113,10 @@ export class BoardService {
     patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon">>,
     actorId: EntityId,
   ): Promise<Board> {
+    if (patch.teamId !== undefined || patch.visibility !== undefined) {
+      const current = await this.repos.boards.getById(boardId);
+      if (current?.system) throw new Error(`${current.name} is built in: it stays with its team and visible to admins only.`);
+    }
     const before = await this.getBoard(boardId);
     const next: typeof patch = { ...patch };
     if (patch.name !== undefined) {
@@ -144,6 +148,7 @@ export class BoardService {
   }
 
   async archiveBoard(boardId: EntityId, actorId: EntityId): Promise<Board> {
+    await this.assertNotSystem(boardId, "archived");
     const board = await this.repos.boards.update(boardId, { archivedAt: new Date().toISOString() });
     await this.repos.activities.create({
       workspaceId: board.workspaceId,
@@ -161,7 +166,14 @@ export class BoardService {
   }
 
   async deleteBoard(boardId: EntityId): Promise<void> {
+    await this.assertNotSystem(boardId, "deleted");
     await this.repos.boards.delete(boardId);
+  }
+
+  /** Built-in boards (Task Allocation) can be renamed and recoloured, nothing more drastic. */
+  private async assertNotSystem(boardId: EntityId, action: string): Promise<void> {
+    const board = await this.repos.boards.getById(boardId);
+    if (board?.system) throw new Error(`${board.name} is built in and cannot be ${action}. You can rename it instead.`);
   }
 
   /** Copies board, groups, columns, items and values. Comments and activity are not copied. */

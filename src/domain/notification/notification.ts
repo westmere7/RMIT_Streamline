@@ -7,7 +7,8 @@ export type NotificationType =
   | "STATUS_CHANGED"
   | "COMMENT"
   | "BOARD_INVITE"
-  | "ITEM_LINKED";
+  | "ITEM_LINKED"
+  | "TASK_BOOKED";
 
 export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "MENTION",
@@ -17,6 +18,7 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "STATUS_CHANGED",
   "DUE_DATE_CHANGED",
   "ITEM_LINKED",
+  "TASK_BOOKED",
 ];
 
 export type NotificationEntityType = "ITEM" | "BOARD" | "COMMENT";
@@ -83,6 +85,7 @@ export const DEFAULT_TYPE_DELIVERY: Record<NotificationType, NotificationDeliver
   STATUS_CHANGED: "UPDATE",
   DUE_DATE_CHANGED: "UPDATE",
   ITEM_LINKED: "UPDATE",
+  TASK_BOOKED: "NOTIFICATION",
 };
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
@@ -93,6 +96,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   STATUS_CHANGED: "Status changes",
   DUE_DATE_CHANGED: "Due date changes",
   ITEM_LINKED: "Linked items",
+  TASK_BOOKED: "Task bookings",
 };
 
 export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = {
@@ -103,6 +107,7 @@ export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = 
   STATUS_CHANGED: "The status of an item you own changes.",
   DUE_DATE_CHANGED: "A date on an item you own moves.",
   ITEM_LINKED: "A change reaches your item through a link.",
+  TASK_BOOKED: "A stakeholder books a task (admins only).",
 };
 
 export function defaultNotificationPreferences(userId: EntityId): NotificationPreferences {

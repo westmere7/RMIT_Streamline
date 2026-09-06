@@ -13,3 +13,4 @@ export * from "./message/direct-message";
 export * from "./activity/activity";
 export * from "./notification/notification";
 export * from "./auth/auth";
+export * from "./booking/booking";

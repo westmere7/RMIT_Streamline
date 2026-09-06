@@ -1,4 +1,6 @@
 import type {
+  Board,
+  BoardColumn,
   CompleteOnboardingInput,
   EntityId,
   InvitationPreview,
@@ -13,9 +15,26 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { invitationStatus } from "@/domain";
+import { defaultSettingsFor, generateBookingKey, invitationStatus } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import { slugify, uniqueSlug } from "@/lib/slug";
+import { taskAllocationColumns } from "./booking-service";
+
+/** The Admin team and its Task Allocation board, as the app creates them. */
+export const SYSTEM_TEAM = { name: "Admin", description: "Task allocation and workspace administration.", color: "navy", icon: "shield-check" } as const;
+export const SYSTEM_BOARD = { name: "Task Allocation", description: "Every task booked by a stakeholder lands here until a manager places it with a team.", color: "red", icon: "inbox" } as const;
+const SYSTEM_BOARD_GROUPS = [
+  { name: "Incoming", color: "red" },
+  { name: "Allocated", color: "blue" },
+  { name: "Closed", color: "gray" },
+] as const;
+
+export interface SystemEntities {
+  workspace: Workspace;
+  team: Team;
+  board: Board;
+}
 
 export interface WorkspaceContext {
   workspace: Workspace;
@@ -138,13 +157,142 @@ export class WorkspaceService {
     return team;
   }
 
-  async updateTeam(teamId: EntityId, patch: Partial<Pick<Team, "name" | "description" | "color" | "icon">>): Promise<Team> {
+  async updateTeam(teamId: EntityId, patch: Partial<Pick<Team, "name" | "description" | "color" | "icon" | "bookingBoardId">>): Promise<Team> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Team name cannot be empty");
+    if (patch.bookingBoardId) {
+      const [team, board] = await Promise.all([this.repos.teams.getById(teamId), this.repos.boards.getById(patch.bookingBoardId)]);
+      if (!team) throw new NotFoundError("Team", teamId);
+      if (!board || board.workspaceId !== team.workspaceId || board.system || board.archivedAt) throw new Error("Bookings can only land on an active board of this workspace.");
+    }
     return this.repos.teams.update(teamId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
   }
 
   async archiveTeam(teamId: EntityId, archived: boolean): Promise<Team> {
+    const team = await this.repos.teams.getById(teamId);
+    if (!team) throw new NotFoundError("Team", teamId);
+    if (team.system && archived) throw new Error(`${team.name} is built in and cannot be archived. You can rename it instead.`);
     return this.repos.teams.update(teamId, { archivedAt: archived ? new Date().toISOString() : null });
+  }
+
+  // ---- Built-in team and board -----------------------------------------------
+
+  /**
+   * Makes sure the workspace has its "Admin" team, its "Task Allocation" board
+   * and a booking key, creating whatever is missing. Safe to call as often as
+   * needed: it is run when an admin opens the workspace and before every
+   * booking. The board's "Requested team" palette is topped up with any team
+   * created since, and an archived system row is brought back.
+   */
+  async ensureSystemEntities(workspaceId: EntityId, actorId?: EntityId): Promise<SystemEntities> {
+    let workspace = await this.repos.workspaces.getById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace", workspaceId);
+    const owner = actorId ?? (await this.defaultActor(workspaceId));
+
+    let teams = await this.repos.teams.listByWorkspace(workspaceId);
+    let team = teams.find((t) => t.system === "ADMIN");
+    if (!team) {
+      try {
+        team = await this.repos.teams.create({ workspaceId, ...SYSTEM_TEAM, system: "ADMIN" });
+      } catch (error) {
+        // Two admins opening the workspace at once: the unique index let one through; read theirs.
+        teams = await this.repos.teams.listByWorkspace(workspaceId);
+        team = teams.find((t) => t.system === "ADMIN");
+        if (!team) throw error;
+      }
+    }
+    if (team.archivedAt) team = await this.repos.teams.update(team.id, { archivedAt: null });
+    const members = await this.repos.teams.listMembers(team.id);
+    if (actorId && !members.some((m) => m.userId === actorId)) await this.repos.teams.addMember(team.id, actorId, members.length ? "MEMBER" : "LEAD");
+
+    const teamNames = teams
+      .filter((t) => t.archivedAt === null && !t.system)
+      .map((t) => t.name)
+      .sort((a, b) => a.localeCompare(b));
+    let boards = await this.repos.boards.listByWorkspace(workspaceId);
+    let board = boards.find((b) => b.system === "TASK_ALLOCATION");
+    if (!board) {
+      try {
+        board = await this.createSystemBoard(workspaceId, team.id, owner, boards, teamNames);
+      } catch (error) {
+        boards = await this.repos.boards.listByWorkspace(workspaceId);
+        board = boards.find((b) => b.system === "TASK_ALLOCATION");
+        if (!board) throw error;
+      }
+    } else {
+      if (board.archivedAt || board.teamId !== team.id) board = await this.repos.boards.update(board.id, { archivedAt: null, teamId: team.id });
+      await this.refreshTeamPalette(board, teamNames);
+      await this.topUpColumns(board, teamNames);
+    }
+
+    if (!workspace.bookingKey) workspace = await this.repos.workspaces.update(workspaceId, { bookingKey: generateBookingKey() });
+    return { workspace, team, board };
+  }
+
+  /** Replaces the public booking link; the old one stops working at once. */
+  async regenerateBookingKey(workspaceId: EntityId): Promise<Workspace> {
+    return this.repos.workspaces.update(workspaceId, { bookingKey: generateBookingKey() });
+  }
+
+  private async createSystemBoard(workspaceId: EntityId, teamId: EntityId, ownerId: EntityId, existing: Board[], teamNames: string[]): Promise<Board> {
+    const board = await this.repos.boards.create({
+      workspaceId,
+      teamId,
+      name: SYSTEM_BOARD.name,
+      slug: uniqueSlug(slugify(SYSTEM_BOARD.name), existing.map((b) => b.slug)),
+      description: SYSTEM_BOARD.description,
+      type: "MAIN",
+      visibility: "TEAM",
+      ownerId,
+      color: SYSTEM_BOARD.color,
+      icon: SYSTEM_BOARD.icon,
+      system: "TASK_ALLOCATION",
+    });
+    await this.repos.boards.setMember(board.id, ownerId, "OWNER");
+    for (const [index, group] of SYSTEM_BOARD_GROUPS.entries()) {
+      await this.repos.boards.createGroup({ boardId: board.id, name: group.name, color: group.color, position: index, collapsed: false });
+    }
+    for (const [index, column] of taskAllocationColumns(teamNames).entries()) {
+      await this.repos.boards.createColumn({ boardId: board.id, name: column.name, type: column.type, settings: column.settings ?? defaultSettingsFor(column.type), position: index });
+    }
+    await this.repos.activities.create({ workspaceId, boardId: board.id, itemId: null, actorId: ownerId, eventType: "BOARD_CREATED", metadata: { boardName: board.name } });
+    return board;
+  }
+
+  /**
+   * A Task Allocation board created by an earlier version gets any column the
+   * current version relies on. A column counts as present when one of the same
+   * type exists whose name shares a word with it, so a renamed column is left be.
+   */
+  private async topUpColumns(board: Board, teamNames: string[]): Promise<void> {
+    const columns = await this.repos.boards.listColumns(board.id);
+    const words = (name: string) => name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+    let position = columns.length;
+    for (const wanted of taskAllocationColumns(teamNames)) {
+      const present = columns.some((c) => c.type === wanted.type && (c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
+      if (present) continue;
+      await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
+    }
+  }
+
+  /** Adds newly created teams to the "Requested team" palette; never removes or recolours. */
+  private async refreshTeamPalette(board: Board, teamNames: string[]): Promise<void> {
+    const columns = await this.repos.boards.listColumns(board.id);
+    const column: BoardColumn | undefined = columns.find((c) => c.type === "TAGS" && c.name.toLowerCase().includes("team"));
+    if (!column || column.settings.kind !== "tags") return;
+    const have = new Set(column.settings.options.map((o) => o.name.toLowerCase()));
+    const missing = teamNames.filter((name) => !have.has(name.toLowerCase()));
+    if (missing.length === 0) return;
+    const palette = taskAllocationColumns(teamNames).find((c) => c.name === "Requested team")?.settings;
+    const colourOf = (name: string) => (palette?.kind === "tags" ? palette.options.find((o) => o.name === name)?.color : undefined) ?? "gray";
+    await this.repos.boards.updateColumn(column.id, { settings: { kind: "tags", options: [...column.settings.options, ...missing.map((name) => ({ name, color: colourOf(name) }))] } });
+  }
+
+  /** The workspace owner, for rows the app creates on nobody's behalf. */
+  private async defaultActor(workspaceId: EntityId): Promise<EntityId> {
+    const members = await this.repos.workspaces.listMembers(workspaceId);
+    const owner = members.find((m) => m.role === "OWNER" && m.status === "ACTIVE") ?? members.find((m) => m.role === "OWNER" || m.role === "ADMIN");
+    if (!owner) throw new Error("The workspace has no owner to create its built-in board as.");
+    return owner.userId;
   }
 
   async addTeamMember(teamId: EntityId, userId: EntityId, role: TeamRole = "MEMBER"): Promise<TeamMember> {

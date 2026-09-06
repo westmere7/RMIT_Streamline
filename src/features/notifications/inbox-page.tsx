@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, Inbox, Link2, MessageSquare, Settings2, UserPlus } from "lucide-react";
+import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, ClipboardList, Inbox, Link2, MessageSquare, Settings2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -25,6 +25,7 @@ const TYPE_ICONS: Record<NotificationType, React.ComponentType<{ className?: str
   COMMENT: MessageSquare,
   BOARD_INVITE: Bell,
   ITEM_LINKED: Link2,
+  TASK_BOOKED: ClipboardList,
 };
 
 /** The three lists: everything, the ones that interrupted, the quiet ones. */

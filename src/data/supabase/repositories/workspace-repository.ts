@@ -1,9 +1,9 @@
 import type { Workspace, WorkspaceMember } from "@/domain";
 import type { WorkspaceRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
-import { pruneUndefined, toWorkspace, toWorkspaceMember, type WorkspaceMemberRow, type WorkspaceRow } from "../rows";
+import { pruneUndefined, toWorkspace, toWorkspaceMember, WORKSPACE_COLUMNS, type WorkspaceMemberRow, type WorkspaceRow } from "../rows";
 
-const WORKSPACE = "id, name, slug, logo_url, created_at, updated_at";
+const WORKSPACE = WORKSPACE_COLUMNS;
 const MEMBER = "id, workspace_id, user_id, role, status, joined_at";
 
 export class SupabaseWorkspaceRepository implements WorkspaceRepository {
@@ -25,7 +25,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {
-    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl });
+    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
     return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
   }

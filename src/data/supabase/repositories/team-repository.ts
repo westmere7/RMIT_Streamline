@@ -1,9 +1,9 @@
 import type { Team, TeamInput, TeamMember, TeamRole } from "@/domain";
 import type { TeamRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
-import { pruneUndefined, toTeam, toTeamMember, type TeamMemberRow, type TeamRow } from "../rows";
+import { pruneUndefined, TEAM_COLUMNS, toTeam, toTeamMember, type TeamMemberRow, type TeamRow } from "../rows";
 
-const TEAM = "id, workspace_id, name, description, color, icon, archived_at, created_at, updated_at";
+const TEAM = TEAM_COLUMNS;
 const MEMBER = "id, team_id, user_id, role";
 
 export class SupabaseTeamRepository implements TeamRepository {
@@ -25,6 +25,8 @@ export class SupabaseTeamRepository implements TeamRepository {
       description: input.description,
       color: input.color,
       icon: input.icon,
+      system: input.system ?? null,
+      booking_board_id: input.bookingBoardId ?? null,
     };
     const result = await db().from("teams").insert(payload).select(TEAM).single();
     return toTeam(unwrap<TeamRow>(result, "teams.create"));
@@ -37,6 +39,8 @@ export class SupabaseTeamRepository implements TeamRepository {
       color: patch.color,
       icon: patch.icon,
       archived_at: patch.archivedAt,
+      system: patch.system,
+      booking_board_id: patch.bookingBoardId,
     });
     const result = await db().from("teams").update(payload).eq("id", id).select(TEAM).single();
     return toTeam(unwrap<TeamRow>(result, "teams.update"));

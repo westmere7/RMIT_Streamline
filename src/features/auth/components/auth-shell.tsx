@@ -19,6 +19,8 @@ export function AuthShell({
   cardTestId,
   progress,
   wide,
+  width,
+  fill,
 }: {
   headline: string;
   lead: string;
@@ -29,9 +31,18 @@ export function AuthShell({
   /** Shown as a thin sweeping bar along the top of the card while something is happening. */
   progress?: boolean;
   wide?: boolean;
+  /** Card width; "lg" is the same as `wide`, "xl" and "2xl" fit long forms. */
+  width?: "md" | "lg" | "xl" | "2xl";
+  /**
+   * The card fills the height of the screen and its children manage their own
+   * scrolling (a fixed header over a scrolling body), instead of the page
+   * growing with the content.
+   */
+  fill?: boolean;
 }) {
+  const widthClass = width === "2xl" ? "max-w-4xl" : width === "xl" ? "max-w-2xl" : wide || width === "lg" ? "max-w-lg" : "max-w-md";
   return (
-    <main className="flex min-h-screen bg-canvas">
+    <main className={cn("flex bg-canvas", fill ? "h-screen" : "min-h-screen")}>
       <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[500px]" aria-hidden>
         {/* Depth: a red glow low on the panel and a faint grid, both very quiet. */}
         <div className="pointer-events-none absolute -bottom-40 -left-24 size-[520px] rounded-full bg-primary/30 blur-3xl" />
@@ -59,10 +70,10 @@ export function AuthShell({
         <div className="relative text-xs text-white/50">{footnote}</div>
       </section>
 
-      <section className="relative flex flex-1 flex-col items-center justify-center gap-6 p-6 sm:p-10">
+      <section className={cn("relative flex flex-1 flex-col items-center justify-center gap-6 p-6 sm:p-10", fill && "min-h-0 overflow-hidden")}>
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--accent-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
         {/* On a phone the brand panel is hidden, so the mark sits above the card instead. */}
-        <div className={cn("relative flex w-full items-center gap-3 lg:hidden", wide ? "max-w-lg" : "max-w-md")}>
+        <div className={cn("relative flex w-full items-center gap-3 lg:hidden", widthClass)}>
           <BrandMark />
           <div className="leading-tight">
             <p className="text-[15px] font-semibold tracking-tight">Streamline</p>
@@ -70,7 +81,11 @@ export function AuthShell({
           </div>
         </div>
         <div
-          className={cn("relative w-full overflow-hidden rounded-2xl border border-border/60 bg-background p-7 shadow-[0_24px_60px_-24px_rgba(0,0,84,0.35)] sm:p-8", wide ? "max-w-lg" : "max-w-md")}
+          className={cn(
+            "relative w-full overflow-hidden rounded-2xl border border-border/60 bg-background shadow-[0_24px_60px_-24px_rgba(0,0,84,0.35)]",
+            fill ? "flex min-h-0 flex-1 flex-col" : "p-7 sm:p-8",
+            widthClass,
+          )}
           data-testid={cardTestId}
         >
           {progress && <span aria-hidden className="auth-sweep absolute inset-x-0 top-0 h-0.5" />}

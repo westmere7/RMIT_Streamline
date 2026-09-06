@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
 import type { Board, BoardFavourite, BoardMember, Team, TeamMember, User, Workspace, WorkspaceMember } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
-import { buildPermissionContext, type PermissionContext } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canSeeSystemEntities, type PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
@@ -74,15 +74,26 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   }, [queryClient, workspace.id, currentUser.id]);
 
   const ctx = contextQuery.data;
-  const boards = boardsQuery.data;
+  const allBoards = boardsQuery.data;
   const boardMembers = boardMembersQuery.data;
   const favourites = favouritesQuery.data;
 
   const value = useMemo<WorkspaceContextValue | null>(() => {
-    if (!ctx || !boards || !boardMembers || !favourites) return null;
+    if (!ctx || !allBoards || !boardMembers || !favourites) return null;
+    const permissions = buildPermissionContext({
+      userId: currentUser.id,
+      workspaceMembers: ctx.members,
+      teamMembers: ctx.teamMembers,
+      boardMembers,
+    });
+    // The Admin team and Task Allocation board exist for admins alone. Supabase
+    // hides them through RLS; the local store has no such layer, so filter here.
+    const admin = canSeeSystemEntities(permissions);
+    const teams = admin ? ctx.teams : ctx.teams.filter((t) => !t.system);
+    const boards = admin ? allBoards : allBoards.filter((b) => !b.system);
     const usersById = new Map(ctx.users.map((u) => [u.id, u]));
     const activeMemberIds = new Set(ctx.members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
-    const teamsById = new Map(ctx.teams.map((t) => [t.id, t]));
+    const teamsById = new Map(teams.map((t) => [t.id, t]));
     const boardsById = new Map(boards.map((b) => [b.id, b]));
     const favouriteIds = new Set(favourites.map((f) => f.boardId));
     const myTeamIds = new Set(ctx.teamMembers.filter((m) => m.userId === currentUser.id).map((m) => m.teamId));
@@ -93,27 +104,42 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       members: ctx.members,
       users: ctx.users,
       activeUsers: ctx.users.filter((u) => u.deactivatedAt === null && activeMemberIds.has(u.id)),
-      teams: ctx.teams,
+      teams,
       teamMembers: ctx.teamMembers,
       boards,
       boardMembers,
       favourites,
-      permissions: buildPermissionContext({
-        userId: currentUser.id,
-        workspaceMembers: ctx.members,
-        teamMembers: ctx.teamMembers,
-        boardMembers,
-      }),
+      permissions,
       userById: (id) => (id ? usersById.get(id) : undefined),
       teamById: (id) => (id ? teamsById.get(id) : undefined),
       boardById: (id) => (id ? boardsById.get(id) : undefined),
       boardsForTeam: (teamId) => boards.filter((b) => b.teamId === teamId && b.archivedAt === null),
       isFavourite: (boardId) => favouriteIds.has(boardId),
-      myTeams: ctx.teams.filter((t) => myTeamIds.has(t.id) && t.archivedAt === null),
+      myTeams: teams.filter((t) => myTeamIds.has(t.id) && t.archivedAt === null),
       boardPath: (board, options) => routes.board(ctx.workspace.slug, board.slug, options),
       refresh,
     };
-  }, [ctx, boards, boardMembers, favourites, currentUser, refresh]);
+  }, [ctx, allBoards, boardMembers, favourites, currentUser, refresh]);
+
+  // An admin opening the workspace makes sure its built-in Admin team, Task
+  // Allocation board and booking link exist (see WorkspaceService.ensureSystemEntities).
+  const needsSystemEntities =
+    !!value &&
+    canSeeSystemEntities(value.permissions) &&
+    (!value.teams.some((t) => t.system === "ADMIN") || !value.boards.some((b) => b.system === "TASK_ALLOCATION") || !value.workspace.bookingKey);
+  useEffect(() => {
+    if (!needsSystemEntities) return;
+    let cancelled = false;
+    services.workspace
+      .ensureSystemEntities(workspace.id, currentUser.id)
+      .then(() => {
+        if (!cancelled) void refresh();
+      })
+      .catch((error) => console.warn("[workspace] could not create the built-in team and board", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [needsSystemEntities, services, workspace.id, currentUser.id, refresh]);
 
   if (contextQuery.isError || boardsQuery.isError) {
     throw contextQuery.error ?? boardsQuery.error;

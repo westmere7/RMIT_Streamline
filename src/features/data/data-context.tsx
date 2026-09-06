@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo } from "react";
 import type { AuthProvider } from "@/domain";
 import { createRepositories } from "@/data/provider";
+import { HttpBookingTransport } from "@/data/supabase/booking-transport";
 import { createAuthProvider } from "@/features/auth/auth-provider-factory";
 import { getAppConfig, type DataProviderKind } from "@/lib/config";
 import { createServices, type Services } from "@/services";
@@ -24,7 +25,7 @@ export function DataProviderContext({ children, value }: { children: React.React
     if (value) return value;
     const providerKind = getAppConfig().dataProvider;
     const repos = createRepositories(providerKind);
-    const services = createServices(repos);
+    const services = createServices(repos, { bookingTransport: providerKind === "supabase" ? new HttpBookingTransport() : null });
     const auth = createAuthProvider(providerKind, repos);
     return { providerKind, services, auth };
   }, [value]);

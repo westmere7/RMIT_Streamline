@@ -4,6 +4,7 @@ import type { BoardRepository } from "@/data/repositories";
 import { sortByPosition } from "@/lib/utils";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import {
+  BOARD_COLUMNS,
   fromBoardColumnPatch,
   fromBoardGroupPatch,
   fromBoardPatch,
@@ -19,8 +20,7 @@ import {
   type BoardRow,
 } from "../rows";
 
-const BOARD =
-  "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, created_at, updated_at";
+const BOARD = BOARD_COLUMNS;
 const MEMBER = "id, board_id, user_id, role";
 const FAVOURITE = "id, board_id, user_id, created_at";
 const GROUP = "id, board_id, name, color, position, collapsed, created_at";
@@ -60,6 +60,7 @@ export class SupabaseBoardRepository implements BoardRepository {
       owner_id: input.ownerId,
       color: input.color,
       icon: input.icon,
+      system: input.system ?? null,
     };
     const result = await db().from("boards").insert(payload).select(BOARD).single();
     return toBoard(unwrap<BoardRow>(result, "boards.create"));

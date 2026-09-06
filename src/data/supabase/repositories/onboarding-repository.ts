@@ -1,6 +1,6 @@
 import type { CompleteOnboardingInput, InvitationPreview, InviteMemberInput, WorkspaceInvitation } from "@/domain";
 import type { InviteResult, OnboardingRepository } from "@/data/repositories";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { callApi } from "../api-call";
 import { db, unwrapList } from "../client";
 import { INVITATION_COLUMNS, toWorkspaceInvitation, type WorkspaceInvitationRow } from "../rows";
 
@@ -18,7 +18,7 @@ import { INVITATION_COLUMNS, toWorkspaceInvitation, type WorkspaceInvitationRow 
 export class SupabaseOnboardingRepository implements OnboardingRepository {
   async invite(input: InviteMemberInput): Promise<InviteResult> {
     const { invitedBy: _invitedBy, ...body } = input;
-    return call<InviteResult>("/api/invitations", { method: "POST", body: JSON.stringify(body) }, { auth: true });
+    return callApi<InviteResult>("/api/invitations", { method: "POST", body: JSON.stringify(body) }, { auth: "required" });
   }
 
   async listInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {
@@ -27,47 +27,23 @@ export class SupabaseOnboardingRepository implements OnboardingRepository {
   }
 
   async regenerate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
-    return call<WorkspaceInvitation>("/api/invitations/regenerate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
+    return callApi<WorkspaceInvitation>("/api/invitations/regenerate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: "required" });
   }
 
   async reinitiate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
-    return call<WorkspaceInvitation>("/api/invitations/reinitiate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
+    return callApi<WorkspaceInvitation>("/api/invitations/reinitiate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: "required" });
   }
 
   async cancel(workspaceId: string, userId: string): Promise<void> {
-    await call<{ ok: true }>("/api/invitations/cancel", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
+    await callApi<{ ok: true }>("/api/invitations/cancel", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: "required" });
   }
 
   async preview(token: string): Promise<InvitationPreview> {
-    return call<InvitationPreview>(`/api/join/${encodeURIComponent(token)}`, { method: "GET" }, { auth: false });
+    return callApi<InvitationPreview>(`/api/join/${encodeURIComponent(token)}`, { method: "GET" }, { auth: "none" });
   }
 
   async complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: string }> {
     const { token, ...body } = input;
-    return call<{ email: string; userId: string }>(`/api/join/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) }, { auth: false });
+    return callApi<{ email: string; userId: string }>(`/api/join/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) }, { auth: "none" });
   }
-}
-
-async function call<T>(path: string, init: RequestInit, options: { auth: boolean }): Promise<T> {
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (init.body) headers.set("Content-Type", "application/json");
-  if (options.auth) {
-    const { data } = await getSupabaseClient().auth.getSession();
-    if (!data.session) throw new Error("Your session has expired. Sign in again to manage members.");
-    headers.set("Authorization", `Bearer ${data.session.access_token}`);
-  }
-  const response = await fetch(path, { ...init, headers, cache: "no-store" });
-  const text = await response.text();
-  let body: unknown = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = null;
-  }
-  if (!response.ok) {
-    const message = body && typeof body === "object" && "error" in body ? String((body as { error: unknown }).error) : `Request failed (${response.status})`;
-    throw new Error(message);
-  }
-  return body as T;
 }

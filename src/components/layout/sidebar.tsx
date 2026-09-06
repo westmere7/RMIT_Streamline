@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  ClipboardPen,
   Copy,
   FileSpreadsheet,
   Home,
@@ -227,6 +228,20 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               </button>
             </SimpleTooltip>
           </li>
+          <li>
+            <SimpleTooltip label="Book a task" side="right" disabled={!collapsed}>
+              <Link
+                href={routes.book(ws.slug)}
+                aria-label="Book a task"
+                onClick={onNavigate}
+                className={cn(navItemClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
+                data-testid="sidebar-book-task"
+              >
+                <ClipboardPen className="size-4 shrink-0" />
+                {!collapsed && <span className="flex-1 text-left">Book a task</span>}
+              </Link>
+            </SimpleTooltip>
+          </li>
         </ul>
 
         <Section title="Favourites" icon={Star} collapsed={collapsed} storeKey="favourites">
@@ -401,7 +416,7 @@ function useBoardRowActions(board: Board): MenuAction[] {
       type: "sub",
       label: "Move to team",
       icon: <ArrowRight />,
-      disabled: !manage,
+      disabled: !manage || !!board.system,
       items: [
         { type: "item", label: "No team", disabled: board.teamId === null, onSelect: () => actions.updateBoard.mutate({ teamId: null }) },
         { type: "separator" },
@@ -416,7 +431,7 @@ function useBoardRowActions(board: Board): MenuAction[] {
     },
     { type: "item", label: "Duplicate board", icon: <Copy />, onSelect: () => actions.duplicateBoard.mutate() },
   ];
-  if (manage) {
+  if (manage && !board.system) {
     list.push({ type: "separator" });
     list.push(
       board.archivedAt
@@ -424,7 +439,7 @@ function useBoardRowActions(board: Board): MenuAction[] {
         : { type: "item", label: "Archive board", icon: <Archive />, onSelect: () => actions.archiveBoard.mutate() },
     );
   }
-  if (canDeleteBoard(ws.permissions, board)) {
+  if (canDeleteBoard(ws.permissions, board) && !board.system) {
     list.push({ type: "item", label: "Delete board", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.requestDeleteBoard(board) });
   }
   return list;
@@ -681,7 +696,7 @@ function TeamNode({
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
     { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
-    ...(manage ? [{ type: "separator" } satisfies MenuAction, { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction] : []),
+    ...(manage && !team.system ? [{ type: "separator" } satisfies MenuAction, { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction] : []),
   ];
 
   if (collapsed) {

@@ -20,6 +20,7 @@ import { ItemUpdates } from "@/features/items/item-updates";
 import { useMarkItemSeen } from "@/features/comments/updates";
 import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
+import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -226,6 +227,7 @@ function Overview({ item }: { item: Item }) {
         })}
       </section>
 
+      <AllocationSection item={item} />
       <LinkedItemsSection item={item} />
 
       {item.parentItemId === null && (

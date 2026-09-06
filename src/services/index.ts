@@ -1,5 +1,6 @@
 import type { Repositories } from "@/data/repositories";
 import { BoardService } from "./board-service";
+import { BookingService, type BookingTransport } from "./booking-service";
 import { CommentService } from "./comment-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
@@ -24,19 +25,28 @@ export interface Services {
   myWork: MyWorkService;
   search: SearchService;
   trackers: TrackerService;
+  booking: BookingService;
 }
 
-export function createServices(repos: Repositories): Services {
+export interface ServiceOptions {
+  /** How bookings reach the server when the browser cannot write them itself (Supabase). */
+  bookingTransport?: BookingTransport | null;
+}
+
+export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
   const notifications = new NotificationService(repos);
   const links = new ItemLinkService(repos, notifications);
   const myWork = new MyWorkService(repos);
+  const workspace = new WorkspaceService(repos);
+  const items = new ItemService(repos, links, notifications);
   return {
     repos,
     notifications,
-    workspace: new WorkspaceService(repos),
+    workspace,
     boards: new BoardService(repos, notifications),
-    items: new ItemService(repos, links, notifications),
+    items,
     links,
+    booking: new BookingService(repos, workspace, items, links, notifications, options.bookingTransport ?? null),
     comments: new CommentService(repos, notifications, links),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
@@ -56,4 +66,6 @@ export type { MyWorkItem, MyWorkSection } from "./my-work-service";
 export type { DirectThreadView } from "./message-service";
 export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service";
 export type { SearchResults } from "./search-service";
-export type { WorkspaceContext } from "./workspace-service";
+export type { SystemEntities, WorkspaceContext } from "./workspace-service";
+export type { BookingSubmission, BookingTransport } from "./booking-service";
+export { BookingAccessError } from "./booking-service";

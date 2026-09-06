@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { COLOR_TOKENS, type ColorToken, type Team } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
+import { BookingBoardSetting } from "@/features/booking/booking-board-setting";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
@@ -26,6 +27,8 @@ const schema = z.object({
   description: z.string().trim().max(200, "Keep the description under 200 characters").optional(),
   color: z.enum(COLOR_TOKENS as readonly [ColorToken, ...ColorToken[]]),
   icon: z.string(),
+  /** Board this team's bookings land on; null means Task Allocation. */
+  bookingBoardId: z.string().nullable(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -47,15 +50,15 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", color: "blue", icon: "users" },
+    defaultValues: { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null },
   });
 
   React.useEffect(() => {
     if (open) {
       form.reset(
         team
-          ? { name: team.name, description: team.description ?? "", color: team.color, icon: team.icon }
-          : { name: "", description: "", color: "blue", icon: "users" },
+          ? { name: team.name, description: team.description ?? "", color: team.color, icon: team.icon, bookingBoardId: team.bookingBoardId ?? null }
+          : { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null },
       );
     }
   }, [open, team, form]);
@@ -63,7 +66,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
   const save = useMutation({
     mutationFn: (values: FormValues) =>
       team
-        ? services.workspace.updateTeam(team.id, { name: values.name, description: values.description || null, color: values.color, icon: values.icon })
+        ? services.workspace.updateTeam(team.id, { name: values.name, description: values.description || null, color: values.color, icon: values.icon, ...(team.system ? {} : { bookingBoardId: values.bookingBoardId }) })
         : services.workspace.createTeam(
             { workspaceId: ws.workspace.id, name: values.name, description: values.description || null, color: values.color, icon: values.icon },
             user.id,
@@ -84,7 +87,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? "Edit team" : "Create team"}</DialogTitle>
-          <DialogDescription>Teams group boards and people. You will be added as the team lead.</DialogDescription>
+          <DialogDescription>{team?.system ? "A built-in team: rename or restyle it as you like. It cannot be archived." : "Teams group boards and people. You will be added as the team lead."}</DialogDescription>
         </DialogHeader>
         <form id="team-form" className="grid gap-4" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
           <div className="grid gap-1.5">
@@ -111,6 +114,9 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
             <Label>Icon</Label>
             <Controller control={form.control} name="icon" render={({ field }) => <IconPicker value={field.value} onChange={field.onChange} className="grid-cols-11" />} />
           </div>
+          {team && !team.system && (
+            <Controller control={form.control} name="bookingBoardId" render={({ field }) => <BookingBoardSetting team={team} value={field.value} onChange={field.onChange} />} />
+          )}
         </form>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -8,6 +8,7 @@ import type {
   BoardGroup,
   BoardMember,
   BoardRole,
+  BoardSystemKind,
   BoardType,
   BoardVisibility,
   ColorToken,
@@ -27,6 +28,7 @@ import type {
   Team,
   TeamMember,
   TeamRole,
+  TeamSystemKind,
   Tracker,
   TrackerColumn,
   TrackerRow,
@@ -101,12 +103,15 @@ export interface WorkspaceRow {
   name: string;
   slug: string;
   logo_url: string | null;
+  booking_key: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, created_at, updated_at";
+
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {
@@ -158,9 +163,13 @@ export interface TeamRow {
   color: ColorToken;
   icon: string;
   archived_at: string | null;
+  system: TeamSystemKind | null;
+  booking_board_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export const TEAM_COLUMNS = "id, workspace_id, name, description, color, icon, archived_at, system, booking_board_id, created_at, updated_at";
 
 export function toTeam(row: TeamRow): Team {
   return {
@@ -171,6 +180,8 @@ export function toTeam(row: TeamRow): Team {
     color: row.color,
     icon: row.icon,
     archivedAt: row.archived_at,
+    system: row.system ?? null,
+    bookingBoardId: row.booking_board_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -200,9 +211,12 @@ export interface BoardRow {
   color: ColorToken;
   icon: string;
   archived_at: string | null;
+  system: BoardSystemKind | null;
   created_at: string;
   updated_at: string;
 }
+
+export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, created_at, updated_at";
 
 export function toBoard(row: BoardRow): Board {
   return {
@@ -218,6 +232,7 @@ export function toBoard(row: BoardRow): Board {
     color: row.color,
     icon: row.icon,
     archivedAt: row.archived_at,
+    system: row.system ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -236,6 +251,7 @@ export function fromBoardPatch(patch: Partial<Omit<Board, "id" | "createdAt">>):
     color: patch.color,
     icon: patch.icon,
     archived_at: patch.archivedAt,
+    system: patch.system,
   });
 }
 

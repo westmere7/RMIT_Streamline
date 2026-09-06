@@ -1,3 +1,4 @@
+import type { BoardSystemKind } from "@/domain/booking/booking";
 import type { ColorToken, EntityId, Timestamps } from "@/domain/common/types";
 
 export const BOARD_TYPES = ["MAIN", "PRIVATE", "SHAREABLE"] as const;
@@ -26,6 +27,8 @@ export interface Board extends Timestamps {
   /** Lucide icon name. */
   icon: string;
   archivedAt: string | null;
+  /** Set when the app created the board itself (Task Allocation). Renamable, never removable, admins only. */
+  system?: BoardSystemKind | null;
 }
 
 export interface BoardMember {
@@ -55,4 +58,5 @@ export interface BoardGroup {
 export type BoardInput = Pick<
   Board,
   "workspaceId" | "teamId" | "name" | "description" | "type" | "visibility" | "ownerId" | "color" | "icon"
->;
+> &
+  Partial<Pick<Board, "system">>;

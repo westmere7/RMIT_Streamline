@@ -24,6 +24,7 @@ import {
   Palette,
   PenTool,
   Rocket,
+  ShieldCheck,
   Sparkles,
   Star,
   Target,
@@ -70,6 +71,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "calendar-days": CalendarDays,
   "message-square": MessageSquare,
   activity: Activity,
+  "shield-check": ShieldCheck,
 };
 
 export const ICON_NAMES = Object.keys(ICON_MAP);

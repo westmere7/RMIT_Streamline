@@ -8,6 +8,8 @@ export interface Workspace extends Timestamps {
   name: string;
   slug: string;
   logoUrl: string | null;
+  /** Secret in the public booking link (/book/<slug>/<key>). Null until an admin first opens the workspace. */
+  bookingKey?: string | null;
 }
 
 export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";
