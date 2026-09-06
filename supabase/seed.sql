@@ -89,7 +89,7 @@ as $$
     when 'TEXT' then 180  when 'LONG_TEXT' then 240 when 'STATUS' then 150
     when 'PERSON' then 130 when 'DATE' then 130     when 'TIMELINE' then 190
     when 'NUMBER' then 110 when 'PRIORITY' then 130 when 'CHECKBOX' then 90
-    when 'LINK' then 170   when 'TAGS' then 180     when 'FILES' then 130
+    when 'LINK' then 170   when 'TAGS' then 180
     when 'DEPENDENCY' then 180
   end
 $$;
@@ -316,7 +316,6 @@ from (values
   (16, 3, 'Due Date',        'DATE',       3, null),
   (17, 3, 'Timeline',        'TIMELINE',   4, null),
   (18, 3, 'Dependency',      'DEPENDENCY', 5, null),
-  (19, 3, 'Files',           'FILES',      6, null),
   (20, 3, 'Notes',           'TEXT',       7, 220),
   -- dooh
   (21, 4, 'Owner',           'PERSON',     0, null),
@@ -488,26 +487,6 @@ from (values
   (40, array[29]),      -- Vietnamese adaptation   <- High Achiever
   (41, array[43, 38])   -- Upload production files <- Review stakeholder feedback, Cover concept
 ) as d(n, deps)
-on conflict (item_id, column_id) do nothing;
-
--- Files attachment on the cover concept (AttachmentMeta shape).
-insert into public.item_column_values (item_id, column_id, value_json, updated_at)
-values (
-  pg_temp.sid('6', 38), pg_temp.sid('5', 19),
-  jsonb_build_object(
-    'type', 'FILES',
-    'files', jsonb_build_array(jsonb_build_object(
-      'id',         pg_temp.sid('6', 38)::text || '-file-0',
-      'filename',   'RMITinerary_Cover_v3.pdf',
-      'size',       2400000,
-      'mimeType',   'application/pdf',
-      'url',        'local://attachments/RMITinerary_Cover_v3.pdf',
-      'uploadedBy', pg_temp.sid('1', 1),
-      'uploadedAt', to_char(now() - interval '2 days', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-    ))
-  ),
-  now() - interval '1 day'
-)
 on conflict (item_id, column_id) do nothing;
 
 -- -----------------------------------------------------------------------------

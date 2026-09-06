@@ -199,6 +199,8 @@ export interface TrackerRepository {
 
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
+  /** Every update on any of the items, for per-item counts across a board. */
+  listByItems(itemIds: EntityId[]): Promise<Comment[]>;
   /** Every copy of one update, including the one it was posted from. */
   listBySharedId(sharedId: EntityId): Promise<Comment[]>;
   create(input: CommentInput): Promise<Comment>;
@@ -227,6 +229,13 @@ export interface ActivityRepository {
 
 /** A notification with the delivery its recipient's preferences decided. */
 export type DeliverableNotification = NotificationInput & { delivery: StoredDelivery };
+
+/** Per-person "last looked at this item's updates" markers. */
+export interface ItemReadRepository {
+  /** Item id → ISO time the person last viewed its updates. */
+  listByUser(userId: EntityId): Promise<Record<EntityId, string>>;
+  markSeen(userId: EntityId, itemId: EntityId, seenAt: string): Promise<void>;
+}
 
 export interface NotificationRepository {
   listByUser(userId: EntityId): Promise<Notification[]>;
@@ -286,6 +295,7 @@ export interface Repositories {
   links: ItemLinkRepository;
   trackers: TrackerRepository;
   comments: CommentRepository;
+  itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;
   notifications: NotificationRepository;

@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { UpdatesBadge } from "@/features/items/updates-badge";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { colorClasses } from "@/lib/colors";
@@ -26,7 +27,7 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, openItem } = useBoardContext();
+  const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
@@ -205,6 +206,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                   )}
                 </div>
                 {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+                <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
                 {blocked && (
                   <SimpleTooltip label="Blocked: depends on items that are not done">
                     <span className="shrink-0 text-amber-600 dark:text-amber-400" aria-label="Blocked">
@@ -212,7 +214,6 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     </span>
                   </SimpleTooltip>
                 )}
-                {subitems.length > 0 && <span className="shrink-0 rounded-full bg-surface-strong/80 px-1.5 text-2xs text-muted-foreground tabular">{subitems.length}</span>}
                 <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   {canEdit && (
                     <SimpleTooltip label="Rename">
@@ -381,7 +382,7 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem } = useBoardContext();
+  const { model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -414,7 +415,13 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
             style={leadingCellStyle()}
           >
             <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
-            <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
+            <div
+              className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) openItem(item.id);
+              }}
+              data-testid="subitem-name-cell"
+            >
               {renaming ? (
                 <InlineEdit
                   value={item.name}
@@ -439,6 +446,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                 </button>
               )}
               {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+                <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
               {canEdit && (
                 <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   <button

@@ -12,11 +12,22 @@ export const COLUMN_TYPES = [
   "CHECKBOX",
   "LINK",
   "TAGS",
-  "FILES",
+  "SIZE",
   "DEPENDENCY",
 ] as const;
 
 export type ColumnType = (typeof COLUMN_TYPES)[number];
+
+/** T-shirt sizing, the quick way to say how big a piece of work is. */
+export const T_SHIRT_SIZES = ["XS", "S", "M", "L", "XL"] as const;
+export type TShirtSize = (typeof T_SHIRT_SIZES)[number];
+
+/** Cool for small, warm for large, so a glance down the column reads as a scale. */
+export const T_SHIRT_SIZE_COLORS: Record<TShirtSize, ColorToken> = { XS: "sky", S: "green", M: "blue", L: "orange", XL: "rose" };
+
+export function isTShirtSize(value: unknown): value is TShirtSize {
+  return typeof value === "string" && (T_SHIRT_SIZES as readonly string[]).includes(value);
+}
 
 export interface ColumnLabel {
   id: string;
@@ -131,7 +142,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   CHECKBOX: "Checkbox",
   LINK: "Link",
   TAGS: "Tags",
-  FILES: "Files",
+  SIZE: "T-shirt size",
   DEPENDENCY: "Dependency",
 };
 
@@ -147,7 +158,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   CHECKBOX: 90,
   LINK: 170,
   TAGS: 180,
-  FILES: 130,
+  SIZE: 110,
   DEPENDENCY: 180,
 };
 

@@ -10,13 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { AttachmentMeta, BoardColumn, Item } from "@/domain";
+import type { BoardColumn, Item } from "@/domain";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
+import { useMarkItemSeen } from "@/features/comments/updates";
+import { useBoardUiStore } from "@/stores/board-ui-store";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -29,8 +31,25 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
-  const [tab, setTab] = React.useState("overview");
+  const [localTab, setLocalTab] = React.useState("overview");
+  const requestedTab = useBoardUiStore((s) => s.requestedItemTab);
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  // A request (from the updates badge, say) wins until the person picks a tab.
+  const tab = requestedTab?.itemId === itemId ? requestedTab.tab : localTab;
+  const setTab = (next: string) => {
+    if (requestedTab) setRequestedItemTab(null);
+    setLocalTab(next);
+  };
   const comments = useComments(itemId);
+  // Looking at the Updates tab is catching up: record it, and again whenever
+  // another update arrives while the tab stays open.
+  const markSeen = useMarkItemSeen();
+  const latestUpdate = comments.data?.[comments.data.length - 1]?.createdAt ?? null;
+  React.useEffect(() => {
+    if (tab !== "updates" || !comments.data) return;
+    markSeen.mutate(itemId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires on tab open and on each new update, not on the mutation object
+  }, [tab, itemId, latestUpdate]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -151,8 +170,7 @@ function Overview({ item }: { item: Item }) {
   const [description, setDescription] = React.useState(item.description ?? "");
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const [newSub, setNewSub] = React.useState("");
-  const filesColumn = model.columns.find((c) => c.type === "FILES") ?? null;
-  const fieldColumns = model.columns.filter((c) => c.type !== "FILES" && c.type !== "LONG_TEXT");
+  const fieldColumns = model.columns.filter((c) => c.type !== "LONG_TEXT");
   const longTextColumns = model.columns.filter((c) => c.type === "LONG_TEXT");
 
   return (
@@ -258,7 +276,6 @@ function Overview({ item }: { item: Item }) {
         </section>
       )}
 
-      <FilesSection item={item} column={filesColumn} />
     </div>
   );
 }
@@ -287,76 +304,6 @@ function LongTextField({ column, text, canEdit, onSave }: { column: BoardColumn;
         <p className="whitespace-pre-wrap text-[13px]">{text || <span className="text-muted-foreground">—</span>}</p>
       )}
     </div>
-  );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function FilesSection({ item, column }: { item: Item; column: BoardColumn | null }) {
-  const { model, mutations, canEdit } = useBoardContext();
-  const ws = useWorkspace();
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const value = column ? model.getValue(item.id, column.id) : undefined;
-  const files = value?.type === "FILES" ? value.files : [];
-
-  const addFiles = (list: FileList | null) => {
-    if (!list || !column) return;
-    const next: AttachmentMeta[] = Array.from(list).map((file) => ({
-      id: newId(),
-      filename: file.name,
-      size: file.size,
-      mimeType: file.type || "application/octet-stream",
-      // Local placeholder. Future: upload to Supabase Storage bucket "workspace-files" and store the object path.
-      url: `local://attachments/${file.name}`,
-      uploadedBy: ws.currentUser.id,
-      uploadedAt: nowIso(),
-    }));
-    void mutations.setValue(item, column, { type: "FILES", files: [...files, ...next] });
-  };
-
-  const remove = (id: string) => {
-    if (!column) return;
-    void mutations.setValue(item, column, { type: "FILES", files: files.filter((f) => f.id !== id) });
-  };
-
-  return (
-    <section>
-      <h3 className="mb-1.5 flex items-center justify-between label-quiet">
-        Files
-        {column && canEdit && (
-          <>
-            <input ref={inputRef} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} aria-label="Attach files" />
-            <Button variant="ghost" size="sm" className="-my-1 h-6 normal-case tracking-normal" onClick={() => inputRef.current?.click()}>
-              <Paperclip /> Attach
-            </Button>
-          </>
-        )}
-      </h3>
-      {!column ? (
-        <p className="text-[13px] text-muted-foreground">Add a Files column to this board to attach files to items.</p>
-      ) : files.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No files attached. Attachments are stored as metadata only in local mode.</p>
-      ) : (
-        <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
-          {files.map((file) => (
-            <li key={file.id} className="group flex h-10 items-center gap-2 px-3 text-[13px]">
-              <FileText className="size-4 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate">{file.filename}</span>
-              <span className="text-2xs text-muted-foreground tabular">{formatBytes(file.size)}</span>
-              {canEdit && (
-                <Button variant="ghost" size="icon-xs" aria-label={`Remove ${file.filename}`} className="opacity-0 group-hover:opacity-100" onClick={() => remove(file.id)}>
-                  <Trash2 />
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 

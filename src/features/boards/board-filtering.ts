@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
-import { columnLabels } from "@/domain";
+import { columnLabels, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
 
@@ -131,8 +131,8 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return value.text?.trim() || value.url.trim() || null;
     case "TAGS":
       return value.tags.length ? [...value.tags].sort((x, y) => x.localeCompare(y)).join(", ") : null;
-    case "FILES":
-      return value.files.length || null;
+    case "SIZE":
+      return value.size ? T_SHIRT_SIZES.indexOf(value.size) : null;
     case "DEPENDENCY":
       return value.itemIds.length || null;
   }

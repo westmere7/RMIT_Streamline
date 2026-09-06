@@ -35,6 +35,10 @@ export const queryKeys = {
   linkCandidates: (workspaceId: string, itemId: string, query: string, boardId: string | null) => ["link-candidates", workspaceId, itemId, query, boardId] as const,
   linkMapping: (boardId: string, otherBoardId: string) => ["link-mapping", boardId, otherBoardId] as const,
   comments: (itemId: string) => ["comments", itemId] as const,
+  /** Every update on a board's items, for the per-item badges. Shares the "comments" prefix so comment changes refresh it. */
+  boardComments: (boardId: string) => ["comments", "board", boardId] as const,
+  /** Which items the person has caught up on. */
+  itemReads: (userId: string) => ["item-reads", userId] as const,
   itemActivity: (itemId: string) => ["activity", "item", itemId] as const,
   boardActivity: (boardId: string) => ["activity", "board", boardId] as const,
   workspaceActivity: (workspaceId: string) => ["activity", "workspace", workspaceId] as const,

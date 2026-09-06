@@ -15,6 +15,7 @@ import type {
   DataAdminRepository,
   DataExport,
   DeliverableNotification,
+  ItemReadRepository,
   NotificationPreferencesRepository,
   NotificationRepository,
 } from "@/data/repositories";
@@ -42,6 +43,20 @@ export class SupabaseCommentRepository implements CommentRepository {
     return unwrapList<CommentRow>(result, "comments.listByItem").map(toComment);
   }
 
+  async listByItems(itemIds: string[]): Promise<Comment[]> {
+    if (itemIds.length === 0) return [];
+    // Postgres is happy with long IN lists, but keep each request a sane size.
+    const chunks: string[][] = [];
+    for (let i = 0; i < itemIds.length; i += 200) chunks.push(itemIds.slice(i, i + 200));
+    const lists = await Promise.all(
+      chunks.map(async (chunk) => {
+        const result = await db().from("comments").select(COMMENT).in("item_id", chunk).order("created_at", { ascending: true });
+        return unwrapList<CommentRow>(result, "comments.listByItems").map(toComment);
+      }),
+    );
+    return lists.flat();
+  }
+
   async listBySharedId(sharedId: string): Promise<Comment[]> {
     const result = await db().from("comments").select(COMMENT).eq("shared_id", sharedId).order("created_at", { ascending: true });
     return unwrapList<CommentRow>(result, "comments.listBySharedId").map(toComment);
@@ -67,6 +82,18 @@ export class SupabaseCommentRepository implements CommentRepository {
 
   async delete(id: string): Promise<void> {
     assertOk(await db().from("comments").delete().eq("id", id), "comments.delete");
+  }
+}
+
+export class SupabaseItemReadRepository implements ItemReadRepository {
+  async listByUser(userId: string): Promise<Record<string, string>> {
+    const result = await db().from("item_reads").select("item_id, seen_at").eq("user_id", userId);
+    const rows = unwrapList<{ item_id: string; seen_at: string }>(result, "item_reads.listByUser");
+    return Object.fromEntries(rows.map((row) => [row.item_id, row.seen_at]));
+  }
+
+  async markSeen(userId: string, itemId: string, seenAt: string): Promise<void> {
+    assertOk(await db().from("item_reads").upsert({ user_id: userId, item_id: itemId, seen_at: seenAt }, { onConflict: "user_id,item_id" }), "item_reads.markSeen");
   }
 }
 

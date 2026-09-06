@@ -28,8 +28,8 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return value.url || null;
     case "TAGS":
       return value.tags.join(", ") || null;
-    case "FILES":
-      return value.files.length ? `${value.files.length} file(s)` : null;
+    case "SIZE":
+      return value.size;
     case "DEPENDENCY":
       return value.itemIds.length ? `${value.itemIds.length} item(s)` : null;
   }

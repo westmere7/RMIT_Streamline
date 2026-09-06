@@ -12,6 +12,7 @@ import { PersonPicker } from "@/features/boards/components/pickers/person-picker
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
+import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
 import { useBoardContext } from "@/features/boards/board-context";
 import { columnAlign } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -60,8 +61,8 @@ export function CellRenderer(props: CellProps) {
       return <LinkCell {...props} />;
     case "TAGS":
       return <TagsCell {...props} />;
-    case "FILES":
-      return <FilesCell {...props} />;
+    case "SIZE":
+      return <SizeCell {...props} />;
     case "DEPENDENCY":
       return <DependencyCell {...props} />;
   }
@@ -174,6 +175,33 @@ export function PriorityCell({ item, column, value, onChange, readOnly, width }:
           onEditLabels={() => {
             close();
             openEditLabels(column);
+          }}
+        />
+      )}
+    </PopoverCell>
+  );
+}
+
+// ---- T-shirt size -----------------------------------------------------------
+
+export function SizeCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const v = valueOf("SIZE", value);
+  return (
+    <PopoverCell
+      width={width ?? column.width}
+      disabled={readOnly}
+      ariaLabel={`${column.name}: ${v.size ?? "not set"} for ${item.name}`}
+      testId="size-cell"
+      align={columnAlign(column.type)}
+      contentClassName="p-2"
+      trigger={<SizePill size={v.size} />}
+    >
+      {(close) => (
+        <SizePicker
+          value={v.size}
+          onChange={(size) => {
+            onChange({ type: "SIZE", size });
+            close();
           }}
         />
       )}
@@ -569,27 +597,6 @@ export function TagsCell({ item, column, value, onChange, readOnly, width }: Cel
         />
       )}
     </PopoverCell>
-  );
-}
-
-export function FilesCell({ item, column, value, readOnly, width }: CellProps) {
-  const v = valueOf("FILES", value);
-  const { openItem } = useBoardContext();
-  return (
-    <CellShell width={width ?? column.width} align={columnAlign(column.type)} interactive={!readOnly}>
-      {v.files.length > 0 ? (
-        <SimpleTooltip label={v.files.map((f) => f.filename).join(", ")}>
-          <button type="button" onClick={() => openItem(item.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <Paperclip className="size-3.5" />
-            {v.files.length}
-          </button>
-        </SimpleTooltip>
-      ) : (
-        <button type="button" aria-label={`Add files to ${item.name}`} onClick={() => openItem(item.id)} className="text-muted-foreground/40 hover:text-foreground">
-          <Paperclip className="size-3.5" />
-        </button>
-      )}
-    </CellShell>
   );
 }
 

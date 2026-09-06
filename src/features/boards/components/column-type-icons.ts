@@ -1,4 +1,4 @@
-import { AlignLeft, CalendarDays, CircleDot, Flag, GanttChart, GitBranch, Hash, Link2, Paperclip, SquareCheck, Tag, Type, UserRound } from "lucide-react";
+import { AlignLeft, CalendarDays, CircleDot, Flag, GanttChart, GitBranch, Hash, Link2, Shirt, SquareCheck, Tag, Type, UserRound } from "lucide-react";
 import type { ComponentType } from "react";
 import type { ColumnType } from "@/domain";
 
@@ -15,6 +15,6 @@ export const COLUMN_TYPE_ICONS: Record<ColumnType, ComponentType<{ className?: s
   CHECKBOX: SquareCheck,
   LINK: Link2,
   TAGS: Tag,
-  FILES: Paperclip,
+  SIZE: Shirt,
   DEPENDENCY: GitBranch,
 };

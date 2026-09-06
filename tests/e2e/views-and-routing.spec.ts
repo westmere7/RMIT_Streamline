@@ -27,7 +27,6 @@ test.describe("views, routing and error states", () => {
     await expect(page.getByTestId("timeline")).toBeVisible({ timeout: 15000 });
     await switchView(page, "calendar");
     await expect(page.getByTestId("calendar")).toBeVisible({ timeout: 15000 });
-    await switchView(page, "files");
     await switchView(page, "table");
     await expect(page.getByTestId("board-table")).toBeVisible();
 

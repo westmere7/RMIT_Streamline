@@ -9,7 +9,7 @@ export type BoardVisibility = (typeof BOARD_VISIBILITIES)[number];
 export const BOARD_ROLES = ["OWNER", "EDITOR", "VIEWER"] as const;
 export type BoardRole = (typeof BOARD_ROLES)[number];
 
-export const BOARD_VIEWS = ["table", "kanban", "timeline", "calendar", "files"] as const;
+export const BOARD_VIEWS = ["table", "kanban", "timeline", "calendar"] as const;
 export type BoardViewKind = (typeof BOARD_VIEWS)[number];
 
 export interface Board extends Timestamps {

@@ -311,7 +311,6 @@ test.describe("supabase provider", () => {
       ["kanban", "kanban"],
       ["timeline", "timeline"],
       ["calendar", "calendar"],
-      ["files", "files-view"],
     ] as const) {
       await page.goto(`${BOARD}?view=${view}`);
       await expect(page.getByTestId(testid)).toBeVisible({ timeout: 30_000 });

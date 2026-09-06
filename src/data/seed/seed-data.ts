@@ -1,7 +1,6 @@
 import { addDays, subDays, subHours, subMinutes } from "date-fns";
 import type {
   Activity,
-  AttachmentMeta,
   Board,
   BoardColumn,
   BoardFavourite,
@@ -249,7 +248,6 @@ interface SeedItemSpec {
   checkbox?: Record<string, boolean>;
   link?: Record<string, { url: string; text: string }>;
   requester?: UserKey[];
-  files?: string[];
   description?: string;
   subitems?: Array<Pick<SeedItemSpec, "name" | "owner" | "status" | "priority" | "due">>;
   /** Item names (on the same board) this item depends on. */
@@ -400,7 +398,6 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { key: "due", name: "Due Date", type: "DATE" },
       { key: "timeline", name: "Timeline", type: "TIMELINE" },
       { key: "dependency", name: "Dependency", type: "DEPENDENCY" },
-      { key: "files", name: "Files", type: "FILES" },
       { key: "notes", name: "Notes", type: "TEXT", width: 220 },
     ],
     items: [
@@ -417,7 +414,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       ] },
       { group: "Design", name: "RMITinerary Explorer", owner: ["danh"], status: "waiting", priority: "medium", due: 7, timeline: [0, 7], text: { notes: "Waiting on photography from Hanoi campus." }, createdBy: "danh", createdDaysAgo: 11 },
       { group: "Design", name: "RMITinerary Independent", owner: ["tuyet"], status: "not_started", priority: "medium", due: 11, timeline: [5, 11], createdBy: "danh", createdDaysAgo: 11 },
-      { group: "Design", name: "Cover concept – final artwork", owner: ["danh"], status: "working", priority: "critical", due: 3, timeline: [-4, 3], files: ["RMITinerary_Cover_v3.pdf"], createdBy: "danh", createdDaysAgo: 9, description: "Final cover artwork. Spot UV on the RMIT wordmark; confirm with printer." },
+      { group: "Design", name: "Cover concept – final artwork", owner: ["danh"], status: "working", priority: "critical", due: 3, timeline: [-4, 3], createdBy: "danh", createdDaysAgo: 9, description: "Final cover artwork. Spot UV on the RMIT wordmark; confirm with printer." },
       { group: "Production", name: "Chinese language adaptation", owner: ["duc"], status: "not_started", priority: "low", due: 18, timeline: [12, 18], createdBy: "danh", createdDaysAgo: 5, dependsOn: ["RMITinerary High Achiever", "RMITinerary Pragmatist"] },
       { group: "Production", name: "Vietnamese language adaptation", owner: ["tuyet"], status: "not_started", priority: "medium", due: 16, timeline: [10, 16], createdBy: "danh", createdDaysAgo: 5, dependsOn: ["RMITinerary High Achiever"] },
       { group: "Production", name: "Upload final production files", owner: ["danh"], status: "not_started", priority: "high", due: 12, createdBy: "danh", createdDaysAgo: 5, dependsOn: ["Review stakeholder feedback", "Cover concept – final artwork"] },
@@ -612,7 +609,6 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { key: "due", name: "Delivery", type: "DATE" },
       { key: "format", name: "Deliverables", type: "TEXT", width: 200 },
       { key: "approved", name: "Client approved", type: "CHECKBOX" },
-      { key: "files", name: "Files", type: "FILES" },
     ],
     items: [
       { group: "Briefed", name: "Alumni testimonial series – 4 films", owner: [], status: "not_started", priority: "medium", due: 30, timeline: [10, 30], text: { format: "4 x 90s, 16:9 + 9:16" }, checkbox: { approved: false }, createdBy: "emily", createdDaysAgo: 2 },
@@ -621,7 +617,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
       { group: "Pre-production", name: "Casting – student talent", owner: ["thao"], status: "waiting", priority: "high", due: 2, timeline: [-5, 2], text: { format: "6 talent, release forms" }, checkbox: { approved: false }, createdBy: "minh", createdDaysAgo: 7 },
       { group: "Shooting", name: "Saigon South campus b-roll", owner: ["minh"], status: "working", priority: "high", due: 3, timeline: [1, 3], text: { format: "4K, 2 days" }, checkbox: { approved: true }, createdBy: "minh", createdDaysAgo: 4 },
       { group: "Shooting", name: "Masterclass speaker interviews", owner: ["minh", "linh"], status: "not_started", priority: "medium", due: 8, timeline: [7, 8], text: { format: "3 interviews, 2 cam" }, checkbox: { approved: true }, createdBy: "danh", createdDaysAgo: 3 },
-      { group: "Post-production", name: "Hero film – colour grade", owner: ["duc"], status: "working", priority: "critical", due: 5, timeline: [2, 5], text: { format: "Master + 6 cutdowns" }, checkbox: { approved: false }, files: ["HeroFilm_v2_offline.mp4"], createdBy: "minh", createdDaysAgo: 5 },
+      { group: "Post-production", name: "Hero film – colour grade", owner: ["duc"], status: "working", priority: "critical", due: 5, timeline: [2, 5], text: { format: "Master + 6 cutdowns" }, checkbox: { approved: false }, createdBy: "minh", createdDaysAgo: 5 },
       { group: "Post-production", name: "DOOH motion loops – 10s", owner: ["duc"], status: "stuck", priority: "high", due: 0, timeline: [-4, 0], text: { format: "6 formats" }, checkbox: { approved: false }, createdBy: "jun", createdDaysAgo: 8, description: "Blocked on final network specs from the media agency." },
       { group: "Post-production", name: "Welcome video loop – 60s", owner: ["minh"], status: "working", priority: "high", due: 7, timeline: [-1, 7], text: { format: "60s loop, no audio" }, checkbox: { approved: false }, createdBy: "priya", createdDaysAgo: 3 },
       { group: "Client Review", name: "Scholarship campaign 30s TVC", owner: ["minh"], status: "waiting", priority: "high", due: 2, timeline: [-9, 2], text: { format: "30s + 15s" }, checkbox: { approved: false }, createdBy: "joanne", createdDaysAgo: 12 },
@@ -946,8 +942,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
 
     const applyItemValues = (
       itemId: string,
-      itemSpec: Pick<SeedItemSpec, "owner" | "status" | "priority" | "due" | "timeline" | "tags" | "text" | "number" | "checkbox" | "link" | "requester" | "files">,
-      creatorId: string,
+      itemSpec: Pick<SeedItemSpec, "owner" | "status" | "priority" | "due" | "timeline" | "tags" | "text" | "number" | "checkbox" | "link" | "requester">,
     ): void => {
       if (itemSpec.owner) pushValue(itemId, "owner", { type: "PERSON", userIds: itemSpec.owner.map((k) => SEED_USER_IDS[k]) });
       if (itemSpec.requester) pushValue(itemId, "requester", { type: "PERSON", userIds: itemSpec.requester.map((k) => SEED_USER_IDS[k]) });
@@ -973,18 +968,6 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
       for (const [key, number] of Object.entries(itemSpec.number ?? {})) pushValue(itemId, key, { type: "NUMBER", number });
       for (const [key, checked] of Object.entries(itemSpec.checkbox ?? {})) pushValue(itemId, key, { type: "CHECKBOX", checked });
       for (const [key, link] of Object.entries(itemSpec.link ?? {})) pushValue(itemId, key, { type: "LINK", url: link.url, text: link.text });
-      if (itemSpec.files) {
-        const files: AttachmentMeta[] = itemSpec.files.map((filename, index) => ({
-          id: `${itemId}-file-${index}`,
-          filename,
-          size: 2_400_000 + index * 10_000,
-          mimeType: filename.endsWith(".pdf") ? "application/pdf" : "application/octet-stream",
-          url: `local://attachments/${filename}`,
-          uploadedBy: creatorId,
-          uploadedAt: iso(subDays(now, 2)),
-        }));
-        pushValue(itemId, "files", { type: "FILES", files });
-      }
     };
 
     const positionByGroup = new Map<string, number>();
@@ -1010,7 +993,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
         createdAt: iso(created),
         updatedAt: iso(subHours(now, 6)),
       });
-      applyItemValues(itemId, itemSpec, creatorId);
+      applyItemValues(itemId, itemSpec);
       activities.push({
         id: sid("activity"),
         workspaceId: workspace.id,
@@ -1037,7 +1020,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
           createdAt: iso(addDays(created, 1)),
           updatedAt: iso(subHours(now, 8)),
         });
-        applyItemValues(subId, sub, creatorId);
+        applyItemValues(subId, sub);
       });
     }
 

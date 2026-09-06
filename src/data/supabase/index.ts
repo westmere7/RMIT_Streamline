@@ -6,6 +6,7 @@ import {
   SupabaseActivityRepository,
   SupabaseAdminRepository,
   SupabaseCommentRepository,
+  SupabaseItemReadRepository,
   SupabaseNotificationPreferencesRepository,
   SupabaseNotificationRepository,
 } from "./repositories/misc-repositories";
@@ -39,6 +40,7 @@ export function createSupabaseRepositories(): Repositories {
     links: new SupabaseItemLinkRepository(),
     trackers: new SupabaseTrackerRepository(),
     comments: new SupabaseCommentRepository(),
+    itemReads: new SupabaseItemReadRepository(),
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),
     notifications: new SupabaseNotificationRepository(),

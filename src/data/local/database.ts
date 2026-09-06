@@ -7,6 +7,7 @@ import type {
   BoardGroup,
   BoardMember,
   Comment,
+  ItemRead,
   DirectMessage,
   Item,
   ItemColumnValue,
@@ -84,6 +85,7 @@ export interface StreamlineDB extends DBSchema {
   trackers: { key: string; value: Tracker; indexes: { byWorkspace: string } };
   trackerSheets: { key: string; value: TrackerSheet; indexes: { byTracker: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
+  itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   activities: {
     key: string;
     value: Activity;
@@ -121,6 +123,7 @@ export const ALL_STORES: StoreName[] = [
   "trackers",
   "trackerSheets",
   "comments",
+  "itemReads",
   "activities",
   "notifications",
   "notificationPreferences",
@@ -131,7 +134,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -246,6 +249,13 @@ function createOnboardingStores(db: IDBPDatabase<StreamlineDB>): void {
   }
 }
 
+/** v7: which items each person has caught up on. */
+function createItemReadsStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("itemReads")) return;
+  const reads = db.createObjectStore("itemReads", { keyPath: "id" });
+  reads.createIndex("byUser", "userId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -254,6 +264,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 4) createDirectMessageStore(db);
   if (oldVersion < 5) createNotificationPreferencesStore(db);
   if (oldVersion < 6) createOnboardingStores(db);
+  if (oldVersion < 7) createItemReadsStore(db);
 }
 
 export interface OpenDatabaseOptions {

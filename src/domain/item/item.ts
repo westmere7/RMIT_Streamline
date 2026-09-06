@@ -1,3 +1,4 @@
+import type { TShirtSize } from "@/domain/board/column";
 import type { EntityId, ISODate, Timestamps } from "@/domain/common/types";
 import type { ColumnType } from "@/domain/board/column";
 
@@ -17,21 +18,6 @@ export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy">
   Partial<Pick<Item, "parentItemId" | "description">>;
 
 /** Placeholder attachment metadata. Files are not uploaded anywhere in local mode. */
-export interface AttachmentMeta {
-  id: string;
-  filename: string;
-  size: number;
-  mimeType: string;
-  /** Local object URL or mock URL. Future: Supabase Storage signed URL in "workspace-files" bucket. */
-  url: string;
-  uploadedBy: EntityId;
-  uploadedAt: string;
-}
-
-/**
- * Normalised column values. Each item/column pair stores one JSON value.
- * The shape mirrors a JSONB `value_json` column in Postgres.
- */
 export type ColumnValue =
   | { type: "TEXT"; text: string }
   | { type: "LONG_TEXT"; text: string }
@@ -44,7 +30,7 @@ export type ColumnValue =
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
   | { type: "TAGS"; tags: string[] }
-  | { type: "FILES"; files: AttachmentMeta[] }
+  | { type: "SIZE"; size: TShirtSize | null }
   | { type: "DEPENDENCY"; itemIds: EntityId[] };
 
 export type ColumnValueOf<T extends ColumnType> = Extract<ColumnValue, { type: T }>;
@@ -81,8 +67,8 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, url: "", text: null };
     case "TAGS":
       return { type, tags: [] };
-    case "FILES":
-      return { type, files: [] };
+    case "SIZE":
+      return { type, size: null };
     case "DEPENDENCY":
       return { type, itemIds: [] };
   }
@@ -111,8 +97,8 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.url.trim() === "";
     case "TAGS":
       return value.tags.length === 0;
-    case "FILES":
-      return value.files.length === 0;
+    case "SIZE":
+      return value.size === null;
     case "DEPENDENCY":
       return value.itemIds.length === 0;
   }
@@ -120,3 +106,13 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
 
 /** Values keyed by column id for a single item. */
 export type ItemValues = Record<EntityId, ColumnValue>;
+
+/**
+ * When a person last looked at an item's updates. Together with read
+ * notifications it decides whether an item shows "new updates" for them.
+ */
+export interface ItemRead {
+  userId: EntityId;
+  itemId: EntityId;
+  seenAt: string;
+}

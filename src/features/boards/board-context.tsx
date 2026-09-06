@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { Board, BoardColumn, User } from "@/domain";
 import type { BoardModel } from "@/features/boards/board-model";
 import type { BoardMutations } from "@/features/boards/hooks/use-board-mutations";
+import type { ItemUpdatesSummary } from "@/features/comments/updates";
 
 export interface BoardContextValue {
   board: Board;
@@ -14,8 +15,12 @@ export interface BoardContextValue {
   canEdit: boolean;
   canManage: boolean;
   openItem: (itemId: string | null) => void;
+  /** Opens the item straight on its Updates tab. */
+  openItemUpdates: (itemId: string) => void;
   openEditLabels: (column: BoardColumn) => void;
   now: Date;
+  /** Update counts per item (subitems included), with how many are new to this person. */
+  updates: Map<string, ItemUpdatesSummary>;
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null);

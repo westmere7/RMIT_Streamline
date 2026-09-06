@@ -1286,6 +1286,9 @@ const GridCell = React.memo(function GridCell({
         "p-0 align-middle transition-colors",
         gridLines ? "border-r border-b" : "border-b border-transparent",
         frozen ? "sticky z-10 bg-background" : "relative bg-background",
+        // An open editor (dropdown list, long-text box) spills over neighbouring
+        // cells, which paint later and would otherwise draw their borders across it.
+        editing && "z-50",
         isFrozenEdge && "shadow-[2px_0_0_0_var(--border)]",
         !tint && striped && "bg-foreground/[0.03]",
         !tint && crosshair && "bg-ring/[0.06]",

@@ -100,8 +100,10 @@ export function TestBoard({ boardId, children, openItem }: TestBoardProps) {
     canEdit: canEditBoard(ws.permissions, board),
     canManage: canManageBoard(ws.permissions, board),
     openItem: openItem ?? (() => undefined),
+    openItemUpdates: () => undefined,
     openEditLabels: () => undefined,
     now,
+    updates: new Map(),
   };
   return (
     <BoardContextProvider value={value}>

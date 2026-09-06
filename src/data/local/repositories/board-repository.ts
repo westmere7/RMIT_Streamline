@@ -9,6 +9,7 @@ import type {
   BoardRole,
 } from "@/domain";
 import { DEFAULT_COLUMN_WIDTHS, defaultSettingsFor } from "@/domain";
+import { COLUMN_TYPES } from "@/domain";
 import type { BoardRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -207,7 +208,8 @@ export class LocalBoardRepository implements BoardRepository {
 
   async listColumns(boardId: string): Promise<BoardColumn[]> {
     const db = await this.conn.getDb();
-    return sortByPosition(await db.getAllFromIndex("boardColumns", "byBoard", boardId));
+    // Columns of a type the app no longer has (the removed Files column) are skipped.
+    return sortByPosition((await db.getAllFromIndex("boardColumns", "byBoard", boardId)).filter((c) => (COLUMN_TYPES as readonly string[]).includes(c.type)));
   }
 
   async getColumn(id: string): Promise<BoardColumn | null> {

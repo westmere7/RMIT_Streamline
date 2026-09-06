@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Files, GanttChart, Kanban, Table2 } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, GanttChart, Kanban, Table2 } from "lucide-react";
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ const VIEWS: Array<{ id: BoardViewKind; label: string; icon: React.ComponentType
   { id: "kanban", label: "Kanban", icon: Kanban },
   { id: "timeline", label: "Timeline", icon: GanttChart },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "files", label: "Files", icon: Files },
 ];
 
 /** Shared by the board bar and the bar shown while a board loads, so the two line up. */

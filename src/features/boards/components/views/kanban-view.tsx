@@ -5,6 +5,7 @@ import { Archive, Maximize2, Plus, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
+import { UpdatesBadge } from "@/features/items/updates-badge";
 import { AvatarStack } from "@/components/shared/user-avatar";
 import type { ColumnLabel, Item } from "@/domain";
 import { columnLabels } from "@/domain";
@@ -153,7 +154,7 @@ function DraggableCard({ item, disabled }: { item: Item; disabled: boolean }) {
 }
 
 function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
-  const { model, users, openItem, mutations, canEdit } = useBoardContext();
+  const { model, users, openItem, openItemUpdates, mutations, canEdit, updates } = useBoardContext();
   const group = model.groups.find((g) => g.id === item.groupId);
   const priority = model.priorityColumn ? model.getValue(item.id, model.priorityColumn.id) : undefined;
   const priorityLabel = model.priorityColumn && priority?.type === "PRIORITY" ? columnLabels(model.priorityColumn).find((l) => l.id === priority.labelId) : null;
@@ -181,6 +182,7 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
             <div className="flex items-center gap-2">
               <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
               {linked && <RefreshCw className="size-3 text-muted-foreground" aria-label="Linked to an item on another board" />}
+              <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
               {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
             </div>
             {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}

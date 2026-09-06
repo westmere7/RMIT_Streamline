@@ -23,7 +23,7 @@ import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-import { CURRENT_VERSION, formatVersion, shortBuildId } from "@/lib/version";
+import { CURRENT_VERSION, formatVersion } from "@/lib/version";
 import { selectUpdateAvailable, useVersionStore } from "@/stores/version-store";
 
 const SECTIONS = ["general", "teams", "permissions", "data"] as const;
@@ -166,7 +166,6 @@ function AboutSection() {
             <RefreshCw className={cn(checking && "animate-spin")} /> {checking ? "Checking…" : "Check for updates"}
           </Button>
         </div>
-        <p className="mt-3 text-2xs text-muted-foreground">Build {shortBuildId(CURRENT_VERSION.buildId)}. The app checks for a new build every 30 seconds while this tab is open, and again whenever you come back to it.</p>
       </div>
     </div>
   );

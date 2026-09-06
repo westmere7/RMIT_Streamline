@@ -18,7 +18,6 @@ import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labe
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
-import { FilesView } from "@/features/boards/components/views/files-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
@@ -28,6 +27,7 @@ import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { tagOptionsFor } from "@/features/boards/tag-palette";
 import { useServices } from "@/features/data/data-context";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
+import { useBoardUpdates } from "@/features/comments/updates";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
@@ -112,6 +112,14 @@ function BoardScreen({ boardId }: { boardId: string }) {
     replaceParams({ view: next });
   };
   const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  const openItemUpdates = React.useCallback(
+    (id: string) => {
+      setRequestedItemTab({ itemId: id, tab: "updates" });
+      replaceParams({ item: id });
+    },
+    [replaceParams, setRequestedItemTab],
+  );
 
   // The URL owns which item is open; the store mirrors it so rows can subscribe
   // to a boolean rather than re-rendering the whole table on every open.
@@ -133,6 +141,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
   );
 
   const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null;
+  const itemIds = React.useMemo(() => (snapshot.data ? snapshot.data.items.map((item) => item.id) : []), [snapshot.data]);
+  const updates = useBoardUpdates(board.id, itemIds);
+
   const contextValue = React.useMemo<BoardContextValue | null>(
     () =>
       model
@@ -144,11 +155,13 @@ function BoardScreen({ boardId }: { boardId: string }) {
             canEdit,
             canManage: canManageBoard(ws.permissions, board),
             openItem,
+            openItemUpdates,
             openEditLabels: setEditLabelsColumn,
             now,
+            updates,
           }
         : null,
-    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, now],
+    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates],
   );
 
   return (
@@ -180,7 +193,6 @@ function BoardScreen({ boardId }: { boardId: string }) {
               {view === "kanban" && <KanbanView />}
               {view === "timeline" && <TimelineView />}
               {view === "calendar" && <CalendarView />}
-              {view === "files" && <FilesView />}
             </div>
             {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
           </div>

@@ -36,7 +36,7 @@ export interface ColumnMappingReport {
  * Free-form types (text, numbers, tags…) only pair up by name: "Notes" and
  * "Format" are both text but not the same field.
  */
-const LONE_MATCH_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "FILES"]);
+const LONE_MATCH_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE"]);
 
 const norm = (name: string): string => name.trim().toLowerCase();
 

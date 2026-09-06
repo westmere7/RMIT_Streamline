@@ -13,6 +13,12 @@ export class LocalCommentRepository implements CommentRepository {
     return comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
+  async listByItems(itemIds: string[]): Promise<Comment[]> {
+    const db = await this.conn.getDb();
+    const lists = await Promise.all(itemIds.map((itemId) => db.getAllFromIndex("comments", "byItem", itemId)));
+    return lists.flat().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
   async listBySharedId(sharedId: string): Promise<Comment[]> {
     const db = await this.conn.getDb();
     const all = await db.getAll("comments");

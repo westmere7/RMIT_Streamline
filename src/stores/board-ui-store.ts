@@ -59,6 +59,9 @@ interface BoardUiStore {
    */
   openItemId: string | null;
   setOpenItemId: (itemId: string | null) => void;
+  /** A one-off request for the panel to open on a given tab (the updates badge asks for "updates"). */
+  requestedItemTab: { itemId: string; tab: string } | null;
+  setRequestedItemTab: (request: { itemId: string; tab: string } | null) => void;
   /**
    * The open board is still loading or refetching. Kept here rather than in the
    * board context so that saying "still loading" re-renders the search box and
@@ -99,6 +102,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   boards: {},
   openItemId: null,
   setOpenItemId: (openItemId) => set({ openItemId }),
+  requestedItemTab: null,
+  setRequestedItemTab: (requestedItemTab) => set({ requestedItemTab }),
   boardLoading: false,
   setBoardLoading: (boardLoading) => set({ boardLoading }),
   linkDialogItemId: null,

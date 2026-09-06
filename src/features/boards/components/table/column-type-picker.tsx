@@ -7,7 +7,7 @@ import { COLUMN_TYPES, COLUMN_TYPE_LABELS, type ColumnType } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 
 /** Files are attached from the item panel, so a board never adds that column by hand. */
-export const ADDABLE_COLUMN_TYPES: ColumnType[] = COLUMN_TYPES.filter((t) => t !== "FILES");
+export const ADDABLE_COLUMN_TYPES: ColumnType[] = [...COLUMN_TYPES];
 
 /** Fits two columns of type names without wrapping the longest label ("Dependency"). */
 export const COLUMN_TYPE_PICKER_WIDTH = "w-[19rem]";
