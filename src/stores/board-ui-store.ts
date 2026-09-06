@@ -3,7 +3,17 @@
 import { create } from "zustand";
 import type { BoardViewKind } from "@/domain";
 
-export type SortField = "name" | "dueDate" | "priority" | "status" | "createdAt";
+/** Built-in fields, or any column by id ("column:<id>") from a click on its header. */
+export type SortField = "name" | "dueDate" | "priority" | "status" | "createdAt" | `column:${string}`;
+
+export function columnSortField(columnId: string): SortField {
+  return `column:${columnId}`;
+}
+
+/** The column id a "column:<id>" sort field points at, else null. */
+export function sortFieldColumnId(field: SortField): string | null {
+  return field.startsWith("column:") ? field.slice("column:".length) : null;
+}
 export type SortDirection = "asc" | "desc";
 
 export interface BoardSort {
@@ -21,10 +31,12 @@ export interface BoardFilters {
   /** Priority label ids. */
   priorityIds: string[];
   groupIds: string[];
+  /** Tag names (case-insensitive); item matches when any TAGS column contains one of them. */
+  tags: string[];
   date: DateFilter;
 }
 
-export const EMPTY_FILTERS: BoardFilters = { personIds: [], statusIds: [], priorityIds: [], groupIds: [], date: null };
+export const EMPTY_FILTERS: BoardFilters = { personIds: [], statusIds: [], priorityIds: [], groupIds: [], tags: [], date: null };
 
 export interface BoardUiState {
   search: string;
@@ -126,6 +138,7 @@ export function hasActiveFilters(filters: BoardFilters): boolean {
     filters.statusIds.length > 0 ||
     filters.priorityIds.length > 0 ||
     filters.groupIds.length > 0 ||
+    filters.tags.length > 0 ||
     filters.date !== null
   );
 }
@@ -136,6 +149,7 @@ export function activeFilterCount(filters: BoardFilters): number {
     filters.statusIds.length +
     filters.priorityIds.length +
     filters.groupIds.length +
+    filters.tags.length +
     (filters.date ? 1 : 0)
   );
 }

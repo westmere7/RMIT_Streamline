@@ -12,6 +12,7 @@ const columns: BoardColumn[] = [
   { id: "priority", boardId: "b", name: "Priority", type: "PRIORITY", settings: defaultSettingsFor("PRIORITY"), position: 2, width: 100, hidden: false, createdAt: "" },
   { id: "due", boardId: "b", name: "Due", type: "DATE", settings: defaultSettingsFor("DATE"), position: 3, width: 100, hidden: false, createdAt: "" },
   { id: "timeline", boardId: "b", name: "Timeline", type: "TIMELINE", settings: defaultSettingsFor("TIMELINE"), position: 4, width: 100, hidden: false, createdAt: "" },
+  { id: "channel", boardId: "b", name: "Channel", type: "TAGS", settings: defaultSettingsFor("TAGS"), position: 5, width: 100, hidden: false, createdAt: "" },
 ];
 
 function item(id: string, name: string, groupId = "g1", position = 0, createdAt = "2026-09-01T00:00:00.000Z"): Item {
@@ -19,10 +20,10 @@ function item(id: string, name: string, groupId = "g1", position = 0, createdAt 
 }
 
 const values: Record<string, Record<string, ColumnValue>> = {
-  a: { owner: { type: "PERSON", userIds: ["danh"] }, status: { type: "STATUS", labelId: "done" }, priority: { type: "PRIORITY", labelId: "low" }, due: { type: "DATE", date: "2026-09-10" } },
+  a: { owner: { type: "PERSON", userIds: ["danh"] }, status: { type: "STATUS", labelId: "done" }, priority: { type: "PRIORITY", labelId: "low" }, due: { type: "DATE", date: "2026-09-10" }, channel: { type: "TAGS", tags: ["Instagram"] } },
   b: { owner: { type: "PERSON", userIds: ["emily", "danh"] }, status: { type: "STATUS", labelId: "working" }, priority: { type: "PRIORITY", labelId: "critical" }, due: { type: "DATE", date: "2026-09-01" } },
   c: { status: { type: "STATUS", labelId: "stuck" }, priority: { type: "PRIORITY", labelId: "high" }, timeline: { type: "TIMELINE", start: "2026-09-02", end: "2026-09-04" } },
-  d: { owner: { type: "PERSON", userIds: ["jun"] } },
+  d: { owner: { type: "PERSON", userIds: ["jun"] }, channel: { type: "TAGS", tags: ["tiktok", "instagram"] } },
 };
 const getValue = (itemId: string, columnId: string) => values[itemId]?.[columnId];
 const ctx = { columns, getValue, now };
@@ -38,6 +39,12 @@ describe("primaryDueDate", () => {
 });
 
 describe("filterItems", () => {
+  it("matches any selected tag in any TAGS column, ignoring case", () => {
+    expect(filterItems(items, "", { ...EMPTY_FILTERS, tags: ["instagram"] }, ctx).map((i) => i.id)).toEqual(["a", "d"]);
+    expect(filterItems(items, "", { ...EMPTY_FILTERS, tags: ["TikTok"] }, ctx).map((i) => i.id)).toEqual(["d"]);
+    expect(filterItems(items, "", { ...EMPTY_FILTERS, tags: ["youtube"] }, ctx)).toEqual([]);
+  });
+
   it("matches search case-insensitively on the item name", () => {
     expect(filterItems(items, "ALPHA", EMPTY_FILTERS, ctx).map((i) => i.id)).toEqual(["a"]);
     expect(filterItems(items, "", EMPTY_FILTERS, ctx)).toHaveLength(4);

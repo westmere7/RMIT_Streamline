@@ -149,7 +149,14 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                   </button>
                 )}
               </div>
-              <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
+              {/* The empty run of the name cell opens the item too, like the name itself. */}
+              <div
+                className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) openItem(item.id);
+                }}
+                data-testid="item-name-cell"
+              >
                 <button
                   type="button"
                   aria-label={expanded ? "Hide subitems" : subitems.length ? `Show ${subitems.length} subitems` : "Add subitem"}

@@ -205,6 +205,27 @@ export async function regenerateInvitation(workspaceId: string, userId: string):
   return insertInvitation(admin, workspaceId, userId, null);
 }
 
+/**
+ * Sends an existing member through onboarding again. Their membership returns to
+ * INVITED (so they cannot use the workspace until they open the link), any live
+ * link is revoked and a fresh one issued. Completing it sets a new password.
+ */
+export async function reinitiateMember(workspaceId: string, userId: string, callerId: string): Promise<WorkspaceInvitation> {
+  const admin = getSupabaseAdminClient();
+  if (userId === callerId) throw new HttpError(409, "You cannot re-onboard yourself.");
+  const member = await memberOf(admin, workspaceId, userId);
+  if (!member) throw new HttpError(404, "That person is not a member of this workspace.");
+  if (member.status === "INVITED") throw new HttpError(409, "This person has not finished onboarding yet; renew their existing link instead.");
+
+  await revokeLiveInvitations(admin, workspaceId, userId);
+  const reset = await admin.from("workspace_members").update({ status: "INVITED" }).eq("id", member.id);
+  if (reset.error) fail("workspace_members.reinitiate", reset.error);
+  // A deactivated account comes back to life through the link, so lift the deactivation now.
+  const revived = await admin.from("profiles").update({ deactivated_at: null }).eq("id", userId);
+  if (revived.error) fail("profiles.reactivate", revived.error);
+  return insertInvitation(admin, workspaceId, userId, callerId);
+}
+
 /** Removes a pending member; the account goes too when it was created only for this invitation. */
 export async function cancelInvitation(workspaceId: string, userId: string): Promise<void> {
   const admin = getSupabaseAdminClient();

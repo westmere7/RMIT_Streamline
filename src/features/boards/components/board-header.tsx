@@ -89,7 +89,7 @@ export function BoardHeader({ board }: { board: Board }) {
               </Badge>
             )}
           </div>
-          <p className="mt-1.5 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+          <p className="mt-1.5 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground max-sm:hidden">
             {team && (
               <>
                 <Link href={routes.team(ws.slug, team.id)} className="shrink-0 whitespace-nowrap hover:text-foreground hover:underline">

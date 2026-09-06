@@ -1,7 +1,7 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
 import { columnLabels } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
-import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
+import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
 
 export type ValueLookup = (itemId: string, columnId: string) => ColumnValue | undefined;
 
@@ -9,6 +9,8 @@ export interface FilterContext {
   columns: BoardColumn[];
   getValue: ValueLookup;
   now: Date;
+  /** Display name for a user id, so PERSON columns sort by name rather than id. */
+  userName?: (userId: string) => string | undefined;
 }
 
 function personColumnIds(columns: BoardColumn[]): string[] {
@@ -47,6 +49,20 @@ export function matchesFilters(item: Item, filters: BoardFilters, ctx: FilterCon
     if (!filters.personIds.some((id) => assigned.has(id))) return false;
   }
 
+  if (filters.tags.length) {
+    const wanted = new Set(filters.tags.map((tag) => tag.toLowerCase()));
+    let found = false;
+    for (const column of ctx.columns) {
+      if (column.type !== "TAGS") continue;
+      const v = ctx.getValue(item.id, column.id);
+      if (v?.type === "TAGS" && v.tags.some((tag) => wanted.has(tag.toLowerCase()))) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+
   if (filters.statusIds.length) {
     const statusColumn = ctx.columns.find((c) => c.type === "STATUS");
     const v = statusColumn ? ctx.getValue(item.id, statusColumn.id) : undefined;
@@ -83,8 +99,61 @@ function labelRank(column: BoardColumn | undefined, value: ColumnValue | undefin
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
-export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<FilterContext, "columns" | "getValue">): number {
+/**
+ * What a cell sorts by: a string, a number, or null for "empty". Empty cells
+ * always sort last, whichever direction is chosen.
+ */
+function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: Pick<FilterContext, "userName">): string | number | null {
+  if (!value) return null;
+  switch (value.type) {
+    case "TEXT":
+    case "LONG_TEXT":
+      return value.text.trim() || null;
+    case "STATUS":
+    case "PRIORITY": {
+      const rank = labelRank(column, value);
+      return rank === Number.MAX_SAFE_INTEGER ? null : rank;
+    }
+    case "PERSON": {
+      const names = value.userIds.map((id) => ctx.userName?.(id) ?? "").filter(Boolean).sort((x, y) => x.localeCompare(y));
+      return names.length ? names.join(", ") : null;
+    }
+    case "DATE":
+      return value.date;
+    case "TIMELINE":
+      return value.start ?? value.end;
+    case "NUMBER":
+      return value.number;
+    case "CHECKBOX":
+      // Ticked first when ascending.
+      return value.checked ? 0 : 1;
+    case "LINK":
+      return value.text?.trim() || value.url.trim() || null;
+    case "TAGS":
+      return value.tags.length ? [...value.tags].sort((x, y) => x.localeCompare(y)).join(", ") : null;
+    case "FILES":
+      return value.files.length || null;
+    case "DEPENDENCY":
+      return value.itemIds.length || null;
+  }
+}
+
+function compareKeys(ka: string | number | null, kb: string | number | null, dir: number): number {
+  if (ka === kb) return 0;
+  if (ka === null) return 1;
+  if (kb === null) return -1;
+  if (typeof ka === "number" && typeof kb === "number") return (ka - kb) * dir;
+  return String(ka).localeCompare(String(kb), undefined, { sensitivity: "base", numeric: true }) * dir;
+}
+
+export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<FilterContext, "columns" | "getValue" | "userName">): number {
   const dir = sort.direction === "asc" ? 1 : -1;
+  const columnId = sortFieldColumnId(sort.field);
+  if (columnId !== null) {
+    const column = ctx.columns.find((c) => c.id === columnId);
+    if (!column) return 0;
+    return compareKeys(cellSortKey(column, ctx.getValue(a.id, column.id), ctx), cellSortKey(column, ctx.getValue(b.id, column.id), ctx), dir);
+  }
   switch (sort.field) {
     case "name":
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) * dir;
@@ -110,10 +179,12 @@ export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<Filter
       const rb = labelRank(column, column ? ctx.getValue(b.id, column.id) : undefined);
       return (ra - rb) * dir;
     }
+    default:
+      return 0;
   }
 }
 
-export function sortItems(items: Item[], sort: BoardSort | null, ctx: Pick<FilterContext, "columns" | "getValue">): Item[] {
+export function sortItems(items: Item[], sort: BoardSort | null, ctx: Pick<FilterContext, "columns" | "getValue" | "userName">): Item[] {
   if (!sort) return [...items].sort((a, b) => a.position - b.position);
   return [...items].sort((a, b) => compareItems(a, b, sort, ctx) || a.position - b.position);
 }

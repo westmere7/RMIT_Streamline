@@ -55,13 +55,19 @@ export function useMemberMutations() {
     onError: (error) => toast.error("Could not create a new link", { description: error instanceof Error ? error.message : undefined }),
   });
 
+  const reinitiate = useMutation({
+    mutationFn: (userId: string) => services.workspace.reinitiateMember(ws.workspace.id, userId),
+    onSuccess: settle,
+    onError: (error) => toast.error("Could not restart onboarding", { description: error instanceof Error ? error.message : undefined }),
+  });
+
   const cancel = useMutation({
     mutationFn: (userId: string) => services.workspace.cancelInvitation(ws.workspace.id, userId),
     onSuccess: settle,
     onError: (error) => toast.error("Could not cancel the invitation", { description: error instanceof Error ? error.message : undefined }),
   });
 
-  return { invite, regenerate, cancel };
+  return { invite, regenerate, reinitiate, cancel };
 }
 
 /** Copies text and tells the user; falls back to a prompt when the clipboard is unavailable (http, old browsers). */

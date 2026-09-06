@@ -66,14 +66,14 @@ test.describe("columns: alignment, dragging and renaming", () => {
   });
 
   test("clicking a header still opens its menu", async ({ page }) => {
-    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button", { name: /column options/ }).click();
     await expect(page.getByRole("menuitem", { name: "Rename" })).toBeVisible({ timeout: 15000 });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("menu")).toHaveCount(0);
   });
 
   test("renaming works from the header menu and from the right-click menu", async ({ page }) => {
-    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: "Rename" }).click();
     const input = page.getByTestId("column-name-input");
     // The field stays put: the menu closing must not take focus off it.
@@ -94,7 +94,7 @@ test.describe("columns: alignment, dragging and renaming", () => {
     await expect.poll(() => headerNames(page)).toContain("Status");
 
     // Escape abandons a rename.
-    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: "Rename" }).click();
     await page.getByTestId("column-name-input").fill("Nonsense");
     await page.getByTestId("column-name-input").press("Escape");
@@ -114,7 +114,7 @@ test.describe("columns: alignment, dragging and renaming", () => {
     await expect(row(page, ITEM).getByTestId("link-indicator")).toBeVisible({ timeout: 20000 });
 
     // Rename a column that both boards share.
-    await page.getByRole("columnheader", { name: /^Priority/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Priority/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: "Rename" }).click();
     await page.getByTestId("column-name-input").fill("Urgency");
     await page.getByTestId("column-name-input").press("Enter");

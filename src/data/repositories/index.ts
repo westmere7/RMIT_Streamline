@@ -93,6 +93,11 @@ export interface OnboardingRepository {
   regenerate(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation>;
   /** Removes a member who never finished onboarding, together with their invitations and (when unused elsewhere) their account. */
   cancel(workspaceId: EntityId, userId: EntityId): Promise<void>;
+  /**
+   * Sends an existing member through onboarding again: their membership goes back
+   * to INVITED and a fresh link is issued. They set a new password when they open it.
+   */
+  reinitiate(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation>;
   /** What the join page may show for a token; safe to call signed out. */
   preview(token: string): Promise<InvitationPreview>;
   /** Sets the password and profile, activates the membership and burns the token. Returns the sign-in email. */

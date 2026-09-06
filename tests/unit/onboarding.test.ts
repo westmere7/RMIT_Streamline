@@ -185,6 +185,35 @@ describe("onboarding through the local store", () => {
     expect(again.member.status).toBe("INVITED");
   });
 
+  it("reinitiating an active member makes them pending again with a fresh link, and a deactivated one comes back", async () => {
+    const { user, invitation } = await inviteSam(services);
+    await services.workspace.completeOnboarding({ token: invitation.token, password: "correct horse battery", firstName: "Sam", lastName: "Rivera", jobTitle: null });
+    // Not for people who never finished onboarding; they renew their link instead.
+    const { user: pendingUser } = await inviteSam(services, { email: "pending@rmit.edu.au", firstName: "Pat", lastName: "Pending", teamIds: [] });
+    await expect(services.workspace.reinitiateMember(WS, pendingUser.id)).rejects.toThrow(/renew/);
+
+    const fresh = await services.workspace.reinitiateMember(WS, user.id);
+    expect(invitationStatus(fresh)).toBe("PENDING");
+    expect(fresh.token).not.toBe(invitation.token);
+    const membership = (await repos.workspaces.listMembers(WS)).find((m) => m.userId === user.id);
+    expect(membership?.status).toBe("INVITED");
+    expect((await services.workspace.listLiveInvitations(WS)).get(user.id)?.id).toBe(fresh.id);
+    // Locked out until the new link is used, then in again with the new password.
+    await expect(auth.signIn({ email: user.email, password: "correct horse battery" })).rejects.toThrow(PENDING_SIGN_IN_MESSAGE);
+    await services.workspace.completeOnboarding({ token: fresh.token, password: "brand new password", firstName: "Sam", lastName: "Rivera", jobTitle: "Producer" });
+    expect((await repos.workspaces.listMembers(WS)).find((m) => m.userId === user.id)?.status).toBe("ACTIVE");
+    await expect(auth.signIn({ email: user.email, password: "correct horse battery" })).rejects.toThrow(/not right/);
+    expect((await auth.signIn({ email: user.email, password: "brand new password" })).userId).toBe(user.id);
+
+    // A deactivated account is revived by the same route.
+    const member = (await repos.workspaces.listMembers(WS)).find((m) => m.userId === user.id)!;
+    await services.workspace.setMemberActive(member.id, user.id, false);
+    expect((await repos.users.getById(user.id))?.deactivatedAt).not.toBeNull();
+    await services.workspace.reinitiateMember(WS, user.id);
+    expect((await repos.users.getById(user.id))?.deactivatedAt).toBeNull();
+    expect((await repos.workspaces.listMembers(WS)).find((m) => m.userId === user.id)?.status).toBe("INVITED");
+  });
+
   it("does not resurrect a session for someone who is still pending", async () => {
     const { user, invitation } = await inviteSam(services);
     window.localStorage.setItem("streamline.local-session", JSON.stringify({ userId: user.id, email: user.email, provider: "local" }));

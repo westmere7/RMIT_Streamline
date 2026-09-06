@@ -34,7 +34,9 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) onClose();
+      // Escape inside a field (or the update composer, a contenteditable) belongs to that field.
+      const inField = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLElement && e.target.isContentEditable);
+      if (e.key === "Escape" && !inField) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

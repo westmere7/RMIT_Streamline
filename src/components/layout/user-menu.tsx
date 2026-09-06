@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Wrench } from "lucide-react";
+import { ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -99,6 +99,9 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
             {unreadMessages > 0 && (
               <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold text-primary-foreground">{unreadMessages}</span>
             )}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push(routes.members(ws.slug))} data-testid="menu-members">
+            <Users /> Members
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
             <Settings /> Settings

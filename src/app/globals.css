@@ -278,3 +278,51 @@
     @apply bg-accent-soft text-accent-soft-foreground;
   }
 }
+
+/*
+ * The update composer is a ProseMirror contenteditable. Preflight strips the
+ * default heading, list and link styling, so what the renderer shows for a
+ * posted update is restored here, sized to match it.
+ */
+.rich-text-editor .ProseMirror {
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rich-text-editor .ProseMirror > * + * {
+  margin-top: 0.25rem;
+}
+.rich-text-editor .ProseMirror h1 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.rich-text-editor .ProseMirror h2 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rich-text-editor .ProseMirror strong {
+  font-weight: 600;
+}
+.rich-text-editor .ProseMirror ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.rich-text-editor .ProseMirror ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.rich-text-editor .ProseMirror li + li {
+  margin-top: 0.125rem;
+}
+.rich-text-editor .ProseMirror a {
+  color: var(--ring);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-text-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

@@ -30,6 +30,10 @@ export class SupabaseOnboardingRepository implements OnboardingRepository {
     return call<WorkspaceInvitation>("/api/invitations/regenerate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
   }
 
+  async reinitiate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
+    return call<WorkspaceInvitation>("/api/invitations/reinitiate", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
+  }
+
   async cancel(workspaceId: string, userId: string): Promise<void> {
     await call<{ ok: true }>("/api/invitations/cancel", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: true });
   }

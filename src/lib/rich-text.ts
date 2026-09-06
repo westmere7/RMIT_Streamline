@@ -37,12 +37,38 @@ export type BlockNode =
   | { type: "list"; ordered: boolean; items: InlineNode[][] };
 
 /** Addresses we are willing to turn into a link. */
-function safeHref(raw: string): string | null {
+export function safeHref(raw: string): string | null {
   const href = raw.trim();
   if (/^https?:\/\/[^\s]+$/i.test(href)) return href;
   if (/^mailto:[^\s]+@[^\s]+$/i.test(href)) return href;
   // Anything else — javascript:, data:, a relative path — stays plain text.
   return null;
+}
+
+/**
+ * Turns what someone typed into a link dialog into an address we accept, or
+ * null when it cannot be one. "example.com/brief" is understood as https.
+ */
+export function normalizeLinkHref(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+  const direct = safeHref(trimmed);
+  if (direct) return isWellFormed(direct) ? direct : null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return null; // some other scheme: ftp:, javascript:, data:
+  if (/^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]\S*)?$/i.test(trimmed)) {
+    const href = `https://${trimmed}`;
+    return isWellFormed(href) ? href : null;
+  }
+  return null;
+}
+
+function isWellFormed(href: string): boolean {
+  try {
+    const url = new URL(href);
+    return url.protocol === "mailto:" || !!url.hostname.match(/^[^.]+(\.[^.]+)+$|^localhost$/i);
+  } catch {
+    return false;
+  }
 }
 
 const BARE_URL = /(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/gi;

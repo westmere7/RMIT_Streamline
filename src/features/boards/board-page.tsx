@@ -128,8 +128,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
   }, [itemId, setOpenItemId]);
 
   const model = React.useMemo(
-    () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now }) : null),
-    [snapshot.data, ui.search, ui.filters, ui.sort, now],
+    () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),
+    [snapshot.data, ui.search, ui.filters, ui.sort, now, ws],
   );
 
   const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null;

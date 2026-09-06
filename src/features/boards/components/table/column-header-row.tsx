@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronDown, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +33,7 @@ import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from
 import { useSortable } from "@dnd-kit/sortable";
 import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
+import { columnSortField, useBoardUi, useBoardUiStore, type SortField } from "@/stores/board-ui-store";
 import type { DragData } from "./board-table";
 import { cn } from "@/lib/utils";
 
@@ -74,9 +75,7 @@ export function ColumnHeaderRow({
           />
         </div>
         <div style={{ width: TABLE_LAYOUT.handleWidth }} />
-        <div role="columnheader" className="flex-1 px-2">
-          Item
-        </div>
+        <ItemHeader />
       </div>
       {model.visibleColumns.map((column, index) => (
         <ColumnHeaderCell
@@ -93,6 +92,43 @@ export function ColumnHeaderRow({
       <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.trailingWidth }}>
         {canEdit && <AddColumnMenu />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Clicking a header sorts by that column, the way the members table does: once
+ * for ascending, again for descending. The active column shows its arrow; the
+ * others reveal a faint one on hover.
+ */
+function useHeaderSort(field: SortField) {
+  const { board } = useBoardContext();
+  const sort = useBoardUi(board.id).sort;
+  const setSort = useBoardUiStore((s) => s.setSort);
+  const active = sort?.field === field;
+  const direction = active ? sort.direction : null;
+  const toggle = () => setSort(board.id, { field, direction: active && sort.direction === "asc" ? "desc" : "asc" });
+  return { active, direction, toggle, ariaSort: (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") as "ascending" | "descending" | "none" };
+}
+
+function SortIcon({ active, direction }: { active: boolean; direction: "asc" | "desc" | null }) {
+  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
+  return <Icon aria-hidden className={cn("size-3 shrink-0", active ? "opacity-100" : "opacity-0 group-hover/sort:opacity-60")} />;
+}
+
+function ItemHeader() {
+  const { active, direction, toggle, ariaSort } = useHeaderSort("name");
+  return (
+    <div role="columnheader" aria-sort={ariaSort} className="flex flex-1 items-center px-1">
+      <button
+        type="button"
+        onClick={toggle}
+        data-testid="sort-item"
+        className={cn("group/sort flex h-7 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground", active && "text-foreground")}
+      >
+        Item
+        <SortIcon active={active} direction={direction} />
+      </button>
     </div>
   );
 }
@@ -212,6 +248,8 @@ function ColumnHeaderCell({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const dragged = React.useRef(false);
 
+  const headerSort = useHeaderSort(columnSortField(column.id));
+
   const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
   const hasTags = column.type === "TAGS";
   const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
@@ -223,6 +261,7 @@ function ColumnHeaderCell({
         <div
           ref={setNodeRef}
           role="columnheader"
+          aria-sort={headerSort.ariaSort}
           className={cn(
             "group/col relative flex h-full shrink-0 items-center border-r border-border/60 px-1",
             columnAlign(column.type) === "center" ? "justify-center" : "justify-start",
@@ -256,36 +295,45 @@ function ColumnHeaderCell({
                 className="h-7 w-full rounded-lg border border-ring bg-card px-2 text-center text-xs font-medium outline-none ring-2 ring-ring/20"
               />
             </form>
-          ) : canEdit ? (
-            <>
+          ) : (
+            <div className="flex min-w-0 max-w-full items-center gap-0.5">
+              <button
+                type="button"
+                className={cn(
+                  "group/sort flex h-7 min-w-0 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground",
+                  headerSort.active && "text-foreground",
+                  canEdit && "cursor-grab active:cursor-grabbing",
+                )}
+                data-testid="column-sort"
+                {...attributes}
+                // Only the pointer starts a drag; a click that did not turn
+                // into one sorts by this column.
+                onPointerDown={(event) => {
+                  dragged.current = false;
+                  listeners?.onPointerDown?.(event as unknown as PointerEvent);
+                  event.preventDefault();
+                }}
+                onPointerMove={(event) => {
+                  // Four pixels is dnd-kit's own threshold for "this is a
+                  // drag, not a click".
+                  if (event.buttons === 1) dragged.current = true;
+                }}
+                onClick={() => {
+                  if (!dragged.current) headerSort.toggle();
+                }}
+              >
+                <span className="truncate">{column.name}</span>
+                <SortIcon active={headerSort.active} direction={headerSort.direction} />
+              </button>
+              {canEdit && (
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className={cn(
-                        "flex h-7 max-w-full items-center gap-1 truncate rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground",
-                        canEdit && "cursor-grab active:cursor-grabbing",
-                      )}
                       aria-label={`${column.name} column options`}
-                      {...attributes}
-                      // Only the pointer starts a drag: leaving the keyboard
-                      // alone keeps Enter opening the menu, which is where a
-                      // keyboard user moves a column from ("Move left/right").
-                      onPointerDown={(event) => {
-                        dragged.current = false;
-                        listeners?.onPointerDown?.(event as unknown as PointerEvent);
-                        event.preventDefault();
-                      }}
-                      onPointerMove={(event) => {
-                        // Four pixels is dnd-kit's own threshold for "this is a
-                        // drag, not a click".
-                        if (event.buttons === 1) dragged.current = true;
-                      }}
-                      onClick={() => {
-                        if (!dragged.current) setMenuOpen((open) => !open);
-                      }}
+                      className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent/70 hover:text-foreground focus-visible:opacity-100 group-hover/col:opacity-100 data-[state=open]:opacity-100"
                     >
-                      <span className="truncate">{column.name}</span>
+                      <ChevronDown className="size-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -346,9 +394,8 @@ function ColumnHeaderCell({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </>
-          ) : (
-            <span className="truncate px-1.5">{column.name}</span>
+              )}
+            </div>
           )}
           {canEdit && (
             <div

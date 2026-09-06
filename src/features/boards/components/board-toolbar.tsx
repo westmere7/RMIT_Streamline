@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, LoaderCircle, Plus, Search, UserRound, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, Hash, LoaderCircle, Plus, Search, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { columnLabels, type BoardViewKind } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
+import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { activeFilterCount, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
+import { activeFilterCount, sortFieldColumnId, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
 
-const SORT_LABELS: Record<SortField, string> = { name: "Item name", dueDate: "Due date", priority: "Priority", status: "Status", createdAt: "Created date" };
+const SORT_LABELS: Record<Exclude<SortField, `column:${string}`>, string> = { name: "Item name", dueDate: "Due date", priority: "Priority", status: "Status", createdAt: "Created date" };
 const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
   { id: "overdue", label: "Overdue" },
   { id: "today", label: "Due today" },
@@ -40,6 +41,11 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
   const filterCount = activeFilterCount(ui.filters);
+  const sortLabel = (field: SortField) => {
+    const columnId = sortFieldColumnId(field);
+    if (columnId !== null) return model.columns.find((c) => c.id === columnId)?.name ?? "Column";
+    return SORT_LABELS[field as keyof typeof SORT_LABELS];
+  };
   const hiddenCount = model.columns.filter((c) => c.hidden).length;
   const tableTools = view === "table";
 
@@ -53,6 +59,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
         {tableTools && (
           <>
             <PersonFilter />
+            <TagFilter />
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
@@ -70,7 +77,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
                   <ArrowUpDown /> <span className="hidden xl:inline">Sort</span>
                   {ui.sort && (
                     <span className="flex items-center gap-0.5 text-2xs">
-                      {SORT_LABELS[ui.sort.field]} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                      {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
                     </span>
                   )}
                 </Button>
@@ -81,7 +88,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
                   value={ui.sort?.field ?? ""}
                   onValueChange={(field) => store.setSort(board.id, { field: field as SortField, direction: ui.sort?.field === field ? ui.sort.direction : "asc" })}
                 >
-                  {(Object.keys(SORT_LABELS) as SortField[]).map((field) => (
+                  {(Object.keys(SORT_LABELS) as Array<keyof typeof SORT_LABELS>).map((field) => (
                     <DropdownMenuRadioItem key={field} value={field}>
                       {SORT_LABELS[field]}
                     </DropdownMenuRadioItem>
@@ -215,6 +222,75 @@ function PersonFilter() {
         </div>
         {selected.length > 0 && (
           <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { personIds: [] })}>
+            Clear
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * Its own button, like Person: tags are how people carve a board up day to day,
+ * so they should not be buried in the filter panel. Hidden on boards with no
+ * TAGS column.
+ */
+function TagFilter() {
+  const { board, model } = useBoardContext();
+  const ui = useBoardUi(board.id);
+  const setFilters = useBoardUiStore((s) => s.setFilters);
+  const selected = ui.filters.tags;
+  const tagColumns = React.useMemo(() => model.columns.filter((c) => c.type === "TAGS"), [model.columns]);
+  const options = React.useMemo(() => {
+    // One entry per tag name across every TAGS column; the first colour wins.
+    const seen = new Map<string, ReturnType<typeof tagOptionsFor>[number]>();
+    for (const column of tagColumns) {
+      for (const option of tagOptionsFor(column, model.snapshot.values)) {
+        const key = option.name.toLowerCase();
+        if (!seen.has(key)) seen.set(key, option);
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [tagColumns, model.snapshot.values]);
+  if (tagColumns.length === 0) return null;
+  const isSelected = (name: string) => selected.some((tag) => tag.toLowerCase() === name.toLowerCase());
+  const toggle = (name: string) => setFilters(board.id, { tags: isSelected(name) ? selected.filter((tag) => tag.toLowerCase() !== name.toLowerCase()) : [...selected, name] });
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" aria-label="Filter by tag" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="tag-filter">
+          <Hash /> <span className="hidden xl:inline">Tags</span>
+          {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" data-testid="tag-filter-panel">
+        <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by tag</p>
+        {options.length === 0 ? (
+          <p className="text-[13px] text-muted-foreground">No tags on this board yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {options.map((option) => {
+              const active = isSelected(option.name);
+              return (
+                <button
+                  key={option.name}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggle(option.name)}
+                  className={cn(
+                    "rounded-md px-2 py-0.5 text-2xs font-medium ring-2 ring-transparent transition-shadow hover:ring-ring/50",
+                    colorClasses(option.color).soft,
+                    active && "ring-ring",
+                  )}
+                >
+                  {formatTag(option.name)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selected.length > 0 && (
+          <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { tags: [] })}>
             Clear
           </Button>
         )}

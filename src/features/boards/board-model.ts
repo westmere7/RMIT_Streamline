@@ -37,6 +37,8 @@ export interface BoardModelOptions {
   filters: BoardFilters;
   sort: BoardSort | null;
   now: Date;
+  /** Display name for a user id; lets PERSON columns sort by name. */
+  userName?: (userId: string) => string | undefined;
 }
 
 export function buildValueLookup(snapshot: Pick<BoardSnapshot, "values">): {
@@ -87,7 +89,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     return v?.type === "STATUS" && v.labelId !== null && statusColumn.settings.doneLabelIds.includes(v.labelId);
   };
 
-  const ctx = { columns, getValue, now: options.now };
+  const ctx = { columns, getValue, now: options.now, userName: options.userName };
   const filtered = filterItems(topLevel, options.search, options.filters, ctx);
   const sorted = sortItems(filtered, options.sort, ctx);
   const itemsByGroup = new Map<string, Item[]>();

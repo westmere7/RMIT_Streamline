@@ -117,6 +117,28 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     return invitation;
   }
 
+  async reinitiate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
+    const db = await this.conn.getDb();
+    const members = await db.getAllFromIndex("workspaceMembers", "byWorkspace", workspaceId);
+    const member = members.find((m) => m.userId === userId);
+    if (!member) throw new NotFoundError("WorkspaceMember", userId);
+    if (member.status === "INVITED") throw new Error("This person has not finished onboarding yet; renew their existing link instead.");
+    const user = await db.get("users", userId);
+    if (!user) throw new NotFoundError("User", userId);
+    const now = nowIso();
+    const invitation = newInvitation({ workspaceId, userId, createdBy: null });
+    const tx = db.transaction(["users", "workspaceMembers", "workspaceInvitations"], "readwrite");
+    for (const existing of await tx.objectStore("workspaceInvitations").index("byUser").getAll(userId)) {
+      if (existing.workspaceId === workspaceId && invitationStatus(existing) === "PENDING") await tx.objectStore("workspaceInvitations").put({ ...existing, revokedAt: now });
+    }
+    await tx.objectStore("workspaceInvitations").put(invitation);
+    await tx.objectStore("workspaceMembers").put({ ...member, status: "INVITED" });
+    // A deactivated account comes back to life through the link, so lift the deactivation now.
+    if (user.deactivatedAt) await tx.objectStore("users").put({ ...user, deactivatedAt: null, updatedAt: now });
+    await tx.done;
+    return invitation;
+  }
+
   async cancel(workspaceId: string, userId: string): Promise<void> {
     const db = await this.conn.getDb();
     const member = await pendingMember(db, workspaceId, userId);

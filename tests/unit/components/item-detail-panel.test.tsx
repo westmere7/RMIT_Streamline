@@ -44,7 +44,7 @@ describe("ItemDetailPanel", () => {
     // Paste rather than type: character-by-character typing can drop keystrokes under CPU load.
     await user.click(screen.getByTestId("comment-input"));
     await user.paste("Photography approved, moving to layout.");
-    expect(screen.getByTestId("comment-input")).toHaveValue("Photography approved, moving to layout.");
+    expect(screen.getByTestId("comment-input")).toHaveTextContent("Photography approved, moving to layout.");
     await user.click(screen.getByTestId("comment-submit"));
     await waitFor(async () => {
       const stored = await app.data.services.repos.comments.listByItem(itemId);

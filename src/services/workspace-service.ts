@@ -86,6 +86,11 @@ export class WorkspaceService {
     return this.repos.onboarding.regenerate(workspaceId, userId);
   }
 
+  /** Puts an existing member back through onboarding with a fresh link; they set a new password when they open it. */
+  async reinitiateMember(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation> {
+    return this.repos.onboarding.reinitiate(workspaceId, userId);
+  }
+
   /** Takes a pending member out of the workspace again, before they ever signed in. */
   async cancelInvitation(workspaceId: EntityId, userId: EntityId): Promise<void> {
     return this.repos.onboarding.cancel(workspaceId, userId);

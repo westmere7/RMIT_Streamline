@@ -9,7 +9,7 @@ async function addColumn(page: Page, type: string, name: string) {
   await page.getByRole("menuitem", { name: type, exact: true }).click();
   const header = page.getByRole("columnheader").filter({ hasText: type }).last();
   await expect(header).toBeVisible({ timeout: 15000 });
-  await header.getByRole("button").click();
+  await header.getByRole("button", { name: /column options/ }).click();
   await page.getByRole("menuitem", { name: "Rename" }).click();
   // Renaming happens in the header itself now, not in a popover.
   const input = page.getByTestId("column-name-input");
@@ -222,7 +222,7 @@ test.describe("column types", () => {
     const before = await cell(page, "Status").innerText();
 
     // Hide from the header menu, then bring it back from the toolbar.
-    await page.getByRole("columnheader", { name: /^Priority/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Priority/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: /hide column/i }).click();
     await expect(page.getByRole("columnheader", { name: /^Priority/ })).toHaveCount(0, { timeout: 15000 });
     await page.reload();
@@ -235,7 +235,7 @@ test.describe("column types", () => {
 
     // Move Status left and check the values travelled with the column.
     const headersBefore = await page.getByRole("columnheader").allTextContents();
-    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Status/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: /move left/i }).click();
     await page.waitForTimeout(500);
     const headersAfter = await page.getByRole("columnheader").allTextContents();
@@ -255,7 +255,7 @@ test.describe("column types", () => {
     const statusBefore = await cell(page, "Status").innerText();
     const priorityBefore = await cell(page, "Priority").innerText();
 
-    await page.getByRole("columnheader", { name: /^Scratch/ }).first().getByRole("button").click();
+    await page.getByRole("columnheader", { name: /^Scratch/ }).first().getByRole("button", { name: /column options/ }).click();
     await page.getByRole("menuitem", { name: /delete column/i }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
     await expect(page.getByRole("columnheader", { name: /^Scratch/ })).toHaveCount(0, { timeout: 15000 });

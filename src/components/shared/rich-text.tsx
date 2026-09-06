@@ -5,7 +5,7 @@ import { parseRichText, type BlockNode, type InlineNode, type RichTextColor } fr
 import { cn } from "@/lib/utils";
 
 /** The palette an update can use. Chosen to stay readable on both themes. */
-const COLOR_CLASSES: Record<RichTextColor, string> = {
+export const RICH_TEXT_COLOR_CLASSES: Record<RichTextColor, string> = {
   red: "text-red-600 dark:text-red-400",
   orange: "text-orange-600 dark:text-orange-400",
   green: "text-green-700 dark:text-green-400",
@@ -35,7 +35,7 @@ function Inline({ nodes }: { nodes: InlineNode[] }) {
             );
           case "color":
             return (
-              <span key={index} className={COLOR_CLASSES[node.color]}>
+              <span key={index} className={RICH_TEXT_COLOR_CLASSES[node.color]}>
                 <Inline nodes={node.children} />
               </span>
             );
