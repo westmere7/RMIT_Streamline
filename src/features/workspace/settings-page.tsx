@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Download, Pencil, Plus, RotateCcw, Upload } from "lucide-react";
+import { Archive, ArchiveRestore, Download, Pencil, Plus, RefreshCw, RotateCcw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -23,6 +23,8 @@ import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { CURRENT_VERSION, formatVersion, shortBuildId } from "@/lib/version";
+import { selectUpdateAvailable, useVersionStore } from "@/stores/version-store";
 
 const SECTIONS = ["general", "teams", "permissions", "data"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -119,7 +121,54 @@ function GeneralSection() {
           </Button>
         )}
       </form>
+      <AboutSection />
     </>
+  );
+}
+
+/**
+ * The only place the version is shown. The watcher in the app shell checks
+ * for a newer build on its own; this is where to see the result and ask again.
+ */
+function AboutSection() {
+  const latest = useVersionStore((s) => s.latest);
+  const checkedAt = useVersionStore((s) => s.checkedAt);
+  const checking = useVersionStore((s) => s.checking);
+  const failed = useVersionStore((s) => s.failed);
+  const check = useVersionStore((s) => s.check);
+  const updateAvailable = useVersionStore(selectUpdateAvailable);
+  const built = CURRENT_VERSION.builtAt ? new Date(CURRENT_VERSION.builtAt) : null;
+
+  return (
+    <div className="mt-10">
+      <SectionTitle title="About" description="The version of Streamline this page is running." />
+      <div className="rounded-xl border border-border/70 bg-card p-4 text-[13px] shadow-xs" data-testid="about-version">
+        <p>
+          <span className="font-medium">Streamline {formatVersion(CURRENT_VERSION)}</span>
+          {built && !Number.isNaN(built.getTime()) && <span className="text-muted-foreground"> · built {built.toLocaleString()}</span>}
+        </p>
+        <p className="mt-1 text-muted-foreground" data-testid="version-status">
+          {updateAvailable && latest
+            ? `A newer version is live: ${formatVersion(latest)}. Reload to get it; nothing here is lost.`
+            : failed
+              ? "Could not reach the server to check for updates. It will try again shortly."
+              : checkedAt
+                ? `You are up to date. Checked at ${new Date(checkedAt).toLocaleTimeString()}.`
+                : "Checking for updates…"}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {updateAvailable && (
+            <Button size="sm" onClick={() => window.location.reload()} data-testid="version-reload">
+              <RefreshCw /> Reload now
+            </Button>
+          )}
+          <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()} data-testid="version-check">
+            <RefreshCw className={cn(checking && "animate-spin")} /> {checking ? "Checking…" : "Check for updates"}
+          </Button>
+        </div>
+        <p className="mt-3 text-2xs text-muted-foreground">Build {shortBuildId(CURRENT_VERSION.buildId)}. The app checks for a new build every 30 seconds while this tab is open, and again whenever you come back to it.</p>
+      </div>
+    </div>
   );
 }
 

@@ -9,6 +9,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { ConfettiCanvas } from "@/components/shared/confetti";
 import { useOsNotifications } from "@/features/notifications/use-os-notifications";
 import { CommandPalette } from "@/features/search/command-palette";
+import { VersionWatcher } from "@/features/version/version-watcher";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <CommandPalette />
       <ConfettiCanvas />
+      <VersionWatcher />
     </div>
   );
 }
