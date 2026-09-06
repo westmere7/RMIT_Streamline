@@ -148,3 +148,30 @@ export function frozenOffsets(columns: TrackerColumn[], frozen: number, gutter: 
   }
   return offsets;
 }
+
+/**
+ * The sheet as CSV (UTF-8 with BOM so Excel opens it with the right encoding):
+ * one header row, data rows, and bands as a single-cell row. Dates stay ISO so
+ * they sort and import cleanly.
+ */
+export function sheetToCsv(sheet: TrackerSheet): string {
+  const escape = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+  const lines: string[] = [sheet.columns.map((c) => escape(c.name)).join(",")];
+  for (const row of sheet.rows) {
+    if (row.kind !== "data") {
+      lines.push(escape(row.label ?? ""));
+      continue;
+    }
+    lines.push(
+      sheet.columns
+        .map((column) => {
+          const value = row.cells[column.id];
+          if (value === null || value === undefined) return "";
+          if (typeof value === "boolean") return value ? "Y" : "N";
+          return escape(String(value));
+        })
+        .join(","),
+    );
+  }
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
+}

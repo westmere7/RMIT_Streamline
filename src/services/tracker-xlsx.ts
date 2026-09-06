@@ -1,5 +1,6 @@
 import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
 import { columnLetter } from "@/domain";
+import { effectiveSummary, excelNumberFormat } from "@/features/trackers/sheet-view";
 import { STATUS_COLORS, TEMPLATE_STYLE, YES_NO_COLORS, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
 import { TrackerService } from "./tracker-service";
@@ -7,8 +8,10 @@ import { TrackerService } from "./tracker-service";
 /**
  * .xlsx in and out. Export reproduces the workbook conventions the team knows
  * (navy header, phase/channel bands, dropdown validation, status colours, frozen
- * columns); import reads any workbook back into sheets, recognising those same
- * conventions so a round trip is lossless for everything the grid models.
+ * columns, an autofilter on the header, number formats, and a totals row whose
+ * cells are live Excel formulas); import reads any workbook back into sheets,
+ * recognising those same conventions so a round trip is lossless for everything
+ * the grid models.
  *
  * exceljs is loaded lazily: it is ~1 MB and only needed when someone clicks
  * Import or Export.
@@ -87,14 +90,25 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
         case "checkbox":
           cell.value = value === true ? "Y" : "N";
           break;
-        case "number":
-          cell.value = typeof value === "number" ? value : Number(String(value));
+        case "number": {
+          const n = typeof value === "number" ? value : Number(String(value).replace(/[,\s]/g, ""));
+          cell.value = Number.isFinite(n) ? n : String(value);
+          const numFmt = excelNumberFormat(column.numberFormat);
+          if (numFmt) cell.numFmt = numFmt;
           break;
+        }
         default:
           cell.value = typeof value === "boolean" ? (value ? "Y" : "N") : value;
       }
     });
   });
+
+  // Excel's own filter buttons on the header, so the exported file sorts and filters out of the box.
+  if (sheet.rows.length > 0) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: sheet.rows.length + 1, column: lastCol } };
+
+  // Totals row: the same summaries the grid footer shows, as live formulas so
+  // they keep working when the workbook is edited in Excel.
+  writeTotalsRow(ws, sheet);
 
   // Dropdowns and their colours, the way the workbook does it.
   const lastRow = Math.max(2, sheet.rows.length + 1);
@@ -116,6 +130,65 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
       });
     }
   });
+}
+
+export const TOTALS_LABEL = "Total";
+
+function writeTotalsRow(ws: import("exceljs").Worksheet, sheet: TrackerSheet): void {
+  const kinds = sheet.columns.map((c) => effectiveSummary(c));
+  if (sheet.rows.length === 0 || kinds.every((k) => k === "none")) return;
+  const first = 2;
+  const last = sheet.rows.length + 1;
+  const rowNumber = last + 2; // one blank row between the data and the totals
+  const row = ws.getRow(rowNumber);
+  sheet.columns.forEach((column, i) => {
+    const letter = columnLetter(i);
+    const range = `${letter}${first}:${letter}${last}`;
+    const cell = row.getCell(i + 1);
+    cell.font = { name: FONT, bold: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF0F8" } };
+    cell.border = { top: { style: "thin", color: { argb: "FF000054" } } };
+    const kind = kinds[i]!;
+    let formula: string | null = null;
+    switch (kind) {
+      case "count":
+        formula = `COUNTA(${range})`;
+        break;
+      case "empty":
+        formula = `COUNTBLANK(${range})`;
+        break;
+      case "sum":
+        formula = `SUM(${range})`;
+        break;
+      case "average":
+        formula = `IFERROR(AVERAGE(${range}),"")`;
+        break;
+      case "min":
+        formula = `IFERROR(MIN(${range}),"")`;
+        break;
+      case "max":
+        formula = `IFERROR(MAX(${range}),"")`;
+        break;
+      case "checked":
+        formula = `COUNTIF(${range},"Y")`;
+        break;
+      case "percentChecked":
+        formula = `IFERROR(COUNTIF(${range},"Y")/COUNTA(${range}),0)`;
+        cell.numFmt = "0%";
+        break;
+    }
+    if (formula) {
+      cell.value = { formula, result: undefined } as unknown as import("exceljs").CellValue;
+      const numFmt = column.type === "number" ? excelNumberFormat(column.numberFormat) : undefined;
+      if (numFmt && kind !== "count" && kind !== "empty") cell.numFmt = numFmt;
+    }
+  });
+  // Name the row in the first column that carries no formula, else prefix it.
+  const labelIndex = kinds.findIndex((k) => k === "none");
+  const labelCell = row.getCell(labelIndex === -1 ? 1 : labelIndex + 1);
+  if (labelIndex === -1 && labelCell.value) return;
+  labelCell.value = TOTALS_LABEL;
+  labelCell.font = { name: FONT, bold: true, color: { argb: `FF${TEMPLATE_STYLE.headerFill}` } };
 }
 
 function excelSafeName(name: string): string {
@@ -186,6 +259,7 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
   const rows: TrackerRow[] = [];
   const dateHits = new Map<number, number>();
   const urlHits = new Map<number, number>();
+  const numberHits = new Map<number, number>();
   const filled = new Map<number, number>();
   for (let r = headerRowNumber + 1; r <= rowCount; r++) {
     const excelRow = ws.getRow(r);
@@ -204,6 +278,10 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
       rows.push({ id: newId(), kind: "data", cells: {} });
       continue;
     }
+    // A totals row (ours or Excel's): every filled cell is a formula, or the row is labelled "Total".
+    const formulaCells = nonEmpty.filter((i) => isFormula(excelRow.getCell(i + 1))).length;
+    const labelled = values.some((v) => typeof v === "string" && v.trim().toLowerCase() === TOTALS_LABEL.toLowerCase());
+    if (formulaCells > 0 && formulaCells >= nonEmpty.length - (labelled ? 1 : 0)) continue;
     const first = excelRow.getCell(1);
     const fill = fillArgb(first);
     const bandLike = nonEmpty.length === 1 && nonEmpty[0] === 0 && fill && fill !== "FFFFFFFF" && first.font?.bold;
@@ -221,6 +299,7 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
       const cell = excelRow.getCell(i + 1);
       if (cell.type === 4 || cell.value instanceof Date) dateHits.set(i, (dateHits.get(i) ?? 0) + 1);
       if (typeof value === "string" && /^https?:\/\//i.test(value)) urlHits.set(i, (urlHits.get(i) ?? 0) + 1);
+      if (typeof value === "number" && !(cell.value instanceof Date)) numberHits.set(i, (numberHits.get(i) ?? 0) + 1);
     });
     rows.push({ id: newId(), kind: "data", cells });
   }
@@ -231,7 +310,11 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
     const total = filled.get(i) ?? 0;
     if (total && (dateHits.get(i) ?? 0) >= total * 0.6) column.type = "date";
     else if (total && (urlHits.get(i) ?? 0) >= total * 0.6) column.type = "url";
-    else if (column.width >= 200) column.type = "longText";
+    else if (total && (numberHits.get(i) ?? 0) >= total * 0.8) {
+      column.type = "number";
+      const fmt = numberFormatFromExcel(ws, i + 1, headerRowNumber + 1);
+      if (fmt) column.numberFormat = fmt;
+    } else if (column.width >= 200) column.type = "longText";
   });
   // Now the types are known, coerce every stored value.
   for (const row of rows) {
@@ -276,6 +359,27 @@ function cellValue(cell: import("exceljs").Cell, raw: boolean): TrackerCellValue
   }
   if (typeof v === "boolean" || typeof v === "number") return v;
   return String(v);
+}
+
+function isFormula(cell: import("exceljs").Cell): boolean {
+  const v = cell.value as { formula?: string; sharedFormula?: string } | null;
+  return !!v && typeof v === "object" && ("formula" in v || "sharedFormula" in v);
+}
+
+/** Reads the first data cell's number format back into ours. */
+function numberFormatFromExcel(ws: import("exceljs").Worksheet, column: number, firstDataRow: number): TrackerColumn["numberFormat"] | undefined {
+  for (let r = firstDataRow; r < firstDataRow + 20; r++) {
+    const cell = ws.getRow(r).getCell(column);
+    if (typeof cell.value !== "number") continue;
+    const fmt = cell.numFmt ?? "";
+    if (!fmt || fmt === "General") return undefined;
+    if (fmt.includes("%")) return "percent";
+    if (fmt.includes("$")) return "currency";
+    if (/0\.00/.test(fmt)) return "decimal";
+    if (/#,##0(?!\.)/.test(fmt) || fmt === "0") return "integer";
+    return undefined;
+  }
+  return undefined;
 }
 
 function fillArgb(cell: import("exceljs").Cell): string | null {

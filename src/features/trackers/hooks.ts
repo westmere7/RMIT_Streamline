@@ -115,11 +115,24 @@ export function useTrackerMutations() {
 export async function exportTrackerToFile(tracker: Tracker, sheets: TrackerSheet[]): Promise<void> {
   const { sheetsToWorkbook } = await import("@/services/tracker-xlsx");
   const bytes = await sheetsToWorkbook(tracker.name, sheets);
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${safeFilename(tracker.name)}.xlsx`);
+}
+
+/** Downloads one sheet as .csv, for anything that is not Excel. */
+export async function exportSheetToCsv(tracker: Tracker, sheet: TrackerSheet): Promise<void> {
+  const { sheetToCsv } = await import("@/features/trackers/grid-model");
+  downloadBlob(new Blob([sheetToCsv(sheet)], { type: "text/csv;charset=utf-8" }), `${safeFilename(tracker.name)} - ${safeFilename(sheet.name)}.csv`);
+}
+
+function safeFilename(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, "-").trim() || "tracker";
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${tracker.name.replace(/[\\/:*?"<>|]+/g, "-")}.xlsx`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();

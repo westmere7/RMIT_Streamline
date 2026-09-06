@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, Copy, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Copy, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { TrackerSheet } from "@/domain";
-import { exportTrackerToFile, useTracker, useTrackerMutations, useTrackerSheets } from "@/features/trackers/hooks";
+import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations, useTrackerSheets } from "@/features/trackers/hooks";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -150,9 +150,24 @@ export function TrackerPage() {
                   </Button>
                 </>
               )}
-              <Button variant="outline" size="sm" onClick={() => void exportNow()} disabled={exporting} data-testid="export-tracker">
-                {exporting ? <Loader2 className="animate-spin" /> : <FileDown />} Export .xlsx
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={exporting} data-testid="export-tracker">
+                    {exporting ? <Loader2 className="animate-spin" /> : <FileDown />} Export <ChevronDown className="size-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Export</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => void exportNow()} data-testid="export-xlsx">
+                    <FileSpreadsheet /> Excel workbook (.xlsx), all sheets
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!activeSheet} onSelect={() => activeSheet && void exportSheetToCsv(t, activeSheet)} data-testid="export-csv">
+                    <FileDown /> CSV, this sheet only
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <p className="px-2 py-1.5 text-2xs text-muted-foreground">The workbook keeps dropdowns, colours, frozen columns, filters and a totals row with live formulas.</p>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

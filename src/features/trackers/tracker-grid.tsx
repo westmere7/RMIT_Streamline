@@ -21,7 +21,14 @@ import {
   Type,
   Undo2,
   WrapText,
+  ArrowDownAZ,
+  ArrowUpAZ,
+  Filter,
+  Hash,
+  Sigma,
+  ArrowDownToLine,
 } from "lucide-react";
+import { toast } from "sonner";
 import * as React from "react";
 import {
   ContextMenu,
@@ -53,7 +60,12 @@ import { Input } from "@/components/ui/input";
 import {
   TRACKER_COLUMN_TYPES,
   TRACKER_COLUMN_TYPE_LABELS,
+  TRACKER_NUMBER_FORMATS,
+  TRACKER_NUMBER_FORMAT_LABELS,
+  TRACKER_SUMMARY_LABELS,
   columnLetter,
+  type TrackerNumberFormat,
+  type TrackerSummaryKind,
   type TrackerCellValue,
   type TrackerColumn,
   type TrackerColumnType,
@@ -61,7 +73,9 @@ import {
   type TrackerRowKind,
   type TrackerSheet,
 } from "@/domain";
-import { type CellAddress, type CellRange, clampAddress, clearRange, formatCell, frozenOffsets, inRange, parseTsv, pasteBlock, rangeBetween, rangeToTsv } from "@/features/trackers/grid-model";
+import { type CellAddress, type CellRange, clampAddress, formatCell, frozenOffsets, inRange, parseTsv, rangeBetween, rangeToTsv } from "@/features/trackers/grid-model";
+import { EMPTY_VIEW, clearVisible, effectiveSummary, fillDown, formatNumber, isViewFiltering, jumpTarget, pasteVisible, projectSheet, selectionStats, summaryKindsFor, type SheetView } from "@/features/trackers/sheet-view";
+import { FilterValuesDialog, HeaderViewMarks, SheetViewBar, SummaryCell } from "@/features/trackers/tracker-grid-extras";
 import { Chip, ChipColorPicker } from "@/features/trackers/chip";
 import { STATUS_COLORS, TEMPLATE_STYLE, chipColor, nextChipColor, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { cn } from "@/lib/utils";
@@ -109,6 +123,18 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
   const setView = useUiStore((s) => s.setTrackerView);
   const rowHeight = ROW_HEIGHTS[view.density];
 
+  // The view (search, filters, sort) is per open sheet and never saved: it
+  // narrows what is shown, and every edit below goes through `rows` so it lands
+  // on the right real row.
+  const [sheetView, setSheetView] = React.useState<SheetView>(EMPTY_VIEW);
+  const [filterColumnId, setFilterColumnId] = React.useState<string | null>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const projection = React.useMemo(() => projectSheet(sheet, sheetView), [sheet, sheetView]);
+  const rows = projection.rows;
+  const filtering = isViewFiltering(sheetView);
+  const visibleRowsOf = (s: TrackerSheet) => projectSheet(s, sheetView).rows;
+  const dataRowCount = (list: TrackerRow[]) => list.filter((r) => r.kind === "data").length;
+
   const columns = sheet.columns.map((c) => ({ ...c, width: widthOverrides[c.id] ?? c.width }));
   const frozen = Math.min(sheet.frozenColumns, columns.length);
   const offsets = frozenOffsets(columns, frozen, GUTTER);
@@ -117,12 +143,12 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
 
   const focusGrid = () => containerRef.current?.focus({ preventScroll: true });
   const select = (address: CellAddress, extend = false) => {
-    const next = clampAddress(sheet, address);
+    const next = clampAddress({ rows, columns }, address);
     setActive(next);
     if (!extend) setAnchor(next);
   };
   const cellOf = (address: CellAddress): { row: TrackerRow; column: TrackerColumn } | null => {
-    const row = sheet.rows[address.row];
+    const row = rows[address.row];
     const column = columns[address.col];
     return row && column ? { row, column } : null;
   };
@@ -147,7 +173,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
     commit((s) => TrackerService.applyEdits(s, [{ rowId: target.row.id, columnId: target.column.id, value: !current }]));
   };
 
-  const commitEdit = (address: CellAddress, raw: string, move: "down" | "right" | "none") => {
+  const commitEdit = (address: CellAddress, raw: string, move: EditMove) => {
     const target = cellOf(address);
     setEditing(null);
     if (target && target.row.kind === "data") {
@@ -155,7 +181,9 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
       if (value !== (target.row.cells[target.column.id] ?? null)) commit((s) => TrackerService.applyEdits(s, [{ rowId: target.row.id, columnId: target.column.id, value }]));
     }
     if (move === "down") select({ row: address.row + 1, col: address.col });
+    if (move === "up") select({ row: address.row - 1, col: address.col });
     if (move === "right") select({ row: address.row, col: address.col + 1 });
+    if (move === "left") select({ row: address.row, col: address.col - 1 });
     requestAnimationFrame(focusGrid);
   };
 
@@ -168,7 +196,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
 
   const copySelection = (event?: React.ClipboardEvent) => {
     if (!range) return;
-    const text = rangeToTsv(sheet, range);
+    const text = rangeToTsv({ ...sheet, rows }, range);
     if (event) {
       event.preventDefault();
       event.clipboardData.setData("text/plain", text);
@@ -178,7 +206,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
   const pasteText = (text: string) => {
     if (!canEdit || !active || !text) return;
     const block = parseTsv(text);
-    commit((s) => pasteBlock(s, active, block, range));
+    commit((s) => pasteVisible(s, visibleRowsOf(s), active, block, range));
   };
 
   // ---- keyboard --------------------------------------------------------------
@@ -200,7 +228,20 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
     if (mod && e.key.toLowerCase() === "a") {
       e.preventDefault();
       setActive({ row: 0, col: 0 });
-      setAnchor({ row: sheet.rows.length - 1, col: columns.length - 1 });
+      setAnchor({ row: rows.length - 1, col: columns.length - 1 });
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "f") {
+      // Search this sheet, not the workspace.
+      e.preventDefault();
+      e.stopPropagation();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      fillSelection();
       return;
     }
     if (mod && e.key.toLowerCase() === "c") {
@@ -222,10 +263,13 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
       }
       return;
     }
-    const step = (dr: number, dc: number) => {
+    const step = (dr: -1 | 0 | 1, dc: -1 | 0 | 1) => {
       e.preventDefault();
-      select({ row: active.row + dr, col: active.col + dc }, e.shiftKey);
+      // Ctrl+Arrow jumps to the edge of the filled block, as in Excel.
+      const target = mod ? jumpTarget({ columns }, rows, active, dr, dc) : { row: active.row + dr, col: active.col + dc };
+      select(target, e.shiftKey);
     };
+    const page = Math.max(1, Math.floor(((containerRef.current?.clientHeight ?? 600) - HEADER_HEIGHT) / rowHeight) - 1);
     switch (e.key) {
       case "ArrowUp":
         return step(-1, 0);
@@ -235,12 +279,18 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
         return step(0, -1);
       case "ArrowRight":
         return step(0, 1);
+      case "PageUp":
+        e.preventDefault();
+        return select({ row: active.row - page, col: active.col }, e.shiftKey);
+      case "PageDown":
+        e.preventDefault();
+        return select({ row: active.row + page, col: active.col }, e.shiftKey);
       case "Home":
         e.preventDefault();
         return select({ row: mod ? 0 : active.row, col: 0 }, e.shiftKey);
       case "End":
         e.preventDefault();
-        return select({ row: mod ? sheet.rows.length - 1 : active.row, col: columns.length - 1 }, e.shiftKey);
+        return select({ row: mod ? rows.length - 1 : active.row, col: columns.length - 1 }, e.shiftKey);
       case "Tab":
         e.preventDefault();
         return select({ row: active.row, col: active.col + (e.shiftKey ? -1 : 1) });
@@ -254,9 +304,22 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
       case "Delete":
       case "Backspace":
         e.preventDefault();
-        if (canEdit && range) commit((s) => clearRange(s, range));
+        if (canEdit && range) commit((s) => clearVisible(s, visibleRowsOf(s), range));
         return;
       case " ":
+        if (e.shiftKey) {
+          // Shift+Space selects the row, Ctrl+Space the column — Excel's habits.
+          e.preventDefault();
+          setActive({ row: active.row, col: 0 });
+          setAnchor({ row: active.row, col: columns.length - 1 });
+          return;
+        }
+        if (mod) {
+          e.preventDefault();
+          setActive({ row: 0, col: active.col });
+          setAnchor({ row: rows.length - 1, col: active.col });
+          return;
+        }
         if (cellOf(active)?.column.type === "checkbox") {
           e.preventDefault();
           toggleCheckbox(active);
@@ -272,17 +335,58 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
 
   // ---- structure edits -------------------------------------------------------
 
-  const insertRow = (index: number, kind: TrackerRowKind = "data") => commit((s) => TrackerService.insertRows(s, index, 1, kind));
-  const selectedRowIds = () => (range ? sheet.rows.slice(range.top, range.bottom + 1).map((r) => r.id) : []);
+  // Rows are inserted relative to the real position of the visible row, so a
+  // filtered view still puts the new row where the person pointed.
+  const sourceOf = (visibleIndex: number) => projection.sourceIndex[visibleIndex];
+  const hiddenRowHint = () => {
+    if (filtering) toast.info("Row added, but the current filter hides it. Clear the filter to see it.");
+  };
+  const insertAbove = (visibleIndex: number, kind: TrackerRowKind = "data") => {
+    const at = sourceOf(visibleIndex) ?? sheet.rows.length;
+    commit((s) => TrackerService.insertRows(s, at, 1, kind));
+    if (kind === "data") hiddenRowHint();
+  };
+  const insertBelow = (visibleIndex: number, kind: TrackerRowKind = "data") => {
+    const source = sourceOf(visibleIndex);
+    const at = source === undefined ? sheet.rows.length : source + 1;
+    commit((s) => TrackerService.insertRows(s, at, 1, kind));
+    if (kind === "data") hiddenRowHint();
+  };
+  const selectedRowIds = () => (range ? rows.slice(range.top, range.bottom + 1).map((r) => r.id) : []);
+  const fillSelection = () => {
+    if (!canEdit || !range) return;
+    commit((s) => fillDown(s, visibleRowsOf(s), range));
+  };
   // Toolbar actions work on the selection, or on the end of the sheet when nothing is selected.
   const toolbar = {
-    insertRow: () => insertRow(range ? range.bottom + 1 : sheet.rows.length),
+    insertRow: () => (range ? insertBelow(range.bottom) : insertAbove(rows.length)),
     insertColumn: () => commit((s) => TrackerService.insertColumn(s, active ? active.col + 1 : s.columns.length)),
     deleteRows: () => range && commit((s) => TrackerService.deleteRows(s, selectedRowIds())),
-    clear: () => range && commit((s) => clearRange(s, range)),
+    clear: () => range && commit((s) => clearVisible(s, visibleRowsOf(s), range)),
+    fillDown: fillSelection,
     setKind: (kind: TrackerRowKind) => range && commit((s) => TrackerService.setRowKind(s, selectedRowIds(), kind)),
     freeze: () => active && commit((s) => ({ ...s, frozenColumns: s.frozenColumns === active.col + 1 ? 0 : active.col + 1 })),
   };
+
+  // Keep the active cell in view when the keyboard moves it under the sticky
+  // header, the frozen columns or the summary footer.
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !active) return;
+    const cell = container.querySelector<HTMLElement>('[data-active="true"]');
+    if (!cell) return;
+    const box = container.getBoundingClientRect();
+    const rect = cell.getBoundingClientRect();
+    const frozenWidth = GUTTER + columns.slice(0, frozen).reduce((sum, c) => sum + c.width, 0);
+    const footer = 30;
+    if (rect.top < box.top + HEADER_HEIGHT) container.scrollTop -= box.top + HEADER_HEIGHT - rect.top;
+    else if (rect.bottom > box.bottom - footer) container.scrollTop += rect.bottom - (box.bottom - footer);
+    if (active.col >= frozen) {
+      if (rect.left < box.left + frozenWidth) container.scrollLeft -= box.left + frozenWidth - rect.left;
+      else if (rect.right > box.right) container.scrollLeft += rect.right - box.right;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the active cell moves; widths are read live
+  }, [active]);
 
   const resizeColumn = (column: TrackerColumn, event: React.PointerEvent) => {
     event.preventDefault();
@@ -316,12 +420,13 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <GridToolbar canEdit={canEdit} hasSelection={!!range} activeCol={active?.col ?? null} frozen={frozen} view={view} onView={setView} onUndo={onUndo} onRedo={onRedo} actions={toolbar} />
+      <SheetViewBar sheet={sheet} view={sheetView} hidden={projection.hiddenDataRows} visibleDataRows={dataRowCount(rows)} onChange={setSheetView} searchRef={searchRef} />
       <div
         ref={containerRef}
         tabIndex={0}
         role="grid"
         aria-label={`${sheet.name} sheet`}
-        aria-rowcount={sheet.rows.length + 1}
+        aria-rowcount={rows.length + 2}
         aria-colcount={columns.length + 1}
         data-testid="tracker-grid"
         className="scrollbar-thin flex-1 overflow-auto outline-none focus-visible:[&_[data-active=true]]:ring-2"
@@ -359,9 +464,13 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                   left={offsets[index]}
                   canEdit={canEdit}
                   selected={(!!range && range.left <= index && index <= range.right) || hoverCol === index}
+                  sort={sheetView.sort?.columnId === column.id ? sheetView.sort.direction : null}
+                  filtered={column.id in sheetView.filters}
+                  onSort={(direction) => setSheetView((v) => ({ ...v, sort: direction ? { columnId: column.id, direction } : null }))}
+                  onFilter={() => setFilterColumnId(column.id)}
                   onSelectColumn={(extend) => {
                     setActive({ row: 0, col: index });
-                    setAnchor(extend && anchor ? { row: sheet.rows.length - 1, col: anchor.col } : { row: sheet.rows.length - 1, col: index });
+                    setAnchor(extend && anchor ? { row: rows.length - 1, col: anchor.col } : { row: rows.length - 1, col: index });
                     focusGrid();
                   }}
                   onResize={(e) => resizeColumn(column, e)}
@@ -388,7 +497,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
             </tr>
           </thead>
           <tbody>
-            {sheet.rows.map((row, r) => (
+            {rows.map((row, r) => (
               <GridRow
                 key={row.id}
                 row={row}
@@ -424,6 +533,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                   setAnchor(extend && anchor ? { row: anchor.row, col: columns.length - 1 } : { row: r, col: columns.length - 1 });
                   focusGrid();
                 }}
+                sourceIndex={sourceOf(r) ?? r}
                 onCommitEdit={(c, raw, move) => commitEdit({ row: r, col: c }, raw, move)}
                 onCancelEdit={cancelEdit}
                 onLabelChange={(label) => commit((s) => TrackerService.setRowLabel(s, row.id, label))}
@@ -438,13 +548,14 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                 rowMenu={
                   canEdit
                     ? {
-                        insertAbove: () => insertRow(r),
-                        insertBelow: () => insertRow(r + 1),
-                        insertSection: (kind) => insertRow(r, kind),
+                        insertAbove: () => insertAbove(r),
+                        insertBelow: () => insertBelow(r),
+                        insertSection: (kind) => insertAbove(r, kind),
                         duplicate: () => commit((s) => TrackerService.duplicateRows(s, selectedRowIds().length ? selectedRowIds() : [row.id])),
                         setKind: (kind) => commit((s) => TrackerService.setRowKind(s, selectedRowIds().length ? selectedRowIds() : [row.id], kind)),
                         remove: () => commit((s) => TrackerService.deleteRows(s, selectedRowIds().length ? selectedRowIds() : [row.id])),
-                        clear: () => range && commit((s) => clearRange(s, range)),
+                        clear: () => range && commit((s) => clearVisible(s, visibleRowsOf(s), range)),
+                        fillDown: fillSelection,
                         copy: () => copySelection(),
                         selectedCount: selectedRowIds().length || 1,
                       }
@@ -453,6 +564,26 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
               />
             ))}
           </tbody>
+          <tfoot>
+            <tr style={{ height: 30 }} data-testid="summary-row">
+              <td className="sticky bottom-0 left-0 z-30 border-t border-r bg-surface text-center text-2xs text-muted-foreground" aria-label="Summary">
+                <Sigma className="mx-auto size-3" aria-hidden />
+              </td>
+              {columns.map((column, c) => (
+                <SummaryCell
+                  key={column.id}
+                  column={column}
+                  rows={rows}
+                  canEdit={canEdit}
+                  frozen={c < frozen}
+                  isFrozenEdge={c === frozen - 1}
+                  left={offsets[c]}
+                  onChangeSummary={(kind) => commit((s) => TrackerService.updateColumn(s, column.id, { summary: kind }))}
+                />
+              ))}
+              <td className="sticky bottom-0 border-t bg-surface" />
+            </tr>
+          </tfoot>
         </table>
         {canEdit && (
           <div className="sticky left-0 px-3 py-2">
@@ -463,19 +594,51 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
         )}
       </div>
       <div className="flex h-7 items-center gap-3 border-t px-3 text-2xs text-muted-foreground">
-        <span>
-          {sheet.rows.filter((r) => r.kind === "data").length} rows · {columns.length} columns
+        <span data-testid="row-count">
+          {filtering ? `${dataRowCount(rows)} of ${dataRowCount(sheet.rows)} rows` : `${dataRowCount(sheet.rows)} rows`} · {columns.length} columns
         </span>
         {active && (
           <span className="tabular">
             {columnLetter(active.col)}
-            {active.row + 1}
+            {(sourceOf(active.row) ?? active.row) + 1}
             {range && (range.top !== range.bottom || range.left !== range.right) ? ` · ${range.bottom - range.top + 1}×${range.right - range.left + 1} selected` : ""}
           </span>
         )}
-        {canEdit && <span className="ml-auto hidden md:inline">Type to edit · Enter/Tab to move · Ctrl+C/V for blocks · Right-click for rows and columns</span>}
+        {range && (range.top !== range.bottom || range.left !== range.right) && <SelectionStats sheet={sheet} rows={rows.slice(range.top, range.bottom + 1)} left={range.left} right={range.right} />}
+        {canEdit && <span className="ml-auto hidden lg:inline">Type to edit · Enter/Tab to move · Ctrl+D fills down · Ctrl+Arrow jumps · Right-click for rows and columns</span>}
       </div>
+      {filterColumnId && sheet.columns.some((c) => c.id === filterColumnId) && (
+        <FilterValuesDialog
+          sheet={sheet}
+          column={sheet.columns.find((c) => c.id === filterColumnId)!}
+          selected={sheetView.filters[filterColumnId] ?? []}
+          open
+          onOpenChange={(open) => !open && setFilterColumnId(null)}
+          onApply={(values) =>
+            setSheetView((v) => {
+              const filters = { ...v.filters };
+              if (values) filters[filterColumnId] = values;
+              else delete filters[filterColumnId];
+              return { ...v, filters };
+            })
+          }
+        />
+      )}
     </div>
+  );
+}
+
+type EditMove = "down" | "up" | "right" | "left" | "none";
+
+/** Excel's status-bar habit: count, sum and average of what is selected. */
+function SelectionStats({ sheet, rows, left, right }: { sheet: TrackerSheet; rows: TrackerRow[]; left: number; right: number }) {
+  const stats = selectionStats(sheet, rows, left, right);
+  if (stats.count === 0) return null;
+  return (
+    <span className="tabular" data-testid="selection-stats">
+      Count {stats.count}
+      {stats.sum !== null && ` · Sum ${formatNumber(stats.sum, "plain")} · Avg ${formatNumber(stats.average ?? 0, "plain")}`}
+    </span>
   );
 }
 
@@ -490,6 +653,10 @@ interface ColumnHeaderProps {
   left: number | undefined;
   canEdit: boolean;
   selected: boolean;
+  sort: "asc" | "desc" | null;
+  filtered: boolean;
+  onSort: (direction: "asc" | "desc" | null) => void;
+  onFilter: () => void;
   onSelectColumn: (extend: boolean) => void;
   onResize: (e: React.PointerEvent) => void;
   onChange: (patch: Partial<Omit<TrackerColumn, "id">>) => void;
@@ -499,10 +666,28 @@ interface ColumnHeaderProps {
   onFreeze: () => void;
 }
 
-function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, onSelectColumn, onResize, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
+function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
   const [renaming, setRenaming] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(column.name);
+
+  // Sorting and filtering change only what is shown, so viewers get them too.
+  const viewMenu = (
+    <>
+      <DropdownMenuLabel>
+        {columnLetter(index)} · {TRACKER_COLUMN_TYPE_LABELS[column.type]}
+      </DropdownMenuLabel>
+      <DropdownMenuItem onSelect={() => onSort(sort === "asc" ? null : "asc")}>
+        <ArrowDownAZ /> {sort === "asc" ? "Remove sort" : "Sort A → Z"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onSort(sort === "desc" ? null : "desc")}>
+        <ArrowUpAZ /> {sort === "desc" ? "Remove sort" : "Sort Z → A"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onFilter}>
+        <Filter /> {filtered ? "Change filter…" : "Filter by value…"}
+      </DropdownMenuItem>
+    </>
+  );
 
   const menu = (
     <>
@@ -536,6 +721,46 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
           <ListPlus /> Edit dropdown options
         </DropdownMenuItem>
       )}
+      {column.type === "number" && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Hash /> Number format
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={column.numberFormat ?? "plain"} onValueChange={(format) => onChange({ numberFormat: format as TrackerNumberFormat })}>
+              {TRACKER_NUMBER_FORMATS.map((format) => (
+                <DropdownMenuRadioItem key={format} value={format}>
+                  {TRACKER_NUMBER_FORMAT_LABELS[format]}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <Sigma /> Summary
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          <DropdownMenuRadioGroup value={effectiveSummary(column)} onValueChange={(kind) => onChange({ summary: kind as TrackerSummaryKind })}>
+            {summaryKindsFor(column).map((kind) => (
+              <DropdownMenuRadioItem key={kind} value={kind}>
+                {TRACKER_SUMMARY_LABELS[kind]}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => onSort(sort === "asc" ? null : "asc")}>
+        <ArrowDownAZ /> {sort === "asc" ? "Remove sort" : "Sort A → Z"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => onSort(sort === "desc" ? null : "desc")}>
+        <ArrowUpAZ /> {sort === "desc" ? "Remove sort" : "Sort Z → A"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onFilter}>
+        <Filter /> {filtered ? "Change filter…" : "Filter by value…"}
+      </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => onInsert("left")}>
         <ArrowLeft /> Insert column left
@@ -571,7 +796,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
       aria-colindex={index + 2}
     >
       <ContextMenu>
-        <ContextMenuTrigger asChild disabled={!canEdit}>
+        <ContextMenuTrigger asChild>
           <div className="flex h-full items-center gap-1 pr-6 pl-2" style={{ height: HEADER_HEIGHT }} onMouseDown={(e) => e.button === 0 && onSelectColumn(e.shiftKey)}>
             {renaming ? (
               <Input
@@ -591,15 +816,18 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
                 aria-label="Column name"
               />
             ) : (
-              <span className="truncate" title={column.name}>
-                {column.name}
-              </span>
+              <>
+                <span className="truncate" title={column.name}>
+                  {column.name}
+                </span>
+                <HeaderViewMarks sorted={sort} filtered={filtered} />
+              </>
             )}
           </div>
         </ContextMenuTrigger>
-        {canEdit && <ContextMenuContent className="w-56">{contextFromDropdown(menu)}</ContextMenuContent>}
+        <ContextMenuContent className="w-56">{contextFromDropdown(canEdit ? menu : viewMenu)}</ContextMenuContent>
       </ContextMenu>
-      {canEdit && (
+      {(
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -612,7 +840,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            {menu}
+            {canEdit ? menu : viewMenu}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
@@ -776,6 +1004,7 @@ interface RowMenuHandlers {
   setKind: (kind: TrackerRowKind) => void;
   remove: () => void;
   clear: () => void;
+  fillDown: () => void;
   copy: () => void;
   selectedCount: number;
 }
@@ -794,7 +1023,9 @@ interface GridRowProps {
   onMouseEnterCell: (col: number) => void;
   onDoubleClickCell: (col: number) => void;
   onSelectRow: (extend: boolean) => void;
-  onCommitEdit: (col: number, raw: string, move: "down" | "right" | "none") => void;
+  /** Position in the real sheet, shown in the gutter (visible index differs under a filter or sort). */
+  sourceIndex: number;
+  onCommitEdit: (col: number, raw: string, move: EditMove) => void;
   onCancelEdit: () => void;
   onLabelChange: (label: string) => void;
   onToggleCheckbox: (col: number) => void;
@@ -820,6 +1051,7 @@ const GridRow = React.memo(function GridRow({
   onMouseEnterCell,
   onDoubleClickCell,
   onSelectRow,
+  sourceIndex,
   onCommitEdit,
   onCancelEdit,
   onLabelChange,
@@ -842,7 +1074,7 @@ const GridRow = React.memo(function GridRow({
       onMouseDown={(e) => e.button === 0 && onSelectRow(e.shiftKey)}
       role="rowheader"
     >
-      {index + 1}
+      {sourceIndex + 1}
     </td>
   );
 
@@ -899,6 +1131,10 @@ const GridRow = React.memo(function GridRow({
           <Copy /> Copy
         </ContextMenuItem>
         <ContextMenuItem onSelect={rowMenu.clear}>Clear contents</ContextMenuItem>
+        <ContextMenuItem onSelect={rowMenu.fillDown}>
+          <ArrowDownToLine /> Fill down
+          <span className="ml-auto text-2xs text-muted-foreground">Ctrl+D</span>
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={rowMenu.insertAbove}>
           <Plus /> Insert row above
@@ -1004,7 +1240,7 @@ interface GridCellProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseEnter: () => void;
   onDoubleClick: () => void;
-  onCommit: (raw: string, move: "down" | "right" | "none") => void;
+  onCommit: (raw: string, move: EditMove) => void;
   onCancel: () => void;
   onToggle: () => void;
   onAddOption: (option: string) => void;
@@ -1038,7 +1274,7 @@ const GridCell = React.memo(function GridCell({
   striped,
   rowHeight,
 }: GridCellProps) {
-  const text = formatCell(column, value);
+  const text = column.type === "number" && typeof value === "number" && column.numberFormat && column.numberFormat !== "plain" ? formatNumber(value, column.numberFormat) : formatCell(column, value);
   const isChip = column.type === "list" && typeof value === "string" && value !== "";
   const tint: string | undefined = undefined;
   return (
@@ -1143,6 +1379,7 @@ interface GridToolbarProps {
     insertColumn: () => void;
     deleteRows: () => void;
     clear: () => void;
+    fillDown: () => void;
     setKind: (kind: TrackerRowKind) => void;
     freeze: () => void;
   };
@@ -1184,6 +1421,9 @@ function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, o
             <Snowflake />
           </ToolButton>
           <Divider />
+          <ToolButton label="Fill down (Ctrl+D)" onClick={actions.fillDown} disabled={!hasSelection}>
+            <ArrowDownToLine />
+          </ToolButton>
           <ToolButton label="Clear contents (Delete)" onClick={actions.clear} disabled={!hasSelection}>
             <Eraser />
           </ToolButton>
@@ -1277,14 +1517,14 @@ function CellEditor({
   column: TrackerColumn;
   value: TrackerCellValue | undefined;
   initial?: string;
-  onCommit: (raw: string, move: "down" | "right" | "none") => void;
+  onCommit: (raw: string, move: EditMove) => void;
   onCancel: () => void;
   onAddOption: (option: string) => void;
 }) {
   const current = initial ?? (column.type === "date" && typeof value === "string" ? value : formatCell(column, value));
   const [draft, setDraft] = React.useState(current);
   const committed = React.useRef(false);
-  const finish = (move: "down" | "right" | "none", raw = draft) => {
+  const finish = (move: EditMove, raw = draft) => {
     if (committed.current) return;
     committed.current = true;
     onCommit(raw, move);
@@ -1296,10 +1536,10 @@ function CellEditor({
       onCancel();
     } else if (e.key === "Tab") {
       e.preventDefault();
-      finish("right");
+      finish(e.shiftKey ? "left" : "right");
     } else if (e.key === "Enter" && !(multiline && e.shiftKey)) {
       e.preventDefault();
-      finish("down");
+      finish(e.shiftKey ? "up" : "down");
     }
   };
   const base = "absolute inset-0 z-30 w-full border-2 border-ring bg-background px-2 text-[13px] text-foreground outline-none";

@@ -23,6 +23,38 @@ export const TRACKER_COLUMN_TYPE_LABELS: Record<TrackerColumnType, string> = {
   checkbox: "Checkbox",
 };
 
+/**
+ * What the footer of a column adds up. "none" hides it; the others become an
+ * Excel formula in the totals row on export (COUNTA, SUM, AVERAGE, MIN, MAX,
+ * COUNTIF for checked boxes, and a percentage for checkbox columns).
+ */
+export const TRACKER_SUMMARY_KINDS = ["none", "count", "sum", "average", "min", "max", "checked", "percentChecked", "empty"] as const;
+export type TrackerSummaryKind = (typeof TRACKER_SUMMARY_KINDS)[number];
+
+export const TRACKER_SUMMARY_LABELS: Record<TrackerSummaryKind, string> = {
+  none: "No summary",
+  count: "Count filled",
+  empty: "Count empty",
+  sum: "Sum",
+  average: "Average",
+  min: "Minimum",
+  max: "Maximum",
+  checked: "Count checked",
+  percentChecked: "Percent checked",
+};
+
+/** How a number column shows (and exports) its values. */
+export const TRACKER_NUMBER_FORMATS = ["plain", "integer", "decimal", "currency", "percent"] as const;
+export type TrackerNumberFormat = (typeof TRACKER_NUMBER_FORMATS)[number];
+
+export const TRACKER_NUMBER_FORMAT_LABELS: Record<TrackerNumberFormat, string> = {
+  plain: "As typed",
+  integer: "Whole number (1,234)",
+  decimal: "Two decimals (1,234.50)",
+  currency: "Currency ($1,234.50)",
+  percent: "Percent (12.5%)",
+};
+
 export interface TrackerColumn {
   id: EntityId;
   name: string;
@@ -33,6 +65,10 @@ export interface TrackerColumn {
   options?: string[];
   /** Hex fill (no #) per option, mirrored as conditional formatting in Excel. */
   optionColors?: Record<string, string>;
+  /** Footer aggregate; when unset, a sensible default for the type is shown. */
+  summary?: TrackerSummaryKind;
+  /** Display format for `number` columns. */
+  numberFormat?: TrackerNumberFormat;
 }
 
 export type TrackerRowKind = "data" | "section" | "subsection";
