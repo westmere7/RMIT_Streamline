@@ -160,6 +160,11 @@ export class ItemService {
     return item;
   }
 
+  /** Sets or clears the cover image URL. Covers are per item and do not sync to linked items. */
+  async updateCover(itemId: EntityId, coverUrl: string | null): Promise<Item> {
+    return this.repos.items.update(itemId, { coverUrl });
+  }
+
   async updateDescription(itemId: EntityId, description: string | null, actorId: EntityId): Promise<Item> {
     const next = description?.trim() || null;
     const item = await this.repos.items.update(itemId, { description: next });

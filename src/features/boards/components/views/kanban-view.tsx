@@ -5,6 +5,7 @@ import { Archive, Maximize2, Plus, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
+import { CardCover } from "@/features/items/item-cover";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { AvatarStack } from "@/components/shared/user-avatar";
 import type { ColumnLabel, Item } from "@/domain";
@@ -169,7 +170,8 @@ function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={overlay}>
-        <article data-testid="kanban-card" className={cn("rounded-xl border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-md", overlay && "rotate-1 shadow-xl", done && "opacity-70")}>
+        <article data-testid="kanban-card" className={cn("overflow-hidden rounded-xl border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-md", overlay && "rotate-1 shadow-xl", done && "opacity-70")}>
+          <CardCover url={item.coverUrl} />
           <button type="button" onClick={() => openItem(item.id)} className="block w-full text-left text-[13px] font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>
             {item.name}
           </button>

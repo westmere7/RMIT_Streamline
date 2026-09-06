@@ -151,6 +151,16 @@ export function useBoardMutations(boardId: string) {
     [run, services, user.id],
   );
 
+  const setCover = useCallback(
+    (itemId: string, coverUrl: string | null) =>
+      run(
+        (s) => patchItem(s, itemId, { coverUrl }),
+        () => services.items.updateCover(itemId, coverUrl),
+        "Could not save the cover",
+      ),
+    [run, services],
+  );
+
   const createItem = useCallback(
     (input: Omit<CreateItemInput, "boardId">) => {
       const tempId = newId();
@@ -526,6 +536,7 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
+      setCover,
       createItem,
       moveItem,
       moveItemsToGroup,
@@ -548,6 +559,7 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
+      setCover,
       createItem,
       moveItem,
       moveItemsToGroup,

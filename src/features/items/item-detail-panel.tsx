@@ -18,6 +18,7 @@ import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useMarkItemSeen } from "@/features/comments/updates";
+import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -119,7 +120,9 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
   return (
-    <div className="border-b px-4 pt-3 pb-2">
+    <div className="border-b">
+      <ItemCover item={item} canEdit={canEdit} />
+      <div className="px-4 pt-3 pb-2">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-2xs text-muted-foreground">
@@ -160,6 +163,7 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
         <UserAvatar user={creator} size="xs" tooltip={false} />
         Created by {creator?.firstName ?? "someone"} <RelativeTime iso={item.createdAt} />
       </p>
+      </div>
     </div>
   );
 }

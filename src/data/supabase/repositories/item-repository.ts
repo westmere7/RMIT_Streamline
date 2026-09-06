@@ -4,7 +4,7 @@ import { assertOk, chunk, db, unwrap, unwrapList, unwrapMaybe } from "../client"
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
 
 const ITEM =
-  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, created_at, updated_at";
+  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, created_at, updated_at";
 const VALUE = "id, item_id, column_id, value_json, updated_at";
 
 export class SupabaseItemRepository implements ItemRepository {

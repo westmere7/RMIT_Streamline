@@ -12,12 +12,13 @@ export interface Item extends Timestamps {
   position: number;
   createdBy: EntityId;
   archivedAt: string | null;
+  /** Public URL (or data URL in local mode) of the cover image shown on the panel and kanban card. */
+  coverUrl?: string | null;
 }
 
 export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy"> &
   Partial<Pick<Item, "parentItemId" | "description">>;
 
-/** Placeholder attachment metadata. Files are not uploaded anywhere in local mode. */
 export type ColumnValue =
   | { type: "TEXT"; text: string }
   | { type: "LONG_TEXT"; text: string }

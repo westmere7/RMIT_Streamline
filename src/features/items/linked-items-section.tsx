@@ -107,34 +107,33 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
   return (
     <li className="group/link" data-testid="linked-item">
       <RowMenu label={`Options for ${view.item.name}`} actions={actions} hideButton>
-        <div className="px-3 py-2">
-          <div className="flex items-start gap-2.5">
-            <span className={cn("mt-0.5 flex size-6 shrink-0 items-center justify-center rounded text-white", colorClasses(view.board.color).solid)}>
+        <div className="px-3 py-2.5">
+          {/* Line one: where it lives and what it is called. Line two: the facts. */}
+          <div className="flex items-center gap-2.5">
+            <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", colorClasses(view.board.color).solid)}>
               <DynamicIcon name={view.board.icon} className="size-3.5" />
             </span>
-            <div className="min-w-0 flex-1">
-              <Link href={href} className="block truncate text-[13px] font-medium hover:underline">
-                {view.item.name}
-              </Link>
-              <p className="mt-0.5 flex min-w-0 items-center gap-1 text-2xs text-muted-foreground">
-                <span className="truncate">
-                  {view.board.name}
-                  {team ? ` · ${team.name}` : ""}
-                  {view.group ? ` · ${view.group.name}` : ""}
-                </span>
-                {view.parent && (
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <CornerDownRight className="size-3" /> Subitem of {view.parent.name}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {view.dueDate && <span className={cn("text-xs tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(view.dueDate)}</span>}
+            <Link href={href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">
+              {view.item.name}
+            </Link>
+            <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
+            {removable && <UnlinkButton name={view.item.name} onClick={() => unlink.mutate(view.link.id)} />}
+          </div>
+          <div className="mt-1.5 flex min-w-0 items-center gap-2 pl-[34px] text-2xs text-muted-foreground">
+            <span className="truncate">
+              {view.board.name}
+              {team ? ` · ${team.name}` : ""}
+              {view.group ? ` · ${view.group.name}` : ""}
+            </span>
+            {view.parent && (
+              <span className="flex shrink-0 items-center gap-0.5">
+                <CornerDownRight className="size-3" /> {view.parent.name}
+              </span>
+            )}
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+              {view.dueDate && <span className={cn("tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "")}>{formatShortDate(view.dueDate)}</span>}
               {owners.length > 0 && <AvatarStack users={owners} size="xs" max={3} />}
-              <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
-              {removable && <UnlinkButton name={view.item.name} onClick={() => unlink.mutate(view.link.id)} />}
-            </div>
+            </span>
           </div>
           <SyncSummary
             view={view}
@@ -181,11 +180,19 @@ function SyncSummary({
   const label = (m: (typeof mapped)[number]) => (m.source.name.trim().toLowerCase() === m.target.name.trim().toLowerCase() ? m.source.name : `${m.source.name} → ${m.target.name}`);
   const synced = [...(nameOn ? ["name, description"] : []), ...on.map(label)];
 
+  const detail = [
+    synced.length ? `Syncs ${synced.join(", ")}` : "Nothing syncs yet",
+    off.length > 0 ? `Off: ${off.map(label).join(", ")}` : null,
+    unmapped.length > 0 ? `Not on ${view.board.name}: ${unmapped.map((c) => c.name).join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const fieldCount = (nameOn ? 2 : 0) + on.length;
   const summary = (
-    <span className="min-w-0 truncate">
-      {synced.length ? `Syncs ${synced.join(", ")}` : "Nothing syncs yet"}
-      {off.length > 0 && <span className="text-muted-foreground/70"> · {off.map(label).join(", ")} off</span>}
-      {unmapped.length > 0 && <span className="text-muted-foreground/70"> · {unmapped.map((c) => c.name).join(", ")} not on {view.board.name}</span>}
+    <span className="min-w-0 truncate" title={detail}>
+      {fieldCount > 0 ? `Syncs ${fieldCount} ${fieldCount === 1 ? "field" : "fields"}` : "Nothing syncs yet"}
+      {off.length > 0 && <span className="text-muted-foreground/70"> · {off.length} off</span>}
+      {unmapped.length > 0 && <span className="text-muted-foreground/70"> · {unmapped.length} not on {view.board.name}</span>}
     </span>
   );
 

@@ -334,6 +334,7 @@ export interface ItemRow {
   position: number;
   created_by: string;
   archived_at: string | null;
+  cover_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -349,6 +350,7 @@ export function toItem(row: ItemRow): Item {
     position: row.position,
     createdBy: row.created_by,
     archivedAt: row.archived_at,
+    coverUrl: row.cover_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -363,6 +365,7 @@ export function fromItemPatch(patch: Partial<Omit<Item, "id" | "boardId" | "crea
     position: patch.position,
     created_by: patch.createdBy,
     archived_at: patch.archivedAt,
+    cover_url: patch.coverUrl,
     updated_at: patch.updatedAt,
   });
 }
