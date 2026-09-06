@@ -74,14 +74,16 @@ function useSidebarActions(): SidebarActions {
   return ctx;
 }
 
-export function Sidebar() {
+export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigate?: () => void } = {}) {
   const ws = useWorkspace();
+  const drawer = variant === "drawer";
   const { user } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const services = useServices();
   const queryClient = useQueryClient();
-  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  // A drawer is always the full sidebar, whatever the desktop preference says.
+  const collapsed = useUiStore((s) => s.sidebarCollapsed) && !drawer;
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCounts(user?.id ?? "");
@@ -148,14 +150,19 @@ export function Sidebar() {
     <SidebarActionsContext.Provider value={sidebarActions}>
     <aside
       data-collapsed={collapsed}
-      style={collapsed ? undefined : { width: sidebarWidth }}
+      style={collapsed || drawer ? undefined : { width: sidebarWidth }}
       className={cn(
         "relative flex h-full shrink-0 flex-col overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm",
-        !resizing && "transition-[width] duration-150",
+        !resizing && !drawer && "transition-[width] duration-150",
         collapsed && "w-14",
+        drawer && "w-full",
       )}
+      data-testid={drawer ? "sidebar-drawer" : "sidebar"}
+      // Picking something in the drawer should put it away; Escape too.
+      onClick={drawer ? (event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate?.(); } : undefined}
+      onKeyDown={drawer ? (event) => { if (event.key === "Escape") onNavigate?.(); } : undefined}
     >
-      {!collapsed && <SidebarResizeHandle onResizing={setResizing} />}
+      {!collapsed && !drawer && <SidebarResizeHandle onResizing={setResizing} />}
       <div className={cn("flex h-14 shrink-0 items-center gap-2.5 px-3", collapsed && "justify-center px-0")}>
         <Link href={routes.workspace(ws.slug)} className="flex min-w-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
           <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-[13px] font-bold text-white shadow-xs">
@@ -163,7 +170,7 @@ export function Sidebar() {
           </span>
           {!collapsed && <span className="truncate text-sm font-semibold tracking-tight">{ws.workspace.name}</span>}
         </Link>
-        {!collapsed && (
+        {!collapsed && !drawer && (
           <SimpleTooltip label="Collapse sidebar" side="right">
             <button
               type="button"
@@ -206,6 +213,8 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={() => setCommandPaletteOpen(true)}
+                aria-label="Search"
+                aria-keyshortcuts="Control+F Meta+F"
                 className={cn(navItemClasses(false), collapsed && "justify-center px-0")}
               >
                 <Search className="size-4 shrink-0" />
@@ -302,7 +311,7 @@ export function Sidebar() {
           {canManageMembers(ws.permissions) && (
             <li>
               <SimpleTooltip label="Invite members" side="right" disabled={!collapsed}>
-                <button type="button" onClick={() => setInviteOpen(true)} className={cn(navItemClasses(false), collapsed && "justify-center px-0")}>
+                <button type="button" onClick={() => setInviteOpen(true)} aria-label="Invite members" className={cn(navItemClasses(false), collapsed && "justify-center px-0")}>
                   <UserPlus className="size-4 shrink-0" />
                   {!collapsed && <span>Invite Members</span>}
                 </button>
@@ -456,7 +465,8 @@ function NavItem({
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
-          aria-label={anything ? badgeLabel(label, loud, quiet) : undefined}
+          // Collapsed, the icon is all that is visible, so the name has to be spoken.
+          aria-label={anything || collapsed ? badgeLabel(label, loud, quiet) : undefined}
           className={cn(navItemClasses(active), collapsed && "justify-center px-0")}
         >
           <span className="relative">
@@ -678,7 +688,7 @@ function TeamNode({
     return (
       <li>
         <SimpleTooltip label={team.name} side="right">
-          <Link href={routes.team(ws.slug, team.id)} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
+          <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
             <DynamicIcon name={team.icon} className={cn("size-4", colors.text)} />
           </Link>
         </SimpleTooltip>

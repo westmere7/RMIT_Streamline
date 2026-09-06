@@ -24,9 +24,9 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-const SECTIONS = ["general", "members", "teams", "permissions", "data"] as const;
+const SECTIONS = ["general", "teams", "permissions", "data"] as const;
 type Section = (typeof SECTIONS)[number];
-const SECTION_LABELS: Record<Section, string> = { general: "General", members: "Members", teams: "Teams", permissions: "Permissions", data: "Data" };
+const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", data: "Data" };
 
 export function SettingsPage() {
   const ws = useWorkspace();
@@ -38,9 +38,10 @@ export function SettingsPage() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader title="Workspace settings" description={ws.workspace.name} />
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-48 shrink-0 border-r px-3 py-2" aria-label="Settings sections">
-          <ul className="space-y-0.5">
+      <div className="flex min-h-0 flex-1 max-md:flex-col">
+        {/* A side list on desktop, a row of tabs on a phone. */}
+        <nav className="w-48 shrink-0 border-r px-3 py-2 max-md:w-full max-md:border-r-0 max-md:border-b max-md:py-1" aria-label="Settings sections">
+          <ul className="space-y-0.5 max-md:flex max-md:gap-1 max-md:space-y-0 max-md:overflow-x-auto">
             {SECTIONS.map((s) => (
               <li key={s}>
                 <button
@@ -48,7 +49,7 @@ export function SettingsPage() {
                   onClick={() => router.replace(routes.settings(ws.slug, s))}
                   aria-current={section === s ? "page" : undefined}
                   className={cn(
-                    "flex h-8 w-full items-center rounded-md px-2 text-[13px] font-medium",
+                    "flex h-8 w-full items-center rounded-md px-2 text-[13px] font-medium max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap",
                     section === s ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                   )}
                 >
@@ -58,10 +59,9 @@ export function SettingsPage() {
             ))}
           </ul>
         </nav>
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-8 py-6">
+        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
           <div className="max-w-2xl">
             {section === "general" && <GeneralSection />}
-            {section === "members" && <MembersSection />}
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "data" && <DataSection />}
@@ -119,30 +119,6 @@ function GeneralSection() {
           </Button>
         )}
       </form>
-    </>
-  );
-}
-
-function MembersSection() {
-  const ws = useWorkspace();
-  const active = ws.members.filter((m) => m.status === "ACTIVE").length;
-  const invited = ws.members.filter((m) => m.status === "INVITED").length;
-  return (
-    <>
-      <SectionTitle title="Members" description="People with access to this workspace." />
-      <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-[13px] shadow-xs">
-        <div>
-          <p className="text-lg font-semibold tabular">{active}</p>
-          <p className="text-muted-foreground">active</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold tabular">{invited}</p>
-          <p className="text-muted-foreground">invited</p>
-        </div>
-        <Button variant="outline" className="ml-auto" asChild>
-          <Link href={routes.members(ws.slug)}>Manage members</Link>
-        </Button>
-      </div>
     </>
   );
 }

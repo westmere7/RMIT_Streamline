@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Search, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Search, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -76,12 +76,13 @@ export function MessagesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="px-6 pt-6">
+      <div className={cn("md:px-6 md:pt-6", openWith && "max-md:hidden")}>
         <PageHeader title="Messages" description="Direct messages with people in this workspace." />
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-4 p-6 pt-4">
-        <aside className="flex w-72 shrink-0 flex-col rounded-xl border border-border/70 bg-card shadow-xs">
+      {/* One pane at a time on a phone: the people list, or the open conversation. */}
+      <div className="flex min-h-0 flex-1 gap-4 p-4 pt-3 md:p-6 md:pt-4">
+        <aside className={cn("flex w-72 shrink-0 flex-col rounded-xl border border-border/70 bg-card shadow-xs max-md:w-full", openWith && "max-md:hidden")}>
           <div className="border-b border-border/60 p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -120,7 +121,7 @@ export function MessagesPage() {
           </ul>
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col rounded-xl border border-border/70 bg-card shadow-xs">
+        <section className={cn("flex min-w-0 flex-1 flex-col rounded-xl border border-border/70 bg-card shadow-xs", !openWith && "max-md:hidden")}>
           {!openWith || !other ? (
             <div className="flex flex-1 items-center justify-center">
               <EmptyState icon={MessageSquare} title="No conversation open" description="Pick someone on the left to start or continue a conversation." compact />
@@ -128,6 +129,11 @@ export function MessagesPage() {
           ) : (
             <>
               <header className="flex items-center gap-2.5 border-b border-border/60 px-4 py-3">
+                <Button variant="ghost" size="icon-sm" asChild className="-ml-2 md:hidden">
+                  <Link href={routes.messages(ws.slug)} aria-label="Back to people">
+                    <ArrowLeft />
+                  </Link>
+                </Button>
                 <UserAvatar user={other} size="md" tooltip={false} />
                 <div className="min-w-0 leading-tight">
                   <Link href={routes.person(ws.slug, other.id)} className="block truncate text-[13px] font-medium hover:underline">

@@ -16,13 +16,14 @@ import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useWorkspaceActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
 import { useMyWork } from "@/features/my-work/hooks";
+import { useTrackers } from "@/features/trackers/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue, isToday } from "@/lib/dates/dates";
 import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 import { sectionFor } from "@/services/my-work-service";
 
 function greeting(now: Date): string {
@@ -34,6 +35,7 @@ function greeting(now: Date): string {
 
 export function HomePage() {
   const ws = useWorkspace();
+  const trackers = useTrackers().data ?? [];
   const services = useServices();
   const now = React.useMemo(() => new Date(), []);
 
@@ -182,7 +184,7 @@ export function HomePage() {
                               <UserAvatar key={m.id} user={ws.userById(m.userId)} size="xs" />
                             ))}
                           </span>
-                          <span className="text-2xs text-muted-foreground tabular">{ws.boardsForTeam(team.id).length} boards</span>
+                          <span className="text-2xs text-muted-foreground tabular">{teamContentsLabel(ws.boardsForTeam(team.id).length, trackers.filter((t) => t.teamId === team.id).length)}</span>
                         </Link>
                       </li>
                     );
@@ -233,4 +235,11 @@ function BoardRow({ board }: { board: Board }) {
       <span className="truncate text-2xs text-muted-foreground">{ws.teamById(board.teamId)?.name}</span>
     </Link>
   );
+}
+
+/** "2 boards · 1 tracker" — the same things the sidebar counts for a team. */
+function teamContentsLabel(boards: number, trackers: number): string {
+  const parts = [pluralize(boards, "board")];
+  if (trackers > 0) parts.push(pluralize(trackers, "tracker"));
+  return parts.join(" · ");
 }

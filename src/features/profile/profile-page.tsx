@@ -34,7 +34,7 @@ export function ProfilePage({ userId }: { userId: string }) {
 
   if (profile.isLoading) {
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-4 p-6">
+      <div className="mx-auto w-full max-w-5xl space-y-4 p-4 sm:p-6">
         <Skeleton className="h-28" />
         <Skeleton className="h-40" />
       </div>
@@ -53,7 +53,7 @@ export function ProfilePage({ userId }: { userId: string }) {
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl p-6">
+      <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
         <PageHeader title={isSelf ? "Your profile" : user.displayName} description={isSelf ? "How you appear to everyone in the workspace." : undefined} />
 
         <section className="mt-4 flex flex-col gap-4 rounded-xl border border-border/70 bg-card p-5 shadow-xs sm:flex-row sm:items-center">
@@ -90,7 +90,7 @@ export function ProfilePage({ userId }: { userId: string }) {
           </div>
         </section>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
           <Panel icon={Users} title="Teams" count={teams.length}>
             {teams.length === 0 ? (
               <Muted>Not in any team yet.</Muted>

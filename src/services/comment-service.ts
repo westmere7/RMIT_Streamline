@@ -32,8 +32,8 @@ export class CommentService {
   /**
    * Posts an update. With `alsoLinked`, the same update is written to every item
    * this one is linked to, so a conversation started on one board is visible on
-   * the other. Each copy is an ordinary comment on its own item — editing or
-   * deleting one leaves the others alone.
+   * the other. Each copy is an ordinary comment on its own item; editing or
+   * deleting any one of them applies to all of them (see below).
    */
   async addComment(
     itemId: EntityId,
@@ -123,7 +123,10 @@ export class CommentService {
     return updated;
   }
 
-  deleteComment(commentId: EntityId): Promise<void> {
-    return this.repos.comments.delete(commentId);
+  /** Deletes an update and, like editing, every copy of it on linked tasks. */
+  async deleteComment(comment: Pick<Comment, "id" | "sharedId">): Promise<void> {
+    const copies = comment.sharedId ? await this.repos.comments.listBySharedId(comment.sharedId) : [];
+    const ids = new Set([comment.id, ...copies.map((copy) => copy.id)]);
+    await Promise.all([...ids].map((id) => this.repos.comments.delete(id)));
   }
 }

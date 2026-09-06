@@ -67,10 +67,10 @@ export function useCommentMutations(itemId: string) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => services.comments.deleteComment(id),
-    onMutate: async (id) => {
+    mutationFn: (comment: Pick<Comment, "id" | "sharedId">) => services.comments.deleteComment(comment),
+    onMutate: async (comment) => {
       const previous = queryClient.getQueryData<Comment[]>(key);
-      queryClient.setQueryData<Comment[]>(key, (old) => old?.filter((c) => c.id !== id));
+      queryClient.setQueryData<Comment[]>(key, (old) => old?.filter((c) => c.id !== comment.id));
       return { previous };
     },
     onError: (_e, _v, ctx) => {

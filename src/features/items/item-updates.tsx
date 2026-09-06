@@ -94,7 +94,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
               comment={comment}
               names={names}
               onEdit={(body) => edit.mutate({ id: comment.id, body })}
-              onDelete={() => remove.mutate(comment.id)}
+              onDelete={() => remove.mutate(comment)}
             />
           ))}
         </ul>
