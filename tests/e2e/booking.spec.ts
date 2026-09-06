@@ -99,8 +99,8 @@ test.describe("task booking", () => {
     await expect(request).toContainText("High");
     // The asset lines are its subitems.
     await request.getByRole("button", { name: /subitems/i }).click();
-    await expect(page.getByText("A1 poster ×6")).toBeVisible();
-    await expect(page.getByText("Instagram tile")).toBeVisible();
+    await expect(page.getByRole("button", { name: "A1 poster ×6", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Instagram tile", exact: true })).toBeVisible();
   });
 
   test("a validation error brings the request tab back into view", async ({ page }) => {
