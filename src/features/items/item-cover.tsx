@@ -50,17 +50,21 @@ export function ItemCover({ item, canEdit }: { item: Item; canEdit: boolean }) {
   if (!item.coverUrl) {
     if (!canEdit) return null;
     return (
-      <div className="px-4 pt-4">
+      <div className="px-3 pt-3">
         {input}
+        {/* Just the icon at rest; the words slide out on hover so the header stays quiet. */}
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy !== null}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface/60 text-[13px] font-medium text-muted-foreground transition-colors hover:border-ring/60 hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
+          aria-label="Add a cover image (WebP, up to 3MB)"
+          className="group/add flex h-8 items-center gap-0 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
           data-testid="cover-add"
         >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />} Add a cover image
-          <span className="text-2xs font-normal text-muted-foreground/70">WebP, up to 3MB</span>
+          {busy ? <Loader2 className="size-4 shrink-0 animate-spin" /> : <ImagePlus className="size-4 shrink-0" />}
+          <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity,margin] duration-200 group-hover/add:ml-2 group-hover/add:max-w-xs group-hover/add:opacity-100 group-focus-visible/add:ml-2 group-focus-visible/add:max-w-xs group-focus-visible/add:opacity-100">
+            Add a cover image <span className="text-2xs text-muted-foreground/70">· WebP, up to 3MB</span>
+          </span>
         </button>
       </div>
     );

@@ -1,5 +1,5 @@
-import type { BoardColumn, ColumnType, ColumnValue } from "@/domain";
-import { columnLabels } from "@/domain";
+import type { BoardColumn, ColumnLabel, ColumnSettings, ColumnType, ColumnValue, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
+import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
 
 /**
  * Pure rules for keeping two items on different boards in sync. Boards carry
@@ -138,4 +138,98 @@ export function translateValue(value: ColumnValue, source: BoardColumn, target: 
 /** Structural equality for stored values (they are plain JSON). */
 export function valuesEqual(a: ColumnValue | undefined, b: ColumnValue | undefined): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+// ---- label definitions ---------------------------------------------------------
+
+/**
+ * Carries an edit to a status or priority column's labels over to the paired
+ * column on a linked board, so a value that syncs by label name keeps landing:
+ * a label renamed here is renamed there (found by its old name), a new label
+ * is added there, and colour and meaning (done / stuck / in progress) follow
+ * the name. Labels are never removed on the other board; its values may still
+ * point at them. Returns null when there is nothing to change.
+ */
+const hasLabels = (settings: ColumnSettings): settings is StatusColumnSettings | PriorityColumnSettings => settings.kind === "status" || settings.kind === "priority";
+
+export function syncLabelDefinitions(before: ColumnSettings, after: ColumnSettings, target: ColumnSettings, newLabelId: () => string): ColumnSettings | null {
+  if (!hasLabels(before) || !hasLabels(after) || !hasLabels(target)) return null;
+  if (before.kind !== after.kind || target.kind !== after.kind) return null;
+
+  const beforeById = new Map(before.labels.map((l) => [l.id, l]));
+  const labels: ColumnLabel[] = target.labels.map((l) => ({ ...l }));
+  const byName = (name: string) => labels.find((l) => norm(l.name) === norm(name));
+  // Target label id ← the source label it now corresponds to.
+  const pairs = new Map<string, ColumnLabel>();
+  let changed = false;
+
+  for (const label of after.labels) {
+    const previous = beforeById.get(label.id);
+    let match: ColumnLabel | undefined;
+    if (previous && norm(previous.name) !== norm(label.name)) {
+      // Renamed: follow the old name, unless the new name is already taken there.
+      // A rename that collides with a label already there is left alone: nothing safe to do.
+      if (byName(label.name)) continue;
+      const old = byName(previous.name);
+      if (old) {
+        old.name = label.name;
+        changed = true;
+        match = old;
+      }
+    } else match = byName(label.name);
+
+    if (!match) {
+      if (!previous) {
+        // Brand new on the source: add it.
+        match = { id: newLabelId(), name: label.name, color: label.color };
+        labels.push(match);
+        changed = true;
+      } else continue;
+    }
+    if (match.color !== label.color) {
+      match.color = label.color;
+      changed = true;
+    }
+    pairs.set(match.id, label);
+  }
+
+  if (after.kind === "status" && target.kind === "status") {
+    const roles = syncStatusRoles(after, target, labels, pairs);
+    if (roles.changed) changed = true;
+    if (!changed) return null;
+    return { ...target, labels, ...roles.settings };
+  }
+  if (!changed) return null;
+  return { ...target, labels };
+}
+
+/** Roles follow the paired label: whatever the source label means, the target label means too. */
+function syncStatusRoles(
+  source: StatusColumnSettings,
+  target: StatusColumnSettings,
+  labels: ColumnLabel[],
+  pairs: Map<string, ColumnLabel>,
+): { changed: boolean; settings: Pick<StatusColumnSettings, "doneLabelIds" | "stuckLabelIds" | "progressLabelIds"> } {
+  const next: Record<(typeof STATUS_LABEL_ROLES)[number], string[]> = {
+    done: [...(target.doneLabelIds ?? [])],
+    stuck: [...(target.stuckLabelIds ?? [])],
+    progress: [...(target.progressLabelIds ?? [])],
+  };
+  let changed = false;
+  for (const label of labels) {
+    const paired = pairs.get(label.id);
+    if (!paired) continue;
+    const wanted = statusLabelRole(source, paired.id);
+    for (const role of STATUS_LABEL_ROLES) {
+      const has = next[role].includes(label.id);
+      if (role === wanted && !has) {
+        next[role].push(label.id);
+        changed = true;
+      } else if (role !== wanted && has) {
+        next[role] = next[role].filter((id) => id !== label.id);
+        changed = true;
+      }
+    }
+  }
+  return { changed, settings: { doneLabelIds: next.done, stuckLabelIds: next.stuck, progressLabelIds: next.progress } };
 }

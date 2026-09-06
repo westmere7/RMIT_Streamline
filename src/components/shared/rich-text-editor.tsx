@@ -224,10 +224,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
       onUpdate: ({ editor }) => onChange(docToRichText(editor.getJSON())),
       editorProps: {
         attributes: {
-          class: cn(
-            "min-h-16 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-[13px] transition-[background-color,border-color,box-shadow] duration-150",
-            "hover:border-input focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20",
-          ),
+          class: "min-h-16 w-full px-3 py-2.5 text-[13px] focus:outline-none",
           style: `min-height: ${rows * 1.5 + 1.25}rem`,
           role: "textbox",
           "aria-multiline": "true",
@@ -334,7 +331,8 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
 
   return (
     <div className={cn("rich-text-editor relative", className)}>
-      <div className="mb-1.5 flex flex-wrap items-center gap-0.5" role="toolbar" aria-label="Formatting">
+      <div className="overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-surface/50 px-1.5 py-1" role="toolbar" aria-label="Formatting">
         <ToolButton label="Bold" pressed={state.bold} onClick={() => editor?.chain().focus().toggleBold().run()} testId="format-bold">
           <Bold className="size-3.5" />
         </ToolButton>
@@ -433,6 +431,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {mention && mention.items.length > 0 && (

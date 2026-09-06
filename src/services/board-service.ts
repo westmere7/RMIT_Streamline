@@ -14,7 +14,8 @@ import { NotFoundError } from "@/data/repositories";
 import { BOARD_TEMPLATES, type BoardTemplateId } from "@/features/boards/templates";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { NotificationService } from "./notification-service";
-import { sameColumnName } from "./item-link-sync";
+import { mapColumns, sameColumnName, syncLabelDefinitions } from "./item-link-sync";
+import { newId } from "@/lib/ids";
 
 export interface CreateBoardInput {
   workspaceId: EntityId;
@@ -428,10 +429,46 @@ export class BoardService {
     patch: Partial<Pick<BoardColumn, "name" | "width" | "hidden">> & { settings?: ColumnSettings },
   ): Promise<BoardColumn> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Column name cannot be empty");
-    const before = patch.name !== undefined ? await this.repos.boards.getColumn(columnId) : null;
+    const before = patch.name !== undefined || patch.settings !== undefined ? await this.repos.boards.getColumn(columnId) : null;
     const updated = await this.repos.boards.updateColumn(columnId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
     if (before && before.name !== updated.name) await this.renameLinkedColumns(before, updated);
+    if (before && patch.settings !== undefined && (updated.type === "STATUS" || updated.type === "PRIORITY")) await this.syncLinkedLabels(before, updated);
     return updated;
+  }
+
+  /**
+   * Linked items sync status and priority by label name, so a label renamed or
+   * added here is carried to the paired column on every board this board is
+   * linked to, along with its colour and meaning. Boards where every link
+   * excludes the column from syncing are left alone.
+   */
+  private async syncLinkedLabels(before: BoardColumn, after: BoardColumn): Promise<void> {
+    const items = await this.repos.items.listByBoard(before.boardId);
+    if (items.length === 0) return;
+    const links = await this.repos.links.listByItems(items.map((item) => item.id));
+    if (links.length === 0) return;
+
+    const ours = new Set(items.map((item) => item.id));
+    const partnerIds = [...new Set(links.map((link) => (ours.has(link.itemAId) ? link.itemBId : link.itemAId)))];
+    const partners = new Map((await Promise.all(partnerIds.map((id) => this.repos.items.getById(id)))).filter((p): p is NonNullable<typeof p> => !!p).map((p) => [p.id, p]));
+    const sourceColumns = await this.repos.boards.listColumns(before.boardId);
+
+    const boardIds = [...new Set([...partners.values()].filter((item) => item.boardId !== before.boardId).map((item) => item.boardId))];
+    await Promise.all(
+      boardIds.map(async (boardId) => {
+        const columns = await this.repos.boards.listColumns(boardId);
+        const pair = mapColumns(sourceColumns, columns).mapped.find((m) => m.source.id === after.id);
+        if (!pair) return;
+        // Skip when no link to this board still syncs the column.
+        const syncing = links.some((link) => {
+          const partner = partners.get(ours.has(link.itemAId) ? link.itemBId : link.itemAId);
+          return partner?.boardId === boardId && !link.excluded.includes(after.id) && !link.excluded.includes(pair.target.id);
+        });
+        if (!syncing) return;
+        const settings = syncLabelDefinitions(before.settings, after.settings, pair.target.settings, newId);
+        if (settings) await this.repos.boards.updateColumn(pair.target.id, { settings });
+      }),
+    );
   }
 
   /**

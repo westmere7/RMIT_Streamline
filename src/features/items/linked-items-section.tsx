@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, ExternalLink, Link2, Lock, Plus, Settings2, Unlink } from "lucide-react";
+import { ExternalLink, Link2, Lock, Plus, Settings2, Unlink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -107,34 +107,28 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
   return (
     <li className="group/link" data-testid="linked-item">
       <RowMenu label={`Options for ${view.item.name}`} actions={actions} hideButton>
-        <div className="px-3 py-2.5">
-          {/* Line one: where it lives and what it is called. Line two: the facts. */}
-          <div className="flex items-center gap-2.5">
-            <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", colorClasses(view.board.color).solid)}>
-              <DynamicIcon name={view.board.icon} className="size-3.5" />
-            </span>
-            <Link href={href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">
-              {view.item.name}
-            </Link>
-            <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
-            {removable && <UnlinkButton name={view.item.name} onClick={() => unlink.mutate(view.link.id)} />}
-          </div>
-          <div className="mt-1.5 flex min-w-0 items-center gap-2 pl-[34px] text-2xs text-muted-foreground">
-            <span className="truncate">
-              {view.board.name}
-              {team ? ` · ${team.name}` : ""}
-              {view.group ? ` · ${view.group.name}` : ""}
-            </span>
-            {view.parent && (
-              <span className="flex shrink-0 items-center gap-0.5">
-                <CornerDownRight className="size-3" /> {view.parent.name}
-              </span>
-            )}
-            <span className="ml-auto flex shrink-0 items-center gap-2">
-              {view.dueDate && <span className={cn("tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "")}>{formatShortDate(view.dueDate)}</span>}
-              {owners.length > 0 && <AvatarStack users={owners} size="xs" max={3} />}
-            </span>
-          </div>
+        {/* A compact task line: what it is and where it stands; where it lives sits under it. */}
+        <div className="px-3 pt-2 pb-2">
+        <div className="flex h-7 items-center gap-2.5">
+          <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", colorClasses(view.board.color).solid)}>
+            <DynamicIcon name={view.board.icon} className="size-3.5" />
+          </span>
+          <Link href={href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">
+            {view.item.name}
+          </Link>
+          <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
+          {view.dueDate && <span className={cn("shrink-0 text-xs tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(view.dueDate)}</span>}
+          {owners.length > 0 && <AvatarStack users={owners} size="xs" max={3} />}
+        </div>
+        <p className="mt-0.5 truncate pl-[34px] text-2xs text-muted-foreground">
+          {view.board.name}
+          {team ? ` · ${team.name}` : ""}
+          {view.group ? ` · ${view.group.name}` : ""}
+          {view.parent ? ` · under ${view.parent.name}` : ""}
+        </p>
+        </div>
+        {/* The sync strip: what flows between the two, and the controls. */}
+        <div className="flex min-w-0 items-center gap-2 border-t border-border/50 bg-surface/50 px-3 py-1.5 text-2xs text-muted-foreground">
           <SyncSummary
             view={view}
             boardName={board.name}
@@ -150,6 +144,16 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
               updateSync.mutate({ linkId: view.link.id, excluded: [...next] });
             }}
           />
+          <span className="ml-auto flex shrink-0 items-center gap-0.5">
+            <SimpleTooltip label={`Open on ${view.board.name}`}>
+              <Button variant="ghost" size="icon-xs" aria-label={`Open ${view.item.name} on ${view.board.name}`} className="text-muted-foreground" asChild>
+                <Link href={href}>
+                  <ExternalLink />
+                </Link>
+              </Button>
+            </SimpleTooltip>
+            {removable && <UnlinkButton name={view.item.name} onClick={() => unlink.mutate(view.link.id)} />}
+          </span>
         </div>
       </RowMenu>
     </li>
@@ -198,20 +202,20 @@ function SyncSummary({
 
   if (!editable) {
     return (
-      <p className="mt-1.5 flex items-start gap-1 pl-[34px] text-2xs text-muted-foreground">
-        <Link2 className="mt-px size-3 shrink-0" />
+      <span className="flex min-w-0 items-center gap-1">
+        <Link2 className="size-3 shrink-0" />
         {summary}
-      </p>
+      </span>
     );
   }
 
   return (
     <Popover open={editing} onOpenChange={onEditingChange}>
       <PopoverTrigger asChild>
-        <button type="button" className="mt-1.5 flex w-full items-start gap-1 rounded pl-[34px] pr-1 text-left text-2xs text-muted-foreground hover:text-foreground" aria-label="Choose what syncs" data-testid="sync-summary">
-          <Link2 className="mt-px size-3 shrink-0" />
+        <button type="button" className="flex min-w-0 items-center gap-1 rounded px-1 -mx-1 text-left hover:bg-accent hover:text-foreground" aria-label="Choose what syncs" data-testid="sync-summary">
+          <Link2 className="size-3 shrink-0" />
           {summary}
-          <Settings2 className="ml-auto mt-px size-3 shrink-0 opacity-0 group-hover/link:opacity-100" />
+          <Settings2 className="size-3 shrink-0 opacity-60" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3">
@@ -226,7 +230,7 @@ function SyncSummary({
 function UnlinkButton({ name, onClick }: { name: string; onClick: () => void }) {
   return (
     <SimpleTooltip label="Unlink">
-      <Button variant="ghost" size="icon-xs" aria-label={`Unlink ${name}`} className="text-muted-foreground opacity-0 group-hover/link:opacity-100 focus-visible:opacity-100 hover:text-destructive" onClick={onClick}>
+      <Button variant="ghost" size="icon-xs" aria-label={`Unlink ${name}`} className="text-muted-foreground hover:text-destructive" onClick={onClick}>
         <Unlink />
       </Button>
     </SimpleTooltip>
