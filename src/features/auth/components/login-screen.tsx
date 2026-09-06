@@ -10,15 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/auth-context";
+import { AuthShell, SessionProgress } from "@/features/auth/components/auth-shell";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { IS_DEV } from "@/lib/config";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
+/**
+ * Sign in. The screen owns the whole journey into the app: while the saved
+ * session is checked, while a sign-in completes and while the workspace is
+ * looked up, the card stays on screen and reports progress, then the browser
+ * goes straight to the workspace. No blank page in between.
+ */
 export function LoginScreen() {
   const router = useRouter();
-  const { signIn, status } = useAuth();
+  const { signIn, status, user } = useAuth();
   const { providerKind } = useDataContext();
   const services = useServices();
   const [email, setEmail] = React.useState("");
@@ -35,162 +42,151 @@ export function LoginScreen() {
     enabled: providerKind === "local",
   });
 
+  // Once signed in (from a saved session or just now), find the workspace and go.
+  const workspaces = useQuery({
+    queryKey: ["user-workspaces", user?.id],
+    queryFn: () => services.workspace.listWorkspacesForUser(user!.id),
+    enabled: status === "signed-in" && !!user,
+  });
+  const destination = workspaces.data?.[0];
+  const noWorkspace = status === "signed-in" && workspaces.isSuccess && !destination;
   React.useEffect(() => {
-    if (status === "signed-in") router.replace(routes.root());
-  }, [status, router]);
+    if (destination) router.replace(routes.workspace(destination.slug));
+  }, [destination, router]);
 
   const submit = async (target: string, secret?: string) => {
     setError(null);
     setPendingEmail(target);
     try {
       await signIn(target, secret);
-      router.replace(routes.root());
+      // The effect above takes it from here once the session and workspace resolve.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to sign in");
       setPendingEmail(null);
     }
   };
 
+  // What the card is doing right now, if anything.
+  const progress: { message: string; withUser: boolean } | null =
+    status === "loading"
+      ? { message: "Checking your session", withUser: false }
+      : status === "signed-in" && !noWorkspace
+        ? { message: destination ? `Opening ${destination.name}` : "Finding your workspace", withUser: true }
+        : pendingEmail !== null
+          ? { message: "Signing you in", withUser: false }
+          : null;
+  const busy = progress !== null;
+
   return (
-    <main className="flex min-h-screen bg-surface">
-      <section className="hidden w-[420px] shrink-0 flex-col justify-between bg-navy p-10 text-white lg:flex">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold">R</span>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">Streamline</p>
-            <p className="text-xs text-white/70">RMIT Creative Team</p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <h1 className="text-2xl font-semibold leading-snug">Boards, briefs and approvals in one place.</h1>
-          <p className="text-sm text-white/70">
-            Track campaign production, creative requests and publication work across the Melbourne and Vietnam studios.
-          </p>
-        </div>
-        <p className="text-xs text-white/50">
-          {needsPassword ? "Connected to Supabase · data is shared across the workspace." : "Local development build · data is stored in this browser."}
+    <AuthShell
+      headline="Boards, briefs and approvals in one place."
+      lead="Track campaign production, creative requests and publication work across the Melbourne and Vietnam studios."
+      footnote={
+        <span className="inline-flex items-center gap-2">
+          <span className={cn("size-1.5 rounded-full", needsPassword ? "bg-green-400" : "bg-amber-300")} />
+          {needsPassword ? "Connected to Supabase · data is shared across the workspace" : "Local development build · data stays in this browser"}
+        </span>
+      }
+      progress={busy}
+      cardTestId="login-card"
+    >
+      <div className="mb-6">
+        <p className="mb-1 text-2xs font-semibold tracking-[0.12em] text-primary uppercase">RMIT Creative Team</p>
+        <h2 className="text-[22px] font-semibold tracking-tight">Sign in</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {providerKind === "local" ? "Development mode: choose a seeded account, or enter its email. No password needed." : "Use your email and password. New here? Open the invitation link your workspace admin sent you."}
         </p>
-      </section>
+      </div>
 
-      <section className="flex flex-1 items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold">Sign in</h2>
-            <p className="text-[13px] text-muted-foreground">
-              {providerKind === "local"
-                ? "Development mode. Choose a seeded account or enter its email — no password required."
-                : "Enter your email and password. New here? Open the invitation link your workspace admin sent you."}
-            </p>
-          </div>
+      {progress && (
+        <div className="mb-5">
+          <SessionProgress user={progress.withUser ? user : null} message={progress.message} />
+        </div>
+      )}
+      {noWorkspace && (
+        <p role="alert" className="mb-5 rounded-xl border border-amber-300/50 bg-amber-50 px-3.5 py-3 text-[13px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          Your account is not in a workspace yet. Ask a workspace admin for an invitation link.
+        </p>
+      )}
 
-          {providerKind === "local" && (
-            <>
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" aria-label="Seeded accounts">
-                {accounts.isLoading &&
-                  Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-md bg-surface-strong" />)}
-                {accounts.data?.map((user) => {
-                  const pending = pendingEmail === user.email;
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => submit(user.email)}
-                      disabled={pendingEmail !== null}
-                      data-testid={`login-${user.firstName.toLowerCase()}`}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3 py-2.5 text-left shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
-                        pending && "border-ring bg-accent",
-                      )}
-                    >
-                      <UserAvatar user={user} size="lg" tooltip={false} />
-                      <span className="min-w-0 flex-1 leading-tight">
-                        <span className="block truncate text-[13px] font-medium">{user.displayName}</span>
-                        <span className="block truncate text-2xs text-muted-foreground">{user.jobTitle}</span>
-                      </span>
-                      {pending ? (
-                        <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <ArrowRight className="size-4 text-muted-foreground/60" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="my-5 flex items-center gap-3 text-2xs text-muted-foreground">
-                <Separator className="flex-1" />
-                or use an email
-                <Separator className="flex-1" />
-              </div>
-            </>
-          )}
-
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (email.trim()) void submit(email.trim(), needsPassword ? password : undefined);
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                placeholder="danh@rmit.local"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+      <div className={cn("transition-opacity duration-200", busy && "pointer-events-none opacity-50")} aria-busy={busy}>
+        {providerKind === "local" && (
+          <>
+            <div className="scrollbar-thin grid max-h-80 grid-cols-1 gap-1.5 overflow-y-auto p-0.5 sm:grid-cols-2" aria-label="Seeded accounts">
+              {accounts.isLoading && Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-surface-strong" />)}
+              {accounts.data?.map((account) => {
+                const pending = pendingEmail === account.email;
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => submit(account.email)}
+                    disabled={busy}
+                    data-testid={`login-${account.firstName.toLowerCase()}`}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3 py-2.5 text-left shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60",
+                      pending && "border-ring bg-accent",
+                    )}
+                  >
+                    <UserAvatar user={account} size="lg" tooltip={false} />
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block truncate text-[13px] font-medium">{account.displayName}</span>
+                      <span className="block truncate text-2xs text-muted-foreground">{account.jobTitle}</span>
+                    </span>
+                    {pending ? <LoaderCircle className="size-4 animate-spin text-muted-foreground" /> : <ArrowRight className="size-4 text-muted-foreground/60" />}
+                  </button>
+                );
+              })}
             </div>
-            {needsPassword && (
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  data-testid="login-password"
-                />
-              </div>
-            )}
-            {error && (
-              <p role="alert" className="text-[13px] text-destructive">
-                {error}
-              </p>
-            )}
-            <Button type="submit" className="w-full" disabled={!email.trim() || (needsPassword && !password) || pendingEmail !== null}>
-              {pendingEmail !== null ? <LoaderCircle className="animate-spin" /> : null} Continue
-            </Button>
-            {needsPassword && IS_DEV && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    setEmail("admin@rmit.local");
-                    setPassword("admin123");
-                  }}
-                  data-testid="login-fill-admin"
-                >
+            <div className="my-5 flex items-center gap-3 text-2xs text-muted-foreground">
+              <Separator className="flex-1" />
+              or use an email
+              <Separator className="flex-1" />
+            </div>
+          </>
+        )}
+
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (email.trim()) void submit(email.trim(), needsPassword ? password : undefined);
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" autoComplete="username" placeholder="you@rmit.edu.au" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+          </div>
+          {needsPassword && (
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-10" data-testid="login-password" />
+            </div>
+          )}
+          {error && (
+            <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="lg" className="w-full" disabled={!email.trim() || (needsPassword && !password) || busy}>
+            {pendingEmail !== null ? <LoaderCircle className="animate-spin" /> : null} Continue <ArrowRight />
+          </Button>
+          {needsPassword && IS_DEV && (
+            <details className="group rounded-xl border border-border/60 bg-surface/60 px-3.5 py-2.5 text-2xs text-muted-foreground">
+              <summary className="cursor-pointer list-none font-medium text-foreground/80 select-none">Demo accounts</summary>
+              <div className="mt-2 space-y-2">
+                <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => { setEmail("admin@rmit.local"); setPassword("admin123"); }} data-testid="login-fill-admin">
                   Use the admin test account
                 </Button>
-                <p className="text-2xs text-muted-foreground">
-                  Demo accounts: <code>admin@rmit.local</code> / <code>admin123</code>, or any of danh, emily, joanne … <code>@rmit.local</code> with{" "}
-                  <code>Password123!</code>
+                <p>
+                  <code>admin@rmit.local</code> / <code>admin123</code>, or danh, emily, joanne … <code>@rmit.local</code> with <code>Password123!</code>
                 </p>
-              </>
-            )}
-            {providerKind === "local" && (
-              <p className="text-2xs text-muted-foreground">
-                Seeded accounts: danh, emily, jun, joanne, duc, tuyet, hil, grace, jane @rmit.local
-              </p>
-            )}
-          </form>
-        </div>
-      </section>
-    </main>
+              </div>
+            </details>
+          )}
+          {providerKind === "local" && <p className="text-2xs text-muted-foreground">Seeded accounts: danh, emily, jun, joanne, duc, tuyet, hil, grace, jane @rmit.local</p>}
+        </form>
+      </div>
+    </AuthShell>
   );
 }

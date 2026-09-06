@@ -170,7 +170,7 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
     const design = () => page.getByTestId("group-Design").getByTestId("item-row").evaluateAll((r) => r.map((x) => x.getAttribute("data-item-name")!));
     const before = await design();
     const first = row(page, before[0]!);
-    const handle = first.getByRole("button", { name: `Drag ${before[0]}` });
+    const handle = first.getByTestId("item-drag-area");
     const target = row(page, before[2]!);
     await first.hover();
     const from = (await handle.boundingBox())!;
@@ -195,7 +195,7 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
       const item = row(page, "RMITinerary Independent");
       await item.scrollIntoViewIfNeeded();
       await item.hover();
-      const handle = item.getByRole("button", { name: /Drag RMITinerary Independent/ });
+      const handle = item.getByTestId("item-drag-area");
       const targetGroup = i % 2 === 0 ? "group-Production" : "group-Design";
       const target = page.getByTestId(targetGroup).getByTestId("item-row").first();
       await target.scrollIntoViewIfNeeded();

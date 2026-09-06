@@ -9,6 +9,7 @@ import * as React from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { AuthShell } from "@/features/auth/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,24 +53,13 @@ export function OnboardingScreen({ token }: { token: string }) {
   });
 
   return (
-    <main className="flex min-h-screen bg-surface">
-      <section className="hidden w-[420px] shrink-0 flex-col justify-between bg-navy p-10 text-white lg:flex">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold">R</span>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">Streamline</p>
-            <p className="text-xs text-white/70">RMIT Creative Team</p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <h1 className="text-2xl font-semibold leading-snug">You have been invited.</h1>
-          <p className="text-sm text-white/70">Set a password and tell the team who you are. It takes a minute, and you only do it once.</p>
-        </div>
-        <p className="text-xs text-white/50">Boards, briefs and approvals in one place.</p>
-      </section>
-
-      <section className="flex flex-1 items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-sm" data-testid="onboarding-card">
+    <AuthShell
+      headline="You have been invited."
+      lead="Set a password and tell the team who you are. It takes a minute, and you only do it once."
+      footnote="Boards, briefs and approvals in one place."
+      cardTestId="onboarding-card"
+      progress={preview.isLoading}
+    >
           {preview.isLoading ? (
             <div className="flex items-center gap-2 py-8 text-[13px] text-muted-foreground" role="status">
               <LoaderCircle className="size-4 animate-spin" /> Checking your invitation…
@@ -81,9 +71,7 @@ export function OnboardingScreen({ token }: { token: string }) {
           ) : (
             <Unusable title={unusableTitle(preview.data?.status)} message={invitationStatusMessage(preview.data?.status ?? "INVALID")} />
           )}
-        </div>
-      </section>
-    </main>
+    </AuthShell>
   );
 }
 

@@ -113,7 +113,8 @@ function useHeaderSort(field: SortField) {
 
 function SortIcon({ active, direction }: { active: boolean; direction: "asc" | "desc" | null }) {
   const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
-  return <Icon aria-hidden className={cn("size-3 shrink-0", active ? "opacity-100" : "opacity-0 group-hover/sort:opacity-60")} />;
+  // Floats beside the label rather than reserving space, so a centred label stays centred.
+  return <Icon aria-hidden className={cn("absolute top-1/2 -right-3.5 size-3 -translate-y-1/2", active ? "opacity-100" : "opacity-0 group-hover/sort:opacity-60")} />;
 }
 
 function ItemHeader() {
@@ -124,7 +125,8 @@ function ItemHeader() {
         type="button"
         onClick={toggle}
         data-testid="sort-item"
-        className={cn("group/sort flex h-7 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground", active && "text-foreground")}
+        // Lines up with the item names below, which sit after the subitem chevron.
+        className={cn("group/sort relative ml-4 flex h-7 items-center rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground", active && "text-foreground")}
       >
         Item
         <SortIcon active={active} direction={direction} />
@@ -296,13 +298,15 @@ function ColumnHeaderCell({
               />
             </form>
           ) : (
-            <div className="flex min-w-0 max-w-full items-center gap-0.5">
+            <div className="flex min-w-0 max-w-full items-center">
               <button
                 type="button"
                 className={cn(
-                  "group/sort flex h-7 min-w-0 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground",
+                  "group/sort relative flex h-7 min-w-0 items-center rounded-lg px-2 transition-colors hover:bg-accent/70 hover:text-foreground",
                   headerSort.active && "text-foreground",
                   canEdit && "cursor-grab active:cursor-grabbing",
+                  // The options chevron floats at the left edge; left-aligned labels move over to make room.
+                  canEdit && columnAlign(column.type) !== "center" && "ml-6",
                 )}
                 data-testid="column-sort"
                 {...attributes}
@@ -331,7 +335,7 @@ function ColumnHeaderCell({
                     <button
                       type="button"
                       aria-label={`${column.name} column options`}
-                      className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent/70 hover:text-foreground focus-visible:opacity-100 group-hover/col:opacity-100 data-[state=open]:opacity-100"
+                      className="absolute top-1/2 left-1 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent/70 hover:text-foreground focus-visible:opacity-100 group-hover/col:opacity-100 data-[state=open]:opacity-100"
                     >
                       <ChevronDown className="size-3.5" />
                     </button>

@@ -78,7 +78,7 @@ test.describe("board interactions", () => {
 
   test("moves an item between groups with drag and drop", async ({ page }) => {
     const source = row(page, "Accessibility review of PDF export");
-    const handle = source.getByRole("button", { name: /Drag Accessibility review/ });
+    const handle = source.getByTestId("item-drag-area");
     const target = row(page, "RMITinerary Independent");
     await source.hover();
     const from = await handle.boundingBox();
@@ -97,7 +97,7 @@ test.describe("board interactions", () => {
 
   test("previews the landing slot in the group being dragged over", async ({ page }) => {
     const source = row(page, "Accessibility review of PDF export");
-    const handle = source.getByRole("button", { name: /Drag Accessibility/ });
+    const handle = source.getByTestId("item-drag-area");
     const target = row(page, "RMITinerary Independent");
     await source.hover();
     const from = await handle.boundingBox();
@@ -147,7 +147,7 @@ test.describe("board interactions", () => {
     // The line at the very first row sits level with the sticky column header,
     // which used to paint over most of it and make it look thinner there.
     const source = row(page, "Accessibility review of PDF export");
-    const handle = source.getByRole("button", { name: /Drag Accessibility/ });
+    const handle = source.getByTestId("item-drag-area");
     const first = row(page, "RMITinerary High Achiever");
     await source.hover();
     const from = await handle.boundingBox();
@@ -184,7 +184,7 @@ test.describe("board interactions", () => {
     const source = row(page, "Photography shortlist");
     await source.scrollIntoViewIfNeeded();
     await source.hover();
-    const handle = source.getByRole("button", { name: /Drag Photography shortlist/ });
+    const handle = source.getByTestId("item-drag-area");
     const from = await handle.boundingBox();
     const to = await empty.boundingBox();
     if (!from || !to) throw new Error("rows not visible");

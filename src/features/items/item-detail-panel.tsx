@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, FileText, Paperclip, Plus, Trash2, X } from "lucide-react";
+import { CornerDownRight, Plus, X } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
@@ -22,7 +22,6 @@ import { useBoardUiStore } from "@/stores/board-ui-store";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { newId, nowIso } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 
 const FIELD_WIDTH = 260;

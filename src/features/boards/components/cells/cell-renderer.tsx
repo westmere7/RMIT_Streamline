@@ -1,10 +1,9 @@
 "use client";
 
-import { Check, ExternalLink, Link2, Paperclip, TriangleAlert } from "lucide-react";
+import { Check, ExternalLink, Link2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
-import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
 import { columnLabels, columnTagOptions, emptyValueFor, isStuckLabel, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";

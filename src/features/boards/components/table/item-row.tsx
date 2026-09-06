@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -49,7 +49,11 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
 
   // `transform`/`transition` are deliberately unused: a drop line marks the
   // landing position instead of shifting every row (see GroupSection).
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useSortable({
+  // The whole name cell is the drag handle (like column headers): pointer down
+  // and move drags, a plain click still opens or selects. `dragged` tells the
+  // empty-area click apart from the end of a drag.
+  const dragged = React.useRef(false);
+  const { listeners, setNodeRef, setActivatorNodeRef, isDragging } = useSortable({
     id: item.id,
     data: { type: "item", itemId: item.id, groupId: group.id },
     disabled: !dndEnabled,
@@ -124,37 +128,33 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             )}
           >
             <div
+              ref={setActivatorNodeRef}
               role="gridcell"
               className={cn(
                 "sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors group-hover/row:bg-accent/45",
+                dndEnabled && "active:cursor-grabbing",
                 selected && "bg-accent-soft/60 group-hover/row:bg-accent-soft/80",
                 viewing && "bg-accent/80 group-hover/row:bg-accent/80",
               )}
               style={leadingCellStyle()}
+              data-testid="item-drag-area"
+              {...(dndEnabled ? listeners : {})}
+              onPointerDownCapture={() => {
+                dragged.current = false;
+              }}
+              onPointerMoveCapture={(e) => {
+                if (e.buttons === 1) dragged.current = true;
+              }}
             >
               <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", colors.dot)} />
               <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
                 <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
               </div>
-              <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.handleWidth }}>
-                {dndEnabled && (
-                  <button
-                    ref={setActivatorNodeRef}
-                    type="button"
-                    aria-label={`Drag ${item.name}`}
-                    className="flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/70 hover:!text-foreground focus-visible:text-muted-foreground active:cursor-grabbing"
-                    {...attributes}
-                    {...listeners}
-                  >
-                    <GripVertical className="size-4" />
-                  </button>
-                )}
-              </div>
               {/* The empty run of the name cell opens the item too, like the name itself. */}
               <div
                 className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
                 onClick={(e) => {
-                  if (e.target === e.currentTarget) openItem(item.id);
+                  if (e.target === e.currentTarget && !dragged.current) openItem(item.id);
                 }}
                 data-testid="item-name-cell"
               >
@@ -411,7 +411,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           style={{ height: 32 }}
         >
           <div
-            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 pl-16 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
+            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 pl-12 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
             style={leadingCellStyle()}
           >
             <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />

@@ -326,3 +326,17 @@
   height: 0;
   pointer-events: none;
 }
+
+/* A thin bar sweeping along the top of the sign-in card while it works. */
+@keyframes auth-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.auth-sweep {
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: auth-sweep 1.6s ease-in-out infinite;
+}

@@ -135,7 +135,8 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
 /** Fixed widths for the leading (sticky) part of every table row. */
 export const TABLE_LAYOUT = {
   selectWidth: 36,
-  handleWidth: 24,
+  /** No separate drag handle: rows are dragged by their name cell. */
+  handleWidth: 0,
   nameWidth: 320,
   trailingWidth: 48,
   rowHeight: 40,
