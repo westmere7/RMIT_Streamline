@@ -13,7 +13,8 @@ export default defineConfig({
   workers: 1,
   retries: 1,
   reporter: [["list"]],
-  timeout: 90_000,
+  // The item-lifecycle test is ~20 sequential round trips to a database in another region.
+  timeout: 240_000,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "https://rmit-streamline.vercel.app",
     trace: "retain-on-failure",

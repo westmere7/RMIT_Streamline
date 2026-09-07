@@ -401,5 +401,8 @@ Applied to the live project on 2026-09-07: 44 items, 186 values, 2 links, 2 trac
 (production build, local provider): 158 passed, 6 failed on expectations that had the old seed's
 numbers baked in (16 items on RMITinerary, "3" unread for Danh, a reset test that navigated away
 before the reseed finished); those now read their numbers from the seed and pass. Deployment smoke suite:
-2 passed, 1 failed (BUG-10 and OBS-6), 2 skipped — the code fix is in the tree; rerun after the
-next deploy. Version bumped to 0.3.1.
+before the deploy 2 passed, 1 failed (BUG-10 and OBS-6), 2 skipped. After deploying 307dd02 the
+status race is gone in production (both smoke items stored `working`); the remaining failures were
+the suite's own — a stale "Drag <name>" locator (the handle is now `item-drag-area`), a 90 s budget
+too short for ~20 sequential round trips (now 240 s), and cleanup in a `finally` a timeout had already
+cancelled (now `afterEach`). Final run: 5 passed, the cross-group drag needing one retry. Version 0.3.1.
