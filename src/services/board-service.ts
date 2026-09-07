@@ -445,8 +445,11 @@ export class BoardService {
     patch: Partial<Pick<BoardColumn, "name" | "width" | "hidden">> & { settings?: ColumnSettings },
   ): Promise<BoardColumn> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Column name cannot be empty");
+    // Widths are whole pixels in the database; a caller measuring a scaled
+    // display has no reason to know that.
+    const clean = { ...patch, ...(patch.name !== undefined ? { name: patch.name.trim() } : {}), ...(patch.width !== undefined ? { width: Math.round(patch.width) } : {}) };
     const before = patch.name !== undefined || patch.settings !== undefined ? await this.repos.boards.getColumn(columnId) : null;
-    const updated = await this.repos.boards.updateColumn(columnId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
+    const updated = await this.repos.boards.updateColumn(columnId, clean);
     if (before && before.name !== updated.name) await this.renameLinkedColumns(before, updated);
     if (before && patch.settings !== undefined && (updated.type === "STATUS" || updated.type === "PRIORITY")) await this.syncLinkedLabels(before, updated);
     return updated;

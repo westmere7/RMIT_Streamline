@@ -55,6 +55,18 @@ describe("BoardService", () => {
     expect(duplicate.items.some((i) => i.id === sub.parentItemId)).toBe(true);
   });
 
+  it("stores a column width as whole pixels, however the drag measured it", async () => {
+    // A pointer on a scaled display reports fractions; the width column is an
+    // integer, and Postgres refuses "256.2667236328125" outright.
+    const { columns } = await services.boards.createBoard({ workspaceId: SEED_WORKSPACE_ID, name: "Widths", teamId: null, visibility: "WORKSPACE", templateId: "blank" }, SEED_USER_IDS.danh);
+    const column = columns[0]!;
+    const wider = await services.boards.updateColumn(column.id, { width: 256.2667236328125 });
+    expect(wider.width).toBe(256);
+    expect(Number.isInteger(wider.width)).toBe(true);
+    const narrower = await services.boards.updateColumn(column.id, { width: 120.5 });
+    expect(narrower.width).toBe(121);
+  });
+
   it("renames a board and refreshes its slug", async () => {
     const updated = await services.boards.updateBoard(SEED_BOARD_IDS.dooh, { name: "DOOH Production 2027" }, SEED_USER_IDS.duc);
     expect(updated.slug).toBe("dooh-production-2027");

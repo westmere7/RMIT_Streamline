@@ -203,14 +203,17 @@ function ColumnHeaderCell({
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = width;
+    // A pointer reports fractional pixels on a scaled display; a stored width is
+    // a whole number of them, so round before it travels anywhere.
+    const widthAt = (e: PointerEvent) => Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX))));
     const onMove = (e: PointerEvent) => {
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX)));
+      const next = widthAt(e);
       onWidthOverride((prev) => ({ ...prev, [column.id]: next }));
     };
     const onUp = (e: PointerEvent) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (e.clientX - startX)));
+      const next = widthAt(e);
       onWidthOverride((prev) => {
         const copy = { ...prev };
         delete copy[column.id];

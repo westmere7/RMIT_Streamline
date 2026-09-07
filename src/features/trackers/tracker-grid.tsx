@@ -393,7 +393,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
     event.stopPropagation();
     const startX = event.clientX;
     const startWidth = column.width;
-    const onMove = (e: PointerEvent) => setWidthOverrides((prev) => ({ ...prev, [column.id]: Math.max(MIN_COLUMN_WIDTH, startWidth + (e.clientX - startX)) }));
+    const onMove = (e: PointerEvent) => setWidthOverrides((prev) => ({ ...prev, [column.id]: Math.round(Math.max(MIN_COLUMN_WIDTH, startWidth + (e.clientX - startX))) }));
     const onUp = (e: PointerEvent) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
