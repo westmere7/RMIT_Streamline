@@ -439,3 +439,9 @@ the column through its top-up; seed extras carry 34 lines and their recap values
 item delete, booking → lines → allocation copy (`tests/unit/item-assets.test.ts`); e2e —
 `tests/e2e/item-assets.spec.ts` (add, stepper, type, person, due, live cell, reload, remove, viewer
 read-only); by hand on the live workspace at 1440 and 390 px. Version 0.4.0.
+
+**FIX-14 (production latency) — the Vercel functions ran in Washington (`iad1`) while the database is in
+Singapore.** Every server-side read in the booking and onboarding route handlers crossed the Pacific:
+the booking form took 2.4–3.4 s on rmit-streamline.vercel.app even after the code fast path. `vercel.json`
+now pins `regions: ["sin1"]`; the same endpoint answers in 0.35–0.6 s warm (1.1 s cold) and the deployment
+smoke suite passes 5/5 in one run. Browser-to-Supabase calls were never affected (they go direct).
