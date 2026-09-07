@@ -340,3 +340,36 @@
   background: linear-gradient(90deg, transparent, var(--primary), transparent);
   animation: auth-sweep 1.6s ease-in-out infinite;
 }
+
+/* ---- The front gate: the one bar that moves while something is fetched ------- */
+@keyframes gate-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+@keyframes gate-glow {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gate-bar {
+    width: 40%;
+    animation: gate-bar 1.4s ease-in-out infinite;
+  }
+  .gate-glow {
+    animation: gate-glow 1.2s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-bar {
+    width: 60%;
+    opacity: 0.8;
+  }
+}

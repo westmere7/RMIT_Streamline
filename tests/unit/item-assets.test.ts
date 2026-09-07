@@ -102,7 +102,7 @@ describe("asset lines on an item", () => {
     expect(stored).toMatchObject({ lines: 1, quantity: 10, types: 1 });
 
     // The whole board's lines come back in one read, for the cells.
-    expect((await services.assets.listByBoard(boardId)).map((l) => l.id)).toEqual([poster.id]);
+    expect((await services.assets.listByBoard(boardId)).filter((l) => l.itemId === item.id).map((l) => l.id)).toEqual([poster.id]);
 
     // Nonsense is refused.
     await expect(services.assets.add({ itemId: item.id, boardId, name: "   " }, SEED_USER_IDS.danh)).rejects.toThrow(/what the asset is/);

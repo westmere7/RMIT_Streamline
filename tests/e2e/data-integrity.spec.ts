@@ -106,7 +106,14 @@ test.describe("data integrity under stress", () => {
     const production = page.getByTestId("group-Production");
     const doomed = await production.getByTestId("item-row").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-item-name")!));
     expect(doomed.length).toBeGreaterThan(2);
-    const survivors = (await names(page)).filter((n) => !doomed.includes(n));
+    // Names repeat across groups, so remove one occurrence per doomed row rather than every namesake.
+    const remaining = [...doomed];
+    const survivors = (await names(page)).filter((n) => {
+      const at = remaining.indexOf(n);
+      if (at === -1) return true;
+      remaining.splice(at, 1);
+      return false;
+    });
 
     await production.getByRole("heading").click({ button: "right" });
     await page.getByRole("menuitem", { name: /delete group/i }).click();

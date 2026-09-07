@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { BoardViewKind, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -280,7 +280,14 @@ export interface DataAdminRepository {
   /** Wipes all data and re-applies the seed. */
   resetToSeed(): Promise<void>;
   /** Marks the current user as having visited a board (for "Recently visited"). */
-  recordBoardVisit(userId: EntityId, boardId: EntityId): Promise<void>;
+  /** Marks the board as just opened; with `view`, also remembers the view this person used there. */
+  recordBoardVisit(userId: EntityId, boardId: EntityId, view?: BoardViewKind): Promise<void>;
+  /** The view this person last used on the board, or null when they never chose one. */
+  getBoardVisitView(userId: EntityId, boardId: EntityId): Promise<BoardViewKind | null>;
+  /** Per-view settings this person chose on the board, keyed by view kind. */
+  getBoardViewSettings(userId: EntityId, boardId: EntityId): Promise<Record<string, unknown>>;
+  /** Replaces one view's settings on the board for this person, leaving the other views' alone. */
+  saveBoardViewSettings(userId: EntityId, boardId: EntityId, view: BoardViewKind, settings: Record<string, unknown>): Promise<void>;
   listRecentBoardIds(userId: EntityId, limit: number): Promise<EntityId[]>;
   /** Serialises every store so the state can be moved to another browser. */
   exportAll(): Promise<DataExport>;

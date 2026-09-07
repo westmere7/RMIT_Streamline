@@ -1,17 +1,19 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, GanttChart, Kanban, Table2 } from "lucide-react";
+import { CalendarDays, ChartBar, Check, ChevronDown, Kanban, Rows3, SquareChartGantt, Table2, Users } from "lucide-react";
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { BoardViewKind } from "@/domain";
 
-const VIEWS: Array<{ id: BoardViewKind; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: "table", label: "Main Table", icon: Table2 },
-  { id: "kanban", label: "Kanban", icon: Kanban },
-  { id: "timeline", label: "Timeline", icon: GanttChart },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
+export const VIEWS: Array<{ id: BoardViewKind; label: string; hint: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: "table", label: "Main Table", hint: "Every column, editable", icon: Table2 },
+  { id: "kanban", label: "Kanban", hint: "Cards in lanes by status, priority, person or group", icon: Kanban },
+  { id: "timeline", label: "Timeline", hint: "Bars on a calendar, by group", icon: Rows3 },
+  { id: "calendar", label: "Calendar", hint: "Due dates by month or week", icon: CalendarDays },
+  { id: "gantt", label: "Gantt", hint: "Schedule with subitems and dependencies", icon: SquareChartGantt },
+  { id: "workload", label: "Workload", hint: "Who has what, week by week", icon: Users },
+  { id: "chart", label: "Chart", hint: "Counts and totals, sliced any way", icon: ChartBar },
 ];
 
 /** Shared by the board bar and the bar shown while a board loads, so the two line up. */
@@ -28,21 +30,16 @@ export function BoardViewSwitcher({ view, onChange }: { view: BoardViewKind; onC
           <CurrentIcon /> {current.label} <ChevronDown className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>Views</DropdownMenuLabel>
-        {VIEWS.map(({ id, label, icon: Icon }) => (
-          <DropdownMenuItem key={id} onSelect={() => onChange(id)} data-testid={`view-${id}`}>
-            <Icon /> {label}
-            {id === view && <Check className="ml-auto size-3.5" />}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="flex items-center justify-between">
-          More views <Badge variant="muted">Coming later</Badge>
-        </DropdownMenuLabel>
-        {["Gantt", "Workload", "Chart", "Form"].map((v) => (
-          <DropdownMenuItem key={v} disabled>
-            {v}
+        {VIEWS.map(({ id, label, hint, icon: Icon }) => (
+          <DropdownMenuItem key={id} onSelect={() => onChange(id)} data-testid={`view-${id}`} className="items-start py-1.5">
+            <Icon className="mt-0.5" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span>{label}</span>
+              <span className="text-2xs text-muted-foreground">{hint}</span>
+            </span>
+            {id === view && <Check className="mt-0.5 size-3.5" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

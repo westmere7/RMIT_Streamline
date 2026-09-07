@@ -13,7 +13,7 @@ The seed (`npm run db:seed` for Supabase, automatic on first open in local mode)
 - **Home** — recently visited boards, your work for today, favourites, your teams and the workspace's recent activity.
 - **My Work** — everything assigned to you across boards, bucketed into Overdue, Today, This Week, Later and No Date; linked copies of the same task collapse into one row.
 - **Inbox** — loud notifications (mentions, assignments, comments, new bookings) and quiet updates (status and date changes) on separate tabs; each type's delivery is a per-person setting, boards can be muted, and the browser can raise OS notifications.
-- **Boards** — change a status, owner or date, add items and subitems, post an update with an @mention, drag rows between groups, switch between Main Table, Kanban, Timeline and Calendar. Every change writes an activity entry and notifies the people it concerns.
+- **Boards** — change a status, owner or date, add items and subitems, post an update with an @mention, drag rows between groups. Seven views of the same filtered items: Main Table; Kanban (lanes by status, priority, person or group, optionally tinted in their colour; cards open on click and carry status, priority, tags, due date or span, subitem progress, assets, links, updates and owners; dragging shows a ghost where the card will land and the other cards make way); Timeline (bars by group on a shared date axis, three zoom levels, undated items listed); Calendar (month or week, status colour and owner on every entry, "+N more" opens in place); Gantt (groups, items and subitems with owner, status and dates, milestones, progress, dependency arrows that turn red when upstream work is late); Workload (people against weeks or days, load tints, a cell opens its items); Chart (counts, sums or asset units by status, priority, group, person, tags, size or due week, as bars or a donut). Every change writes an activity entry and notifies the people it concerns.
 - **Assets** — every item has an Assets tab listing its deliverables line by line (asset type, person in charge, quantity, due date, notes) with the totals worked out as you type; a board can add an **Assets recap** column that condenses the list into "14 assets · 3 types · 2 PIC" and opens the tab on click. Bookings fill the list from their asset lines, and allocation copies it to the team board. This is the raw material for a deliverables report.
 - **Book a task** — the sidebar entry opens the same form stakeholders reach through the public link (`/book/rmit/<key>`, key under Settings → Book a task). A booking becomes an item on **Task Allocation** with the requester's details, asset lines as subitems and a reference to quote; admins are notified. From the item panel a manager allocates it to a team board, which creates a linked item there.
 - **Messages** — one-to-one threads with anyone in the workspace, unread counts in the sidebar.
@@ -243,7 +243,7 @@ RMIT_Streamline/
    └─ stores/                      # board-ui-store.ts, ui-store.ts (Zustand)
 ```
 
-Routes (see `src/lib/routes.ts`): `/` redirects to the user's first workspace or `/login`; `/workspace/:slug` (Home), `/my-work`, `/inbox`, `/members`, `/settings?section=general|members|teams|permissions|data`, `/teams/:teamId`, `/boards/:boardSlug?view=kanban|timeline|calendar|files&item=:itemId`.
+Routes (see `src/lib/routes.ts`): `/` redirects to the user's first workspace or `/login`; `/workspace/:slug` (Home), `/my-work`, `/inbox`, `/members`, `/settings?section=general|members|teams|permissions|data`, `/teams/:teamId`, `/boards/:boardSlug?view=kanban|timeline|calendar|gantt|workload|chart&item=:itemId`.
 
 ## Data-provider architecture
 
@@ -643,7 +643,7 @@ Because `useBoardMutations` already reconciles optimistic updates by invalidatin
 - **Automations** — the board header button opens an informational dialog listing example rules; none are active.
 - **Integrations** — likewise a placeholder dialog (Microsoft Teams, Outlook, OneDrive, Google Drive, Slack). No connectors exist.
 - **Group by** — present in the toolbar with a "Coming later" badge; the table always groups by board group.
-- **Additional views** — Main Table, Kanban, Timeline, Calendar and Files are implemented. The "+" on the view tabs shows a "More views — Coming later" entry; views cannot be saved or customised per user beyond remembering the last-used view per board.
+- **Views** — all seven views are implemented and read-only where it matters (Gantt bars are not dragged; dates change on the item). The last-used view and each view's own settings (Kanban lanes and tint, zoom levels, calendar layout, workload period, chart slicing) are remembered per person and per board and follow them between devices; there are no shared, named saved views yet.
 - **Files** — attachments are metadata only (`AttachmentMeta`). In local mode files are not uploaded anywhere; the intended target is a Supabase Storage bucket `workspace-files`.
 - **Round trips** — in Supabase mode every board edit is several sequential requests to the database; booking and allocation batch what they can, but a stakeholder booking still takes a few seconds on a slow link.
 - **Local data is per browser profile.** Clearing site data removes everything; there is no export/import beyond tracker .xlsx.

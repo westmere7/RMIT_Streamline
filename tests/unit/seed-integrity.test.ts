@@ -179,7 +179,8 @@ describe("the demo seed", () => {
     for (const rows of Object.values(extras)) {
       for (const row of rows as Array<{ id: string }>) {
         expect(baseIds.has(row.id), row.id).toBe(false);
-        expect(row.id.startsWith("000000e"), row.id).toBe(true);
+        // "e…" is seed-extras.ts, "f…" the generated history in seed-history.ts.
+        expect(row.id, row.id).toMatch(/^000000[ef]/);
       }
     }
   });

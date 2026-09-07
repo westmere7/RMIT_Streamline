@@ -99,6 +99,8 @@ test.describe("board interactions", () => {
     const source = row(page, "Accessibility review of PDF export");
     const handle = source.getByTestId("item-drag-area");
     const target = row(page, "RMITinerary Independent");
+    await target.scrollIntoViewIfNeeded();
+    await source.scrollIntoViewIfNeeded();
     await source.hover();
     const from = await handle.boundingBox();
     const to = await target.boundingBox();
@@ -149,6 +151,8 @@ test.describe("board interactions", () => {
     const source = row(page, "Accessibility review of PDF export");
     const handle = source.getByTestId("item-drag-area");
     const first = row(page, "RMITinerary High Achiever");
+    await first.scrollIntoViewIfNeeded();
+    await source.scrollIntoViewIfNeeded();
     await source.hover();
     const from = await handle.boundingBox();
     const to = await first.boundingBox();
@@ -242,19 +246,25 @@ test.describe("board interactions", () => {
   });
 
   test("bulk archives selected items", async ({ page }) => {
-    await row(page, "RMITinerary 2027 planning kick-off").getByRole("checkbox").check();
-    await row(page, "Accessibility review of PDF export").getByRole("checkbox").check();
+    const backlog = page.getByTestId("group-Backlog");
+    const before = await backlog.getByTestId("item-row").count();
+    // The first two rows of the group, whatever the seed put there.
+    const rows = backlog.getByTestId("item-row");
+    const firstName = await rows.nth(0).getAttribute("data-item-name");
+    await rows.nth(0).getByRole("checkbox").check();
+    await rows.nth(1).getByRole("checkbox").check();
     await expect(page.getByTestId("bulk-actions")).toContainText("2");
     await page.getByTestId("bulk-actions").getByRole("button", { name: "Archive" }).click();
     await page.getByRole("button", { name: "Archive", exact: true }).last().click();
-    await expect(row(page, "RMITinerary 2027 planning kick-off")).toHaveCount(0);
-    await expect(page.getByTestId("group-Backlog")).toContainText("0 items");
+    await expect.poll(() => backlog.getByTestId("item-row").count(), { timeout: 15000 }).toBe(before - 2);
+    await expect(backlog.locator(`[data-item-name="${firstName}"]`)).toHaveCount(0);
   });
 
   test("kanban moves a card between statuses and reflects in the table", async ({ page }) => {
     await switchView(page, "kanban");
     const card = page.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" });
     const lane = page.getByTestId("lane-Working On It");
+    await card.scrollIntoViewIfNeeded();
     const from = await card.boundingBox();
     const to = await lane.boundingBox();
     if (!from || !to) throw new Error("kanban not visible");

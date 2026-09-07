@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, FileSpreadsheet, LayoutGrid, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
+import { Archive, FileSpreadsheet, SquareKanban, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -120,7 +120,7 @@ export function TeamPage() {
               Boards
             </SectionHeading>
             {boards.length === 0 ? (
-              <EmptyState icon={LayoutGrid} title="No boards yet" description="Create a board for this team to start tracking work." compact />
+              <EmptyState icon={SquareKanban} title="No boards yet" description="Create a board for this team to start tracking work." compact />
             ) : (
               <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                 {boards.map((board) => (

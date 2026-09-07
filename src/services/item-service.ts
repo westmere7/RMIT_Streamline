@@ -104,7 +104,9 @@ export class ItemService {
       const siblings = (await this.repos.items.listByBoard(input.boardId)).filter(
         (i) => i.groupId === input.groupId && (i.parentItemId ?? null) === (input.parentItemId ?? null),
       );
-      position = siblings.length;
+      // After the last sibling by position, not by count: positions go sparse
+      // once items are deleted or moved, and a count would land the new row mid-list.
+      position = siblings.length ? Math.max(...siblings.map((i) => i.position)) + 1 : 0;
       if (input.afterItemId) {
         const after = siblings.find((i) => i.id === input.afterItemId);
         if (after) {

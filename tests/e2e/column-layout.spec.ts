@@ -108,7 +108,8 @@ test.describe("columns: alignment, dragging and renaming", () => {
     const dialog = page.getByTestId("link-item-dialog");
     await expect(dialog).toBeVisible({ timeout: 20000 });
     await page.getByTestId("link-search").fill("Campus banner");
-    await page.getByTestId("link-candidate").filter({ hasText: "Campus banner artwork" }).first().click();
+    await page.getByTestId("link-search").fill("Campus banner artwork – round 2");
+    await page.getByTestId("link-candidate").filter({ hasText: "Campus banner artwork – round 2" }).first().click();
     await page.getByTestId("link-submit").click();
     await expect(dialog).toHaveCount(0, { timeout: 20000 });
     await expect(row(page, ITEM).getByTestId("link-indicator")).toBeVisible({ timeout: 20000 });

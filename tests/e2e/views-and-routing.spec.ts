@@ -27,11 +27,17 @@ test.describe("views, routing and error states", () => {
     await expect(page.getByTestId("timeline")).toBeVisible({ timeout: 15000 });
     await switchView(page, "calendar");
     await expect(page.getByTestId("calendar")).toBeVisible({ timeout: 15000 });
+    await switchView(page, "gantt");
+    await expect(page.getByTestId("gantt")).toBeVisible({ timeout: 15000 });
+    await switchView(page, "workload");
+    await expect(page.getByTestId("workload")).toBeVisible({ timeout: 15000 });
+    await switchView(page, "chart");
+    await expect(page.getByTestId("chart")).toBeVisible({ timeout: 15000 });
     await switchView(page, "table");
     await expect(page.getByTestId("board-table")).toBeVisible();
 
     // Round two, quickly, to catch state left behind by the first pass.
-    for (const view of ["kanban", "timeline", "calendar", "table"] as const) {
+    for (const view of ["kanban", "timeline", "calendar", "gantt", "workload", "chart", "table"] as const) {
       await switchView(page, view);
     }
     await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 15000 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, LayoutGrid, Lock } from "lucide-react";
+import { Archive, SquareKanban, Lock } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -18,8 +18,11 @@ import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labe
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
+import { ChartView } from "@/features/boards/components/views/chart-view";
+import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
+import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
@@ -45,7 +48,7 @@ export function BoardPage() {
   if (!board) {
     return (
       <EmptyState
-        icon={LayoutGrid}
+        icon={SquareKanban}
         title="Board not found"
         description="It may have been renamed or deleted."
         action={
@@ -82,9 +85,24 @@ function BoardScreen({ boardId }: { boardId: string }) {
     void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId);
   }, [services, ws.currentUser.id, boardId]);
 
-  // The URL is the source of truth for the view; the remembered view fills in when it is absent.
+  // The URL is the source of truth for the view. Otherwise the view this person
+  // last used on this board fills in: the browser's copy first, then the one
+  // saved with their board visit, which follows them to another device.
   const viewParam = searchParams.get("view");
-  const [rememberedView, setRememberedView] = React.useState<BoardViewKind | null>(() => readRememberedView(boardId));
+  const [rememberedView, setRememberedView] = React.useState<BoardViewKind | null>(() => readRememberedView(boardId, ws.currentUser.id));
+  React.useEffect(() => {
+    if (rememberedView !== null) return;
+    let cancelled = false;
+    void services.repos.admin.getBoardVisitView(ws.currentUser.id, boardId).then((saved) => {
+      if (cancelled || !saved) return;
+      rememberView(boardId, saved, ws.currentUser.id);
+      setRememberedView(saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per board; a later choice goes through setView
+  }, [boardId, ws.currentUser.id]);
   const view: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
 
   const itemId = searchParams.get("item");
@@ -108,7 +126,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
 
   const setView = (next: BoardViewKind) => {
     setRememberedView(next);
-    rememberView(boardId, next);
+    rememberView(boardId, next, ws.currentUser.id);
+    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next);
     replaceParams({ view: next });
   };
   const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
@@ -187,14 +206,18 @@ function BoardScreen({ boardId }: { boardId: string }) {
       {contextValue && (
         <BoardContextProvider value={contextValue}>
           <BoardToolbar view={view} onViewChange={setView} />
-          <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}
               {view === "kanban" && <KanbanView />}
               {view === "timeline" && <TimelineView />}
               {view === "calendar" && <CalendarView />}
+              {view === "gantt" && <GanttView />}
+              {view === "workload" && <WorkloadView />}
+              {view === "chart" && <ChartView />}
             </div>
-            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
+            {/* On the Kanban the panel floats over the lanes rather than squeezing them. */}
+            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
           </div>
           <EditLabelsDialog
             column={editLabelsColumn?.type === "TAGS" ? null : editLabelsColumn}

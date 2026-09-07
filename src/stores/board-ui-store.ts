@@ -162,23 +162,29 @@ export function activeFilterCount(filters: BoardFilters): number {
 /** Remembered view per board (localStorage). */
 const VIEW_KEY = "streamline.board-view";
 
-export function readRememberedView(boardId: string): BoardViewKind | null {
+/**
+ * The browser's copy of "which view did I last use on this board", keyed by
+ * person and board so two people sharing a machine each get their own. The
+ * database keeps the same fact on the board visit (see recordBoardVisit); this
+ * copy exists so the right view paints before that round trip returns.
+ */
+export function readRememberedView(boardId: string, userId?: string): BoardViewKind | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(VIEW_KEY);
     const map = raw ? (JSON.parse(raw) as Record<string, BoardViewKind>) : {};
-    return map[boardId] ?? null;
+    return (userId ? map[`${userId}:${boardId}`] : undefined) ?? map[boardId] ?? null;
   } catch {
     return null;
   }
 }
 
-export function rememberView(boardId: string, view: BoardViewKind): void {
+export function rememberView(boardId: string, view: BoardViewKind, userId?: string): void {
   if (typeof window === "undefined") return;
   try {
     const raw = window.localStorage.getItem(VIEW_KEY);
     const map = raw ? (JSON.parse(raw) as Record<string, BoardViewKind>) : {};
-    map[boardId] = view;
+    map[userId ? `${userId}:${boardId}` : boardId] = view;
     window.localStorage.setItem(VIEW_KEY, JSON.stringify(map));
   } catch {
     // ignore storage failures

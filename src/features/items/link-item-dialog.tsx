@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, Check, CornerDownRight, LayoutGrid, Link2 } from "lucide-react";
+import { ArrowLeftRight, Check, CornerDownRight, SquareKanban, Link2 } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +117,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
         {/* Teams → boards, shaped like the app sidebar */}
         <nav aria-label="Boards" className="scrollbar-thin hidden min-h-0 overflow-y-auto border-r p-2 md:block">
           <ScopeButton active={boardId === null} onClick={() => choose(null)}>
-            <LayoutGrid className="size-3.5 text-muted-foreground/70" />
+            <SquareKanban className="size-3.5 text-muted-foreground/70" />
             <span className="truncate">All boards</span>
             <span className="ml-auto text-2xs text-muted-foreground tabular">{linkable.length}</span>
           </ScopeButton>
@@ -126,7 +126,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
             {sections.map(({ team, boards }) => (
               <li key={team?.id ?? "none"}>
                 <div className="flex h-8 items-center gap-2 px-2 text-[13px] font-medium">
-                  {team ? <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} /> : <LayoutGrid className="size-3.5 shrink-0 text-muted-foreground/70" />}
+                  {team ? <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} /> : <SquareKanban className="size-3.5 shrink-0 text-muted-foreground/70" />}
                   <span className="truncate">{team?.name ?? "No team"}</span>
                   <span className="ml-auto text-2xs text-muted-foreground tabular">{boards.length}</span>
                 </div>
@@ -137,7 +137,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
                       <li key={b.id}>
                         <SimpleTooltip label="Already linked into this chain" disabled={!taken}>
                           <ScopeButton active={boardId === b.id} disabled={taken} onClick={() => choose(b.id)} nested>
-                            <LayoutGrid className={cn("size-3.5 shrink-0", boardId === b.id ? "text-foreground" : "text-muted-foreground/70")} />
+                            <SquareKanban className={cn("size-3.5 shrink-0", boardId === b.id ? "text-foreground" : "text-muted-foreground/70")} />
                             <span className="truncate">{b.name}</span>
                             {taken && <Link2 className="ml-auto size-3 shrink-0 text-muted-foreground/60" />}
                           </ScopeButton>
@@ -246,7 +246,7 @@ function ScopeButton({ active, disabled, onClick, nested, children }: { active: 
 function BoardHeading({ board, group }: { board: Board; group: string | null }) {
   return (
     <span className="flex items-center gap-1.5">
-      <LayoutGrid className="size-3 text-muted-foreground/70" />
+      <SquareKanban className="size-3 text-muted-foreground/70" />
       <span className="truncate">{board.name}</span>
       {group && <span className="font-normal normal-case tracking-normal text-muted-foreground/80">· {group}</span>}
     </span>

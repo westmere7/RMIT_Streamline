@@ -14,15 +14,22 @@ describe("BoardToolbar", () => {
     useBoardUiStore.setState({ boards: {} });
   });
 
+  /** Top-level items on the board as seeded — the count the toolbar shows when nothing is filtered. */
+  async function seededCount(app: Awaited<ReturnType<typeof createTestApp>>): Promise<number> {
+    const items = await app.data.services.repos.items.listByBoard(boardId);
+    return items.filter((i) => i.parentItemId === null).length;
+  }
+
   it("searches items and shows the visible count", async () => {
     const user = userEvent.setup();
     const app = await createTestApp();
+    const total = await seededCount(app);
     await app.render(
       <TestBoard boardId={boardId}>
         <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
-    expect(screen.getByText(/18 items/)).toBeInTheDocument();
+    expect(screen.getByText(`${total} items`)).toBeInTheDocument();
     await user.type(screen.getByTestId("search-input"), "Explorer");
     await waitFor(() => expect(useBoardUiStore.getState().boards[boardId]?.search).toBe("Explorer"));
     // The toolbar reads the model from context; in this harness the model is unfiltered, so
@@ -78,6 +85,7 @@ describe("BoardToolbar", () => {
   it("creates a new item from the New Item popover", async () => {
     const user = userEvent.setup();
     const app = await createTestApp();
+    const total = await seededCount(app);
     await app.render(
       <TestBoard boardId={boardId}>
         <BoardToolbar view="table" onViewChange={() => {}} />
@@ -90,6 +98,6 @@ describe("BoardToolbar", () => {
       const items = await app.data.services.repos.items.listByBoard(boardId);
       expect(items.some((i) => i.name === "Back cover artwork")).toBe(true);
     });
-    await waitFor(() => expect(screen.getByText(/19 items/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(`${total + 1} items`)).toBeInTheDocument());
   });
 });

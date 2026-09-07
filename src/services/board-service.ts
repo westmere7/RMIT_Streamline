@@ -73,7 +73,7 @@ export class BoardService {
       visibility: input.visibility,
       ownerId: actorId,
       color: input.color ?? "blue",
-      icon: input.icon ?? "layout-grid",
+      icon: input.icon ?? "square-kanban",
     };
     const board = await this.repos.boards.create(boardInput);
     await this.repos.boards.setMember(board.id, actorId, "OWNER");

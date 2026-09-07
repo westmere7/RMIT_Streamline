@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Clock, LayoutGrid, ListChecks, Mail, MessageSquare, Pencil, Users } from "lucide-react";
+import { Building2, Clock, SquareKanban, ListChecks, Mail, MessageSquare, Pencil, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -108,7 +108,7 @@ export function ProfilePage({ userId }: { userId: string }) {
             )}
           </Panel>
 
-          <Panel icon={LayoutGrid} title="Boards" count={boards.length}>
+          <Panel icon={SquareKanban} title="Boards" count={boards.length}>
             {boards.length === 0 ? (
               <Muted>No boards yet.</Muted>
             ) : (

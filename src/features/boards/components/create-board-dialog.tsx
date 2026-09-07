@@ -69,7 +69,7 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
       visibility: "WORKSPACE",
       templateId: "blank",
       color: "blue",
-      icon: "layout-grid",
+      icon: "square-kanban",
     },
   });
 

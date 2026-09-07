@@ -26,6 +26,7 @@ import {
   Rocket,
   ShieldCheck,
   Sparkles,
+  SquareKanban,
   Star,
   Target,
   Users,
@@ -40,6 +41,7 @@ import {
  * small and gives pickers a predictable list.
  */
 export const ICON_MAP: Record<string, LucideIcon> = {
+  "square-kanban": SquareKanban,
   "layout-grid": LayoutGrid,
   palette: Palette,
   paintbrush: Paintbrush,
@@ -76,7 +78,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
 
 export const ICON_NAMES = Object.keys(ICON_MAP);
 
-export function DynamicIcon({ name, fallback = "layout-grid", ...props }: LucideProps & { name: string; fallback?: string }) {
+export function DynamicIcon({ name, fallback = "square-kanban", ...props }: LucideProps & { name: string; fallback?: string }) {
   const Icon = ICON_MAP[name] ?? ICON_MAP[fallback] ?? LayoutGrid;
   return <Icon {...props} />;
 }

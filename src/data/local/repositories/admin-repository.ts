@@ -1,3 +1,4 @@
+import type { BoardViewKind } from "@/domain";
 import type { DataAdminRepository, DataExport } from "@/data/repositories";
 import { seedDatabase } from "@/data/seed/apply-seed";
 import { nowIso } from "@/lib/ids";
@@ -13,9 +14,28 @@ export class LocalAdminRepository implements DataAdminRepository {
     await seedDatabase(db);
   }
 
-  async recordBoardVisit(userId: string, boardId: string): Promise<void> {
+  async recordBoardVisit(userId: string, boardId: string, view?: BoardViewKind): Promise<void> {
     const db = await this.conn.getDb();
-    await db.put("boardVisits", { id: `${userId}:${boardId}`, userId, boardId, visitedAt: nowIso() });
+    const id = `${userId}:${boardId}`;
+    const existing = await db.get("boardVisits", id);
+    await db.put("boardVisits", { id, userId, boardId, visitedAt: nowIso(), view: view ?? existing?.view ?? null, viewSettings: existing?.viewSettings ?? {} });
+  }
+
+  async getBoardViewSettings(userId: string, boardId: string): Promise<Record<string, unknown>> {
+    const db = await this.conn.getDb();
+    return (await db.get("boardVisits", `${userId}:${boardId}`))?.viewSettings ?? {};
+  }
+
+  async saveBoardViewSettings(userId: string, boardId: string, view: BoardViewKind, settings: Record<string, unknown>): Promise<void> {
+    const db = await this.conn.getDb();
+    const id = `${userId}:${boardId}`;
+    const existing = await db.get("boardVisits", id);
+    await db.put("boardVisits", { id, userId, boardId, visitedAt: existing?.visitedAt ?? nowIso(), view: existing?.view ?? null, viewSettings: { ...(existing?.viewSettings ?? {}), [view]: settings } });
+  }
+
+  async getBoardVisitView(userId: string, boardId: string): Promise<BoardViewKind | null> {
+    const db = await this.conn.getDb();
+    return (await db.get("boardVisits", `${userId}:${boardId}`))?.view ?? null;
   }
 
   async listRecentBoardIds(userId: string, limit: number): Promise<string[]> {

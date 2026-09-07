@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type St
 import type {
   Activity,
   Board,
+  BoardViewKind,
   BoardColumn,
   BoardFavourite,
   BoardGroup,
@@ -36,6 +37,10 @@ export interface BoardVisit {
   userId: string;
   boardId: string;
   visitedAt: string;
+  /** The view this person last used on the board; absent means the default. */
+  view?: BoardViewKind | null;
+  /** Each view's own settings on this board, keyed by view kind. */
+  viewSettings?: Record<string, unknown>;
 }
 
 /**

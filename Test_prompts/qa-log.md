@@ -445,3 +445,66 @@ Singapore.** Every server-side read in the booking and onboarding route handlers
 the booking form took 2.4–3.4 s on rmit-streamline.vercel.app even after the code fast path. `vercel.json`
 now pins `regions: ["sin1"]`; the same endpoint answers in 0.35–0.6 s warm (1.1 s cold) and the deployment
 smoke suite passes 5/5 in one run. Browser-to-Supabase calls were never affected (they go direct).
+
+---
+
+# Seven views, a still front gate and months of history — 2026-09-07
+
+**Views.** "Coming later" is gone: Gantt, Workload and Chart are real, Form is dropped, and the four
+existing views show more without getting busier.
+- *Kanban* — lanes by status (default), priority, person or group; dropping a card writes that value.
+  Cards carry status (when it is not the lane), priority, tags, T-shirt size, due date or span, subitem
+  progress, asset count, dependency and link markers, updates and owners. Lanes collapse to a strip and
+  show their overdue count.
+- *Timeline* — bars coloured by status (hatched when stuck, faded when done) with the owner's avatar,
+  labels beside short bars, milestones for date-only items, a group span bar, three zoom levels, a
+  Today button and a list of undated items instead of silently dropping them.
+- *Calendar* — month or week; each entry shows status colour, overdue mark and owner; "+N more" opens in
+  place; the week gives every item a card with status, priority and owners.
+- *Gantt* — groups, items and subitems (expand on demand) with owner, status and dates; bars, milestones,
+  subitem progress inside the bar, and dependency arrows from the Dependency column, red when the
+  upstream item is not done and the dependent one has started. Read-only by design.
+- *Workload* — people against weeks or days, counting items due or active in the period, with load tints
+  (0 / 1–2 / 3–4 / 5+), a status bar per person, overdue counts and a popover listing each cell's items.
+- *Chart* — items, a Number column's sum or asset units, by status, priority, group, person, tags, size or
+  due week, as bars or a donut; bars and legend entries open their items.
+All seven read the same filtered board model, so search, filters and sort apply everywhere. Shared
+building blocks: `views/view-shell.tsx` (view bar, pill groups, stats, empty state) and
+`views/date-scale.tsx` (one date axis for Timeline and Gantt). Aggregation logic is pure
+(`views/view-aggregates.ts`, 21 unit tests). Every view has an e2e in `tests/e2e/board-views.spec.ts`.
+
+**Front gate.** Danh asked for a revamp, then for no motion on the panel and a single loading bar. The
+brand panel is now a still: navy, red glow, grid and a small board illustration (three lanes, one card
+in progress). The only things that move on these screens are the one bar under the brand mark while a
+session or workspace is fetched and the one bar on the sign-in card that fills a third per step (sign in
+→ find workspace → open). Both hold still under reduced motion.
+
+**History.** `src/data/seed/seed-history.ts` generates ~370 top-level items and ~340 subitems across
+every board from 150 days ago to 75 days ahead with a seeded PRNG (mulberry32 per board): business-day
+timelines, statuses that follow time (past mostly done, present working, future not started), weighted
+owners so Workload shows hot weeks, dependency chains for the Gantt, asset lines, status-change
+activity and comments. Own id namespaces (f1–f6), positions from 100 so nothing existing moves, and it
+rides the existing `db:seed:topup`. Applied to the live workspace on 2026-09-07: 708 items, 2,884
+values, 248 asset lines, 65 comments, 840 activities, 17 notifications (34 values dropped because the
+live Website Redesign board has no "Story points" column; 6 items skipped whose parent was not there).
+
+**Found on the way.** `ItemService.createItem` placed a new item at position = sibling count, which
+with sparse positions landed it mid-list; it now goes after the highest position. Version 0.5.0.
+
+**Follow-ups the same afternoon.**
+- The sign-in panel is a still (Danh: no motion, then no illustration either); the loader and the sign-in card
+  each show one bar. Nothing else on those screens moves.
+- Activity lines on Home, in the board activity dialog and on the item panel link to the item they describe;
+  the item panel's breadcrumb links to its board. The generic board icon is now a kanban glyph
+  (`square-kanban`) wherever a board is meant.
+- The view a person last used is remembered per person and per board, in the browser and on their board visit
+  (migration 0016: `board_visits.view`, `board_visits.view_settings`), so it follows them between devices.
+  Each view keeps its own settings the same way (`views/view-settings.ts`): Kanban lanes, tint and collapsed
+  lanes; Timeline and Gantt zoom; Calendar month/week; Workload period, mode and measure; Chart measure,
+  dimension and type.
+- Kanban: dragging uses dnd-kit sortable so the other cards make way and a dashed ghost sits where the card
+  will land; when the lanes are groups that order is saved. Cards open on click anywhere; the item panel floats
+  over the lanes instead of squeezing them; a "Tint lanes" setting washes each lane in its colour.
+- History items that would have been "created" a moment ago (their work starts weeks ahead) are now created
+  on a past date; the 200 live rows affected were re-dated in place.
+- `ItemService.createItem` appends after the highest position rather than at position = count.

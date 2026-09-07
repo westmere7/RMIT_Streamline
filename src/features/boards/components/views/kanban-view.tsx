@@ -1,113 +1,289 @@
 "use client";
 
-import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Archive, Maximize2, Plus, RefreshCw } from "lucide-react";
+import { closestCorners, DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import * as React from "react";
-import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
+import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import type { BoardColumn, ColorToken, ColumnLabel, ColumnValue, Item, User } from "@/domain";
+import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
+import { useBoardContext } from "@/features/boards/board-context";
+import { SizePill } from "@/features/boards/components/pickers/size-picker";
+import { formatTag, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
+import { useBoardAssets } from "@/features/items/asset-hooks";
 import { CardCover } from "@/features/items/item-cover";
 import { UpdatesBadge } from "@/features/items/updates-badge";
-import { AvatarStack } from "@/components/shared/user-avatar";
-import type { ColumnLabel, Item } from "@/domain";
-import { columnLabels } from "@/domain";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { useBoardContext } from "@/features/boards/board-context";
-import { colorClasses } from "@/lib/colors";
-import { formatShortDate, isOverdue } from "@/lib/dates/dates";
+import { colorClasses, tagColorFor } from "@/lib/colors";
+import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
+import { useViewSettings } from "./view-settings";
+import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
 
-const NO_STATUS = "__none__";
+const NONE = "__none__";
 
+type LaneBy = "status" | "priority" | "person" | "group";
+
+interface Lane {
+  id: string;
+  name: string;
+  color: ColorToken | null;
+  user?: User;
+  items: Item[];
+  /** What dropping a card here writes. */
+  apply: (item: Item) => void;
+  /** Initial values for a card added in this lane. */
+  initial: { groupId: string; values: Array<{ columnId: string; value: ColumnValue }> } | null;
+}
+
+interface KanbanSettings extends Record<string, unknown> {
+  laneBy: LaneBy;
+  /** Wash each lane in its own colour. */
+  tint: boolean;
+  /** Lanes folded to a strip. */
+  collapsed: string[];
+}
+
+/**
+ * Cards in lanes. Lanes are the board's statuses by default, and can be its
+ * priorities, its people or its groups instead; dragging a card into a lane
+ * writes that value. While a card is dragged the other cards make way and a
+ * ghost of it sits where it will land; when the lanes are groups, that order is
+ * kept. Each card carries what a glance needs and opens on click.
+ */
 export function KanbanView() {
-  const { model, mutations, canEdit } = useBoardContext();
-  const column = model.statusColumn;
-  const [activeId, setActiveId] = React.useState<string | null>(null);
+  const { model, mutations, canEdit, users } = useBoardContext();
+  const options = React.useMemo(
+    () =>
+      [
+        model.statusColumn && { value: "status" as const, label: "Status" },
+        model.priorityColumn && { value: "priority" as const, label: "Priority" },
+        model.personColumns[0] && { value: "person" as const, label: "Person" },
+        model.groups.length > 0 && { value: "group" as const, label: "Group" },
+      ].filter((o): o is { value: LaneBy; label: string } => !!o),
+    [model],
+  );
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tint: false, collapsed: [] });
+  const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
+  const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  if (!column) {
-    return <EmptyState title="Kanban needs a Status column" description="Add a Status column to this board to use the Kanban view." />;
-  }
+  const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
+  const firstGroup = model.groups[0];
+  const personColumn = model.personColumns[0] ?? null;
 
-  const labels = columnLabels(column);
-  const visibleItems = [...model.itemsByGroup.values()].flat();
-  const lanes: Array<{ id: string; label: ColumnLabel | null; items: Item[] }> = [
-    ...labels.map((label) => ({
-      id: label.id,
-      label,
-      items: visibleItems.filter((i) => {
-        const v = model.getValue(i.id, column.id);
-        return v?.type === "STATUS" && v.labelId === label.id;
-      }),
-    })),
-  ];
-  const unset = visibleItems.filter((i) => {
-    const v = model.getValue(i.id, column.id);
-    return !(v?.type === "STATUS" && v.labelId && labels.some((l) => l.id === v.labelId));
-  });
-  if (unset.length > 0) lanes.push({ id: NO_STATUS, label: null, items: unset });
+  const lanes = React.useMemo<Lane[]>(() => {
+    const byLabel = (column: BoardColumn, type: "STATUS" | "PRIORITY"): Lane[] => {
+      const labels = columnLabels(column);
+      const valueOf = (item: Item) => {
+        const v = model.getValue(item.id, column.id);
+        return v?.type === type ? v.labelId : null;
+      };
+      const out: Lane[] = labels.map((label) => ({
+        id: label.id,
+        name: label.name,
+        color: label.color,
+        items: visibleItems.filter((i) => valueOf(i) === label.id),
+        apply: (item) => void mutations.setValue(item, column, { type, labelId: label.id } as ColumnValue),
+        initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type, labelId: label.id } as ColumnValue }] } : null,
+      }));
+      const unset = visibleItems.filter((i) => !labels.some((l) => l.id === valueOf(i)));
+      if (unset.length) out.push({ id: NONE, name: type === "STATUS" ? "No status" : "No priority", color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
+      return out;
+    };
+    if (laneBy === "status" && model.statusColumn) return byLabel(model.statusColumn, "STATUS");
+    if (laneBy === "priority" && model.priorityColumn) return byLabel(model.priorityColumn, "PRIORITY");
+    if (laneBy === "person" && personColumn) {
+      const column = personColumn;
+      const ownersOf = (item: Item) => {
+        const v = model.getValue(item.id, column.id);
+        return v?.type === "PERSON" ? v.userIds : [];
+      };
+      const out: Lane[] = users
+        .filter((u) => visibleItems.some((i) => ownersOf(i).includes(u.id)))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+        .map((user) => ({
+          id: user.id,
+          name: user.displayName,
+          color: null,
+          user,
+          items: visibleItems.filter((i) => ownersOf(i).includes(user.id)),
+          apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [user.id] }),
+          initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type: "PERSON", userIds: [user.id] } }] } : null,
+        }));
+      const unassigned = visibleItems.filter((i) => ownersOf(i).length === 0);
+      out.push({ id: NONE, name: "Unassigned", color: null, items: unassigned, apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [] }), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
+      return out;
+    }
+    return model.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      color: group.color,
+      items: model.itemsByGroup.get(group.id) ?? [],
+      apply: (item) => void mutations.moveItemsToGroup([item.id], group.id),
+      initial: { groupId: group.id, values: [] },
+    }));
+  }, [laneBy, model, visibleItems, users, personColumn, firstGroup, mutations]);
 
-  const onDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
+  // Which card sits where. During a drag this is a working copy that the pointer
+  // rearranges, so the other cards make way for the ghost of the one in hand.
+  const laneItemIds = React.useMemo(() => Object.fromEntries(lanes.map((l) => [l.id, l.items.map((i) => i.id)])) as Record<string, string[]>, [lanes]);
+  const [drag, setDrag] = React.useState<{ activeId: string; lanes: Record<string, string[]> } | null>(null);
+  const shown = drag?.lanes ?? laneItemIds;
+  const laneOf = (id: string, map: Record<string, string[]>) => (id in map ? id : Object.keys(map).find((laneId) => map[laneId]!.includes(id)) ?? null);
+
+  const onDragStart = (event: DragStartEvent) => setDrag({ activeId: String(event.active.id), lanes: laneItemIds });
+
+  const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
-    const item = model.itemById.get(String(active.id));
-    if (!item) return;
-    const laneId = String(over.id);
-    const labelId = laneId === NO_STATUS ? null : laneId;
-    const current = model.getValue(item.id, column.id);
-    if (current?.type === "STATUS" && current.labelId === labelId) return;
-    void mutations.setValue(item, column, { type: "STATUS", labelId });
+    if (!over || !drag) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const from = laneOf(activeId, drag.lanes);
+    const to = laneOf(overId, drag.lanes);
+    if (!from || !to) return;
+    const fromIds = drag.lanes[from]!;
+    if (from === to) {
+      if (overId === to) return;
+      const oldIndex = fromIds.indexOf(activeId);
+      const newIndex = fromIds.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      setDrag({ activeId, lanes: { ...drag.lanes, [from]: arrayMove(fromIds, oldIndex, newIndex) } });
+      return;
+    }
+    const toIds = drag.lanes[to]!.filter((id) => id !== activeId);
+    const translated = active.rect.current.translated;
+    const below = !!translated && translated.top > over.rect.top + over.rect.height / 2;
+    const at = overId === to ? toIds.length : Math.max(0, toIds.indexOf(overId) + (below ? 1 : 0));
+    toIds.splice(at, 0, activeId);
+    setDrag({ activeId, lanes: { ...drag.lanes, [from]: fromIds.filter((id) => id !== activeId), [to]: toIds } });
   };
 
-  const activeItem = activeId ? model.itemById.get(activeId) : null;
+  const onDragEnd = (event: DragEndEvent) => {
+    const working = drag;
+    setDrag(null);
+    if (!working) return;
+    const activeId = String(event.active.id);
+    const item = model.itemById.get(activeId);
+    if (!item) return;
+    const source = laneOf(activeId, laneItemIds);
+    const target = laneOf(activeId, working.lanes);
+    if (!source || !target) return;
+    const lane = lanes.find((l) => l.id === target);
+    if (!lane) return;
+    if (laneBy === "group") {
+      // Lanes are groups, so the ghost's position is a real position: keep it.
+      const unchanged = target === source && working.lanes[target]!.join() === laneItemIds[source]!.join();
+      if (unchanged) return;
+      void mutations.moveItem({ itemId: item.id, toGroupId: target, orderedIdsInTargetGroup: working.lanes[target]!, orderedIdsInSourceGroup: target === source ? working.lanes[target]! : working.lanes[source]! });
+      return;
+    }
+    if (target !== source) lane.apply(item);
+  };
+
+  if (options.length === 0) return <ViewEmpty title="Kanban needs something to lane by" description="Add a Status, Priority or People column, or a group, to use the Kanban view." />;
+
+  const activeItem = drag ? model.itemById.get(drag.activeId) : null;
+  const today = todayISO();
+  const overdue = visibleItems.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id))).length;
+  const done = visibleItems.filter((i) => model.isDone(i.id)).length;
+  const toggleLane = (id: string) => updateSettings({ collapsed: collapsed.has(id) ? settings.collapsed.filter((c) => c !== id) : [...settings.collapsed, id] });
 
   return (
-    <div className="scrollbar-thin flex flex-1 gap-3 overflow-x-auto p-5" data-testid="kanban">
-      <DndContext sensors={sensors} onDragStart={(e) => setActiveId(String(e.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        {lanes.map((lane) => (
-          <Lane
-            key={lane.id}
-            id={lane.id}
-            label={lane.label}
-            items={lane.items}
-            canEdit={canEdit}
-            onAdd={(name) => {
-              const group = model.groups[0];
-              if (!group) return;
-              void mutations.createItem({ groupId: group.id, name, values: lane.label ? [{ columnId: column.id, value: { type: "STATUS", labelId: lane.label.id } }] : [] });
-            }}
-          />
-        ))}
-        <DragOverlay>{activeItem ? <Card item={activeItem} overlay /> : null}</DragOverlay>
-      </DndContext>
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="kanban">
+      <ViewBar
+        stats={
+          <>
+            <ViewStat value={visibleItems.length} label="items" />
+            {done > 0 && <ViewStat value={done} label="done" tone="good" />}
+            {overdue > 0 && <ViewStat value={overdue} label="overdue" tone="warn" testId="kanban-overdue" />}
+          </>
+        }
+      >
+        <span className="text-xs text-muted-foreground">Lanes by</span>
+        <Segmented value={laneBy} onChange={(next) => updateSettings({ laneBy: next })} options={options} ariaLabel="Lanes by" testId="kanban-lanes" />
+        <button
+          type="button"
+          onClick={() => updateSettings({ tint: !settings.tint })}
+          aria-pressed={settings.tint}
+          className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-xs font-medium shadow-xs transition-colors", settings.tint ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground")}
+          data-testid="kanban-tint"
+        >
+          <PaintBucket className="size-3.5" /> Tint lanes
+        </button>
+      </ViewBar>
+      <div className="scrollbar-thin flex min-h-0 flex-1 gap-3 overflow-x-auto p-5" data-testid="kanban-lanes-scroller">
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
+          {lanes.map((lane) => (
+            <LaneColumn
+              key={lane.id}
+              lane={lane}
+              itemIds={shown[lane.id] ?? []}
+              laneBy={laneBy}
+              canEdit={canEdit}
+              tint={settings.tint}
+              collapsed={collapsed.has(lane.id)}
+              activeId={drag?.activeId ?? null}
+              onToggle={() => toggleLane(lane.id)}
+              overdue={lane.items.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id), new Date(today))).length}
+              onAdd={(name) => lane.initial && void mutations.createItem({ groupId: lane.initial.groupId, name, values: lane.initial.values })}
+            />
+          ))}
+          <DragOverlay dropAnimation={{ duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>{activeItem ? <Card item={activeItem} laneBy={laneBy} overlay /> : null}</DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }
 
-function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnLabel | null; items: Item[]; canEdit: boolean; onAdd: (name: string) => void }) {
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit });
+function LaneColumn({ lane, itemIds, laneBy, canEdit, tint, collapsed, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; canEdit: boolean; tint: boolean; collapsed: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
+  const { model } = useBoardContext();
+  const { setNodeRef, isOver } = useDroppable({ id: lane.id, disabled: !canEdit });
   const [draft, setDraft] = React.useState("");
   const [adding, setAdding] = React.useState(false);
-  const colors = label ? colorClasses(label.color) : null;
-  return (
-    <section
-      ref={setNodeRef}
-      aria-label={label?.name ?? "No status"}
-      data-testid={`lane-${label?.name ?? "none"}`}
-      className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-2xl bg-surface/80 transition-shadow", isOver && "ring-2 ring-ring/40")}
-    >
-      <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
+  const colors = lane.color ? colorClasses(lane.color) : null;
+  const wash = tint && colors ? { backgroundColor: `${colors.hex}1f` } : undefined;
+  const items = itemIds.map((id) => model.itemById.get(id)).filter((i): i is Item => !!i);
+
+  if (collapsed) {
+    return (
+      <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} style={wash} className={cn("flex w-11 shrink-0 flex-col items-center gap-2 rounded-2xl bg-surface/80 py-3", isOver && "ring-2 ring-ring/40")}>
+        <button type="button" onClick={onToggle} aria-label={`Expand ${lane.name}`} className="flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground">
+          <ChevronsLeftRight className="size-3.5" />
+        </button>
         <span className={cn("size-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
-        <h3 className="text-[13px] font-semibold tracking-tight">{label?.name ?? "No status"}</h3>
+        <span className="rounded-full bg-card/70 px-1.5 py-0.5 text-2xs text-muted-foreground tabular">{items.length}</span>
+        <span className="mt-1 text-[11px] font-semibold tracking-tight text-muted-foreground [writing-mode:vertical-rl]">{lane.name}</span>
+      </section>
+    );
+  }
+
+  return (
+    <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} style={wash} className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-2xl bg-surface/80 transition-shadow", isOver && "ring-2 ring-ring/40")}>
+      <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
+        {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+        <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", tint && colors?.text)}>{lane.name}</h3>
+        {overdue > 0 && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
+            <TriangleAlert className="size-2.5" /> {overdue}
+          </span>
+        )}
         <span className="ml-auto rounded-full bg-card/70 px-2 py-0.5 text-2xs text-muted-foreground tabular">{items.length}</span>
+        <button type="button" onClick={onToggle} aria-label={`Collapse ${lane.name}`} className="flex size-6 items-center justify-center rounded-full text-muted-foreground/70 hover:bg-card hover:text-foreground">
+          <ChevronsLeftRight className="size-3.5" />
+        </button>
       </header>
-      <div className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto px-2.5 pb-1">
-        {items.map((item) => (
-          <DraggableCard key={item.id} item={item} disabled={!canEdit} />
-        ))}
-        {items.length === 0 && <p className="px-2 py-4 text-center text-2xs text-muted-foreground">No items</p>}
-      </div>
-      {canEdit && (
+      <SortableContext id={lane.id} items={itemIds} strategy={verticalListSortingStrategy}>
+        <div className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto px-2.5 pb-1">
+          {items.map((item) => (
+            <SortableCard key={item.id} item={item} laneBy={laneBy} disabled={!canEdit} ghost={item.id === activeId} />
+          ))}
+          {items.length === 0 && <p className="px-2 py-4 text-center text-2xs text-muted-foreground">{activeId ? "Drop here" : "No items"}</p>}
+        </div>
+      </SortableContext>
+      {canEdit && lane.initial && (
         <div className="p-2.5">
           {adding ? (
             <input
@@ -127,15 +303,11 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
                 }
               }}
               placeholder="Item name"
-              aria-label={`Add item to ${label?.name ?? "No status"}`}
+              aria-label={`Add item to ${lane.name}`}
               className="h-9 w-full rounded-xl border border-border bg-card px-3 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className="flex h-9 w-full items-center gap-1.5 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
-            >
+            <button type="button" onClick={() => setAdding(true)} className="flex h-9 w-full items-center gap-1.5 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-card hover:text-foreground">
               <Plus className="size-3.5" /> Add item
             </button>
           )}
@@ -145,54 +317,135 @@ function Lane({ id, label, items, canEdit, onAdd }: { id: string; label: ColumnL
   );
 }
 
-function DraggableCard({ item, disabled }: { item: Item; disabled: boolean }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled });
+/** A card that can be picked up; while it is in hand, this copy stays in the flow as a ghost marking where it will land. */
+function SortableCard({ item, laneBy, disabled, ghost }: { item: Item; laneBy: LaneBy; disabled: boolean; ghost: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled });
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} className={cn(isDragging && "opacity-40", !disabled && "cursor-grab active:cursor-grabbing")}>
-      <Card item={item} />
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing", ghost && "opacity-0")} data-testid={ghost ? "kanban-ghost" : undefined}>
+      {ghost ? <GhostCard item={item} /> : <Card item={item} laneBy={laneBy} />}
     </div>
   );
 }
 
-function Card({ item, overlay }: { item: Item; overlay?: boolean }) {
-  const { model, users, openItem, openItemUpdates, mutations, canEdit, updates } = useBoardContext();
+/** The outline the dragged card leaves behind, the same size as the card so the lane does not jump. */
+function GhostCard({ item }: { item: Item }) {
+  return (
+    <div aria-hidden className="rounded-xl border-2 border-dashed border-ring/50 bg-ring/5 p-3">
+      <p className="text-[13px] font-medium text-transparent">{item.name}</p>
+      <p className="mt-2.5 h-4" />
+    </div>
+  );
+}
+
+function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?: boolean }) {
+  const { model, board, users, openItem, openItemUpdates, mutations, canEdit, updates } = useBoardContext();
+  const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);
+  const statusColumn = model.statusColumn;
+  const status = statusColumn ? model.getValue(item.id, statusColumn.id) : undefined;
+  const statusLabel: ColumnLabel | null = statusColumn && status?.type === "STATUS" ? columnLabels(statusColumn).find((l) => l.id === status.labelId) ?? null : null;
   const priority = model.priorityColumn ? model.getValue(item.id, model.priorityColumn.id) : undefined;
-  const priorityLabel = model.priorityColumn && priority?.type === "PRIORITY" ? columnLabels(model.priorityColumn).find((l) => l.id === priority.labelId) : null;
+  const priorityLabel = model.priorityColumn && priority?.type === "PRIORITY" ? columnLabels(model.priorityColumn).find((l) => l.id === priority.labelId) ?? null : null;
   const owners = model.personColumns.flatMap((c) => {
     const v = model.getValue(item.id, c.id);
     return v?.type === "PERSON" ? v.userIds : [];
   });
-  const ownerUsers = [...new Set(owners)].map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
+  const ownerUsers = [...new Set(owners)].map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
   const due = model.dueDateOf(item.id);
+  const timeline = model.timelineColumn ? model.getValue(item.id, model.timelineColumn.id) : undefined;
+  const span = timeline?.type === "TIMELINE" && (timeline.start || timeline.end) ? formatDateRange(timeline.start, timeline.end) : null;
   const done = model.isDone(item.id);
+  const blocked = model.isBlocked(item.id);
   const linked = (model.linksByItem.get(item.id)?.length ?? 0) > 0;
+  const subitems = model.subitemsByParent.get(item.id) ?? [];
+  const subDone = subitems.filter((s) => model.isDone(s.id)).length;
+  const tagColumns = model.columns.filter((c) => c.type === "TAGS" && !c.hidden);
+  const tags = tagColumns.flatMap((c) => {
+    const v = model.getValue(item.id, c.id);
+    const options = tagOptionsFor(c, model.snapshot.values);
+    return v?.type === "TAGS" ? v.tags.map((t) => ({ name: t, color: tagColor(options, t) })) : [];
+  });
+  const sizeColumn = model.columns.find((c) => c.type === "SIZE" && !c.hidden);
+  const size = sizeColumn ? model.getValue(item.id, sizeColumn.id) : undefined;
+  const lines = assets.data?.filter((a) => a.itemId === item.id) ?? [];
+  const recap = lines.length ? recapAssets(lines, todayISO()) : null;
+  const overdue = !done && isOverdue(due);
+  const dueToday = !done && isToday(due);
+  const showStatus = laneBy !== "status" && statusLabel;
+  const showPriority = laneBy !== "priority" && priorityLabel;
+  const chips = showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size);
+  const open = () => openItem(item.id);
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={overlay}>
-        <article data-testid="kanban-card" className={cn("overflow-hidden rounded-xl border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-md", overlay && "rotate-1 shadow-xl", done && "opacity-70")}>
+        <article
+          data-testid="kanban-card"
+          data-item-name={item.name}
+          onClick={overlay ? undefined : open}
+          onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
+          className={cn("relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-md", overlay && "rotate-1 shadow-xl", done && "opacity-70")}
+        >
+          {/* A hairline of the status colour down the left when the lanes do not already say it. */}
+          {laneBy !== "status" && statusLabel && <span aria-hidden className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", colorClasses(statusLabel.color).dot)} />}
           <CardCover url={item.coverUrl} />
-          <button type="button" onClick={() => openItem(item.id)} className="block w-full text-left text-[13px] font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-medium leading-snug hover:underline", done && "line-through")} aria-label={`Open ${item.name}`}>
             {item.name}
           </button>
-          {group && (
+          {group && laneBy !== "group" && (
             <p className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
               <span className={cn("size-1.5 rounded-full", colorClasses(group.color).dot)} /> {group.name}
             </p>
           )}
+          {chips && (
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              {showStatus && <LabelPill label={statusLabel} appearance="soft" size="sm" striped={isStuckLabel(statusColumn, statusLabel.id)} />}
+              {showPriority && <LabelPill label={priorityLabel} appearance="soft" size="sm" />}
+              {size?.type === "SIZE" && size.size && <SizePill size={size.size} />}
+              {tags.slice(0, 2).map((t) => (
+                <span key={t.name} className={cn("rounded-full px-1.5 py-0.5 text-2xs font-medium", colorClasses(t.color ?? tagColorFor(t.name)).soft)}>
+                  {formatTag(t.name)}
+                </span>
+              ))}
+              {tags.length > 2 && <span className="text-2xs text-muted-foreground">+{tags.length - 2}</span>}
+            </div>
+          )}
           <div className="mt-2.5 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <LabelPill label={priorityLabel ?? null} appearance="soft" size="sm" />
-              {linked && <RefreshCw className="size-3 text-muted-foreground" aria-label="Linked to an item on another board" />}
-              <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
-              {due && <span className={cn("text-2xs tabular", !done && isOverdue(due) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(due)}</span>}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+              {due ? (
+                <span className={cn("inline-flex items-center gap-0.5 tabular", overdue && "font-medium text-red-600 dark:text-red-400", dueToday && "font-medium text-foreground")} title={span ?? undefined}>
+                  {overdue && <TriangleAlert className="size-3" />}
+                  {dueToday ? "Today" : formatShortDate(due)}
+                </span>
+              ) : (
+                span && <span className="tabular">{span}</span>
+              )}
+              {subitems.length > 0 && (
+                <span className="inline-flex items-center gap-1 tabular" title={`${subDone} of ${subitems.length} subitems done`} data-testid="card-subitems">
+                  <CornerDownRight className="size-3" />
+                  {subDone}/{subitems.length}
+                  <span className="h-1 w-6 overflow-hidden rounded-full bg-border">
+                    <span className="block h-full rounded-full bg-green-600" style={{ width: `${(subDone / subitems.length) * 100}%` }} />
+                  </span>
+                </span>
+              )}
+              {recap && (
+                <span className="inline-flex items-center gap-0.5 tabular" title={`${recap.quantity} assets across ${recap.lines} lines`} data-testid="card-assets">
+                  <Boxes className="size-3" /> {recap.quantity}
+                </span>
+              )}
+              {blocked && <TriangleAlert className="size-3 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}
+              {linked && <RefreshCw className="size-3" aria-label="Linked to an item on another board" />}
+              <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
+              </span>
             </div>
             {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}
           </div>
         </article>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44">
-        <ContextMenuItem onSelect={() => openItem(item.id)}>
+        <ContextMenuItem onSelect={open}>
           <Maximize2 /> Open
         </ContextMenuItem>
         {canEdit && (

@@ -13,7 +13,7 @@ import {
   Home,
   Inbox,
   Kanban,
-  LayoutGrid,
+  SquareKanban,
   ListTodo,
   PanelLeft,
   PanelLeftClose,
@@ -300,7 +300,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                   )}
                   {canCreateBoard(ws.permissions) && (
                     <DropdownMenuItem onSelect={() => setCreateBoardOpen(true)} data-testid="sidebar-add-board">
-                      <LayoutGrid /> Board
+                      <SquareKanban /> Board
                     </DropdownMenuItem>
                   )}
                   {canEditTrackers(ws.permissions) && (
@@ -406,7 +406,7 @@ function useBoardRowActions(board: Board): MenuAction[] {
   const teams = ws.teams.filter((t) => t.archivedAt === null);
 
   const list: MenuAction[] = [
-    { type: "item", label: "Open", icon: <LayoutGrid />, onSelect: () => router.push(ws.boardPath(board)) },
+    { type: "item", label: "Open", icon: <SquareKanban />, onSelect: () => router.push(ws.boardPath(board)) },
     { type: "item", label: "Open as Kanban", icon: <Kanban />, onSelect: () => router.push(ws.boardPath(board, { view: "kanban" })) },
     { type: "item", label: favourite ? "Remove from favourites" : "Add to favourites", icon: <Star />, onSelect: () => actions.toggleFavourite.mutate(!favourite) },
     { type: "separator" },
@@ -596,7 +596,7 @@ function BoardLink({
           {archived ? (
             <Archive className="size-3.5 shrink-0 text-muted-foreground/60" />
           ) : (
-            <LayoutGrid className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
+            <SquareKanban className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
           )}
           {!collapsed && <span className="truncate">{board.name}</span>}
         </Link>
@@ -687,7 +687,7 @@ function TeamNode({
             label: "Add new",
             icon: <Plus />,
             items: [
-              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <LayoutGrid />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
               ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
             ],
           } satisfies MenuAction,

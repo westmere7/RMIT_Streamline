@@ -191,7 +191,7 @@ test.describe("column types", () => {
   test("dependency: link, blocked marker, self-dependency refused, deleted target drops out", async ({ page }) => {
     const dep = cell(page, "Dependency");
     await dep.click();
-    await page.getByRole("option", { name: /Cover concept/ }).click();
+    await page.getByRole("option", { name: /Cover concept – final artwork/ }).first().click();
     await page.keyboard.press("Escape");
     await expect(cell(page, "Dependency")).toContainText("Cover concept", { timeout: 15000 });
     // Cover concept is not done, so the item shows as blocked.

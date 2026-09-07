@@ -1,6 +1,7 @@
 import type {
   Activity,
   ActivityInput,
+  BoardViewKind,
   Comment,
   CommentInput,
   Notification,
@@ -8,7 +9,7 @@ import type {
   NotificationPreferencesInput,
   StoredDelivery,
 } from "@/domain";
-import { defaultNotificationPreferences } from "@/domain";
+import { BOARD_VIEWS, defaultNotificationPreferences } from "@/domain";
 import type {
   ActivityRepository,
   CommentRepository,
@@ -264,12 +265,35 @@ export class SupabaseAdminRepository implements DataAdminRepository {
     throw new NotSupportedError("Resetting to the demo seed", "Run `npm run db:seed` against the project instead.");
   }
 
-  async recordBoardVisit(userId: string, boardId: string): Promise<void> {
+  async recordBoardVisit(userId: string, boardId: string, view?: BoardViewKind): Promise<void> {
+    // Only the columns sent are updated on conflict, so a visit without a view keeps the remembered one.
     assertOk(
       await db()
         .from("board_visits")
-        .upsert({ user_id: userId, board_id: boardId, visited_at: new Date().toISOString() }, { onConflict: "user_id,board_id" }),
+        .upsert({ user_id: userId, board_id: boardId, visited_at: new Date().toISOString(), ...(view ? { view } : {}) }, { onConflict: "user_id,board_id" }),
       "board_visits.recordBoardVisit",
+    );
+  }
+
+  async getBoardVisitView(userId: string, boardId: string): Promise<BoardViewKind | null> {
+    const result = await db().from("board_visits").select("view").eq("user_id", userId).eq("board_id", boardId).maybeSingle();
+    const row = unwrapMaybe<{ view: string | null }>(result, "board_visits.getBoardVisitView");
+    return row?.view && (BOARD_VIEWS as readonly string[]).includes(row.view) ? (row.view as BoardViewKind) : null;
+  }
+
+  async getBoardViewSettings(userId: string, boardId: string): Promise<Record<string, unknown>> {
+    const result = await db().from("board_visits").select("view_settings").eq("user_id", userId).eq("board_id", boardId).maybeSingle();
+    const row = unwrapMaybe<{ view_settings: Record<string, unknown> | null }>(result, "board_visits.getBoardViewSettings");
+    return row?.view_settings ?? {};
+  }
+
+  async saveBoardViewSettings(userId: string, boardId: string, view: BoardViewKind, settings: Record<string, unknown>): Promise<void> {
+    const current = await this.getBoardViewSettings(userId, boardId);
+    assertOk(
+      await db()
+        .from("board_visits")
+        .upsert({ user_id: userId, board_id: boardId, view_settings: { ...current, [view]: settings } }, { onConflict: "user_id,board_id" }),
+      "board_visits.saveBoardViewSettings",
     );
   }
 

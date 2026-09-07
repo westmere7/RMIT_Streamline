@@ -30,6 +30,7 @@ import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVIT
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { buildSeedExtras, type SeedExtrasContext } from "./seed-extras";
+import { buildSeedHistory } from "./seed-history";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 
@@ -37,10 +38,11 @@ import { slugify } from "@/lib/slug";
  * Deterministic seed. IDs are stable pseudo-UUIDs so tests and deep links are
  * predictable, while dates are relative to `now` so My Work always has content.
  *
- * The bundle comes in two halves: the base workspace below, and the extras in
+ * The bundle comes in two halves: the base workspace below, and the extras —
  * seed-extras.ts (task booking, direct messages, more trackers, updates and
- * fresh work) which use id namespaces of their own so they can also be added
- * to a database that already holds the base seed (scripts/db-seed-topup.mts).
+ * fresh work) plus the generated months of history in seed-history.ts — which
+ * use id namespaces of their own so they can also be added to a database that
+ * already holds the base seed (scripts/db-seed-topup.mts).
  */
 
 export interface SeedBundle {
@@ -99,10 +101,18 @@ const ID_NAMESPACES = {
   extraMessage: "e8",
   extraMember: "e9",
   extraAsset: "ea",
+  // The generated history (seed-history.ts): months of items on the base boards.
+  historyItem: "f1",
+  historyValue: "f2",
+  historyActivity: "f3",
+  historyComment: "f4",
+  historyAsset: "f5",
+  historyNotification: "f6",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
 export type ExtrasIdNamespace = Extract<IdNamespace, `extra${string}`>;
+export type HistoryIdNamespace = Extract<IdNamespace, `history${string}`>;
 
 const counters = new Map<IdNamespace, number>();
 
@@ -815,7 +825,7 @@ function iso(date: Date): string {
   return date.toISOString();
 }
 
-/** The base seed, the extras built on top of it, and the lookups the extras used. */
+/** The base seed, the extras built on top of it (including the generated history), and the lookups the extras used. */
 export interface SeedParts {
   base: SeedBundle;
   extras: SeedBundle;
@@ -895,7 +905,8 @@ export function buildSeedParts(now: Date = new Date()): SeedParts {
     teamNames,
     lookups,
   };
-  return { base, extras: buildSeedExtras(ctx), lookups };
+  // The history is part of the extras, so the local seed, `db:seed` and the top-up all carry it.
+  return { base, extras: mergeSeedBundles(buildSeedExtras(ctx), buildSeedHistory(ctx)), lookups };
 }
 
 function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {

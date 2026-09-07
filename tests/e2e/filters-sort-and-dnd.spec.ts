@@ -39,11 +39,12 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
       await expect(row(page, name).getByTestId("priority-cell")).toContainText("Critical");
     }
 
-    // A filter that matches nothing explains itself.
+    // A combination that matches nothing explains itself.
     await openFilters(page);
     await page.getByTestId("filter-panel").getByText("Stuck").click();
     await page.getByTestId("filter-panel").getByText("Working On It").click();
     await page.keyboard.press("Escape");
+    await page.getByTestId("search-input").fill("zzz nothing on this board is called this");
     await expect(page.getByText(/no tasks match these filters/i)).toBeVisible({ timeout: 15000 });
 
     // Filters are view state, not board state: a reload clears them.
@@ -218,6 +219,7 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
     const card = page.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" });
     await expect(card).toBeVisible({ timeout: 15000 });
     const target = page.getByTestId("lane-Done");
+    await card.scrollIntoViewIfNeeded();
     const from = (await card.boundingBox())!;
     const to = (await target.boundingBox())!;
     await page.mouse.move(from.x + from.width / 2, from.y + from.height - 12);

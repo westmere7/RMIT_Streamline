@@ -1,6 +1,7 @@
 "use client";
 
 import { CornerDownRight, Plus, X } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
@@ -30,7 +31,7 @@ import { cn } from "@/lib/utils";
 
 const FIELD_WIDTH = 260;
 
-export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: () => void }) {
+export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: string; onClose: () => void; overlay?: boolean }) {
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
@@ -78,7 +79,9 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
         "flex flex-col bg-surface",
         narrow
           ? "fixed inset-0 z-40"
-          : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
+          : overlay
+            ? "absolute inset-y-2.5 right-2.5 z-30 w-[520px] overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
+            : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
       )}
     >
       {!item ? (
@@ -139,7 +142,9 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-2xs text-muted-foreground">
-            <span className="truncate">{board.name}</span>
+            <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
+              {board.name}
+            </Link>
             {group && (
               <>
                 <span aria-hidden>/</span>

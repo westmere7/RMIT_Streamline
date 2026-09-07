@@ -66,14 +66,16 @@ export function LoginScreen() {
     }
   };
 
-  // What the card is doing right now, if anything.
-  const progress: { message: string; withUser: boolean } | null =
+  // What the card is doing right now, if anything, and which of the three steps that is.
+  const progress: { message: string; withUser: boolean; step: 1 | 2 | 3 } | null =
     status === "loading"
-      ? { message: "Checking your session", withUser: false }
+      ? { message: "Checking your session", withUser: false, step: 1 }
       : status === "signed-in" && !noWorkspace
-        ? { message: destination ? `Opening ${destination.name}` : "Finding your workspace", withUser: true }
+        ? destination
+          ? { message: `Opening ${destination.name}`, withUser: true, step: 3 }
+          : { message: "Finding your workspace", withUser: true, step: 2 }
         : pendingEmail !== null
-          ? { message: "Signing you in", withUser: false }
+          ? { message: "Signing you in", withUser: false, step: 1 }
           : null;
   const busy = progress !== null;
 
@@ -87,7 +89,6 @@ export function LoginScreen() {
           {needsPassword ? "Connected to Supabase · data is shared across the workspace" : "Local development build · data stays in this browser"}
         </span>
       }
-      progress={busy}
       cardTestId="login-card"
     >
       <div className="mb-6">
@@ -100,7 +101,7 @@ export function LoginScreen() {
 
       {progress && (
         <div className="mb-5">
-          <SessionProgress user={progress.withUser ? user : null} message={progress.message} />
+          <SessionProgress user={progress.withUser ? user : null} message={progress.message} step={progress.step} />
         </div>
       )}
       {noWorkspace && (
@@ -155,7 +156,7 @@ export function LoginScreen() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="username" placeholder="you@rmit.edu.au" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+            <Input id="email" type="email" autoComplete="username" autoFocus placeholder="you@rmit.edu.au" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
           </div>
           {needsPassword && (
             <div className="space-y-1.5">
@@ -168,8 +169,8 @@ export function LoginScreen() {
               {error}
             </p>
           )}
-          <Button type="submit" size="lg" className="w-full" disabled={!email.trim() || (needsPassword && !password) || busy}>
-            {pendingEmail !== null ? <LoaderCircle className="animate-spin" /> : null} Continue <ArrowRight />
+          <Button type="submit" size="lg" className="group w-full" disabled={!email.trim() || (needsPassword && !password) || busy}>
+            {pendingEmail !== null ? <LoaderCircle className="animate-spin" /> : null} Continue <ArrowRight className="transition-transform duration-200 group-hover:translate-x-0.5" />
           </Button>
           {needsPassword && IS_DEV && (
             <details className="group rounded-xl border border-border/60 bg-surface/60 px-3.5 py-2.5 text-2xs text-muted-foreground">

@@ -102,8 +102,9 @@ describe("ItemDetailPanel", () => {
     expect(candidates.some((c) => c.textContent?.includes("Sem 1 campaign storyboard"))).toBe(false);
     expect(candidates.some((c) => c.textContent?.includes("Sem 1 DOOH adaptation"))).toBe(false);
     expect(within(dialog).getByRole("button", { name: /DOOH Production/ })).toBeDisabled();
-    // Everything the boards share is on by default.
-    await user.click(within(dialog).getByText("Alumni newsletter banner"));
+    // The unsearched list is capped, so find the Creative Requests item by name. Everything the boards share is on by default.
+    await user.type(within(dialog).getByTestId("link-search"), "Alumni newsletter");
+    await user.click(await within(dialog).findByText("Alumni newsletter banner"));
     const preview = await within(dialog).findByTestId("sync-preview");
     const boxes = within(preview).getAllByRole("checkbox");
     expect(boxes.length).toBeGreaterThan(1);
