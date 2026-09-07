@@ -82,7 +82,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
 
   // Remember recently visited boards for the home page.
   React.useEffect(() => {
-    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId);
+    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId).catch(() => undefined);
   }, [services, ws.currentUser.id, boardId]);
 
   // The URL is the source of truth for the view. Otherwise the view this person
@@ -93,11 +93,15 @@ function BoardScreen({ boardId }: { boardId: string }) {
   React.useEffect(() => {
     if (rememberedView !== null) return;
     let cancelled = false;
-    void services.repos.admin.getBoardVisitView(ws.currentUser.id, boardId).then((saved) => {
-      if (cancelled || !saved) return;
-      rememberView(boardId, saved, ws.currentUser.id);
-      setRememberedView(saved);
-    });
+    void services.repos.admin
+      .getBoardVisitView(ws.currentUser.id, boardId)
+      .then((saved) => {
+        if (cancelled || !saved) return;
+        rememberView(boardId, saved, ws.currentUser.id);
+        setRememberedView(saved);
+      })
+      // The board opens on its default view if the saved one cannot be read.
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -127,7 +131,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const setView = (next: BoardViewKind) => {
     setRememberedView(next);
     rememberView(boardId, next, ws.currentUser.id);
-    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next);
+    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next).catch(() => undefined);
     replaceParams({ view: next });
   };
   const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);

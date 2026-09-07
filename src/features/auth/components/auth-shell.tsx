@@ -51,12 +51,9 @@ export function AuthShell({
         <div className="pointer-events-none absolute -top-32 -right-24 size-[420px] rounded-full bg-[#4b52d6]/25 blur-3xl" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
 
-        <div className="relative flex items-center gap-3">
-          <BrandMark />
-          <div className="leading-tight">
-            <p className="text-[15px] font-semibold tracking-tight">Streamline</p>
-            <p className="text-xs text-white/60">RMIT Creative Team</p>
-          </div>
+        <div className="relative flex flex-col gap-1.5">
+          <BrandLogo tone="onDark" className="h-8" />
+          <p className="text-xs text-white/60">RMIT Creative Team</p>
         </div>
 
         <div className="relative space-y-6">
@@ -75,12 +72,9 @@ export function AuthShell({
       <section className={cn("relative flex flex-1 flex-col items-center justify-center gap-6 p-6 sm:p-10", fill && "min-h-0 overflow-hidden")}>
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--accent-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
         {/* On a phone the brand panel is hidden, so the mark sits above the card instead. */}
-        <div className={cn("relative flex w-full items-center gap-3 lg:hidden", widthClass)}>
-          <BrandMark />
-          <div className="leading-tight">
-            <p className="text-[15px] font-semibold tracking-tight">Streamline</p>
-            <p className="text-xs text-muted-foreground">RMIT Creative Team</p>
-          </div>
+        <div className={cn("relative flex w-full flex-col gap-1 lg:hidden", widthClass)}>
+          <BrandLogo className="h-7" />
+          <p className="text-xs text-muted-foreground">RMIT Creative Team</p>
         </div>
         <div
           className={cn(
@@ -98,12 +92,37 @@ export function AuthShell({
   );
 }
 
+/** The Streamline mark: the two slashes, in white on the brand red. */
 export function BrandMark({ className, pulse }: { className?: string; pulse?: boolean }) {
   return (
-    <span className={cn("relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-[15px] font-bold text-white shadow-[0_8px_20px_-8px_rgba(230,30,42,0.8)]", className)}>
+    <span className={cn("relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary shadow-[0_8px_20px_-8px_rgba(230,30,42,0.8)]", className)}>
       {pulse && <span aria-hidden className="absolute inset-0 rounded-xl bg-primary/40 animate-ping [animation-duration:2.4s]" />}
-      <span className="relative">R</span>
+      <svg viewBox="0 0 211.25 214.4" className="relative h-[46%] w-auto" fill="currentColor" aria-hidden role="presentation">
+        <polygon points="47.13 214.4 0 214.4 90.1 0 137.24 0 47.13 214.4" fill="#fff" />
+        <polygon points="121.15 214.4 74.01 214.4 164.12 0 211.25 0 121.15 214.4" fill="#fff" />
+      </svg>
     </span>
+  );
+}
+
+/**
+ * The Streamline wordmark. Two artworks ship: one drawn for light backgrounds
+ * and one for dark. "auto" swaps them with the theme (dim counts as dark, since
+ * it carries the same `dark` class); "onDark" always uses the dark artwork, for
+ * the navy panel that never changes.
+ */
+export function BrandLogo({ className, tone = "auto" }: { className?: string; tone?: "auto" | "onDark" }) {
+  if (tone === "onDark") {
+    // eslint-disable-next-line @next/next/no-img-element -- a static SVG, not an upload
+    return <img src="/logo-dark.svg" alt="Streamline" className={cn("h-7 w-auto", className)} />;
+  }
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a static SVG, not an upload */}
+      <img src="/logo-light.svg" alt="Streamline" className={cn("h-7 w-auto dark:hidden", className)} />
+      {/* eslint-disable-next-line @next/next/no-img-element -- a static SVG, not an upload */}
+      <img src="/logo-dark.svg" alt="" aria-hidden className={cn("hidden h-7 w-auto dark:block", className)} />
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { BrandMark } from "@/features/auth/components/auth-shell";
+import { BrandLogo } from "@/features/auth/components/auth-shell";
 
 /**
  * The moment between two screens, when a session or a workspace is still being
@@ -12,7 +12,7 @@ export function FullPageLoader({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas" role="status" aria-live="polite">
       <div className="flex flex-col items-center gap-5">
-        <BrandMark className="size-12 rounded-2xl text-lg" />
+        <BrandLogo className="h-8" />
         <div className="h-1 w-40 overflow-hidden rounded-full bg-border" aria-hidden>
           <span className="gate-bar block h-full w-full rounded-full bg-primary" />
         </div>

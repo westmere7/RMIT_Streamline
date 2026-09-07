@@ -133,32 +133,44 @@ export function KanbanView() {
   const [drag, setDrag] = React.useState<{ activeId: string; lanes: Record<string, string[]> } | null>(null);
   const shown = drag?.lanes ?? laneItemIds;
   const laneOf = (id: string, map: Record<string, string[]>) => (id in map ? id : Object.keys(map).find((laneId) => map[laneId]!.includes(id)) ?? null);
+  const sameOrder = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
   const onDragStart = (event: DragStartEvent) => setDrag({ activeId: String(event.active.id), lanes: laneItemIds });
 
+  /**
+   * Rearranges the working copy as the pointer moves. It must return the state
+   * object unchanged whenever the arrangement is the same: every state change
+   * re-renders, which makes dnd-kit measure again and fire another drag-over, so
+   * an update that changes nothing loops until React gives up.
+   */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over || !drag) return;
+    if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
-    const from = laneOf(activeId, drag.lanes);
-    const to = laneOf(overId, drag.lanes);
-    if (!from || !to) return;
-    const fromIds = drag.lanes[from]!;
-    if (from === to) {
-      if (overId === to) return;
-      const oldIndex = fromIds.indexOf(activeId);
-      const newIndex = fromIds.indexOf(overId);
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-      setDrag({ activeId, lanes: { ...drag.lanes, [from]: arrayMove(fromIds, oldIndex, newIndex) } });
-      return;
-    }
-    const toIds = drag.lanes[to]!.filter((id) => id !== activeId);
     const translated = active.rect.current.translated;
     const below = !!translated && translated.top > over.rect.top + over.rect.height / 2;
-    const at = overId === to ? toIds.length : Math.max(0, toIds.indexOf(overId) + (below ? 1 : 0));
-    toIds.splice(at, 0, activeId);
-    setDrag({ activeId, lanes: { ...drag.lanes, [from]: fromIds.filter((id) => id !== activeId), [to]: toIds } });
+    setDrag((current) => {
+      if (!current) return current;
+      const from = laneOf(activeId, current.lanes);
+      const to = laneOf(overId, current.lanes);
+      if (!from || !to) return current;
+      if (from === to) {
+        // Over the lane itself rather than a card: nothing to reorder.
+        if (overId === to) return current;
+        const ids = current.lanes[from]!;
+        const oldIndex = ids.indexOf(activeId);
+        const newIndex = ids.indexOf(overId);
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return current;
+        return { activeId, lanes: { ...current.lanes, [from]: arrayMove(ids, oldIndex, newIndex) } };
+      }
+      const fromIds = current.lanes[from]!.filter((id) => id !== activeId);
+      const toIds = current.lanes[to]!.filter((id) => id !== activeId);
+      const at = overId === to ? toIds.length : Math.max(0, toIds.indexOf(overId) + (below ? 1 : 0));
+      toIds.splice(at, 0, activeId);
+      if (sameOrder(current.lanes[from]!, fromIds) && sameOrder(current.lanes[to]!, toIds)) return current;
+      return { activeId, lanes: { ...current.lanes, [from]: fromIds, [to]: toIds } };
+    });
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -321,18 +333,19 @@ function LaneColumn({ lane, itemIds, laneBy, canEdit, tint, collapsed, activeId,
 function SortableCard({ item, laneBy, disabled, ghost }: { item: Item; laneBy: LaneBy; disabled: boolean; ghost: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled });
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing", ghost && "opacity-0")} data-testid={ghost ? "kanban-ghost" : undefined}>
-      {ghost ? <GhostCard item={item} /> : <Card item={item} laneBy={laneBy} />}
-    </div>
-  );
-}
-
-/** The outline the dragged card leaves behind, the same size as the card so the lane does not jump. */
-function GhostCard({ item }: { item: Item }) {
-  return (
-    <div aria-hidden className="rounded-xl border-2 border-dashed border-ring/50 bg-ring/5 p-3">
-      <p className="text-[13px] font-medium text-transparent">{item.name}</p>
-      <p className="mt-2.5 h-4" />
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing")} data-testid={ghost ? "kanban-ghost" : undefined}>
+      {ghost ? (
+        // The card in hand leaves an outline of its own size behind, so the lane
+        // keeps its shape while the others make way.
+        <div className="relative" aria-hidden>
+          <div className="invisible">
+            <Card item={item} laneBy={laneBy} />
+          </div>
+          <div className="absolute inset-0 rounded-xl border-2 border-dashed border-ring/50 bg-ring/5" />
+        </div>
+      ) : (
+        <Card item={item} laneBy={laneBy} />
+      )}
     </div>
   );
 }
