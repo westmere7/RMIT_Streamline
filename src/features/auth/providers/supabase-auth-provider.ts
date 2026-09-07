@@ -1,4 +1,5 @@
 import { AuthError, type AuthProvider, type AuthSession, type SignInWithEmailInput } from "@/domain";
+import { describeSignInError } from "@/lib/auth/auth-messages";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 /**
@@ -26,7 +27,7 @@ export class SupabaseAuthProvider implements AuthProvider {
       email: input.email,
       password: input.password,
     });
-    if (error || !data.session?.user.email) throw new AuthError(error?.message ?? "Sign in failed.");
+    if (error || !data.session?.user.email) throw new AuthError(describeSignInError(error?.message ?? "Sign in failed."));
     return { userId: data.session.user.id, email: data.session.user.email, provider: "supabase" };
   }
 

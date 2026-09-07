@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BookingForm, BookingReceipt, BookingRequest, BookingTeamOption, EntityId, Item, NotificationInput, PriorityColumnSettings, Team } from "@/domain";
+import type { Board, BoardColumn, BookingForm, BookingReceipt, BookingRequest, BookingTeamOption, EntityId, Item, NotificationInput, PriorityColumnSettings, Team, WorkspaceMember } from "@/domain";
 import { BOOKING_ASSET_TYPES, bookingReference, formatAssetLine } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -110,23 +110,30 @@ export class BookingService {
     const direct = !!receiving && receiving.workspaceId === workspaceId && receiving.archivedAt === null && !receiving.system;
     const board = direct ? receiving! : allocation;
 
-    const [columns, groups, actorId] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.actorFor(workspaceId, board, memberId)]);
+    const [columns, groups, members] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.repos.workspaces.listMembers(workspaceId)]);
+    const actorId = this.actorFor(members, board, memberId);
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
     const placement = mapBookingToColumns(request, columns, { team });
+    const description = describeBooking(request, placement);
     const item = await this.items.createItem(
-      { boardId: board.id, groupId: group.id, name: request.title, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
+      { boardId: board.id, groupId: group.id, name: request.title, description: description || null, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
       actorId,
     );
-    const description = describeBooking(request, placement);
-    if (description) await this.repos.items.update(item.id, { description });
-    for (const asset of request.assets) {
-      const sub = await this.items.createItem({ boardId: board.id, groupId: group.id, name: formatAssetLine({ ...asset, spec: null }), parentItemId: item.id }, actorId);
-      if (asset.spec?.trim()) await this.repos.items.update(sub.id, { description: asset.spec.trim() });
-    }
+    // The asset lines are the only children of a brand-new item, so their
+    // positions are known and they can be written together rather than one
+    // round trip after another — a stakeholder is waiting on this response.
+    await Promise.all(
+      request.assets.map((asset, index) =>
+        this.items.createItem(
+          { boardId: board.id, groupId: group.id, name: formatAssetLine({ ...asset, spec: null }), parentItemId: item.id, position: index, description: asset.spec?.trim() || null },
+          actorId,
+        ),
+      ),
+    );
 
-    await this.notifyAdmins(workspaceId, board, item, request, team, actorId);
+    await this.notifyAdmins(members, board, item, request, team, actorId);
     return {
       itemId: item.id,
       itemName: item.name,
@@ -165,22 +172,25 @@ export class BookingService {
     // Linking fills the new item from the request (name, description and every
     // column the two boards have in common) and keeps them in step from now on.
     await this.links.link(item.id, placeholder.id, actorId, { seedFrom: "item" });
-    const created = (await this.repos.items.getById(placeholder.id)) ?? placeholder;
-    // The asset lines travel as subitems of the new item; they are not linked one by one.
-    const subitems = (await this.repos.items.listByBoard(source.id)).filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
-    for (const sub of subitems) {
-      const copy = await this.items.createItem({ boardId: target.id, groupId: group.id, name: sub.name, parentItemId: created.id }, actorId);
-      if (sub.description) await this.repos.items.update(copy.id, { description: sub.description });
-    }
+    const [created, sourceItems, columns, sourceGroups] = await Promise.all([
+      this.repos.items.getById(placeholder.id).then((fresh) => fresh ?? placeholder),
+      this.repos.items.listByBoard(source.id),
+      this.repos.boards.listColumns(source.id),
+      this.repos.boards.listGroups(source.id),
+    ]);
+    // The asset lines travel as subitems of the new item; they are not linked one
+    // by one. They are the new item's only children, so they go in together.
+    const subitems = sourceItems.filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
+    await Promise.all(
+      subitems.map((sub, index) => this.items.createItem({ boardId: target.id, groupId: group.id, name: sub.name, parentItemId: created.id, position: index, description: sub.description }, actorId)),
+    );
 
-    const columns = await this.repos.boards.listColumns(source.id);
     const allocatedTo = columns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"));
     if (allocatedTo) await this.repos.items.setValue(item.id, allocatedTo.id, { type: "TEXT", text: target.name });
-    const sourceGroups = await this.repos.boards.listGroups(source.id);
     const allocated = sourceGroups.find((g) => g.name.toLowerCase() === "allocated");
     let updated = item;
     if (allocated && item.groupId !== allocated.id) {
-      const siblings = (await this.repos.items.listByBoard(source.id)).filter((i) => i.groupId === allocated.id && i.parentItemId === null);
+      const siblings = sourceItems.filter((i) => i.groupId === allocated.id && i.parentItemId === null);
       updated = await this.repos.items.update(item.id, { groupId: allocated.id, position: siblings.length });
       // The asset lines belong with their request: left in "Incoming" they would
       // be deleted with that group and counted against it.
@@ -207,15 +217,13 @@ export class BookingService {
   }
 
   /** Who a booking is recorded as: the member who booked it if they belong here, else the workspace owner, else the board's owner. */
-  private async actorFor(workspaceId: EntityId, board: Board, memberId: EntityId | null): Promise<EntityId> {
-    const members = await this.repos.workspaces.listMembers(workspaceId);
+  private actorFor(members: readonly WorkspaceMember[], board: Board, memberId: EntityId | null): EntityId {
     if (memberId && members.some((m) => m.userId === memberId && m.status === "ACTIVE")) return memberId;
     const owner = members.find((m) => m.role === "OWNER" && m.status === "ACTIVE") ?? members.find((m) => m.role === "OWNER");
     return owner?.userId ?? board.ownerId;
   }
 
-  private async notifyAdmins(workspaceId: EntityId, board: Board, item: Item, request: BookingRequest, team: Team | null, actorId: EntityId): Promise<void> {
-    const members = await this.repos.workspaces.listMembers(workspaceId);
+  private async notifyAdmins(members: readonly WorkspaceMember[], board: Board, item: Item, request: BookingRequest, team: Team | null, actorId: EntityId): Promise<void> {
     const admins = members.filter((m) => m.status === "ACTIVE" && (m.role === "OWNER" || m.role === "ADMIN"));
     const where = team ? `for ${team.name}` : "to Task Allocation";
     const inputs: NotificationInput[] = admins.map((m) => ({

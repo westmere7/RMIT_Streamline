@@ -37,6 +37,13 @@ export interface CreateItemInput {
   parentItemId?: EntityId | null;
   /** Insert after this item (same group). Appends when omitted. */
   afterItemId?: EntityId | null;
+  /**
+   * Exact position among its siblings. A caller creating several children of a
+   * brand-new parent knows them up front, which saves a sibling lookup per item
+   * and lets the children be written in parallel. Ignored when `afterItemId` is set.
+   */
+  position?: number;
+  description?: string | null;
   /** Initial values, e.g. a status when creating from a Kanban lane. */
   values?: Array<{ columnId: EntityId; value: ColumnValue }>;
 }
@@ -92,17 +99,19 @@ export class ItemService {
     if (!name) throw new Error("Item name cannot be empty");
     const board = await this.repos.boards.getById(input.boardId);
     if (!board) throw new NotFoundError("Board", input.boardId);
-    const siblings = (await this.repos.items.listByBoard(input.boardId)).filter(
-      (i) => i.groupId === input.groupId && (i.parentItemId ?? null) === (input.parentItemId ?? null),
-    );
-
-    let position = siblings.length;
-    if (input.afterItemId) {
-      const after = siblings.find((i) => i.id === input.afterItemId);
-      if (after) {
-        position = after.position + 1;
-        const shifted = siblings.filter((i) => i.position >= position);
-        await this.repos.items.updateMany(shifted.map((i) => ({ id: i.id, patch: { position: i.position + 1 } })));
+    let position = input.position ?? 0;
+    if (input.position === undefined || input.afterItemId) {
+      const siblings = (await this.repos.items.listByBoard(input.boardId)).filter(
+        (i) => i.groupId === input.groupId && (i.parentItemId ?? null) === (input.parentItemId ?? null),
+      );
+      position = siblings.length;
+      if (input.afterItemId) {
+        const after = siblings.find((i) => i.id === input.afterItemId);
+        if (after) {
+          position = after.position + 1;
+          const shifted = siblings.filter((i) => i.position >= position);
+          await this.repos.items.updateMany(shifted.map((i) => ({ id: i.id, patch: { position: i.position + 1 } })));
+        }
       }
     }
 
@@ -112,6 +121,7 @@ export class ItemService {
       groupId: input.groupId,
       parentItemId: input.parentItemId ?? null,
       name,
+      description: input.description ?? null,
       createdBy: actorId,
       position,
     });

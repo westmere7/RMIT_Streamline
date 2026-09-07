@@ -1280,6 +1280,7 @@ const GridCell = React.memo(function GridCell({
   return (
     <td
       role="gridcell"
+      aria-label={text ? `${column.name}: ${text}` : `${column.name}: empty`}
       data-active={active || undefined}
       data-testid="grid-cell"
       className={cn(

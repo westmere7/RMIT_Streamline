@@ -2,15 +2,30 @@
 
 Streamline is an internal work-management application for the RMIT creative and marketing team. It follows the interaction model popularised by monday.com — a workspace holds teams and boards, a board is a table of groups, each group holds items (tasks) and subitems, and every item carries a configurable set of typed columns (status, people, dates, timelines, priority, tags, files, dependencies and so on). Around the board sit the supporting surfaces a team needs day to day: My Work, an Inbox of notifications, a members directory, team pages, an activity history and a command palette for search.
 
-The current build is **local-first**. Every record lives in the browser's IndexedDB behind a set of repository interfaces; sign-in uses a password-less `LocalAuthProvider` that accepts any seeded account. Supabase (`@supabase/supabase-js`) is installed and the Postgres schema and row-level-security policies are written, but nothing talks to a Supabase project yet — the Supabase repositories are stubs that throw if selected. The architecture is deliberately arranged so that switching `NEXT_PUBLIC_DATA_PROVIDER` from `local` to `supabase` is the only change the UI ever sees.
+The deployed build runs on **Supabase** (Postgres with row-level security, password sign-in, realtime) at <https://rmit-streamline.vercel.app>; every read and write goes through a set of repository interfaces, and the same UI runs **local-first** on IndexedDB for development and tests by setting `NEXT_PUBLIC_DATA_PROVIDER=local`. Beyond boards the app now covers the day's other work: stakeholders **book tasks** through a public link that lands on an admin-only Task Allocation board, managers allocate them to team boards as linked items that stay in sync; teams keep **trackers** (spreadsheet-style sheets that import and export .xlsx); people exchange **direct messages**; and new members are added by an admin and finish onboarding through a `/join/<token>` link rather than an email.
 
 Streamline is a Next.js 16 / React 19 application written in TypeScript, styled with Tailwind CSS 4 and Radix UI primitives, with TanStack Query for server-state and Zustand for transient UI state.
 
-## The 16-step local demo flow
+## A day in the app
 
-After `npm run dev` and opening <http://localhost:3000>, the following flow works end to end with no configuration:
+The seed (`npm run db:seed` for Supabase, automatic on first open in local mode) gives every section something to show. A typical day, all of which is covered by the Playwright suites:
 
-1. On the sign-in screen pick **Danh Nguyen** (or type `danh@rmit.local`). No password is required.
+- **Home** — recently visited boards, your work for today, favourites, your teams and the workspace's recent activity.
+- **My Work** — everything assigned to you across boards, bucketed into Overdue, Today, This Week, Later and No Date; linked copies of the same task collapse into one row.
+- **Inbox** — loud notifications (mentions, assignments, comments, new bookings) and quiet updates (status and date changes) on separate tabs; each type's delivery is a per-person setting, boards can be muted, and the browser can raise OS notifications.
+- **Boards** — change a status, owner or date, add items and subitems, post an update with an @mention, drag rows between groups, switch between Main Table, Kanban, Timeline and Calendar. Every change writes an activity entry and notifies the people it concerns.
+- **Book a task** — the sidebar entry opens the same form stakeholders reach through the public link (`/book/rmit/<key>`, key under Settings → Book a task). A booking becomes an item on **Task Allocation** with the requester's details, asset lines as subitems and a reference to quote; admins are notified. From the item panel a manager allocates it to a team board, which creates a linked item there.
+- **Messages** — one-to-one threads with anyone in the workspace, unread counts in the sidebar.
+- **Trackers** — spreadsheets per team with typed columns, dropdowns, dates, checkboxes and summaries; autosaves as you type; imports and exports .xlsx.
+- **Members** — add someone (they appear as pending), hand them their join link, change roles, deactivate.
+
+Adding more demo content to a live database that has been edited by hand: `npm run db:seed:topup` adds the seed's extras without touching existing rows (see `scripts/db-seed-topup.mts`).
+
+## The local demo flow
+
+In local mode (`NEXT_PUBLIC_DATA_PROVIDER=local`), after `npm run dev` and opening <http://localhost:3000>, the following flow works end to end with no configuration:
+
+1. On the sign-in screen pick **Danh Nguyen** (or type `danh@rmit.local`). No password is required in local mode.
 2. You land in the **RMIT Creative Team** workspace (`/workspace/rmit`).
 3. The sidebar lists the seeded **teams** — Vietnam Creative, Melbourne Creative, Campaigns, Digital, Brand and Content — each expandable to show its boards.
 4. Six seeded **boards** are available: Semester 1 Campaign, Masterclass Assets, RMITinerary 2026, DOOH Production, Creative Requests and Always-On Content.
@@ -87,7 +102,7 @@ flowchart TD
 
     subgraph Impl["Implementations"]
         Local["src/data/local/** — Local*Repository<br/>(idb → IndexedDB 'rmit-streamline')"]
-        Supa["src/data/supabase/** — Supabase*Repository<br/>(NotImplemented proxies today)"]
+        Supa["src/data/supabase/** — Supabase*Repository<br/>(PostgREST + RLS)"]
     end
 
     Routes --> Features --> Query
@@ -96,9 +111,9 @@ flowchart TD
     Query --> Services
     Services --> Repos
     Repos --> Local
-    Repos -.future.-> Supa
+    Repos --> Supa
     Local --> IDB[("IndexedDB")]
-    Supa -.-> PG[("Supabase Postgres + Auth + Realtime")]
+    Supa --> PG[("Supabase Postgres + Auth + Realtime")]
 ```
 
 ### Layers
@@ -241,7 +256,7 @@ flowchart LR
     DPC --> CS["createServices(repos)<br/>src/services/index.ts"]
     DPC --> CA["createAuthProvider(kind, repos)<br/>src/features/auth/auth-provider-factory.ts"]
     CR -->|local| L["createLocalRepositories()<br/>Local*Repository over LocalConnection"]
-    CR -->|supabase| S["createSupabaseRepositories()<br/>NotImplemented proxies"]
+    CR -->|supabase| S["createSupabaseRepositories()<br/>PostgREST + RLS"]
     CA -->|local| LA["LocalAuthProvider(repos.users)"]
     CA -->|supabase| SA["SupabaseAuthProvider"]
 ```
@@ -249,7 +264,7 @@ flowchart LR
 - **`createRepositories(kind)`** (`src/data/provider.ts`) returns a `Repositories` object — one property per interface (`users`, `workspaces`, `teams`, `boards`, `items`, `comments`, `activities`, `notifications`, `admin`). `local` maps to `createLocalRepositories()`; `supabase` to `createSupabaseRepositories()`.
 - **`createAuthProvider(kind, repos)`** returns an `AuthProvider` (`src/domain/auth/auth.ts`): `getSession`, `signIn`, `signOut`, `onSessionChange`. `LocalAuthProvider` looks the email up in `repos.users`, refuses deactivated accounts, and keeps the session in `localStorage` under `streamline.local-session`. `SupabaseAuthProvider` wraps `supabase.auth` (email + password) and is already complete, but is only selected in supabase mode.
 - **Swapping implementations** — `LocalBoardRepository` and the future `SupabaseBoardRepository` implement the same `BoardRepository` interface, so the swap is confined to `src/data/provider.ts`. Services, hooks and components are unchanged. Tests construct `createLocalRepositories({ databaseName, seed })` directly to isolate state.
-- **NotImplemented proxies** — `src/data/supabase/not-implemented.ts` builds each Supabase repository as a `Proxy` whose every method throws `SupabaseNotImplementedError("<Repository>.<method> is not implemented for the Supabase provider yet…")`. Selecting the provider by accident therefore fails loudly on first use instead of silently losing writes. `src/data/supabase/index.ts` carries the implementation notes (snake_case mapping, JSONB `value_json`, FK cascades, realtime tables).
+- **Supabase repositories** — `src/data/supabase/repositories/*` implement every interface over PostgREST with the anon key and the signed-in user's JWT, so row-level security (`supabase/policies`) is the authority on who sees what. Bookings from the public form and member onboarding need the service role and therefore run in Next route handlers (`src/app/api/book`, `src/app/api/invitations`, `src/app/api/join`) through `src/server/*`.
 
 ## How local persistence works
 
@@ -629,7 +644,6 @@ Because `useBoardMutations` already reconciles optimistic updates by invalidatin
 - **Group by** — present in the toolbar with a "Coming later" badge; the table always groups by board group.
 - **Additional views** — Main Table, Kanban, Timeline, Calendar and Files are implemented. The "+" on the view tabs shows a "More views — Coming later" entry; views cannot be saved or customised per user beyond remembering the last-used view per board.
 - **Files** — attachments are metadata only (`AttachmentMeta`). In local mode files are not uploaded anywhere; the intended target is a Supabase Storage bucket `workspace-files`.
-- **Supabase mode** — the SQL schema, RLS policies, client factory and auth provider exist, but the repositories are `NotImplemented` proxies. Setting `NEXT_PUBLIC_DATA_PROVIDER=supabase` with valid keys will throw on the first data access.
-- **Realtime and multi-user collaboration** — single browser, single user at a time. `Switch user` simulates other people; there is no live sync between tabs beyond the `storage` event used for the session.
-- **Local data is per browser profile.** Clearing site data removes everything; there is no export/import.
+- **Round trips** — in Supabase mode every board edit is several sequential requests to the database; booking and allocation batch what they can, but a stakeholder booking still takes a few seconds on a slow link.
+- **Local data is per browser profile.** Clearing site data removes everything; there is no export/import beyond tracker .xlsx.
 - **Authentication in local mode is intentionally not secure** — any listed email signs in without a password. Do not deploy the local provider outside development.

@@ -52,11 +52,12 @@ export function AllocationSection({ item }: { item: Item }) {
   const allocatedValue = allocatedColumn ? model.getValue(item.id, allocatedColumn.id) : undefined;
   const allocatedTo = allocatedValue?.type === "TEXT" && allocatedValue.text.trim() ? allocatedValue.text.trim() : null;
 
-  const teams = ws.teams.filter((t) => t.archivedAt === null && !t.system);
+  const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
+  const teams = ws.teams.filter((t) => t.archivedAt === null && !t.system).sort(byName);
   const groups = teams
-    .map((team) => ({ team, boards: ws.boardsForTeam(team.id).filter((b) => !b.system && canViewBoard(ws.permissions, b)) }))
+    .map((team) => ({ team, boards: ws.boardsForTeam(team.id).filter((b) => !b.system && canViewBoard(ws.permissions, b)).sort(byName) }))
     .filter((g) => g.boards.length > 0);
-  const loose = ws.boards.filter((b) => b.archivedAt === null && !b.system && !b.teamId && canViewBoard(ws.permissions, b));
+  const loose = ws.boards.filter((b) => b.archivedAt === null && !b.system && !b.teamId && canViewBoard(ws.permissions, b)).sort(byName);
 
   return (
     <section data-testid="allocation-section">
