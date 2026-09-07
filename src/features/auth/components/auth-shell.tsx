@@ -51,9 +51,8 @@ export function AuthShell({
         <div className="pointer-events-none absolute -top-32 -right-24 size-[420px] rounded-full bg-[#4b52d6]/25 blur-3xl" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
 
-        <div className="relative flex flex-col gap-1.5">
-          <BrandLogo tone="onDark" className="h-8" />
-          <p className="text-xs text-white/60">RMIT Creative Team</p>
+        <div className="relative">
+          <BrandLogo tone="onNavy" className="h-8" />
         </div>
 
         <div className="relative space-y-6">
@@ -72,9 +71,8 @@ export function AuthShell({
       <section className={cn("relative flex flex-1 flex-col items-center justify-center gap-6 p-6 sm:p-10", fill && "min-h-0 overflow-hidden")}>
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--accent-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
         {/* On a phone the brand panel is hidden, so the mark sits above the card instead. */}
-        <div className={cn("relative flex w-full flex-col gap-1 lg:hidden", widthClass)}>
+        <div className={cn("relative w-full lg:hidden", widthClass)}>
           <BrandLogo className="h-7" />
-          <p className="text-xs text-muted-foreground">RMIT Creative Team</p>
         </div>
         <div
           className={cn(
@@ -106,15 +104,15 @@ export function BrandMark({ className, pulse }: { className?: string; pulse?: bo
 }
 
 /**
- * The Streamline wordmark. Two artworks ship: one drawn for light backgrounds
- * and one for dark. "auto" swaps them with the theme (dim counts as dark, since
- * it carries the same `dark` class); "onDark" always uses the dark artwork, for
- * the navy panel that never changes.
+ * The Streamline wordmark. Three artworks ship: one drawn for light backgrounds,
+ * one for dark, and one with white lettering for the navy panel, where the dark
+ * artwork's grey would read as washed out. "auto" swaps light and dark with the
+ * theme (dim counts as dark, since it carries the same `dark` class).
  */
-export function BrandLogo({ className, tone = "auto" }: { className?: string; tone?: "auto" | "onDark" }) {
-  if (tone === "onDark") {
+export function BrandLogo({ className, tone = "auto" }: { className?: string; tone?: "auto" | "onNavy" }) {
+  if (tone === "onNavy") {
     // eslint-disable-next-line @next/next/no-img-element -- a static SVG, not an upload
-    return <img src="/logo-dark.svg" alt="Streamline" className={cn("h-7 w-auto", className)} />;
+    return <img src="/logo-white.svg" alt="Streamline" className={cn("h-7 w-auto", className)} />;
   }
   return (
     <>
