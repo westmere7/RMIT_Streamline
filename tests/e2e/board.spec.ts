@@ -122,17 +122,22 @@ test.describe("board interactions", () => {
 
     // It is a line across the table, not a gap: it takes no vertical space and
     // the rows around it have not moved.
-    const line = await slot.evaluate((el) => {
-      const bar = el.firstElementChild as HTMLElement;
-      const table = (el.closest('[role="grid"]') ?? el.closest("section")) as HTMLElement;
-      return {
-        wrapperHeight: Math.round(el.getBoundingClientRect().height),
-        barHeight: Math.round(bar.getBoundingClientRect().height),
-        barWidth: Math.round(bar.getBoundingClientRect().width),
-        tableWidth: Math.round(table.getBoundingClientRect().width),
-      };
-    });
-    expect(line.wrapperHeight).toBe(0);
+    // A long board can re-render under the pointer and detach the node between
+    // the assertion and the measurement, so measure through a poll.
+    const measure = () =>
+      slot.evaluate((el) => {
+        const bar = el.firstElementChild as HTMLElement | null;
+        const table = el.closest('[role="grid"]') as HTMLElement | null;
+        if (!bar || !table) return null;
+        return {
+          wrapperHeight: Math.round(el.getBoundingClientRect().height),
+          barHeight: Math.round(bar.getBoundingClientRect().height),
+          barWidth: Math.round(bar.getBoundingClientRect().width),
+          tableWidth: Math.round(table.getBoundingClientRect().width),
+        };
+      });
+    await expect.poll(() => measure().then((m) => m?.wrapperHeight ?? -1).catch(() => -1), { timeout: 10_000 }).toBe(0);
+    const line = (await measure())!;
     expect(line.barHeight).toBeGreaterThanOrEqual(3);
     // Full width bar the panel's 1px borders.
     expect(line.tableWidth - line.barWidth).toBeLessThanOrEqual(4);
@@ -204,7 +209,7 @@ test.describe("board interactions", () => {
     // Full width and thick in the empty group too.
     const geometry = await emptyLine.evaluate((el) => {
       const bar = el.firstElementChild as HTMLElement;
-      const table = (el.closest('[role="grid"]') ?? el.closest("section")) as HTMLElement;
+      const table = el.closest('[role="grid"]') as HTMLElement;
       return { barHeight: Math.round(bar.getBoundingClientRect().height), barWidth: Math.round(bar.getBoundingClientRect().width), tableWidth: Math.round(table.getBoundingClientRect().width) };
     });
     expect(geometry.barHeight).toBeGreaterThanOrEqual(3);

@@ -108,9 +108,12 @@ test.describe("columns: alignment, dragging and renaming", () => {
     const dialog = page.getByTestId("link-item-dialog");
     await expect(dialog).toBeVisible({ timeout: 20000 });
     await page.getByTestId("link-search").fill("Campus banner");
+    // Scope the search to Open Day 2026: with months of history other boards carry similar names.
     await dialog.getByRole("button", { name: "Open Day 2026", exact: true }).click();
-    await page.getByTestId("link-search").fill("Campus banner artwork – round 2");
-    await page.getByTestId("link-candidate").filter({ hasText: "Campus banner artwork – round 2" }).first().click();
+    await page.getByTestId("link-search").fill("Campus banner artwork");
+    const candidate = page.getByTestId("link-candidate").filter({ hasText: "Campus banner artwork" }).first();
+    await expect(candidate).toBeVisible({ timeout: 20000 });
+    await candidate.click();
     await page.getByTestId("link-submit").click();
     await expect(dialog).toHaveCount(0, { timeout: 20000 });
     await expect(row(page, ITEM).getByTestId("link-indicator")).toBeVisible({ timeout: 20000 });
