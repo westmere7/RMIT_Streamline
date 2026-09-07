@@ -35,6 +35,9 @@ export const queryKeys = {
   itemLinks: (itemId: string) => ["item-links", itemId] as const,
   linkCandidates: (workspaceId: string, itemId: string, query: string, boardId: string | null) => ["link-candidates", workspaceId, itemId, query, boardId] as const,
   linkMapping: (boardId: string, otherBoardId: string) => ["link-mapping", boardId, otherBoardId] as const,
+  /** An item's asset lines; the board-wide list shares the prefix so both refresh together. */
+  itemAssets: (itemId: string) => ["item-assets", itemId] as const,
+  boardAssets: (boardId: string) => ["item-assets", "board", boardId] as const,
   comments: (itemId: string) => ["comments", itemId] as const,
   /** Every update on a board's items, for the per-item badges. Shares the "comments" prefix so comment changes refresh it. */
   boardComments: (boardId: string) => ["comments", "board", boardId] as const,

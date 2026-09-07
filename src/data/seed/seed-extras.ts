@@ -11,6 +11,7 @@ import type {
   Comment,
   DirectMessage,
   Item,
+  ItemAsset,
   ItemColumnValue,
   ItemLink,
   Notification,
@@ -21,7 +22,7 @@ import type {
   TrackerColumn,
   TrackerSheet,
 } from "@/domain";
-import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultSettingsFor, formatAssetLine, normaliseLinkPair } from "@/domain";
+import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultSettingsFor, formatAssetLine, normaliseLinkPair, recapAssets, recapColumnValue } from "@/domain";
 import { buildRows, type DemoRowSpec } from "@/features/trackers/tracker-template";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
@@ -367,6 +368,28 @@ const PRODUCTION_STATUS_COLORS: Record<string, string> = {
   "On hold": "FFC7CE",
 };
 
+/** Asset lines for a few of the fresh items, so the Assets tab and recap column have examples outside Task Allocation. */
+const FRESH_ASSETS: Record<string, Array<{ name: string; type: string | null; quantity: number | null; owner?: UserKey; due?: number; notes?: string }>> = {
+  "masterclass:Masterclass social asset – Speaker 4": [
+    { name: "Instagram tile", type: "Social", quantity: 3, owner: "danh", due: 2, notes: "1080×1080" },
+    { name: "Story", type: "Social", quantity: 3, owner: "danh", due: 2, notes: "1080×1920, safe zones" },
+    { name: "LinkedIn banner", type: "Digital", quantity: 1, owner: "tuyet", due: 3, notes: "1584×396" },
+  ],
+  "openday:Sponsor acknowledgement board": [
+    { name: "Foamboard panel", type: "Print", quantity: 2, owner: "danh", due: 5, notes: "A0, 5 mm foamboard" },
+    { name: "Digital screen slide", type: "Digital", quantity: 1, owner: "duc", due: 4, notes: "1920×1080" },
+  ],
+  "requests:Vietnam campus map refresh": [
+    { name: "Campus map (print)", type: "Print", quantity: 1, owner: "danh", due: 4, notes: "A3, CMYK" },
+    { name: "Campus map (web)", type: "Web", quantity: 1, owner: "hil", due: 4, notes: "SVG + PNG @2x" },
+    { name: "Wayfinding icons", type: "Brand", quantity: 12, due: 6 },
+  ],
+  "social:Open Day highlights carousel": [
+    { name: "Carousel card", type: "Social", quantity: 6, owner: "danh", due: 9, notes: "1080×1080" },
+    { name: "Reel cover", type: "Social", quantity: 1, owner: "chloe", due: 9 },
+  ],
+};
+
 export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
   const { now, workspaceId, sid, users, userNames, teams, teamNameOf, boards, admins, teamNames, lookups } = ctx;
   const iso = (d: Date) => d.toISOString();
@@ -382,6 +405,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
   const boardColumns: BoardColumn[] = [];
   const items: Item[] = [];
   const itemColumnValues: ItemColumnValue[] = [];
+  const itemAssets: ItemAsset[] = [];
   const itemLinks: ItemLink[] = [];
   const trackers: Tracker[] = [];
   const trackerSheets: TrackerSheet[] = [];
@@ -458,6 +482,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
 
   const allocationStatus = allocationColumns.find((c) => c.type === "STATUS")!;
   const allocatedTo = allocationColumns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"))!;
+  const allocationRecap = allocationColumns.find((c) => c.type === "ASSETS_RECAP") ?? null;
 
   // ---- a. Stakeholder bookings -----------------------------------------------
   const bookingItemByTitle = new Map<string, Item>();
@@ -523,6 +548,27 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       pushValue(sub.id, allocationStatus, { type: "STATUS", labelId: spec.status === "done" ? "done" : "not_started" }, booked);
     });
 
+    // The same deliverables as lines on the item's Assets tab — type, quantity,
+    // who is on it once allocated, due date — and the recap the board shows.
+    const lineType = spec.assetTypes.length === 1 ? spec.assetTypes[0]! : null;
+    const bookingLines: ItemAsset[] = spec.assets.map((asset, index) => ({
+      id: sid("extraAsset"),
+      itemId: item.id,
+      boardId: allocationBoardId,
+      name: asset.name,
+      assetType: lineType,
+      quantity: asset.quantity,
+      assigneeId: spec.allocate ? users[spec.allocate.owner] : null,
+      dueDate: request.dueDate,
+      notes: asset.spec?.trim() || null,
+      position: index,
+      createdBy: users.danh,
+      createdAt: iso(booked),
+      updatedAt: iso(spec.allocate ? subHours(now, spec.allocate.hoursAgo) : booked),
+    }));
+    itemAssets.push(...bookingLines);
+    pushValue(item.id, allocationRecap, recapColumnValue(recapAssets(bookingLines, day(0))), booked);
+
     activity({ boardId: allocationBoardId, itemId: item.id, actorId: users.danh, eventType: "ITEM_CREATED", metadata: { itemName: spec.title, boardName: allocationBoard.name, groupName: "Incoming" }, createdAt: iso(booked) });
 
     const where = team ? `for ${team.name}` : "to Task Allocation";
@@ -584,6 +630,9 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
         pushValue(copy.id, lookups.column(targetKey, "status"), { type: "STATUS", labelId: "not_started" }, allocatedAt);
       });
       pushValue(item.id, allocatedTo, { type: "TEXT", text: targetName }, allocatedAt);
+      const mirrorLines = bookingLines.map((line, index) => ({ ...line, id: sid("extraAsset"), itemId: mirror.id, boardId: targetBoardId, assigneeId: users[targetOwner], position: index, createdAt: iso(allocatedAt), updatedAt: iso(allocatedAt) }));
+      itemAssets.push(...mirrorLines);
+      pushValue(mirror.id, targetColumns.find((c) => c.type === "ASSETS_RECAP"), recapColumnValue(recapAssets(mirrorLines, day(0))), allocatedAt);
 
       const [itemAId, itemBId] = normaliseLinkPair(item.id, mirror.id);
       itemLinks.push({ id: sid("extraLink"), workspaceId, itemAId, itemBId, excluded: [], createdBy: users.danh, createdAt: iso(allocatedAt) });
@@ -625,6 +674,23 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     };
     items.push(item);
     freshItemByName.set(`${spec.board}:${spec.name}`, item);
+    (FRESH_ASSETS[`${spec.board}:${spec.name}`] ?? []).forEach((line, lineIndex) => {
+      itemAssets.push({
+        id: sid("extraAsset"),
+        itemId: item.id,
+        boardId: item.boardId,
+        name: line.name,
+        assetType: line.type,
+        quantity: line.quantity,
+        assigneeId: line.owner ? users[line.owner] : null,
+        dueDate: line.due === undefined ? null : day(line.due),
+        notes: line.notes ?? null,
+        position: lineIndex,
+        createdBy: users[spec.createdBy],
+        createdAt: iso(created),
+        updatedAt: iso(created),
+      });
+    });
     const column = (key: string) => lookups.column(spec.board, key);
     const at = subHours(now, 4);
     if (spec.owner) pushValue(item.id, column("owner"), { type: "PERSON", userIds: spec.owner.map((k) => users[k]) }, at);
@@ -867,6 +933,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     items,
     itemColumnValues,
     itemLinks,
+    itemAssets,
     trackers,
     trackerSheets,
     comments,

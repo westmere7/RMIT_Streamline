@@ -20,6 +20,7 @@ import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { taskAllocationColumns } from "./booking-service";
+import { backfillAssetsRecap } from "./item-asset-service";
 
 /** The Admin team and its Task Allocation board, as the app creates them. */
 export const SYSTEM_TEAM = { name: "Admin", description: "Task allocation and workspace administration.", color: "navy", icon: "shield-check" } as const;
@@ -183,6 +184,27 @@ export class WorkspaceService {
    * booking. The board's "Requested team" palette is topped up with any team
    * created since, and an archived system row is brought back.
    */
+  /**
+   * The system entities as they are, plus the workspace's teams and boards, in
+   * one parallel round of reads and with no repair work. Null when anything is
+   * missing, in which case the caller falls back to `ensureSystemEntities`. The
+   * booking form and every booking take this path: they are read many times a
+   * day, often by people outside the studio, and the maintenance the full path
+   * does (palette refresh, column top-up, un-archiving) only needs to happen when
+   * an admin opens the workspace.
+   */
+  async findSystemEntities(workspaceId: EntityId): Promise<(SystemEntities & { teams: Team[]; boards: Board[] }) | null> {
+    const [workspace, teams, boards] = await Promise.all([
+      this.repos.workspaces.getById(workspaceId),
+      this.repos.teams.listByWorkspace(workspaceId),
+      this.repos.boards.listByWorkspace(workspaceId),
+    ]);
+    const team = teams.find((t) => t.system === "ADMIN");
+    const board = boards.find((b) => b.system === "TASK_ALLOCATION");
+    if (!workspace || !workspace.bookingKey || !team || team.archivedAt || !board || board.archivedAt || board.teamId !== team.id) return null;
+    return { workspace, team, board, teams, boards };
+  }
+
   async ensureSystemEntities(workspaceId: EntityId, actorId?: EntityId): Promise<SystemEntities> {
     let workspace = await this.repos.workspaces.getById(workspaceId);
     if (!workspace) throw new NotFoundError("Workspace", workspaceId);
@@ -270,7 +292,8 @@ export class WorkspaceService {
     for (const wanted of taskAllocationColumns(teamNames)) {
       const present = columns.some((c) => c.type === wanted.type && (c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
       if (present) continue;
-      await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
+      const created = await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
+      if (created.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, board.id, created.id);
     }
   }
 

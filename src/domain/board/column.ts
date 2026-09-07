@@ -13,6 +13,7 @@ export const COLUMN_TYPES = [
   "LINK",
   "TAGS",
   "SIZE",
+  "ASSETS_RECAP",
   "DEPENDENCY",
 ] as const;
 
@@ -143,6 +144,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   LINK: "Link",
   TAGS: "Tags",
   SIZE: "T-shirt size",
+  ASSETS_RECAP: "Assets recap",
   DEPENDENCY: "Dependency",
 };
 
@@ -159,6 +161,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   LINK: 170,
   TAGS: 180,
   SIZE: 110,
+  ASSETS_RECAP: 200,
   DEPENDENCY: 180,
 };
 

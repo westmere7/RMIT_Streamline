@@ -12,6 +12,7 @@ import type {
   Comment,
   DirectMessage,
   Item,
+  ItemAsset,
   ItemColumnValue,
   ItemLink,
   Notification,
@@ -57,6 +58,7 @@ export interface SeedBundle {
   items: Item[];
   itemColumnValues: ItemColumnValue[];
   itemLinks: ItemLink[];
+  itemAssets: ItemAsset[];
   trackers: Tracker[];
   trackerSheets: TrackerSheet[];
   comments: Comment[];
@@ -96,6 +98,7 @@ const ID_NAMESPACES = {
   extraTracker: "e7",
   extraMessage: "e8",
   extraMember: "e9",
+  extraAsset: "ea",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
@@ -869,6 +872,7 @@ export function emptySeedBundle(): SeedBundle {
     activities: [],
     notifications: [],
     directMessages: [],
+    itemAssets: [],
     boardVisits: [],
   };
 }
@@ -1309,6 +1313,7 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
     activities,
     notifications,
     directMessages: [],
+    itemAssets: [],
     boardVisits,
   };
   return { base, lookups };

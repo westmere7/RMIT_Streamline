@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, User } from "@/domain";
-import { columnLabels } from "@/domain";
+import { columnLabels, formatAssetsRecap } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 
 /** Human-readable form of a value for activity feeds and notifications. */
@@ -30,6 +30,8 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return value.tags.join(", ") || null;
     case "SIZE":
       return value.size;
+    case "ASSETS_RECAP":
+      return formatAssetsRecap(value) || null;
     case "DEPENDENCY":
       return value.itemIds.length ? `${value.itemIds.length} item(s)` : null;
   }

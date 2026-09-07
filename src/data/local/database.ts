@@ -10,6 +10,7 @@ import type {
   ItemRead,
   DirectMessage,
   Item,
+  ItemAsset,
   ItemColumnValue,
   ItemLink,
   Notification,
@@ -85,6 +86,7 @@ export interface StreamlineDB extends DBSchema {
   trackers: { key: string; value: Tracker; indexes: { byWorkspace: string } };
   trackerSheets: { key: string; value: TrackerSheet; indexes: { byTracker: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
+  itemAssets: { key: string; value: ItemAsset; indexes: { byItem: string; byBoard: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   activities: {
     key: string;
@@ -123,6 +125,7 @@ export const ALL_STORES: StoreName[] = [
   "trackers",
   "trackerSheets",
   "comments",
+  "itemAssets",
   "itemReads",
   "activities",
   "notifications",
@@ -134,7 +137,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 7;
+export const DB_VERSION = 8;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -256,6 +259,14 @@ function createItemReadsStore(db: IDBPDatabase<StreamlineDB>): void {
   reads.createIndex("byUser", "userId");
 }
 
+/** v8: the asset lines of each item. */
+function createItemAssetsStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("itemAssets")) return;
+  const assets = db.createObjectStore("itemAssets", { keyPath: "id" });
+  assets.createIndex("byItem", "itemId");
+  assets.createIndex("byBoard", "boardId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -265,6 +276,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 5) createNotificationPreferencesStore(db);
   if (oldVersion < 6) createOnboardingStores(db);
   if (oldVersion < 7) createItemReadsStore(db);
+  if (oldVersion < 8) createItemAssetsStore(db);
 }
 
 export interface OpenDatabaseOptions {

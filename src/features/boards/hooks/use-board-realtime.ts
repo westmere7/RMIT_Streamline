@@ -61,6 +61,10 @@ export function useBoardRealtime(boardId: string | null): void {
       .on("postgres_changes", { event: "*", schema: "public", table: "board_groups", filter: `board_id=eq.${boardId}` }, onBoard)
       .on("postgres_changes", { event: "*", schema: "public", table: "board_columns", filter: `board_id=eq.${boardId}` }, onBoard)
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => schedule("comments"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "item_assets", filter: `board_id=eq.${boardId}` }, () => {
+        schedule("item-assets");
+        schedule("board");
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "item_links" }, () => {
         schedule("item-links");
         schedule("board");

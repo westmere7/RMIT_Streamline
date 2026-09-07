@@ -107,6 +107,7 @@ export function remapSystemEntities(extras: SeedBundle, existing: ExistingSystem
       }
       return [{ ...v, columnId }];
     });
+    bundle.itemAssets = extras.itemAssets.filter((a) => a.boardId !== from || keptItems.has(a.itemId)).map((a) => (a.boardId === from ? { ...a, boardId: target.id } : a));
     bundle.activities = extras.activities.map((a) => (a.boardId === from ? { ...a, boardId: target.id } : a));
     bundle.notifications = extras.notifications.map((n) => (n.boardId === from ? { ...n, boardId: target.id } : n));
     bundle.boardVisits = extras.boardVisits.map((v) => (v.boardId === from ? { ...v, boardId: target.id, id: `${v.userId}:${target.id}` } : v));
@@ -287,6 +288,7 @@ export const TOPUP_TABLES = [
   "board_columns",
   "items",
   "item_column_values",
+  "item_assets",
   "item_links",
   "trackers",
   "tracker_sheets",
@@ -330,6 +332,7 @@ const BUNDLE_KEY = {
   board_columns: "boardColumns",
   items: "items",
   item_column_values: "itemColumnValues",
+  item_assets: "itemAssets",
   item_links: "itemLinks",
   trackers: "trackers",
   tracker_sheets: "trackerSheets",
@@ -385,6 +388,7 @@ export function planTopup(extras: SeedBundle, existing: KnownIds, existingShape:
       const columnBoard = shape.boardOfColumn.get(v.columnId);
       return itemBoard === undefined || columnBoard === undefined || itemBoard === columnBoard;
     },
+    item_assets: (a) => must("items", a.itemId) && must("boards", a.boardId) && must("profiles", a.createdBy) && has("profiles", a.assigneeId) && sameBoard(shape.boardOfItem, a.itemId, a.boardId),
     item_links: (l) => must("workspaces", l.workspaceId) && must("items", l.itemAId) && must("items", l.itemBId) && must("profiles", l.createdBy),
     trackers: (t) => must("workspaces", t.workspaceId) && must("profiles", t.createdBy) && has("teams", t.teamId),
     tracker_sheets: (s) => must("trackers", s.trackerId),

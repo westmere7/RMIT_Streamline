@@ -20,10 +20,11 @@ import type { StreamlineDatabase } from "../database";
 /** Deletes items (and their subitems), values and comments for the given item ids inside a transaction. */
 export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string[]): Promise<void> {
   if (itemIds.length === 0) return;
-  const tx = db.transaction(["items", "itemColumnValues", "comments", "itemLinks"], "readwrite");
+  const tx = db.transaction(["items", "itemColumnValues", "comments", "itemLinks", "itemAssets"], "readwrite");
   const items = tx.objectStore("items");
   const values = tx.objectStore("itemColumnValues");
   const comments = tx.objectStore("comments");
+  const assets = tx.objectStore("itemAssets");
   const links = tx.objectStore("itemLinks");
 
   const toDelete = new Set(itemIds);
@@ -35,6 +36,8 @@ export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string
   for (const id of toDelete) {
     const valueKeys = await values.index("byItem").getAllKeys(id);
     await Promise.all(valueKeys.map((k) => values.delete(k)));
+    const assetKeys = await assets.index("byItem").getAllKeys(id);
+    await Promise.all(assetKeys.map((k) => assets.delete(k)));
     const commentKeys = await comments.index("byItem").getAllKeys(id);
     await Promise.all(commentKeys.map((k) => comments.delete(k)));
     const linkKeys = [...(await links.index("byItemA").getAllKeys(id)), ...(await links.index("byItemB").getAllKeys(id))];

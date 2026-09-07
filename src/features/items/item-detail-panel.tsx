@@ -17,6 +17,8 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
+import { useItemAssets } from "@/features/items/asset-hooks";
+import { ItemAssetsTab } from "@/features/items/item-assets-tab";
 import { useMarkItemSeen } from "@/features/comments/updates";
 import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
@@ -42,6 +44,7 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
     setLocalTab(next);
   };
   const comments = useComments(itemId);
+  const assets = useItemAssets(itemId);
   // Looking at the Updates tab is catching up: record it, and again whenever
   // another update arrives while the tab stays open.
   const markSeen = useMarkItemSeen();
@@ -56,7 +59,9 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
     const onKey = (e: KeyboardEvent) => {
       // Escape inside a field (or the update composer, a contenteditable) belongs to that field.
       const inField = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLElement && e.target.isContentEditable);
-      if (e.key === "Escape" && !inField) onClose();
+      // An open picker, menu or dialog takes the Escape for itself; the panel closes on the next one.
+      const inOverlay = !!document.querySelector("[data-radix-popper-content-wrapper], [role='dialog'][data-state='open']:not([data-testid='item-panel']), [role='menu'][data-state='open']");
+      if (e.key === "Escape" && !inField && !inOverlay) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -95,6 +100,10 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
                 Updates
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
+              <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
+                Assets
+                {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
+              </UnderlineTabsTrigger>
               <UnderlineTabsTrigger value="activity">Activity</UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -102,6 +111,9 @@ export function ItemDetailPanel({ itemId, onClose }: { itemId: string; onClose: 
             </TabsContent>
             <TabsContent value="updates" className="min-h-0 flex-1">
               <ItemUpdates itemId={item.id} canComment={canEdit} />
+            </TabsContent>
+            <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+              <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
             </TabsContent>
             <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
               <ItemActivity itemId={item.id} />

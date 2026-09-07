@@ -10,6 +10,7 @@ import type {
   EntityId,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
+import { backfillAssetsRecap } from "./item-asset-service";
 import { NotFoundError } from "@/data/repositories";
 import { BOARD_TEMPLATES, type BoardTemplateId } from "@/features/boards/templates";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -433,7 +434,10 @@ export class BoardService {
   // ---- Columns -------------------------------------------------------------
 
   async addColumn(input: BoardColumnInput & { id?: EntityId; position?: number }): Promise<BoardColumn> {
-    return this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
+    const column = await this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
+    // A recap column summarises lines that may already exist; fill it in straight away.
+    if (column.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, column.boardId, column.id);
+    return column;
   }
 
   async updateColumn(

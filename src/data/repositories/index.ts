@@ -42,6 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
+import type { ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -203,6 +204,16 @@ export interface TrackerRepository {
   reorderSheets(trackerId: EntityId, orderedIds: EntityId[]): Promise<TrackerSheet[]>;
 }
 
+export interface ItemAssetRepository {
+  /** An item's asset lines in position order. */
+  listByItem(itemId: EntityId): Promise<ItemAsset[]>;
+  /** Every line on a board, for the recap cells. */
+  listByBoard(boardId: EntityId): Promise<ItemAsset[]>;
+  create(input: ItemAssetInput): Promise<ItemAsset>;
+  update(id: EntityId, patch: ItemAssetPatch): Promise<ItemAsset>;
+  delete(id: EntityId): Promise<void>;
+}
+
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
   /** Every update on any of the items, for per-item counts across a board. */
@@ -301,6 +312,7 @@ export interface Repositories {
   links: ItemLinkRepository;
   trackers: TrackerRepository;
   comments: CommentRepository;
+  itemAssets: ItemAssetRepository;
   itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;

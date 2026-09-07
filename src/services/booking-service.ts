@@ -3,6 +3,7 @@ import { BOOKING_ASSET_TYPES, bookingReference, formatAssetLine } from "@/domain
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns } from "./booking";
+import type { ItemAssetService } from "./item-asset-service";
 import type { ItemLinkService } from "./item-link-service";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
@@ -47,6 +48,7 @@ export class BookingService {
     private readonly workspace: WorkspaceService,
     private readonly items: ItemService,
     private readonly links: ItemLinkService,
+    private readonly assets: ItemAssetService,
     private readonly notifications: NotificationService,
     private readonly transport: BookingTransport | null,
   ) {}
@@ -70,26 +72,39 @@ export class BookingService {
     return this.book(workspace.id, input.request, input.actorId ?? null);
   }
 
+  /**
+   * The system entities with the workspace's teams and boards: the quick
+   * read-only lookup when everything is in place, the create-or-repair path
+   * when it is not (a brand-new workspace, or a system row someone archived).
+   */
+  private async systemEntities(workspaceId: EntityId) {
+    const found = await this.workspace.findSystemEntities(workspaceId);
+    if (found) return found;
+    const ensured = await this.workspace.ensureSystemEntities(workspaceId);
+    const [teams, boards] = await Promise.all([this.repos.teams.listByWorkspace(workspaceId), this.repos.boards.listByWorkspace(workspaceId)]);
+    return { ...ensured, teams, boards };
+  }
+
   /** The form for a workspace, once the caller has been allowed in. */
   async buildForm(workspaceId: EntityId): Promise<BookingForm> {
-    const { workspace } = await this.workspace.ensureSystemEntities(workspaceId);
-    const [allocation, teams, boards] = await Promise.all([
-      this.taskAllocationBoard(workspaceId),
-      this.repos.teams.listByWorkspace(workspaceId),
-      this.repos.boards.listByWorkspace(workspaceId),
-    ]);
-    const columns = await this.repos.boards.listColumns(allocation.id);
+    const { workspace, board: allocation, teams, boards } = await this.systemEntities(workspaceId);
+    const offered = teams.filter((t) => t.archivedAt === null && !t.system).sort((a, b) => a.name.localeCompare(b.name));
+    const receiving = offered.map((team) => (team.bookingBoardId ? boards.find((b) => b.id === team.bookingBoardId && b.archivedAt === null && !b.system) : undefined));
+    // Every board's columns in one round of requests: a stakeholder is looking at a spinner.
+    const receivingIds = [...new Set(receiving.flatMap((b) => (b ? [b.id] : [])))];
+    const [columns, ...receivingColumns] = await Promise.all([this.repos.boards.listColumns(allocation.id), ...receivingIds.map((id) => this.repos.boards.listColumns(id))]);
+    const columnsByBoard = new Map(receivingIds.map((id, i) => [id, receivingColumns[i]!]));
+
     const priorityColumn = columns.find((c) => c.type === "PRIORITY");
     const priorities = priorityColumn ? (priorityColumn.settings as PriorityColumnSettings).labels.map((l) => ({ name: l.name, color: l.color })) : [];
     const assetColumn = columns.find((c) => c.type === "TAGS" && c.settings.kind === "tags" && c.name.toLowerCase().includes("asset"));
     const assetTypes = assetColumn && assetColumn.settings.kind === "tags" && assetColumn.settings.options.length ? assetColumn.settings.options : BOOKING_ASSET_TYPES;
 
-    const options: BookingTeamOption[] = [];
-    for (const team of teams.filter((t) => t.archivedAt === null && !t.system).sort((a, b) => a.name.localeCompare(b.name))) {
-      const board = team.bookingBoardId ? boards.find((b) => b.id === team.bookingBoardId && b.archivedAt === null && !b.system) : undefined;
-      const fields = board ? extraFieldsFor(await this.repos.boards.listColumns(board.id)) : [];
-      options.push({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: board?.name ?? null, fields });
-    }
+    const options: BookingTeamOption[] = offered.map((team, i) => {
+      const board = receiving[i];
+      const fields = board ? extraFieldsFor(columnsByBoard.get(board.id) ?? []) : [];
+      return { id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: board?.name ?? null, fields };
+    });
     return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, priorities, teams: options };
   }
 
@@ -102,8 +117,8 @@ export class BookingService {
    */
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
-    const { board: allocation } = await this.workspace.ensureSystemEntities(workspaceId);
-    const team = request.teamId ? await this.repos.teams.getById(request.teamId) : null;
+    const { board: allocation, teams } = await this.systemEntities(workspaceId);
+    const team = request.teamId ? (teams.find((t) => t.id === request.teamId) ?? null) : null;
     if (request.teamId && (!team || team.workspaceId !== workspaceId || team.archivedAt || team.system)) throw new Error("That team is no longer taking bookings. Pick another, or leave it blank.");
 
     const receiving = team?.bookingBoardId ? await this.repos.boards.getById(team.bookingBoardId) : null;
@@ -124,14 +139,21 @@ export class BookingService {
     // The asset lines are the only children of a brand-new item, so their
     // positions are known and they can be written together rather than one
     // round trip after another — a stakeholder is waiting on this response.
-    await Promise.all(
-      request.assets.map((asset, index) =>
+    // Each asset line is a subitem the studio can tick off, and a line on the
+    // item's Assets tab, where type, quantity, person in charge and due date live.
+    const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
+    await Promise.all([
+      ...request.assets.map((asset, index) =>
         this.items.createItem(
           { boardId: board.id, groupId: group.id, name: formatAssetLine({ ...asset, spec: null }), parentItemId: item.id, position: index, description: asset.spec?.trim() || null },
           actorId,
         ),
       ),
-    );
+      this.assets.addMany(
+        request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
+        actorId,
+      ),
+    ]);
 
     await this.notifyAdmins(members, board, item, request, team, actorId);
     return {
@@ -181,9 +203,10 @@ export class BookingService {
     // The asset lines travel as subitems of the new item; they are not linked one
     // by one. They are the new item's only children, so they go in together.
     const subitems = sourceItems.filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
-    await Promise.all(
-      subitems.map((sub, index) => this.items.createItem({ boardId: target.id, groupId: group.id, name: sub.name, parentItemId: created.id, position: index, description: sub.description }, actorId)),
-    );
+    await Promise.all([
+      ...subitems.map((sub, index) => this.items.createItem({ boardId: target.id, groupId: group.id, name: sub.name, parentItemId: created.id, position: index, description: sub.description }, actorId)),
+      this.assets.copyTo(item.id, created.id, target.id, actorId),
+    ]);
 
     const allocatedTo = columns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"));
     if (allocatedTo) await this.repos.items.setValue(item.id, allocatedTo.id, { type: "TEXT", text: target.name });
@@ -209,11 +232,6 @@ export class BookingService {
     // book without the key; a public visitor must carry the right one.
     if (key !== null && workspace.bookingKey && key !== workspace.bookingKey) throw new BookingAccessError("This booking link is no longer valid. Ask the studio for the current one.");
     return workspace;
-  }
-
-  private async taskAllocationBoard(workspaceId: EntityId): Promise<Board> {
-    const { board } = await this.workspace.ensureSystemEntities(workspaceId);
-    return board;
   }
 
   /** Who a booking is recorded as: the member who booked it if they belong here, else the workspace owner, else the board's owner. */
@@ -253,6 +271,7 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Priority", type: "PRIORITY" },
     { name: "Due Date", type: "DATE" },
     { name: "Reference", type: "LINK" },
+    { name: "Assets recap", type: "ASSETS_RECAP" },
     { name: "Allocated to", type: "TEXT" },
   ];
 }

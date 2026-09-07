@@ -15,7 +15,8 @@ import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
  */
 
 /** Column types whose values only make sense on their own board. */
-export const UNSYNCED_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["DEPENDENCY"]);
+// Dependencies point at items on their own board; a recap is derived from the item's own asset lines.
+export const UNSYNCED_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["DEPENDENCY", "ASSETS_RECAP"]);
 
 export interface ColumnMapping {
   source: BoardColumn;

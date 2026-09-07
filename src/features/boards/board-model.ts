@@ -148,7 +148,7 @@ export const TABLE_LAYOUT = {
  * are long by nature stay against the left edge: a long text column, and a
  * dependency column that lists item names.
  */
-const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "DEPENDENCY"]);
+const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "DEPENDENCY", "ASSETS_RECAP"]);
 
 export function columnAlign(type: ColumnType): "left" | "center" {
   return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";

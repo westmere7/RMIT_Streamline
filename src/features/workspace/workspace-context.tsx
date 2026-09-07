@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import type { Board, BoardFavourite, BoardMember, Team, TeamMember, User, Workspace, WorkspaceMember } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -122,24 +122,29 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   }, [ctx, allBoards, boardMembers, favourites, currentUser, refresh]);
 
   // An admin opening the workspace makes sure its built-in Admin team, Task
-  // Allocation board and booking link exist (see WorkspaceService.ensureSystemEntities).
+  // Allocation board and booking link exist, and that the board carries every
+  // column the current build expects (see WorkspaceService.ensureSystemEntities).
+  // The check runs once per page load: creating what is missing when nothing is
+  // there, and otherwise only the light top-up of columns and the team palette.
+  const isAdmin = !!value && canSeeSystemEntities(value.permissions);
   const needsSystemEntities =
-    !!value &&
-    canSeeSystemEntities(value.permissions) &&
-    (!value.teams.some((t) => t.system === "ADMIN") || !value.boards.some((b) => b.system === "TASK_ALLOCATION") || !value.workspace.bookingKey);
+    isAdmin && (!value.teams.some((t) => t.system === "ADMIN") || !value.boards.some((b) => b.system === "TASK_ALLOCATION") || !value.workspace.bookingKey);
+  const maintained = useRef<string | null>(null);
   useEffect(() => {
-    if (!needsSystemEntities) return;
+    if (!isAdmin) return;
+    if (maintained.current === workspace.id && !needsSystemEntities) return;
+    maintained.current = workspace.id;
     let cancelled = false;
     services.workspace
       .ensureSystemEntities(workspace.id, currentUser.id)
       .then(() => {
-        if (!cancelled) void refresh();
+        if (!cancelled && needsSystemEntities) void refresh();
       })
       .catch((error) => console.warn("[workspace] could not create the built-in team and board", error));
     return () => {
       cancelled = true;
     };
-  }, [needsSystemEntities, services, workspace.id, currentUser.id, refresh]);
+  }, [isAdmin, needsSystemEntities, services, workspace.id, currentUser.id, refresh]);
 
   if (contextQuery.isError || boardsQuery.isError) {
     throw contextQuery.error ?? boardsQuery.error;

@@ -195,6 +195,7 @@ describe("planning the top-up against what the database holds", () => {
         board_columns: "boardColumns",
         items: "items",
         item_column_values: "itemColumnValues",
+        item_assets: "itemAssets",
         item_links: "itemLinks",
         trackers: "trackers",
         tracker_sheets: "trackerSheets",

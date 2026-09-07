@@ -32,6 +32,8 @@ export type ColumnValue =
   | { type: "LINK"; url: string; text: string | null }
   | { type: "TAGS"; tags: string[] }
   | { type: "SIZE"; size: TShirtSize | null }
+  /** A cached summary of the item's asset lines (src/domain/item/item-asset.ts), rewritten whenever they change. */
+  | { type: "ASSETS_RECAP"; lines: number; quantity: number; types: number; people: number; nextDue: ISODate | null; overdue: number }
   | { type: "DEPENDENCY"; itemIds: EntityId[] };
 
 export type ColumnValueOf<T extends ColumnType> = Extract<ColumnValue, { type: T }>;
@@ -70,6 +72,8 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, tags: [] };
     case "SIZE":
       return { type, size: null };
+    case "ASSETS_RECAP":
+      return { type, lines: 0, quantity: 0, types: 0, people: 0, nextDue: null, overdue: 0 };
     case "DEPENDENCY":
       return { type, itemIds: [] };
   }
@@ -100,6 +104,8 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.tags.length === 0;
     case "SIZE":
       return value.size === null;
+    case "ASSETS_RECAP":
+      return value.lines === 0;
     case "DEPENDENCY":
       return value.itemIds.length === 0;
   }

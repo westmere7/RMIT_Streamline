@@ -2,6 +2,7 @@ import type { Repositories } from "@/data/repositories";
 import { BoardService } from "./board-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { CommentService } from "./comment-service";
+import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
 import { MessageService } from "./message-service";
@@ -19,6 +20,7 @@ export interface Services {
   boards: BoardService;
   items: ItemService;
   links: ItemLinkService;
+  assets: ItemAssetService;
   comments: CommentService;
   messages: MessageService;
   profiles: ProfileService;
@@ -39,6 +41,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const myWork = new MyWorkService(repos);
   const workspace = new WorkspaceService(repos);
   const items = new ItemService(repos, links, notifications);
+  const assets = new ItemAssetService(repos);
   return {
     repos,
     notifications,
@@ -46,7 +49,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     boards: new BoardService(repos, notifications),
     items,
     links,
-    booking: new BookingService(repos, workspace, items, links, notifications, options.bookingTransport ?? null),
+    assets,
+    booking: new BookingService(repos, workspace, items, links, assets, notifications, options.bookingTransport ?? null),
     comments: new CommentService(repos, notifications, links),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),

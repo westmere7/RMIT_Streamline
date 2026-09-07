@@ -2,6 +2,7 @@ import type { Repositories } from "@/data/repositories";
 import { SupabaseBoardRepository } from "./repositories/board-repository";
 import { SupabaseItemLinkRepository } from "./repositories/item-link-repository";
 import { SupabaseItemRepository } from "./repositories/item-repository";
+import { SupabaseItemAssetRepository } from "./repositories/item-asset-repository";
 import {
   SupabaseActivityRepository,
   SupabaseAdminRepository,
@@ -40,6 +41,7 @@ export function createSupabaseRepositories(): Repositories {
     links: new SupabaseItemLinkRepository(),
     trackers: new SupabaseTrackerRepository(),
     comments: new SupabaseCommentRepository(),
+    itemAssets: new SupabaseItemAssetRepository(),
     itemReads: new SupabaseItemReadRepository(),
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),

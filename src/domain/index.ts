@@ -7,6 +7,7 @@ export * from "./board/board";
 export * from "./board/column";
 export * from "./item/item";
 export * from "./item/item-link";
+export * from "./item/item-asset";
 export * from "./tracker/tracker";
 export * from "./comment/comment";
 export * from "./message/direct-message";

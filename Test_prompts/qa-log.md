@@ -406,3 +406,36 @@ status race is gone in production (both smoke items stored `working`); the remai
 the suite's own — a stale "Drag <name>" locator (the handle is now `item-drag-area`), a 90 s budget
 too short for ~20 sequential round trips (now 240 s), and cleanup in a `finally` a timeout had already
 cancelled (now `afterEach`). Final run: 5 passed, the cross-group drag needing one retry. Version 0.3.1.
+
+---
+
+# Asset lines and the "Assets recap" column — 2026-09-07
+
+Danh asked for a per-task asset listing (type, person in charge, quantity, due date) with live totals,
+and a compact "Assets recap" column, because most tasks are too small for a tracker sheet.
+
+**Built:** `item_assets` table (migration 0015, RLS follows the item: view = `can_view_item`, write =
+`can_edit_item`, a trigger keeps `board_id` equal to the item's board, realtime published) with IndexedDB
+store v8; `ItemAssetRepository` for both providers; `ItemAssetService` (add / addMany / update / remove /
+copyTo) that rewrites the cached `ASSETS_RECAP` value on every change; new column type `ASSETS_RECAP`
+(read-only cell, derives from live lines when the board has them loaded, click opens the panel on the
+Assets tab, sorts by quantity, excluded from link sync, backfilled when the column is added or topped up);
+the Assets tab on the item panel (summary strip, per-type breakdown, next due / overdue, one compact card
+per line with chips for type, person, a quantity stepper and due date — designed for the 520 px panel and
+a phone); bookings write their asset lines and allocation copies them; the Task Allocation board gains
+the column through its top-up; seed extras carry 34 lines and their recap values.
+
+**Found and fixed on the way:**
+- Escape inside a picker in the item panel closed the whole panel (pre-existing; every popover cell had
+  it). The panel now ignores Escape while a popover, menu or dialog is open.
+- The Task Allocation column top-up only ran when the system entities were missing, so an existing board
+  never received new columns. Admins now run the top-up once per page load.
+- The booking form spent 1.6–2.5 s in ~15 sequential reads (system-entity maintenance on every load).
+  A read-only fast path and parallel column reads bring it to 0.4–0.7 s; booking 3 s → 2.1 s.
+- Inserting `pushValue` calls mid-sequence in the seed extras shifts the `extraValue` ids after them; the
+  additive top-up tolerates it (`on conflict do nothing`) but it is worth appending new values last.
+
+**Tested:** unit — recap maths, column type contract, service CRUD + recap cache, backfill, cascade on
+item delete, booking → lines → allocation copy (`tests/unit/item-assets.test.ts`); e2e —
+`tests/e2e/item-assets.spec.ts` (add, stepper, type, person, due, live cell, reload, remove, viewer
+read-only); by hand on the live workspace at 1440 and 390 px. Version 0.4.0.

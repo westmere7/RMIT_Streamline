@@ -5,7 +5,7 @@ import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, emptyValueFor, isStuckLabel, statusRoleIds } from "@/domain";
+import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isStuckLabel, recapAssets, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -16,7 +16,9 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { columnAlign } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
-import { formatDateRange, formatShortDate, isOverdue, isToday } from "@/lib/dates/dates";
+import { useBoardAssets } from "@/features/items/asset-hooks";
+import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
+import { useBoardUiStore } from "@/stores/board-ui-store";
 import { cn } from "@/lib/utils";
 import { CellShell, PopoverCell } from "./cell-shell";
 
@@ -62,6 +64,8 @@ export function CellRenderer(props: CellProps) {
       return <TagsCell {...props} />;
     case "SIZE":
       return <SizeCell {...props} />;
+    case "ASSETS_RECAP":
+      return <AssetsRecapCell {...props} />;
     case "DEPENDENCY":
       return <DependencyCell {...props} />;
   }
@@ -205,6 +209,42 @@ export function SizeCell({ item, column, value, onChange, readOnly, width }: Cel
         />
       )}
     </PopoverCell>
+  );
+}
+
+// ---- Assets recap --------------------------------------------------------------
+
+/**
+ * Read-only: "14 assets · 3 types · 2 PIC", worked out from the item's live
+ * asset lines when the board has them loaded and from the stored summary until
+ * then. Clicking opens the item straight on its Assets tab, where the lines are.
+ */
+export function AssetsRecapCell({ item, column, value, width }: CellProps) {
+  const { board, openItem } = useBoardContext();
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  const assets = useBoardAssets(board.id);
+  const stored = valueOf("ASSETS_RECAP", value);
+  const live = React.useMemo(() => (assets.data ? recapAssets(assets.data.filter((a) => a.itemId === item.id), todayISO()) : null), [assets.data, item.id]);
+  const lines = live ? live.lines : stored.lines;
+  const overdue = live ? live.overdue : stored.overdue;
+  const text = live ? formatAssetsRecap({ lines: live.lines, quantity: live.quantity, types: live.types, people: live.assigneeIds }) : formatAssetsRecap(stored);
+  const open = () => {
+    setRequestedItemTab({ itemId: item.id, tab: "assets" });
+    openItem(item.id);
+  };
+  return (
+    <CellShell width={width ?? column.width} align={columnAlign(column.type)} aria-label={`${column.name}: ${text || "no assets"} for ${item.name}`} data-testid="assets-recap-cell">
+      <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden px-1 text-left text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" title={text || "Open the Assets tab"}>
+        {lines === 0 ? (
+          <span className="text-2xs text-muted-foreground/60">—</span>
+        ) : (
+          <>
+            {overdue > 0 && <TriangleAlert className="size-3 shrink-0 text-red-600 dark:text-red-400" aria-label={`${overdue} overdue`} />}
+            <span className="truncate tabular">{text}</span>
+          </>
+        )}
+      </button>
+    </CellShell>
   );
 }
 

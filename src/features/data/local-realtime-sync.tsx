@@ -35,6 +35,9 @@ export function LocalRealtimeSync() {
         invalidate(["activity"]);
         invalidate(["notifications"]);
       }
+      if (kinds.has("assets")) {
+        invalidate(["item-assets"]);
+      }
       if (kinds.has("trackers")) {
         invalidate(["trackers"]);
         invalidate(["tracker"]);

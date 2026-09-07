@@ -133,6 +133,9 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return value.tags.length ? [...value.tags].sort((x, y) => x.localeCompare(y)).join(", ") : null;
     case "SIZE":
       return value.size ? T_SHIRT_SIZES.indexOf(value.size) : null;
+    case "ASSETS_RECAP":
+      // Sorted by how much is being produced.
+      return value.lines ? value.quantity : null;
     case "DEPENDENCY":
       return value.itemIds.length || null;
   }

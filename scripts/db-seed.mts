@@ -340,6 +340,26 @@ async function main(): Promise<void> {
         )}`;
       }
 
+      if (seed.itemAssets.length) {
+        await tx`insert into public.item_assets ${tx(
+          seed.itemAssets.map((a) => ({
+            id: a.id,
+            item_id: a.itemId,
+            board_id: a.boardId,
+            name: a.name,
+            asset_type: a.assetType,
+            quantity: a.quantity,
+            assignee_id: a.assigneeId,
+            due_date: a.dueDate,
+            notes: a.notes,
+            position: a.position,
+            created_by: a.createdBy,
+            created_at: a.createdAt,
+            updated_at: a.updatedAt,
+          })),
+        )}`;
+      }
+
       if (seed.itemLinks.length) {
         await tx`insert into public.item_links ${tx(
           seed.itemLinks.map((l) => {

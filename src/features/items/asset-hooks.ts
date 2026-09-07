@@ -1,0 +1,108 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { Item, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import { useCurrentUser } from "@/features/auth/auth-context";
+import { useServices } from "@/features/data/data-context";
+import { newId, nowIso } from "@/lib/ids";
+import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
+
+export function useItemAssets(itemId: string | null) {
+  const services = useServices();
+  return useQuery({
+    queryKey: queryKeys.itemAssets(itemId ?? ""),
+    queryFn: () => services.assets.list(itemId!),
+    enabled: !!itemId,
+    staleTime: 5_000,
+  });
+}
+
+/** Every line on a board, for the recap cells; shares its key prefix with the per-item query so both refresh together. */
+export function useBoardAssets(boardId: string) {
+  const services = useServices();
+  return useQuery({
+    queryKey: queryKeys.boardAssets(boardId),
+    queryFn: () => services.assets.listByBoard(boardId),
+    staleTime: 5_000,
+  });
+}
+
+export type NewAssetLine = Omit<ItemAssetInput, "itemId" | "boardId" | "position" | "createdBy">;
+
+/**
+ * Add, change and remove lines with the list updated on screen at once. Every
+ * write also refreshes the board snapshot, because the recap column's value
+ * changes with the lines.
+ */
+export function useAssetMutations(item: Item) {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const user = useCurrentUser();
+  const key = queryKeys.itemAssets(item.id);
+
+  const settle = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["item-assets"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(item.boardId) });
+    publishDataChange({ itemIds: [item.id], boardIds: [item.boardId], kinds: ["assets", "board"] });
+  };
+  const rollback = (previous: ItemAsset[] | undefined, error: unknown, fallback: string) => {
+    if (previous) queryClient.setQueryData(key, previous);
+    toast.error(error instanceof Error ? error.message : fallback);
+  };
+
+  const add = useMutation({
+    mutationFn: (line: NewAssetLine) => services.assets.add({ ...line, itemId: item.id, boardId: item.boardId }, user.id),
+    onMutate: async (line) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      const now = nowIso();
+      const temp: ItemAsset = {
+        id: newId(),
+        itemId: item.id,
+        boardId: item.boardId,
+        name: line.name.trim(),
+        assetType: line.assetType ?? null,
+        quantity: line.quantity ?? null,
+        assigneeId: line.assigneeId ?? null,
+        dueDate: line.dueDate ?? null,
+        notes: line.notes ?? null,
+        position: (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1,
+        createdBy: user.id,
+        createdAt: now,
+        updatedAt: now,
+      };
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [...old, temp]);
+      return { previous };
+    },
+    onError: (error, _line, ctx) => rollback(ctx?.previous, error, "Could not add the asset"),
+    onSettled: settle,
+  });
+
+  const update = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: ItemAssetPatch }) => services.assets.update(id, patch),
+    onMutate: async ({ id, patch }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => old.map((a) => (a.id === id ? { ...a, ...patch, updatedAt: nowIso() } : a)));
+      return { previous };
+    },
+    onError: (error, _v, ctx) => rollback(ctx?.previous, error, "Could not change the asset"),
+    onSettled: settle,
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => services.assets.remove(id, item.id, item.boardId),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => old.filter((a) => a.id !== id));
+      return { previous };
+    },
+    onError: (error, _id, ctx) => rollback(ctx?.previous, error, "Could not remove the asset"),
+    onSettled: settle,
+  });
+
+  return { add, update, remove };
+}
