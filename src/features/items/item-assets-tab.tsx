@@ -78,7 +78,9 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
     );
   }
 
-  const percent = recap.quantity > 0 ? Math.round((recap.doneQuantity / recap.quantity) * 100) : 0;
+  // Lines, not units: ticking three of four deliverables should look like three
+  // of four, whatever the print run on the fourth.
+  const percent = recap.lines > 0 ? Math.round((recap.done / recap.lines) * 100) : 0;
 
   return (
     <div className="p-4" data-testid="assets-tab">
@@ -91,7 +93,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
             aria-valuenow={percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${recap.doneQuantity} of ${recap.quantity} assets done`}
+            aria-label={`${recap.done} of ${recap.lines} asset lines done`}
             data-testid="assets-progress-bar"
           >
             <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${percent}%` }} />
@@ -99,10 +101,10 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
 
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="text-[13px] font-medium text-foreground tabular" data-testid="assets-progress">
-              {recap.doneQuantity} of {recap.quantity} done
+              {recap.done} of {recap.lines} {recap.lines === 1 ? "line" : "lines"} done
             </span>
-            <span className="tabular" data-testid="assets-line-count">
-              {recap.lines} {recap.lines === 1 ? "line" : "lines"}
+            <span className="tabular" data-testid="assets-quantity">
+              {recap.quantity} {recap.quantity === 1 ? "asset" : "assets"}
             </span>
             <span className="ml-auto inline-flex items-center gap-1 tabular" data-testid="assets-due">
               <CalendarDays className="size-3" />

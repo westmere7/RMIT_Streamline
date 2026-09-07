@@ -75,6 +75,11 @@ export function isStuckLabel(column: BoardColumn | null | undefined, labelId: st
   return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "stuck";
 }
 
+/** True when this label means the work is under way — "Working On It", however the board words it. */
+export function isProgressLabel(column: BoardColumn | null | undefined, labelId: string | null | undefined): boolean {
+  return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "progress";
+}
+
 export interface PriorityColumnSettings {
   kind: "priority";
   labels: ColumnLabel[];

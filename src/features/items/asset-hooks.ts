@@ -29,6 +29,48 @@ export function useBoardAssets(boardId: string) {
   });
 }
 
+/**
+ * How much of an item's asset list is ticked off, counted in lines rather than
+ * units: a line is one deliverable, and 2,400 booklets alongside three banners
+ * would otherwise drown out everything else on the list.
+ */
+export interface AssetProgress {
+  /** Lines on the item. */
+  lines: number;
+  /** How many of them are done. */
+  done: number;
+  /** 0-100, rounded. */
+  percent: number;
+}
+
+/**
+ * Cached on the array React Query hands back, so a board of two hundred rows
+ * walks its asset lines once rather than once per row. Structural sharing keeps
+ * that array identical until the lines actually change.
+ */
+const progressCache = new WeakMap<readonly ItemAsset[], Map<string, AssetProgress>>();
+
+function progressByItem(assets: readonly ItemAsset[]): Map<string, AssetProgress> {
+  const cached = progressCache.get(assets);
+  if (cached) return cached;
+  const map = new Map<string, AssetProgress>();
+  for (const asset of assets) {
+    const entry = map.get(asset.itemId) ?? { lines: 0, done: 0, percent: 0 };
+    entry.lines += 1;
+    if (asset.completedAt) entry.done += 1;
+    map.set(asset.itemId, entry);
+  }
+  for (const entry of map.values()) entry.percent = entry.lines > 0 ? Math.round((entry.done / entry.lines) * 100) : 0;
+  progressCache.set(assets, map);
+  return map;
+}
+
+/** What an item's asset list adds up to, or null while the board's lines load or it has none. */
+export function useItemAssetProgress(boardId: string, itemId: string): AssetProgress | null {
+  const assets = useBoardAssets(boardId);
+  return assets.data ? progressByItem(assets.data).get(itemId) ?? null : null;
+}
+
 export type NewAssetLine = Omit<ItemAssetInput, "itemId" | "boardId" | "position" | "createdBy">;
 
 /**

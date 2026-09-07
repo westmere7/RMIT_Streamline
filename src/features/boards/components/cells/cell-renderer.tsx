@@ -5,7 +5,7 @@ import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isStuckLabel, recapAssets, statusRoleIds } from "@/domain";
+import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isProgressLabel, isStuckLabel, recapAssets, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -16,7 +16,7 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { columnAlign } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
-import { useBoardAssets } from "@/features/items/asset-hooks";
+import { useBoardAssets, useItemAssetProgress } from "@/features/items/asset-hooks";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { cn } from "@/lib/utils";
@@ -110,6 +110,11 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   const label = labels.find((l) => l.id === v.labelId) ?? null;
   const stuck = isStuckLabel(column, v.labelId);
   const w = width ?? column.width;
+  // Work under way says how far along its deliverables are, on a line inside the
+  // chip. Only there: before it starts there is nothing to show, and once it is
+  // done the chip already says so.
+  const assets = useItemAssetProgress(item.boardId, item.id);
+  const progress = isProgressLabel(column, v.labelId) && assets && assets.lines > 0 ? assets : null;
   return (
     <PopoverCell
       width={w}
@@ -121,8 +126,21 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       trigger={
         label ? (
           <span className="flex h-full w-full items-center p-1.5">
-            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}>
+            <span
+              className={cn("relative flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}
+              title={progress ? `${label.name} — assets ${progress.done} of ${progress.lines} done` : undefined}
+            >
               <span className="truncate px-2">{label.name}</span>
+              {progress && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-lg bg-black/25"
+                  data-testid="status-asset-progress"
+                  data-percent={progress.percent}
+                >
+                  <span className="block h-full bg-white/85 transition-[width] duration-300" style={{ width: `${progress.percent}%` }} />
+                </span>
+              )}
             </span>
           </span>
         ) : (

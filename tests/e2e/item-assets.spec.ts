@@ -61,11 +61,11 @@ test.describe("asset lines and the recap column", () => {
     await panel(page).getByTestId("asset-add-input").fill("A1 poster");
     await panel(page).getByTestId("asset-add-submit").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 done");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 line done");
     await panel(page).getByTestId("asset-add-input").fill("Instagram tile");
     await panel(page).getByTestId("asset-add-input").press("Enter");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-line-count")).toContainText("2");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 2 lines done");
 
     // Quantity from the stepper, type from the palette, a person in charge and a due date — on the poster.
     const poster = line(page, "A1 poster");
@@ -73,7 +73,7 @@ test.describe("asset lines and the recap column", () => {
     await poster.getByTestId("asset-quantity-plus").click();
     await poster.getByTestId("asset-quantity-plus").click();
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 4 done");
+    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets");
 
     await poster.getByTestId("asset-type").click();
     await page.getByTestId("asset-type-option-Print").click();
@@ -111,7 +111,7 @@ test.describe("asset lines and the recap column", () => {
     await openLine(page, "A1 poster");
     await line(page, "A1 poster").getByTestId("asset-done").click();
     await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "true", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("3 of 4 done");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("1 of 2 lines done");
     await line(page, "A1 poster").getByTestId("asset-toggle").click();
     await expect(line(page, "A1 poster").getByTestId("asset-summary")).toContainText("Print");
     await line(page, "A1 poster").getByTestId("asset-done").click();

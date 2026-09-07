@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardColumn, StatusColumnSettings } from "@/domain";
-import { defaultSettingsFor, isStuckLabel, statusLabelRole, statusRoleIds } from "@/domain";
+import { defaultSettingsFor, isProgressLabel, isStuckLabel, statusLabelRole, statusRoleIds } from "@/domain";
 
 const settings = defaultSettingsFor("STATUS") as StatusColumnSettings;
 
@@ -34,6 +34,14 @@ describe("status label roles", () => {
     expect(statusRoleIds(settings, "done")).toEqual(["done"]);
     expect(statusRoleIds(settings, "stuck")).toEqual(["stuck"]);
     expect(statusRoleIds(settings, "progress")).toEqual(["working"]);
+  });
+
+  it("answers the under-way question a chip asks, so it knows to show asset progress", () => {
+    const renamed: StatusColumnSettings = { ...settings, labels: settings.labels.map((l) => (l.id === "working" ? { ...l, name: "In production" } : l)) };
+    expect(isProgressLabel(statusColumn(renamed), "working")).toBe(true);
+    expect(isProgressLabel(statusColumn(settings), "not_started")).toBe(false);
+    expect(isProgressLabel(statusColumn(settings), "done")).toBe(false);
+    expect(isProgressLabel(null, "working")).toBe(false);
   });
 
   it("answers the stuck question a chip asks, whatever the label is called", () => {
