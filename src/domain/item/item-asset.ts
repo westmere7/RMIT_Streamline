@@ -1,11 +1,11 @@
-import type { EntityId, ISODate, Timestamps } from "@/domain/common/types";
+import type { EntityId, ISODate, ISODateTime, Timestamps } from "@/domain/common/types";
 import type { TagOption } from "@/domain/board/column";
 import { BOOKING_ASSET_TYPES } from "@/domain/booking/booking";
 
 /**
  * The deliverables of one task, listed line by line.
  *
- * Most tasks are too small for a tracker sheet, yet the studio still needs to
+ * Most tasks are too small for a tracker sheet, yet the team still needs to
  * know what is being produced, how many, who is making it and by when. Every
  * item therefore carries its own asset list — a tab on the item panel — and a
  * board may add an "Assets recap" column that summarises it in a cell. The
@@ -18,13 +18,15 @@ export interface ItemAsset extends Timestamps {
   boardId: EntityId;
   /** "A1 poster", "Instagram tile", "60s film"… */
   name: string;
-  /** One of the studio's asset types (Print, Digital, Video…), or anything typed in. */
+  /** One of the team's asset types (Print, Digital, Video…), or anything typed in. */
   assetType: string | null;
   /** How many of this line; null means "one, not counted separately". */
   quantity: number | null;
-  /** The person in charge of this line. */
-  assigneeId: EntityId | null;
+  /** The people in charge of this line, in the order they were added. */
+  assigneeIds: EntityId[];
   dueDate: ISODate | null;
+  /** When the line was ticked off; null while it is outstanding. */
+  completedAt: ISODateTime | null;
   /** Size, format, dimensions, colour, duration… free text. */
   notes: string | null;
   position: number;
@@ -32,9 +34,9 @@ export interface ItemAsset extends Timestamps {
 }
 
 export type ItemAssetInput = Pick<ItemAsset, "itemId" | "boardId" | "name" | "createdBy"> &
-  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeId" | "dueDate" | "notes" | "position">>;
+  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "position">>;
 
-export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeId" | "dueDate" | "notes" | "position">>;
+export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "position">>;
 
 /** The palette the asset-type picker offers; anything else can still be typed. */
 export const ASSET_TYPE_OPTIONS: readonly TagOption[] = BOOKING_ASSET_TYPES;
@@ -47,11 +49,15 @@ export interface AssetsRecap {
   quantity: number;
   /** Distinct asset types, sorted. Lines without a type are not counted here. */
   types: string[];
-  /** Distinct people in charge. */
+  /** Distinct people in charge, across every line. */
   assigneeIds: EntityId[];
   /** Lines with nobody in charge. */
   unassigned: number;
-  /** The earliest due date that is today or later, or null. */
+  /** Lines ticked off. */
+  done: number;
+  /** Quantity on the lines ticked off — what the progress bar fills to. */
+  doneQuantity: number;
+  /** The earliest due date that is today or later on a line still outstanding, or null. */
   nextDue: ISODate | null;
   /** Lines whose due date has passed. */
   overdue: number;
@@ -61,20 +67,26 @@ export function assetCount(asset: Pick<ItemAsset, "quantity">): number {
   return asset.quantity === null || asset.quantity === undefined ? 1 : Math.max(0, asset.quantity);
 }
 
-export function recapAssets(assets: readonly Pick<ItemAsset, "quantity" | "assetType" | "assigneeId" | "dueDate">[], today: ISODate): AssetsRecap {
+export function recapAssets(assets: readonly Pick<ItemAsset, "quantity" | "assetType" | "assigneeIds" | "dueDate" | "completedAt">[], today: ISODate): AssetsRecap {
   const types = new Set<string>();
   const assignees = new Set<EntityId>();
   let quantity = 0;
   let unassigned = 0;
   let overdue = 0;
+  let done = 0;
+  let doneQuantity = 0;
   let nextDue: ISODate | null = null;
   for (const asset of assets) {
     quantity += assetCount(asset);
+    if (asset.completedAt) {
+      done += 1;
+      doneQuantity += assetCount(asset);
+    }
     const type = asset.assetType?.trim();
     if (type) types.add(type);
-    if (asset.assigneeId) assignees.add(asset.assigneeId);
+    if (asset.assigneeIds.length > 0) for (const id of asset.assigneeIds) assignees.add(id);
     else unassigned += 1;
-    if (asset.dueDate) {
+    if (asset.dueDate && !asset.completedAt) {
       if (asset.dueDate < today) overdue += 1;
       else if (nextDue === null || asset.dueDate < nextDue) nextDue = asset.dueDate;
     }
@@ -85,6 +97,8 @@ export function recapAssets(assets: readonly Pick<ItemAsset, "quantity" | "asset
     types: [...types].sort((a, b) => a.localeCompare(b)),
     assigneeIds: [...assignees],
     unassigned,
+    done,
+    doneQuantity,
     nextDue,
     overdue,
   };

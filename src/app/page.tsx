@@ -36,7 +36,7 @@ export default function RootPage() {
   return (
     <AuthShell
       headline="Boards, briefs and approvals in one place."
-      lead="Track campaign production, creative requests and publication work across the Melbourne and Vietnam studios."
+      lead="Track campaign production, creative requests and publication work across the Melbourne and Vietnam teams."
       progress
     >
       <div className="mb-6">

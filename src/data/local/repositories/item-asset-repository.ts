@@ -6,17 +6,24 @@ import type { LocalConnection } from "../connection";
 
 const byPosition = (a: ItemAsset, b: ItemAsset) => a.position - b.position || a.createdAt.localeCompare(b.createdAt);
 
+/** Rows written before a line could have more than one person in charge. */
+function normalize(asset: ItemAsset): ItemAsset {
+  if (Array.isArray(asset.assigneeIds)) return asset.completedAt === undefined ? { ...asset, completedAt: null } : asset;
+  const legacy = (asset as ItemAsset & { assigneeId?: string | null }).assigneeId;
+  return { ...asset, assigneeIds: legacy ? [legacy] : [], completedAt: asset.completedAt ?? null };
+}
+
 export class LocalItemAssetRepository implements ItemAssetRepository {
   constructor(private readonly conn: LocalConnection) {}
 
   async listByItem(itemId: string): Promise<ItemAsset[]> {
     const db = await this.conn.getDb();
-    return (await db.getAllFromIndex("itemAssets", "byItem", itemId)).sort(byPosition);
+    return (await db.getAllFromIndex("itemAssets", "byItem", itemId)).map(normalize).sort(byPosition);
   }
 
   async listByBoard(boardId: string): Promise<ItemAsset[]> {
     const db = await this.conn.getDb();
-    return (await db.getAllFromIndex("itemAssets", "byBoard", boardId)).sort(byPosition);
+    return (await db.getAllFromIndex("itemAssets", "byBoard", boardId)).map(normalize).sort(byPosition);
   }
 
   async create(input: ItemAssetInput): Promise<ItemAsset> {
@@ -32,8 +39,9 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
       name: input.name.trim(),
       assetType: input.assetType?.trim() || null,
       quantity: input.quantity ?? null,
-      assigneeId: input.assigneeId ?? null,
+      assigneeIds: input.assigneeIds ?? [],
       dueDate: input.dueDate ?? null,
+      completedAt: null,
       notes: input.notes?.trim() || null,
       position: input.position ?? 0,
       createdBy: input.createdBy,
@@ -49,7 +57,7 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     const existing = await db.get("itemAssets", id);
     if (!existing) throw new NotFoundError("Asset", id);
     const updated: ItemAsset = {
-      ...existing,
+      ...normalize(existing),
       ...patch,
       name: patch.name !== undefined ? patch.name.trim() : existing.name,
       assetType: patch.assetType !== undefined ? patch.assetType?.trim() || null : existing.assetType,

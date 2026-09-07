@@ -102,8 +102,8 @@ const FIELD_RULES: Record<StandardBookingField, FieldRule> = {
 
 const norm = (name: string) => name.trim().toLowerCase();
 
-/** Columns the studio fills in after a booking arrives; the form never asks about them. */
-const STUDIO_ONLY_HINTS = ["allocated", "assigned", "approved", "internal"];
+/** Columns the team fills in after a booking arrives; the form never asks about them. */
+const TEAM_ONLY_HINTS = ["allocated", "assigned", "approved", "internal"];
 
 /** Which column of `columns` receives `field`, or null when the board has no sensible home for it. */
 export function columnForField(field: StandardBookingField, columns: readonly BoardColumn[], taken: ReadonlySet<string> = new Set()): BoardColumn | null {
@@ -140,7 +140,7 @@ export function extraFieldsFor(columns: readonly BoardColumn[]): BookingExtraFie
   const plan = planStandardFields(columns);
   const used = new Set(Object.values(plan).flatMap((c) => (c ? [c.id] : [])));
   return columns
-    .filter((c) => !c.hidden && !used.has(c.id) && isBookingFieldType(c.type) && !STUDIO_ONLY_HINTS.some((hint) => norm(c.name).includes(hint)))
+    .filter((c) => !c.hidden && !used.has(c.id) && isBookingFieldType(c.type) && !TEAM_ONLY_HINTS.some((hint) => norm(c.name).includes(hint)))
     .sort((a, b) => a.position - b.position)
     .map((c) => ({
       columnId: c.id,

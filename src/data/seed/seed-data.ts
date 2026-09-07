@@ -164,7 +164,7 @@ const USER_SPECS: SeedUserSpec[] = [
   { key: "priya", firstName: "Priya", lastName: "Nair", jobTitle: "Marketing Coordinator", department: "Marketing", timezone: "Australia/Melbourne", role: "MEMBER" },
   { key: "chloe", firstName: "Chloe", lastName: "Bennett", jobTitle: "Social Media Manager", department: "Content", timezone: "Australia/Melbourne", role: "MEMBER" },
   { key: "ravi", firstName: "Ravi", lastName: "Sharma", jobTitle: "Front-end Developer", department: "Digital", timezone: "Australia/Melbourne", role: "MEMBER" },
-  { key: "thao", firstName: "Thao", lastName: "Dang", jobTitle: "Studio Coordinator", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
+  { key: "thao", firstName: "Thao", lastName: "Dang", jobTitle: "Production Coordinator", department: "Creative", timezone: "Asia/Ho_Chi_Minh", role: "MEMBER" },
   { key: "ben", firstName: "Ben", lastName: "Walker", jobTitle: "Agency Partner", department: "External", timezone: "Australia/Melbourne", role: "GUEST" },
   // Test account: workspace OWNER, so it inherits access to every board (see
   // private.board_role in supabase/policies/0001_rls_policies.sql). Owns nothing,
@@ -239,7 +239,7 @@ interface SeedTeamSpec {
 }
 
 const TEAM_SPECS: SeedTeamSpec[] = [
-  { key: "vietnam", name: "Vietnam Creative", description: "Design and production studio based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil", "linh", "thao", "minh", "anh"] },
+  { key: "vietnam", name: "Vietnam Creative", description: "Design and production team based in Ho Chi Minh City.", color: "red", icon: "palette", lead: "danh", members: ["duc", "tuyet", "hil", "linh", "thao", "minh", "anh"] },
   { key: "melbourne", name: "Melbourne Creative", description: "Campaign creative and brand design for the Melbourne campuses.", color: "navy", icon: "paintbrush", lead: "emily", members: ["jun", "grace", "jane", "sarah", "tom", "priya"] },
   { key: "campaigns", name: "Campaigns", description: "Integrated campaign planning and delivery.", color: "orange", icon: "megaphone", lead: "joanne", members: ["emily", "danh", "jun", "priya", "ben"] },
   { key: "digital", name: "Digital", description: "Web, landing pages and digital out-of-home.", color: "cyan", icon: "monitor", lead: "jun", members: ["hil", "grace", "tom", "ravi", "lucas"] },
@@ -506,7 +506,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
   {
     key: "requests",
     name: "Creative Requests",
-    description: "Incoming requests from across the university, triaged by the Vietnam studio.",
+    description: "Incoming requests from across the university, triaged by the Vietnam team.",
     team: "vietnam",
     owner: "danh",
     visibility: "WORKSPACE",
@@ -568,7 +568,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
     ],
     items: [
       { group: "Ideas", name: "Student spotlight – exchange to Barcelona", owner: ["jane"], status: "not_started", priority: "low", tags: ["Instagram"], createdBy: "grace", createdDaysAgo: 2 },
-      { group: "Ideas", name: "Behind the scenes – Vietnam studio", owner: ["tuyet"], status: "not_started", priority: "low", tags: ["TikTok", "Instagram"], createdBy: "grace", createdDaysAgo: 1 },
+      { group: "Ideas", name: "Behind the scenes – Vietnam team", owner: ["tuyet"], status: "not_started", priority: "low", tags: ["TikTok", "Instagram"], createdBy: "grace", createdDaysAgo: 1 },
       { group: "This Week", name: "Campus life reel – Brunswick", owner: ["jane", "duc"], status: "working", priority: "medium", due: 2, tags: ["Instagram", "TikTok"], createdBy: "grace", createdDaysAgo: 4 },
       { group: "This Week", name: "Research news – renewable materials", owner: ["grace"], status: "working", priority: "high", due: 1, tags: ["LinkedIn"], text: { copy: "RMIT researchers have developed a new bio-based composite..." }, createdBy: "grace", createdDaysAgo: 3 },
       { group: "Drafting", name: "Alumni story – design graduate at Atlassian", owner: ["jane"], status: "waiting", priority: "medium", due: 4, tags: ["LinkedIn", "Web"], createdBy: "grace", createdDaysAgo: 6 },
@@ -776,7 +776,7 @@ const BOARD_SPECS: SeedBoardSpec[] = [
     ],
     items: [
       { group: "Ideas", name: "Day in the life – exchange student", owner: ["chloe"], status: "not_started", priority: "low", tags: ["TikTok", "Instagram"], checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 1 },
-      { group: "Ideas", name: "Meet the makers – fashion studio", owner: ["jane"], status: "not_started", priority: "low", due: 21, tags: ["Instagram"], checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 2 },
+      { group: "Ideas", name: "Meet the makers – fashion workroom", owner: ["jane"], status: "not_started", priority: "low", due: 21, tags: ["Instagram"], checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 2 },
       { group: "Ideas", name: "Graduate outcomes infographic", owner: ["grace"], status: "not_started", priority: "medium", due: 19, tags: ["LinkedIn"], checkbox: { approved: false }, createdBy: "grace", createdDaysAgo: 3 },
       { group: "Writing", name: "Scholarship applications open", owner: ["jane"], status: "working", priority: "critical", due: 2, tags: ["Facebook", "Instagram", "LinkedIn"], text: { copy: "Applications for 2027 scholarships are now open. Find out if you're eligible…" }, checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 4 },
       { group: "Writing", name: "Open Day countdown – 2 weeks", owner: ["chloe"], status: "working", priority: "high", due: 3, tags: ["Instagram", "TikTok"], checkbox: { approved: false }, createdBy: "chloe", createdDaysAgo: 3 },
@@ -1191,7 +1191,7 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
     return { id: sid("link"), workspaceId: workspace.id, itemAId, itemBId, excluded: [], createdBy: SEED_USER_IDS[createdBy], createdAt: iso(subDays(now, daysAgo)) };
   };
   const itemLinks: ItemLink[] = [
-    // Melbourne campaign task mirrored on the Vietnam studio's production board.
+    // Melbourne campaign task mirrored on the Vietnam team's production board.
     linkPair(["sem1", "Sem 1 DOOH adaptation"], ["dooh", "Sem 1 DOOH adaptation"], "jun", 4),
     // Events brief mirrored on the video pipeline.
     linkPair(["openday", "Welcome video loop – 60s"], ["video", "Welcome video loop – 60s"], "priya", 3),

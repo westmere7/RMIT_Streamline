@@ -135,7 +135,7 @@ describe("Task Linking", () => {
 
   it("skips status labels the other board does not define", async () => {
     const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
-    const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam studio");
+    const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");
     await services.links.link(source.id, target.id, SEED_USER_IDS.danh);
     const status = (await services.repos.boards.listColumns(SEED_BOARD_IDS.sem1)).find((c) => c.type === "STATUS")!;
     const settings = status.settings.kind === "status" ? status.settings : null;

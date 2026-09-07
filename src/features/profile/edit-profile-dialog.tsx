@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import type { User } from "@/domain";
 import { useProfileMutations } from "@/features/profile/hooks";
 
-/** Timezones the studios actually work in, plus whatever the profile already had. */
+/** Timezones the team actually works in, plus whatever the profile already had. */
 const TIMEZONES = ["Australia/Melbourne", "Australia/Sydney", "Asia/Ho_Chi_Minh", "Asia/Singapore", "Asia/Bangkok", "Europe/London", "UTC"];
 
 export interface EditProfileDialogProps {

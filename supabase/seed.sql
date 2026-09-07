@@ -188,7 +188,7 @@ on conflict (workspace_id, user_id) do nothing;
 insert into public.teams (id, workspace_id, name, description, color, icon)
 select pg_temp.sid('2', n), pg_temp.sid('0', 1), name, description, color, icon
 from (values
-  (1, 'Vietnam Creative',   'Design and production studio based in Ho Chi Minh City.',            'red',    'palette'),
+  (1, 'Vietnam Creative',   'Design and production team based in Ho Chi Minh City.   ',            'red',    'palette'),
   (2, 'Melbourne Creative', 'Campaign creative and brand design for the Melbourne campuses.',      'navy',   'paintbrush'),
   (3, 'Campaigns',          'Integrated campaign planning and delivery.',                          'orange', 'megaphone'),
   (4, 'Digital',            'Web, landing pages and digital out-of-home.',                         'cyan',   'monitor'),
@@ -228,7 +228,7 @@ from (values
   (2, 1, 'Masterclass Assets',  'masterclass-assets',  'Speaker assets, social tiles and the landing page for the Masterclass series.', 'TEAM',      1, 'violet', 'sparkles'),
   (3, 1, 'RMITinerary 2026',    'rmitinerary-2026',    'Publication production tracking and creative approvals.',                       'WORKSPACE', 1, 'red',    'compass'),
   (4, 1, 'DOOH Production',     'dooh-production',     'Digital out-of-home artwork production and network specifications.',            'TEAM',      5, 'teal',   'monitor'),
-  (5, 1, 'Creative Requests',   'creative-requests',   'Incoming requests from across the university, triaged by the Vietnam studio.',  'WORKSPACE', 1, 'blue',   'inbox'),
+  (5, 1, 'Creative Requests',   'creative-requests',   'Incoming requests from across the university, triaged by the Vietnam team.  ',  'WORKSPACE', 1, 'blue',   'inbox'),
   (6, 2, 'Always-On Content',   'always-on-content',   'Evergreen social and editorial content calendar.',                              'WORKSPACE', 8, 'green',  'newspaper')
 ) as b(n, team, name, slug, description, visibility, owner, color, icon)
 on conflict (id) do nothing;

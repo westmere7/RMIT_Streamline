@@ -60,7 +60,7 @@ export function AuthShell({
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
           <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
             <Feature icon={SquareKanban}>Boards for campaigns, requests and publications</Feature>
-            <Feature icon={Table2}>Trackers that replace the studio spreadsheets</Feature>
+            <Feature icon={Table2}>Trackers that replace the spreadsheets</Feature>
             <Feature icon={ClipboardList}>Approvals, updates and mentions in one inbox</Feature>
           </ul>
         </div>

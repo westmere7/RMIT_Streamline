@@ -20,10 +20,10 @@ describe("asset recap maths", () => {
   it("adds up quantities, counts a line without one as a single asset, and lists distinct types and people", () => {
     const recap = recapAssets(
       [
-        { quantity: 6, assetType: "Print", assigneeId: "u1", dueDate: "2026-09-10" },
-        { quantity: null, assetType: "print", assigneeId: "u1", dueDate: "2026-09-01" },
-        { quantity: 3, assetType: "Social", assigneeId: "u2", dueDate: null },
-        { quantity: 2, assetType: null, assigneeId: null, dueDate: "2026-09-07" },
+        { quantity: 6, assetType: "Print", assigneeIds: ["u1"], dueDate: "2026-09-10", completedAt: null },
+        { quantity: null, assetType: "print", assigneeIds: ["u1"], dueDate: "2026-09-01", completedAt: null },
+        { quantity: 3, assetType: "Social", assigneeIds: ["u2"], dueDate: null, completedAt: "2026-09-05T00:00:00.000Z" },
+        { quantity: 2, assetType: null, assigneeIds: [], dueDate: "2026-09-07", completedAt: null },
       ],
       TODAY,
     );
@@ -32,6 +32,8 @@ describe("asset recap maths", () => {
     expect(recap.types).toEqual(["print", "Print", "Social"]);
     expect(recap.assigneeIds).toEqual(["u1", "u2"]);
     expect(recap.unassigned).toBe(1);
+    expect(recap.done).toBe(1);
+    expect(recap.doneQuantity).toBe(3);
     expect(recap.nextDue).toBe("2026-09-07");
     expect(recap.overdue).toBe(1);
     expect(formatAssetsRecap({ lines: recap.lines, quantity: recap.quantity, types: recap.types, people: recap.assigneeIds })).toBe("12 assets · 3 types · 2 PIC");
@@ -49,7 +51,7 @@ describe("asset recap maths", () => {
     const empty = emptyValueFor("ASSETS_RECAP");
     expect(isEmptyValue(empty)).toBe(true);
     const column: BoardColumn = { id: "c", boardId: "b", name: "Assets recap", type: "ASSETS_RECAP", settings: { kind: "none" }, position: 0, width: 200, hidden: false, createdAt: "" };
-    const value = recapColumnValue(recapAssets([{ quantity: 4, assetType: "Print", assigneeId: "u1", dueDate: null }], TODAY));
+    const value = recapColumnValue(recapAssets([{ quantity: 4, assetType: "Print", assigneeIds: ["u1"], dueDate: null, completedAt: null }], TODAY));
     expect(isEmptyValue(value)).toBe(false);
     expect(displayValue(column, value, [])).toBe("4 assets · 1 type · 1 PIC");
     expect(displayValue(column, empty, [])).toBeNull();
@@ -82,7 +84,7 @@ describe("asset lines on an item", () => {
     const column = await services.boards.addColumn({ boardId, name: "Assets recap", type: "ASSETS_RECAP" });
 
     const poster = await services.assets.add({ itemId: item.id, boardId, name: "A1 poster", assetType: "Print", quantity: 6, dueDate: "2026-09-20" }, SEED_USER_IDS.danh);
-    const tile = await services.assets.add({ itemId: item.id, boardId, name: "Instagram tile", assetType: "Social", assigneeId: SEED_USER_IDS.tuyet }, SEED_USER_IDS.danh);
+    const tile = await services.assets.add({ itemId: item.id, boardId, name: "Instagram tile", assetType: "Social", assigneeIds: [SEED_USER_IDS.tuyet] }, SEED_USER_IDS.danh);
     expect(poster.boardId).toBe(boardId);
     expect(tile.position).toBeGreaterThan(poster.position);
 
@@ -91,7 +93,7 @@ describe("asset lines on an item", () => {
     let stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
     expect(stored).toMatchObject({ type: "ASSETS_RECAP", lines: 2, quantity: 7, types: 2, people: 1 });
 
-    await services.assets.update(poster.id, { quantity: 10, assigneeId: SEED_USER_IDS.tuyet });
+    await services.assets.update(poster.id, { quantity: 10, assigneeIds: [SEED_USER_IDS.tuyet] });
     stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
     expect(stored).toMatchObject({ quantity: 11, people: 1 });
 

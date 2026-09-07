@@ -157,8 +157,8 @@ describe("the demo seed", () => {
   });
 
   it("adds the two extra trackers with sensible frozen columns", () => {
-    expect(seed.trackers.map((t) => t.name)).toEqual(["Domestic Campaigns Asset Tracker", "Vietnam Studio Production Log", "Open Day 2026 Run Sheet"]);
-    const production = seed.trackers.find((t) => t.name === "Vietnam Studio Production Log")!;
+    expect(seed.trackers.map((t) => t.name)).toEqual(["Domestic Campaigns Asset Tracker", "Vietnam Production Log", "Open Day 2026 Run Sheet"]);
+    const production = seed.trackers.find((t) => t.name === "Vietnam Production Log")!;
     const sheets = seed.trackerSheets.filter((s) => s.trackerId === production.id);
     expect(sheets.map((s) => s.name)).toEqual(["September", "October"]);
     for (const sheet of sheets) {

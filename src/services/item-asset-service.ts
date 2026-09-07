@@ -60,7 +60,7 @@ export class ItemAssetService {
   async copyTo(fromItemId: EntityId, toItemId: EntityId, toBoardId: EntityId, actorId: EntityId): Promise<ItemAsset[]> {
     const lines = await this.repos.itemAssets.listByItem(fromItemId);
     return this.addMany(
-      lines.map((line) => ({ itemId: toItemId, boardId: toBoardId, name: line.name, assetType: line.assetType, quantity: line.quantity, assigneeId: line.assigneeId, dueDate: line.dueDate, notes: line.notes })),
+      lines.map((line) => ({ itemId: toItemId, boardId: toBoardId, name: line.name, assetType: line.assetType, quantity: line.quantity, assigneeIds: line.assigneeIds, dueDate: line.dueDate, notes: line.notes })),
       actorId,
     );
   }

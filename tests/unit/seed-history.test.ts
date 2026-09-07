@@ -60,7 +60,7 @@ describe("the generated seed history", () => {
     for (const a of extras.itemAssets.filter((a) => isHistory(a.id))) {
       expect(historyIds.has(a.itemId)).toBe(true);
       expect(a.boardId).toBe(boardOf.get(a.itemId));
-      if (a.assigneeId) expect(users.has(a.assigneeId)).toBe(true);
+      for (const id of a.assigneeIds) expect(users.has(id)).toBe(true);
     }
     for (const c of extras.comments.filter((c) => isHistory(c.id))) {
       expect(historyIds.has(c.itemId)).toBe(true);
@@ -123,7 +123,7 @@ describe("the generated seed history", () => {
     expect(share(past, "done")).toBeGreaterThanOrEqual(0.6);
     expect(share(future, "not_started")).toBeGreaterThanOrEqual(0.6);
     expect(share(future, "done")).toBeLessThan(0.1);
-    // Some past work is still stuck or waiting — an overdue studio, not a tidy one.
+    // Some past work is still stuck or waiting — an overdue queue, not a tidy one.
     expect(past.some((i) => valueOf(i.id, "STATUS")?.labelId === "stuck")).toBe(true);
     // Every item has a status, a priority and an owner.
     for (const item of topLevel) {

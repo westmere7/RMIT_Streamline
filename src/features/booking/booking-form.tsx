@@ -133,7 +133,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
           </span>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight">Booked. Thank you.</h2>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">Quote the reference below if you follow up with the studio.</p>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">Quote the reference below if you follow up with the team.</p>
           </div>
         </div>
         <dl className="grid gap-2.5 rounded-xl border border-border/60 bg-surface/60 p-4 text-[13px] sm:grid-cols-[120px_minmax(0,1fr)]">
@@ -147,7 +147,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
             {receipt.assetCount > 0 && <span className="ml-1.5 font-normal text-muted-foreground">· {receipt.assetCount === 1 ? "1 asset" : `${receipt.assetCount} assets`}</span>}
           </dd>
           <dt className="text-muted-foreground">Going to</dt>
-          <dd>{receipt.teamName ? `${receipt.teamName} (${receipt.boardName})` : "The studio's allocation queue — a manager will place it with the right team."}</dd>
+          <dd>{receipt.teamName ? `${receipt.teamName} (${receipt.boardName})` : "The allocation queue — a manager will place it with the right team."}</dd>
           <dt className="text-muted-foreground">Booked</dt>
           <dd>{formatShortDate(receipt.submittedAt.slice(0, 10))}</dd>
         </dl>
@@ -190,7 +190,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
           </UnderlineTabsTrigger>
         </UnderlineTabsList>
         <TabsContent value="request" className="space-y-7">
-      <Section title="About you" hint="So the studio knows who to come back to.">
+      <Section title="About you" hint="So the team knows who to come back to.">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="booking-name" label="Your name" required error={err.requesterName?.message}>
             <Input id="booking-name" autoComplete="name" placeholder="e.g. Priya Nair" {...rhf.register("requesterName")} aria-invalid={!!err.requesterName} data-testid="booking-name" />
@@ -249,7 +249,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
         </Field>
       </Section>
 
-      <Section title="Who should do it?" hint="Not sure? Leave it blank and the studio will route it.">
+      <Section title="Who should do it?" hint="Not sure? Leave it blank and we will route it.">
         <div className="grid gap-1.5">
           <Label htmlFor="booking-team">Team</Label>
           <Select value={teamId ?? NO_TEAM} onValueChange={(v) => setTeamId(v === NO_TEAM ? null : v)}>
@@ -257,7 +257,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_TEAM}>Not sure — let the studio decide</SelectItem>
+              <SelectItem value={NO_TEAM}>Not sure — let us route it</SelectItem>
               {form.teams.map((t) => (
                 <SelectItem key={t.id} value={t.id} data-testid={`booking-team-${t.id}`}>
                   <span className="flex items-center gap-2">
@@ -313,9 +313,9 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
 }
 
 function routingNote(team: BookingTeamOption | null): string {
-  if (!team) return "Goes to the studio's allocation queue. A manager places it with the right team.";
+  if (!team) return "Goes to the allocation queue. A manager places it with the right team.";
   if (team.boardName) return `Goes straight onto ${team.name}'s “${team.boardName}” board.`;
-  return `Goes to the studio's allocation queue, marked for ${team.name}.`;
+  return `Goes to the allocation queue, marked for ${team.name}.`;
 }
 
 // ---- the asset list ------------------------------------------------------------------
@@ -333,7 +333,7 @@ const blankAsset = (): AssetRow => ({ key: ++assetKey, name: "", quantity: "", s
 /**
  * What exactly is being asked for: one line per deliverable with a quantity and
  * the spec it has to meet. Each line becomes a subitem of the request, so the
- * studio can track them one by one. Its own tab, because a list can be long and
+ * team can track them one by one. Its own tab, because a list can be long and
  * nobody has to fill it in: a spreadsheet or the asset tracker does as well.
  */
 function AssetList({ rows, onChange }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void }) {
@@ -344,7 +344,7 @@ function AssetList({ rows, onChange }: { rows: AssetRow[]; onChange: (rows: Asse
       <div>
         <span className="block text-[15px] font-semibold tracking-tight">Assets and specs</span>
         <p className="text-[13px] text-muted-foreground">
-          Optional. List each deliverable with its size, format or other requirements and the studio tracks them one by one. If you already have an asset list in a spreadsheet, skip this and mention it in the
+          Optional. List each deliverable with its size, format or other requirements and the team tracks them one by one. If you already have an asset list in a spreadsheet, skip this and mention it in the
           brief.
         </p>
       </div>

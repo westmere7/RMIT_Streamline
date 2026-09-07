@@ -27,6 +27,13 @@ test.describe("asset lines and the recap column", () => {
     return panel(page).locator(`[data-testid="asset-line"][data-asset-name="${name}"]`);
   }
 
+  /** Lines are a single row until opened; the pickers live inside the open one. */
+  async function openLine(page: Page, name: string) {
+    const card = line(page, name);
+    if ((await card.getByTestId("asset-toggle").getAttribute("aria-expanded")) !== "true") await card.getByTestId("asset-toggle").click();
+    await expect(card.getByTestId("asset-type")).toBeVisible({ timeout: 20_000 });
+  }
+
   /** The developer user switch, so the same browser can look at the board as someone else. */
   async function switchTo(page: Page, displayName: string) {
     await page.goto("/workspace/rmit");
@@ -54,18 +61,19 @@ test.describe("asset lines and the recap column", () => {
     await panel(page).getByTestId("asset-add-input").fill("A1 poster");
     await panel(page).getByTestId("asset-add-submit").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-total")).toContainText("1");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 done");
     await panel(page).getByTestId("asset-add-input").fill("Instagram tile");
     await panel(page).getByTestId("asset-add-input").press("Enter");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-lines")).toContainText("2");
+    await expect(panel(page).getByTestId("assets-line-count")).toContainText("2");
 
     // Quantity from the stepper, type from the palette, a person in charge and a due date — on the poster.
     const poster = line(page, "A1 poster");
+    await openLine(page, "A1 poster");
     await poster.getByTestId("asset-quantity-plus").click();
     await poster.getByTestId("asset-quantity-plus").click();
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-total")).toContainText("4");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 4 done");
 
     await poster.getByTestId("asset-type").click();
     await page.getByTestId("asset-type-option-Print").click();
@@ -73,14 +81,14 @@ test.describe("asset lines and the recap column", () => {
     await expect(poster.getByTestId("asset-type")).toHaveAttribute("aria-label", "Asset type: Print", { timeout: 20_000 });
     // Escape closed the picker, not the panel.
     await expect(panel(page)).toBeVisible();
-    await expect(panel(page).getByTestId("assets-types")).toContainText("1");
+    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Print");
 
     await poster.getByTestId("asset-assignee").click();
     await page.getByPlaceholder("Search people…").fill("Tuyet");
     await page.getByText("Tuyet Le").first().click();
     await page.keyboard.press("Escape");
     await expect(poster.getByTestId("asset-assignee")).toHaveAttribute("aria-label", /Tuyet Le/, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-people")).toContainText("1");
+    await expect(panel(page).getByTestId("assets-people")).toHaveAttribute("aria-label", /Tuyet Le/);
 
     await poster.getByTestId("asset-due").click();
     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Today", exact: true }).click();
@@ -97,8 +105,20 @@ test.describe("asset lines and the recap column", () => {
     await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
     await expect(panel(page).getByTestId("tab-assets")).toContainText("2");
 
-    // Removing a line takes it out of the totals and the cell.
+    // Ticking the poster off fills the bar by its three, and the closed row still
+    // shows what it is.
     await panel(page).getByTestId("tab-assets").click();
+    await openLine(page, "A1 poster");
+    await line(page, "A1 poster").getByTestId("asset-done").click();
+    await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "true", { timeout: 20_000 });
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("3 of 4 done");
+    await line(page, "A1 poster").getByTestId("asset-toggle").click();
+    await expect(line(page, "A1 poster").getByTestId("asset-summary")).toContainText("Print");
+    await line(page, "A1 poster").getByTestId("asset-done").click();
+    await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "false", { timeout: 20_000 });
+
+    // Removing a line takes it out of the totals and the cell.
+    await openLine(page, "Instagram tile");
     await line(page, "Instagram tile").getByTestId("asset-remove").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
     await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("3 assets · 1 type · 1 PIC", { timeout: 20_000 });
@@ -121,7 +141,9 @@ test.describe("asset lines and the recap column", () => {
     await panel(page).getByTestId("tab-assets").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
     await expect(panel(page).getByTestId("asset-add-input")).toHaveCount(0);
+    await openLine(page, "Banner");
     await expect(panel(page).getByTestId("asset-remove")).toHaveCount(0);
     await expect(panel(page).getByTestId("asset-quantity-readonly")).toBeVisible();
+    await expect(panel(page).getByTestId("asset-done")).toBeDisabled();
   });
 });

@@ -85,7 +85,7 @@ describe("ItemDetailPanel", () => {
       </TestBoard>,
     );
     const section = screen.getByTestId("linked-items");
-    // Seeded mirror on the Vietnam studio's DOOH board, with the columns that flow between them.
+    // Seeded mirror on the Vietnam team's DOOH board, with the columns that flow between them.
     const linked = await within(section).findByTestId("linked-item");
     expect(within(linked).getByRole("link", { name: "Sem 1 DOOH adaptation" })).toBeInTheDocument();
     expect(linked).toHaveTextContent("DOOH Production");

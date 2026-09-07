@@ -12,7 +12,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
 /**
- * The public booking page a stakeholder opens from the link the studio sent
+ * The public booking page a stakeholder opens from the link the team sent
  * them. No account, no sidebar: the same brand frame as sign-in, with the form
  * in the card. The key in the URL is the only thing that lets them in.
  */
@@ -45,7 +45,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
         </div>
       ) : form.isError || !form.data ? (
         <div className="p-7 sm:p-8">
-          <Unusable message={form.error instanceof Error ? form.error.message : "This link does not work. Ask the studio for a fresh one."} />
+          <Unusable message={form.error instanceof Error ? form.error.message : "This link does not work. Ask the team for a fresh one."} />
         </div>
       ) : (
         <>
@@ -82,7 +82,7 @@ function Unusable({ message }: { message: string }) {
         <p className="mt-1 text-[13px] text-muted-foreground">{message}</p>
       </div>
       <Button asChild variant="outline">
-        <Link href={routes.login()}>Studio sign in</Link>
+        <Link href={routes.login()}>Staff sign in</Link>
       </Button>
     </div>
   );

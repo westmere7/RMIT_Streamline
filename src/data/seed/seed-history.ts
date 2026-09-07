@@ -128,7 +128,7 @@ function hashKey(text: string): number {
 
 // ---- The boards --------------------------------------------------------------------
 
-const STUDIO_STEPS = ["Brief and references", "First concept", "Internal review", "Amends round 1", "Stakeholder approval", "Final artwork", "Export and handover", "Upload to DAM"];
+const CREATIVE_STEPS = ["Brief and references", "First concept", "Internal review", "Amends round 1", "Stakeholder approval", "Final artwork", "Export and handover", "Upload to DAM"];
 
 const BOARD_HISTORY: HistoryBoardSpec[] = [
   {
@@ -377,7 +377,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       "Property Services – construction hoarding artwork",
       "Ngarara Willim Centre – NAIDOC Week tiles",
       "Research Office – ERA impact one-pager",
-      "School of Architecture – studio review invitation",
+      "School of Architecture – design review invitation",
       "Global Experience – exchange fair banner",
       "Student Union – election candidate template",
       "Equity and Inclusion – Pride Month lanyard",
@@ -387,7 +387,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       "Campus Store – merchandise range lookbook",
       "Timetabling – exam period wayfinding",
       "IT Services – phishing awareness poster",
-      "School of Art – open studio A-frame signs",
+      "School of Art – open workshop A-frame signs",
       "Business school – case competition trophy artwork",
       "College of Vocational Education – TAFE expo stand",
       "Vietnam Student Services – orientation booklet",
@@ -432,8 +432,8 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       ["International student week – food tour", "TikTok", "Instagram"],
       ["Graduation season – gown collection", "Facebook", "Instagram"],
       ["Graduation season – photo spots", "Instagram", "TikTok"],
-      ["Behind the scenes – fashion studio", "TikTok", "Instagram"],
-      ["Behind the scenes – TV studio", "TikTok"],
+      ["Behind the scenes – fashion workroom", "TikTok", "Instagram"],
+      ["Behind the scenes – broadcast set", "TikTok"],
       ["Course spotlight – cybersecurity", "LinkedIn", "Facebook"],
       ["Course spotlight – nursing", "Facebook", "Instagram"],
       ["Course spotlight – game design", "TikTok", "Instagram"],
@@ -454,7 +454,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       { name: "Reel", type: "Video", notes: "9:16, under 30 s, captions", qty: null },
       { name: "Web article image", type: "Web", notes: "1200×630", qty: null },
     ],
-    texts: { copy: { pool: ["Meet the students making the most of campus life this semester…", "New research from RMIT could change how we build our cities.", "Big week ahead — here is what is on across our campuses.", "Applications close soon. Do not miss your chance.", "From the studio floor to the runway: a look behind the scenes."], chance: 0.4 } },
+    texts: { copy: { pool: ["Meet the students making the most of campus life this semester…", "New research from RMIT could change how we build our cities.", "Big week ahead — here is what is on across our campuses.", "Applications close soon. Do not miss your chance.", "From the workroom floor to the runway: a look behind the scenes."], chance: 0.4 } },
   },
   {
     board: "openday",
@@ -524,7 +524,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       "Graduation – Hanoi ceremony",
       "Graduation – Saigon South ceremony",
       "Graduation – Melbourne ceremony highlights",
-      "Vice-Chancellor address – studio record",
+      "Vice-Chancellor address – on-camera record",
       "Student housing tour – 360°",
       "Brunswick campus drone flyover",
       "Lunar New Year greeting – 20s",
@@ -551,7 +551,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       "Subtitles and captions – Q3 batch",
       "Archive digitisation – 2019 campaign tapes",
       "Livestream – Open Day main stage",
-      "Studio safety induction video",
+      "Workshop safety induction video",
     ],
     steps: ["Treatment and script", "Shot list and call sheet", "Shoot day", "Offline edit", "Colour and sound", "Client review", "Master and deliver"],
     assets: [
@@ -563,7 +563,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
     ],
     texts: { format: { pool: ["1 x 90s, 16:9 + 9:16", "3 x 60s, captions", "60s loop, no audio", "4K master + 30s social", "2min + 15s teaser", "360°, web embed", "Livestream + 2min recap", "30s + 15s + 6s", "45s vertical"], chance: 1 } },
     checkbox: "approved",
-    descriptions: ["Film job for the studio: brief, shot list and talent releases in the shared folder. Deliver masters to the DAM.", "Interviews plus b-roll; captions in English and Vietnamese."],
+    descriptions: ["Film job for the team: brief, shot list and talent releases in the shared folder. Deliver masters to the DAM.", "Interviews plus b-roll; captions in English and Vietnamese."],
   },
   {
     board: "brand",
@@ -711,7 +711,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
       ["Behind the scenes – graduation gown fitting", "TikTok"],
       ["Campus dogs – reel", "Instagram", "TikTok"],
       ["Study abroad – applications closing", "Instagram", "Facebook"],
-      ["Meet the makers – jewellery studio", "Instagram"],
+      ["Meet the makers – jewellery workshop", "Instagram"],
       ["Career tips – LinkedIn profile", "LinkedIn"],
       ["Industry partner – Telstra announcement", "LinkedIn"],
       ["Open Day thank-you", "Instagram", "Facebook"],
@@ -733,7 +733,7 @@ const BOARD_HISTORY: HistoryBoardSpec[] = [
     busy: 1,
     phases: { past: ["Completed"], present: ["Live"], future: ["Live"] },
     names: ["Sem 2 media plan", "Sem 2 hero film", "Sem 2 print – The Age", "Sem 2 search ads"],
-    steps: STUDIO_STEPS,
+    steps: CREATIVE_STEPS,
     assets: [],
     window: [-175, -95],
     forceDone: true,
@@ -1087,8 +1087,10 @@ export function buildSeedHistory(ctx: SeedExtrasContext): SeedBundle {
           name: line.name,
           assetType: line.type,
           quantity: line.qty ? rng.int(line.qty[0], line.qty[1]) : null,
-          assigneeId: rng.chance(0.8) ? users[owners[index % owners.length]!] : null,
+          assigneeIds: rng.chance(0.8) ? [users[owners[index % owners.length]!]!] : [],
           dueDate: due,
+          // Delivered work is fully ticked off; work in flight is part-way.
+          completedAt: status === "done" ? item.updatedAt : rng.chance(0.3) ? item.updatedAt : null,
           notes: line.notes,
           position: index,
           createdBy: item.createdBy,

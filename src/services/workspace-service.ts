@@ -189,7 +189,7 @@ export class WorkspaceService {
    * one parallel round of reads and with no repair work. Null when anything is
    * missing, in which case the caller falls back to `ensureSystemEntities`. The
    * booking form and every booking take this path: they are read many times a
-   * day, often by people outside the studio, and the maintenance the full path
+   * day, often by people outside the team, and the maintenance the full path
    * does (palette refresh, column top-up, un-archiving) only needs to happen when
    * an admin opens the workspace.
    */

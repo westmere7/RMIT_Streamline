@@ -162,8 +162,8 @@ describe("the built-in Admin team and Task Allocation board", () => {
 
   it("can be renamed but not archived or deleted", async () => {
     const { team, board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
-    const renamedTeam = await services.workspace.updateTeam(team.id, { name: "Studio management" });
-    expect(renamedTeam.name).toBe("Studio management");
+    const renamedTeam = await services.workspace.updateTeam(team.id, { name: "Creative management" });
+    expect(renamedTeam.name).toBe("Creative management");
     const renamedBoard = await services.boards.updateBoard(board.id, { name: "Intake" }, owner);
     expect(renamedBoard.name).toBe("Intake");
     await expect(services.workspace.archiveTeam(team.id, true)).rejects.toThrow(/built in/);

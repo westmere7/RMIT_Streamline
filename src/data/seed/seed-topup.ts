@@ -388,7 +388,7 @@ export function planTopup(extras: SeedBundle, existing: KnownIds, existingShape:
       const columnBoard = shape.boardOfColumn.get(v.columnId);
       return itemBoard === undefined || columnBoard === undefined || itemBoard === columnBoard;
     },
-    item_assets: (a) => must("items", a.itemId) && must("boards", a.boardId) && must("profiles", a.createdBy) && has("profiles", a.assigneeId) && sameBoard(shape.boardOfItem, a.itemId, a.boardId),
+    item_assets: (a) => must("items", a.itemId) && must("boards", a.boardId) && must("profiles", a.createdBy) && a.assigneeIds.every((id) => has("profiles", id)) && sameBoard(shape.boardOfItem, a.itemId, a.boardId),
     item_links: (l) => must("workspaces", l.workspaceId) && must("items", l.itemAId) && must("items", l.itemBId) && must("profiles", l.createdBy),
     trackers: (t) => must("workspaces", t.workspaceId) && must("profiles", t.createdBy) && has("teams", t.teamId),
     tracker_sheets: (s) => must("trackers", s.trackerId),

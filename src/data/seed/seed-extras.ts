@@ -301,7 +301,7 @@ interface CommentSpec {
 }
 
 const COMMENTS: CommentSpec[] = [
-  { on: { booking: "Executive MBA open lecture posters" }, author: "emily", body: "@Danh Nguyen this one is a good fit for the Vietnam studio — can you place it with Creative Requests? Portraits are already in the shared folder.", mentions: ["danh"], hoursAgo: 96, readBy: ["danh"] },
+  { on: { booking: "Executive MBA open lecture posters" }, author: "emily", body: "@Danh Nguyen this one is a good fit for the Vietnam team — can you place it with Creative Requests? Portraits are already in the shared folder.", mentions: ["danh"], hoursAgo: 96, readBy: ["danh"] },
   { on: { booking: "Careers Week web banners" }, author: "joanne", body: "@Admin Account can you confirm the Careers team have budget approval before we allocate? Last year this came back to us twice.", mentions: ["admin"], hoursAgo: 26 },
   { on: { booking: "Library orientation floor decals" }, author: "admin", body: "Delivered and installed on the ground floor. Library confirmed they are happy — closing this one.", hoursAgo: 60 },
   { on: { board: "rmitinerary", name: "RMITinerary Pragmatist" }, author: "tuyet", body: "Persona illustration v2 is in the shared folder. @Danh Nguyen keen for your eyes before Jane proofs the copy.", mentions: ["danh"], hoursAgo: 2 },
@@ -558,7 +558,8 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       name: asset.name,
       assetType: lineType,
       quantity: asset.quantity,
-      assigneeId: spec.allocate ? users[spec.allocate.owner] : null,
+      assigneeIds: spec.allocate ? [users[spec.allocate.owner]!] : [],
+      completedAt: null,
       dueDate: request.dueDate,
       notes: asset.spec?.trim() || null,
       position: index,
@@ -630,7 +631,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
         pushValue(copy.id, lookups.column(targetKey, "status"), { type: "STATUS", labelId: "not_started" }, allocatedAt);
       });
       pushValue(item.id, allocatedTo, { type: "TEXT", text: targetName }, allocatedAt);
-      const mirrorLines = bookingLines.map((line, index) => ({ ...line, id: sid("extraAsset"), itemId: mirror.id, boardId: targetBoardId, assigneeId: users[targetOwner], position: index, createdAt: iso(allocatedAt), updatedAt: iso(allocatedAt) }));
+      const mirrorLines = bookingLines.map((line, index) => ({ ...line, id: sid("extraAsset"), itemId: mirror.id, boardId: targetBoardId, assigneeIds: [users[targetOwner]!], position: index, createdAt: iso(allocatedAt), updatedAt: iso(allocatedAt) }));
       itemAssets.push(...mirrorLines);
       pushValue(mirror.id, targetColumns.find((c) => c.type === "ASSETS_RECAP"), recapColumnValue(recapAssets(mirrorLines, day(0))), allocatedAt);
 
@@ -682,7 +683,8 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
         name: line.name,
         assetType: line.type,
         quantity: line.quantity,
-        assigneeId: line.owner ? users[line.owner] : null,
+        assigneeIds: line.owner ? [users[line.owner]!] : [],
+        completedAt: null,
         dueDate: line.due === undefined ? null : day(line.due),
         notes: line.notes ?? null,
         position: lineIndex,
@@ -821,8 +823,8 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     id: sid("extraTracker"),
     workspaceId,
     teamId: teams.vietnam,
-    name: "Vietnam Studio Production Log",
-    description: "Every job through the Ho Chi Minh City studio — one row per job, a sheet per month, hours logged for the monthly report.",
+    name: "Vietnam Production Log",
+    description: "Every job through the Ho Chi Minh City team — one row per job, a sheet per month, hours logged for the monthly report.",
     createdBy: users.danh,
     createdAt: iso(subDays(now, 40)),
     updatedAt: iso(subHours(now, 2)),
@@ -844,7 +846,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     { cells: { job: "Hero film – colour grade", client: "Campaigns – Sem 1", channel: "Video", sizes: "Master + 6 cutdowns", designer: "Duc", status: "With client", briefed: monthDay(monthStart, 15), due: monthDay(monthStart, 21), delivered: false, hours: 12, notes: "v2 warmer on the interviews." } },
     { cells: { job: "Campus in spring – reel", client: "Content – Social Q4", channel: "Social", sizes: "1080×1920, 22 s", designer: "Minh", status: "With client", briefed: monthDay(monthStart, 16), due: monthDay(monthStart, 19), delivered: false, hours: 3.5, notes: "" } },
     { section: weekLabel(addDays(monthStart, 21)) },
-    { cells: { job: "Vietnam campus map refresh", client: "Studio Coordination", channel: "Print", sizes: "A3 + web tile", designer: "Danh", status: "In progress", briefed: monthDay(monthStart, 21), due: monthDay(monthStart, 27), delivered: false, hours: 1.5, notes: "New building names from Facilities." } },
+    { cells: { job: "Vietnam campus map refresh", client: "Creative Coordination", channel: "Print", sizes: "A3 + web tile", designer: "Danh", status: "In progress", briefed: monthDay(monthStart, 21), due: monthDay(monthStart, 27), delivered: false, hours: 1.5, notes: "New building names from Facilities." } },
     { cells: { job: "Faculty stall kits", client: "Events – Open Day", channel: "Event", sizes: "Tablecloth, A-frame, badges", designer: "Thao", status: "Briefed", briefed: monthDay(monthStart, 22), due: monthDay(monthStart, 29), delivered: false, hours: 0, notes: "" } },
     { cells: { job: "Vietnamese language adaptation – RMITinerary", client: "Student Recruitment – Vietnam", channel: "Print", sizes: "A4 4pp ×4", designer: "Tuyet", status: "On hold", briefed: monthDay(monthStart, 23), due: monthDay(monthStart, 30), delivered: false, hours: 0, notes: "Waits on the English masters." } },
   ];
@@ -908,7 +910,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     { cells: { time: "13:00", activity: "Scholarships and pathways talk", location: "Main Stage", owner: "Joanne", collateral: "Slides 16:9, scholarship flyer A5 ×1000", ready: false, notes: "Flyer copy awaiting the 2027 amounts." } },
     { cells: { time: "14:00", activity: "Course information sessions – block 2", location: "Swanston Academic Building", owner: "Joanne", collateral: "Room signage, session slides ×9", ready: false, notes: "" } },
     { cells: { time: "15:00", activity: "Alumni panel", location: "Alumni Courtyard", owner: "Priya", collateral: "Panel backdrop, name tents ×5", ready: true, notes: "" } },
-    { cells: { time: "16:00", activity: "Closing set and prize draw", location: "Main Stage", owner: "AV crew", collateral: "Prize draw slide, sponsor acknowledgement board", ready: false, notes: "Sponsor board booked with the Vietnam studio." } },
+    { cells: { time: "16:00", activity: "Closing set and prize draw", location: "Main Stage", owner: "AV crew", collateral: "Prize draw slide, sponsor acknowledgement board", ready: false, notes: "Sponsor board booked with the Vietnam team." } },
     { section: "Pack down" },
     { cells: { time: "17:00", activity: "Stalls and signage collected", location: "Alumni Courtyard", owner: "Volunteers", collateral: "Storage crates, signage inventory sheet", ready: true, notes: "" } },
     { cells: { time: "18:00", activity: "Debrief and lost property", location: "Registration Tent", owner: "Thao", collateral: "", ready: false, notes: "Photographer's card handover." } },

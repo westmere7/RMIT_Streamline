@@ -382,7 +382,7 @@ The live workspace has been hand-edited (renamed teams, extra people, a Tester t
 - `src/data/seed/seed-extras.ts` adds, to both providers: the Admin team and Task Allocation board
   with 8 realistic bookings (5 incoming, 2 allocated with linked mirrors, 1 closed) and 18 asset
   subitems; 27 direct messages in 6 threads (unread for Danh and the admin account); two more
-  trackers (Vietnam Studio Production Log, Open Day 2026 Run Sheet); 11 more updates with mentions;
+  trackers (Vietnam Production Log, Open Day 2026 Run Sheet); 11 more updates with mentions;
   12 fresh items so My Work has Today / This Week content; 54 notifications including TASK_BOOKED.
 - `npm run db:seed:topup` (new) adds only those extras to a live database, `on conflict do nothing`,
   remapping onto the existing Admin team / Task Allocation board, translating each base board's

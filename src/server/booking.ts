@@ -51,13 +51,13 @@ async function authorise(request: Request, slug: string, key: string | null): Pr
   if (!workspace) throw new HttpError(404, "This booking link does not point at a workspace.");
 
   const keyOk = !!key && isPlausibleBookingKey(key) && !!workspace.booking_key && key === workspace.booking_key;
-  if (key && !keyOk) throw new HttpError(403, "This booking link is no longer valid. Ask the studio for the current one.");
+  if (key && !keyOk) throw new HttpError(403, "This booking link is no longer valid. Ask the team for the current one.");
 
   const header = request.headers.get("authorization") ?? "";
   const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!jwt) {
     if (keyOk) return { workspaceId: workspace.id, memberId: null };
-    throw new HttpError(401, "Open the booking link the studio sent you, or sign in to book from inside the app.");
+    throw new HttpError(401, "Open the booking link the team sent you, or sign in to book from inside the app.");
   }
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data.user) {

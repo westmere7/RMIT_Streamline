@@ -3,7 +3,7 @@ import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
 import type { ColumnType, TagOption } from "@/domain/board/column";
 
 /**
- * Task booking: how people outside the studio ask for work.
+ * Task booking: how people outside the team ask for work.
  *
  * Stakeholders do not use the app day to day and have no idea which team a
  * request belongs to, so they book through one public form. Every booking
@@ -21,7 +21,7 @@ export type TeamSystemKind = (typeof TEAM_SYSTEM_KINDS)[number];
 export const BOARD_SYSTEM_KINDS = ["TASK_ALLOCATION"] as const;
 export type BoardSystemKind = (typeof BOARD_SYSTEM_KINDS)[number];
 
-/** The kinds of asset the studio produces; the palette of the "Asset type" column. */
+/** The kinds of asset the team produces; the palette of the "Asset type" column. */
 export const BOOKING_ASSET_TYPES: TagOption[] = [
   { name: "Print", color: "red" },
   { name: "Digital", color: "blue" },
@@ -37,7 +37,7 @@ export const BOOKING_ASSET_TYPES: TagOption[] = [
 
 /**
  * Column types a booking form can ask a stakeholder to fill in directly. The
- * rest (people, status, dependencies…) are the studio's business.
+ * rest (people, status, dependencies…) are the team's business.
  */
 export const BOOKING_FIELD_TYPES = ["TEXT", "LONG_TEXT", "NUMBER", "DATE", "LINK", "CHECKBOX", "TAGS", "SIZE"] as const satisfies readonly ColumnType[];
 export type BookingFieldType = (typeof BOOKING_FIELD_TYPES)[number];

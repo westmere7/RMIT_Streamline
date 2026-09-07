@@ -139,7 +139,7 @@ export class BookingService {
     // The asset lines are the only children of a brand-new item, so their
     // positions are known and they can be written together rather than one
     // round trip after another — a stakeholder is waiting on this response.
-    // Each asset line is a subitem the studio can tick off, and a line on the
+    // Each asset line is a subitem the team can tick off, and a line on the
     // item's Assets tab, where type, quantity, person in charge and due date live.
     const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
     await Promise.all([
@@ -230,7 +230,7 @@ export class BookingService {
     if (!workspace) throw new BookingAccessError("This booking link does not point at a workspace.");
     // In local mode the browser is the whole system, so a signed-in person may
     // book without the key; a public visitor must carry the right one.
-    if (key !== null && workspace.bookingKey && key !== workspace.bookingKey) throw new BookingAccessError("This booking link is no longer valid. Ask the studio for the current one.");
+    if (key !== null && workspace.bookingKey && key !== workspace.bookingKey) throw new BookingAccessError("This booking link is no longer valid. Ask the team for the current one.");
     return workspace;
   }
 
