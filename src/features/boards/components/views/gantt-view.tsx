@@ -220,7 +220,7 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
           ) : (
             <span className="size-5 shrink-0" />
           )}
-          <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-left hover:underline">
+          <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-left hover:underline" data-testid="gantt-name">
             <span className={cn("truncate text-[13px]", row.depth === 1 && "text-xs", done && "text-muted-foreground line-through")}>{item.name}</span>
             {row.children > 0 && <span className="shrink-0 text-2xs text-muted-foreground tabular">{children.filter((c) => model.isDone(c.id)).length}/{children.length}</span>}
             {blocked && <GitBranch className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}

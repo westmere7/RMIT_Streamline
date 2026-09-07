@@ -107,7 +107,7 @@ test.describe("board views", () => {
     await expect(page.getByTestId("gantt-bar").first()).toBeVisible();
     const ganttRow = page.locator('[data-testid="gantt-row"][data-item-name="RMITinerary High Achiever"]');
     await ganttRow.scrollIntoViewIfNeeded();
-    await ganttRow.getByRole("button", { name: "RMITinerary High Achiever", exact: true }).click();
+    await ganttRow.getByTestId("gantt-name").click();
     await expect(page.getByTestId("item-panel")).toContainText("RMITinerary High Achiever", { timeout: 15000 });
   });
 

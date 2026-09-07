@@ -108,6 +108,7 @@ test.describe("columns: alignment, dragging and renaming", () => {
     const dialog = page.getByTestId("link-item-dialog");
     await expect(dialog).toBeVisible({ timeout: 20000 });
     await page.getByTestId("link-search").fill("Campus banner");
+    await dialog.getByRole("button", { name: "Open Day 2026", exact: true }).click();
     await page.getByTestId("link-search").fill("Campus banner artwork – round 2");
     await page.getByTestId("link-candidate").filter({ hasText: "Campus banner artwork – round 2" }).first().click();
     await page.getByTestId("link-submit").click();

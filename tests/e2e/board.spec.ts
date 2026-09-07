@@ -124,7 +124,7 @@ test.describe("board interactions", () => {
     // the rows around it have not moved.
     const line = await slot.evaluate((el) => {
       const bar = el.firstElementChild as HTMLElement;
-      const table = el.closest('[role="grid"]') as HTMLElement;
+      const table = (el.closest('[role="grid"]') ?? el.closest("section")) as HTMLElement;
       return {
         wrapperHeight: Math.round(el.getBoundingClientRect().height),
         barHeight: Math.round(bar.getBoundingClientRect().height),
@@ -204,7 +204,7 @@ test.describe("board interactions", () => {
     // Full width and thick in the empty group too.
     const geometry = await emptyLine.evaluate((el) => {
       const bar = el.firstElementChild as HTMLElement;
-      const table = el.closest('[role="grid"]') as HTMLElement;
+      const table = (el.closest('[role="grid"]') ?? el.closest("section")) as HTMLElement;
       return { barHeight: Math.round(bar.getBoundingClientRect().height), barWidth: Math.round(bar.getBoundingClientRect().width), tableWidth: Math.round(table.getBoundingClientRect().width) };
     });
     expect(geometry.barHeight).toBeGreaterThanOrEqual(3);
