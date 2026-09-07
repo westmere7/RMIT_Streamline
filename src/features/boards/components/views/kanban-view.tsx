@@ -243,7 +243,10 @@ export function KanbanView() {
               onAdd={(name) => lane.initial && void mutations.createItem({ groupId: lane.initial.groupId, name, values: lane.initial.values })}
             />
           ))}
-          <DragOverlay dropAnimation={{ duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>{activeItem ? <Card item={activeItem} laneBy={laneBy} overlay /> : null}</DragOverlay>
+          {/* No drop animation: dnd-kit would fly the card back to where it was
+              picked up, which reads as the drop being refused even though the
+              card is already in its new lane. */}
+          <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} overlay /> : null}</DragOverlay>
         </DndContext>
       </div>
     </div>

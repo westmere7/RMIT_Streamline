@@ -1,6 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { resetLocalData, signInAs } from "./helpers";
 
+/** About is a dialog, opened from Settings or from the logo in the sidebar. */
+async function openAbout(page: Page, from: "settings" | "logo" = "settings") {
+  if (from === "settings") {
+    await page.goto("/workspace/rmit/settings");
+    await page.getByTestId("settings-about").click();
+  } else {
+    await page.getByTestId("sidebar-about").click();
+  }
+  await expect(page.getByTestId("about-dialog")).toBeVisible({ timeout: 15000 });
+}
+
 /** Pretend the server has moved on to another build. */
 async function serveNewerBuild(page: Page) {
   await page.route("**/api/version", (route) =>
@@ -13,16 +24,19 @@ test.describe("version check", () => {
     await resetLocalData(page);
   });
 
-  test("settings shows the running version and reports it as up to date", async ({ page }) => {
+  test("About shows the running version and reports it as up to date", async ({ page }) => {
     await signInAs(page, "Danh");
-    await page.goto("/workspace/rmit/settings");
-    const about = page.getByTestId("about-version");
-    await expect(about).toContainText(/Streamline v\d+\.\d+\.\d+ \(/);
+    await openAbout(page);
+    await expect(page.getByTestId("about-version")).toContainText(/Streamline v\d+\.\d+\.\d+ \(/);
     await expect(page.getByTestId("version-status")).toContainText(/up to date/i, { timeout: 15000 });
     await expect(page.getByTestId("version-reload")).toHaveCount(0);
-    // The version is shown in settings only.
+    await page.keyboard.press("Escape");
+
+    // The version is nowhere else until asked for; the logo opens the same dialog.
     await page.goto("/workspace/rmit");
     await expect(page.getByText(/Streamline v\d+\.\d+\.\d+/)).toHaveCount(0);
+    await openAbout(page, "logo");
+    await expect(page.getByTestId("about-dialog")).toContainText(/Streamline v\d+\.\d+\.\d+ \(/);
   });
 
   test("a newer build on the server raises a notice that does not force a reload", async ({ page }) => {
@@ -44,15 +58,15 @@ test.describe("version check", () => {
     await page.waitForTimeout(1500);
     await expect(page.getByText("A new version of Streamline is ready")).toHaveCount(0);
 
-    // Settings still says so and offers the reload.
-    await page.goto("/workspace/rmit/settings");
+    // About still says so and offers the reload.
+    await openAbout(page);
     await expect(page.getByTestId("version-status")).toContainText(/newer version is live: v9\.9\.9 \(feedfac\)/, { timeout: 15000 });
     await expect(page.getByTestId("version-reload")).toBeVisible();
   });
 
   test("a manual check picks up a build that appeared after the page loaded", async ({ page }) => {
     await signInAs(page, "Danh");
-    await page.goto("/workspace/rmit/settings");
+    await openAbout(page);
     await expect(page.getByTestId("version-status")).toContainText(/up to date/i, { timeout: 15000 });
     await serveNewerBuild(page);
     await page.getByTestId("version-check").click();
