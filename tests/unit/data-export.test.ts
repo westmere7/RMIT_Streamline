@@ -12,7 +12,7 @@ describe("data export / import", () => {
     await source.boards.update(SEED_BOARD_IDS.sem1, { name: "Renamed in source" });
     const dump = await source.admin.exportAll();
     expect(isDataExport(dump)).toBe(true);
-    expect(dump.stores.boards).toHaveLength(12);
+    expect(dump.stores.boards).toHaveLength(13); // 12 demo boards + Task Allocation
     expect(dump.stores.items?.length).toBeGreaterThan(100);
 
     const target = fresh();

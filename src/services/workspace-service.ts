@@ -24,7 +24,7 @@ import { taskAllocationColumns } from "./booking-service";
 /** The Admin team and its Task Allocation board, as the app creates them. */
 export const SYSTEM_TEAM = { name: "Admin", description: "Task allocation and workspace administration.", color: "navy", icon: "shield-check" } as const;
 export const SYSTEM_BOARD = { name: "Task Allocation", description: "Every task booked by a stakeholder lands here until a manager places it with a team.", color: "red", icon: "inbox" } as const;
-const SYSTEM_BOARD_GROUPS = [
+export const SYSTEM_BOARD_GROUPS = [
   { name: "Incoming", color: "red" },
   { name: "Allocated", color: "blue" },
   { name: "Closed", color: "gray" },

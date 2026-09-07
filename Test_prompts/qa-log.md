@@ -305,3 +305,101 @@ it between groups, reload, delete it, walk every page, follow a deep link, and c
 says so — with no console errors and no failed requests. The only production-specific finding was in
 the test rather than the app: Next prefetches the sidebar's routes and aborts them on navigation, so
 cancelled RSC prefetches are ignored.
+
+
+---
+
+# Daily-operation audit — 2026-09-07
+
+A second pass, this time following one person's working day through the app in **supabase** mode
+against the live demo workspace (RMIT VN MKT), plus the production smoke suite against
+rmit-streamline.vercel.app. Persona: Danh (workspace owner). Every write below was undone or
+removed afterwards, except the extra demo data described at the end, which was the point.
+
+## The day that was walked
+
+Sign in → Home → My Work → Inbox (open a notification) → board (status, owner, due date, new item,
+subitem, update with @mention, Activity tab, Kanban/Timeline/Calendar) → public booking form
+(stakeholder POST with the link key, wrong key refused) → Task Allocation → allocate the booking to a
+team board (linked item + asset subitems) → Messages (send) → Tracker (edit a cell, autosave) →
+sign out → wrong password → sign in → phone width (390) on Home and a board.
+
+## Findings
+
+**BUG-10 (HIGH, production) — a status picked straight after creating an item could be undone.**
+Seen in the deployed smoke run: the activity log said "Not Started → Working On It" but the stored
+value was `not_started`. `ItemService.createItem` wrote the board's default status with an upsert
+*after* inserting the item; the row is on screen optimistically, so a status chosen in that window
+was overwritten when the default landed a round trip later (Singapore ↔ Vercel makes the window
+real). Fix: `ItemRepository.setValuesIfAbsent` (insert-or-ignore in both providers) and
+`createItem` uses it for defaults. Unit test: `tests/unit/board-service.test.ts` "keeps a status set
+while the item was still being created".
+
+**BUG-11 (MEDIUM) — allocating a booking left its asset subitems in "Incoming".**
+`BookingService.allocate` moved the request to "Allocated" but not its subitems, which stayed in
+the Incoming group (deleting that group would have taken them with it). Fix: the subitems follow
+the parent. Covered in `tests/unit/booking.test.ts`.
+
+**FIX-12 (LOW) — the browser tab always said "RMIT Creative Team".** The root metadata title is
+static; the workspace was renamed to RMIT VN MKT. `AppShell` now keeps `document.title` at
+"Streamline · <workspace name>" (a MutationObserver, because the router writes the static title
+back on every navigation, search-param changes included). The public booking page's footnote uses
+the workspace name too.
+
+**FIX-13 (test hygiene) — failed deployment smoke runs leave "deploy-… smoke item" rows on the live
+RMITinerary board.** Three were found. The test body is now wrapped in `try/finally` with a
+best-effort `removeIfLeft`; the leftovers were deleted.
+
+**OBS-6 — production is slow enough to fail the smoke suite on time.** The retry of the
+item-lifecycle test hit the 90 s budget at the drag step; each cell edit is several sequential
+round trips to Supabase. Booking a task through the API took 4.6 s locally; allocation ~10 s.
+Worth a look at batching the writes in `allocate` and `book` before real use.
+
+**OBS-7 — Inbox notification rows have no accessible name** (`button` with only visual content),
+and tracker grid cells are unnamed `gridcell`s. Screen-reader users hear nothing useful. LOW.
+
+**OBS-8 — the "Team board" list in the allocation panel is unsorted** and does not say which team
+owns each board. LOW.
+
+**OBS-9 — sign-in errors show Supabase's raw text** ("Invalid login credentials"). LOW.
+
+**OBS-10 — README still describes the app as local-first with Supabase "not yet connected".**
+
+Checked and sound: every daily surface loads without console errors; status/owner/due-date changes
+write activity and notify the owner (owner excluded when actor); mentions notify; inbox click-through
+opens the item panel; deep links with `?item=` reopen the panel; public booking rejects a wrong key
+(403), accepts a valid one (201), stores requester columns, asset subitems and the description; the
+TASK_BOOKED notification reaches every active owner/admin; allocation creates the mirror item, the
+link, copies subitems and writes "Allocated to"; messages persist and the thread rises with an unread
+badge; tracker edits autosave (600 ms) and clear; sign-out clears the session; wrong password is
+refused; 390 px layouts have no horizontal scroll.
+
+## Demo data
+
+The live workspace has been hand-edited (renamed teams, extra people, a Tester team) so
+`npm run db:seed` — which wipes the seed workspace — was not used. Instead:
+
+- `src/data/seed/seed-extras.ts` adds, to both providers: the Admin team and Task Allocation board
+  with 8 realistic bookings (5 incoming, 2 allocated with linked mirrors, 1 closed) and 18 asset
+  subitems; 27 direct messages in 6 threads (unread for Danh and the admin account); two more
+  trackers (Vietnam Studio Production Log, Open Day 2026 Run Sheet); 11 more updates with mentions;
+  12 fresh items so My Work has Today / This Week content; 54 notifications including TASK_BOOKED.
+- `npm run db:seed:topup` (new) adds only those extras to a live database, `on conflict do nothing`,
+  remapping onto the existing Admin team / Task Allocation board, translating each base board's
+  group and column ids by name (the live layout no longer matches the seed's id counters — a first
+  attempt was rejected by the `enforce_value_same_board` trigger), renaming teams to their current
+  names, and fanning TASK_BOOKED out to whoever is an admin now. Running it twice inserts nothing.
+  Pure logic in `src/data/seed/seed-topup.ts` with tests in `tests/unit/seed-topup.test.ts` and
+  `tests/unit/seed-integrity.test.ts`.
+
+Applied to the live project on 2026-09-07: 44 items, 186 values, 2 links, 2 trackers, 3 sheets,
+11 comments, 39 activities, 70 notifications, 27 messages.
+
+## Automated quality
+
+`npm run check` clean (lint, typecheck, 215 unit tests across 33 files). Local Playwright suite
+(production build, local provider): 158 passed, 6 failed on expectations that had the old seed's
+numbers baked in (16 items on RMITinerary, "3" unread for Danh, a reset test that navigated away
+before the reseed finished); those now read their numbers from the seed and pass. Deployment smoke suite:
+2 passed, 1 failed (BUG-10 and OBS-6), 2 skipped — the code fix is in the tree; rerun after the
+next deploy. Version bumped to 0.3.1.

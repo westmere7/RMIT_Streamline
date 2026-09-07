@@ -10,6 +10,7 @@ import type {
   ColumnType,
   ColumnValue,
   Comment,
+  DirectMessage,
   Item,
   ItemColumnValue,
   ItemLink,
@@ -27,12 +28,18 @@ import type {
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
+import { buildSeedExtras, type SeedExtrasContext } from "./seed-extras";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 
 /**
  * Deterministic seed. IDs are stable pseudo-UUIDs so tests and deep links are
  * predictable, while dates are relative to `now` so My Work always has content.
+ *
+ * The bundle comes in two halves: the base workspace below, and the extras in
+ * seed-extras.ts (task booking, direct messages, more trackers, updates and
+ * fresh work) which use id namespaces of their own so they can also be added
+ * to a database that already holds the base seed (scripts/db-seed-topup.mts).
  */
 
 export interface SeedBundle {
@@ -55,9 +62,15 @@ export interface SeedBundle {
   comments: Comment[];
   activities: Activity[];
   notifications: Notification[];
+  directMessages: DirectMessage[];
   boardVisits: BoardVisit[];
 }
 
+/**
+ * The first block of a seed id names what it is. Single characters are the base
+ * seed; the two-character "e…" namespaces belong to the extras, so an extras id
+ * can never collide with a base id however either half grows.
+ */
 const ID_NAMESPACES = {
   workspace: "0",
   user: "1",
@@ -73,24 +86,37 @@ const ID_NAMESPACES = {
   member: "b",
   link: "c",
   tracker: "d",
+  extra: "e0",
+  extraItem: "e1",
+  extraValue: "e2",
+  extraComment: "e3",
+  extraActivity: "e4",
+  extraNotification: "e5",
+  extraLink: "e6",
+  extraTracker: "e7",
+  extraMessage: "e8",
+  extraMember: "e9",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
+export type ExtrasIdNamespace = Extract<IdNamespace, `extra${string}`>;
 
 const counters = new Map<IdNamespace, number>();
 
 function sid(ns: IdNamespace, explicit?: number): string {
   const n = explicit ?? (counters.get(ns) ?? 0) + 1;
   if (explicit === undefined) counters.set(ns, n);
-  return `0000000${ID_NAMESPACES[ns]}-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  return `${ID_NAMESPACES[ns].padStart(8, "0")}-0000-4000-8000-${String(n).padStart(12, "0")}`;
 }
 
 export const SEED_WORKSPACE_ID = sid("workspace", 1);
 export const SEED_WORKSPACE_SLUG = "rmit";
+/** Fixed secret of the demo booking link (/book/rmit/<key>); 24 characters from the key alphabet, like a generated one. */
+export const SEED_BOOKING_KEY = "bookrmitcreative2026demo";
 
 // ---- Users -----------------------------------------------------------------
 
-type UserKey =
+export type UserKey =
   | "danh" | "emily" | "jun" | "joanne" | "duc" | "tuyet" | "hil" | "grace" | "jane"
   | "minh" | "linh" | "sarah" | "tom" | "priya" | "chloe" | "ravi" | "thao" | "ben"
   | "admin"
@@ -187,7 +213,7 @@ export const SEED_INVITATION_TOKENS: Partial<Record<UserKey, string>> = {
 
 // ---- Teams -----------------------------------------------------------------
 
-type TeamKey = "vietnam" | "melbourne" | "campaigns" | "digital" | "brand" | "content" | "video" | "events";
+export type TeamKey = "vietnam" | "melbourne" | "campaigns" | "digital" | "brand" | "content" | "video" | "events";
 
 interface SeedTeamSpec {
   key: TeamKey;
@@ -223,7 +249,7 @@ export const SEED_TEAM_IDS: Record<TeamKey, string> = {
 
 // ---- Boards ----------------------------------------------------------------
 
-type BoardKey = "sem1" | "masterclass" | "rmitinerary" | "dooh" | "requests" | "alwayson" | "openday" | "video" | "brand" | "website" | "social" | "sem2archive";
+export type BoardKey = "sem1" | "masterclass" | "rmitinerary" | "dooh" | "requests" | "alwayson" | "openday" | "video" | "brand" | "website" | "social" | "sem2archive";
 
 interface SeedColumnSpec {
   key: string;
@@ -786,7 +812,89 @@ function iso(date: Date): string {
   return date.toISOString();
 }
 
+/** The base seed, the extras built on top of it, and the lookups the extras used. */
+export interface SeedParts {
+  base: SeedBundle;
+  extras: SeedBundle;
+  lookups: SeedLookups;
+}
+
+/**
+ * Stable addresses into the base seed for anything built on top of it. Items are
+ * looked up by board and name (their ids follow list order, so a name is the
+ * only address that survives the base growing).
+ */
+export interface SeedLookups {
+  groupId(board: BoardKey, name: string): string;
+  groups(board: BoardKey): BoardGroup[];
+  columnId(board: BoardKey, key: string): string;
+  /** The column behind a spec key, or null when the board has no such column. */
+  column(board: BoardKey, key: string): BoardColumn | null;
+  columns(board: BoardKey): BoardColumn[];
+  itemId(board: BoardKey, name: string): string;
+  boardName(board: BoardKey): string;
+}
+
+/** The complete demo workspace: base seed plus extras, as one bundle. */
 export function buildSeed(now: Date = new Date()): SeedBundle {
+  const { base, extras } = buildSeedParts(now);
+  return mergeSeedBundles(base, extras);
+}
+
+export function mergeSeedBundles(a: SeedBundle, b: SeedBundle): SeedBundle {
+  const merged: Record<string, unknown[]> = {};
+  for (const key of Object.keys(a) as Array<keyof SeedBundle>) merged[key] = [...a[key], ...b[key]];
+  return merged as unknown as SeedBundle;
+}
+
+export function emptySeedBundle(): SeedBundle {
+  return {
+    users: [],
+    workspaces: [],
+    workspaceMembers: [],
+    workspaceInvitations: [],
+    teams: [],
+    teamMembers: [],
+    boards: [],
+    boardMembers: [],
+    boardFavourites: [],
+    boardGroups: [],
+    boardColumns: [],
+    items: [],
+    itemColumnValues: [],
+    itemLinks: [],
+    trackers: [],
+    trackerSheets: [],
+    comments: [],
+    activities: [],
+    notifications: [],
+    directMessages: [],
+    boardVisits: [],
+  };
+}
+
+/** Base and extras separately, for the additive Supabase top-up (scripts/db-seed-topup.mts). */
+export function buildSeedParts(now: Date = new Date()): SeedParts {
+  const { base, lookups } = buildBaseSeed(now);
+  const adminKeys = USER_SPECS.filter((u) => !u.pending && (u.role === "OWNER" || u.role === "ADMIN")).map((u) => u.key);
+  const teamNames = TEAM_SPECS.map((t) => t.name).sort((a, b) => a.localeCompare(b));
+  const ctx: SeedExtrasContext = {
+    now,
+    workspaceId: SEED_WORKSPACE_ID,
+    sid: (ns) => sid(ns),
+    users: SEED_USER_IDS,
+    userNames: Object.fromEntries(USER_SPECS.map((u) => [u.key, `${u.firstName} ${u.lastName}`])) as Record<UserKey, string>,
+    teams: SEED_TEAM_IDS,
+    teamNameOf: Object.fromEntries(TEAM_SPECS.map((t) => [t.key, t.name])) as Record<TeamKey, string>,
+    boards: SEED_BOARD_IDS,
+    admins: adminKeys,
+    teamNames,
+    lookups,
+  };
+  return { base, extras: buildSeedExtras(ctx), lookups };
+}
+
+function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
   counters.clear();
   const createdBase = subDays(now, 45);
 
@@ -810,6 +918,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     name: "RMIT Creative Team",
     slug: SEED_WORKSPACE_SLUG,
     logoUrl: null,
+    bookingKey: SEED_BOOKING_KEY,
     createdAt: iso(createdBase),
     updatedAt: iso(createdBase),
   };
@@ -865,6 +974,8 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
   const itemColumnValues: ItemColumnValue[] = [];
   const activities: Activity[] = [];
   const itemIdByBoardAndName = new Map<string, string>();
+  const groupIdByBoardAndName = new Map<string, string>();
+  const columnByBoardAndKey = new Map<string, BoardColumn>();
 
   for (const spec of BOARD_SPECS) {
     const boardId = SEED_BOARD_IDS[spec.key];
@@ -906,6 +1017,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     spec.groups.forEach((g, index) => {
       const id = sid("group");
       groupIdByName.set(g.name, id);
+      groupIdByBoardAndName.set(`${boardId}:${g.name}`, id);
       boardGroups.push({
         id,
         boardId,
@@ -931,6 +1043,7 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
         createdAt: iso(boardCreated),
       };
       columnByKey.set(c.key, column);
+      columnByBoardAndKey.set(`${boardId}:${c.key}`, column);
       boardColumns.push(column);
     });
 
@@ -1157,7 +1270,25 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     { id: `${SEED_USER_IDS.minh}:${SEED_BOARD_IDS.video}`, userId: SEED_USER_IDS.minh, boardId: SEED_BOARD_IDS.video, visitedAt: iso(subHours(now, 2)) },
   ];
 
-  return {
+  const lookups: SeedLookups = {
+    groupId: (board, name) => {
+      const id = groupIdByBoardAndName.get(`${SEED_BOARD_IDS[board]}:${name}`);
+      if (!id) throw new Error(`Seed group ${name} missing on ${board}`);
+      return id;
+    },
+    groups: (board) => boardGroups.filter((g) => g.boardId === SEED_BOARD_IDS[board]).sort((a, b) => a.position - b.position),
+    columnId: (board, key) => {
+      const column = columnByBoardAndKey.get(`${SEED_BOARD_IDS[board]}:${key}`);
+      if (!column) throw new Error(`Seed column ${key} missing on ${board}`);
+      return column.id;
+    },
+    column: (board, key) => columnByBoardAndKey.get(`${SEED_BOARD_IDS[board]}:${key}`) ?? null,
+    columns: (board) => boardColumns.filter((c) => c.boardId === SEED_BOARD_IDS[board]),
+    itemId,
+    boardName: (board) => boards.find((b) => b.id === SEED_BOARD_IDS[board])?.name ?? board,
+  };
+
+  const base: SeedBundle = {
     users,
     workspaces: [workspace],
     workspaceMembers,
@@ -1177,6 +1308,8 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
     comments,
     activities,
     notifications,
+    directMessages: [],
     boardVisits,
   };
+  return { base, lookups };
 }

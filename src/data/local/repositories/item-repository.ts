@@ -120,4 +120,22 @@ export class LocalItemRepository implements ItemRepository {
     await tx.done;
     return results;
   }
+
+  async setValuesIfAbsent(
+    values: Array<{ itemId: string; columnId: string; value: ColumnValue }>,
+  ): Promise<ItemColumnValue[]> {
+    const db = await this.conn.getDb();
+    const tx = db.transaction("itemColumnValues", "readwrite");
+    const now = nowIso();
+    const results: ItemColumnValue[] = [];
+    for (const { itemId, columnId, value } of values) {
+      const existing = (await tx.store.index("byItem").getAll(itemId)).find((v) => v.columnId === columnId);
+      if (existing) continue;
+      const record: ItemColumnValue = { id: newId(), itemId, columnId, value, updatedAt: now };
+      await tx.store.put(record);
+      results.push(record);
+    }
+    await tx.done;
+    return results;
+  }
 }

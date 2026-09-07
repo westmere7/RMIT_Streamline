@@ -182,6 +182,10 @@ export class BookingService {
     if (allocated && item.groupId !== allocated.id) {
       const siblings = (await this.repos.items.listByBoard(source.id)).filter((i) => i.groupId === allocated.id && i.parentItemId === null);
       updated = await this.repos.items.update(item.id, { groupId: allocated.id, position: siblings.length });
+      // The asset lines belong with their request: left in "Incoming" they would
+      // be deleted with that group and counted against it.
+      const stranded = subitems.filter((s) => s.groupId !== allocated.id);
+      if (stranded.length) await this.repos.items.updateMany(stranded.map((s) => ({ id: s.id, patch: { groupId: allocated.id } })));
     }
     return { item: updated, created, board: target };
   }

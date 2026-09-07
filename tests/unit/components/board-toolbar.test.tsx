@@ -22,7 +22,7 @@ describe("BoardToolbar", () => {
         <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
-    expect(screen.getByText(/16 items/)).toBeInTheDocument();
+    expect(screen.getByText(/18 items/)).toBeInTheDocument();
     await user.type(screen.getByTestId("search-input"), "Explorer");
     await waitFor(() => expect(useBoardUiStore.getState().boards[boardId]?.search).toBe("Explorer"));
     // The toolbar reads the model from context; in this harness the model is unfiltered, so
@@ -90,6 +90,6 @@ describe("BoardToolbar", () => {
       const items = await app.data.services.repos.items.listByBoard(boardId);
       expect(items.some((i) => i.name === "Back cover artwork")).toBe(true);
     });
-    await waitFor(() => expect(screen.getByText(/17 items/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/19 items/)).toBeInTheDocument());
   });
 });

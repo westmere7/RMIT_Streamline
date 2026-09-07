@@ -19,9 +19,10 @@ describe("Trackers", () => {
 
   it("seeds the demo asset tracker inside the Campaigns team with two sheets", async () => {
     const trackers = await services.trackers.list(SEED_WORKSPACE_ID);
-    expect(trackers.map((t) => t.name)).toEqual(["Domestic Campaigns Asset Tracker"]);
-    expect(trackers[0]?.teamId).toBe(SEED_TEAM_IDS.campaigns);
-    const sheets = await services.trackers.listSheets(trackers[0]!.id);
+    expect(trackers.map((t) => t.name)).toContain("Domestic Campaigns Asset Tracker");
+    const campaigns = trackers.find((t) => t.name === "Domestic Campaigns Asset Tracker")!;
+    expect(campaigns.teamId).toBe(SEED_TEAM_IDS.campaigns);
+    const sheets = await services.trackers.listSheets(campaigns.id);
     expect(sheets.map((s) => s.name)).toEqual(["Sem 1 2027", "Open Day 2026"]);
     const sheet = sheets[0]!;
     expect(sheet.columns.map((c) => c.name)).toEqual(DOMESTIC_CAMPAIGNS_COLUMNS.map((c) => c.name));

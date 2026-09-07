@@ -167,6 +167,12 @@ export interface ItemRepository {
   listValuesByColumns(columnIds: EntityId[]): Promise<ItemColumnValue[]>;
   setValue(itemId: EntityId, columnId: EntityId, value: ColumnValue): Promise<ItemColumnValue>;
   setValues(values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }>): Promise<ItemColumnValue[]>;
+  /**
+   * Writes only the pairs that have no value yet and leaves existing rows alone.
+   * For defaults applied while a record is being created: a value the user set in
+   * the meantime must win over the default that lands a moment later.
+   */
+  setValuesIfAbsent(values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }>): Promise<ItemColumnValue[]>;
 }
 
 export interface ItemLinkRepository {

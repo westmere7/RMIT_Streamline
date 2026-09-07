@@ -14,6 +14,11 @@ describe("direct messages", () => {
   });
 
   it("keeps a thread in order and counts what the recipient has not read", async () => {
+    // The seed already leaves both people with unread messages; measure from there.
+    const emilyBefore = await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.emily);
+    const danhBefore = await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
+    const seeded = await services.messages.listThread(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily);
+    const emilyUnreadHere = seeded.filter((m) => m.recipientId === SEED_USER_IDS.emily && m.readAt === null).length;
     await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily, "Morning — did the deck land?");
     await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.emily, SEED_USER_IDS.danh, "Yes, reviewing now.");
     await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily, "No rush.");
@@ -21,27 +26,33 @@ describe("direct messages", () => {
     // Both sides see the same conversation, oldest first.
     const fromDanh = await services.messages.listThread(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily);
     const fromEmily = await services.messages.listThread(SEED_WORKSPACE_ID, SEED_USER_IDS.emily, SEED_USER_IDS.danh);
-    expect(fromDanh.map((m) => m.body)).toEqual(["Morning — did the deck land?", "Yes, reviewing now.", "No rush."]);
+    expect(fromDanh.slice(seeded.length).map((m) => m.body)).toEqual(["Morning — did the deck land?", "Yes, reviewing now.", "No rush."]);
     expect(fromEmily.map((m) => m.id)).toEqual(fromDanh.map((m) => m.id));
 
-    // Emily has two unread; Danh has one.
-    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.emily)).toBe(2);
-    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.danh)).toBe(1);
+    // Emily has two more unread; Danh has one more.
+    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.emily)).toBe(emilyBefore + 2);
+    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.danh)).toBe(danhBefore + 1);
 
+    // Opening the thread clears everything Danh sent her, seeded or not; her other threads are untouched.
     await services.messages.markRead(SEED_WORKSPACE_ID, SEED_USER_IDS.emily, SEED_USER_IDS.danh);
-    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.emily)).toBe(0);
-    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.danh)).toBe(1);
+    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.emily)).toBe(emilyBefore - emilyUnreadHere);
+    expect(await services.messages.unreadCount(SEED_WORKSPACE_ID, SEED_USER_IDS.danh)).toBe(danhBefore + 1);
   });
 
   it("lists threads newest first with the other person resolved", async () => {
-    await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily, "First");
+    // Grace has no seeded thread with Danh; Joanne's is seeded and fully read.
+    const before = await services.messages.listThreads(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
+    expect(before.some((t) => t.userId === SEED_USER_IDS.grace)).toBe(false);
+    expect(before.find((t) => t.userId === SEED_USER_IDS.joanne)?.unread).toBe(0);
+    await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.grace, "First");
     await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.joanne, SEED_USER_IDS.danh, "Second");
 
     const threads = await services.messages.listThreads(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
-    expect(threads).toHaveLength(2);
+    expect(threads).toHaveLength(before.length + 1);
     expect(threads[0]!.userId).toBe(SEED_USER_IDS.joanne);
     expect(threads[0]!.user?.displayName).toBe("Joanne Walsh");
     expect(threads[0]!.unread).toBe(1);
+    expect(threads[1]!.userId).toBe(SEED_USER_IDS.grace);
     expect(threads[1]!.unread).toBe(0);
   });
 
@@ -51,9 +62,9 @@ describe("direct messages", () => {
   });
 
   it("deleting a message removes it for both people", async () => {
-    const sent = await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.emily, "Ignore this");
+    const sent = await services.messages.send(SEED_WORKSPACE_ID, SEED_USER_IDS.danh, SEED_USER_IDS.grace, "Ignore this");
     await services.messages.deleteMessage(sent.id);
-    expect(await services.messages.listThread(SEED_WORKSPACE_ID, SEED_USER_IDS.emily, SEED_USER_IDS.danh)).toEqual([]);
+    expect(await services.messages.listThread(SEED_WORKSPACE_ID, SEED_USER_IDS.grace, SEED_USER_IDS.danh)).toEqual([]);
   });
 });
 

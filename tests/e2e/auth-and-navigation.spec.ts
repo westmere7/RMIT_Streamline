@@ -28,7 +28,7 @@ test.describe("authentication and navigation", () => {
     await expect(page).toHaveURL(/rmitinerary-2026/);
     await expect(page.getByTestId("group-Design")).toBeVisible();
     await expect(page.getByTestId("group-Production")).toBeVisible();
-    await expect(page.locator('[data-testid="item-row"]')).toHaveCount(16);
+    await expect(page.locator('[data-testid="item-row"]')).toHaveCount(18);
   });
 
   test("opens My Work with sections", async ({ page }) => {

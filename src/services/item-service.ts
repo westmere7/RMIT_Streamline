@@ -116,7 +116,10 @@ export class ItemService {
       position,
     });
 
-    // Default status label and any explicit initial values.
+    // Default status label and any explicit initial values. Written only where
+    // no value exists yet: the row is already on screen while this runs, and a
+    // status the user picks in that moment must not be undone by the default
+    // arriving a network round trip later.
     const columns = await this.repos.boards.listColumns(input.boardId);
     const initial: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
     for (const column of columns) {
@@ -127,7 +130,7 @@ export class ItemService {
         initial.push({ itemId: item.id, columnId: column.id, value: { type: "STATUS", labelId: column.settings.defaultLabelId } });
       }
     }
-    if (initial.length) await this.repos.items.setValues(initial);
+    if (initial.length) await this.repos.items.setValuesIfAbsent(initial);
 
     const group = (await this.repos.boards.listGroups(input.boardId)).find((g) => g.id === input.groupId);
     await this.repos.activities.create({

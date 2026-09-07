@@ -25,6 +25,7 @@ export async function seedDatabase(db: StreamlineDatabase, now: Date = new Date(
       "comments",
       "activities",
       "notifications",
+      "directMessages",
       "boardVisits",
       "meta",
     ],
@@ -51,6 +52,7 @@ export async function seedDatabase(db: StreamlineDatabase, now: Date = new Date(
     ...seed.comments.map((r) => tx.objectStore("comments").put(r)),
     ...seed.activities.map((r) => tx.objectStore("activities").put(r)),
     ...seed.notifications.map((r) => tx.objectStore("notifications").put(r)),
+    ...seed.directMessages.map((r) => tx.objectStore("directMessages").put(r)),
     ...seed.boardVisits.map((r) => tx.objectStore("boardVisits").put(r)),
     tx.objectStore("meta").put({ key: "seededAt", value: now.toISOString() }),
   ]);

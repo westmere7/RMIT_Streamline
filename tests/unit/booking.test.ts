@@ -214,8 +214,9 @@ describe("booking a task", () => {
 
     const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     const items = await services.repos.items.listByBoard(board.id);
-    expect(items.filter((i) => i.parentItemId === null).map((i) => i.name)).toEqual(["Open Day wayfinding posters"]);
-    const item = items.find((i) => i.parentItemId === null)!;
+    // The seed already has bookings on the board; the new one joins them.
+    expect(items.filter((i) => i.parentItemId === null).map((i) => i.name)).toContain("Open Day wayfinding posters");
+    const item = items.find((i) => i.parentItemId === null && i.name === "Open Day wayfinding posters")!;
     expect(item.createdBy).toBe(owner);
     // Each asset line is a subitem, carrying its spec.
     const subitems = items.filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
@@ -259,8 +260,9 @@ describe("booking a task", () => {
   it("goes straight to a team's chosen board, mapping answers to its columns and asking its extra questions", async () => {
     const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
-    const team = teams.find((t) => boards.some((b) => b.teamId === t.id && !b.archivedAt))!;
-    const board = boards.find((b) => b.teamId === team.id && !b.archivedAt)!;
+    // An ordinary team with an ordinary board: the built-in Admin team and Task Allocation cannot take bookings.
+    const team = teams.find((t) => !t.system && boards.some((b) => b.teamId === t.id && !b.archivedAt && !b.system))!;
+    const board = boards.find((b) => b.teamId === team.id && !b.archivedAt && !b.system)!;
     await services.workspace.updateTeam(team.id, { bookingBoardId: board.id });
 
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
@@ -303,6 +305,10 @@ describe("booking a task", () => {
     const allocation = boards.find((b) => b.system === "TASK_ALLOCATION")!;
     const groups = await services.repos.boards.listGroups(allocation.id);
     expect(groups.find((g) => g.id === item.groupId)?.name).toBe("Allocated");
+    // …and its asset subitems moved with it rather than staying behind in Incoming.
+    const ownSubitems = (await services.repos.items.listByBoard(allocation.id)).filter((i) => i.parentItemId === item.id);
+    expect(ownSubitems).toHaveLength(2);
+    expect(ownSubitems.every((s) => s.groupId === item.groupId)).toBe(true);
     const columns = await services.repos.boards.listColumns(allocation.id);
     const allocatedTo = columns.find((c) => c.name === "Allocated to")!;
     const values = await services.repos.items.listValuesByItem(item.id);

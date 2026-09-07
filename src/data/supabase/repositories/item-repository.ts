@@ -121,4 +121,13 @@ export class SupabaseItemRepository implements ItemRepository {
     const result = await db().from("item_column_values").upsert(payload, { onConflict: "item_id,column_id" }).select(VALUE);
     return unwrapList<ItemColumnValueRow>(result, "item_column_values.setValues").map(toItemColumnValue);
   }
+
+  async setValuesIfAbsent(values: Array<{ itemId: string; columnId: string; value: ColumnValue }>): Promise<ItemColumnValue[]> {
+    if (values.length === 0) return [];
+    // `on conflict do nothing`: a pair that already has a row keeps it, so a value
+    // set by the user while the item was still being created is never replaced.
+    const payload = values.map((v) => ({ item_id: v.itemId, column_id: v.columnId, value_json: v.value, updated_at: new Date().toISOString() }));
+    const result = await db().from("item_column_values").upsert(payload, { onConflict: "item_id,column_id", ignoreDuplicates: true }).select(VALUE);
+    return unwrapList<ItemColumnValueRow>(result, "item_column_values.setValuesIfAbsent").map(toItemColumnValue);
+  }
 }

@@ -88,4 +88,20 @@ describe("BoardService", () => {
     expect(copy.name).toBe("Media brief (copy)");
     expect(copy.position).toBe(1);
   });
+
+  it("keeps a status set while the item was still being created", async () => {
+    // The row shows optimistically before the create request settles, so the
+    // status can be changed before the default status is written. Seen on the
+    // deployed build: the default arrived last and undid the change.
+    const boardId = SEED_BOARD_IDS.sem1;
+    const snapshot = await services.items.loadBoardSnapshot(boardId);
+    const planning = snapshot.groups.find((g) => g.name === "Planning")!;
+    const status = snapshot.columns.find((c) => c.type === "STATUS")!;
+    const id = "11111111-2222-4333-8444-555555555555";
+    await services.repos.items.setValue(id, status.id, { type: "STATUS", labelId: "working" });
+    await services.items.createItem({ id, boardId, groupId: planning.id, name: "Quick status" }, SEED_USER_IDS.joanne);
+    const values = await services.repos.items.listValuesByItem(id);
+    expect(values.filter((v) => v.columnId === status.id)).toHaveLength(1);
+    expect(values.find((v) => v.columnId === status.id)?.value).toEqual({ type: "STATUS", labelId: "working" });
+  });
 });

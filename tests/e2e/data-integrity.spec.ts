@@ -162,6 +162,8 @@ test.describe("data integrity under stress", () => {
     await page.getByTestId("user-menu").click();
     await page.getByRole("menuitem", { name: /reset demo data/i }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /reset/i }).click();
+    // The reseed runs in the page; a full navigation before it finishes would abort it half-way.
+    await expect(page.getByText("Demo data reset")).toBeVisible({ timeout: 20000 });
     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
     await expect(page.getByTestId("item-row").first()).toBeVisible({ timeout: 20000 });
   });

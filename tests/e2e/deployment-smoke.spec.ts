@@ -41,6 +41,26 @@ function row(page: Page, name: string) {
   return page.locator(`[data-testid="item-row"][data-item-name="${name}"]`);
 }
 
+/**
+ * Removes the run's item if it is still there. Called from `finally`, so a run
+ * that fails halfway through still leaves the workspace as it found it instead
+ * of a stray "deploy-… smoke item" on the live board.
+ */
+async function removeIfLeft(page: Page, name: string): Promise<void> {
+  try {
+    await page.keyboard.press("Escape");
+    await page.goto(BOARD);
+    await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 60_000 });
+    if ((await row(page, name).count()) === 0) return;
+    await row(page, name).getByRole("button", { name: /More actions/ }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
+    await expect(row(page, name)).toHaveCount(0, { timeout: 30_000 });
+  } catch (error) {
+    console.warn(`Could not remove ${name}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 test.describe("deployed build", () => {
   test("loads, signs in and opens the workspace", async ({ page }) => {
     const errors = watchForErrors(page);
@@ -86,70 +106,74 @@ test.describe("deployed build", () => {
     await input.press("Enter");
     const created = row(page, name);
     await expect(created).toBeVisible({ timeout: 60_000 });
+    try {
 
-    // Status, owner and date, each confirmed on the row.
-    await created.getByTestId("status-cell").click();
-    await page.getByRole("option", { name: "Working On It", exact: true }).click();
-    await expect(created.getByTestId("status-cell")).toContainText("Working On It", { timeout: 30_000 });
+      // Status, owner and date, each confirmed on the row.
+      await created.getByTestId("status-cell").click();
+      await page.getByRole("option", { name: "Working On It", exact: true }).click();
+      await expect(created.getByTestId("status-cell")).toContainText("Working On It", { timeout: 30_000 });
 
-    await created.getByTestId("person-cell").click();
-    await page.getByTestId("person-picker").getByPlaceholder("Search people…").fill("Tuyet");
-    await page.getByTestId("person-picker").getByText("Tuyet Le").click();
-    await page.keyboard.press("Escape");
-    await expect(created.getByTestId("person-cell")).toHaveAttribute("aria-label", /Tuyet Le/, { timeout: 30_000 });
+      await created.getByTestId("person-cell").click();
+      await page.getByTestId("person-picker").getByPlaceholder("Search people…").fill("Tuyet");
+      await page.getByTestId("person-picker").getByText("Tuyet Le").click();
+      await page.keyboard.press("Escape");
+      await expect(created.getByTestId("person-cell")).toHaveAttribute("aria-label", /Tuyet Le/, { timeout: 30_000 });
 
-    await created.getByTestId("date-cell").click();
-    await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Today", exact: true }).click();
-    await page.keyboard.press("Escape");
-    await expect(created.getByTestId("date-cell")).not.toHaveAttribute("aria-label", /not set/, { timeout: 30_000 });
+      await created.getByTestId("date-cell").click();
+      await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Today", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(created.getByTestId("date-cell")).not.toHaveAttribute("aria-label", /not set/, { timeout: 30_000 });
 
-    // An update on the item.
-    await created.getByRole("button", { name: `Open ${name}` }).click();
-    await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
-    await page.getByTestId("comment-input").fill(`${RUN} update`);
-    await page.getByTestId("comment-submit").click();
-    await expect(page.getByTestId("comment").first()).toContainText(`${RUN} update`, { timeout: 30_000 });
-    await page.getByTestId("close-panel").click();
+      // An update on the item.
+      await created.getByRole("button", { name: `Open ${name}` }).click();
+      await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
+      await page.getByTestId("comment-input").fill(`${RUN} update`);
+      await page.getByTestId("comment-submit").click();
+      await expect(page.getByTestId("comment").first()).toContainText(`${RUN} update`, { timeout: 30_000 });
+      await page.getByTestId("close-panel").click();
 
-    // Everything above survives a reload, which means it reached Postgres.
-    await page.reload();
-    await expect(row(page, name).getByTestId("status-cell")).toContainText("Working On It", { timeout: 60_000 });
-    await expect(row(page, name).getByTestId("person-cell")).toHaveAttribute("aria-label", /Tuyet Le/);
+      // Everything above survives a reload, which means it reached Postgres.
+      await page.reload();
+      await expect(row(page, name).getByTestId("status-cell")).toContainText("Working On It", { timeout: 60_000 });
+      await expect(row(page, name).getByTestId("person-cell")).toHaveAttribute("aria-label", /Tuyet Le/);
 
-    // It shows up in My Work for its new owner? No — check filtering and sorting instead.
-    await page.getByTestId("search-input").fill(RUN);
-    await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBe(1);
-    await page.getByTestId("search-input").fill("");
-    await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBeGreaterThan(1);
+      // It shows up in My Work for its new owner? No — check filtering and sorting instead.
+      await page.getByTestId("search-input").fill(RUN);
+      await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBe(1);
+      await page.getByTestId("search-input").fill("");
+      await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBeGreaterThan(1);
 
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitemradio", { name: "Item name" }).click();
-    await expect(page.getByRole("menu")).toHaveCount(0);
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitem", { name: /clear sort/i }).click();
+      await page.getByTestId("sort-button").click();
+      await page.getByRole("menuitemradio", { name: "Item name" }).click();
+      await expect(page.getByRole("menu")).toHaveCount(0);
+      await page.getByTestId("sort-button").click();
+      await page.getByRole("menuitem", { name: /clear sort/i }).click();
 
-    // Move it to another group by drag, and check the move stuck.
-    const target = page.getByTestId("group-Backlog").getByTestId("item-row").first();
-    await row(page, name).scrollIntoViewIfNeeded();
-    await row(page, name).hover();
-    const from = (await row(page, name).getByRole("button", { name: `Drag ${name}` }).boundingBox())!;
-    const to = (await target.boundingBox())!;
-    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(from.x, from.y + 20, { steps: 5 });
-    await page.mouse.move(to.x + 200, to.y + to.height / 2, { steps: 15 });
-    await page.mouse.up();
-    await expect(page.getByTestId("group-Backlog").locator(`[data-item-name="${name}"]`)).toBeVisible({ timeout: 30_000 });
-    await page.reload();
-    await expect(page.getByTestId("group-Backlog").locator(`[data-item-name="${name}"]`)).toBeVisible({ timeout: 60_000 });
+      // Move it to another group by drag, and check the move stuck.
+      const target = page.getByTestId("group-Backlog").getByTestId("item-row").first();
+      await row(page, name).scrollIntoViewIfNeeded();
+      await row(page, name).hover();
+      const from = (await row(page, name).getByRole("button", { name: `Drag ${name}` }).boundingBox())!;
+      const to = (await target.boundingBox())!;
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(from.x, from.y + 20, { steps: 5 });
+      await page.mouse.move(to.x + 200, to.y + to.height / 2, { steps: 15 });
+      await page.mouse.up();
+      await expect(page.getByTestId("group-Backlog").locator(`[data-item-name="${name}"]`)).toBeVisible({ timeout: 30_000 });
+      await page.reload();
+      await expect(page.getByTestId("group-Backlog").locator(`[data-item-name="${name}"]`)).toBeVisible({ timeout: 60_000 });
 
-    // Clean up: the workspace is left exactly as it was found.
-    await row(page, name).getByRole("button", { name: /More actions/ }).click();
-    await page.getByRole("menuitem", { name: "Delete" }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
-    await expect(row(page, name)).toHaveCount(0, { timeout: 30_000 });
-    await page.reload();
-    await expect(row(page, name)).toHaveCount(0, { timeout: 60_000 });
+      // Clean up: the workspace is left exactly as it was found.
+      await row(page, name).getByRole("button", { name: /More actions/ }).click();
+      await page.getByRole("menuitem", { name: "Delete" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
+      await expect(row(page, name)).toHaveCount(0, { timeout: 30_000 });
+      await page.reload();
+      await expect(row(page, name)).toHaveCount(0, { timeout: 60_000 });
+    } finally {
+      await removeIfLeft(page, name);
+    }
     expect(errors).toEqual([]);
   });
 

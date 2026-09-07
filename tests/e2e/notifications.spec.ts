@@ -1,7 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { buildSeed, SEED_USER_IDS } from "@/data/seed/seed-data";
 
 const INBOX = "/workspace/rmit/inbox";
+
+// What the seed leaves unread for Danh, so the assertions follow the seed rather than a remembered number.
+const SEEDED_UNREAD = buildSeed(new Date()).notifications.filter((n) => n.userId === SEED_USER_IDS.danh && n.readAt === null);
+const LOUD = String(SEEDED_UNREAD.filter((n) => n.delivery === "NOTIFICATION").length);
+const QUIET = String(SEEDED_UNREAD.filter((n) => n.delivery === "UPDATE").length);
+const QUIET_PLUS_ONE = String(Number(QUIET) + 1);
 
 async function openInbox(page: Page) {
   await page.goto(INBOX);
@@ -50,15 +57,15 @@ test.describe("notifications and updates", () => {
     const { notifications, updates } = badges(page);
     await expect(notifications).toBeVisible({ timeout: 20_000 });
     await expect(updates).toBeVisible();
-    // Seeded: three unread notifications and one unread update for Danh.
-    await expect(notifications).toHaveText("3");
-    await expect(updates).toHaveText("1");
+    // Seeded: the loud and the quiet unread counts for Danh.
+    await expect(notifications).toHaveText(LOUD);
+    await expect(updates).toHaveText(QUIET);
 
     // The inbox agrees with the sidebar.
     await openInbox(page);
-    await expect(page.getByTestId("inbox-tab-notifications")).toContainText("3");
-    await expect(page.getByTestId("inbox-tab-updates")).toContainText("1");
-    await expect(page.getByRole("heading", { name: "Inbox" }).locator("..")).toContainText("3 unread notifications · 1 unread update");
+    await expect(page.getByTestId("inbox-tab-notifications")).toContainText(LOUD);
+    await expect(page.getByTestId("inbox-tab-updates")).toContainText(QUIET);
+    await expect(page.getByRole("heading", { name: "Inbox" }).locator("..")).toContainText(`${LOUD} unread notifications · ${QUIET} unread update${QUIET === "1" ? "" : "s"}`);
   });
 
   test("the tabs separate the loud ones from the quiet ones", async ({ page }) => {
@@ -91,11 +98,11 @@ test.describe("notifications and updates", () => {
     await page.getByTestId("mark-all-read").click();
 
     await expect(badges(page).updates).toHaveCount(0, { timeout: 20_000 });
-    await expect(badges(page).notifications).toHaveText("3");
+    await expect(badges(page).notifications).toHaveText(LOUD);
 
     // And it stayed that way in the database.
     await page.reload();
-    await expect(badges(page).notifications).toHaveText("3", { timeout: 20_000 });
+    await expect(badges(page).notifications).toHaveText(LOUD, { timeout: 20_000 });
     await expect(badges(page).updates).toHaveCount(0);
   });
 
@@ -108,7 +115,7 @@ test.describe("notifications and updates", () => {
     for (const unread of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-unread")))) {
       expect(unread).toBe("true");
     }
-    await expect(badges(page).notifications).toHaveText("3");
+    await expect(badges(page).notifications).toHaveText(LOUD);
   });
 
   test("a type set to Update arrives quietly instead of interrupting", async ({ page }) => {
@@ -133,8 +140,8 @@ test.describe("notifications and updates", () => {
     const arrived = page.getByTestId("notification-row").filter({ hasText: "quiet mention please" });
     await expect(arrived).toBeVisible({ timeout: 20_000 });
     await expect(arrived).toHaveAttribute("data-delivery", "UPDATE");
-    await expect(badges(page).updates).toHaveText("2");
-    await expect(badges(page).notifications).toHaveText("3");
+    await expect(badges(page).updates).toHaveText(QUIET_PLUS_ONE);
+    await expect(badges(page).notifications).toHaveText(LOUD);
   });
 
   test("a type set to Off is never written at all", async ({ page }) => {

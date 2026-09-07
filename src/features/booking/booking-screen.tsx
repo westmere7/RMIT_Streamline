@@ -33,7 +33,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
     <AuthShell
       headline="Book a task with the creative team."
       lead="Tell us what you need and when. We route it to the right people and keep you posted — no account needed."
-      footnote="RMIT Creative Team · Streamline"
+      footnote={`${form.data?.workspaceName ?? "RMIT Creative Team"} · Streamline`}
       cardTestId="booking-card"
       progress={form.isLoading || status === "loading"}
       width="2xl"

@@ -37,6 +37,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (isNarrow) setSidebarCollapsed(true);
   }, [isNarrow, setSidebarCollapsed]);
 
+  // The tab is named after the workspace the reader is in, not the product's
+  // default. The router writes the static metadata title back on every
+  // navigation (search-param changes included), so the title is watched and
+  // corrected rather than set once.
+  React.useEffect(() => {
+    const wanted = `Streamline · ${ws.workspace.name}`;
+    const apply = () => {
+      if (document.title !== wanted) document.title = wanted;
+    };
+    apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [ws.workspace.name]);
+
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Ctrl/⌘ F takes over the browser's find bar: in here, search is the app's own.

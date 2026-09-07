@@ -1,6 +1,6 @@
 {
   "name": "rmit-streamline",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,6 +16,7 @@
     "prebuild": "node scripts/db-migrate.mjs --if-configured",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "tsx scripts/db-seed.mts",
+    "db:seed:topup": "tsx scripts/db-seed-topup.mts",
     "db:setup": "node scripts/db-setup.mjs",
     "test:e2e:supabase": "node scripts/e2e-supabase.mjs",
     "test:e2e:deployment": "playwright test --config playwright.deployment.config.ts"

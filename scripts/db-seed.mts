@@ -221,7 +221,7 @@ async function main(): Promise<void> {
           deactivated_at = excluded.deactivated_at
       `;
 
-      await tx`insert into public.workspaces ${tx(seed.workspaces.map((w) => ({ id: w.id, name: w.name, slug: w.slug, logo_url: w.logoUrl })))}`;
+      await tx`insert into public.workspaces ${tx(seed.workspaces.map((w) => ({ id: w.id, name: w.name, slug: w.slug, logo_url: w.logoUrl, booking_key: w.bookingKey ?? null })))}`;
 
       await tx`insert into public.workspace_members ${tx(
         seed.workspaceMembers.map((m) => ({ id: m.id, workspace_id: m.workspaceId, user_id: m.userId, role: m.role, status: m.status, joined_at: m.joinedAt })),
@@ -258,8 +258,9 @@ async function main(): Promise<void> {
         console.log(`  kept ${outsiders.length} member(s) who are not part of the seed`);
       }
 
+      // booking_board_id points at a board, so it is set after the boards exist.
       await tx`insert into public.teams ${tx(
-        seed.teams.map((t) => ({ id: t.id, workspace_id: t.workspaceId, name: t.name, description: t.description, color: t.color, icon: t.icon, archived_at: t.archivedAt })),
+        seed.teams.map((t) => ({ id: t.id, workspace_id: t.workspaceId, name: t.name, description: t.description, color: t.color, icon: t.icon, archived_at: t.archivedAt, system: t.system ?? null })),
       )}`;
 
       await tx`insert into public.team_members ${tx(seed.teamMembers.map((m) => ({ id: m.id, team_id: m.teamId, user_id: m.userId, role: m.role })))}`;
@@ -278,8 +279,13 @@ async function main(): Promise<void> {
           color: b.color,
           icon: b.icon,
           archived_at: b.archivedAt,
+          system: b.system ?? null,
         })),
       )}`;
+
+      for (const team of seed.teams.filter((t) => t.bookingBoardId)) {
+        await tx`update public.teams set booking_board_id = ${team.bookingBoardId!} where id = ${team.id}`;
+      }
 
       await tx`insert into public.board_members ${tx(seed.boardMembers.map((m) => ({ id: m.id, board_id: m.boardId, user_id: m.userId, role: m.role })))}`;
 
@@ -363,7 +369,7 @@ async function main(): Promise<void> {
 
       if (seed.comments.length) {
         await tx`insert into public.comments ${tx(
-          seed.comments.map((c) => ({ id: c.id, item_id: c.itemId, author_id: c.authorId, body: c.body, mention_user_ids: c.mentionUserIds, created_at: c.createdAt, updated_at: c.updatedAt })),
+          seed.comments.map((c) => ({ id: c.id, item_id: c.itemId, author_id: c.authorId, body: c.body, mention_user_ids: c.mentionUserIds, shared_id: c.sharedId, created_at: c.createdAt, updated_at: c.updatedAt })),
         )}`;
       }
 
@@ -389,6 +395,7 @@ async function main(): Promise<void> {
             id: n.id,
             user_id: n.userId,
             type: n.type,
+            delivery: n.delivery,
             title: n.title,
             body: n.body,
             entity_type: n.entityType,
@@ -397,6 +404,22 @@ async function main(): Promise<void> {
             actor_id: n.actorId,
             read_at: n.readAt,
             created_at: n.createdAt,
+          })),
+        )}`;
+      }
+
+      // Messages are user-scoped like notifications; the seed users' threads were
+      // cascaded away with the workspace above, so a plain insert is enough.
+      if (seed.directMessages.length) {
+        await tx`insert into public.direct_messages ${tx(
+          seed.directMessages.map((m) => ({
+            id: m.id,
+            workspace_id: m.workspaceId,
+            sender_id: m.senderId,
+            recipient_id: m.recipientId,
+            body: m.body,
+            read_at: m.readAt,
+            created_at: m.createdAt,
           })),
         )}`;
       }
@@ -416,7 +439,8 @@ async function main(): Promise<void> {
         (select count(*) from public.item_column_values) as values,
         (select count(*) from public.comments)           as comments,
         (select count(*) from public.trackers)           as trackers,
-        (select count(*) from public.notifications)      as notifications
+        (select count(*) from public.notifications)      as notifications,
+        (select count(*) from public.direct_messages)    as direct_messages
     `;
     console.log("Seeded:", Object.entries(counts[0]!).map(([k, v]) => `${v} ${k}`).join(", "));
     console.log(`\nSign in with admin@rmit.local / ${adminPassword}`);
