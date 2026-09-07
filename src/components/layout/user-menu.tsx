@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Users, Wrench } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -90,6 +90,20 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
             <span className="block text-[13px] font-medium text-foreground">{user.displayName}</span>
             <span className="block text-2xs font-normal text-muted-foreground">{user.email}</span>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {/* Which workspace this is. One exists today; switching between them lands here. */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger data-testid="menu-workspace">
+              <Building2 /> Workspace
+              <span className="ml-auto max-w-28 truncate text-2xs text-muted-foreground">{ws.workspace.name}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-56">
+              <DropdownMenuItem onSelect={() => router.push(routes.workspace(ws.slug))} data-testid="menu-workspace-current">
+                <span className="truncate">{ws.workspace.name}</span>
+                <Check className="ml-auto size-3.5" />
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => router.push(routes.person(ws.slug, user.id))} data-testid="menu-your-profile">
             <UserRound /> Your profile

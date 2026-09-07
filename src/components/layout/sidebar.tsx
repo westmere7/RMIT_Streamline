@@ -19,9 +19,7 @@ import {
   PanelLeftClose,
   Plus,
   Search,
-  Check,
   Settings2,
-  Users2,
   Star,
   Trash2,
   UserPlus,
@@ -33,7 +31,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { RowMenu, type MenuAction } from "@/components/layout/row-menu";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -167,9 +165,10 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       onKeyDown={drawer ? (event) => { if (event.key === "Escape") onNavigate?.(); } : undefined}
     >
       {!collapsed && !drawer && <SidebarResizeHandle onResizing={setResizing} />}
-      {/* The product above, the workspace everything below belongs to underneath. */}
-      <div className={cn("flex shrink-0 flex-col gap-1 px-3 pt-3 pb-2", collapsed && "items-center px-0")}>
-        <div className="flex items-center gap-2">
+      {/* The product. Which workspace this is lives in the account menu, where
+          switching between them will go. */}
+      <div className={cn("flex h-14 shrink-0 items-center px-3", collapsed && "justify-center px-0")}>
+        <div className="flex w-full items-center gap-2">
           <Link href={routes.workspace(ws.slug)} aria-label={`Streamline — ${ws.workspace.name}`} className="flex min-w-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring">
             {collapsed ? <BrandMark className="size-8 rounded-xl shadow-xs" /> : <BrandLogo className="h-6" />}
           </Link>
@@ -186,7 +185,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             </SimpleTooltip>
           )}
         </div>
-        {!collapsed && <WorkspacePicker />}
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 pt-1 pb-3" aria-label="Workspace navigation">
@@ -784,45 +782,6 @@ function TrackerLink({ tracker, active }: { tracker: Tracker; active: boolean })
  * Thin grab area on the sidebar's edge. Dragging widens the sidebar (the designed
  * width is the minimum); double-click snaps it back.
  */
-/**
- * Which workspace everything below belongs to. One workspace exists today, so
- * the menu names it and offers what someone actually comes here for — its
- * settings and its people. It is the seat a switcher takes when there are more.
- */
-function WorkspacePicker() {
-  const ws = useWorkspace();
-  const router = useRouter();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring"
-          aria-label={`Workspace: ${ws.workspace.name}`}
-          data-testid="workspace-picker"
-        >
-          <span className="truncate text-[13px] font-semibold tracking-tight">{ws.workspace.name}</span>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => router.push(routes.workspace(ws.slug))} data-testid="workspace-picker-current">
-          <span className="truncate">{ws.workspace.name}</span>
-          <Check className="ml-auto size-3.5" />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => router.push(routes.members(ws.slug))}>
-          <Users2 /> Members
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
-          <Settings2 /> Workspace settings
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 function SidebarResizeHandle({ onResizing }: { onResizing: (active: boolean) => void }) {
   const setSidebarWidth = useUiStore((s) => s.setSidebarWidth);
   const start = (event: React.PointerEvent) => {
