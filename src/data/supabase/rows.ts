@@ -2,6 +2,7 @@ import type {
   Activity,
   ActivityEventType,
   ActivityMetadata,
+  BookingFormTemplate,
   Board,
   BoardColumn,
   BoardFavourite,
@@ -104,14 +105,15 @@ export interface WorkspaceRow {
   slug: string;
   logo_url: string | null;
   booking_key: string | null;
+  booking_form: BookingFormTemplate | null;
   created_at: string;
   updated_at: string;
 }
 
-export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, created_at, updated_at";
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, created_at, updated_at";
 
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {

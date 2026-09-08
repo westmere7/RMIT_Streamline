@@ -145,6 +145,7 @@ describe("asset lines on an item", () => {
         priority: "High",
         referenceUrl: null,
         extra: {},
+        answers: {},
       },
       actorId: owner,
     });

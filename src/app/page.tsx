@@ -40,7 +40,6 @@ export default function RootPage() {
       progress
     >
       <div className="mb-6">
-        <p className="mb-1 text-2xs font-semibold tracking-[0.12em] text-primary uppercase">RMIT Creative Team</p>
         <h2 className="text-[22px] font-semibold tracking-tight">One moment</h2>
       </div>
       <SessionProgress user={status === "signed-in" ? user : null} message={status === "signed-in" ? (destination ? `Opening ${destination.name}` : "Finding your workspace") : "Checking your session"} />

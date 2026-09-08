@@ -62,4 +62,6 @@ export const queryKeys = {
   search: (workspaceId: string, query: string) => ["search", workspaceId, query] as const,
   /** The booking form's options: null key from inside the app, the link's key on the public page. */
   bookingForm: (workspaceSlug: string, key: string | null) => ["booking-form", workspaceSlug, key] as const,
+  /** Every form of the workspace's saved by name, for the editor's Templates menu. */
+  bookingTemplates: (workspaceId: string) => ["booking-templates", workspaceId] as const,
 };

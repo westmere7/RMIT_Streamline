@@ -145,4 +145,72 @@ test.describe("task booking", () => {
     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
     await expect(row(page, "Alumni magazine cover")).toBeVisible();
   });
+
+  test("an admin reshapes the form and a booking answers the new question", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await openBookPage(page);
+    await page.getByTestId("booking-edit").click();
+    await expect(page.getByTestId("booking-editor")).toBeVisible();
+
+    // Reword a section, drop a question; the requester's name cannot go.
+    await page.getByTestId("editor-section-title-sec-about").fill("Who are you?");
+    await page.getByTestId("editor-remove-field-std-department").click();
+    await expect(page.getByTestId("editor-field-std-department")).toHaveCount(0);
+    await expect(page.getByTestId("editor-remove-field-std-requesterName")).toBeDisabled();
+
+    // A question of the workspace's own, with a column of its own on Task Allocation.
+    await page.getByTestId("editor-add-field-sec-task").click();
+    await page.getByTestId("add-field-label").fill("Cost centre");
+    await page.getByTestId("add-field-destination").click();
+    await page.getByTestId("add-field-destination-column").click();
+    await page.getByTestId("add-field-submit").click();
+    await expect(page.getByTestId("add-field-dialog")).toHaveCount(0);
+    await page.getByTestId("editor-submit-label").fill("Send the request");
+    await page.getByTestId("booking-editor-save").click();
+
+    // The live form shows the new shape.
+    await expect(page.getByTestId("booking-form")).toBeVisible();
+    await expect(page.getByTestId("booking-form")).toContainText("Who are you?");
+    await expect(page.getByTestId("booking-department")).toHaveCount(0);
+    await expect(page.getByTestId("booking-submit")).toHaveText("Send the request");
+    const costCentre = page.locator('[data-testid^="booking-answer-"]');
+    await expect(costCentre).toHaveCount(1);
+
+    await page.getByTestId("booking-title").fill("Alumni magazine cover");
+    await page.getByTestId("booking-brief").fill("Cover artwork for the spring alumni magazine, portrait, with masthead space at the top.");
+    await costCentre.fill("CC-4410");
+    await page.getByTestId("booking-submit").click();
+    await expect(page.getByTestId("booking-receipt")).toBeVisible();
+
+    // The answer sits in its own column on Task Allocation.
+    await page.goto(TASK_ALLOCATION_URL);
+    await expect(page.getByTestId("board-table")).toBeVisible();
+    await expect(page.getByText("Cost centre", { exact: true }).first()).toBeVisible();
+    await expect(row(page, "Alumni magazine cover")).toContainText("CC-4410");
+  });
+
+  test("an admin keeps forms as templates and swaps them back in", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await openBookPage(page);
+    await page.getByTestId("booking-edit").click();
+    await page.getByTestId("booking-editor-templates").click();
+    await page.getByTestId("template-save").click();
+    await page.getByTestId("template-name").fill("Built-in copy");
+    await page.getByTestId("template-save-submit").click();
+    await expect(page.getByTestId("template-save-dialog")).toHaveCount(0);
+
+    // Change the form, then load the template back over it.
+    await page.getByTestId("editor-request-tab").fill("Your request");
+    await page.getByTestId("booking-editor-templates").click();
+    await page.getByTestId("template-load").click();
+    await page.getByRole("button", { name: "Load", exact: true }).first().click();
+    await expect(page.getByTestId("editor-request-tab")).toHaveValue("Request");
+
+    // And delete it again.
+    await page.getByTestId("booking-editor-templates").click();
+    await page.getByTestId("template-load").click();
+    await page.getByRole("button", { name: "Delete template Built-in copy" }).click();
+    await page.getByRole("button", { name: "Delete template", exact: true }).click();
+    await expect(page.getByText("No templates saved yet.")).toBeVisible();
+  });
 });

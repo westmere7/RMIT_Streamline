@@ -7,6 +7,7 @@ import type {
   BoardFavourite,
   BoardGroup,
   BoardMember,
+  BookingTemplate,
   Comment,
   ItemRead,
   DirectMessage,
@@ -92,6 +93,7 @@ export interface StreamlineDB extends DBSchema {
   trackerSheets: { key: string; value: TrackerSheet; indexes: { byTracker: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
   itemAssets: { key: string; value: ItemAsset; indexes: { byItem: string; byBoard: string } };
+  bookingTemplates: { key: string; value: BookingTemplate; indexes: { byWorkspace: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   activities: {
     key: string;
@@ -131,6 +133,7 @@ export const ALL_STORES: StoreName[] = [
   "trackerSheets",
   "comments",
   "itemAssets",
+  "bookingTemplates",
   "itemReads",
   "activities",
   "notifications",
@@ -142,7 +145,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 8;
+export const DB_VERSION = 9;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -272,6 +275,13 @@ function createItemAssetsStore(db: IDBPDatabase<StreamlineDB>): void {
   assets.createIndex("byBoard", "boardId");
 }
 
+/** v9: booking forms saved by name. */
+function createBookingTemplatesStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("bookingTemplates")) return;
+  const templates = db.createObjectStore("bookingTemplates", { keyPath: "id" });
+  templates.createIndex("byWorkspace", "workspaceId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -282,6 +292,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 6) createOnboardingStores(db);
   if (oldVersion < 7) createItemReadsStore(db);
   if (oldVersion < 8) createItemAssetsStore(db);
+  if (oldVersion < 9) createBookingTemplatesStore(db);
 }
 
 export interface OpenDatabaseOptions {

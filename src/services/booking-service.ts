@@ -1,8 +1,24 @@
-import type { Board, BoardColumn, BookingForm, BookingReceipt, BookingRequest, BookingTeamOption, EntityId, Item, NotificationInput, PriorityColumnSettings, Team, WorkspaceMember } from "@/domain";
-import { BOOKING_ASSET_TYPES, bookingReference, formatAssetLine } from "@/domain";
+import type {
+  Board,
+  BoardColumn,
+  BookingCustomField,
+  BookingForm,
+  BookingFormTemplate,
+  BookingReceipt,
+  BookingRequest,
+  BookingTeamOption,
+  BookingTemplate,
+  EntityId,
+  Item,
+  NotificationInput,
+  PriorityColumnSettings,
+  Team,
+  WorkspaceMember,
+} from "@/domain";
+import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
-import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns } from "./booking";
+import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, normaliseBookingTemplate, resolveBookingTemplate, validateBookingAgainstTemplate } from "./booking";
 import type { ItemAssetService } from "./item-asset-service";
 import type { ItemLinkService } from "./item-link-service";
 import type { ItemService } from "./item-service";
@@ -105,7 +121,7 @@ export class BookingService {
       const fields = board ? extraFieldsFor(columnsByBoard.get(board.id) ?? []) : [];
       return { id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: board?.name ?? null, fields };
     });
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, priorities, teams: options };
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, priorities, teams: options, template: resolveBookingTemplate(workspace) };
   }
 
   /**
@@ -117,9 +133,16 @@ export class BookingService {
    */
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
-    const { board: allocation, teams } = await this.systemEntities(workspaceId);
+    const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
     const team = request.teamId ? (teams.find((t) => t.id === request.teamId) ?? null) : null;
     if (request.teamId && (!team || team.workspaceId !== workspaceId || team.archivedAt || team.system)) throw new Error("That team is no longer taking bookings. Pick another, or leave it blank.");
+
+    // The form's own rules: what it marked required, and answers only to questions it asks.
+    const template = resolveBookingTemplate(workspace);
+    const problems = validateBookingAgainstTemplate(request, template);
+    if (Object.keys(problems).length) throw new Error(Object.values(problems).join(". "));
+    const asked = new Set(customFields(template).map((f) => f.id));
+    request.answers = Object.fromEntries(Object.entries(request.answers).filter(([id]) => asked.has(id)));
 
     const receiving = team?.bookingBoardId ? await this.repos.boards.getById(team.bookingBoardId) : null;
     const direct = !!receiving && receiving.workspaceId === workspaceId && receiving.archivedAt === null && !receiving.system;
@@ -130,7 +153,7 @@ export class BookingService {
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
-    const placement = mapBookingToColumns(request, columns, { team });
+    const placement = mapBookingToColumns(request, columns, { team, template });
     const description = describeBooking(request, placement);
     const item = await this.items.createItem(
       { boardId: board.id, groupId: group.id, name: request.title, description: description || null, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
@@ -167,6 +190,76 @@ export class BookingService {
       submittedAt: item.createdAt,
       assetCount: request.assets.length,
     };
+  }
+
+  // ---- shaping the form ----------------------------------------------------
+
+  /**
+   * Stores the form an admin shaped, for everyone from now on. A custom question
+   * bound for a column gets one on Task Allocation here — created when the board
+   * has none of that name and type, otherwise reused — so the answers have
+   * somewhere to land the moment the form goes live. Columns left behind by a
+   * question that was removed or re-pointed at the brief stay: their values are
+   * the team's history.
+   */
+  async saveForm(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
+    const template = normaliseBookingTemplate(input);
+    const { board } = await this.systemEntities(workspaceId);
+    const columns = await this.repos.boards.listColumns(board.id);
+    for (const field of customFields(template)) {
+      if (field.destination !== "column") continue;
+      field.columnId = (await this.ensureColumnFor(board.id, columns, field)).id;
+    }
+    await this.repos.workspaces.update(workspaceId, { bookingForm: template });
+    return template;
+  }
+
+  /** Back to the built-in form. */
+  async resetForm(workspaceId: EntityId): Promise<BookingFormTemplate> {
+    await this.repos.workspaces.update(workspaceId, { bookingForm: null });
+    return defaultBookingFormTemplate();
+  }
+
+  async listTemplates(workspaceId: EntityId): Promise<BookingTemplate[]> {
+    return this.repos.bookingTemplates.listByWorkspace(workspaceId);
+  }
+
+  /** Saves a form under a name; the same name (whatever its case) replaces the earlier one. */
+  async saveTemplate(workspaceId: EntityId, name: string, input: BookingFormTemplate, actorId: EntityId): Promise<BookingTemplate> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Give the template a name.");
+    if (trimmed.length > 80) throw new Error("Keep the template name under 80 characters.");
+    const template = normaliseBookingTemplate(input);
+    const existing = (await this.repos.bookingTemplates.listByWorkspace(workspaceId)).find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return this.repos.bookingTemplates.update(existing.id, { name: trimmed, template });
+    return this.repos.bookingTemplates.create({ workspaceId, name: trimmed, template, createdBy: actorId });
+  }
+
+  async deleteTemplate(id: EntityId): Promise<void> {
+    await this.repos.bookingTemplates.delete(id);
+  }
+
+  /** The column a custom question writes to: the one it had, else one of the same name and type, else a new one. */
+  private async ensureColumnFor(boardId: EntityId, columns: BoardColumn[], field: BookingCustomField): Promise<BoardColumn> {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const existing = columns.find((c) => c.id === field.columnId && c.type === field.type) ?? columns.find((c) => c.type === field.type && norm(c.name) === norm(field.label));
+    if (existing) {
+      // A choice question's options belong in the column's palette too, so the board colours them.
+      if (field.type === "TAGS" && existing.settings.kind === "tags") {
+        const known = new Set(existing.settings.options.map((o) => norm(o.name)));
+        const missing = field.options.filter((o) => !known.has(norm(o.name)));
+        if (missing.length) {
+          const updated = await this.repos.boards.updateColumn(existing.id, { settings: { kind: "tags", options: [...existing.settings.options, ...missing.map((o) => ({ ...o }))] } });
+          columns.splice(columns.indexOf(existing), 1, updated);
+          return updated;
+        }
+      }
+      return existing;
+    }
+    const settings = field.type === "TAGS" ? { kind: "tags" as const, options: field.options.map((o) => ({ ...o })) } : defaultSettingsFor(field.type);
+    const created = await this.repos.boards.createColumn({ boardId, name: field.label, type: field.type, settings });
+    columns.push(created);
+    return created;
   }
 
   // ---- allocation ----------------------------------------------------------

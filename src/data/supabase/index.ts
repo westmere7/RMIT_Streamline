@@ -1,5 +1,6 @@
 import type { Repositories } from "@/data/repositories";
 import { SupabaseBoardRepository } from "./repositories/board-repository";
+import { SupabaseBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { SupabaseItemLinkRepository } from "./repositories/item-link-repository";
 import { SupabaseItemRepository } from "./repositories/item-repository";
 import { SupabaseItemAssetRepository } from "./repositories/item-asset-repository";
@@ -42,6 +43,7 @@ export function createSupabaseRepositories(): Repositories {
     trackers: new SupabaseTrackerRepository(),
     comments: new SupabaseCommentRepository(),
     itemAssets: new SupabaseItemAssetRepository(),
+    bookingTemplates: new SupabaseBookingTemplateRepository(),
     itemReads: new SupabaseItemReadRepository(),
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),

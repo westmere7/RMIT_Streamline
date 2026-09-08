@@ -1,6 +1,7 @@
 import type { ColumnValue } from "@/domain/item/item";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
 import type { ColumnType, TagOption } from "@/domain/board/column";
+import type { BookingFormTemplate } from "./booking-template";
 
 /**
  * Task booking: how people outside the team ask for work.
@@ -78,6 +79,8 @@ export interface BookingForm {
   /** Priority labels of the Task Allocation board, in order. */
   priorities: Array<{ name: string; color: ColorToken }>;
   teams: BookingTeamOption[];
+  /** The questions to ask, in the workspace's words. */
+  template: BookingFormTemplate;
 }
 
 /** One deliverable in a booking: what, how many, and the spec it has to meet. */
@@ -112,6 +115,8 @@ export interface BookingRequest {
   referenceUrl: string | null;
   /** Answers to the receiving board's extra fields, keyed by column id. */
   extra: Record<EntityId, ColumnValue>;
+  /** Answers to the form's own custom questions, keyed by template field id. */
+  answers: Record<string, ColumnValue>;
 }
 
 /** What the stakeholder sees once the booking is in. */

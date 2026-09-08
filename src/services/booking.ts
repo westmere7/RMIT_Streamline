@@ -1,6 +1,19 @@
 import { z } from "zod";
-import type { BoardColumn, BookingAssetLine, BookingExtraField, BookingRequest, ColumnValue, PriorityColumnSettings, StatusColumnSettings, Team } from "@/domain";
-import { BOOKING_FIELD_TYPES, T_SHIRT_SIZES, columnTagOptions, formatAssetLine, isBookingFieldType, isEmptyValue } from "@/domain";
+import type { BoardColumn, BookingAssetLine, BookingExtraField, BookingFormTemplate, BookingRequest, BookingStandardKey, ColumnValue, PriorityColumnSettings, StatusColumnSettings, Team, Workspace } from "@/domain";
+import {
+  BOOKING_FIELD_TYPES,
+  BOOKING_LOCKED_KEYS,
+  BOOKING_STANDARD_KEYS,
+  COLOR_TOKENS,
+  T_SHIRT_SIZES,
+  columnTagOptions,
+  customFields,
+  defaultBookingFormTemplate,
+  formatAssetLine,
+  isBookingFieldType,
+  isEmptyValue,
+  templateFields,
+} from "@/domain";
 
 /**
  * The booking form's rules, with nothing async in them so they can be tested
@@ -57,9 +70,161 @@ export const bookingRequestSchema = z.object({
   priority: z.string().trim().max(60).nullable().default(null),
   referenceUrl: url.nullable().default(null),
   extra: z.record(z.string(), columnValueSchema).default({}),
+  answers: z.record(z.string(), columnValueSchema).default({}),
 });
 
 export type BookingRequestInput = z.input<typeof bookingRequestSchema>;
+
+// ---- the form's shape -------------------------------------------------------------
+
+const tagOptionSchema = z.object({ name: z.string().trim().min(1).max(60), color: z.enum(COLOR_TOKENS as [string, ...string[]]) });
+
+const fieldBase = {
+  id: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1, "Every question needs a label").max(120),
+  hint: z.string().trim().max(300).nullable().default(null),
+  placeholder: z.string().trim().max(200).nullable().default(null),
+  required: z.boolean().default(false),
+  width: z.enum(["full", "half"]).default("full"),
+};
+
+const standardFieldSchema = z.object({ kind: z.literal("standard"), key: z.enum(BOOKING_STANDARD_KEYS), ...fieldBase });
+const customFieldSchema = z.object({
+  kind: z.literal("custom"),
+  type: z.enum(BOOKING_FIELD_TYPES),
+  options: z.array(tagOptionSchema).max(40).default([]),
+  destination: z.enum(["brief", "column"]),
+  columnId: z.string().nullable().default(null),
+  ...fieldBase,
+});
+
+/**
+ * What an admin may save as the booking form. Beyond shape: every question has
+ * its own id, no standard question appears twice, and the four the booking
+ * cannot do without (who is asking, how to reach them, what the task is and
+ * what it involves) are all still there.
+ */
+export const bookingFormTemplateSchema = z
+  .object({
+    version: z.literal(1),
+    requestTabLabel: z.string().trim().min(1).max(40),
+    sections: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1).max(80),
+          title: z.string().trim().min(1, "Every section needs a title").max(120),
+          hint: z.string().trim().max(300).nullable().default(null),
+          fields: z.array(z.discriminatedUnion("kind", [standardFieldSchema, customFieldSchema])).max(40),
+        }),
+      )
+      .min(1, "The form needs at least one section")
+      .max(20),
+    assets: z.object({ enabled: z.boolean(), tabLabel: z.string().trim().min(1).max(40), title: z.string().trim().min(1).max(120), hint: z.string().trim().max(500) }),
+    submitLabel: z.string().trim().min(1).max(60),
+    submitNote: z.string().trim().max(200),
+  })
+  .superRefine((template, ctx) => {
+    const fields = template.sections.flatMap((s) => s.fields);
+    const ids = new Set<string>();
+    const keys = new Set<string>();
+    for (const field of fields) {
+      if (ids.has(field.id)) ctx.addIssue({ code: "custom", message: `Two questions share the id “${field.id}”` });
+      ids.add(field.id);
+      if (field.kind === "standard") {
+        if (keys.has(field.key)) ctx.addIssue({ code: "custom", message: `“${field.label}” asks the same thing twice` });
+        keys.add(field.key);
+      }
+    }
+    for (const key of BOOKING_LOCKED_KEYS) if (!keys.has(key)) ctx.addIssue({ code: "custom", message: `The form has to ask for the ${LOCKED_KEY_NAMES[key]}` });
+  });
+
+const LOCKED_KEY_NAMES: Record<string, string> = { requesterName: "requester's name", requesterEmail: "requester's email", title: "task name", brief: "brief" };
+
+/** The form ready to store: parsed, and with the questions that cannot be skipped marked required whatever the editor said. */
+export function normaliseBookingTemplate(input: unknown): BookingFormTemplate {
+  const template = bookingFormTemplateSchema.parse(input) as BookingFormTemplate;
+  for (const field of templateFields(template)) {
+    if (field.kind === "standard" && BOOKING_LOCKED_KEYS.includes(field.key)) field.required = true;
+    if (field.kind === "custom" && field.type !== "TAGS") field.options = [];
+  }
+  return template;
+}
+
+/** The form a workspace shows: its own when it has one that still parses, else the built-in one. */
+export function resolveBookingTemplate(workspace: Pick<Workspace, "bookingForm"> | null | undefined): BookingFormTemplate {
+  if (!workspace?.bookingForm) return defaultBookingFormTemplate();
+  const parsed = bookingFormTemplateSchema.safeParse(workspace.bookingForm);
+  return parsed.success ? (parsed.data as BookingFormTemplate) : defaultBookingFormTemplate();
+}
+
+/** True when the request carries no answer to the standard question `key`. */
+export function isStandardAnswerEmpty(request: BookingRequest, key: BookingStandardKey): boolean {
+  switch (key) {
+    case "requesterName":
+      return request.requesterName.trim() === "";
+    case "requesterEmail":
+      return request.requesterEmail.trim() === "";
+    case "department":
+      return !request.department?.trim();
+    case "title":
+      return request.title.trim() === "";
+    case "brief":
+      return request.brief.trim() === "";
+    case "assetTypes":
+      return request.assetTypes.length === 0;
+    case "dueDate":
+      return !request.dueDate;
+    case "priority":
+      return !request.priority;
+    case "referenceUrl":
+      return !request.referenceUrl?.trim();
+    case "team":
+      return !request.teamId;
+  }
+}
+
+/**
+ * The template's own rules on a request: required questions answered, custom
+ * answers of the type the question expects. Keyed by field id so the form can
+ * show each message under its question; the server joins them into one error.
+ * `bookingRequestSchema` still checks formats (email, dates, links) separately.
+ */
+export function validateBookingAgainstTemplate(request: BookingRequest, template: BookingFormTemplate): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const field of templateFields(template)) {
+    if (field.kind === "standard") {
+      if (field.required && isStandardAnswerEmpty(request, field.key)) errors[field.id] = `${field.label} is required`;
+      continue;
+    }
+    const answer = request.answers[field.id];
+    if (answer && answer.type !== field.type) errors[field.id] = `${field.label} has an answer of the wrong kind`;
+    else if (field.required && isEmptyValue(answer)) errors[field.id] = `${field.label} is required`;
+  }
+  return errors;
+}
+
+/** A custom answer as one line of text, for the description or a text column. */
+export function formatAnswer(value: ColumnValue): string {
+  switch (value.type) {
+    case "TEXT":
+    case "LONG_TEXT":
+      return value.text.trim();
+    case "NUMBER":
+      return value.number === null ? "" : String(value.number);
+    case "DATE":
+      return value.date ?? "";
+    case "LINK":
+      return value.text ? `${value.text} (${value.url})` : value.url;
+    case "CHECKBOX":
+      return value.checked ? "Yes" : "No";
+    case "TAGS":
+      return value.tags.join(", ");
+    case "SIZE":
+      return value.size ?? "";
+    default:
+      return "";
+  }
+}
 
 // ---- standard questions -------------------------------------------------------
 
@@ -156,13 +321,15 @@ export function extraFieldsFor(columns: readonly BoardColumn[]): BookingExtraFie
 export interface BookingPlacement {
   /** Values to store, one per column that had a home for an answer. */
   values: Array<{ columnId: string; value: ColumnValue }>;
-  /** Standard answers that found no column; they go into the description instead. */
-  leftover: Array<{ field: StandardBookingField; label: string; text: string }>;
+  /** Answers that found no column; they go into the description instead. Custom questions bound for the brief always land here. */
+  leftover: Array<{ field: StandardBookingField | "custom"; label: string; text: string }>;
 }
 
 export interface PlacementContext {
   /** The team the requester picked, for the "team" answer. */
   team: Pick<Team, "id" | "name"> | null;
+  /** The form the request answered; its custom questions say where each answer goes. Absent means the built-in form, which has none. */
+  template?: BookingFormTemplate | null;
 }
 
 /** Works out what to write into which column of the receiving board. */
@@ -203,6 +370,26 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
     const column = columns.find((c) => c.id === columnId);
     if (!column || spokenFor.has(columnId) || column.type !== value.type || !isBookingFieldType(column.type) || isEmptyValue(value)) continue;
     values.push({ columnId, value });
+    spokenFor.add(columnId);
+  }
+
+  // The form's own questions. One bound for a column goes to the column it was
+  // given on Task Allocation, or to a column of the same name and type on
+  // whichever board this is; when neither exists (a team board that never saw
+  // the question) the answer joins the description rather than vanishing.
+  for (const field of ctx.template ? customFields(ctx.template) : []) {
+    const value = request.answers[field.id];
+    if (!value || value.type !== field.type || isEmptyValue(value)) continue;
+    const column =
+      field.destination === "column"
+        ? (columns.find((c) => c.id === field.columnId && c.type === field.type && !spokenFor.has(c.id)) ?? columns.find((c) => c.type === field.type && norm(c.name) === norm(field.label) && !spokenFor.has(c.id)) ?? null)
+        : null;
+    if (column) {
+      values.push({ columnId: column.id, value });
+      spokenFor.add(column.id);
+    } else {
+      leftover.push({ field: "custom", label: field.label, text: formatAnswer(value) });
+    }
   }
   return { values, leftover };
 }

@@ -110,9 +110,10 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   const label = labels.find((l) => l.id === v.labelId) ?? null;
   const stuck = isStuckLabel(column, v.labelId);
   const w = width ?? column.width;
-  // Work under way says how far along its deliverables are, on a line inside the
-  // chip. Only there: before it starts there is nothing to show, and once it is
-  // done the chip already says so.
+  // Work under way says how far along its deliverables are: the chip itself is
+  // the track, and the done share is a slightly lighter tint of its own colour.
+  // Only there: before it starts there is nothing to show, and once it is done
+  // the chip already says so.
   const assets = useItemAssetProgress(item.boardId, item.id);
   const progress = isProgressLabel(column, v.labelId) && assets && assets.lines > 0 ? assets : null;
   return (
@@ -130,17 +131,12 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
               className={cn("relative flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}
               title={progress ? `${label.name} — assets ${progress.done} of ${progress.lines} done` : undefined}
             >
-              <span className="truncate px-2">{label.name}</span>
               {progress && (
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-lg bg-black/25"
-                  data-testid="status-asset-progress"
-                  data-percent={progress.percent}
-                >
-                  <span className="block h-full bg-white/85 transition-[width] duration-300" style={{ width: `${progress.percent}%` }} />
+                <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg" data-testid="status-asset-progress" data-percent={progress.percent}>
+                  <span className="block h-full bg-white/20 transition-[width] duration-300" style={{ width: `${progress.percent}%` }} />
                 </span>
               )}
+              <span className="relative truncate px-2">{label.name}</span>
             </span>
           </span>
         ) : (

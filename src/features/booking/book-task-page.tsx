@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, LoaderCircle, RefreshCw } from "lucide-react";
+import { Check, Copy, ExternalLink, LoaderCircle, Pencil, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
@@ -10,10 +10,12 @@ import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { BookingFormTemplate, BookingTemplate } from "@/domain";
 import { BookingForm } from "@/features/booking/booking-form";
+import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { canSeeSystemEntities, canViewBoard } from "@/lib/permissions/permissions";
+import { canManageWorkspace, canSeeSystemEntities, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { routes } from "@/lib/routes";
@@ -21,18 +23,26 @@ import { routes } from "@/lib/routes";
 /**
  * Booking from inside the app. Members use the same form as stakeholders, with
  * their own details filled in. Admins also see the public link to send out,
- * can replace it, and can jump to the Task Allocation board.
+ * can replace it, can jump to the Task Allocation board, and can edit the form
+ * itself: its questions, their wording and order, and saved versions of it.
  */
 export function BookTaskPage() {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
   const admin = canSeeSystemEntities(ws.permissions);
+  const manager = canManageWorkspace(ws.permissions);
+  const [editing, setEditing] = React.useState(false);
 
   const form = useQuery({
     queryKey: queryKeys.bookingForm(ws.slug, null),
     queryFn: () => services.booking.getForm({ workspaceSlug: ws.slug, key: null }),
     staleTime: 60_000,
+  });
+  const templates = useQuery({
+    queryKey: queryKeys.bookingTemplates(ws.workspace.id),
+    queryFn: () => services.booking.listTemplates(ws.workspace.id),
+    enabled: manager,
   });
 
   const onBooked = async (receipt: { boardId: string }) => {
@@ -41,12 +51,43 @@ export function BookTaskPage() {
     await queryClient.invalidateQueries({ queryKey: queryKeys.notifications(ws.currentUser.id) });
   };
 
+  // The saved form is read by every booking page of the workspace, public link included.
+  const formChanged = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["booking-form", ws.slug] });
+    await ws.refresh();
+  };
+  const saveForm = useMutation({
+    mutationFn: (template: BookingFormTemplate) => services.booking.saveForm(ws.workspace.id, template),
+    onSuccess: async () => {
+      await formChanged();
+      setEditing(false);
+      toast.success("Form saved", { description: "Everyone sees the new form from now on." });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the form"),
+  });
+  const templatesChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) });
+  const saveTemplate = async (name: string, template: BookingFormTemplate) => {
+    await services.booking.saveTemplate(ws.workspace.id, name, template, ws.currentUser.id);
+    await templatesChanged();
+  };
+  const deleteTemplate = async (template: BookingTemplate) => {
+    await services.booking.deleteTemplate(template.id);
+    await templatesChanged();
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <PageHeader
         title="Book a task"
         description="Ask the creative team for work. Requests wait on the Task Allocation board until a manager places them — unless the team you pick takes bookings directly."
         className="shrink-0"
+        actions={
+          manager && !editing && form.data ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)} data-testid="booking-edit">
+              <Pencil /> Edit form
+            </Button>
+          ) : undefined
+        }
       />
       {/* On a desktop the form card scrolls by itself under the header; on a phone the whole page scrolls. */}
       <div className="scrollbar-thin grid min-h-0 flex-1 gap-6 overflow-y-auto px-4 pb-6 sm:px-7 lg:grid-cols-[minmax(0,1fr)_320px] lg:overflow-visible">
@@ -57,8 +98,20 @@ export function BookTaskPage() {
             </div>
           ) : form.isError || !form.data ? (
             <ErrorState title="Could not load the booking form." error={form.error} onRetry={() => form.refetch()} />
+          ) : editing && manager ? (
+            <BookingFormEditor
+              form={form.data}
+              initial={form.data.template}
+              templates={templates.data ?? []}
+              saving={saveForm.isPending}
+              onSave={(template) => saveForm.mutate(template)}
+              onCancel={() => setEditing(false)}
+              onSaveTemplate={saveTemplate}
+              onDeleteTemplate={deleteTemplate}
+            />
           ) : (
             <BookingForm
+              key={form.dataUpdatedAt}
               form={form.data}
               defaults={{ requesterName: ws.currentUser.displayName, requesterEmail: ws.currentUser.email, department: ws.currentUser.department ?? "" }}
               onSubmit={(request) => services.booking.submit({ workspaceSlug: ws.slug, key: null, request, actorId: ws.currentUser.id })}

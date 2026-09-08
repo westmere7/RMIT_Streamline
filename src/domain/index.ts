@@ -15,3 +15,4 @@ export * from "./activity/activity";
 export * from "./notification/notification";
 export * from "./auth/auth";
 export * from "./booking/booking";
+export * from "./booking/booking-template";

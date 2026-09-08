@@ -92,7 +92,6 @@ export function LoginScreen() {
       cardTestId="login-card"
     >
       <div className="mb-6">
-        <p className="mb-1 text-2xs font-semibold tracking-[0.12em] text-primary uppercase">RMIT Creative Team</p>
         <h2 className="text-[22px] font-semibold tracking-tight">Sign in</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
           {providerKind === "local" ? "Development mode: choose a seeded account, or enter its email. No password needed." : "Use your email and password. New here? Open the invitation link your workspace admin sent you."}

@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BoardColumn, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
+import { customFields, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, newCustomField, standardFieldFor } from "@/domain";
 import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { createServices } from "@/services";
-import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, planStandardFields } from "@/services/booking";
+import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, planStandardFields, resolveBookingTemplate, validateBookingAgainstTemplate } from "@/services/booking";
 import { taskAllocationColumns } from "@/services/booking-service";
 
 const column = (name: string, type: ColumnType, position: number, settings = defaultSettingsFor(type)): BoardColumn => ({
@@ -36,6 +36,7 @@ const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => ({
   priority: "High",
   referenceUrl: "https://example.com/brief",
   extra: {},
+  answers: {},
   ...overrides,
 });
 
@@ -316,5 +317,114 @@ describe("booking a task", () => {
 
     // Only requests on Task Allocation can be allocated, and only onto ordinary boards.
     await expect(services.booking.allocate(created.id, allocation.id, owner)).rejects.toThrow(/Task Allocation/);
+  });
+});
+
+describe("shaping the booking form", () => {
+  let services: ReturnType<typeof createServices>;
+  const owner = SEED_USER_IDS.danh;
+  beforeEach(() => {
+    services = createServices(createLocalRepositories({ databaseName: `booking-form-${Date.now()}-${Math.random()}` }));
+  });
+
+  it("starts from the built-in form and refuses to lose the questions a booking cannot do without", async () => {
+    const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
+    expect(form.template).toEqual(defaultBookingFormTemplate());
+    const broken = defaultBookingFormTemplate();
+    broken.sections[0]!.fields = broken.sections[0]!.fields.filter((f) => f.kind !== "standard" || f.key !== "requesterEmail");
+    await expect(services.booking.saveForm(SEED_WORKSPACE_ID, broken)).rejects.toThrow(/requester's email/);
+  });
+
+  it("saves the admin's wording, drops a question, adds its own, and gives a column question its column", async () => {
+    const draft = defaultBookingFormTemplate();
+    const about = draft.sections[0]!;
+    about.title = "Who are you?";
+    about.fields = about.fields.filter((f) => f.kind !== "standard" || f.key !== "department");
+    const task = draft.sections[1]!;
+    const due = task.fields.find((f) => f.kind === "standard" && f.key === "dueDate")!;
+    due.required = true;
+    due.label = "Deadline";
+    task.fields.push(newCustomField("cost", "Cost centre", "TEXT", "column"));
+    task.fields.push(newCustomField("campus", "Campus", "TAGS", "brief", [{ name: "Melbourne", color: "navy" }, { name: "Hanoi", color: "red" }]));
+    draft.assets.enabled = false;
+    draft.submitLabel = "Send the request";
+
+    const saved = await services.booking.saveForm(SEED_WORKSPACE_ID, draft);
+    const cost = customFields(saved).find((f) => f.id === "cost")!;
+    expect(cost.columnId).toBeTruthy();
+    const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
+    const columns = await services.repos.boards.listColumns(board.id);
+    expect(columns.find((c) => c.id === cost.columnId)).toMatchObject({ name: "Cost centre", type: "TEXT" });
+
+    const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
+    expect(form.template.sections[0]!.title).toBe("Who are you?");
+    expect(standardFieldFor(form.template, "department")).toBeNull();
+    expect(form.template.submitLabel).toBe("Send the request");
+    expect(form.template.assets.enabled).toBe(false);
+
+    // Saving again reuses the column rather than making a twin.
+    await services.booking.saveForm(SEED_WORKSPACE_ID, saved);
+    expect((await services.repos.boards.listColumns(board.id)).filter((c) => c.name === "Cost centre")).toHaveLength(1);
+
+    // Booking: the deadline the form made required is enforced; custom answers land where the form said; strays are dropped.
+    const key = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
+    await expect(services.booking.submit({ workspaceSlug: "rmit", key, request: request({ dueDate: null }) })).rejects.toThrow(/Deadline is required/);
+    const receipt = await services.booking.submit({
+      workspaceSlug: "rmit",
+      key,
+      request: request({ answers: { cost: { type: "TEXT", text: "CC-4410" }, campus: { type: "TAGS", tags: ["Hanoi"] }, stray: { type: "TEXT", text: "ignored" } } }),
+    });
+    const values = await services.repos.items.listValuesByItem(receipt.itemId);
+    expect(values.find((v) => v.columnId === cost.columnId)?.value).toEqual({ type: "TEXT", text: "CC-4410" });
+    const item = await services.repos.items.getById(receipt.itemId);
+    expect(item!.description).toContain("Campus: Hanoi");
+    expect(item!.description).not.toContain("ignored");
+  });
+
+  it("puts a column-bound answer in the brief on a board that has no such column", () => {
+    const template = defaultBookingFormTemplate();
+    template.sections[1]!.fields.push({ ...newCustomField("cost", "Cost centre", "TEXT", "column"), columnId: "elsewhere" });
+    const columns = [column("Status", "STATUS", 0), column("Cost centre", "NUMBER", 1)];
+    const placement = mapBookingToColumns(request({ answers: { cost: { type: "TEXT", text: "CC-1" } } }), columns, { team: null, template });
+    expect(placement.values.some((v) => v.columnId === "col-1")).toBe(false);
+    expect(placement.leftover).toContainEqual({ field: "custom", label: "Cost centre", text: "CC-1" });
+    // The same name and type is good enough when the id is not there.
+    const matched = mapBookingToColumns(request({ answers: { cost: { type: "TEXT", text: "CC-1" } } }), [column("cost centre", "TEXT", 2)], { team: null, template });
+    expect(matched.values).toContainEqual({ columnId: "col-2", value: { type: "TEXT", text: "CC-1" } });
+  });
+
+  it("validates a request against the form it answered", () => {
+    const template = defaultBookingFormTemplate();
+    template.sections[1]!.fields.push({ ...newCustomField("q", "Cost centre", "NUMBER", "brief"), required: true });
+    expect(validateBookingAgainstTemplate(request(), template)).toEqual({ q: "Cost centre is required" });
+    expect(validateBookingAgainstTemplate(request({ answers: { q: { type: "TEXT", text: "x" } } }), template)).toEqual({ q: "Cost centre has an answer of the wrong kind" });
+    expect(validateBookingAgainstTemplate(request({ answers: { q: { type: "NUMBER", number: 4410 } } }), template)).toEqual({});
+    // A stored form that no longer parses falls back to the built-in one rather than breaking the page.
+    expect(resolveBookingTemplate({ bookingForm: { version: 1 } as never })).toEqual(defaultBookingFormTemplate());
+    expect(resolveBookingTemplate({ bookingForm: null })).toEqual(defaultBookingFormTemplate());
+  });
+
+  it("keeps forms by name, replaces on the same name, and swaps them back in", async () => {
+    const lean = defaultBookingFormTemplate();
+    lean.sections = lean.sections.slice(0, 2);
+    const saved = await services.booking.saveTemplate(SEED_WORKSPACE_ID, "Lean", lean, owner);
+    expect(saved.name).toBe("Lean");
+    expect(saved.template.sections).toHaveLength(2);
+    const again = await services.booking.saveTemplate(SEED_WORKSPACE_ID, " lean ", defaultBookingFormTemplate(), owner);
+    expect(again.id).toBe(saved.id);
+    expect(again.template.sections).toHaveLength(3);
+    expect((await services.booking.listTemplates(SEED_WORKSPACE_ID)).map((t) => t.name)).toEqual(["lean"]);
+    await expect(services.booking.saveTemplate(SEED_WORKSPACE_ID, "  ", lean, owner)).rejects.toThrow(/name/);
+    await services.booking.deleteTemplate(saved.id);
+    expect(await services.booking.listTemplates(SEED_WORKSPACE_ID)).toEqual([]);
+  });
+
+  it("goes back to the built-in form on reset", async () => {
+    const custom = defaultBookingFormTemplate();
+    custom.submitLabel = "Go";
+    await services.booking.saveForm(SEED_WORKSPACE_ID, custom);
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Go");
+    await services.booking.resetForm(SEED_WORKSPACE_ID);
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Book this task");
   });
 });

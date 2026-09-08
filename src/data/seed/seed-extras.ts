@@ -509,6 +509,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       priority: spec.priority,
       referenceUrl: spec.referenceUrl,
       extra: {},
+      answers: {},
     };
     const group = allocationGroups.get(spec.group)!;
     const placement = mapBookingToColumns(request, allocationColumns, { team });

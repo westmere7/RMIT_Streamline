@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardViewKind, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { BoardViewKind, BookingTemplate, BookingTemplateInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -214,6 +214,15 @@ export interface ItemAssetRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+/** Saved booking forms, by name, per workspace. The live form itself lives on the workspace row. */
+export interface BookingTemplateRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<BookingTemplate[]>;
+  getById(id: EntityId): Promise<BookingTemplate | null>;
+  create(input: BookingTemplateInput): Promise<BookingTemplate>;
+  update(id: EntityId, patch: Partial<Pick<BookingTemplate, "name" | "template">>): Promise<BookingTemplate>;
+  delete(id: EntityId): Promise<void>;
+}
+
 export interface CommentRepository {
   listByItem(itemId: EntityId): Promise<Comment[]>;
   /** Every update on any of the items, for per-item counts across a board. */
@@ -320,6 +329,7 @@ export interface Repositories {
   trackers: TrackerRepository;
   comments: CommentRepository;
   itemAssets: ItemAssetRepository;
+  bookingTemplates: BookingTemplateRepository;
   itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;
