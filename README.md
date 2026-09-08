@@ -1,650 +1,321 @@
-# Streamline — RMIT Creative Team work management
+# Streamline
 
-Streamline is an internal work-management application for the RMIT creative and marketing team. It follows the interaction model popularised by monday.com — a workspace holds teams and boards, a board is a table of groups, each group holds items (tasks) and subitems, and every item carries a configurable set of typed columns (status, people, dates, timelines, priority, tags, files, dependencies and so on). Around the board sit the supporting surfaces a team needs day to day: My Work, an Inbox of notifications, a members directory, team pages, an activity history and a command palette for search.
+Work management for the RMIT creative and marketing team: plan tasks, receive stakeholder briefs, allocate work, track deliverables, and keep discussions alongside the work.
 
-The deployed build runs on **Supabase** (Postgres with row-level security, password sign-in, realtime) at <https://rmit-streamline.vercel.app>; every read and write goes through a set of repository interfaces, and the same UI runs **local-first** on IndexedDB for development and tests by setting `NEXT_PUBLIC_DATA_PROVIDER=local`. Beyond boards the app now covers the day's other work: stakeholders **book tasks** through a public link that lands on an admin-only Task Allocation board, managers allocate them to team boards as linked items that stay in sync; teams keep **trackers** (spreadsheet-style sheets that import and export .xlsx); people exchange **direct messages**; and new members are added by an admin and finish onboarding through a `/join/<token>` link rather than an email.
+Streamline runs on **Next.js 16, React 19, and TypeScript**, with a shared Supabase backend or a browser-local IndexedDB demo. Both modes use the same feature screens and service interfaces.
 
-Streamline is a Next.js 16 / React 19 application written in TypeScript, styled with Tailwind CSS 4 and Radix UI primitives, with TanStack Query for server-state and Zustand for transient UI state.
+[Application](https://rmit-streamline.vercel.app) · [Detailed knowledge base](KNOWLEDGE_BASE.md) · [Development instructions](AGENTS.md)
 
-## A day in the app
+## What the app does
 
-The seed (`npm run db:seed` for Supabase, automatic on first open in local mode) gives every section something to show. A typical day, all of which is covered by the Playwright suites:
+- **Task boards:** groups, items and subitems, configurable columns, filters, sorting, drag and drop, bulk actions, favourites, and activity history.
+- **Seven board views:** Main Table, Kanban, Timeline, Calendar, Gantt, Workload, and Chart, all built from the same task data.
+- **Linked tasks:** synchronize supported fields between items on different boards, with field exclusions and shared Updates conversations.
+- **Deliverables:** item asset lists with quantities, multiple assignees, due dates, completion, notes, and an optional Assets recap column.
+- **Stakeholder booking:** public forms, configurable questions and saved templates, booking references, direct team-board reception, and an administrator-only Task Allocation queue.
+- **Public board sharing:** read-only links with optional passwords and expiry dates.
+- **Personal work:** assignments across boards, date buckets, completion tracking, and collapsed linked copies in My Work.
+- **Collaboration:** rich-text Updates with mentions, inbox notifications and quiet updates, browser notifications, and direct messages.
+- **Trackers:** spreadsheet-style workbooks with typed cells, dropdowns, summaries, autosave, and `.xlsx` import/export.
+- **Workspace administration:** teams, profiles, member roles, deactivation, and invitation-link onboarding without automatic email delivery.
 
-- **Home** — recently visited boards, your work for today, favourites, your teams and the workspace's recent activity.
-- **My Work** — everything assigned to you across boards, bucketed into Overdue, Today, This Week, Later and No Date; linked copies of the same task collapse into one row.
-- **Inbox** — loud notifications (mentions, assignments, comments, new bookings) and quiet updates (status and date changes) on separate tabs; each type's delivery is a per-person setting, boards can be muted, and the browser can raise OS notifications.
-- **Boards** — change a status, owner or date, add items and subitems, post an update with an @mention, drag rows between groups. Seven views of the same filtered items: Main Table; Kanban (lanes by status, priority, person or group, optionally tinted in their colour; cards open on click and carry status, priority, tags, due date or span, subitem progress, assets, links, updates and owners; dragging shows a ghost where the card will land and the other cards make way); Timeline (bars by group on a shared date axis, three zoom levels, undated items listed); Calendar (month or week, status colour and owner on every entry, "+N more" opens in place); Gantt (groups, items and subitems with owner, status and dates, milestones, progress, dependency arrows that turn red when upstream work is late); Workload (people against weeks or days, load tints, a cell opens its items); Chart (counts, sums or asset units by status, priority, group, person, tags, size or due week, as bars or a donut). Every change writes an activity entry and notifies the people it concerns.
-- **Assets** — every item has an Assets tab listing its deliverables line by line (asset type, person in charge, quantity, due date, notes) with the totals worked out as you type; a board can add an **Assets recap** column that condenses the list into "14 assets · 3 types · 2 PIC" and opens the tab on click. Bookings fill the list from their asset lines, and allocation copies it to the team board. This is the raw material for a deliverables report.
-- **Book a task** — the sidebar entry opens the same form stakeholders reach through the public link (`/book/rmit/<key>`, key under Settings → Book a task). A booking becomes an item on **Task Allocation** with the requester's details, asset lines as subitems and a reference to quote; admins are notified. From the item panel a manager allocates it to a team board, which creates a linked item there.
-- **Messages** — one-to-one threads with anyone in the workspace, unread counts in the sidebar.
-- **Trackers** — spreadsheets per team with typed columns, dropdowns, dates, checkboxes and summaries; autosaves as you type; imports and exports .xlsx.
-- **Members** — add someone (they appear as pending), hand them their join link, change roles, deactivate.
+## Run a local demo
 
-Adding more demo content to a live database that has been edited by hand: `npm run db:seed:topup` adds the seed's extras without touching existing rows (see `scripts/db-seed-topup.mts`).
+Use **Node.js 22.x** and npm. From the repository root:
 
-## The local demo flow
+### PowerShell
 
-In local mode (`NEXT_PUBLIC_DATA_PROVIDER=local`), after `npm run dev` and opening <http://localhost:3000>, the following flow works end to end with no configuration:
+```powershell
+npm ci
+$env:NEXT_PUBLIC_DATA_PROVIDER = 'local'
+$env:SKIP_DB_MIGRATE = '1'
+npm run dev
+```
 
-1. On the sign-in screen pick **Danh Nguyen** (or type `danh@rmit.local`). No password is required in local mode.
-2. You land in the **RMIT Creative Team** workspace (`/workspace/rmit`).
-3. The sidebar lists the seeded **teams** — Vietnam Creative, Melbourne Creative, Campaigns, Digital, Brand and Content — each expandable to show its boards.
-4. Six seeded **boards** are available: Semester 1 Campaign, Masterclass Assets, RMITinerary 2026, DOOH Production, Creative Requests and Always-On Content.
-5. Open **RMITinerary 2026** (under Vietnam Creative, or from Favourites / Recently visited on Home).
-6. The board opens on the **Main Table** view with populated groups (Backlog, Design, Production, Stakeholder Review, Completed), items, subitems and column values.
-7. Click any **Status** cell and choose a new label. The change is applied optimistically and an activity entry is recorded.
-8. Click an **Owner** cell and **assign a user**. The assignee receives an `ASSIGNED` notification in their Inbox.
-9. Click a **Due Date** cell and pick a new date. Owners other than you receive a `DUE_DATE_CHANGED` notification.
-10. **Drag a task** by its handle to reorder it or drop it into another group (dnd-kit). Subitems move with their parent.
-11. Use the **Person** filter in the toolbar to **filter by owner** (the Filter button adds status, priority, group and date filters; Sort and Search are alongside).
-12. Click an item name to **open the task panel** (`?item=<id>` in the URL, so a refresh reopens it). It has Overview, Updates and Activity tabs.
-13. On the **Updates** tab **post a comment** — type `@` to mention a teammate, which creates a `MENTION` notification for them.
-14. Open **My Work** from the sidebar to see everything assigned to you across boards, bucketed into Overdue, Today, This Week, Later, No Date and Completed.
-15. Use **Add Board** in the sidebar to **create another board** from the Blank, Campaign or Creative Production template.
-16. **Refresh the browser.** All changes persist because they were written to IndexedDB; the session is restored from `localStorage`.
+### macOS / Linux
 
-## Technology stack
+```bash
+npm ci
+NEXT_PUBLIC_DATA_PROVIDER=local SKIP_DB_MIGRATE=1 npm run dev
+```
 
-Versions are the ranges declared in `package.json`.
+Open [localhost:3000](http://localhost:3000). Sign in as **Danh Nguyen** using `danh@rmit.local`; no password is required for the local demo. Open the RMIT workspace and a board such as **RMITinerary 2026** to explore tasks, views, Updates, and assets.
 
-| Area | Package | Version |
-| --- | --- | --- |
-| Framework | `next` | 16.3.4 |
-| UI runtime | `react`, `react-dom` | 19.2.8 |
-| Language | `typescript` | ^5.9.0 |
-| Styling | `tailwindcss`, `@tailwindcss/postcss` | ^4.3.3 |
-| Styling utilities | `tw-animate-css`, `class-variance-authority`, `clsx`, `tailwind-merge` | ^1.4.0 / ^0.7.1 / ^2.1.1 / ^3.6.0 |
-| Primitives | `radix-ui` | ^1.6.7 |
-| Command palette | `cmdk` | ^1.1.1 |
-| Icons | `lucide-react` | ^1.40.0 |
-| Toasts | `sonner` | ^2.0.8 |
-| Server state | `@tanstack/react-query` | ^5.102.8 |
-| Client state | `zustand` | ^5.0.15 |
-| Local persistence | `idb` | ^8.0.3 |
-| Drag and drop | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/modifiers`, `@dnd-kit/utilities` | ^6.3.1 / ^10.0.0 / ^9.0.0 / ^3.2.2 |
-| Forms and validation | `react-hook-form`, `@hookform/resolvers`, `zod` | ^7.87.0 / ^5.9.1 / ^4.5.4 |
-| Dates | `date-fns`, `react-day-picker` | ^4.1.0 / ^10.0.1 |
-| Backend SDK (not yet connected) | `@supabase/supabase-js` | ^2.115.0 |
-| Unit tests | `vitest`, `@vitejs/plugin-react`, `happy-dom`, `fake-indexeddb` | ^4.0.0 / ^6.1.1 / ^20 / ^6.2.5 |
-| Component tests | `@testing-library/react`, `@testing-library/dom`, `@testing-library/user-event`, `@testing-library/jest-dom` | ^16.3.0 / ^10.4.1 / ^14.6.1 / ^6.9.1 |
-| End-to-end tests | `@playwright/test` | ^1.62.1 |
-| Linting | `eslint`, `eslint-config-next` | ^9 / 16.3.4 |
+The first local session seeds the browser database automatically. Completed writes survive refresh. Browser data is specific to its origin and profile: ports 3000 and 3100 have separate stores, and another device does not receive the same local data.
 
-Runtime: Node.js 20.9 or newer (developed on Node 22 with npm 10.9).
+The repository's `.npmrc` enables `legacy-peer-deps=true`; `npm ci` uses that setting.
+
+**Why set `SKIP_DB_MIGRATE`?** Both `npm run dev` and `npm run build` have a migration hook. If `SUPABASE_DB_URL` is configured, that hook can apply database changes even when the app uses the local provider. The local commands above explicitly bypass it. In PowerShell, those environment assignments remain in the current shell until removed or the shell closes.
+
+## Connect Supabase
+
+Supabase provides Postgres persistence, password sign-in, row-level security, realtime updates, and media storage. Public booking, public sharing, and onboarding also use the application's server routes.
+
+### 1. Configure the environment
+
+Create `.env.local` from [.env.example](.env.example) if it does not already exist. Fill in the appropriate values for the target Supabase project:
+
+```dotenv
+NEXT_PUBLIC_DATA_PROVIDER=supabase
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_KEY
+NEXT_PUBLIC_SUPABASE_REGION=
+
+SUPABASE_DB_URL=YOUR_POSTGRES_CONNECTION_URI
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_DATA_PROVIDER` | Selects `local` or `supabase`. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser-visible Supabase project URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-visible public key; user access is enforced by RLS. |
+| `NEXT_PUBLIC_SUPABASE_REGION` | Optional region label shown in the About UI. |
+| `SUPABASE_DB_URL` | Server/script-only connection URI for migrations and seed operations. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged key for onboarding, public booking, public sharing, and seed administration. |
+| `SKIP_DB_MIGRATE` | Set to `1` to bypass the migration runner. |
+
+Keep privileged keys out of `NEXT_PUBLIC_*` variables and out of version control.
+
+The actual provider default is **Supabase**. If its public URL or key is missing, [configuration](src/lib/config.ts) logs a warning and falls back to local mode. Check that warning when an environment unexpectedly shows demo content. Changing providers selects another store; it does not migrate data between them.
+
+### 2. Apply the schema
+
+If continuing in the PowerShell session used for the local demo, clear its overrides first:
+
+```powershell
+Remove-Item Env:NEXT_PUBLIC_DATA_PROVIDER -ErrorAction SilentlyContinue
+Remove-Item Env:SKIP_DB_MIGRATE -ErrorAction SilentlyContinue
+```
+
+Then apply pending migrations and policies:
+
+```bash
+npm run db:migrate
+```
+
+The runner applies files from `supabase/migrations` and then `supabase/policies`, in order, recording them in `public.schema_migrations`. Each applied file runs in its own transaction. All policy files matter: later files replace earlier permission definitions.
+
+For an existing database that already has matching schema but no migration ledger, review the [migration guidance](KNOWLEDGE_BASE.md#17-database-operations) before using `--baseline`.
+
+### 3. Choose whether to seed
+
+For a disposable demo or test workspace:
+
+```bash
+npm run db:seed
+```
+
+**Full seeding replaces the seeded workspace's data** and creates or updates demonstration Auth accounts. It is not an additive operation. The executable seed is [scripts/db-seed.mts](scripts/db-seed.mts), which builds from the TypeScript seed modules. Password overrides include `SEED_PASSWORD` and `ADMIN_PASSWORD`; `SEED_APP_URL` controls the base URL printed for invitation links.
+
+To add supported seed extras while preserving existing rows:
+
+```bash
+npm run db:seed:topup
+```
+
+The top-up script inserts with `ON CONFLICT DO NOTHING`. For an already populated project, seeding is optional; use the existing accounts or the repository's administrative account tooling as appropriate.
+
+The convenience command `npm run db:setup` combines migration, full seed, and switching an existing `.env.local` to Supabase. Use `npm run db:setup -- --no-seed` when that workflow should preserve the current dataset.
+
+### 4. Start and verify
+
+```bash
+npm run dev
+```
+
+Sign in with a provisioned Supabase account and password. Confirm that the expected workspace loads. For image uploads, verify the `avatars` and `item-covers` buckets and their write policies; storage setup in migrations may require separate attention when the database role cannot alter Storage objects.
+
+## Common workflows
+
+### Work on a task
+
+Open a board, add an item to a group, assign someone in a PERSON column, and set its status and due date. Open the item panel for details, Updates, assets, and activity. Board links can include `?item=<id>` to reopen the task panel and `?view=<view>` to select a view.
+
+Current column types are Text, Long text, Status, Person, Date, Timeline, Number, Priority, Checkbox, Link, Tags, Size, Assets recap, and Dependency. Status completion uses configured label roles rather than the word “Done.”
+
+### Receive and allocate a booking
+
+A stakeholder opens `/book/<workspaceSlug>/<key>`; signed-in members can use **Book a task** inside the workspace. A selected team's valid receiving board takes the booking directly. Otherwise, it goes to the built-in **Task Allocation** board, visible to workspace administrators.
+
+Booking creates a task, a short reference, asset subitems, and structured asset lines. An administrator can allocate a queued request to a team board, creating a linked task and copying its subitems and assets. The parent tasks synchronize supported fields; asset lists and copied subitems are not automatically synchronized by that link.
+
+Booking keys authorize access to the form. Short task references are labels for follow-up, not access credentials.
+
+### Add a member
+
+An administrator adds a person from Members and shares the generated `/join/<token>` link. The person sets their password and completes their profile, activating membership. The app does not send the invitation email automatically.
+
+Pending members cannot use normal sign-in before completing onboarding. Administrators can renew invitation links or manage member status from the members workflow.
+
+### Share a board
+
+Create a read-only board link and optionally set a password and expiry. Visitors can inspect the board's views and item details without joining the workspace. Disable or regenerate the link to revoke its current access.
+
+The shared payload includes board content such as columns, descriptions, Updates, assets, and recent activity. Review that content when sharing externally; public sharing is not a field-redaction feature. See [public sharing details](KNOWLEDGE_BASE.md#13-public-board-sharing).
+
+### Use a tracker
+
+Create or import a workbook, edit typed cells, and organize rows with sections and subsections. Sheets autosave after a short debounce; wait for a successful save before leaving. Export creates `.xlsx` files with supported formatting, dropdowns, and summary formulas.
+
+The tracker model is smaller than Excel's. Imported formulas use cached results, and arbitrary workbook features do not necessarily round-trip. See [tracker behavior and limitations](KNOWLEDGE_BASE.md#15-trackers-and-excel-interchange).
+
+## Access model
+
+Workspace roles are OWNER, ADMIN, MEMBER, and GUEST. Board roles are OWNER, EDITOR, and VIEWER. Board visibility and board membership are separate decisions.
+
+For a normal board, effective access is resolved in this order:
+
+1. Literal board ownership grants OWNER.
+2. Explicit board membership supplies its assigned role.
+3. Workspace administration grants EDITOR.
+4. Active non-guest membership grants VIEWER on a WORKSPACE-visible board.
+5. Team membership grants EDITOR on a matching TEAM-visible board.
+6. PRIVATE visibility grants no additional inherited access.
+
+System boards have an earlier administrator-only gate. Explicit VIEWER membership can override a later inherited editing role. Team association alone does not grant editing to a WORKSPACE-visible board. Guests need ownership or explicit board membership for ordinary board access.
+
+Management and deletion have additional checks, including protection for built-in system entities. Use [permissions.ts](src/lib/permissions/permissions.ts) and the [current SQL visibility policy](supabase/policies/0008_visibility_is_read_only.sql) as the implementation references. Keep application helpers and SQL policies aligned when changing authorization.
+
+Local mode exercises UI behavior; Supabase RLS enforces access on backend requests. An administrator's **View as** feature previews a colleague's visibility but retains the administrator's actual session and write identity.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    subgraph UI["UI layer"]
-        Routes["src/app/** (App Router pages)"]
-        Features["src/features/** (components, contexts)"]
-        Components["src/components/** (shell, shared, ui primitives)"]
-    end
+```text
+App Router pages and layouts
+  -> Feature screens, contexts, and query hooks
+  -> Services: use cases, mapping, activity, notifications
+  -> Repository interfaces
+     -> Local: IndexedDB
+     -> Supabase: Postgres / Auth / Realtime
 
-    subgraph Hooks["Hooks / query layer"]
-        Query["TanStack Query hooks<br/>useBoardSnapshot, useBoardMutations, features/*/hooks.ts"]
-        Keys["src/lib/query/keys.ts"]
-        Stores["Zustand stores<br/>src/stores/** (transient UI state)"]
-    end
-
-    subgraph Services["Service layer — src/services/**"]
-        WorkspaceService
-        BoardService
-        ItemService
-        CommentService
-        MyWorkService
-        SearchService
-    end
-
-    subgraph Repos["Repository interfaces — src/data/repositories/index.ts"]
-        R["UserRepository · WorkspaceRepository · TeamRepository · BoardRepository<br/>ItemRepository · CommentRepository · ActivityRepository · NotificationRepository · DataAdminRepository"]
-    end
-
-    subgraph Impl["Implementations"]
-        Local["src/data/local/** — Local*Repository<br/>(idb → IndexedDB 'rmit-streamline')"]
-        Supa["src/data/supabase/** — Supabase*Repository<br/>(PostgREST + RLS)"]
-    end
-
-    Routes --> Features --> Query
-    Features --> Stores
-    Query --> Keys
-    Query --> Services
-    Services --> Repos
-    Repos --> Local
-    Repos --> Supa
-    Local --> IDB[("IndexedDB")]
-    Supa --> PG[("Supabase Postgres + Auth + Realtime")]
+Public board payload
+  -> Read-only memory repositories
+  -> Shared board views and item panels
 ```
 
-### Layers
+[DataProviderContext](src/features/data/data-context.tsx) constructs the repository, service, and auth graph. [createServices](src/services/index.ts) wires shared services such as notifications, item linking, booking, assets, and personal work.
 
-- **UI (`src/app`, `src/features`, `src/components`)** — App Router pages are thin wrappers that render a feature component. Features own screens, dialogs, cells and pickers. `src/components/ui` holds the Radix-based primitives; `src/components/layout` the shell (sidebar, user menu); `src/components/shared` reusable pieces (avatars, inline edit, empty/error states).
-- **Hooks / query layer** — All reads go through TanStack Query with keys defined centrally in `src/lib/query/keys.ts`. `useBoardSnapshot` loads a board's groups, columns, items and values in one query; `useBoardMutations` applies optimistic patches to that snapshot, calls a service, rolls back on error and invalidates related keys (`myWork`, `activity`, `notifications`) when the last pending mutation settles. Three React contexts wire the graph: `DataProviderContext` (builds repositories → services → auth provider once per app), `AuthProviderContext` (session + current user) and `WorkspaceProvider` (workspace, members, teams, boards, favourites and a precomputed `PermissionContext`). Zustand stores hold transient UI state only: per-board search/filters/sort/selection (`board-ui-store.ts`) and sidebar/palette preferences (`ui-store.ts`).
-- **Services (`src/services`)** — Use-case orchestration: `BoardService` (create from template, rename with slug regeneration, duplicate, groups, columns, members, favourites), `ItemService` (snapshot loading, create/rename/move/archive/delete/duplicate, `setValue` with activity + notification fan-out), `CommentService` (mentions → notifications), `MyWorkService` (assigned items bucketed by due date), `SearchService`, `WorkspaceService` (invites, roles, teams). Services depend only on the `Repositories` interface.
-- **Repositories (`src/data/repositories/index.ts`)** — Pure persistence contracts returning domain types from `src/domain/**`. No business rules live here.
-- **Implementations** — `src/data/local/**` implements every interface on top of `idb`; `src/data/supabase/**` is the future Postgres implementation.
+TanStack Query owns fetched data and optimistic reconciliation. Zustand owns interaction state and selected UI preferences. Local tabs announce changes through BroadcastChannel; Supabase boards subscribe to database changes and coalesce invalidations before refetching. Public shared boards periodically refresh a bounded read-only payload.
 
-**Rule: components never touch persistence directly.** UI code imports `useServices()` (or a feature hook built on it) and never `Local*`/`Supabase*` classes, `idb`, or the Supabase client. Permission decisions come from the `can*` helpers in `src/lib/permissions/permissions.ts`, never from inspecting roles inline.
+Use services and repository contracts for normal task data. Keep pure transformations in domain or service helpers, use centralized query keys, and use shared permission functions. Some explicit provider-aware helpers, including avatar and cover uploads, access Storage directly.
 
-## Local development
+### Repository map
+
+| Path | Responsibility |
+| --- | --- |
+| `src/app` | Routes, layouts, providers, global styles, HTTP endpoints. |
+| `src/domain` | Types, typed column values, constants, and pure domain helpers. |
+| `src/services` | Board/task workflows, booking, links, assets, messages, and trackers. |
+| `src/data/repositories` | Persistence contracts shared by providers. |
+| `src/data/local` | IndexedDB schema and repositories. |
+| `src/data/supabase` | Supabase repositories, row mapping, and HTTP transports. |
+| `src/data/memory` | Bounded read-only repositories for public boards. |
+| `src/data/seed` | Demo data, history, tracker fixtures, and local seed application. |
+| `src/features` | Product screens, feature hooks, editors, and contexts. |
+| `src/components` | Layout, shared controls, and UI primitives. |
+| `src/server` | Privileged onboarding, booking, sharing, and HTTP support. |
+| `src/lib`, `src/stores` | Routes, config, permissions, dates, query keys, and UI state. |
+| `supabase` | Ordered migrations, policies, and historical SQL seed material. |
+| `scripts` | Migration, seed, setup, account, and test-runner tooling. |
+| `tests/unit`, `tests/e2e` | Unit/component and browser regression suites. |
+
+### Main technologies
+
+| Area | Technology |
+| --- | --- |
+| Runtime | Node.js 22.x |
+| Framework | Next.js 16.3.4, React 19.2.8 |
+| Language | TypeScript with strict checking |
+| UI | Tailwind CSS 4, Radix UI, Lucide, Sonner |
+| Data and state | TanStack Query, Zustand, idb, Supabase JS |
+| Editing | Tiptap, React Hook Form, Zod, dnd-kit |
+| Dates and workbooks | date-fns, react-day-picker, ExcelJS |
+| Testing | Vitest, Testing Library, happy-dom, fake-indexeddb, Playwright |
+
+See [package.json](package.json) for declared versions and [package-lock.json](package-lock.json) for resolved dependencies.
+
+## Commands and tests
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Development server; preceded by the configured migration hook. |
+| `npm run build` | Production build; preceded by the configured migration hook. |
+| `npm run start` | Serve an existing production build. |
+| `npm run lint` | ESLint. |
+| `npm run typecheck` | TypeScript checks. |
+| `npm test` | Vitest unit and component tests. |
+| `npm run test:watch` | Vitest watch mode. |
+| `npm run check` | Lint, typecheck, then unit/component tests. |
+| `npm run test:e2e` | Local-provider Playwright workflows by default. |
+| `npm run test:e2e:supabase` | Supabase smoke/audit suite, including backend access checks. |
+| `npm run test:e2e:deployment` | Smoke tests against a deployed URL. |
+| `npm run db:migrate` | Apply pending schema and policy files. |
+| `npm run db:seed` | Replace the seeded demonstration workspace. |
+| `npm run db:seed:topup` | Add seed extras without replacing existing rows. |
+| `npm run db:setup` | Migrate, seed, and switch an existing environment file to Supabase. |
+
+For ordinary code changes, start with:
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+npm run check
 ```
 
-Other scripts:
-
-| Script | What it does |
-| --- | --- |
-| `npm run build` / `npm run start` | Production build and server |
-| `npm run lint` | ESLint (`eslint .`, flat config in `eslint.config.mjs`) |
-| `npm run typecheck` | `tsc --noEmit` (strict, `noUncheckedIndexedAccess`) |
-| `npm test` / `npm run test:watch` | Vitest unit and component tests |
-| `npm run test:e2e` | Playwright end-to-end tests |
-| `npm run check` | lint + typecheck + test |
-
-### `.npmrc`
-
-The repository ships `.npmrc` with `legacy-peer-deps=true`. This is required because npm 10.9.x crashes while resolving Vitest's optional `jsdom` peer dependency; with legacy peer resolution the install completes normally. Do not remove it unless you have verified `npm install` on a clean checkout with your npm version.
-
-### Environment variables
-
-Copy `.env.example` to `.env.local` if you need to change anything. Nothing is required for local mode:
-
-```dotenv
-# Data provider: "local" (IndexedDB, default) or "supabase" (not yet enabled)
-NEXT_PUBLIC_DATA_PROVIDER=local
-
-# Only required when NEXT_PUBLIC_DATA_PROVIDER=supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
-
-`src/lib/config.ts` reads these at runtime. If the provider is set to `supabase` but either Supabase variable is missing, it logs a warning and falls back to `local`; the app never fails to start because of missing configuration.
-
-## Seed users
-
-All accounts use the `@rmit.local` domain and sign in without a password in local mode. Definitions live in `src/data/seed/seed-data.ts` (`USER_SPECS`, `TEAM_SPECS`).
-
-| Email | Name | Job title | Workspace role | Teams |
-| --- | --- | --- | --- | --- |
-| `danh@rmit.local` | Danh Nguyen | Senior Designer | OWNER | Vietnam Creative (lead), Campaigns |
-| `emily@rmit.local` | Emily Carter | Creative Lead | ADMIN | Melbourne Creative (lead), Campaigns, Brand |
-| `joanne@rmit.local` | Joanne Walsh | Campaign Manager | ADMIN | Campaigns (lead), Brand (lead) |
-| `jun@rmit.local` | Jun Tanaka | Digital Producer | MEMBER | Digital (lead), Melbourne Creative, Campaigns |
-| `duc@rmit.local` | Duc Tran | Motion Designer | MEMBER | Vietnam Creative, Brand |
-| `tuyet@rmit.local` | Tuyet Le | Graphic Designer | MEMBER | Vietnam Creative, Content |
-| `hil@rmit.local` | Hil Pham | Web Designer | MEMBER | Vietnam Creative, Digital |
-| `grace@rmit.local` | Grace Kim | Content Strategist | MEMBER | Content (lead), Melbourne Creative, Digital |
-| `jane@rmit.local` | Jane Morrison | Copywriter | GUEST | Melbourne Creative, Content |
-
-Three more people are seeded as **pending onboarding**: Anh Pham (`anh@rmit.local`), Lucas Reid (`lucas@rmit.local`) and Mai Tran (`mai@rmit.local`). They are in the member list but have no password and cannot sign in until they open their invitation link. In local mode their links are fixed (`/join/demo-invite-anh-pham-2026` and so on); the Supabase seed prints random ones.
-
-The seed also creates one workspace (`RMIT Creative Team`, slug `rmit`), six teams, six boards with groups/columns/items/subitems/values, comments, an activity history, notifications (mostly addressed to Danh), favourites and recent-visit records. IDs are deterministic pseudo-UUIDs; dates are generated relative to "now" so My Work and Overdue always have content.
-
-## Project structure
-
-```text
-RMIT_Streamline/
-├─ .env.example
-├─ .npmrc                          # legacy-peer-deps=true
-├─ eslint.config.mjs · next.config.ts · postcss.config.mjs · tsconfig.json
-├─ vitest.config.mts · playwright.config.ts
-├─ public/
-├─ supabase/
-│  ├─ migrations/0001_initial_schema.sql
-│  ├─ policies/0001_rls_policies.sql
-│  ├─ policies/README.md
-│  └─ seed.sql
-├─ tests/
-│  ├─ setup.ts                     # jest-dom, fake-indexeddb, DOM shims, next/* mocks
-│  ├─ unit/                        # Vitest specs (+ components/, helpers/)
-│  └─ e2e/                         # Playwright specs
-└─ src/
-   ├─ app/                         # Next.js App Router
-   │  ├─ layout.tsx · providers.tsx · page.tsx · globals.css
-   │  ├─ login/page.tsx
-   │  └─ workspace/[workspaceSlug]/
-   │     ├─ layout.tsx             # session + membership guard, AppShell
-   │     ├─ page.tsx               # Home
-   │     ├─ boards/[boardSlug]/page.tsx
-   │     ├─ my-work/ · inbox/ · members/ · settings/ · teams/[teamId]/
-   ├─ components/
-   │  ├─ layout/                   # app-shell, sidebar, user-menu, full-page-loader
-   │  ├─ shared/                   # user-avatar, inline-edit, color/icon pickers, states
-   │  └─ ui/                       # Radix-based primitives (button, dialog, popover, …)
-   ├─ data/
-   │  ├─ provider.ts               # createRepositories(kind)
-   │  ├─ repositories/index.ts     # repository interfaces + NotFoundError
-   │  ├─ local/                    # database.ts, connection.ts, repositories/*
-   │  ├─ seed/                     # seed-data.ts, apply-seed.ts
-   │  └─ supabase/                 # index.ts (stubs), not-implemented.ts
-   ├─ domain/                      # pure types: user, workspace, team, board, column,
-   │                               #   item, comment, activity, notification, auth
-   ├─ features/
-   │  ├─ auth/                     # auth-context, auth-provider-factory, providers/, login-screen
-   │  ├─ data/data-context.tsx     # repositories → services → auth graph
-   │  ├─ workspace/                # workspace-context.tsx, settings-page.tsx
-   │  ├─ boards/                   # board-page, board-model, board-filtering, templates,
-   │  │  ├─ components/            #   header, toolbar, view tabs, table/, views/, cells/, pickers/, dialogs/
-   │  │  └─ hooks/                 #   use-board-snapshot, use-board-mutations, use-board-actions, use-board-realtime
-   │  ├─ items/                    # item-detail-panel, item-updates
-   │  ├─ comments/ · activity/ · notifications/ · my-work/ · members/ · teams/ · home/ · search/
-   ├─ hooks/                       # use-debounced-value, use-media-query
-   ├─ lib/
-   │  ├─ config.ts · routes.ts · ids.ts · slug.ts · colors.ts · utils.ts
-   │  ├─ dates/dates.ts
-   │  ├─ permissions/permissions.ts
-   │  ├─ query/keys.ts
-   │  └─ supabase/client.ts
-   ├─ services/                    # board, item, comment, my-work, search, workspace + index.ts
-   └─ stores/                      # board-ui-store.ts, ui-store.ts (Zustand)
-```
-
-Routes (see `src/lib/routes.ts`): `/` redirects to the user's first workspace or `/login`; `/workspace/:slug` (Home), `/my-work`, `/inbox`, `/members`, `/settings?section=general|members|teams|permissions|data`, `/teams/:teamId`, `/boards/:boardSlug?view=kanban|timeline|calendar|gantt|workload|chart&item=:itemId`.
-
-## Data-provider architecture
-
-The provider is chosen once, from configuration, and everything downstream is built from it:
-
-```mermaid
-flowchart LR
-    ENV["NEXT_PUBLIC_DATA_PROVIDER"] --> CFG["getAppConfig()<br/>src/lib/config.ts"]
-    CFG --> DPC["DataProviderContext<br/>src/features/data/data-context.tsx"]
-    DPC --> CR["createRepositories(kind)<br/>src/data/provider.ts"]
-    DPC --> CS["createServices(repos)<br/>src/services/index.ts"]
-    DPC --> CA["createAuthProvider(kind, repos)<br/>src/features/auth/auth-provider-factory.ts"]
-    CR -->|local| L["createLocalRepositories()<br/>Local*Repository over LocalConnection"]
-    CR -->|supabase| S["createSupabaseRepositories()<br/>PostgREST + RLS"]
-    CA -->|local| LA["LocalAuthProvider(repos.users)"]
-    CA -->|supabase| SA["SupabaseAuthProvider"]
-```
-
-- **`createRepositories(kind)`** (`src/data/provider.ts`) returns a `Repositories` object — one property per interface (`users`, `workspaces`, `teams`, `boards`, `items`, `comments`, `activities`, `notifications`, `admin`). `local` maps to `createLocalRepositories()`; `supabase` to `createSupabaseRepositories()`.
-- **`createAuthProvider(kind, repos)`** returns an `AuthProvider` (`src/domain/auth/auth.ts`): `getSession`, `signIn`, `signOut`, `onSessionChange`. `LocalAuthProvider` looks the email up in `repos.users`, refuses deactivated accounts, and keeps the session in `localStorage` under `streamline.local-session`. `SupabaseAuthProvider` wraps `supabase.auth` (email + password) and is already complete, but is only selected in supabase mode.
-- **Swapping implementations** — `LocalBoardRepository` and the future `SupabaseBoardRepository` implement the same `BoardRepository` interface, so the swap is confined to `src/data/provider.ts`. Services, hooks and components are unchanged. Tests construct `createLocalRepositories({ databaseName, seed })` directly to isolate state.
-- **Supabase repositories** — `src/data/supabase/repositories/*` implement every interface over PostgREST with the anon key and the signed-in user's JWT, so row-level security (`supabase/policies`) is the authority on who sees what. Bookings from the public form and member onboarding need the service role and therefore run in Next route handlers (`src/app/api/book`, `src/app/api/invitations`, `src/app/api/join`) through `src/server/*`.
-
-## How local persistence works
-
-- **Database**: `src/data/local/database.ts` opens an IndexedDB database named **`rmit-streamline`** (version 1) with `idb`. The typed schema (`StreamlineDB`) declares one object store per Postgres table — `users`, `workspaces`, `workspaceMembers`, `teams`, `teamMembers`, `boards`, `boardMembers`, `boardFavourites`, `boardGroups`, `boardColumns`, `items`, `itemColumnValues`, `comments`, `activities`, `notifications`, `boardVisits` — plus a `meta` store. Stores are keyed by `id` (UUID v4 from `crypto.randomUUID()` via `src/lib/ids.ts`) and indexed the same way the SQL schema is (`byWorkspace`, `byBoard`, `byItem`, `byColumn`, `byUser`, `byParent`, …), so a later migration is a data copy rather than a remodel.
-- **Connection and seeding**: `LocalConnection` (`src/data/local/connection.ts`) opens the database lazily, once per tab. On first open it checks `meta.seededAt`; if absent, `seedDatabase()` (`src/data/seed/apply-seed.ts`) writes the whole `buildSeed(now)` bundle in a single read-write transaction and stamps `seededAt`. Subsequent opens skip seeding, so user changes survive reloads.
-- **Positions as numbers**: groups, columns, items and subitems carry a numeric `position`. Reorder operations rewrite positions for the affected siblings inside one transaction (`reorderGroups`, `reorderColumns`, `moveItem` → `updateMany`). Optimistic updates may briefly use fractional positions (e.g. `after.position + 0.5`) before the service reconciles them. The Postgres column is `double precision` for the same reason.
-- **Normalised values**: cell data is not stored on the item. Each item/column pair is one `ItemColumnValue` row `{ id, itemId, columnId, value, updatedAt }` in `itemColumnValues`, where `value` is the discriminated `ColumnValue` union from `src/domain/item/item.ts` — e.g. `{ type: "STATUS", labelId }`, `{ type: "PERSON", userIds }`, `{ type: "DATE", date }`, `{ type: "TIMELINE", start, end }`, `{ type: "FILES", files: AttachmentMeta[] }`. `value.type` always equals the owning column's `type`. This is exactly the shape the `item_column_values.value_json` JSONB column stores.
-- **Column configuration** is likewise a JSON union (`ColumnSettings`, discriminated by `kind`: `status`, `priority`, `person`, `number`, `tags`, `none`) stored on `boardColumns.settings`.
-- **Cascades** are implemented explicitly (`deleteItemsCascade` removes subitems, values and comments; `BoardRepository.delete` removes members, favourites, groups, columns, visits and items) because IndexedDB has no foreign keys.
-- **Other browser storage**: the local session (`streamline.local-session`), sidebar/palette preferences (`streamline.ui`) and the remembered view per board (`streamline.board-view`) live in `localStorage`.
-
-## Resetting data
-
-Any of the following restores the original seed:
-
-1. **User menu → Developer → Reset demo data** (bottom-left avatar menu). The Developer section is shown when running in development or whenever the provider is `local`. Confirms, then calls `repos.admin.resetToSeed()`, clears the query cache and returns to the workspace home.
-2. **Settings → Data → Reset demo data** (`/workspace/rmit/settings?section=data`). Restricted to workspace OWNER/ADMIN accounts.
-3. **Browser DevTools** → Application → Storage → IndexedDB → delete the **`rmit-streamline`** database, then reload. The next open re-seeds because `meta.seededAt` is gone. Clear `localStorage` as well if you also want to drop the saved session and UI preferences.
-
-`resetToSeed()` clears every object store and re-runs `seedDatabase()`; seeded dates are recomputed relative to the current time.
-
-### Switch user (developer tool)
-
-**User menu → Developer → Switch user** lists every active account and signs you in as that person without going through the login screen (the query cache is cleared so the new user's permissions, favourites and notifications load fresh). The same menu shows **Provider: local** so you can confirm which data provider is active. Use this to check role-dependent behaviour — for example Jane (GUEST) cannot create boards or see TEAM-visibility boards she is not a member of, while Emily and Joanne (ADMIN) can manage members and reset data.
-
-## Testing
-
-### Unit and component tests — `npm test`
-
-Vitest 4 with `happy-dom` (chosen over jsdom, which took ~20 s to mount a single Radix popover), React Testing Library and `fake-indexeddb`. `vitest.config.mts` picks up `tests/unit/**/*.test.{ts,tsx}` and `src/**/*.test.{ts,tsx}`; `tests/setup.ts` registers jest-dom matchers, installs `fake-indexeddb/auto`, stubs browser APIs that Radix/cmdk/dnd-kit expect (`ResizeObserver`, `scrollIntoView`, pointer capture, `matchMedia`) and mocks `next/link` and `next/navigation`. Repository tests run against real (in-memory) IndexedDB via `createLocalRepositories({ databaseName, seed })`.
-
-| File | Covers |
-| --- | --- |
-| `tests/unit/board-filtering.test.ts` | Search, person/status/priority/group/date filters and sorting (`src/features/boards/board-filtering.ts`) |
-| `tests/unit/board-service.test.ts` | `BoardService` create-from-template, slugs, groups, columns, duplication |
-| `tests/unit/dates.test.ts` | Date helpers and due-date bucketing (`src/lib/dates/dates.ts`) |
-| `tests/unit/format-activity.test.ts` | Human-readable activity rendering |
-| `tests/unit/local-repositories.test.ts` | Local repositories on fake IndexedDB: seeding, values, cascades, reordering, reset, and service-level activity/notification side effects |
-| `tests/unit/permissions.test.ts` | `can*` helpers and `boardRoleFor` |
-| `tests/unit/slug.test.ts` | `slugify` / `uniqueSlug` |
-| `tests/unit/components/board-toolbar.test.tsx` | Toolbar search, status/person filters, sort, and the New Item popover |
-| `tests/unit/components/item-detail-panel.test.tsx` | Item panel tabs, description, subitems, comments |
-| `tests/unit/components/person-picker.test.tsx` | Person cell picker |
-| `tests/unit/components/status-cell.test.tsx` | Status cell and label picker |
-| `tests/unit/helpers/render-app.tsx` | Test harness that mounts the provider stack with isolated local repositories |
-
-`npm run test:watch` runs the same suite in watch mode.
-
-### End-to-end tests — `npm run test:e2e`
-
-Playwright (`playwright.config.ts`) runs specs from `tests/e2e/` against Desktop Chrome at 1440×900. It starts the dev server itself with `npm run dev -- --port 3100` (base URL `http://localhost:3100`, reusing an already-running server outside CI) and keeps traces on failure. Before the first run install the browser:
+Install the Playwright browser when needed, then run browser workflows:
 
 ```bash
 npx playwright install chromium
 npm run test:e2e
 ```
 
-### Static checks
+The standard Playwright configuration uses one worker, Desktop Chrome, and `http://localhost:3100`. It launches a local-provider dev server unless overridden and can reuse an existing server outside CI. Check the provider of an already running server before reusing it. Its dev command still has the npm migration hook described above.
+
+The Supabase runner uses `E2E_PROVIDER` and `PW_PROVIDER` to select its audit path. Deployment tests use `E2E_BASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD`, start no server, and default to the application URL linked above. Remote suites create and modify data; choose their target workspace deliberately.
+
+`npm run check` does not include E2E tests or a production build. Local tests verify local behavior; backend permissions, public endpoints, and Storage also need Supabase integration verification. The [knowledge base test guide](KNOWLEDGE_BASE.md#19-testing-and-verification) maps suites to their responsibilities.
+
+## Database maintenance
+
+Add new numbered files for deployed schema or policy changes. The migration runner uses a database advisory lock and a checksum ledger. Editing an already applied file produces a drift warning; it does not reapply that file automatically.
 
 ```bash
-npm run lint        # ESLint: next/core-web-vitals + next/typescript
-npm run typecheck   # tsc --noEmit
-npm run build       # next build — also catches route/type errors
-npm run check       # lint + typecheck + unit tests in one go
+npm run db:migrate -- --dry
 ```
 
-## Supabase
+This reports pending migration bodies without executing them, but still connects and ensures the migration ledger and its RLS. It is not a completely write-free operation on an uninitialized database.
 
-Supabase Postgres is the app's database. `NEXT_PUBLIC_DATA_PROVIDER` defaults to
-`supabase`; the local IndexedDB provider is still there and is what the test
-suites pin themselves to (`NEXT_PUBLIC_DATA_PROVIDER=local`).
+Local JSON export/import, tracker Excel interchange, and Postgres backup/restore are separate mechanisms. Local import and reset replace browser data. Supabase does not support the local repository's whole-database export/import/reset methods; use database backup tooling and the appropriate administrative scripts.
 
-### Setting up a project
+See [database operations](KNOWLEDGE_BASE.md#17-database-operations) for migration order, seed behavior, lifecycle hooks, and environment details.
 
-```bash
-cp .env.example .env.local     # fill in the four variables it documents
-npm run db:setup               # migrate + seed + switch the provider
-```
+## Deployment
 
-`db:setup` runs the two scripts below and then points `.env.local` at Supabase.
+[Vercel configuration](vercel.json) selects Next.js, installs development dependencies with legacy peer resolution, runs `npm run build`, and requests application region `sin1`. Configure public Supabase values for the build and the service-role key for server routes. The app's region setting does not determine the database's region.
 
-| Script | What it does |
+When `SUPABASE_DB_URL` is present, the build hook applies pending migrations unless `SKIP_DB_MIGRATE=1`. The [database migration workflow](.github/workflows/db-migrate.yml) also applies pending files for matching pushes to `main`, using the repository's `SUPABASE_DB_URL` secret. Decide which deployment environment each connection targets.
+
+Every build carries a version, build ID, and timestamp. `/api/version` lets an open tab detect a different deployment and offer Reload or Later; updates do not force an immediate reload.
+
+## Troubleshooting
+
+| Symptom | First check |
 | --- | --- |
-| `npm run db:migrate` | Applies every file under `supabase/migrations/` then `supabase/policies/`, once each, recorded in `public.schema_migrations`. `--dry` previews, `--baseline` adopts a database that already has the schema. |
-| `npm run db:seed` | Creates the demo accounts through the Auth Admin API with the seed's fixed ids, then inserts `buildSeed()` from `src/data/seed/seed-data.ts` — the same data the local store uses, so the two providers match. |
-| `npm run test:e2e:supabase` | The Supabase audit suite (`tests/e2e/supabase-smoke.spec.ts`): every repository write, asserted at the HTTP level. Cleans up after itself. |
+| Unexpected local/demo content | Missing public Supabase config, provider warning, or different browser origin. |
+| Dev/build fails before compilation | Migration hook, database connection, or pending SQL failure. |
+| Board opens but cannot be edited | Visibility-only VIEWER access or explicit VIEWER membership. |
+| New member cannot sign in | Pending invitation/onboarding state. |
+| Booking, sharing, or member creation fails while boards work | Server service-role configuration, token/key, and required migrations. |
+| Linked value does not update | Field exclusions, compatible column mapping, and target label names. |
+| Avatar/cover upload fails | Image size/type, bucket existence, and Storage write policies. |
+| Another tab or person sees stale data | Provider-specific broadcast/realtime setup and query invalidation. |
+| Tracker content differs after import | Supported types, cached formula results, and workbook feature limitations. |
 
-Migrations are automatic from then on: `npm run dev` and `npm run build` both run
-the migrator first (`predev` / `prebuild`, skipped when `SUPABASE_DB_URL` is
-unset), and `.github/workflows/db-migrate.yml` applies pending SQL on any push to
-`main` that touches it. Adding a `.sql` file with a higher numeric prefix is the
-whole workflow — the runner takes a Postgres advisory lock, so two builds racing
-each other is safe.
+For deeper investigation, use the [troubleshooting reference](KNOWLEDGE_BASE.md#20-troubleshooting) and its source index. Preserve the original data while investigating a configuration or access problem.
 
-### Adding people (onboarding without email)
+## Development guidance
 
-Streamline is standalone and sends no email, so nobody is asked to click a
-confirmation message. Instead:
+Read [AGENTS.md](AGENTS.md) before changing the application. For Next.js changes, it requires checking the relevant installed guides under `node_modules/next/dist/docs/`; this version may differ from conventions in earlier releases.
 
-1. An admin opens **Members → Add member**, enters the person's email, name,
-   role and teams. The person appears in the list at once as **Pending
-   onboarding**. On Supabase this creates an Auth account with no password
-   through `POST /api/invitations` (service role, server-side).
-2. The dialog shows a unique link, `/join/<token>`, for the admin to pass on
-   however they like. The link can be copied again later from the row's link
-   icon, renewed (the old one stops working), or the invitation cancelled, which
-   removes the pending member and their unused account.
-3. The person opens the link, sets a password, checks their name and job title
-   and optionally adds a photo. `POST /api/join/<token>` sets the password and
-   flips the membership to **Active**; the app then signs them in and lands
-   them in the workspace. Links are single-use and expire after 30 days.
+Keep persistence changes consistent across local and Supabase providers and the public memory adapter where applicable. Keep authorization helpers and SQL policies aligned. Include affected views, link mapping, booking, and export behavior when changing a domain value or column type.
 
-Until they finish, pending people cannot sign in and do not appear in owner
-pickers, mentions, messages or search. The pieces: `src/domain/workspace/invitation.ts`,
-`OnboardingRepository` (`src/data/repositories/index.ts`) with a local and a
-Supabase implementation, `src/server/onboarding.ts` behind the route handlers,
-and `src/features/onboarding/onboarding-screen.tsx` for the join page.
-
-### Environment variables
-
-| Variable | Where | Purpose |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | browser + build | Project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser + build | Publishable key. Browser-safe: RLS decides what it can read. |
-| `SUPABASE_DB_URL` | server only | Postgres URI (Connect → **Session pooler**, port 5432). Used by the migrator. |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | Secret. Needed at runtime by the onboarding route handlers (adding a member creates an Auth account; the invitation link sets its password) and by `db:seed`. |
-
-### Deploying to Vercel
-
-1. Push the repo, then import it at [vercel.com/new](https://vercel.com/new).
-   `vercel.json` pins `npm ci --legacy-peer-deps` — the default install fails on
-   this dependency tree.
-2. Add the environment variables above to the Vercel project (Production and
-   Preview). `SUPABASE_SERVICE_ROLE_KEY` goes in as a **Secret**: the route
-   handlers under `src/app/api/` use it to create accounts for new members and
-   to set their passwords when they open their link. Without it the rest of the
-   app works, but "Add member" fails with a message saying so.
-3. Deploy. `prebuild` applies any pending migrations before Next builds, so the
-   database and the deployment go out together.
-4. In Supabase → Authentication → URL Configuration, set the Site URL to the
-   deployment's domain so password-reset links point at it.
-
-Preview deployments share the same database as production. Point them at a
-second Supabase project if that matters.
-
-## Database schema overview
-
-Defined in `supabase/migrations/0001_initial_schema.sql`; every table mirrors an IndexedDB store and a `src/domain` interface one-to-one. Enum columns use Postgres enums whose values match the TypeScript unions exactly. `updated_at` is maintained by a `set_updated_at()` trigger.
-
-```mermaid
-erDiagram
-    profiles ||--o{ workspace_members : "member of"
-    profiles ||--o{ team_members : "member of"
-    profiles ||--o{ board_members : "member of"
-    profiles ||--o{ board_favourites : "favourites"
-    profiles ||--o{ boards : "owns"
-    profiles ||--o{ items : "created"
-    profiles ||--o{ comments : "authored"
-    profiles ||--o{ activities : "actor"
-    profiles ||--o{ notifications : "recipient"
-    workspaces ||--o{ workspace_members : "has"
-    workspaces ||--o{ teams : "has"
-    workspaces ||--o{ boards : "has"
-    workspaces ||--o{ activities : "feed"
-    teams ||--o{ team_members : "has"
-    teams |o--o{ boards : "groups"
-    boards ||--o{ board_members : "has"
-    boards ||--o{ board_favourites : "has"
-    boards ||--o{ board_groups : "has"
-    boards ||--o{ board_columns : "has"
-    boards ||--o{ items : "has"
-    board_groups ||--o{ items : "contains"
-    items |o--o{ items : "subitems"
-    items ||--o{ item_column_values : "has"
-    board_columns ||--o{ item_column_values : "typed by"
-    items ||--o{ comments : "has"
-
-    profiles {
-        uuid id PK "= auth.users.id"
-        text email UK
-        text first_name
-        text last_name
-        text display_name
-        text avatar_url
-        text job_title
-        text department
-        text timezone
-        timestamptz deactivated_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    workspaces {
-        uuid id PK
-        text name
-        text slug UK
-        text logo_url
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    workspace_members {
-        uuid id PK
-        uuid workspace_id FK
-        uuid user_id FK
-        workspace_role role "OWNER ADMIN MEMBER GUEST"
-        workspace_member_status status "ACTIVE INVITED DEACTIVATED"
-        timestamptz joined_at
-    }
-    teams {
-        uuid id PK
-        uuid workspace_id FK
-        text name
-        text description
-        text color
-        text icon
-        timestamptz archived_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    team_members {
-        uuid id PK
-        uuid team_id FK
-        uuid user_id FK
-        team_role role "LEAD MEMBER"
-    }
-    boards {
-        uuid id PK
-        uuid workspace_id FK
-        uuid team_id FK "nullable, set null on team delete"
-        text name
-        text slug "unique per workspace"
-        text description
-        board_type type "MAIN PRIVATE SHAREABLE"
-        board_visibility visibility "WORKSPACE TEAM PRIVATE"
-        uuid owner_id FK
-        text color
-        text icon
-        timestamptz archived_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    board_members {
-        uuid id PK
-        uuid board_id FK
-        uuid user_id FK
-        board_role role "OWNER EDITOR VIEWER"
-    }
-    board_favourites {
-        uuid id PK
-        uuid board_id FK
-        uuid user_id FK
-        timestamptz created_at
-    }
-    board_groups {
-        uuid id PK
-        uuid board_id FK
-        text name
-        text color
-        int position
-        bool collapsed
-        timestamptz created_at
-    }
-    board_columns {
-        uuid id PK
-        uuid board_id FK
-        text name
-        column_type type "TEXT STATUS PERSON DATE ..."
-        jsonb settings "ColumnSettings union"
-        int position
-        int width
-        bool hidden
-        timestamptz created_at
-    }
-    items {
-        uuid id PK
-        uuid board_id FK
-        uuid group_id FK
-        uuid parent_item_id FK "nullable, subitems"
-        text name
-        text description
-        float position
-        uuid created_by FK
-        timestamptz archived_at
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    item_column_values {
-        uuid id PK
-        uuid item_id FK
-        uuid column_id FK
-        jsonb value_json "ColumnValue union"
-        timestamptz updated_at
-    }
-    comments {
-        uuid id PK
-        uuid item_id FK
-        uuid author_id FK
-        text body
-        uuid_array mention_user_ids
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    activities {
-        uuid id PK
-        uuid workspace_id FK
-        uuid board_id FK "nullable, set null on delete"
-        uuid item_id FK "nullable, set null on delete"
-        uuid actor_id FK
-        activity_event_type event_type
-        jsonb metadata "ActivityMetadata"
-        timestamptz created_at
-    }
-    notifications {
-        uuid id PK
-        uuid user_id FK
-        notification_type type
-        text title
-        text body
-        notification_entity_type entity_type "ITEM BOARD COMMENT"
-        uuid entity_id "polymorphic, no FK"
-        uuid board_id FK
-        uuid actor_id FK
-        timestamptz read_at
-        timestamptz created_at
-    }
-```
-
-Notable constraints: `unique (workspace_id, user_id)`, `unique (team_id, user_id)`, `unique (board_id, user_id)` on the membership tables; `unique (workspace_id, slug)` on boards; `unique (item_id, column_id)` on values; `check (settings ? 'kind')` and `check (value_json ? 'type')` guard the JSON unions; triggers enforce that an item's group and a value's column belong to the same board. A small `board_visits (user_id, board_id, visited_at)` table backs the "Recently visited" list.
-
-## RLS strategy
-
-Full policies are in `supabase/policies/0001_rls_policies.sql` (with narrative in `supabase/policies/README.md`). They are a direct translation of `src/lib/permissions/permissions.ts` so client and database agree on the rules.
-
-- **Helpers, not inline subqueries.** Every `can*` helper in TypeScript has a `STABLE SECURITY DEFINER` counterpart in a `private` schema (`workspace_role`, `is_workspace_admin`, `can_create_board`, `can_manage_team`, `board_role`, `can_view_board`, `can_edit_board`, `can_manage_board`, `can_delete_board`, `can_view_item`, `can_edit_item`, `can_delete_comment`, `shares_workspace_with`). They read membership tables without recursing into RLS and are not exposed through PostgREST. `(select auth.uid())` is used so it is evaluated once per statement.
-- **Only ACTIVE workspace memberships grant access.** `INVITED` and `DEACTIVATED` rows confer nothing.
-- **Effective board role** (`private.board_role`) is resolved in the same order as `boardRoleFor()`: owner → explicit `board_members` row → workspace OWNER/ADMIN (EDITOR on every board) → visibility (`WORKSPACE`: every non-GUEST member is EDITOR; `TEAM`: team members are EDITOR; `PRIVATE`: nobody else).
-- **Profiles** are readable only by yourself and people who share a workspace with you; updatable only by yourself; created by the `handle_new_user()` trigger.
-- **Workspaces**: members read; OWNER/ADMIN update; OWNER deletes. Any signed-in user may create a workspace and bootstrap themselves as its first OWNER member (only while the workspace has no members).
-- **Workspace members / teams / team members**: read by workspace members; managed by workspace admins (teams and team membership also by team members via `can_manage_team`); anyone may remove themselves.
-- **Boards**: `can_view_board` for select; non-GUEST members create boards they own; `can_manage_board` (board OWNER or workspace admin) updates and manages `board_members`; `can_delete_board` (literal owner or workspace admin) deletes.
-- **Groups, columns, items, values**: readable with `can_view_board`, writable with `can_edit_board` (OWNER or EDITOR). Items must be created as yourself (`created_by = auth.uid()`).
-- **Comments**: editors comment as themselves; only the author edits; author or workspace admin deletes.
-- **Activities** are append-only: members insert their own rows (and only for boards they can see); no update/delete policies.
-- **Notifications** are recipient-only for select/update/delete; inserts must come from the acting user for someone in a shared workspace.
-- **Favourites and board visits** are strictly per-user.
-- **Realtime respects RLS**, so adding tables to the `supabase_realtime` publication (commented block at the end of the policy file) does not widen access.
-
-## Future realtime strategy
-
-Local mode has nothing to subscribe to, so `useBoardRealtime(boardId)` in `src/features/boards/hooks/use-board-realtime.ts` is a documented no-op that `BoardPage` already calls. When Supabase is connected it should open one channel per open board:
-
-| Table | Filter | Query keys to invalidate (`src/lib/query/keys.ts`) |
-| --- | --- | --- |
-| `items` | `board_id=eq.<boardId>` | `queryKeys.boardSnapshot(boardId)`, `queryKeys.myWork(workspaceId, userId)` |
-| `item_column_values` | (by item → board, or unfiltered and checked client-side) | `queryKeys.boardSnapshot(boardId)`, `queryKeys.myWork(...)` |
-| `comments` | `item_id` of the open item | `queryKeys.comments(itemId)` |
-| `activities` | `board_id=eq.<boardId>` | `queryKeys.boardActivity(boardId)`, `queryKeys.itemActivity(itemId)`, `queryKeys.workspaceActivity(workspaceId)` (all share the `["activity", …]` prefix) |
-| `notifications` | `user_id=eq.<uid>` (user-scoped channel, mounted in the shell) | `queryKeys.notifications(userId)` |
-
-Sketch from the hook's doc comment:
-
-```ts
-const channel = supabase.channel(`board:${boardId}`)
-  .on("postgres_changes", { event: "*", schema: "public", table: "items", filter: `board_id=eq.${boardId}` }, invalidateSnapshot)
-  .on("postgres_changes", { event: "*", schema: "public", table: "item_column_values" }, invalidateSnapshot)
-  .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, invalidateComments)
-  .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `board_id=eq.${boardId}` }, invalidateActivity)
-  .subscribe();
-return () => supabase.removeChannel(channel);
-```
-
-Because `useBoardMutations` already reconciles optimistic updates by invalidating `boardSnapshot`, incoming realtime events can reuse the same invalidation path; no per-event cache surgery is required. Board/group/column structure changes can be covered by adding `boards`, `board_groups` and `board_columns` to the channel with the same `boardSnapshot` (and `boards(workspaceId)`) invalidation.
-
-## Known limitations and "Coming later" placeholders
-
-- **Automations** — the board header button opens an informational dialog listing example rules; none are active.
-- **Integrations** — likewise a placeholder dialog (Microsoft Teams, Outlook, OneDrive, Google Drive, Slack). No connectors exist.
-- **Group by** — present in the toolbar with a "Coming later" badge; the table always groups by board group.
-- **Views** — all seven views are implemented and read-only where it matters (Gantt bars are not dragged; dates change on the item). The last-used view and each view's own settings (Kanban lanes and tint, zoom levels, calendar layout, workload period, chart slicing) are remembered per person and per board and follow them between devices; there are no shared, named saved views yet.
-- **Files** — attachments are metadata only (`AttachmentMeta`). In local mode files are not uploaded anywhere; the intended target is a Supabase Storage bucket `workspace-files`.
-- **Round trips** — in Supabase mode every board edit is several sequential requests to the database; booking and allocation batch what they can, but a stakeholder booking still takes a few seconds on a slow link.
-- **Local data is per browser profile.** Clearing site data removes everything; there is no export/import beyond tracker .xlsx.
-- **Authentication in local mode is intentionally not secure** — any listed email signs in without a password. Do not deploy the local provider outside development.
+The [knowledge base](KNOWLEDGE_BASE.md) contains the full domain model, route and API catalog, synchronization behavior, migration inventory, known implementation limits, and change guides. This README provides the starting workflow; that document provides the detailed maintenance reference.
