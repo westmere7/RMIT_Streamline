@@ -29,6 +29,7 @@ import type {
 import { bookingReference, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
+import { buildSeedArchive } from "./seed-archive";
 import { buildSeedExtras, type SeedExtrasContext } from "./seed-extras";
 import { buildSeedHistory } from "./seed-history";
 import { toISODate } from "@/lib/dates/dates";
@@ -108,11 +109,18 @@ const ID_NAMESPACES = {
   historyComment: "f4",
   historyAsset: "f5",
   historyNotification: "f6",
+  // A closed year of delivered work (seed-archive.ts), in its own namespaces so it
+  // can be added to a database that already holds the rest without shifting an id.
+  archiveItem: "fa",
+  archiveValue: "fb",
+  archiveActivity: "fc",
+  archiveAsset: "fd",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
 export type ExtrasIdNamespace = Extract<IdNamespace, `extra${string}`>;
 export type HistoryIdNamespace = Extract<IdNamespace, `history${string}`>;
+export type ArchiveIdNamespace = Extract<IdNamespace, `archive${string}`>;
 
 const counters = new Map<IdNamespace, number>();
 
@@ -854,9 +862,13 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
   return mergeSeedBundles(base, extras);
 }
 
-export function mergeSeedBundles(a: SeedBundle, b: SeedBundle): SeedBundle {
+export function mergeSeedBundles(...bundles: SeedBundle[]): SeedBundle {
   const merged: Record<string, unknown[]> = {};
-  for (const key of Object.keys(a) as Array<keyof SeedBundle>) merged[key] = [...a[key], ...b[key]];
+  for (const key of Object.keys(emptySeedBundle()) as Array<keyof SeedBundle>) {
+    const rows: unknown[] = [];
+    for (const bundle of bundles) rows.push(...bundle[key]);
+    merged[key] = rows;
+  }
   return merged as unknown as SeedBundle;
 }
 
@@ -905,8 +917,10 @@ export function buildSeedParts(now: Date = new Date()): SeedParts {
     teamNames,
     lookups,
   };
-  // The history is part of the extras, so the local seed, `db:seed` and the top-up all carry it.
-  return { base, extras: mergeSeedBundles(buildSeedExtras(ctx), buildSeedHistory(ctx)), lookups };
+  // The history and the closed year are part of the extras, so the local seed,
+  // `db:seed` and the additive top-up all carry them. The archive is merged last:
+  // its ids come from their own namespaces, so nothing before it shifts.
+  return { base, extras: mergeSeedBundles(buildSeedExtras(ctx), buildSeedHistory(ctx), buildSeedArchive(ctx)), lookups };
 }
 
 function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {

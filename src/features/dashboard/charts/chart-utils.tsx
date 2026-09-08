@@ -37,22 +37,42 @@ export function niceScale(peak: number, steps = 4): { top: number; ticks: number
   return { top, ticks };
 }
 
-/** The size of an element, kept current as the panel or window resizes. */
-export function useSize<T extends HTMLElement>(): [React.RefObject<T | null>, { width: number; height: number }] {
-  const ref = React.useRef<T>(null);
+/**
+ * The size of an element, kept current as the panel or window resizes.
+ *
+ * The ref is a callback rather than a ref object on purpose. A chart whose data
+ * runs out is replaced by its empty state, which unmounts the box being
+ * measured; when data returns, a *new* box mounts. Observing once on mount would
+ * leave the observer watching the old, detached node — and since removing an
+ * observed node reports a size of 0×0, the chart would be told it has no room
+ * and would render nothing at all, for good. Keyed on the node, the observer
+ * follows it, and a 0×0 report is ignored so the last real size stands.
+ */
+export function useSize<T extends HTMLElement>(): [(node: T | null) => void, { width: number; height: number }] {
+  const [node, setNode] = React.useState<T | null>(null);
   const [size, setSize] = React.useState({ width: 0, height: 0 });
+  const ref = React.useCallback((next: T | null) => {
+    setNode(next);
+  }, []);
   React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    if (!node) return;
+    const apply = (width: number, height: number) => {
+      const next = { width: Math.round(width), height: Math.round(height) };
+      if (next.width === 0 && next.height === 0) return;
+      setSize((prev) => (prev.width === next.width && prev.height === next.height ? prev : next));
+    };
+    // Measured here and not left to the observer's first callback: those are
+    // delivered with the next frame, and a tab that is not being painted gets no
+    // frames — the chart would wait for a resize that never comes.
+    const box = node.getBoundingClientRect();
+    apply(box.width, box.height);
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (!entry) return;
-      const next = { width: Math.round(entry.contentRect.width), height: Math.round(entry.contentRect.height) };
-      setSize((prev) => (prev.width === next.width && prev.height === next.height ? prev : next));
+      if (entry) apply(entry.contentRect.width, entry.contentRect.height);
     });
-    observer.observe(el);
+    observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [node]);
   return [ref, size];
 }
 

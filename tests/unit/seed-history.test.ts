@@ -5,8 +5,12 @@ import { toISODate } from "@/lib/dates/dates";
 const NOW = new Date("2026-09-07T09:30:00.000Z");
 const TODAY = toISODate(NOW);
 
-/** The generated history is the part of the extras in the "f…" id namespaces (seed-data.ts). */
-const isHistory = (id: string) => id.startsWith("000000f");
+/**
+ * The generated history is the part of the extras in the f1–f6 id namespaces
+ * (seed-data.ts). The closed year (seed-archive.ts) sits in fa–fd and is covered
+ * by its own suite, so it must not be counted in any figure here.
+ */
+const isHistory = (id: string) => /^000000f[1-6]-/.test(id);
 
 describe("the generated seed history", () => {
   const { base, extras } = buildSeedParts(NOW);
@@ -214,8 +218,11 @@ describe("the generated seed history", () => {
   });
 
   it("keeps the whole bundle a reasonable size for the browser database", () => {
-    expect(seed.itemColumnValues.length).toBeLessThan(4200);
-    expect(seed.activities.length).toBeLessThan(1400);
+    // The whole seed: base, extras, the generated history and the closed year
+    // (seed-archive.ts), which is the larger half of these rows.
+    expect(seed.itemColumnValues.length).toBeLessThan(9000);
+    expect(seed.activities.length).toBeLessThan(3000);
+    expect(seed.items.length).toBeLessThan(1600);
   });
 
   it("is deterministic for a given clock", () => {

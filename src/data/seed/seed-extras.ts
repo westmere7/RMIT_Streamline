@@ -29,7 +29,7 @@ import { slugify } from "@/lib/slug";
 import { describeBooking, mapBookingToColumns } from "@/services/booking";
 import { taskAllocationColumns } from "@/services/booking-service";
 import { SYSTEM_BOARD, SYSTEM_BOARD_GROUPS, SYSTEM_TEAM } from "@/services/workspace-service";
-import type { BoardKey, ExtrasIdNamespace, HistoryIdNamespace, SeedBundle, SeedLookups, TeamKey, UserKey } from "./seed-data";
+import type { ArchiveIdNamespace, BoardKey, ExtrasIdNamespace, HistoryIdNamespace, SeedBundle, SeedLookups, TeamKey, UserKey } from "./seed-data";
 
 /**
  * The second half of the demo seed: everything the newer sections need to look
@@ -46,8 +46,8 @@ import type { BoardKey, ExtrasIdNamespace, HistoryIdNamespace, SeedBundle, SeedL
 export interface SeedExtrasContext {
   now: Date;
   workspaceId: string;
-  /** Deterministic id generator restricted to the extras and history namespaces. */
-  sid: (ns: ExtrasIdNamespace | HistoryIdNamespace) => string;
+  /** Deterministic id generator restricted to the extras, history and archive namespaces. */
+  sid: (ns: ExtrasIdNamespace | HistoryIdNamespace | ArchiveIdNamespace) => string;
   users: Record<UserKey, string>;
   userNames: Record<UserKey, string>;
   teams: Record<TeamKey, string>;

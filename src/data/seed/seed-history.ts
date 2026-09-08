@@ -37,7 +37,7 @@ interface AssetLineSpec {
   qty: [number, number] | null;
 }
 
-interface HistoryBoardSpec {
+export interface HistoryBoardSpec {
   board: BoardKey;
   /** Who works on the board; the first `busy` of them carry three times the weight, so Workload shows hot weeks. */
   people: UserKey[];
@@ -69,7 +69,7 @@ interface HistoryBoardSpec {
 
 // ---- Deterministic randomness -----------------------------------------------------
 
-class Rng {
+export class Rng {
   private state: number;
 
   constructor(seed: number) {
@@ -117,7 +117,7 @@ class Rng {
 
 const HISTORY_SEED = 0x524d4954; // "RMIT"
 
-function hashKey(text: string): number {
+export function hashKey(text: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
     hash ^= text.charCodeAt(i);
@@ -130,7 +130,7 @@ function hashKey(text: string): number {
 
 const CREATIVE_STEPS = ["Brief and references", "First concept", "Internal review", "Amends round 1", "Stakeholder approval", "Final artwork", "Export and handover", "Upload to DAM"];
 
-const BOARD_HISTORY: HistoryBoardSpec[] = [
+export const BOARD_HISTORY: HistoryBoardSpec[] = [
   {
     board: "sem1",
     people: ["emily", "jun", "grace", "jane", "sarah", "tom", "priya"],
@@ -802,6 +802,13 @@ interface GeneratedItem {
   /** When the item was last touched: the last status change, or its creation. */
   touched: Date;
 }
+
+/**
+ * The boards a closed year is generated for (seed-archive.ts): every board that
+ * is still open. The 2025 campaign board is archived, and archived boards are
+ * out of the reports' scope, so filling it would cost rows nothing reads.
+ */
+export const ARCHIVE_BOARDS: HistoryBoardSpec[] = BOARD_HISTORY.filter((spec) => !spec.forceDone);
 
 export function buildSeedHistory(ctx: SeedExtrasContext): SeedBundle {
   const { now, workspaceId, sid, users, userNames, boards, lookups } = ctx;
