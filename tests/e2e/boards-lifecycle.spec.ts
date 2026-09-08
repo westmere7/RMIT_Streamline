@@ -35,7 +35,8 @@ test.describe("board lifecycle", () => {
       for (const group of want.groups) {
         await expect(page.getByTestId(`group-${group}`), `${template} should have group ${group}`).toBeVisible();
       }
-      const headers = await page.getByRole("columnheader").allTextContents();
+      // ID# is a fixed slot in front of the name, not one of the board's columns.
+      const headers = (await page.getByRole("columnheader").allTextContents()).filter((h) => h !== "ID#");
       expect(headers.slice(0, want.columns.length + 1).join("|"), `${template} column order`).toBe(["Item", ...want.columns].join("|"));
 
       // A brand-new board is usable straight away.

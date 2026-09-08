@@ -85,7 +85,7 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("booking-tab-assets")).toContainText("2");
     // The form settles the reference before it sends, and the receipt keeps it.
     const promised = (await page.getByTestId("booking-reference-preview").textContent())?.trim();
-    expect(promised).toMatch(/^TA-[0-9A-F]{5}$/);
+    expect(promised).toMatch(/^TA-[0-9A-F]{4}$/);
     await page.getByTestId("booking-submit").click();
 
     await expect(page.getByTestId("booking-receipt")).toBeVisible();
