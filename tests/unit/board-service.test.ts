@@ -117,3 +117,45 @@ describe("BoardService", () => {
     expect(values.find((v) => v.columnId === status.id)?.value).toEqual({ type: "STATUS", labelId: "working" });
   });
 });
+
+describe("deleting a team", () => {
+  let services: ReturnType<typeof createServices>;
+
+  beforeEach(() => {
+    counter += 1;
+    services = createServices(createLocalRepositories({ databaseName: `team-delete-${Date.now()}-${counter}` }));
+  });
+
+  it("leaves the boards behind by default, and takes them when asked", async () => {
+    const teamId = SEED_TEAM_IDS.campaigns;
+    const before = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => b.teamId === teamId);
+    expect(before.length).toBeGreaterThan(0);
+
+    const result = await services.workspace.deleteTeam(teamId);
+    expect(result).toEqual({ deletedBoards: 0, deletedTrackers: 0 });
+    expect(await services.repos.teams.getById(teamId)).toBeNull();
+    const after = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
+    expect(after.filter((b) => before.some((x) => x.id === b.id)).every((b) => b.teamId === null)).toBe(true);
+
+    // The other team goes with everything filed under it.
+    const otherId = SEED_TEAM_IDS.vietnam;
+    const theirBoards = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => b.teamId === otherId);
+    const theirItems = (await Promise.all(theirBoards.map((b) => services.repos.items.listByBoard(b.id)))).flat();
+    expect(theirBoards.length).toBeGreaterThan(0);
+    expect(theirItems.length).toBeGreaterThan(0);
+
+    const taken = await services.workspace.deleteTeam(otherId, { deleteBoards: true });
+    expect(taken.deletedBoards).toBe(theirBoards.length);
+    const left = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
+    expect(left.some((b) => theirBoards.some((x) => x.id === b.id))).toBe(false);
+    expect(await services.repos.items.listByBoard(theirBoards[0]!.id)).toEqual([]);
+    // Emptying a team of five boards and their months of history is a lot of
+    // writes; the browser shows a spinner while it runs.
+  }, 30_000);
+
+  it("refuses to delete a built-in team", async () => {
+    const { team } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
+    await expect(services.workspace.deleteTeam(team.id, { deleteBoards: true })).rejects.toThrow(/built in/);
+    expect(await services.repos.teams.getById(team.id)).not.toBeNull();
+  });
+});

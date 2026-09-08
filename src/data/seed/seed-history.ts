@@ -24,7 +24,7 @@ type Phase = "past" | "present" | "future";
 type StatusId = "not_started" | "working" | "waiting" | "stuck" | "done";
 type PriorityId = "critical" | "high" | "medium" | "low";
 
-const STATUS_NAMES: Record<StatusId, string> = { not_started: "Not Started", working: "Working On It", waiting: "Waiting", stuck: "Stuck", done: "Done" };
+const STATUS_NAMES: Record<StatusId, string> = { not_started: "Not Started", working: "In Progress", waiting: "Waiting", stuck: "Stuck", done: "Done" };
 
 /** An item name, optionally with the tags it carries; names without tags draw from the board's tag pool. */
 type Named = string | readonly [string, ...string[]];

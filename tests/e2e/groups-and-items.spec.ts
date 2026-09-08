@@ -118,7 +118,7 @@ test.describe("groups, items and subitems", () => {
     await page.getByRole("menuitem", { name: "Duplicate" }).click();
     const copy = page.locator('[data-item-name="RMITinerary Pragmatist (copy)"]');
     await expect(copy).toBeVisible({ timeout: 15000 });
-    await expect(copy.getByTestId("status-cell")).toContainText("Working On It");
+    await expect(copy.getByTestId("status-cell")).toContainText("In Progress");
     await page.reload();
     await expect(copy).toBeVisible({ timeout: 15000 });
 

@@ -99,7 +99,7 @@ describe("Task Linking", () => {
     const mirrored = (await services.repos.activities.listByItem(target.id)).find((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED");
     expect(mirrored?.metadata).toMatchObject({
       columnName: "Status",
-      to: "Working On It",
+      to: "In Progress",
       syncedFrom: "Open day messaging matrix",
     });
 

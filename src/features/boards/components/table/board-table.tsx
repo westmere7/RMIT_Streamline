@@ -197,9 +197,13 @@ export const BoardTable = React.memo(function BoardTable() {
   const width = tableWidth(model.visibleColumns.map((c) => ({ ...c, width: widthOverrides[c.id] ?? c.width })));
   const nothingVisible = model.visibleTopLevel === 0 && model.totalTopLevel > 0;
 
+  // The gutter left of the table is a margin on the scroller, not padding inside
+  // it: padding belongs to the scrollport, so rows slid through it and showed up
+  // left of the frozen name column. A margin puts the scrollport's edge where the
+  // frozen column stops, and the rows are clipped there.
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="scrollbar-thin flex-1 overflow-auto bg-surface/50 pl-6" data-testid="board-table">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-surface/50">
+      <div className="scrollbar-thin ml-6 flex-1 overflow-auto" data-testid="board-table">
         <CellStretchProvider>
           <div style={{ minWidth: width }} className="pb-24">
             <DndContext

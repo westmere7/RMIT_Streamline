@@ -71,17 +71,17 @@ describe("through the services", () => {
     const columnsA = await services.repos.boards.listColumns(a.id);
     const statusA = columnsA.find((c) => c.type === "STATUS")!;
     const settings = statusA.settings as StatusColumnSettings;
-    const working = settings.labels.find((l) => l.name === "Working On It")!;
+    const working = settings.labels.find((l) => l.name === "In Progress")!;
     const edited: StatusColumnSettings = {
       ...settings,
-      labels: settings.labels.map((l) => (l.id === working.id ? { ...l, name: "In Progress", color: "blue" as const } : l)).concat([{ id: "qa", name: "In QA", color: "rose" as const }]),
+      labels: settings.labels.map((l) => (l.id === working.id ? { ...l, name: "Underway", color: "blue" as const } : l)).concat([{ id: "qa", name: "In QA", color: "rose" as const }]),
     };
     await services.boards.updateColumn(statusA.id, { settings: edited });
 
     const statusB = (await services.repos.boards.listColumns(b.id)).find((c) => c.type === "STATUS")!;
     const namesB = (statusB.settings as StatusColumnSettings).labels.map((l) => l.name);
-    expect(namesB).toContain("In Progress");
-    expect(namesB).not.toContain("Working On It");
+    expect(namesB).toContain("Underway");
+    expect(namesB).not.toContain("In Progress");
     expect(namesB).toContain("In QA");
   });
 });

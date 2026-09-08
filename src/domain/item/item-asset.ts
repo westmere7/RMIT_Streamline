@@ -127,12 +127,10 @@ function plural(n: number, word: string): string {
  */
 export function formatAssetsRecap(recap: Pick<AssetsRecap, "lines" | "quantity"> & { types: number | string[]; people: number | EntityId[] }): string {
   if (recap.lines === 0) return "";
-  const types = Array.isArray(recap.types) ? recap.types.length : recap.types;
+  // How much there is and how many people are on it. The types are in the value
+  // for sorting and export, but a cell this narrow reads better without them.
   const people = Array.isArray(recap.people) ? recap.people.length : recap.people;
-  const parts = [plural(recap.quantity, "asset")];
-  if (types > 0) parts.push(plural(types, "type"));
-  parts.push(`${people} PIC`);
-  return parts.join(" · ");
+  return `${plural(recap.quantity, "asset")} · ${people} PIC`;
 }
 
 /** The value stored in an "Assets recap" column, so the board can sort, filter and export it. */

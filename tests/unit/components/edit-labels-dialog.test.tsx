@@ -24,7 +24,7 @@ describe("EditLabelsDialog status meanings", () => {
     open();
     expect(screen.getByRole("combobox", { name: "Meaning of Done" })).toHaveTextContent("Done");
     expect(screen.getByRole("combobox", { name: "Meaning of Stuck" })).toHaveTextContent("Stuck");
-    expect(screen.getByRole("combobox", { name: "Meaning of Working On It" })).toHaveTextContent("In progress");
+    expect(screen.getByRole("combobox", { name: "Meaning of In Progress" })).toHaveTextContent("In progress");
     expect(screen.getByRole("combobox", { name: "Meaning of Waiting" })).toHaveTextContent("No meaning");
   });
 

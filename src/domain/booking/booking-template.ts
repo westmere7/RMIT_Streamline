@@ -112,7 +112,7 @@ export const BOOKING_FIELD_TYPE_LABELS: Record<BookingFieldType, string> = {
   LINK: "Link",
   CHECKBOX: "Yes / no",
   TAGS: "Choice",
-  SIZE: "T-shirt size",
+  SIZE: "Size",
 };
 
 /** What each standard question is, for the editor's "add a question" list. */

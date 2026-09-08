@@ -268,7 +268,7 @@ test.describe("board interactions", () => {
   test("kanban moves a card between statuses and reflects in the table", async ({ page }) => {
     await switchView(page, "kanban");
     const card = page.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" });
-    const lane = page.getByTestId("lane-Working On It");
+    const lane = page.getByTestId("lane-In Progress");
     await card.scrollIntoViewIfNeeded();
     const from = await card.boundingBox();
     const to = await lane.boundingBox();
@@ -280,6 +280,6 @@ test.describe("board interactions", () => {
     await page.mouse.up();
     await expect(lane.getByTestId("kanban-card").filter({ hasText: "RMITinerary Independent" })).toBeVisible();
     await switchView(page, "table");
-    await expect(row(page, "RMITinerary Independent").getByTestId("status-cell")).toContainText("Working On It");
+    await expect(row(page, "RMITinerary Independent").getByTestId("status-cell")).toContainText("In Progress");
   });
 });

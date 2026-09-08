@@ -175,6 +175,35 @@ export class WorkspaceService {
     return this.repos.teams.update(teamId, { archivedAt: archived ? new Date().toISOString() : null });
   }
 
+  /**
+   * Removes a team for good. Its boards and trackers either go with it — items,
+   * updates, the lot — or stay in the workspace with no team, which is what the
+   * database does on its own when a team disappears. Built-in teams cannot be
+   * removed, and a built-in board is never deleted along with one.
+   */
+  async deleteTeam(teamId: EntityId, options: { deleteBoards?: boolean } = {}): Promise<{ deletedBoards: number; deletedTrackers: number }> {
+    const team = await this.repos.teams.getById(teamId);
+    if (!team) throw new NotFoundError("Team", teamId);
+    if (team.system) throw new Error(`${team.name} is built in and cannot be deleted. You can rename it instead.`);
+
+    let deletedBoards = 0;
+    let deletedTrackers = 0;
+    if (options.deleteBoards) {
+      const boards = (await this.repos.boards.listByWorkspace(team.workspaceId)).filter((b) => b.teamId === teamId && !b.system);
+      for (const board of boards) {
+        await this.repos.boards.delete(board.id);
+        deletedBoards += 1;
+      }
+      const trackers = (await this.repos.trackers.listByWorkspace(team.workspaceId)).filter((t) => t.teamId === teamId);
+      for (const tracker of trackers) {
+        await this.repos.trackers.delete(tracker.id);
+        deletedTrackers += 1;
+      }
+    }
+    await this.repos.teams.delete(teamId);
+    return { deletedBoards, deletedTrackers };
+  }
+
   // ---- Built-in team and board -----------------------------------------------
 
   /**

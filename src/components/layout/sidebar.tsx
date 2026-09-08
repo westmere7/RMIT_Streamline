@@ -15,7 +15,6 @@ import {
   Kanban,
   SquareKanban,
   ListTodo,
-  PanelLeft,
   PanelLeftClose,
   Plus,
   Search,
@@ -39,6 +38,7 @@ import type { Board, Team, Tracker } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
+import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useServices } from "@/features/data/data-context";
@@ -55,7 +55,7 @@ import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canCreateTeam, canDeleteBoard, canEditTrackers, canManageBoard, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 import { SIDEBAR_MIN_WIDTH, useUiStore } from "@/stores/ui-store";
 
 /** Actions rows can trigger that need dialogs owned by the sidebar itself. */
@@ -67,6 +67,7 @@ interface SidebarActions {
   requestDeleteTracker: (tracker: Tracker) => void;
   editTeam: (team: Team) => void;
   archiveTeam: (team: Team) => void;
+  deleteTeam: (team: Team) => void;
 }
 
 const SidebarActionsContext = React.createContext<SidebarActions | null>(null);
@@ -82,6 +83,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const drawer = variant === "drawer";
   const { user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const services = useServices();
   const queryClient = useQueryClient();
@@ -104,6 +106,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
   const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
   const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
+  const [deletingTeam, setDeletingTeam] = React.useState<Team | null>(null);
 
   const archiveTeam = useMutation({
     mutationFn: (team: Team) => services.workspace.archiveTeam(team.id, true),
@@ -112,6 +115,23 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       toast.success(`${team.name} archived`, { description: "Restore it from Settings → Teams." });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not archive team"),
+  });
+
+  const deleteTeam = useMutation({
+    mutationFn: ({ team, withBoards }: { team: Team; withBoards: boolean }) => services.workspace.deleteTeam(team.id, { deleteBoards: withBoards }),
+    onSuccess: async (result, { team }) => {
+      // Whatever page the team's work was on has just gone: step back to Home
+      // rather than leave the person looking at a board that no longer exists.
+      const wasHere = pathname.includes(`/teams/${team.id}`) || ws.boardsForTeam(team.id).some((b) => pathname.endsWith(`/boards/${b.slug}`));
+      await ws.refresh();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trackers(ws.workspace.id) });
+      setDeletingTeam(null);
+      if (wasHere) router.push(routes.workspace(ws.slug));
+      toast.success(`${team.name} deleted`, {
+        description: result.deletedBoards > 0 ? `${pluralize(result.deletedBoards, "board")} went with it.` : "Its boards are still here, without a team.",
+      });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not delete team"),
   });
 
   const sidebarActions = React.useMemo<SidebarActions>(
@@ -129,6 +149,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       requestDeleteTracker: (tracker) => setDeletingTracker(tracker),
       editTeam: (team) => setEditingTeam(team),
       archiveTeam: (team) => setArchivingTeam(team),
+      deleteTeam: (team) => setDeletingTeam(team),
     }),
     [],
   );
@@ -152,21 +173,21 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
 
   return (
     <SidebarActionsContext.Provider value={sidebarActions}>
+    {/* The sidebar rounds its corners and clips to them, so the edge you grab
+        cannot live inside it: it sits in this wrapper instead, over the gap
+        between the sidebar and the page. */}
+    <div
+      style={collapsed || drawer ? undefined : { width: sidebarWidth }}
+      className={cn("relative flex h-full shrink-0", !resizing && !drawer && "transition-[width] duration-150", collapsed && "w-14", drawer && "w-full")}
+    >
     <aside
       data-collapsed={collapsed}
-      style={collapsed || drawer ? undefined : { width: sidebarWidth }}
-      className={cn(
-        "relative flex h-full shrink-0 flex-col overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm",
-        !resizing && !drawer && "transition-[width] duration-150",
-        collapsed && "w-14",
-        drawer && "w-full",
-      )}
+      className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm"
       data-testid={drawer ? "sidebar-drawer" : "sidebar"}
       // Picking something in the drawer should put it away; Escape too.
       onClick={drawer ? (event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate?.(); } : undefined}
       onKeyDown={drawer ? (event) => { if (event.key === "Escape") onNavigate?.(); } : undefined}
     >
-      {!collapsed && !drawer && <SidebarResizeHandle onResizing={setResizing} />}
       {/* The product, and what it is: the logo opens About. Which workspace this
           is lives in the account menu, where switching between them will go. */}
       <div className={cn("flex h-14 shrink-0 items-center px-3", collapsed && "justify-center px-0")}>
@@ -198,18 +219,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 pt-1 pb-3" aria-label="Workspace navigation">
-        {collapsed && (
-          <SimpleTooltip label="Expand sidebar" side="right">
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              aria-label="Expand sidebar"
-              className="mb-1 flex size-9 w-full items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            >
-              <PanelLeft className="size-4" />
-            </button>
-          </SimpleTooltip>
-        )}
         <ul className="space-y-1">
           <NavItem href={routes.workspace(ws.slug)} icon={Home} label="Home" active={isActivePath(routes.workspace(ws.slug))} collapsed={collapsed} />
           <NavItem href={routes.myWork(ws.slug)} icon={ListTodo} label="My Work" active={isActivePath(routes.myWork(ws.slug))} collapsed={collapsed} />
@@ -397,7 +406,17 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           if (archivingTeam) await archiveTeam.mutateAsync(archivingTeam);
         }}
       />
+      <DeleteTeamDialog
+        team={deletingTeam}
+        boardCount={deletingTeam ? ws.boardsForTeam(deletingTeam.id).length : 0}
+        trackerCount={deletingTeam ? (trackers.data ?? []).filter((t) => t.teamId === deletingTeam.id).length : 0}
+        busy={deleteTeam.isPending}
+        onOpenChange={(open) => !open && setDeletingTeam(null)}
+        onConfirm={(withBoards) => deletingTeam && deleteTeam.mutate({ team: deletingTeam, withBoards })}
+      />
     </aside>
+      {!drawer && <SidebarResizeHandle collapsed={collapsed} onResizing={setResizing} />}
+    </div>
     </SidebarActionsContext.Provider>
   );
 }
@@ -687,7 +706,16 @@ function TeamNode({
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
   const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug) || trackers.some((t) => t.id === activeTrackerId);
-  const expanded = expandedIds.includes(team.id) || containsActive;
+  const expanded = expandedIds.includes(team.id);
+  const setTeamExpanded = useUiStore((s) => s.setTeamExpanded);
+  // Opening something from outside the sidebar — a link, search, the home page —
+  // unfolds its team once so it can be seen in place. Folding it up again after
+  // that sticks: the row keeps the highlight, so nothing is lost.
+  const openedKey = containsActive ? `${activeBoardSlug ?? ""}:${activeTrackerId ?? ""}` : "";
+  React.useEffect(() => {
+    if (openedKey) setTeamExpanded(team.id, true);
+  }, [openedKey, team.id, setTeamExpanded]);
+  const highlighted = activeTeam || (containsActive && !expanded);
   const colors = colorClasses(team.color);
   const manage = canManageTeam(ws.permissions, team.id);
 
@@ -709,14 +737,20 @@ function TeamNode({
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
     { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
-    ...(manage && !team.system ? [{ type: "separator" } satisfies MenuAction, { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction] : []),
+    ...(manage && !team.system
+      ? [
+          { type: "separator" } satisfies MenuAction,
+          { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction,
+          { type: "item", label: "Delete team…", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.deleteTeam(team) } satisfies MenuAction,
+        ]
+      : []),
   ];
 
   if (collapsed) {
     return (
       <li>
         <SimpleTooltip label={team.name} side="right">
-          <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
+          <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(highlighted), "justify-center px-0")}>
             <DynamicIcon name={team.icon} className={cn("size-4", colors.text)} />
           </Link>
         </SimpleTooltip>
@@ -727,7 +761,7 @@ function TeamNode({
   return (
     <li>
       <RowMenu label={`Options for ${team.name}`} actions={teamActions}>
-      <div className={cn("flex h-9 items-center rounded-xl pr-1 transition-colors", activeTeam ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
+      <div className={cn("flex h-9 items-center rounded-xl pr-1 transition-colors", highlighted ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
         <button
           type="button"
           onClick={() => toggleTeam(team.id)}
@@ -793,32 +827,76 @@ function TrackerLink({ tracker, active }: { tracker: Tracker; active: boolean })
  * Thin grab area on the sidebar's edge. Dragging widens the sidebar (the designed
  * width is the minimum); double-click snaps it back.
  */
-function SidebarResizeHandle({ onResizing }: { onResizing: (active: boolean) => void }) {
+/** Far enough to mean "drag", not a hand wobbling on the way to a click. */
+const DRAG_SLOP = 4;
+/** Long enough to tell a click from the first half of a double click. */
+const DOUBLE_CLICK_MS = 220;
+
+/**
+ * The sidebar's right edge. Dragging it sets the width; clicking it folds the
+ * sidebar away and clicking again brings it back, which is why a collapsed
+ * sidebar keeps its edge and needs no button of its own. A double click still
+ * resets the width, so the single click waits long enough to tell the two apart.
+ */
+function SidebarResizeHandle({ collapsed, onResizing }: { collapsed: boolean; onResizing: (active: boolean) => void }) {
   const setSidebarWidth = useUiStore((s) => s.setSidebarWidth);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const pending = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (pending.current !== null) window.clearTimeout(pending.current);
+    },
+    [],
+  );
+
   const start = (event: React.PointerEvent) => {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = useUiStore.getState().sidebarWidth;
-    onResizing(true);
-    const onMove = (e: PointerEvent) => setSidebarWidth(startWidth + (e.clientX - startX));
+    let dragged = false;
+    const onMove = (e: PointerEvent) => {
+      if (!dragged && Math.abs(e.clientX - startX) < DRAG_SLOP) return;
+      // A collapsed sidebar has no width to drag: the edge only brings it back.
+      if (collapsed) return;
+      if (!dragged) onResizing(true);
+      dragged = true;
+      setSidebarWidth(startWidth + (e.clientX - startX));
+    };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       onResizing(false);
+      if (dragged || pending.current !== null) return;
+      pending.current = window.setTimeout(() => {
+        pending.current = null;
+        toggleSidebar();
+      }, DOUBLE_CLICK_MS);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
+
+  const reset = () => {
+    if (pending.current !== null) {
+      window.clearTimeout(pending.current);
+      pending.current = null;
+    }
+    if (!collapsed) setSidebarWidth(SIDEBAR_MIN_WIDTH);
+  };
+
   return (
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize sidebar"
-      title="Drag to resize · double-click to reset"
+      aria-label={collapsed ? "Expand sidebar" : "Resize or collapse sidebar"}
+      title={collapsed ? "Click to expand" : "Drag to resize · click to collapse · double-click to reset the width"}
       onPointerDown={start}
-      onDoubleClick={() => setSidebarWidth(SIDEBAR_MIN_WIDTH)}
-      className="absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-ring/50 active:bg-ring"
+      onDoubleClick={reset}
+      className="group/edge absolute inset-y-0 -right-2 z-20 flex w-3 cursor-col-resize justify-start"
       data-testid="sidebar-resize"
-    />
+    >
+      {/* The strip is wide enough to hit; only a hairline of it shows. */}
+      <span aria-hidden className="h-full w-1 rounded-full transition-colors group-hover/edge:bg-ring/50 group-active/edge:bg-ring" />
+    </div>
   );
 }

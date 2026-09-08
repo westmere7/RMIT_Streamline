@@ -92,7 +92,7 @@ describe("local repositories (IndexedDB)", () => {
 
     const activity = await repos.activities.listByItem(item.id);
     expect(activity[0]?.eventType).toBe("ITEM_COLUMN_VALUE_UPDATED");
-    expect(activity[0]?.metadata).toMatchObject({ columnName: "Status", from: "Working On It", to: "Done" });
+    expect(activity[0]?.metadata).toMatchObject({ columnName: "Status", from: "In Progress", to: "Done" });
     const notifications = await repos.notifications.listByUser(SEED_USER_IDS.tuyet);
     expect(notifications.some((n) => n.type === "STATUS_CHANGED" && n.entityId === item.id)).toBe(true);
     // The actor is never notified about their own change.

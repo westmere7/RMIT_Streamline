@@ -101,6 +101,14 @@ function MoreCount({ count }: { count: number }) {
   return <span className="shrink-0 text-2xs font-medium text-muted-foreground">+{count}</span>;
 }
 
+/** The colour the board gives its "Done" label, whatever that label is called. Null when it has none. */
+function doneLabelColor(column: BoardColumn): string | null {
+  if (column.settings.kind !== "status") return null;
+  const ids = statusRoleIds(column.settings, "done");
+  const label = columnLabels(column).find((l) => ids.includes(l.id));
+  return label ? colorClasses(label.color).hex : null;
+}
+
 // ---- Status / Priority -----------------------------------------------------
 
 export function StatusCell({ item, column, value, onChange, readOnly, width }: CellProps) {
@@ -114,8 +122,16 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   // the track, and the done share is a slightly lighter tint of its own colour.
   // Only there: before it starts there is nothing to show, and once it is done
   // the chip already says so.
+  //
+  // The last line ticked takes the tint away again and rings the chip instead:
+  // a tint across the whole pill only washes out the colour the status is read
+  // by, and the ring says "all in" more plainly than a full bar.
   const assets = useItemAssetProgress(item.boardId, item.id);
   const progress = isProgressLabel(column, v.labelId) && assets && assets.lines > 0 ? assets : null;
+  // Every line ticked while the status still says the work is under way: ring the
+  // chip in the board's own "Done" colour, so finished deliverables show before
+  // anyone gets round to moving the status.
+  const allDone = progress?.percent === 100 ? doneLabelColor(column) : null;
   return (
     <PopoverCell
       width={w}
@@ -129,9 +145,11 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
           <span className="flex h-full w-full items-center p-1.5">
             <span
               className={cn("relative flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}
+              style={allDone ? { outline: `2px solid ${allDone}`, outlineOffset: "1px" } : undefined}
+              data-assets-complete={allDone ? "true" : undefined}
               title={progress ? `${label.name} — assets ${progress.done} of ${progress.lines} done` : undefined}
             >
-              {progress && (
+              {progress && !allDone && (
                 <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg" data-testid="status-asset-progress" data-percent={progress.percent}>
                   <span className="block h-full bg-white/20 transition-[width] duration-300" style={{ width: `${progress.percent}%` }} />
                 </span>

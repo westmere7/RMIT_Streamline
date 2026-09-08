@@ -66,11 +66,11 @@ describe("ItemDetailPanel", () => {
     );
     const panel = screen.getByTestId("item-panel");
     await user.click(within(panel).getByRole("gridcell", { name: /Status: Not Started/ }));
-    await user.click(await screen.findByRole("option", { name: "Working On It" }));
-    await waitFor(() => expect(within(panel).getByRole("gridcell", { name: /Status: Working On It/ })).toBeInTheDocument());
+    await user.click(await screen.findByRole("option", { name: "In Progress" }));
+    await waitFor(() => expect(within(panel).getByRole("gridcell", { name: /Status: In Progress/ })).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Activity" }));
     expect(await screen.findByText(/changed/)).toBeInTheDocument();
-    expect(screen.getByText("Working On It", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText("In Progress", { selector: "span" })).toBeInTheDocument();
   });
 
   it("lists linked items from other boards and opens the link dialog", async () => {

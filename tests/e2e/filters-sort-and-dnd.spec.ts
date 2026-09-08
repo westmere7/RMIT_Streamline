@@ -20,13 +20,13 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
   test("status, priority and group filters combine, and clear again", async ({ page }) => {
     const all = await names(page);
     await openFilters(page);
-    await page.getByTestId("filter-panel").getByText("Working On It").click();
+    await page.getByTestId("filter-panel").getByText("In Progress").click();
     await page.keyboard.press("Escape");
     const working = await names(page);
     expect(working.length).toBeGreaterThan(0);
     expect(working.length).toBeLessThan(all.length);
     for (const name of working) {
-      await expect(row(page, name).getByTestId("status-cell")).toContainText("Working On It");
+      await expect(row(page, name).getByTestId("status-cell")).toContainText("In Progress");
     }
 
     // Add a priority filter: the result is the intersection.
@@ -42,7 +42,7 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
     // A combination that matches nothing explains itself.
     await openFilters(page);
     await page.getByTestId("filter-panel").getByText("Stuck").click();
-    await page.getByTestId("filter-panel").getByText("Working On It").click();
+    await page.getByTestId("filter-panel").getByText("In Progress").click();
     await page.keyboard.press("Escape");
     await page.getByTestId("search-input").fill("zzz nothing on this board is called this");
     await expect(page.getByText(/no tasks match these filters/i)).toBeVisible({ timeout: 15000 });

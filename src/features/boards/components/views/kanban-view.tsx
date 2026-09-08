@@ -1,7 +1,7 @@
 "use client";
 
-import { closestCorners, DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import * as React from "react";
@@ -18,6 +18,7 @@ import { CardCover } from "@/features/items/item-cover";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
+import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
@@ -38,12 +39,26 @@ interface Lane {
   initial: { groupId: string; values: Array<{ columnId: string; value: ColumnValue }> } | null;
 }
 
+/**
+ * How much of an item a card carries, and so how tall it stands: the name alone
+ * for a board you scan, everything including the brief for one you work from.
+ */
+type CardDetail = "compact" | "standard" | "detailed";
+
+const CARD_DETAIL_OPTIONS: ReadonlyArray<{ value: CardDetail; label: string }> = [
+  { value: "compact", label: "Compact" },
+  { value: "standard", label: "Standard" },
+  { value: "detailed", label: "Detailed" },
+];
+
 interface KanbanSettings extends Record<string, unknown> {
   laneBy: LaneBy;
   /** Wash each lane in its own colour. */
   tint: boolean;
   /** Lanes folded to a strip. */
   collapsed: string[];
+  /** How much each card shows, and how tall it is. */
+  detail: CardDetail;
 }
 
 /**
@@ -65,10 +80,12 @@ export function KanbanView() {
       ].filter((o): o is { value: LaneBy; label: string } => !!o),
     [model],
   );
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tint: false, collapsed: [] });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tint: false, collapsed: [], detail: "standard" });
+  const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
 
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
   const firstGroup = model.groups[0];
@@ -129,47 +146,87 @@ export function KanbanView() {
 
   // Which card sits where. During a drag this is a working copy that the pointer
   // rearranges, so the other cards make way for the ghost of the one in hand.
+  /**
+   * What the card in hand is over. Corner distance alone cannot land a card in an
+   * empty lane: with no card of its own to be near, a card in the lane alongside
+   * is always closer. So the pointer decides first — the lane it is inside wins,
+   * and a card under it wins over the lane behind — and corners only settle it
+   * when the pointer has left the lanes altogether.
+   */
+  const laneIds = React.useMemo(() => new Set(lanes.map((l) => l.id)), [lanes]);
+  const collisionDetection = React.useCallback<CollisionDetection>(
+    (args) => {
+      const under = pointerWithin(args);
+      if (under.length > 0) return [under.find((c) => !laneIds.has(String(c.id))) ?? under[0]!];
+      return closestCorners(args);
+    },
+    [laneIds],
+  );
+
   const laneItemIds = React.useMemo(() => Object.fromEntries(lanes.map((l) => [l.id, l.items.map((i) => i.id)])) as Record<string, string[]>, [lanes]);
   const [drag, setDrag] = React.useState<{ activeId: string; lanes: Record<string, string[]> } | null>(null);
+  /** The last two landing places worked out, and where the card was when the latest one was. */
+  const bounced = React.useRef<string[]>([]);
+  const at = React.useRef<{ x: number; y: number } | null>(null);
   const shown = drag?.lanes ?? laneItemIds;
   const laneOf = (id: string, map: Record<string, string[]>) => (id in map ? id : Object.keys(map).find((laneId) => map[laneId]!.includes(id)) ?? null);
   const sameOrder = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
-  const onDragStart = (event: DragStartEvent) => setDrag({ activeId: String(event.active.id), lanes: laneItemIds });
+  const onDragStart = (event: DragStartEvent) => {
+    bounced.current = [];
+    at.current = null;
+    setDrag({ activeId: String(event.active.id), lanes: laneItemIds });
+  };
 
   /**
-   * Rearranges the working copy as the pointer moves. It must return the state
-   * object unchanged whenever the arrangement is the same: every state change
-   * re-renders, which makes dnd-kit measure again and fire another drag-over, so
-   * an update that changes nothing loops until React gives up.
+   * Where the card in hand would land, worked out afresh on every move.
+   *
+   * The arrangement is always derived from the one the drag started with, never
+   * from the one on screen. A rearrangement that feeds on its own output has
+   * hysteresis: the card moves, which moves what is under the pointer, which
+   * moves the card back, and with the pointer held still the two flip back and
+   * forth until React gives up on the re-renders and the board goes down. Read
+   * from a fixed starting point, the same pointer position always gives the same
+   * answer, so there is nothing to flip between.
+   *
+   * The last two answers are kept as well: if a still pointer would take us back
+   * to where we just were, that is the bounce beginning, and it is ignored.
    */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
+    if (overId === activeId) return;
+
+    const from = laneOf(activeId, laneItemIds);
+    const to = laneIds.has(overId) ? overId : laneOf(overId, laneItemIds);
+    if (!from || !to) return;
+
     const translated = active.rect.current.translated;
     const below = !!translated && translated.top > over.rect.top + over.rect.height / 2;
+    const target = laneItemIds[to]!.filter((id) => id !== activeId);
+    const index = laneIds.has(overId) ? target.length : Math.max(0, target.indexOf(overId) + (below ? 1 : 0));
+    const signature = `${to}#${index}`;
+
+    // A pointer that has not moved cannot mean two different things: if this is
+    // the answer from before last, the two are bouncing off each other.
+    const point = translated ? { x: Math.round(translated.left), y: Math.round(translated.top) } : null;
+    const still = !!point && !!at.current && Math.abs(point.x - at.current.x) <= 2 && Math.abs(point.y - at.current.y) <= 2;
+    if (still && bounced.current[0] === signature) return;
+    if (point) at.current = point;
+    if (bounced.current[bounced.current.length - 1] !== signature) bounced.current = [...bounced.current.slice(-1), signature];
+
+    target.splice(index, 0, activeId);
+    const next: Record<string, string[]> = { ...laneItemIds, [to]: target };
+    if (from !== to) next[from] = laneItemIds[from]!.filter((id) => id !== activeId);
+
     setDrag((current) => {
       if (!current) return current;
-      const from = laneOf(activeId, current.lanes);
-      const to = laneOf(overId, current.lanes);
-      if (!from || !to) return current;
-      if (from === to) {
-        // Over the lane itself rather than a card: nothing to reorder.
-        if (overId === to) return current;
-        const ids = current.lanes[from]!;
-        const oldIndex = ids.indexOf(activeId);
-        const newIndex = ids.indexOf(overId);
-        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return current;
-        return { activeId, lanes: { ...current.lanes, [from]: arrayMove(ids, oldIndex, newIndex) } };
-      }
-      const fromIds = current.lanes[from]!.filter((id) => id !== activeId);
-      const toIds = current.lanes[to]!.filter((id) => id !== activeId);
-      const at = overId === to ? toIds.length : Math.max(0, toIds.indexOf(overId) + (below ? 1 : 0));
-      toIds.splice(at, 0, activeId);
-      if (sameOrder(current.lanes[from]!, fromIds) && sameOrder(current.lanes[to]!, toIds)) return current;
-      return { activeId, lanes: { ...current.lanes, [from]: fromIds, [to]: toIds } };
+      // Same arrangement: hand back the very same object, or dnd-kit measures
+      // again, fires another drag-over, and the loop starts on its own.
+      if (Object.keys(next).every((laneId) => sameOrder(next[laneId]!, current.lanes[laneId] ?? []))) return current;
+      return { activeId, lanes: next };
     });
   };
 
@@ -216,6 +273,8 @@ export function KanbanView() {
       >
         <span className="text-xs text-muted-foreground">Lanes by</span>
         <Segmented value={laneBy} onChange={(next) => updateSettings({ laneBy: next })} options={options} ariaLabel="Lanes by" testId="kanban-lanes" />
+        <span className="text-xs text-muted-foreground">Cards</span>
+        <Segmented value={detail} onChange={(next) => updateSettings({ detail: next })} options={CARD_DETAIL_OPTIONS} ariaLabel="How much each card shows" testId="kanban-detail" />
         <button
           type="button"
           onClick={() => updateSettings({ tint: !settings.tint })}
@@ -227,13 +286,14 @@ export function KanbanView() {
         </button>
       </ViewBar>
       <div className="scrollbar-thin flex min-h-0 flex-1 gap-3 overflow-x-auto p-5" data-testid="kanban-lanes-scroller">
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
           {lanes.map((lane) => (
             <LaneColumn
               key={lane.id}
               lane={lane}
               itemIds={shown[lane.id] ?? []}
               laneBy={laneBy}
+              detail={detail}
               canEdit={canEdit}
               tint={settings.tint}
               collapsed={collapsed.has(lane.id)}
@@ -246,14 +306,14 @@ export function KanbanView() {
           {/* No drop animation: dnd-kit would fly the card back to where it was
               picked up, which reads as the drop being refused even though the
               card is already in its new lane. */}
-          <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} overlay /> : null}</DragOverlay>
+          <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} overlay /> : null}</DragOverlay>
         </DndContext>
       </div>
     </div>
   );
 }
 
-function LaneColumn({ lane, itemIds, laneBy, canEdit, tint, collapsed, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; canEdit: boolean; tint: boolean; collapsed: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
+function LaneColumn({ lane, itemIds, laneBy, detail, canEdit, tint, collapsed, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; canEdit: boolean; tint: boolean; collapsed: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
   const { model } = useBoardContext();
   const { setNodeRef, isOver } = useDroppable({ id: lane.id, disabled: !canEdit });
   const [draft, setDraft] = React.useState("");
@@ -293,7 +353,7 @@ function LaneColumn({ lane, itemIds, laneBy, canEdit, tint, collapsed, activeId,
       <SortableContext id={lane.id} items={itemIds} strategy={verticalListSortingStrategy}>
         <div className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto px-2.5 pb-1">
           {items.map((item) => (
-            <SortableCard key={item.id} item={item} laneBy={laneBy} disabled={!canEdit} ghost={item.id === activeId} />
+            <SortableCard key={item.id} item={item} laneBy={laneBy} detail={detail} disabled={!canEdit} ghost={item.id === activeId} />
           ))}
           {items.length === 0 && <p className="px-2 py-4 text-center text-2xs text-muted-foreground">{activeId ? "Drop here" : "No items"}</p>}
         </div>
@@ -333,7 +393,7 @@ function LaneColumn({ lane, itemIds, laneBy, canEdit, tint, collapsed, activeId,
 }
 
 /** A card that can be picked up; while it is in hand, this copy stays in the flow as a ghost marking where it will land. */
-function SortableCard({ item, laneBy, disabled, ghost }: { item: Item; laneBy: LaneBy; disabled: boolean; ghost: boolean }) {
+function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; laneBy: LaneBy; detail: CardDetail; disabled: boolean; ghost: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing")} data-testid={ghost ? "kanban-ghost" : undefined}>
@@ -342,18 +402,18 @@ function SortableCard({ item, laneBy, disabled, ghost }: { item: Item; laneBy: L
         // keeps its shape while the others make way.
         <div className="relative" aria-hidden>
           <div className="invisible">
-            <Card item={item} laneBy={laneBy} />
+            <Card item={item} laneBy={laneBy} detail={detail} />
           </div>
           <div className="absolute inset-0 rounded-xl border-2 border-dashed border-ring/50 bg-ring/5" />
         </div>
       ) : (
-        <Card item={item} laneBy={laneBy} />
+        <Card item={item} laneBy={laneBy} detail={detail} />
       )}
     </div>
   );
 }
 
-function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?: boolean }) {
+function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; overlay?: boolean }) {
   const { model, board, users, openItem, openItemUpdates, mutations, canEdit, updates } = useBoardContext();
   const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);
@@ -387,9 +447,14 @@ function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?:
   const recap = lines.length ? recapAssets(lines, todayISO()) : null;
   const overdue = !done && isOverdue(due);
   const dueToday = !done && isToday(due);
+  const compact = detail === "compact";
+  const detailed = detail === "detailed";
   const showStatus = laneBy !== "status" && statusLabel;
   const showPriority = laneBy !== "priority" && priorityLabel;
-  const chips = showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size);
+  const chips = !compact && (showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size));
+  // Only the fullest cards carry the brief, and two lines of it at that.
+  const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
+  const shownTags = tags.slice(0, detailed ? 6 : 2);
   const open = () => openItem(item.id);
 
   return (
@@ -400,15 +465,21 @@ function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?:
           data-item-name={item.name}
           onClick={overlay ? undefined : open}
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
-          className={cn("relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card p-3 shadow-xs transition-shadow hover:shadow-md", overlay && "rotate-1 shadow-xl", done && "opacity-70")}
+          className={cn(
+            "relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card shadow-xs transition-shadow hover:shadow-md",
+            compact ? "px-2.5 py-2" : "p-3",
+            overlay && "rotate-1 shadow-xl",
+            done && "opacity-70",
+          )}
         >
           {/* A hairline of the status colour down the left when the lanes do not already say it. */}
           {laneBy !== "status" && statusLabel && <span aria-hidden className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", colorClasses(statusLabel.color).dot)} />}
-          <CardCover url={item.coverUrl} />
+          {!compact && <CardCover url={item.coverUrl} />}
           <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-medium leading-snug hover:underline", done && "line-through")} aria-label={`Open ${item.name}`}>
             {item.name}
           </button>
-          {group && laneBy !== "group" && (
+          {brief && <p className="mt-1 line-clamp-2 text-2xs leading-snug text-muted-foreground">{brief}</p>}
+          {!compact && group && laneBy !== "group" && (
             <p className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
               <span className={cn("size-1.5 rounded-full", colorClasses(group.color).dot)} /> {group.name}
             </p>
@@ -418,15 +489,15 @@ function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?:
               {showStatus && <LabelPill label={statusLabel} appearance="soft" size="sm" striped={isStuckLabel(statusColumn, statusLabel.id)} />}
               {showPriority && <LabelPill label={priorityLabel} appearance="soft" size="sm" />}
               {size?.type === "SIZE" && size.size && <SizePill size={size.size} />}
-              {tags.slice(0, 2).map((t) => (
+              {shownTags.map((t) => (
                 <span key={t.name} className={cn("rounded-full px-1.5 py-0.5 text-2xs font-medium", colorClasses(t.color ?? tagColorFor(t.name)).soft)}>
                   {formatTag(t.name)}
                 </span>
               ))}
-              {tags.length > 2 && <span className="text-2xs text-muted-foreground">+{tags.length - 2}</span>}
+              {tags.length > shownTags.length && <span className="text-2xs text-muted-foreground">+{tags.length - shownTags.length}</span>}
             </div>
           )}
-          <div className="mt-2.5 flex items-center justify-between gap-2">
+          <div className={cn("flex items-center justify-between gap-2", compact ? "mt-1.5" : "mt-2.5")}>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
               {due ? (
                 <span className={cn("inline-flex items-center gap-0.5 tabular", overdue && "font-medium text-red-600 dark:text-red-400", dueToday && "font-medium text-foreground")} title={span ?? undefined}>
@@ -436,7 +507,8 @@ function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?:
               ) : (
                 span && <span className="tabular">{span}</span>
               )}
-              {subitems.length > 0 && (
+              {!compact && detailed && span && due && <span className="tabular">{span}</span>}
+              {!compact && subitems.length > 0 && (
                 <span className="inline-flex items-center gap-1 tabular" title={`${subDone} of ${subitems.length} subitems done`} data-testid="card-subitems">
                   <CornerDownRight className="size-3" />
                   {subDone}/{subitems.length}
@@ -445,13 +517,13 @@ function Card({ item, laneBy, overlay }: { item: Item; laneBy: LaneBy; overlay?:
                   </span>
                 </span>
               )}
-              {recap && (
+              {!compact && recap && (
                 <span className="inline-flex items-center gap-0.5 tabular" title={`${recap.quantity} assets across ${recap.lines} lines`} data-testid="card-assets">
                   <Boxes className="size-3" /> {recap.quantity}
                 </span>
               )}
-              {blocked && <TriangleAlert className="size-3 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}
-              {linked && <RefreshCw className="size-3" aria-label="Linked to an item on another board" />}
+              {!compact && blocked && <TriangleAlert className="size-3 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}
+              {!compact && linked && <RefreshCw className="size-3" aria-label="Linked to an item on another board" />}
               <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                 <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
               </span>

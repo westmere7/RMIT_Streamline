@@ -124,6 +124,10 @@ test.describe("columns: alignment, dragging and renaming", () => {
     await page.getByTestId("column-name-input").fill("Urgency");
     await page.getByTestId("column-name-input").press("Enter");
     await expect.poll(() => headerNames(page), { timeout: 15000 }).toContain("Urgency");
+    // The header is optimistic: it says "Urgency" before the write and the rename
+    // it carries to the linked board have landed. A full page load throws away
+    // whatever is still in flight, so give the write a moment first.
+    await page.waitForTimeout(1000);
 
     // The linked board's matching column followed, so the pair still lines up.
     await page.goto("/workspace/rmit/boards/open-day-2026");

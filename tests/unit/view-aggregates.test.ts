@@ -79,7 +79,7 @@ describe("groupItems", () => {
       ["done", ["a"]],
       [NONE_KEY, ["d", "e"]],
     ]);
-    expect(status.map((b) => b.label)).toEqual(["Working On It", "Stuck", "Done", "No status"]);
+    expect(status.map((b) => b.label)).toEqual(["In Progress", "Stuck", "Done", "No status"]);
     expect(status[0]!.color).toBe("orange");
     expect(status[3]!.color).toBeNull();
 

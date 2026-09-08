@@ -20,7 +20,7 @@ function formatValue(columnType: string | undefined, value: string | null | unde
 
 /**
  * Turns a raw activity event into a human sentence such as
- * "Danh changed Status from Working On It to Done".
+ * "Danh changed Status from In Progress to Done".
  * `includeItem` appends "on <item>" for feeds that mix items.
  */
 export function describeActivity(activity: Activity, users: readonly User[], includeItem = false): React.ReactNode {

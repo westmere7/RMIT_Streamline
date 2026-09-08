@@ -119,8 +119,8 @@ test.describe("deployed build", () => {
 
     // Status, owner and date, each confirmed on the row.
     await created.getByTestId("status-cell").click();
-    await page.getByRole("option", { name: "Working On It", exact: true }).click();
-    await expect(created.getByTestId("status-cell")).toContainText("Working On It", { timeout: 30_000 });
+    await page.getByRole("option", { name: "In Progress", exact: true }).click();
+    await expect(created.getByTestId("status-cell")).toContainText("In Progress", { timeout: 30_000 });
 
     await created.getByTestId("person-cell").click();
     await page.getByTestId("person-picker").getByPlaceholder("Search people…").fill("Tuyet");
@@ -143,7 +143,7 @@ test.describe("deployed build", () => {
 
     // Everything above survives a reload, which means it reached Postgres.
     await page.reload();
-    await expect(row(page, name).getByTestId("status-cell")).toContainText("Working On It", { timeout: 60_000 });
+    await expect(row(page, name).getByTestId("status-cell")).toContainText("In Progress", { timeout: 60_000 });
     await expect(row(page, name).getByTestId("person-cell")).toHaveAttribute("aria-label", /Tuyet Le/);
 
     // It shows up in My Work for its new owner? No — check filtering and sorting instead.

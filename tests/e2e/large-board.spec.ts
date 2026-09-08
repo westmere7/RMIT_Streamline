@@ -52,7 +52,7 @@ async function buildLargeBoard(page: Page) {
       kind: "status",
       labels: [
         { id: "not_started", name: "Not Started", color: "gray" },
-        { id: "working", name: "Working On It", color: "orange" },
+        { id: "working", name: "In Progress", color: "orange" },
         { id: "stuck", name: "Stuck", color: "red" },
         { id: "done", name: "Done", color: "green" },
       ],

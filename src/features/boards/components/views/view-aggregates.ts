@@ -123,7 +123,7 @@ export const DIMENSION_LABELS: Record<GroupDimension, string> = {
   group: "Group",
   person: "Person",
   tags: "Tags",
-  size: "T-shirt size",
+  size: "Size",
   dueWeek: "Due week",
 };
 

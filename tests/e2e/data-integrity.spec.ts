@@ -16,7 +16,7 @@ test.describe("data integrity under stress", () => {
   test("ten status changes in a row leave the last one stored", async ({ page }) => {
     await openBoard(page);
     const cell = row(page, ITEM).getByTestId("status-cell");
-    const wanted = ["Done", "Stuck", "Working On It", "Waiting", "Not Started", "Done", "Waiting", "Stuck", "Working On It", "Done"];
+    const wanted = ["Done", "Stuck", "In Progress", "Waiting", "Not Started", "Done", "Waiting", "Stuck", "In Progress", "Done"];
     for (const status of wanted) {
       await cell.click();
       await page.getByRole("option", { name: status, exact: true }).click();

@@ -97,11 +97,11 @@ test.describe("asset lines and the recap column", () => {
     await expect(panel(page).getByTestId("assets-due")).toContainText(/Next due/);
 
     // The board cell follows: 3 posters + 1 tile, one type, one person.
-    await expect(cell).toContainText("4 assets · 1 type · 1 PIC", { timeout: 20_000 });
+    await expect(cell).toContainText("4 assets · 1 PIC", { timeout: 20_000 });
 
     // Everything survives a reload, and the badge on the tab counts the lines.
     await page.reload();
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("4 assets · 1 type · 1 PIC", { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("4 assets · 1 PIC", { timeout: 20_000 });
     await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
     await expect(panel(page).getByTestId("tab-assets")).toContainText("2");
 
@@ -121,7 +121,7 @@ test.describe("asset lines and the recap column", () => {
     await openLine(page, "Instagram tile");
     await line(page, "Instagram tile").getByTestId("asset-remove").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("3 assets · 1 type · 1 PIC", { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("3 assets · 1 PIC", { timeout: 20_000 });
   });
 
   test("a viewer sees the lines but cannot change them", async ({ page }) => {

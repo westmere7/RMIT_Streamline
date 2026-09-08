@@ -55,7 +55,7 @@ describe("translateValue", () => {
     const target = col("b", "Status", "STATUS", {
       kind: "status",
       labels: [
-        { id: "x1", name: "Working on it", color: "orange" },
+        { id: "x1", name: "In progress", color: "orange" },
         { id: "x2", name: "Shipped", color: "green" },
       ],
       doneLabelIds: ["x2"],

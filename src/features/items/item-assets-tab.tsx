@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Hash, Minus, Plus, Tag, TriangleAlert, UserRound, X } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Hash, Minus, Pencil, Plus, Tag, TriangleAlert, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -189,12 +189,22 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   );
 }
 
-const chipClass = "inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/70 bg-background px-2 text-xs hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent";
+/** A control in an open line's little form. Full width, so the fields line up in columns. */
+const fieldClass =
+  "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 text-xs transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent";
+
+/** Long enough to tell a double click from two single ones, short enough that opening a line still feels immediate. */
+const DOUBLE_CLICK_MS = 220;
 
 /**
  * One deliverable. Closed, it is a single row: done, number, name, and the same
- * details as a quiet summary. Open, those details become the pickers that set
- * them, with the notes underneath.
+ * details as a quiet summary. Open, those details become a small form — four
+ * labelled fields in two columns with the spec across the foot — so the controls
+ * line up with each other and down the list.
+ *
+ * Clicking the line opens and closes it, whether it is open or not; renaming is
+ * a double click (or the pencil, which is also where the keyboard finds it), so
+ * reading a line and editing its name never fight over the same click.
  */
 function AssetLine({
   line,
@@ -219,11 +229,38 @@ function AssetLine({
   const done = line.completedAt !== null;
   const overdue = !done && isOverdue(line.dueDate);
   const typeLabel = assetTypeLabel(line.assetType);
-  const inCharge = assignees.length === 0 ? "In charge" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
+  const inCharge = assignees.length === 0 ? "Not set" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
+  const [renaming, setRenaming] = React.useState(false);
+  // The first click of a double click has to be held back, or a rename would
+  // open (or close) the line on its way through.
+  const pending = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (pending.current !== null) window.clearTimeout(pending.current);
+    },
+    [],
+  );
+
+  const click = () => {
+    if (renaming || pending.current !== null) return;
+    pending.current = window.setTimeout(() => {
+      pending.current = null;
+      onToggle();
+    }, DOUBLE_CLICK_MS);
+  };
+
+  const rename = () => {
+    if (!canEdit) return;
+    if (pending.current !== null) {
+      window.clearTimeout(pending.current);
+      pending.current = null;
+    }
+    setRenaming(true);
+  };
 
   return (
     <li
-      className={cn("rounded-xl border border-border/70 bg-card shadow-xs transition-colors", open && "border-border ring-1 ring-border/60", done && "bg-card/60")}
+      className={cn("group/line rounded-xl border border-border/70 bg-card shadow-xs transition-colors", open && "border-border ring-1 ring-border/60", done && "bg-card/60")}
       data-testid="asset-line"
       data-asset-name={line.name}
       data-asset-done={done ? "true" : "false"}
@@ -251,38 +288,59 @@ function AssetLine({
           #{number}
         </span>
 
-        {open && canEdit ? (
-          <TextField
-            value={line.name}
-            placeholder="Asset"
-            ariaLabel={`Asset name: ${line.name}`}
-            canEdit
-            onCommit={(name) => name.trim() && name !== line.name && onChange({ name: name.trim() })}
-            testId="asset-name"
-            className="min-w-0 flex-1 font-medium"
-          />
-        ) : (
-          <button type="button" onClick={onToggle} className="min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-[13px] font-medium hover:bg-accent" data-testid="asset-name">
-            <span className={cn(done && "text-muted-foreground line-through")}>{line.name}</span>
-          </button>
-        )}
+        {/* Name and summary together: one target, so a click anywhere along the line opens it. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 select-none" onClick={click} onDoubleClick={rename}>
+          {renaming && canEdit ? (
+            <TextField
+              value={line.name}
+              placeholder="Asset"
+              ariaLabel={`Asset name: ${line.name}`}
+              canEdit
+              autoFocus
+              onCommit={(name) => name.trim() && name !== line.name && onChange({ name: name.trim() })}
+              onDone={() => setRenaming(false)}
+              testId="asset-name"
+              className="min-w-0 flex-1 font-medium"
+            />
+          ) : (
+            <button
+              type="button"
+              aria-expanded={open}
+              title={canEdit ? "Click to open, double click to rename" : undefined}
+              className="min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-[13px] font-medium hover:bg-accent"
+              data-testid="asset-name"
+            >
+              <span className={cn(done && "text-muted-foreground line-through")}>{line.name}</span>
+            </button>
+          )}
 
-        {/* The details, in passing, while the line is closed. */}
-        {!open && (
-          <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
-            {typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" />}
-            <span className="tabular">×{assetCount(line)}</span>
-            {assignees.length > 0 && (
-              <span className="flex -space-x-1">
-                {assignees.slice(0, 3).map((u) => (
-                  <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
-                ))}
-              </span>
-            )}
-            {line.dueDate && (
-              <span className={cn("tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>{formatShortDate(line.dueDate)}</span>
-            )}
-          </span>
+          {/* The details, in passing, while the line is closed. */}
+          {!open && !renaming && (
+            <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
+              {typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" />}
+              <span className="tabular">×{assetCount(line)}</span>
+              {assignees.length > 0 && (
+                <span className="flex -space-x-1">
+                  {assignees.slice(0, 3).map((u) => (
+                    <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
+                  ))}
+                </span>
+              )}
+              {line.dueDate && <span className={cn("tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>{formatShortDate(line.dueDate)}</span>}
+            </span>
+          )}
+        </div>
+
+        {canEdit && !renaming && (
+          <button
+            type="button"
+            onClick={rename}
+            aria-label={`Rename ${line.name}`}
+            data-testid="asset-rename"
+            className="shrink-0 rounded-md p-1 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/line:opacity-100"
+          >
+            <Pencil className="size-3.5" />
+          </button>
         )}
 
         <button
@@ -297,16 +355,21 @@ function AssetLine({
         </button>
       </div>
 
-      {/* ---- The row you edit ------------------------------------------------ */}
+      {/* ---- The row you edit: four fields in two columns, spec across the foot. */}
       {open && (
-        <div className="space-y-1.5 border-t border-border/60 px-2.5 pt-2 pb-2 pl-[46px]">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Type */}
+        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2 pb-2.5 pl-[46px]" data-testid="asset-details">
+          <Detail label="Type">
             <Popover>
               <PopoverTrigger asChild disabled={!canEdit}>
-                <button type="button" className={cn(chipClass, typeLabel && "border-transparent", typeLabel && colorClasses(typeLabel.color).soft)} aria-label={`Asset type: ${line.assetType ?? "not set"}`} data-testid="asset-type">
-                  <Tag className="size-3 shrink-0 opacity-70" />
-                  <span className="truncate">{typeLabel?.name ?? "Type"}</span>
+                <button type="button" className={fieldClass} aria-label={`Asset type: ${line.assetType ?? "not set"}`} data-testid="asset-type">
+                  {typeLabel ? (
+                    <LabelPill label={typeLabel} appearance="soft" size="sm" />
+                  ) : (
+                    <>
+                      <Tag className="size-3 shrink-0 opacity-60" />
+                      <span className="truncate text-muted-foreground/80">Not set</span>
+                    </>
+                  )}
                 </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-60 p-2">
@@ -343,11 +406,13 @@ function AssetLine({
                 />
               </PopoverContent>
             </Popover>
+          </Detail>
 
-            {/* Who is in charge. A line can take more than one person. */}
+          {/* Who is in charge. A line can take more than one person. */}
+          <Detail label="In charge">
             <Popover>
               <PopoverTrigger asChild disabled={!canEdit}>
-                <button type="button" className={chipClass} aria-label={`In charge: ${assignees.length > 0 ? assignees.map((u) => u.displayName).join(", ") : "nobody"}`} data-testid="asset-assignee">
+                <button type="button" className={fieldClass} aria-label={`In charge: ${assignees.length > 0 ? assignees.map((u) => u.displayName).join(", ") : "nobody"}`} data-testid="asset-assignee">
                   {assignees.length > 0 ? (
                     <span className="flex shrink-0 -space-x-1">
                       {assignees.slice(0, 3).map((u) => (
@@ -355,64 +420,114 @@ function AssetLine({
                       ))}
                     </span>
                   ) : (
-                    <UserRound className="size-3 shrink-0 opacity-70" />
+                    <UserRound className="size-3 shrink-0 opacity-60" />
                   )}
-                  <span className="truncate">{inCharge}</span>
+                  <span className={cn("truncate", assignees.length === 0 && "text-muted-foreground/80")}>{inCharge}</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-64 p-0">
                 <PersonPicker users={users} value={line.assigneeIds} onChange={(ids) => onChange({ assigneeIds: ids })} />
               </PopoverContent>
             </Popover>
+          </Detail>
 
-            {/* Quantity: a stepper, because most edits are ±1 */}
+          {/* Quantity: a stepper, because most edits are ±1 */}
+          <Detail label="Quantity">
             <QuantityChip value={line.quantity} canEdit={canEdit} onChange={(quantity) => quantity !== line.quantity && onChange({ quantity })} />
+          </Detail>
 
-            {/* Due, pushed to the right so the row reaches both edges */}
+          <Detail label="Due">
             <Popover>
               <PopoverTrigger asChild disabled={!canEdit}>
-                <button type="button" className={cn(chipClass, "ml-auto tabular", overdue && "border-red-300 text-red-700 dark:border-red-500/50 dark:text-red-300")} aria-label={`Due: ${line.dueDate ? formatShortDate(line.dueDate) : "not set"}`} data-testid="asset-due">
-                  {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-70" />}
-                  <span>{line.dueDate ? formatShortDate(line.dueDate) : "Due"}</span>
+                <button
+                  type="button"
+                  className={cn(fieldClass, "tabular", overdue && "border-red-300 text-red-700 dark:border-red-500/50 dark:text-red-300")}
+                  aria-label={`Due: ${line.dueDate ? formatShortDate(line.dueDate) : "not set"}`}
+                  data-testid="asset-due"
+                >
+                  {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
+                  <span className={cn("truncate", !line.dueDate && "text-muted-foreground/80")}>{line.dueDate ? formatShortDate(line.dueDate) : "Not set"}</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-auto p-0">
                 <DatePicker value={line.dueDate} onChange={(dueDate) => onChange({ dueDate })} />
               </PopoverContent>
             </Popover>
-          </div>
+          </Detail>
 
-          <div className="flex items-center gap-1">
-            <TextField
-              value={line.notes ?? ""}
-              placeholder={canEdit ? "Spec, size, format…" : ""}
-              ariaLabel={`Notes: ${line.notes ?? "none"}`}
-              canEdit={canEdit}
-              onCommit={(notes) => (notes.trim() || null) !== line.notes && onChange({ notes: notes.trim() || null })}
-              testId="asset-notes"
-              className={cn("min-w-0 flex-1 text-xs text-muted-foreground focus:text-foreground", !canEdit && !line.notes && "hidden")}
-            />
-            {canEdit && (
-              <Button type="button" variant="ghost" size="icon-xs" aria-label={`Remove ${line.name}`} onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-destructive" data-testid="asset-remove">
-                <X className="size-3.5" />
-              </Button>
-            )}
-          </div>
+          <Detail label="Spec" className={cn("col-span-2", !canEdit && !line.notes && "hidden")}>
+            <div className="flex items-center gap-1">
+              <TextField
+                value={line.notes ?? ""}
+                placeholder={canEdit ? "Size, format, finish…" : ""}
+                ariaLabel={`Notes: ${line.notes ?? "none"}`}
+                canEdit={canEdit}
+                onCommit={(notes) => (notes.trim() || null) !== line.notes && onChange({ notes: notes.trim() || null })}
+                testId="asset-notes"
+                className="h-8 min-w-0 flex-1 rounded-lg border border-border/70 px-2 text-xs"
+              />
+              {canEdit && (
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${line.name}`} onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-destructive" data-testid="asset-remove">
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          </Detail>
         </div>
       )}
     </li>
   );
 }
 
+/** One labelled field of the open line's form. */
+function Detail({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn("grid min-w-0 gap-1", className)}>
+      <span className="label-quiet">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 /** A text field that saves on blur or Enter and gives up on Escape. */
-function TextField({ value, placeholder, ariaLabel, canEdit, onCommit, testId, className }: { value: string; placeholder: string; ariaLabel: string; canEdit: boolean; onCommit: (next: string) => void; testId: string; className?: string }) {
+function TextField({
+  value,
+  placeholder,
+  ariaLabel,
+  canEdit,
+  onCommit,
+  testId,
+  className,
+  autoFocus,
+  onDone,
+}: {
+  value: string;
+  placeholder: string;
+  ariaLabel: string;
+  canEdit: boolean;
+  onCommit: (next: string) => void;
+  testId: string;
+  className?: string;
+  /** Renaming: take the caret and select what is there, so typing replaces the name. */
+  autoFocus?: boolean;
+  /** Called once the field is finished with, committed or not. */
+  onDone?: () => void;
+}) {
   const [draft, setDraft] = React.useState(value);
   // A save elsewhere (another tab, a linked copy) replaces the draft; a draft in progress is otherwise kept.
   const [seen, setSeen] = React.useState(value);
+  const input = React.useRef<HTMLInputElement>(null);
+  // Escape blurs, and the blur must not save what Escape just threw away.
+  const abandoned = React.useRef(false);
   if (value !== seen) {
     setSeen(value);
     setDraft(value);
   }
+  React.useEffect(() => {
+    if (!autoFocus) return;
+    input.current?.focus();
+    input.current?.select();
+  }, [autoFocus]);
   if (!canEdit) {
     return (
       <span className={cn("min-w-0 truncate text-[13px]", className)} data-testid={testId}>
@@ -422,13 +537,24 @@ function TextField({ value, placeholder, ariaLabel, canEdit, onCommit, testId, c
   }
   return (
     <input
+      ref={input}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onCommit(draft)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onBlur={() => {
+        if (abandoned.current) {
+          abandoned.current = false;
+          setDraft(value);
+        } else {
+          onCommit(draft);
+        }
+        onDone?.();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         if (e.key === "Escape") {
-          setDraft(value);
+          abandoned.current = true;
           (e.target as HTMLInputElement).blur();
         }
       }}
@@ -440,7 +566,7 @@ function TextField({ value, placeholder, ariaLabel, canEdit, onCommit, testId, c
   );
 }
 
-/** "× 6" with − and + on either side; typing a number in the middle works too. */
+/** "− 6 +": a stepper, since most edits are one either way; typing a number in the middle works too. */
 function QuantityChip({ value, canEdit, onChange }: { value: number | null; canEdit: boolean; onChange: (next: number | null) => void }) {
   const [draft, setDraft] = React.useState(value === null ? "" : String(value));
   const [seen, setSeen] = React.useState(value);
@@ -458,14 +584,14 @@ function QuantityChip({ value, canEdit, onChange }: { value: number | null; canE
   const step = (delta: number) => onChange(Math.max(0, (value ?? 1) + delta));
   if (!canEdit) {
     return (
-      <span className={cn(chipClass, "tabular")} data-testid="asset-quantity-readonly">
-        <Hash className="size-3 opacity-70" /> {value ?? 1}
+      <span className={cn(fieldClass, "tabular")} data-testid="asset-quantity-readonly">
+        <Hash className="size-3 opacity-60" /> {value ?? 1}
       </span>
     );
   }
   return (
-    <span className={cn(chipClass, "gap-0 px-0.5 tabular")} data-testid="asset-quantity-chip">
-      <button type="button" onClick={() => step(-1)} aria-label="One fewer" className="flex size-6 items-center justify-center rounded-full hover:bg-black/[0.06] dark:hover:bg-white/[0.08]" data-testid="asset-quantity-minus">
+    <span className={cn(fieldClass, "justify-between gap-0 px-0.5 tabular")} data-testid="asset-quantity-chip">
+      <button type="button" onClick={() => step(-1)} aria-label="One fewer" className="flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-black/[0.06] dark:hover:bg-white/[0.08]" data-testid="asset-quantity-minus">
         <Minus className="size-3" />
       </button>
       <input
@@ -478,9 +604,9 @@ function QuantityChip({ value, canEdit, onChange }: { value: number | null; canE
         }}
         aria-label={`Quantity: ${value ?? "not set"}`}
         data-testid="asset-quantity"
-        className="h-6 w-9 bg-transparent text-center text-xs outline-none focus:rounded-md focus:bg-background focus:ring-2 focus:ring-ring"
+        className="h-6 min-w-0 flex-1 bg-transparent text-center text-xs outline-none focus:rounded-md focus:bg-background focus:ring-2 focus:ring-ring"
       />
-      <button type="button" onClick={() => step(1)} aria-label="One more" className="flex size-6 items-center justify-center rounded-full hover:bg-black/[0.06] dark:hover:bg-white/[0.08]" data-testid="asset-quantity-plus">
+      <button type="button" onClick={() => step(1)} aria-label="One more" className="flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-black/[0.06] dark:hover:bg-white/[0.08]" data-testid="asset-quantity-plus">
         <Plus className="size-3" />
       </button>
     </span>

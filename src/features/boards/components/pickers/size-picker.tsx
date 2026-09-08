@@ -30,7 +30,7 @@ export function SizePill({ size, className }: { size: TShirtSize | null; classNa
 /** The five sizes in a row, plus a way to clear. */
 export function SizePicker({ value, onChange }: { value: TShirtSize | null; onChange: (size: TShirtSize | null) => void }) {
   return (
-    <div className="flex flex-col gap-1.5" role="listbox" aria-label="T-shirt size" data-testid="size-picker">
+    <div className="flex flex-col gap-1.5" role="listbox" aria-label="Size" data-testid="size-picker">
       <div className="flex items-center gap-1">
         {T_SHIRT_SIZES.map((size) => {
           const active = value === size;

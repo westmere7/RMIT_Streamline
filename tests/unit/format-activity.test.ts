@@ -14,8 +14,8 @@ function activity(overrides: Partial<Activity>): Activity {
 describe("describeActivityText", () => {
   it("turns a status change into a sentence", () => {
     expect(
-      describeActivityText(activity({ eventType: "ITEM_COLUMN_VALUE_UPDATED", metadata: { columnName: "Status", columnType: "STATUS", from: "Working On It", to: "Done" } }), users),
-    ).toBe("Danh changed Status from Working On It to Done");
+      describeActivityText(activity({ eventType: "ITEM_COLUMN_VALUE_UPDATED", metadata: { columnName: "Status", columnType: "STATUS", from: "In Progress", to: "Done" } }), users),
+    ).toBe("Danh changed Status from In Progress to Done");
   });
 
   it("describes assignments by name", () => {

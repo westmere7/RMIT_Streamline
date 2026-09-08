@@ -75,7 +75,7 @@ export function isStuckLabel(column: BoardColumn | null | undefined, labelId: st
   return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "stuck";
 }
 
-/** True when this label means the work is under way — "Working On It", however the board words it. */
+/** True when this label means the work is under way — "In Progress", however the board words it. */
 export function isProgressLabel(column: BoardColumn | null | undefined, labelId: string | null | undefined): boolean {
   return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "progress";
 }
@@ -148,7 +148,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   CHECKBOX: "Checkbox",
   LINK: "Link",
   TAGS: "Tags",
-  SIZE: "T-shirt size",
+  SIZE: "Size",
   ASSETS_RECAP: "Assets recap",
   DEPENDENCY: "Dependency",
 };
@@ -172,7 +172,8 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
 
 export const DEFAULT_STATUS_LABELS: ColumnLabel[] = [
   { id: "not_started", name: "Not Started", color: "gray" },
-  { id: "working", name: "Working On It", color: "orange" },
+  { id: "working", name: "In Progress", color: "orange" },
+  { id: "review", name: "In Review", color: "violet" },
   { id: "waiting", name: "Waiting", color: "sky" },
   { id: "stuck", name: "Stuck", color: "red" },
   { id: "done", name: "Done", color: "green" },

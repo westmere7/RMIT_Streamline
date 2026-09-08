@@ -36,7 +36,7 @@ describe("asset recap maths", () => {
     expect(recap.doneQuantity).toBe(3);
     expect(recap.nextDue).toBe("2026-09-07");
     expect(recap.overdue).toBe(1);
-    expect(formatAssetsRecap({ lines: recap.lines, quantity: recap.quantity, types: recap.types, people: recap.assigneeIds })).toBe("12 assets · 3 types · 2 PIC");
+    expect(formatAssetsRecap({ lines: recap.lines, quantity: recap.quantity, types: recap.types, people: recap.assigneeIds })).toBe("12 assets · 2 PIC");
     expect(formatAssetsRecap({ lines: 1, quantity: 1, types: 0, people: 0 })).toBe("1 asset · 0 PIC");
     expect(formatAssetsRecap({ lines: 0, quantity: 0, types: 0, people: 0 })).toBe("");
     expect(countByType([{ quantity: 2, assetType: "Print" }, { quantity: 1, assetType: "Print" }, { quantity: null, assetType: null }])).toEqual([
@@ -53,7 +53,7 @@ describe("asset recap maths", () => {
     const column: BoardColumn = { id: "c", boardId: "b", name: "Assets recap", type: "ASSETS_RECAP", settings: { kind: "none" }, position: 0, width: 200, hidden: false, createdAt: "" };
     const value = recapColumnValue(recapAssets([{ quantity: 4, assetType: "Print", assigneeIds: ["u1"], dueDate: null, completedAt: null }], TODAY));
     expect(isEmptyValue(value)).toBe(false);
-    expect(displayValue(column, value, [])).toBe("4 assets · 1 type · 1 PIC");
+    expect(displayValue(column, value, [])).toBe("4 assets · 1 PIC");
     expect(displayValue(column, empty, [])).toBeNull();
 
     // Sorts by how much is being produced, blanks last.

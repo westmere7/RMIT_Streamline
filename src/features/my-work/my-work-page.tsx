@@ -30,7 +30,7 @@ export function MyWorkPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mx-auto w-full max-w-5xl">
+      <div className="mx-auto w-full max-w-7xl">
       <PageHeader
         title="My Work"
         description={`${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`}
@@ -44,7 +44,7 @@ export function MyWorkPage() {
         }
       />
       </div>
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-8 sm:px-6"><div className="mx-auto w-full max-w-5xl">
+      <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-8 sm:px-6"><div className="mx-auto w-full max-w-7xl">
         {myWork.isLoading && (
           <div className="space-y-2 pt-2">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-9" />)}

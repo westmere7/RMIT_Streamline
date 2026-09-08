@@ -7,11 +7,11 @@ import { displayValue } from "@/services/column-display";
 const column: BoardColumn = { id: "size", boardId: "b", name: "Size", type: "SIZE", settings: defaultSettingsFor("SIZE"), position: 0, width: 110, hidden: false, createdAt: "" };
 const item = (id: string, position: number): Item => ({ id, boardId: "b", groupId: "g", parentItemId: null, name: id, description: null, position, createdBy: "u", archivedAt: null, createdAt: "", updatedAt: "" });
 
-describe("T-shirt size column", () => {
+describe("Size column", () => {
   it("is a first-class column type with five sizes, each with its own colour", () => {
     expect(T_SHIRT_SIZES).toEqual(["XS", "S", "M", "L", "XL"]);
     expect(new Set(Object.values(T_SHIRT_SIZE_COLORS)).size).toBe(5);
-    expect(COLUMN_TYPE_LABELS.SIZE).toBe("T-shirt size");
+    expect(COLUMN_TYPE_LABELS.SIZE).toBe("Size");
     expect(DEFAULT_COLUMN_WIDTHS.SIZE).toBeGreaterThan(0);
     expect(isTShirtSize("M")).toBe(true);
     expect(isTShirtSize("XXL")).toBe(false);

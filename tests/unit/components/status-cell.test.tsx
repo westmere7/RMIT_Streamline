@@ -39,15 +39,15 @@ describe("StatusCell", () => {
 
   it("shows the current label as a coloured pill", () => {
     renderCell();
-    expect(screen.getByRole("gridcell", { name: /Status: Working On It for Hero film/ })).toHaveTextContent("Working On It");
+    expect(screen.getByRole("gridcell", { name: /Status: In Progress for Hero film/ })).toHaveTextContent("In Progress");
   });
 
   it("opens a picker and emits the chosen label", async () => {
     const user = userEvent.setup();
     const { onChange } = renderCell();
-    await user.click(screen.getByRole("gridcell", { name: /Status: Working On It/ }));
+    await user.click(screen.getByRole("gridcell", { name: /Status: In Progress/ }));
     const done = await screen.findByRole("option", { name: "Done" });
-    expect(screen.getByRole("option", { name: "Working On It" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: "In Progress" })).toHaveAttribute("aria-selected", "true");
     await user.click(done);
     expect(onChange).toHaveBeenCalledWith({ type: "STATUS", labelId: "done" });
   });
@@ -82,8 +82,26 @@ describe("StatusCell", () => {
     expect(bar.firstElementChild).toHaveStyle({ width: "50%" });
     // The label still reads first: the bar is decoration with the count in a title.
     expect(bar).toHaveAttribute("aria-hidden");
-    expect(bar.parentElement).toHaveAttribute("title", "Working On It — assets 2 of 4 done");
-    expect(screen.getByRole("gridcell", { name: /Status: Working On It for Hero film/ })).toHaveTextContent("Working On It");
+    expect(bar.parentElement).toHaveAttribute("title", "In Progress — assets 2 of 4 done");
+    expect(screen.getByRole("gridcell", { name: /Status: In Progress for Hero film/ })).toHaveTextContent("In Progress");
+  });
+
+  it("rings the chip in the Done colour once every line is ticked off, and drops the tint", () => {
+    assets.progress = { lines: 4, done: 4, percent: 100 };
+    renderCell();
+    const chip = screen.getByTitle("In Progress — assets 4 of 4 done");
+    // green-600, the colour this board gives its own "Done" label.
+    expect(chip).toHaveAttribute("data-assets-complete", "true");
+    expect(chip.getAttribute("style")).toContain("#16a34a");
+    // The ring stands in for the bar, so the chip keeps its own colour rather than a tint across all of it.
+    expect(screen.queryByTestId("status-asset-progress")).not.toBeInTheDocument();
+
+    // Part way through it is the other way round: the tint shows and there is no ring.
+    assets.progress = { lines: 4, done: 3, percent: 75 };
+    renderCell();
+    const partial = screen.getByTestId("status-asset-progress").parentElement!;
+    expect(partial).not.toHaveAttribute("data-assets-complete");
+    expect(partial.getAttribute("style")).toBeNull();
   });
 
   it("keeps the bar to work that is under way", () => {
@@ -104,6 +122,6 @@ describe("StatusCell", () => {
   it("is not interactive when read only", () => {
     renderCell(vi.fn(), vi.fn(), true);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByRole("gridcell")).toHaveTextContent("Working On It");
+    expect(screen.getByRole("gridcell")).toHaveTextContent("In Progress");
   });
 });
