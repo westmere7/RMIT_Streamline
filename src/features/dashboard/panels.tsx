@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils";
 /** The card every panel sits in: a title, a line under it, an optional control on the right. */
 export function Panel({ title, subtitle, action, info, children, className, bodyClassName, testId }: { title: React.ReactNode; subtitle?: React.ReactNode; action?: React.ReactNode; info?: string; children: React.ReactNode; className?: string; bodyClassName?: string; testId?: string }) {
   return (
-    <section className={cn("flex min-h-0 min-w-0 flex-col rounded-2xl border border-border/60 bg-card p-4 shadow-xs sm:p-5", className)} data-testid={testId}>
+    // h-full: a panel wrapped in a column-span div would otherwise stop at its content
+    // and leave the canvas showing under it while its neighbour ran on.
+    <section className={cn("flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-border/60 bg-card p-4 shadow-xs sm:p-5", className)} data-testid={testId}>
       <header className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-1.5 text-[14px] font-semibold tracking-tight">
@@ -99,7 +101,7 @@ export function StatTiles({ summary }: { summary: Summary }) {
   const donePct = summary.tasks > 0 ? Math.round((summary.doneTasks / summary.tasks) * 100) : 0;
   const assetPct = summary.assetUnits > 0 ? Math.round((summary.doneAssetUnits / summary.assetUnits) * 100) : 0;
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid="dashboard-tiles">
+    <div className="grid h-full auto-rows-fr grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid="dashboard-tiles">
       <StatTile icon={CheckCircle2} label="Tasks done" value={`${donePct}%`} hint={`${formatCount(summary.doneTasks)} of ${formatCount(summary.tasks)}`} tone={donePct >= 60 ? "good" : "neutral"} />
       <StatTile icon={Layers} label="Assets done" value={`${assetPct}%`} hint={`${formatCount(summary.doneAssetUnits)} of ${formatCount(summary.assetUnits)} units`} tone={assetPct >= 60 ? "good" : "neutral"} />
       <StatTile icon={Clock} label="On time" value={summary.onTimeRate === null ? "—" : `${summary.onTimeRate}%`} hint="finished by their due date" tone={summary.onTimeRate !== null && summary.onTimeRate >= 75 ? "good" : "neutral"} />
@@ -124,7 +126,16 @@ export function TeamsPanel({ rows, unit, onSelect, action }: { rows: TeamDeliver
   }));
   return (
     <Panel title="Delivery by team" subtitle={unit === "assets" ? "Asset units · tasks" : "Tasks · asset units"} info="What each team delivered in the current scope. Click a team to focus the whole dashboard on it." action={action} testId="dashboard-teams-panel">
-      <RankedBars data={data} valueLabel={unit === "assets" ? "asset units" : "tasks"} secondaryLabel={unit === "assets" ? "tasks" : "asset units"} onSelect={onSelect ? (row) => onSelect(row.id!) : undefined} emptyMessage="No team has work in this scope." />
+      {/* Spread down the panel: it shares a column with the workload chart, so a short
+          team list would otherwise sit in the top third with blank space under it. */}
+      <RankedBars
+        data={data}
+        valueLabel={unit === "assets" ? "asset units" : "tasks"}
+        secondaryLabel={unit === "assets" ? "tasks" : "asset units"}
+        onSelect={onSelect ? (row) => onSelect(row.id!) : undefined}
+        emptyMessage="No team has work in this scope."
+        className="flex-1 justify-around"
+      />
     </Panel>
   );
 }
@@ -158,9 +169,9 @@ export function RequestsPanel({ requests, nowMonth, year, action }: { requests: 
         <p className="label-quiet mb-1">Requests per month · {year}</p>
         <MonthSparkline values={requests.perMonth} nowMonth={nowMonth} color={colorClasses("indigo").hex} label="Requests per month" />
       </div>
-      <div className="mt-4 min-h-0 flex-1">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
         <p className="label-quiet mb-1.5">By school or department</p>
-        <RankedBars data={requests.byDepartment.slice(0, 7)} valueLabel="requests" compact emptyMessage="No requests in this scope." />
+        <RankedBars data={requests.byDepartment.slice(0, 7)} valueLabel="requests" compact emptyMessage="No requests in this scope." className="flex-1 justify-around" />
       </div>
     </Panel>
   );
@@ -169,16 +180,19 @@ export function RequestsPanel({ requests, nowMonth, year, action }: { requests: 
 export function RequestDetailPanel({ requests }: { requests: RequestsSummary }) {
   return (
     <Panel title="Request breakdown" subtitle="Who asked which team for what" info="Requested team is what the stakeholder chose on the form, or the team whose board took the booking directly." testId="dashboard-request-detail">
-      <div className="grid gap-5 sm:grid-cols-3">
-        <div>
+      {/* Three lists of different lengths: they keep one rhythm and stay top-aligned so
+          the eye can read across them. Spreading each to the card's height gave every
+          column a different row pitch. */}
+      <div className="grid min-h-0 flex-1 gap-5 sm:grid-cols-3">
+        <div className="flex min-h-0 flex-col">
           <p className="label-quiet mb-1.5">Requested team</p>
           <RankedBars data={requests.byTeam} valueLabel="requests" compact emptyMessage="Nothing yet." />
         </div>
-        <div>
+        <div className="flex min-h-0 flex-col">
           <p className="label-quiet mb-1.5">Urgency</p>
           <RankedBars data={requests.byUrgency} valueLabel="requests" compact emptyMessage="Nothing yet." />
         </div>
-        <div>
+        <div className="flex min-h-0 flex-col">
           <p className="label-quiet mb-1.5">Asset type asked for</p>
           <RankedBars data={requests.byAssetType} valueLabel="requests" compact emptyMessage="Nothing yet." />
         </div>
@@ -220,7 +234,7 @@ export function DistributionPanel({ rows, onSelect }: { rows: StackedRow[]; onSe
 export function PeoplePanel({ data, users }: { data: NamedCount[]; users: Map<string, User> }) {
   return (
     <Panel title="People" subtitle="Tasks · asset units per person" info="Tasks count everyone assigned in a people column; asset units count the people in charge of each asset line." testId="dashboard-people">
-      <RankedBars data={data} valueLabel="tasks" secondaryLabel="asset units" leading={(row) => <UserAvatar user={row.id ? users.get(row.id) : null} size="xs" tooltip={false} />} emptyMessage="Nobody is assigned in this scope." />
+      <RankedBars data={data} valueLabel="tasks" secondaryLabel="asset units" leading={(row) => <UserAvatar user={row.id ? users.get(row.id) : null} size="xs" tooltip={false} />} emptyMessage="Nobody is assigned in this scope." className="flex-1 justify-around" />
     </Panel>
   );
 }
@@ -235,12 +249,14 @@ export function BoardsPanel({ rows, onOpen }: { rows: BoardRow[]; onOpen?: (boar
   }
   return (
     <Panel title="Boards" subtitle="Tasks · assets · done" info="Every board with work in scope, busiest first." testId="dashboard-boards" bodyClassName="overflow-hidden">
-      <ul className="-mx-1 divide-y divide-border/60 text-xs">
+      {/* Rows share the panel's height evenly, so a short list fills the card and the
+          dividers stay regular instead of bunching at the top. */}
+      <ul className="-mx-1 flex flex-1 flex-col divide-y divide-border/60 text-xs">
         {rows.map((b) => {
           const pct = b.tasks > 0 ? Math.round((b.doneTasks / b.tasks) * 100) : 0;
           const Row = onOpen ? "button" : "div";
           return (
-            <li key={b.id}>
+            <li key={b.id} className="flex min-h-[2.25rem] flex-1 flex-col justify-center">
               <Row type={onOpen ? "button" : undefined} onClick={onOpen ? () => onOpen(b.id) : undefined} className={cn("flex w-full items-center gap-2.5 px-1 py-1.5 text-left", onOpen && "rounded-md hover:bg-accent/70")}>
                 <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", colorClasses(b.color).solid)}>
                   <DynamicIcon name={b.icon} className="size-3.5" />
@@ -279,11 +295,11 @@ export function DeliveredPanel({ entries, onOpen }: { entries: DeliveredEntry[];
       {entries.length === 0 ? (
         <ChartEmpty message="Nothing finished in this scope yet." />
       ) : (
-        <ul className="-mx-1 divide-y divide-border/60 text-xs">
+        <ul className="-mx-1 flex flex-1 flex-col divide-y divide-border/60 text-xs">
           {entries.map(({ task, when }) => {
             const Row = onOpen ? "button" : "div";
             return (
-              <li key={task.id}>
+              <li key={task.id} className="flex min-h-[2.25rem] flex-1 flex-col justify-center">
                 <Row type={onOpen ? "button" : undefined} onClick={onOpen ? () => onOpen(task.id, task.boardId) : undefined} className={cn("flex w-full items-center gap-2.5 px-1 py-1.5 text-left", onOpen && "rounded-md hover:bg-accent/70")}>
                   <span className="size-2 shrink-0 rounded-full" style={{ background: teamHex(task.team) }} />
                   <span className="min-w-0 flex-1">

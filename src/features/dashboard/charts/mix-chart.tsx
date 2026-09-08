@@ -29,7 +29,7 @@ export function MixChart({ data, totalLabel = "total", onSelect, emptyMessage = 
   if (total <= 0) return <ChartEmpty message={emptyMessage} />;
   const narrow = width > 0 && width < ringMinWidth;
   return (
-    <div ref={ref} className={cn("flex min-w-0 flex-col gap-3", !narrow && "sm:flex-row sm:items-center sm:gap-5", className)}>
+    <div ref={ref} className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3", !narrow && "sm:flex-row sm:items-center sm:gap-5", className)}>
       {narrow ? (
         <ShareBar data={data} total={total} active={active} setActive={setActive} onSelect={onSelect} totalLabel={totalLabel} />
       ) : (
@@ -117,7 +117,9 @@ function ShareBar({ data, total, active, setActive, onSelect, totalLabel }: { da
 
 export function MixLegend({ data, total, active, setActive, onSelect, className }: { data: NamedCount[]; total: number; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; className?: string }) {
   return (
-    <ul className={cn("min-w-0 flex-1 space-y-0.5 text-xs", className)}>
+    // Capped to the panel and scrollable: a workspace with a dozen asset types must not
+    // stretch the row every other panel in it is sized by.
+    <ul className={cn("scrollbar-thin max-h-full min-w-0 flex-1 space-y-0.5 overflow-y-auto text-xs", className)}>
       {data.map((d) => {
         const key = d.id ?? d.name;
         const share = total > 0 ? Math.round((d.value / total) * 100) : 0;

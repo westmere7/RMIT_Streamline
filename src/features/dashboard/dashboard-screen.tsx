@@ -82,7 +82,9 @@ export function DashboardScreen({ snapshot, onOpenTask, onOpenBoard, toolbarExtr
   const mix = React.useMemo(() => assetMix(assets), [assets]);
   const distribution = React.useMemo(() => assetTypesByTeam(assets, facts.teams), [assets, facts.teams]);
   const status = React.useMemo(() => statusByTeam(tasks, facts.teams), [tasks, facts.teams]);
-  const people = React.useMemo(() => loadByPerson(tasks, assets, facts.users), [tasks, assets, facts.users]);
+  // Eight, not ten: this panel sits beside the request breakdown, and a longer list
+  // made that card taller than its own content needed.
+  const people = React.useMemo(() => loadByPerson(tasks, assets, facts.users, 8), [tasks, assets, facts.users]);
   const boards = React.useMemo(() => boardsLeaderboard(tasks, assets, facts.boards, today), [tasks, assets, facts.boards, today]);
   const delivered = React.useMemo(() => recentlyDelivered(tasks), [tasks]);
   const requestSummary = React.useMemo(() => summarizeRequests(requests, activeYear, facts.teams), [requests, activeYear, facts.teams]);
@@ -98,6 +100,14 @@ export function DashboardScreen({ snapshot, onOpenTask, onOpenBoard, toolbarExtr
   const label = scopeLabel(scope);
   const focusedTeams = teamIds?.map((id) => facts.teams.find((t) => t.id === id)?.name ?? "").filter(Boolean) ?? [];
   const basisWord = basis === "completed" ? "completed" : basis === "created" ? "created" : "due";
+
+  // The top row is two columns of two panels. With one column hidden the other takes
+  // the full width and lays its pair side by side instead of stacking them.
+  const leftPair = [show("year"), show("teams")].filter(Boolean).length;
+  const rightPair = [show("assetMix"), show("status")].filter(Boolean).length;
+  const wide = leftPair > 0 && rightPair > 0;
+  const pairAcross = !wide && leftPair === 2;
+  const mixAcross = !wide && rightPair === 2;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
@@ -133,31 +143,40 @@ export function DashboardScreen({ snapshot, onOpenTask, onOpenBoard, toolbarExtr
             </div>
           )}
 
-          <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-            {show("year") && (
-              <Panel
-                title={`Workload across ${chartYear}`}
-                subtitle={hoverDot ? `${hoverDot.name} · ${hoverDot.team.name} · ${formatCount(hoverDot.value)} ${unitWord} · ${formatShortDate(hoverDot.date)}` : `${unit === "assets" ? "Asset units" : "Tasks"} per month by ${basisWord} date · one dot per task${onOpenTask ? " · click a dot to open it" : ""}`}
-                info="The red line is the monthly total; the dashed line is how much of it was done. Each dot is a task on its exact day, lifted by its asset count so a big job stands apart from a run of small ones."
-                className={cn("min-h-[22rem] xl:col-span-8", !show("assetMix") && !show("status") && "xl:col-span-12")}
-                testId="dashboard-year"
-              >
-                <YearChart months={yearData.months} dots={yearData.dots} nowMonth={nowMonth} unitLabel={unit === "assets" ? "Asset units" : "Tasks"} teams={facts.teams} onDotClick={onOpenTask ? (d) => onOpenTask(d.id, d.boardId) : undefined} onHoverDot={setHoverDot} />
-              </Panel>
-            )}
-            {(show("assetMix") || show("status")) && (
-              <div className={cn("grid gap-3 sm:gap-4 xl:col-span-4", !show("year") && "xl:col-span-12 xl:grid-cols-2")}>
-                {show("assetMix") && <AssetMixPanel data={mix} />}
-                {show("status") && <StatusPanel rows={status} />}
-              </div>
-            )}
-          </div>
-
-          {(show("teams") || show("requests") || show("distribution")) && (
+          {/* Two columns of two. The workload chart shares its column with Delivery by
+              team rather than standing alone beside two stacked panels, which made it
+              twice their height and the whole screen. Equal rows keep all four level. */}
+          {(show("year") || show("teams") || show("assetMix") || show("status")) && (
             <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-              {show("teams") && <div className={cn("xl:col-span-4", !show("requests") && !show("distribution") && "xl:col-span-12")}><TeamsPanel rows={teams} unit={unit} onSelect={focusTeam} /></div>}
-              {show("distribution") && <div className={cn("min-h-[20rem] xl:col-span-4", !show("teams") && !show("requests") && "xl:col-span-12", (!show("teams") || !show("requests")) && show("teams") !== show("requests") && "xl:col-span-8")}><DistributionPanel rows={distribution} onSelect={focusTeam} /></div>}
-              {show("requests") && <div className={cn("xl:col-span-4", !show("teams") && !show("distribution") && "xl:col-span-12", (!show("teams") || !show("distribution")) && show("teams") !== show("distribution") && "xl:col-span-8")}><RequestsPanel requests={requestSummary} nowMonth={nowMonth} year={activeYear} /></div>}
+              {(show("year") || show("teams")) && (
+                <div className={cn("grid min-h-0 gap-3 sm:gap-4 xl:grid-rows-2", wide ? "xl:col-span-8" : "xl:col-span-12", pairAcross && "xl:grid-cols-2 xl:grid-rows-1")}>
+                  {show("year") && (
+                    <Panel
+                      title={`Workload across ${chartYear}`}
+                      subtitle={hoverDot ? `${hoverDot.name} · ${hoverDot.team.name} · ${formatCount(hoverDot.value)} ${unitWord} · ${formatShortDate(hoverDot.date)}` : `${unit === "assets" ? "Asset units" : "Tasks"} per month by ${basisWord} date · one dot per task${onOpenTask ? " · click a dot to open it" : ""}`}
+                      info="The red line is the monthly total; the dashed line is how much of it was done. Each dot is a task on its exact day, lifted by its asset count so a big job stands apart from a run of small ones."
+                      className="min-h-[15rem] xl:min-h-0"
+                      testId="dashboard-workload"
+                    >
+                      <YearChart months={yearData.months} dots={yearData.dots} nowMonth={nowMonth} unitLabel={unit === "assets" ? "Asset units" : "Tasks"} teams={facts.teams} onDotClick={onOpenTask ? (d) => onOpenTask(d.id, d.boardId) : undefined} onHoverDot={setHoverDot} />
+                    </Panel>
+                  )}
+                  {show("teams") && <TeamsPanel rows={teams} unit={unit} onSelect={focusTeam} />}
+                </div>
+              )}
+              {(show("assetMix") || show("status")) && (
+                <div className={cn("grid min-h-0 gap-3 sm:gap-4 xl:grid-rows-2", wide ? "xl:col-span-4" : "xl:col-span-12", mixAcross && "xl:grid-cols-2 xl:grid-rows-1")}>
+                  {show("assetMix") && <AssetMixPanel data={mix} />}
+                  {show("status") && <StatusPanel rows={status} />}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(show("requests") || show("distribution")) && (
+            <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
+              {show("distribution") && <div className={cn("min-h-[20rem] xl:col-span-6", !show("requests") && "xl:col-span-12")}><DistributionPanel rows={distribution} onSelect={focusTeam} /></div>}
+              {show("requests") && <div className={cn("xl:col-span-6", !show("distribution") && "xl:col-span-12")}><RequestsPanel requests={requestSummary} nowMonth={nowMonth} year={activeYear} /></div>}
             </div>
           )}
 
