@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
 
 const BOARD = "/workspace/rmit/boards/rmitinerary-2026";
 
@@ -49,12 +49,11 @@ test.describe("sharing a board by link", () => {
       if (href.startsWith("/")) expect(href).toMatch(/^\/share\//);
     }
 
-    // The views are all there.
-    await guest.getByTestId("view-switcher").click();
-    await guest.getByTestId("view-kanban").click();
+    // The views are all there. Each switch waits for the menu to go away first:
+    // clicking the switcher while the last menu is still closing does nothing.
+    await switchView(guest, "kanban");
     await expect(guest.getByTestId("kanban")).toBeVisible({ timeout: 15000 });
-    await guest.getByTestId("view-switcher").click();
-    await guest.getByTestId("view-table").click();
+    await switchView(guest, "table");
     await expect(guest.getByTestId("board-table")).toBeVisible();
 
     // A task opens, read-only: its updates are there and the composer is not.

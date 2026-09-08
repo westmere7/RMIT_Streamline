@@ -222,8 +222,11 @@ function PersonFilter() {
                   // wrapping a taller line box, and offset so it reads as a ring
                   // around the face instead of a rim on it.
                   className={cn(
-                    "inline-flex rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-popover transition-shadow hover:ring-ring/40",
-                    active && "ring-ring hover:ring-ring",
+                    "inline-flex rounded-full ring-offset-2 ring-offset-popover transition-shadow",
+                    // The ring is on or off, rather than coloured or transparent:
+                    // two classes setting the same ring colour fight, and which
+                    // one wins is down to the order Tailwind emits them in.
+                    active ? "ring-2 ring-ring" : "hover:ring-2 hover:ring-ring/40",
                   )}
                 >
                   <UserAvatar user={user} size="lg" />
