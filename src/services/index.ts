@@ -1,5 +1,6 @@
 import type { Repositories } from "@/data/repositories";
 import { BoardService } from "./board-service";
+import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { CommentService } from "./comment-service";
 import { ItemAssetService } from "./item-asset-service";
@@ -18,6 +19,7 @@ export interface Services {
   notifications: NotificationService;
   workspace: WorkspaceService;
   boards: BoardService;
+  shares: BoardShareService;
   items: ItemService;
   links: ItemLinkService;
   assets: ItemAssetService;
@@ -33,6 +35,8 @@ export interface Services {
 export interface ServiceOptions {
   /** How bookings reach the server when the browser cannot write them itself (Supabase). */
   bookingTransport?: BookingTransport | null;
+  /** How a visitor without an account reads a shared board (Supabase). */
+  shareTransport?: PublicShareTransport | null;
 }
 
 export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
@@ -47,6 +51,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     notifications,
     workspace,
     boards: new BoardService(repos, notifications),
+    shares: new BoardShareService(repos, options.shareTransport ?? null),
     items,
     links,
     assets,
@@ -72,4 +77,6 @@ export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service
 export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
+export type { PublicShareTransport, ShareFailure, ShareSettings } from "./board-share-service";
+export { ShareAccessError, shareAccessMessage } from "./board-share-service";
 export { BookingAccessError } from "./booking-service";

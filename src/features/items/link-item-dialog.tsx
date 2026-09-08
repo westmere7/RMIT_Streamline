@@ -196,7 +196,18 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
 
               <section>
                 <SectionLabel>What stays in sync</SectionLabel>
-                {mapping.isLoading || !mapping.data ? <Skeleton className="h-24" /> : <SyncFieldList mapping={mapping.data} excluded={excluded} onToggle={toggleField} boardName={board.name} otherBoardName={selected.board.name} />}
+                {mapping.isLoading || !mapping.data ? (
+                  <Skeleton className="h-24" />
+                ) : (
+                  <SyncFieldList
+                    mapping={mapping.data}
+                    excluded={excluded}
+                    onToggle={toggleField}
+                    boardName={board.name}
+                    otherBoardName={selected.board.name}
+                    reference={{ self: item.reference ?? null, other: selected.item.reference ?? null, from: seedFrom }}
+                  />
+                )}
               </section>
 
               <fieldset>

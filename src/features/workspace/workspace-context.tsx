@@ -170,6 +170,15 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
+/**
+ * Supplies a workspace that has already been assembled rather than loading one.
+ * The shared-board page builds its own from the payload behind the link: one
+ * board, the people on it, and no rights to anything.
+ */
+export function WorkspaceContextProvider({ value, children }: { value: WorkspaceContextValue; children: React.ReactNode }) {
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+}
+
 export function useWorkspace(): WorkspaceContextValue {
   const ctx = useContext(WorkspaceContext);
   if (!ctx) throw new Error("useWorkspace must be used inside WorkspaceProvider");

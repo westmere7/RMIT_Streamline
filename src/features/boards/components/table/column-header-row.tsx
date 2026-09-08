@@ -29,6 +29,7 @@ import {
 import type { BoardColumn, BoardGroup } from "@/domain";
 import { COLUMN_TYPE_LABELS } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { ReferenceHeaderCell } from "@/features/boards/components/table/reference-cell";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
 import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
@@ -60,11 +61,11 @@ export function ColumnHeaderRow({
   onWidthOverride,
   dropIndex = null,
 }: ColumnHeaderRowProps) {
-  const { model, canEdit } = useBoardContext();
+  const { model, canEdit, showReference } = useBoardContext();
   const colors = colorClasses(group.color);
   return (
     <div role="row" className="sticky top-0 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground">
-      <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle()}>
+      <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle(showReference)}>
         <span aria-hidden className={cn("my-1.5 h-[calc(100%-12px)] w-1 rounded-full", colors.dot)} />
         <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
           <Checkbox
@@ -75,6 +76,7 @@ export function ColumnHeaderRow({
           />
         </div>
         <div style={{ width: TABLE_LAYOUT.handleWidth }} />
+        <ReferenceHeaderCell />
         <ItemHeader />
       </div>
       {model.visibleColumns.map((column, index) => (

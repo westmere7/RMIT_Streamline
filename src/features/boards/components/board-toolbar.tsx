@@ -37,7 +37,7 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
 
 /** The board's single control line: which view is open, plus the tools for it. */
 export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onViewChange: (view: BoardViewKind) => void }) {
-  const { board, model, canEdit, mutations } = useBoardContext();
+  const { board, model, canEdit, mutations, showReference, setShowReference } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
   const filterCount = activeFilterCount(ui.filters);
@@ -46,7 +46,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
     if (columnId !== null) return model.columns.find((c) => c.id === columnId)?.name ?? "Column";
     return SORT_LABELS[field as keyof typeof SORT_LABELS];
   };
-  const hiddenCount = model.columns.filter((c) => c.hidden).length;
+  const hiddenCount = model.columns.filter((c) => c.hidden).length + (showReference ? 0 : 1);
   const tableTools = view === "table";
 
   return (
@@ -112,6 +112,11 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52">
                 <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+                {/* Not a column of the board, but it is one on screen, and this
+                    is where anyone would come looking for it. */}
+                <DropdownMenuCheckboxItem checked={showReference} onCheckedChange={(checked) => setShowReference(checked === true)} data-testid="toggle-reference-column">
+                  ID#
+                </DropdownMenuCheckboxItem>
                 {model.columns.map((column) => (
                   <DropdownMenuCheckboxItem
                     key={column.id}
@@ -202,7 +207,7 @@ function PersonFilter() {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3">
         <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by owner</p>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2.5">
           {users
             .filter((u) => u.deactivatedAt === null)
             .map((user) => {
@@ -213,7 +218,13 @@ function PersonFilter() {
                   type="button"
                   aria-pressed={active}
                   onClick={() => setFilters(board.id, { personIds: active ? selected.filter((id) => id !== user.id) : [...selected, user.id] })}
-                  className={cn("rounded-full ring-2 ring-transparent transition-shadow hover:ring-ring/50", active && "ring-ring")}
+                  // inline-flex so the ring is concentric with the avatar rather than
+                  // wrapping a taller line box, and offset so it reads as a ring
+                  // around the face instead of a rim on it.
+                  className={cn(
+                    "inline-flex rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-popover transition-shadow hover:ring-ring/40",
+                    active && "ring-ring hover:ring-ring",
+                  )}
                 >
                   <UserAvatar user={user} size="lg" />
                 </button>

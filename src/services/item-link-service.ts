@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
@@ -43,6 +43,7 @@ export interface LinkSearch {
 export type LinkChange =
   | { kind: "name"; name: string }
   | { kind: "description"; description: string | null }
+  | { kind: "reference"; reference: string | null }
   | { kind: "value"; columnId: EntityId; value: ColumnValue };
 
 export type LinkValidation = { ok: true } | { ok: false; reason: string };
@@ -50,7 +51,7 @@ export type LinkValidation = { ok: true } | { ok: false; reason: string };
 export interface LinkOptions {
   /** Which side's values fill in the other's when the link is created. */
   seedFrom: "item" | "target";
-  /** Fields that must not sync across this link: "name", "description" or column ids from either board. */
+  /** Fields that must not sync across this link: "name", "description", "reference" or column ids from either board. */
   excluded?: string[];
 }
 
@@ -348,6 +349,7 @@ export class ItemLinkService {
     const options = { silent: true, cache, collect };
     await this.propagate(item.id, { kind: "name", name: item.name }, actorId, options);
     await this.propagate(item.id, { kind: "description", description: item.description }, actorId, options);
+    await this.propagate(item.id, { kind: "reference", reference: item.reference ?? null }, actorId, options);
     for (const v of await this.valuesOf(item.id, cache)) {
       await this.propagate(item.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, options);
     }
@@ -390,6 +392,7 @@ export class ItemLinkService {
         const excluded = new Set(link.excluded);
         if (change.kind === "name" && excluded.has(LINK_FIELD_NAME)) continue;
         if (change.kind === "description" && excluded.has(LINK_FIELD_DESCRIPTION)) continue;
+        if (change.kind === "reference" && excluded.has(LINK_FIELD_REFERENCE)) continue;
 
         const next = await this.itemOf(nextId, cache);
         if (!next) continue;
@@ -426,6 +429,13 @@ export class ItemLinkService {
         if (change.kind === "description") {
           if ((next.description ?? null) === (change.description ?? null)) continue;
           await this.repos.items.update(next.id, { description: change.description });
+          touched.add(next.boardId);
+          continue;
+        }
+
+        if (change.kind === "reference") {
+          if (!change.reference || (next.reference ?? null) === change.reference) continue;
+          await this.repos.items.update(next.id, { reference: change.reference });
           touched.add(next.boardId);
           continue;
         }
@@ -478,6 +488,12 @@ export class ItemLinkService {
    */
   private async fillFrom(source: Item, dest: Item, excluded: ReadonlySet<string>): Promise<void> {
     if (!excluded.has(LINK_FIELD_NAME) && dest.name !== source.name) await this.repos.items.update(dest.id, { name: source.name });
+    if (!excluded.has(LINK_FIELD_REFERENCE)) {
+      // The code travels the way a name does — the source wins — but an empty
+      // source never wipes a code the other task already answers to.
+      if (source.reference && dest.reference !== source.reference) await this.repos.items.update(dest.id, { reference: source.reference });
+      else if (!source.reference && dest.reference) await this.repos.items.update(source.id, { reference: dest.reference });
+    }
     if (!excluded.has(LINK_FIELD_DESCRIPTION)) {
       if (source.description && dest.description !== source.description) await this.repos.items.update(dest.id, { description: source.description });
       else if (!source.description && dest.description) await this.repos.items.update(source.id, { description: dest.description });

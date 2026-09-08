@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { ReferenceCell, ReferenceSpacer } from "@/features/boards/components/table/reference-cell";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
@@ -27,7 +28,7 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
+  const { board, model, mutations, canEdit, openItem, openItemUpdates, updates, showReference } = useBoardContext();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
@@ -136,7 +137,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 selected && "bg-accent-soft/60 group-hover/row:bg-accent-soft/80",
                 viewing && "bg-accent/80 group-hover/row:bg-accent/80",
               )}
-              style={leadingCellStyle()}
+              style={leadingCellStyle(showReference)}
               data-testid="item-drag-area"
               {...(dndEnabled ? listeners : {})}
               onPointerDownCapture={() => {
@@ -150,6 +151,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
                 <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
               </div>
+              <ReferenceCell code={item.reference} />
               {/* The empty run of the name cell opens the item too, like the name itself. */}
               <div
                 className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
@@ -326,7 +328,7 @@ function SubitemRows({
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
 }) {
-  const { model, mutations, canEdit } = useBoardContext();
+  const { model, mutations, canEdit, showReference } = useBoardContext();
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -348,8 +350,10 @@ function SubitemRows({
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60 pl-16" style={leadingCellStyle()}>
-            <CornerDownRight className="mr-1.5 size-3 text-muted-foreground/60" />
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60" style={leadingCellStyle(showReference)}>
+            <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
+            <ReferenceSpacer />
+            <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <input
               ref={inputRef}
               aria-label={`Add subitem to ${parent.name}`}
@@ -382,7 +386,7 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
+  const { model, mutations, canEdit, openItem, openItemUpdates, updates, showReference } = useBoardContext();
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -411,10 +415,12 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           style={{ height: 32 }}
         >
           <div
-            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 pl-12 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
-            style={leadingCellStyle()}
+            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
+            style={leadingCellStyle(showReference)}
           >
-            <CornerDownRight className="mr-1.5 size-3 shrink-0 text-muted-foreground/60" />
+            <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
+            <ReferenceCell code={item.reference} />
+            <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <div
               className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
               onClick={(e) => {

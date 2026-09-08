@@ -156,7 +156,22 @@ export function isPlausibleBookingKey(value: string): boolean {
   return /^[a-z0-9]{16,64}$/.test(value);
 }
 
-/** A reference a stakeholder can quote: the item id's tail, uppercased. */
+/**
+ * The code a booking is known by, and the ID# a board shows.
+ *
+ * Seven characters — as much as the column has room for and as much as anyone
+ * will read back over the phone — and the same code every time for the same
+ * task, so the form can show it before the task exists. A digest rather than a
+ * slice of the id: ids handed out in order would otherwise turn into codes that
+ * read as a counter, and a code is not a position in a queue.
+ */
 export function bookingReference(itemId: EntityId): string {
-  return `TA-${itemId.replace(/-/g, "").slice(-5).toUpperCase()}`;
+  // FNV-1a, 32 bits. Not a security hash: it is here to scramble, cheaply and
+  // identically in every browser.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < itemId.length; i++) {
+    hash ^= itemId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `TA-${hash.toString(16).toUpperCase().padStart(8, "0").slice(0, 4)}`;
 }

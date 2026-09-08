@@ -24,6 +24,8 @@ export const queryKeys = {
   recentBoards: (userId: string) => ["recent-boards", userId] as const,
 
   board: (boardId: string) => ["board", boardId] as const,
+  /** The public link of a board, for the Share dialog. */
+  boardShare: (boardId: string) => ["board-share", boardId] as const,
   /** Groups, columns, items and values of a board in one snapshot. */
   boardSnapshot: (boardId: string) => ["board-snapshot", boardId] as const,
   boardGroups: (boardId: string) => ["board-groups", boardId] as const,

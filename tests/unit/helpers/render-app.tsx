@@ -97,6 +97,8 @@ export function TestBoard({ boardId, children, openItem }: TestBoardProps) {
     model,
     mutations,
     users: ws.users,
+    showReference: true,
+    setShowReference: () => undefined,
     canEdit: canEditBoard(ws.permissions, board),
     canManage: canManageBoard(ws.permissions, board),
     openItem: openItem ?? (() => undefined),

@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardViewKind, BookingTemplate, BookingTemplateInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -214,6 +214,18 @@ export interface ItemAssetRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+/**
+ * The public link of a board: at most one per board, looked up either from the
+ * board (to manage it) or from the token in the link (to serve it).
+ */
+export interface BoardShareRepository {
+  getByBoard(boardId: EntityId): Promise<BoardShare | null>;
+  getByToken(token: string): Promise<BoardShare | null>;
+  create(input: BoardShareInput): Promise<BoardShare>;
+  update(id: EntityId, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<BoardShare>;
+  delete(id: EntityId): Promise<void>;
+}
+
 /** Saved booking forms, by name, per workspace. The live form itself lives on the workspace row. */
 export interface BookingTemplateRepository {
   listByWorkspace(workspaceId: EntityId): Promise<BookingTemplate[]>;
@@ -330,6 +342,7 @@ export interface Repositories {
   comments: CommentRepository;
   itemAssets: ItemAssetRepository;
   bookingTemplates: BookingTemplateRepository;
+  boardShares: BoardShareRepository;
   itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;

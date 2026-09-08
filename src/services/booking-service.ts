@@ -18,6 +18,7 @@ import type {
 import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import { newId } from "@/lib/ids";
 import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, normaliseBookingTemplate, resolveBookingTemplate, validateBookingAgainstTemplate } from "./booking";
 import type { ItemAssetService } from "./item-asset-service";
 import type { ItemLinkService } from "./item-link-service";
@@ -159,8 +160,19 @@ export class BookingService {
     // id the item will have. Honoured only if it is still free: an id already in
     // use would fail the insert, and the receipt then carries the real one.
     const proposed = request.itemId && !(await this.repos.items.getById(request.itemId)) ? request.itemId : undefined;
+    // The id is settled before the write so the booking code can be settled with
+    // it: the code is the id's tail, and the stakeholder was shown it already.
+    const itemId = proposed ?? newId();
     const item = await this.items.createItem(
-      { id: proposed, boardId: board.id, groupId: group.id, name: request.title, description: description || null, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
+      {
+        id: itemId,
+        boardId: board.id,
+        groupId: group.id,
+        name: request.title,
+        description: description || null,
+        reference: bookingReference(itemId),
+        values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })),
+      },
       actorId,
     );
     // The asset lines are the only children of a brand-new item, so their
@@ -170,12 +182,24 @@ export class BookingService {
     // item's Assets tab, where type, quantity, person in charge and due date live.
     const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
     await Promise.all([
-      ...request.assets.map((asset, index) =>
-        this.items.createItem(
-          { boardId: board.id, groupId: group.id, name: formatAssetLine({ ...asset, spec: null }), parentItemId: item.id, position: index, description: asset.spec?.trim() || null },
+      ...request.assets.map((asset, index) => {
+        // Each asset carries a code of its own, so a subitem can be quoted the
+        // same way the task can.
+        const assetItemId = newId();
+        return this.items.createItem(
+          {
+            id: assetItemId,
+            boardId: board.id,
+            groupId: group.id,
+            name: formatAssetLine({ ...asset, spec: null }),
+            parentItemId: item.id,
+            position: index,
+            description: asset.spec?.trim() || null,
+            reference: bookingReference(assetItemId),
+          },
           actorId,
-        ),
-      ),
+        );
+      }),
       this.assets.addMany(
         request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
         actorId,

@@ -27,6 +27,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
 import { tagOptionsFor } from "@/features/boards/tag-palette";
 import { useServices } from "@/features/data/data-context";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
@@ -78,6 +79,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const ui = useBoardUi(boardId);
   const [editLabelsColumn, setEditLabelsColumn] = React.useState<BoardColumn | null>(null);
   const [now] = React.useState(() => new Date());
+  // The ID# column is the table's own setting: per person, per board.
+  const [tableSettings, updateTableSettings] = useViewSettingsFor(boardId, "table", { showReference: true });
+  const setShowReference = React.useCallback((showReference: boolean) => updateTableSettings({ showReference }), [updateTableSettings]);
   useBoardRealtime(boardId);
 
   // Remember recently visited boards for the home page.
@@ -181,10 +185,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
             openItemUpdates,
             openEditLabels: setEditLabelsColumn,
             now,
+            showReference: tableSettings.showReference,
+            setShowReference,
             updates,
           }
         : null,
-    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates],
+    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showReference, setShowReference],
   );
 
   return (

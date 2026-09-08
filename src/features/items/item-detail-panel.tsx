@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item } from "@/domain";
+import { ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
+import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useBoardContext } from "@/features/boards/board-context";
@@ -138,8 +140,8 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
   return (
     <div className="border-b">
       <ItemCover item={item} canEdit={canEdit} />
-      <div className="px-4 pt-3 pb-2">
-      <div className="flex items-start gap-2">
+      <div className="px-5 pt-4 pb-4">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-2xs text-muted-foreground">
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
@@ -160,7 +162,7 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
               </>
             )}
           </p>
-          <h2 className="mt-0.5 text-base font-semibold leading-snug">
+          <h2 className="mt-1 text-[19px] font-semibold leading-snug tracking-tight">
             <InlineEdit
               value={item.name}
               editing={renaming}
@@ -169,7 +171,7 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
               disabled={!canEdit}
               ariaLabel="Item name"
               className={cn("-mx-1 whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
-              inputClassName="h-8 text-base font-semibold"
+              inputClassName="h-9 text-[19px] font-semibold"
             />
           </h2>
         </div>
@@ -177,12 +179,76 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
           <X />
         </Button>
       </div>
-      <p className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
-        <UserAvatar user={creator} size="xs" tooltip={false} />
-        Created by {creator?.firstName ?? "someone"} <RelativeTime iso={item.createdAt} />
-      </p>
+      <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
+        <ReferenceField item={item} canEdit={canEdit} onSave={(reference) => void mutations.updateReference(item.id, reference)} />
+        <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <UserAvatar user={creator} size="xs" tooltip={false} />
+          Created by {creator?.firstName ?? "someone"} <RelativeTime iso={item.createdAt} />
+        </p>
+      </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The task's ID#.
+ *
+ * Booking hands it out, and the board shows it read-only, but a task that
+ * arrived some other way needs a way to be given one — and a code typed wrongly
+ * into an email needs a way to be put right. Seven characters, upper case, and
+ * clicking it when it is not being edited copies it.
+ */
+function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolean; onSave: (reference: string | null) => void }) {
+  const [editing, setEditing] = React.useState(false);
+  const code = item.reference ?? null;
+
+  if (editing) {
+    return (
+      <span className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-accent-soft pl-2 text-accent-soft-foreground ring-2 ring-ring/30">
+        <span className="text-2xs font-medium opacity-70">ID#</span>
+        <input
+          autoFocus
+          defaultValue={code ?? ""}
+          maxLength={ITEM_REFERENCE_MAX}
+          aria-label="ID"
+          data-testid="panel-reference-input"
+          className="h-full w-20 rounded-r-lg bg-transparent pr-2 font-mono text-[13px] font-semibold uppercase tabular outline-none"
+          onBlur={(e) => {
+            setEditing(false);
+            const next = normaliseItemReference(e.currentTarget.value);
+            if (next !== code) onSave(next);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              e.currentTarget.value = code ?? "";
+              e.currentTarget.blur();
+            }
+          }}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex h-7 items-center overflow-hidden rounded-lg bg-accent-soft text-accent-soft-foreground ring-1 ring-inset ring-accent-soft-foreground/15" data-testid="panel-reference-chip">
+      <span className="px-2 text-2xs font-medium opacity-70">ID#</span>
+      <button
+        type="button"
+        onClick={() => (code ? void copyToClipboard(code, `${code} copied`) : canEdit && setEditing(true))}
+        onDoubleClick={() => canEdit && setEditing(true)}
+        title={canEdit ? "Click to copy, double-click to edit" : "Booking code"}
+        data-testid="panel-reference"
+        className={cn(
+          "h-full pr-2.5 pl-0.5 font-mono text-[13px] font-semibold tabular transition-colors",
+          canEdit && "hover:bg-accent-soft-foreground/10",
+          !code && "pl-2 text-2xs font-normal italic opacity-70",
+        )}
+      >
+        {code ?? (canEdit ? "Add an ID" : "None")}
+      </button>
+    </span>
   );
 }
 

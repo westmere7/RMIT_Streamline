@@ -5,6 +5,8 @@ export const routes = {
   login: () => "/login",
   /** The onboarding page an invited person opens; needs no session. */
   join: (token: string) => `/join/${encodeURIComponent(token)}`,
+  /** A board someone shared by link. Read-only, needs no session, just the token. */
+  share: (token: string) => `/share/${encodeURIComponent(token)}`,
   /** The public booking form stakeholders open; needs no session, just the workspace's key. */
   publicBooking: (slug: string, key: string) => `/book/${encodeURIComponent(slug)}/${encodeURIComponent(key)}`,
   workspace: (slug: string) => `/workspace/${slug}`,

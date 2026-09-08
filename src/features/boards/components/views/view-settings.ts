@@ -40,6 +40,16 @@ function writeLocal(storageKey: string, value: Record<string, unknown>): void {
  */
 export function useViewSettings<T extends Record<string, unknown>>(view: BoardViewKind, defaults: T): [T, (patch: Partial<T>) => void] {
   const { board } = useBoardContext();
+  return useViewSettingsFor(board.id, view, defaults);
+}
+
+/**
+ * The same, for a caller that knows the board but is not inside it yet — the
+ * board screen itself, which reads the table's settings in order to build the
+ * context the rest of the board reads them from.
+ */
+export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: string, view: BoardViewKind, defaults: T): [T, (patch: Partial<T>) => void] {
+  const board = { id: boardId };
   const user = useCurrentUser();
   const services = useServices();
   const storageKey = `${user.id}:${board.id}:${view}`;

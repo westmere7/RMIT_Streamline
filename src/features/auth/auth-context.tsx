@@ -75,6 +75,15 @@ export function AuthProviderContext({ children }: { children: React.ReactNode })
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/**
+ * Puts a ready-made session in place instead of looking one up. The shared-board
+ * page uses it: there is nobody signed in there, and the guest it renders for
+ * comes from the payload rather than from an auth provider.
+ */
+export function AuthContextProvider({ value, children }: { value: AuthContextValue; children: React.ReactNode }) {
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used inside AuthProviderContext");

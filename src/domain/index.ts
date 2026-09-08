@@ -5,6 +5,7 @@ export * from "./workspace/invitation";
 export * from "./team/team";
 export * from "./board/board";
 export * from "./board/column";
+export * from "./board/board-share";
 export * from "./item/item";
 export * from "./item/item-link";
 export * from "./item/item-asset";

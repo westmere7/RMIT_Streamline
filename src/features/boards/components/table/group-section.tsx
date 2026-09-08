@@ -27,6 +27,9 @@ import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+
+/** One array, so the store selector does not hand back a new one on every render. */
+const NO_OVERRIDES: string[] = [];
 import { AddItemRow } from "./add-item-row";
 import { ColumnHeaderRow } from "./column-header-row";
 import { ItemRow } from "./item-row";
@@ -74,7 +77,13 @@ export function GroupSection({
   dropIndex = null,
   columnDropIndex = null,
 }: GroupSectionProps) {
-  const { board, model, mutations, canEdit } = useBoardContext();
+  const { board, model, mutations, canEdit, showReference } = useBoardContext();
+  // Folding a group is the board's setting when someone may change the board,
+  // and this visit's own business when they may not.
+  const overrides = useBoardUiStore((s) => s.boards[board.id]?.collapsedGroupOverrides ?? NO_OVERRIDES);
+  const toggleLocally = useBoardUiStore((s) => s.toggleGroupCollapsedLocally);
+  const collapsed = canEdit ? group.collapsed : overrides.includes(group.id) !== group.collapsed;
+  const toggleCollapsed = () => (canEdit ? void mutations.updateGroup(group.id, { collapsed: !collapsed }) : toggleLocally(board.id, group.id));
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
   const [renaming, setRenaming] = React.useState(false);
@@ -115,16 +124,16 @@ export function GroupSection({
     >
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={!canEdit}>
-          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth() }}>
+          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth(showReference) }}>
             <div className="flex w-9 items-center justify-center">
               <button
                 type="button"
-                aria-label={group.collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
-                aria-expanded={!group.collapsed}
-                onClick={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}
+                aria-label={collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+                aria-expanded={!collapsed}
+                onClick={toggleCollapsed}
                 className={cn("rounded-lg p-1 transition-colors hover:bg-accent/70", colors.text)}
               >
-                {group.collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+                {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
               </button>
             </div>
             {dndEnabled && (
@@ -153,7 +162,7 @@ export function GroupSection({
               />
             </h3>
             <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
-            {group.collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
+            {collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
             {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -177,8 +186,8 @@ export function GroupSection({
                       <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
-                  <DropdownMenuItem onSelect={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}>
-                    {group.collapsed ? <ChevronDown /> : <ChevronRight />} {group.collapsed ? "Expand group" : "Collapse group"}
+                  <DropdownMenuItem onSelect={toggleCollapsed}>
+                    {collapsed ? <ChevronDown /> : <ChevronRight />} {collapsed ? "Expand group" : "Collapse group"}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
                     <Copy /> Duplicate group
@@ -204,8 +213,8 @@ export function GroupSection({
               <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
             </ContextMenuSubContent>
           </ContextMenuSub>
-          <ContextMenuItem onSelect={() => void mutations.updateGroup(group.id, { collapsed: !group.collapsed })}>
-            {group.collapsed ? <ChevronDown /> : <ChevronRight />} {group.collapsed ? "Expand group" : "Collapse group"}
+          <ContextMenuItem onSelect={toggleCollapsed}>
+            {collapsed ? <ChevronDown /> : <ChevronRight />} {collapsed ? "Expand group" : "Collapse group"}
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
             <Copy /> Duplicate group
@@ -217,7 +226,7 @@ export function GroupSection({
         </ContextMenuContent>
       </ContextMenu>
 
-      {!group.collapsed && (
+      {!collapsed && (
         <div
           role="grid"
           aria-label={`${group.name} items`}
@@ -246,7 +255,7 @@ export function GroupSection({
           {/* Landing at the end, and the only line an empty group can show. */}
           {dropIndex !== null && dropIndex >= items.length && <DropLine color={group.color} />}
           {items.length === 0 && !canEdit && dropIndex === null && (
-            <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth() }}>
+            <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showReference) }}>
               This group is empty.
             </div>
           )}

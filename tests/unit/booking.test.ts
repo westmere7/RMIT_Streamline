@@ -211,7 +211,7 @@ describe("booking a task", () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: form.workspaceId && (await services.repos.workspaces.getById(form.workspaceId))!.bookingKey!, request: request({ teamId: digital.id }) });
     expect(receipt.boardName).toBe("Task Allocation");
     expect(receipt.teamName).toBeNull();
-    expect(receipt.reference).toMatch(/^TA-[0-9A-F]{5}$/);
+    expect(receipt.reference).toMatch(/^TA-[0-9A-F]{4}$/);
 
     const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     const items = await services.repos.items.listByBoard(board.id);

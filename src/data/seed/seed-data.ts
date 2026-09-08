@@ -26,7 +26,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
+import { bookingReference, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { buildSeedExtras, type SeedExtrasContext } from "./seed-extras";
@@ -1115,6 +1115,9 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
         parentItemId: null,
         name: itemSpec.name,
         description: itemSpec.description ?? null,
+        // Every task in the demo data carries a booking code, the way a real one
+        // would: the demo predates the booking form, so it is derived from the id.
+        reference: bookingReference(itemId),
         position,
         createdBy: creatorId,
         archivedAt: null,
@@ -1142,6 +1145,7 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
           parentItemId: itemId,
           name: sub.name,
           description: null,
+          reference: bookingReference(subId),
           position: index,
           createdBy: creatorId,
           archivedAt: null,

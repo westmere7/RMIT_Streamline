@@ -137,6 +137,8 @@ export const TABLE_LAYOUT = {
   selectWidth: 36,
   /** No separate drag handle: rows are dragged by their name cell. */
   handleWidth: 0,
+  /** The ID# column: wide enough for a seven-character code and not a pixel more. */
+  referenceWidth: 78,
   nameWidth: 320,
   trailingWidth: 48,
   rowHeight: 40,
@@ -155,12 +157,17 @@ export function columnAlign(type: ColumnType): "left" | "center" {
   return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";
 }
 
-export function leadingWidth(): number {
-  return TABLE_LAYOUT.selectWidth + TABLE_LAYOUT.handleWidth + TABLE_LAYOUT.nameWidth;
+/**
+ * The frozen head of a row: the tick box, the ID# code when it is shown, and the
+ * item name. Its width is fixed so the header, the rows, the group bars and the
+ * add-item row all end at the same place.
+ */
+export function leadingWidth(showReference = true): number {
+  return TABLE_LAYOUT.selectWidth + TABLE_LAYOUT.handleWidth + (showReference ? TABLE_LAYOUT.referenceWidth : 0) + TABLE_LAYOUT.nameWidth;
 }
 
-export function tableWidth(columns: BoardColumn[]): number {
-  return leadingWidth() + columns.reduce((sum, c) => sum + c.width, 0) + TABLE_LAYOUT.trailingWidth;
+export function tableWidth(columns: BoardColumn[], showReference = true): number {
+  return leadingWidth(showReference) + columns.reduce((sum, c) => sum + c.width, 0) + TABLE_LAYOUT.trailingWidth;
 }
 
 /**
@@ -171,8 +178,14 @@ export function tableWidth(columns: BoardColumn[]): number {
 export const TABLE_STRETCH = { nameGrow: 3, nameMaxWidth: 720, columnGrow: 1, columnMaxScale: 1.7 } as const;
 
 /** Style for the sticky leading (item name) cell of a table row. */
-export function leadingCellStyle(): CSSProperties {
-  return { width: leadingWidth(), minWidth: leadingWidth(), maxWidth: TABLE_STRETCH.nameMaxWidth, flexGrow: TABLE_STRETCH.nameGrow };
+export function leadingCellStyle(showReference = true): CSSProperties {
+  const width = leadingWidth(showReference);
+  return { width, minWidth: width, maxWidth: TABLE_STRETCH.nameMaxWidth + (showReference ? TABLE_LAYOUT.referenceWidth : 0), flexGrow: TABLE_STRETCH.nameGrow };
+}
+
+/** Style for the ID# cell: a fixed, unresizable slot in front of the name. */
+export function referenceCellStyle(): CSSProperties {
+  return { width: TABLE_LAYOUT.referenceWidth, minWidth: TABLE_LAYOUT.referenceWidth, maxWidth: TABLE_LAYOUT.referenceWidth };
 }
 
 /** Style for a column cell of a table row — data cells, header cells and blank spacers alike. */

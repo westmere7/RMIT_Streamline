@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseItemReference } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -147,6 +147,16 @@ export function useBoardMutations(boardId: string) {
         (s) => patchItem(s, itemId, { description }),
         () => services.items.updateDescription(itemId, description, user.id),
         "Could not save the description",
+      ),
+    [run, services, user.id],
+  );
+
+  const updateReference = useCallback(
+    (itemId: string, reference: string | null) =>
+      run(
+        (s) => patchItem(s, itemId, { reference: normaliseItemReference(reference) }),
+        () => services.items.updateReference(itemId, reference, user.id),
+        "Could not save the ID",
       ),
     [run, services, user.id],
   );
@@ -536,6 +546,7 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
+      updateReference,
       setCover,
       createItem,
       moveItem,
@@ -559,6 +570,7 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
+      updateReference,
       setCover,
       createItem,
       moveItem,

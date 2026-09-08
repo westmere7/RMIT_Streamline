@@ -45,6 +45,13 @@ export interface BoardUiState {
   selectedItemIds: string[];
   /** Item ids with subitems expanded. */
   expandedItemIds: string[];
+  /**
+   * Groups this person has folded or unfolded against what the board says.
+   * Whether a group is collapsed is normally the board's own business, saved for
+   * everyone; a reader who cannot edit the board still gets to fold a group out
+   * of the way, and that stays here, for this visit only.
+   */
+  collapsedGroupOverrides: string[];
   /** Kanban lane column id override (defaults to first STATUS column). */
   kanbanColumnId: string | null;
 }
@@ -80,6 +87,8 @@ interface BoardUiStore {
   toggleSelected: (boardId: string, id: string, selected?: boolean) => void;
   clearSelection: (boardId: string) => void;
   toggleExpanded: (boardId: string, itemId: string) => void;
+  /** Folds or unfolds a group without touching the board. */
+  toggleGroupCollapsedLocally: (boardId: string, groupId: string) => void;
   setKanbanColumn: (boardId: string, columnId: string | null) => void;
 }
 
@@ -89,6 +98,7 @@ export const EMPTY_BOARD_UI: BoardUiState = {
   sort: null,
   selectedItemIds: [],
   expandedItemIds: [],
+  collapsedGroupOverrides: [],
   kanbanColumnId: null,
 };
 
@@ -128,6 +138,13 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
       const current = s.boards[boardId]?.expandedItemIds ?? [];
       return update(s, boardId, {
         expandedItemIds: current.includes(itemId) ? current.filter((x) => x !== itemId) : [...current, itemId],
+      });
+    }),
+  toggleGroupCollapsedLocally: (boardId, groupId) =>
+    set((s) => {
+      const current = s.boards[boardId]?.collapsedGroupOverrides ?? [];
+      return update(s, boardId, {
+        collapsedGroupOverrides: current.includes(groupId) ? current.filter((x) => x !== groupId) : [...current, groupId],
       });
     }),
   setKanbanColumn: (boardId, columnId) => set((s) => update(s, boardId, { kanbanColumnId: columnId })),

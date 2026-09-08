@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, Bell, BellOff, Copy, History, MoreHorizontal, Palette, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
+import { Archive, ArrowLeft, Bell, BellOff, Copy, Globe, History, MoreHorizontal, Palette, Settings2, Share2, Star, Trash2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -26,6 +26,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
+import { ShareBoardDialog, useBoardShareStatus } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { isBoardMuted } from "@/domain";
@@ -43,6 +44,7 @@ export function BoardHeader({ board }: { board: Board }) {
   const [settings, setSettings] = React.useState<BoardSettingsSection | null>(null);
   const [activityOpen, setActivityOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -52,6 +54,10 @@ export function BoardHeader({ board }: { board: Board }) {
   const { setBoardSubscribed } = useNotificationPreferenceMutations(ws.currentUser.id);
   const muted = isBoardMuted(preferences.data, board.id);
   const team = ws.teamById(board.teamId);
+  // Everyone on the board can see that it is out in the open; only its managers
+  // can change that, so the badge is a button for them and a label for the rest.
+  const share = useBoardShareStatus(board.id).data ?? null;
+  const shared = !!share && share.enabled;
 
   return (
     <header className="relative px-7 pt-5 pb-4">
@@ -83,6 +89,13 @@ export function BoardHeader({ board }: { board: Board }) {
               />
             </h1>
             {board.archivedAt && <Badge variant="muted">Archived</Badge>}
+            {shared && (
+              <SimpleTooltip label="This board is shared by link. Anyone with it can read the board.">
+                <Badge variant="outline" className="gap-1 text-emerald-700 dark:text-emerald-300" data-testid="board-shared-badge">
+                  <Globe className="size-3" /> Shared
+                </Badge>
+              </SimpleTooltip>
+            )}
             {board.visibility !== "WORKSPACE" && (
               <Badge variant="outline" className="capitalize">
                 {board.visibility.toLowerCase()}
@@ -128,6 +141,13 @@ export function BoardHeader({ board }: { board: Board }) {
               <UserPlus /> Invite
             </Button>
           )}
+          {manage && (
+            <SimpleTooltip label="Share this board by link">
+              <Button variant="ghost" size="icon-sm" aria-label="Share this board" onClick={() => setShareOpen(true)} data-testid="board-share">
+                <Share2 />
+              </Button>
+            </SimpleTooltip>
+          )}
           <span aria-hidden className="mx-1 h-6 w-px bg-border/70" />
           <SimpleTooltip label="Board activity">
             <Button variant="ghost" size="icon-sm" aria-label="Board activity" onClick={() => setActivityOpen(true)}>
@@ -147,6 +167,11 @@ export function BoardHeader({ board }: { board: Board }) {
               <DropdownMenuItem onSelect={() => setSettings("members")}>
                 <Users /> Manage members
               </DropdownMenuItem>
+              {manage && (
+                <DropdownMenuItem onSelect={() => setShareOpen(true)} data-testid="board-menu-share">
+                  <Share2 /> Share by link&hellip;
+                </DropdownMenuItem>
+              )}
               {manage && (
                 <>
                   <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename board</DropdownMenuItem>
@@ -213,6 +238,7 @@ export function BoardHeader({ board }: { board: Board }) {
 
       <BoardSettingsDialog board={board} section={settings} onSectionChange={setSettings} onRequestDelete={() => setDeleteOpen(true)} />
       <BoardActivityDialog board={board} open={activityOpen} onOpenChange={setActivityOpen} />
+      <ShareBoardDialog board={board} open={shareOpen} onOpenChange={setShareOpen} />
       <DeleteBoardDialog board={board} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />
     </header>
   );

@@ -14,10 +14,26 @@ export interface Item extends Timestamps {
   archivedAt: string | null;
   /** Public URL (or data URL in local mode) of the cover image shown on the panel and kanban card. */
   coverUrl?: string | null;
+  /**
+   * The booking code: the short reference people quote in an email or a corridor
+   * ("TA-4F2K"). The booking process hands it out, so a task that was never
+   * booked has none. At most ITEM_REFERENCE_MAX characters, never edited by hand,
+   * and shared deliberately with a linked task when that link carries it.
+   */
+  reference?: string | null;
+}
+
+/** A booking code is short enough to read out and to fit in a narrow column. */
+export const ITEM_REFERENCE_MAX = 7;
+
+/** Trims a code to what may be stored: upper case, no spaces, seven characters. */
+export function normaliseItemReference(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim().toUpperCase().slice(0, ITEM_REFERENCE_MAX);
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy"> &
-  Partial<Pick<Item, "parentItemId" | "description">>;
+  Partial<Pick<Item, "parentItemId" | "description" | "reference">>;
 
 export type ColumnValue =
   | { type: "TEXT"; text: string }

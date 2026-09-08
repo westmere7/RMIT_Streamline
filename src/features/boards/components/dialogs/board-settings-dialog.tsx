@@ -17,16 +17,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { BOARD_ROLES, COLUMN_TYPE_LABELS, type Board, type BoardRole } from "@/domain";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { BoardSharePanel } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { boardRoleFor, canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 
-export type BoardSettingsSection = "general" | "members" | "columns" | "permissions" | "archive" | "danger";
+export type BoardSettingsSection = "general" | "members" | "share" | "columns" | "permissions" | "archive" | "danger";
 
 const SECTIONS: Array<{ id: BoardSettingsSection; label: string }> = [
   { id: "general", label: "General" },
   { id: "members", label: "Members" },
+  { id: "share", label: "Share" },
   { id: "columns", label: "Columns" },
   { id: "permissions", label: "Permissions" },
   { id: "archive", label: "Archive" },
@@ -75,6 +77,7 @@ export function BoardSettingsDialog({
           <div className="scrollbar-thin max-h-[calc(85vh-80px)] flex-1 overflow-y-auto p-5">
             {section === "general" && <GeneralSection key={`${board.name}|${board.description ?? ""}`} board={board} manage={manage} />}
             {section === "members" && <MembersSection board={board} manage={manage} />}
+            {section === "share" && <ShareSection board={board} manage={manage} />}
             {section === "columns" && <ColumnsSection board={board} manage={manage} />}
             {section === "permissions" && <PermissionsSection board={board} />}
             {section === "archive" && <ArchiveSection board={board} manage={manage} />}
@@ -168,15 +171,15 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
   const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.userId === u.id));
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-[13px] text-muted-foreground">
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
           {members.length} {members.length === 1 ? "member" : "members"}. Members of a {board.visibility.toLowerCase()} board
           {board.visibility === "WORKSPACE" ? " – everyone in the workspace can also view it." : board.visibility === "TEAM" ? " – team members can also view it." : " are the only people who can see it."}
         </p>
         {manage && (
           <Popover open={addOpen} onOpenChange={setAddOpen}>
             <PopoverTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" className="shrink-0">
                 <Plus /> Add member
               </Button>
             </PopoverTrigger>
@@ -244,6 +247,19 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/** The board's public link, in the same place as everything else about the board. */
+function ShareSection({ board, manage }: { board: Board; manage: boolean }) {
+  if (!manage) {
+    return <p className="text-[13px] text-muted-foreground">Only the board&rsquo;s owner or a workspace admin can share it by link.</p>;
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-[13px] text-muted-foreground">Anyone with the link can read this board. Nothing else, and nothing they can change.</p>
+      <BoardSharePanel board={board} />
     </div>
   );
 }

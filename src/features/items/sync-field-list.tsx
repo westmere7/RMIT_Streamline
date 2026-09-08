@@ -1,12 +1,20 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Hash, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 import { cn } from "@/lib/utils";
 import type { ColumnMappingReport } from "@/services";
+
+/** The booking code on each side, so the list can say what carrying it would do. */
+export interface SyncReference {
+  self: string | null;
+  other: string | null;
+  /** Which side fills the other in. Only then can a code be overwritten. */
+  from?: "item" | "target";
+}
 
 export interface SyncFieldListProps {
   mapping: ColumnMappingReport;
@@ -16,6 +24,8 @@ export interface SyncFieldListProps {
   onToggle?: (keys: string[], on: boolean) => void;
   boardName: string;
   otherBoardName: string;
+  /** Omitted where the codes are not known; the ID# row is then left out. */
+  reference?: SyncReference;
   className?: string;
 }
 
@@ -25,9 +35,15 @@ export interface SyncFieldListProps {
  * columns only one board has are listed greyed out so nobody wonders why they
  * never sync.
  */
-export function SyncFieldList({ mapping, excluded, onToggle, boardName, otherBoardName, className }: SyncFieldListProps) {
+export function SyncFieldList({ mapping, excluded, onToggle, boardName, otherBoardName, reference, className }: SyncFieldListProps) {
   const readOnly = !onToggle;
   const nameOn = !excluded.has(LINK_FIELD_NAME) && !excluded.has(LINK_FIELD_DESCRIPTION);
+  const referenceOn = !excluded.has(LINK_FIELD_REFERENCE);
+  // Both sides arrived with a code of their own: carrying one across means the
+  // other stops answering to the code people already have for it.
+  const winner = reference?.from === "target" ? reference.other : reference?.self;
+  const loser = reference?.from === "target" ? reference.self : reference?.other;
+  const clash = referenceOn && !!reference && !!winner && !!loser && winner !== loser;
   return (
     <ul className={cn("space-y-0.5 text-[13px]", className)} data-testid="sync-preview">
       <FieldRow
@@ -37,6 +53,26 @@ export function SyncFieldList({ mapping, excluded, onToggle, boardName, otherBoa
         icon={<Check className="size-3.5 shrink-0 text-green-600 dark:text-green-400" />}
         label="Name and description"
       />
+      {reference && (
+        <>
+          <FieldRow
+            checked={referenceOn}
+            readOnly={readOnly}
+            onChange={(on) => onToggle?.([LINK_FIELD_REFERENCE], on)}
+            icon={<Hash className="size-3.5 shrink-0 text-muted-foreground" />}
+            label={`ID# ${reference.self ?? reference.other ?? "—"}`}
+          />
+          {clash && (
+            <li className="flex items-start gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-2xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-testid="sync-reference-warning">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Both tasks already have an ID. Linking gives them both <strong className="font-semibold tabular">{winner}</strong>, and <span className="tabular">{loser}</span> stops being used.
+                Untick ID# to leave them as they are.
+              </span>
+            </li>
+          )}
+        </>
+      )}
       {mapping.mapped.map(({ source, target }) => {
         const Icon = COLUMN_TYPE_ICONS[source.type];
         const sameName = source.name.trim().toLowerCase() === target.name.trim().toLowerCase();

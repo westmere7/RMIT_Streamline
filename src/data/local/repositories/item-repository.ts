@@ -36,6 +36,7 @@ export class LocalItemRepository implements ItemRepository {
       parentItemId: input.parentItemId ?? null,
       name: input.name,
       description: input.description ?? null,
+      reference: input.reference ?? null,
       position: input.position,
       createdBy: input.createdBy,
       archivedAt: null,
