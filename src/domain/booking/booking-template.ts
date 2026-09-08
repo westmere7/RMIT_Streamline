@@ -164,10 +164,12 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
         fields: [
           std("title", "What is it?", { placeholder: "e.g. Open Day 2026 wayfinding posters" }),
           std("brief", "Tell us more", { placeholder: "What do you need, who is it for, what should it achieve, and is there anything it must include?" }),
+          // The two chip questions take the full width: at half they wrap their
+          // last chip onto a line of its own, which reads as a mistake.
           std("assetTypes", "Asset type"),
+          std("priority", "How urgent?"),
           std("dueDate", "Needed by", { width: "half" }),
-          std("priority", "How urgent?", { width: "half" }),
-          std("referenceUrl", "Link to a brief or examples", { placeholder: "https://" }),
+          std("referenceUrl", "Link to a brief or examples", { placeholder: "https://", width: "half" }),
         ],
       },
       {

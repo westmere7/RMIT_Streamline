@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown, Database, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserCog, UserRound, Users, Wrench } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -25,15 +25,17 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { IS_DEV } from "@/lib/config";
+import { canManageMembers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/ui-store";
 
 /** Profile menu with a discreet developer section (user switcher, reset seed). */
 export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const user = useCurrentUser();
   const ws = useWorkspace();
-  const { signOut, signIn } = useAuth();
+  const { signOut } = useAuth();
   const { providerKind } = useDataContext();
   const services = useServices();
   const queryClient = useQueryClient();
@@ -42,13 +44,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const [theme, setTheme] = useThemePreference();
   const unreadMessages = useUnreadMessages().data ?? 0;
   const showDevTools = IS_DEV || providerKind === "local";
-
-  const switchUser = async (email: string) => {
-    await signIn(email);
-    queryClient.clear();
-    router.refresh();
-    toast.success(`Now signed in as ${email}`);
-  };
+  const setViewAsUserId = useUiStore((s) => s.setViewAsUserId);
 
   const resetData = async () => {
     await services.repos.admin.resetToSeed();
@@ -148,19 +144,29 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
               <DropdownMenuLabel className="flex items-center gap-1.5">
                 <Wrench className="size-3" /> Developer
               </DropdownMenuLabel>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={providerKind !== "local"}>
-                  <UserCog /> Switch user
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">
-                  {ws.activeUsers.map((u) => (
-                      <DropdownMenuItem key={u.id} disabled={u.id === user.id} onSelect={() => void switchUser(u.email)}>
-                        <UserAvatar user={u} size="xs" tooltip={false} />
-                        <span className="truncate">{u.displayName}</span>
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              {/* Reading the workspace as a colleague: what they can see, without their password. */}
+              {canManageMembers(ws.ownPermissions) && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger data-testid="menu-view-as">
+                    <Eye /> View as
+                    {ws.viewingAs && <span className="ml-auto max-w-24 truncate text-2xs text-muted-foreground">{ws.viewingAs.firstName}</span>}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-80 w-60 overflow-y-auto">
+                    <DropdownMenuItem onSelect={() => setViewAsUserId(null)} disabled={!ws.viewingAs} data-testid="view-as-self">
+                      <UserRound /> Yourself
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {ws.activeUsers
+                      .filter((u) => u.id !== user.id)
+                      .map((u) => (
+                        <DropdownMenuItem key={u.id} onSelect={() => setViewAsUserId(u.id)} disabled={ws.viewingAs?.id === u.id} data-testid={`view-as-${u.id}`}>
+                          <UserAvatar user={u} size="xs" tooltip={false} />
+                          <span className="truncate">{u.displayName}</span>
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
               {providerKind === "local" && (
                 <DropdownMenuItem onSelect={() => setResetOpen(true)}>
                   <RotateCcw /> Reset demo data

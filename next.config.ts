@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
     NEXT_PUBLIC_BUILD_ID: buildId,
     NEXT_PUBLIC_BUILT_AT: builtAt,
+    // Vercel says which of its environments this is; a build made anywhere else is local.
+    NEXT_PUBLIC_DEPLOY_ENV: process.env.VERCEL_ENV ?? "local",
   },
 };
 

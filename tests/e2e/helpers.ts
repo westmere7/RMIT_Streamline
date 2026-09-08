@@ -24,6 +24,17 @@ export async function signInAs(page: Page, firstName: string): Promise<void> {
   await expect(page.getByRole("heading", { level: 1 })).toContainText(firstName);
 }
 
+/**
+ * Sign out and sign in as someone else. Tests that need the work attributed to
+ * another person have to actually be them; "View as" only changes what is shown.
+ */
+export async function switchAccount(page: Page, firstName: string): Promise<void> {
+  await page.getByTestId("user-menu").click();
+  await page.getByRole("menuitem", { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
+  await signInAs(page, firstName);
+}
+
 export async function openBoard(page: Page, url = BOARD_URL): Promise<void> {
   await page.goto(url);
   await expect(page.getByTestId("board-table")).toBeVisible();

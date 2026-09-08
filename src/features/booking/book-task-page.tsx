@@ -33,6 +33,8 @@ export function BookTaskPage() {
   const admin = canSeeSystemEntities(ws.permissions);
   const manager = canManageWorkspace(ws.permissions);
   const [editing, setEditing] = React.useState(false);
+  // Where the editor hangs its controls: the top of the aside, so the card holds the form alone.
+  const [editorPanel, setEditorPanel] = React.useState<HTMLDivElement | null>(null);
 
   const form = useQuery({
     queryKey: queryKeys.bookingForm(ws.slug, null),
@@ -77,21 +79,28 @@ export function BookTaskPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <PageHeader
-        title="Book a task"
-        description="Ask the creative team for work. Requests wait on the Task Allocation board until a manager places them — unless the team you pick takes bookings directly."
-        className="shrink-0"
-        actions={
-          manager && !editing && form.data ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)} data-testid="booking-edit">
-              <Pencil /> Edit form
-            </Button>
-          ) : undefined
-        }
-      />
+      {/* The form is a fixed reading width, so the page is one centred column
+          rather than a card pinned left and an aside pinned right with a hole
+          between them. The header shares the column, and its button lines up
+          with the aside's right edge. */}
+      <div className="mx-auto w-full max-w-[66rem] shrink-0">
+        <PageHeader
+          title="Book a task"
+          // Held to a reading width: at full width the line pushes the button onto one of its own.
+          description={<span className="block max-w-[44rem]">Ask the creative team for work. Requests wait on Task Allocation until a manager places them, unless the team you pick takes bookings directly.</span>}
+          actions={
+            manager && !editing && form.data ? (
+              <Button type="button" onClick={() => setEditing(true)} data-testid="booking-edit">
+                <Pencil /> Edit form
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
       {/* On a desktop the form card scrolls by itself under the header; on a phone the whole page scrolls. */}
-      <div className="scrollbar-thin grid min-h-0 flex-1 gap-6 overflow-y-auto px-4 pb-6 sm:px-7 lg:grid-cols-[minmax(0,1fr)_320px] lg:overflow-visible">
-        <section className="scrollbar-thin rounded-2xl border border-border/70 bg-card p-5 shadow-xs sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible">
+        <div className="mx-auto grid w-full max-w-[66rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,44rem)_minmax(16rem,20rem)]">
+        <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
           {form.isLoading ? (
             <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
               <LoaderCircle className="size-4 animate-spin" /> Getting the form ready…
@@ -108,6 +117,7 @@ export function BookTaskPage() {
               onCancel={() => setEditing(false)}
               onSaveTemplate={saveTemplate}
               onDeleteTemplate={deleteTemplate}
+              panelContainer={editorPanel}
             />
           ) : (
             <BookingForm
@@ -123,14 +133,15 @@ export function BookTaskPage() {
             />
           )}
         </section>
-        {admin && <AdminAside />}
+        {admin && <AdminAside editorSlot={editing ? setEditorPanel : null} />}
+        </div>
       </div>
     </div>
   );
 }
 
 /** The public link and where bookings arrive: admins only. */
-function AdminAside() {
+function AdminAside({ editorSlot }: { editorSlot: ((node: HTMLDivElement | null) => void) | null }) {
   const ws = useWorkspace();
   const services = useServices();
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -162,7 +173,8 @@ function AdminAside() {
 
   return (
     <aside className="scrollbar-thin space-y-4 lg:min-h-0 lg:overflow-y-auto">
-      <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs" data-testid="booking-share">
+      {editorSlot && <div ref={editorSlot} />}
+      <section className="rounded-2xl border border-border/60 bg-surface/40 p-5" data-testid="booking-share">
         <h2 className="text-[15px] font-semibold tracking-tight">Share with stakeholders</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">Anyone with this link can book a task without an account. Send it by email or put it on the intranet.</p>
         <div className="mt-3 flex gap-1.5">
@@ -175,7 +187,7 @@ function AdminAside() {
           <RefreshCw className={regenerate.isPending ? "animate-spin" : undefined} /> Replace the link
         </Button>
       </section>
-      <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
+      <section className="rounded-2xl border border-border/60 bg-surface/40 p-5">
         <h2 className="text-[15px] font-semibold tracking-tight">Where bookings land</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
           Every booking arrives on <span className="font-medium text-foreground">{allocation?.name ?? "Task Allocation"}</span> unless the chosen team has picked one of its boards to receive them (Team settings → Bookings land on).

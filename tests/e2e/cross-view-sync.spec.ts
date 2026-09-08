@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchAccount, switchView } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -170,9 +170,7 @@ test.describe("changes reaching every view", () => {
     const url = page.url();
 
     // Jun is a plain MEMBER: he may not edit or delete another person's update.
-    await page.getByTestId("user-menu").click();
-    await page.getByRole("menuitem", { name: /switch user/i }).click();
-    await page.getByRole("menuitem", { name: /Jun Tanaka/ }).click();
+    await switchAccount(page, "Jun");
     await page.goto(url);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     const comment = page.getByTestId("comment").filter({ hasText: "Danh was here" }).first();

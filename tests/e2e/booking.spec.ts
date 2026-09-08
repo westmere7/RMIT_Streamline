@@ -83,10 +83,13 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-asset-add").click();
     await page.getByTestId("booking-asset-name-1").fill("Instagram tile");
     await expect(page.getByTestId("booking-tab-assets")).toContainText("2");
+    // The form settles the reference before it sends, and the receipt keeps it.
+    const promised = (await page.getByTestId("booking-reference-preview").textContent())?.trim();
+    expect(promised).toMatch(/^TA-[0-9A-F]{5}$/);
     await page.getByTestId("booking-submit").click();
 
     await expect(page.getByTestId("booking-receipt")).toBeVisible();
-    await expect(page.getByTestId("booking-reference")).toHaveText(/^TA-[0-9A-F]{5}$/);
+    await expect(page.getByTestId("booking-reference")).toHaveText(promised!);
     await expect(page.getByTestId("booking-receipt")).toContainText("allocation queue");
     await expect(page.getByTestId("booking-receipt")).toContainText("2 assets");
 

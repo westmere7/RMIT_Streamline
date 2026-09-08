@@ -48,17 +48,6 @@ test.describe("signing in and out", () => {
     await expect(page.getByTestId("board-table")).toHaveCount(0);
   });
 
-  test("switching user in the dev menu swaps the whole workspace view", async ({ page }) => {
-    await resetLocalData(page);
-    await signInAs(page, "Danh");
-    await page.getByTestId("user-menu").click();
-    await page.getByRole("menuitem", { name: /switch user/i }).click();
-    await page.getByRole("menuitem", { name: /Emily Carter/ }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Emily", { timeout: 10000 });
-    await page.reload();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Emily");
-  });
-
   test("an empty email cannot be submitted", async ({ page }) => {
     await resetLocalData(page);
     await page.goto("/login");

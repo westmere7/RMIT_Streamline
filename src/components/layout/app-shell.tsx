@@ -4,6 +4,7 @@ import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ViewingAsBanner } from "@/features/workspace/components/viewing-as-banner";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { ConfettiCanvas } from "@/components/shared/confetti";
@@ -31,6 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Rehydrate persisted UI preferences after mount to avoid SSR mismatches.
   React.useEffect(() => {
     void useUiStore.persist.rehydrate();
+    useUiStore.getState().restoreViewAs();
   }, []);
 
   React.useEffect(() => {
@@ -71,6 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Sidebar />
       </div>
       <main id="main" className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-sm max-md:rounded-none">
+        <ViewingAsBanner />
         {/* Phone-only top bar: the sidebar lives behind the menu button. */}
         <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border/70 px-2 md:hidden" data-testid="mobile-top-bar">
           <Button variant="ghost" size="icon-sm" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={() => setDrawerPath(pathname)} data-testid="mobile-menu">

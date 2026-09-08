@@ -117,6 +117,12 @@ export interface BookingRequest {
   extra: Record<EntityId, ColumnValue>;
   /** Answers to the form's own custom questions, keyed by template field id. */
   answers: Record<string, ColumnValue>;
+  /**
+   * The id the item should be created with. The form makes one up front so the
+   * reference it shows is the reference the booking gets; nothing is written
+   * until the booking is sent. Ignored when it is already taken.
+   */
+  itemId?: EntityId | null;
 }
 
 /** What the stakeholder sees once the booking is in. */

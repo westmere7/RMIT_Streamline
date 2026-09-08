@@ -146,9 +146,10 @@ export const TABLE_LAYOUT = {
  * Anything whose value is short — a chip, a date, an icon, a number, a link, a
  * word or two of text — reads better centred under its header. Only the two that
  * are long by nature stay against the left edge: a long text column, and a
- * dependency column that lists item names.
+ * dependency column that lists item names. The assets recap is a badge of two
+ * short figures, so it centres with the rest.
  */
-const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "DEPENDENCY", "ASSETS_RECAP"]);
+const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "DEPENDENCY"]);
 
 export function columnAlign(type: ColumnType): "left" | "center" {
   return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";

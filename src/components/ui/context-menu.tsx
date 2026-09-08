@@ -3,6 +3,7 @@
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import { ChevronRight } from "lucide-react";
 import * as React from "react";
+import { useMenuDragSelect } from "@/components/ui/menu-drag-select";
 import { cn } from "@/lib/utils";
 
 const ContextMenu = ContextMenuPrimitive.Root;
@@ -12,10 +13,22 @@ const ContextMenuSub = ContextMenuPrimitive.Sub;
 const contentClasses =
   "z-50 min-w-[11rem] overflow-hidden rounded-xl border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";
 
-function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+function ContextMenuContent({ className, onPointerDown, onPointerUp, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+  const drag = useMenuDragSelect();
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Content className={cn(contentClasses, className)} {...props} />
+      <ContextMenuPrimitive.Content
+        className={cn(contentClasses, className)}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          drag.onPointerDown(event);
+        }}
+        onPointerUp={(event) => {
+          onPointerUp?.(event);
+          drag.onPointerUp(event);
+        }}
+        {...props}
+      />
     </ContextMenuPrimitive.Portal>
   );
 }
@@ -35,10 +48,22 @@ function ContextMenuSubTrigger({ className, children, ...props }: React.Componen
   );
 }
 
-function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+function ContextMenuSubContent({ className, onPointerDown, onPointerUp, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  const drag = useMenuDragSelect();
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.SubContent className={cn(contentClasses, className)} {...props} />
+      <ContextMenuPrimitive.SubContent
+        className={cn(contentClasses, className)}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          drag.onPointerDown(event);
+        }}
+        onPointerUp={(event) => {
+          onPointerUp?.(event);
+          drag.onPointerUp(event);
+        }}
+        {...props}
+      />
     </ContextMenuPrimitive.Portal>
   );
 }

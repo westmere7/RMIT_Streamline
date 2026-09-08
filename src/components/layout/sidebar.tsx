@@ -15,7 +15,6 @@ import {
   Kanban,
   SquareKanban,
   ListTodo,
-  PanelLeftClose,
   Plus,
   Search,
   Settings2,
@@ -89,7 +88,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const queryClient = useQueryClient();
   // A drawer is always the full sidebar, whatever the desktop preference says.
   const collapsed = useUiStore((s) => s.sidebarCollapsed) && !drawer;
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCounts(user?.id ?? "");
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
@@ -203,15 +201,17 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               {collapsed ? <BrandMark className="size-8 rounded-xl shadow-xs" /> : <BrandLogo className="h-6" />}
             </button>
           </SimpleTooltip>
-          {!collapsed && !drawer && (
-            <SimpleTooltip label="Collapse sidebar" side="right">
+          {!collapsed && (
+            <SimpleTooltip label="Search (Ctrl/⌘ F)" side="bottom">
               <button
                 type="button"
-                onClick={toggleSidebar}
-                aria-label="Collapse sidebar"
+                onClick={() => setCommandPaletteOpen(true)}
+                aria-label="Search"
+                aria-keyshortcuts="Control+F Meta+F"
                 className="ml-auto rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+                data-testid="sidebar-search"
               >
-                <PanelLeftClose className="size-4" />
+                <Search className="size-4" />
               </button>
             </SimpleTooltip>
           )}
@@ -220,6 +220,23 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 pt-1 pb-3" aria-label="Workspace navigation">
         <ul className="space-y-1">
+          {/* Folded up, search is the first icon under the mark; open, it sits in the header. */}
+          {collapsed && (
+            <li>
+              <SimpleTooltip label="Search (Ctrl/⌘ F)" side="right">
+                <button
+                  type="button"
+                  onClick={() => setCommandPaletteOpen(true)}
+                  aria-label="Search"
+                  aria-keyshortcuts="Control+F Meta+F"
+                  className={cn(navItemClasses(false), "justify-center px-0")}
+                  data-testid="sidebar-search"
+                >
+                  <Search className="size-4 shrink-0" />
+                </button>
+              </SimpleTooltip>
+            </li>
+          )}
           <NavItem href={routes.workspace(ws.slug)} icon={Home} label="Home" active={isActivePath(routes.workspace(ws.slug))} collapsed={collapsed} />
           <NavItem href={routes.myWork(ws.slug)} icon={ListTodo} label="My Work" active={isActivePath(routes.myWork(ws.slug))} collapsed={collapsed} />
           <NavItem
@@ -230,25 +247,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             collapsed={collapsed}
             badges={unread}
           />
-          <li>
-            <SimpleTooltip label="Search (Ctrl/⌘ F)" side="right" disabled={!collapsed}>
-              <button
-                type="button"
-                onClick={() => setCommandPaletteOpen(true)}
-                aria-label="Search"
-                aria-keyshortcuts="Control+F Meta+F"
-                className={cn(navItemClasses(false), collapsed && "justify-center px-0")}
-              >
-                <Search className="size-4 shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 text-left">Search</span>
-                    <kbd className="rounded-md border border-border/70 bg-card px-1.5 py-0.5 text-2xs text-muted-foreground">⌘F</kbd>
-                  </>
-                )}
-              </button>
-            </SimpleTooltip>
-          </li>
           <li>
             <SimpleTooltip label="Book a task" side="right" disabled={!collapsed}>
               <Link

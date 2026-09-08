@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 import { buildSeed, SEED_USER_IDS } from "@/data/seed/seed-data";
 
 const INBOX = "/workspace/rmit/inbox";
@@ -24,10 +24,7 @@ async function openSettings(page: Page) {
 
 async function switchTo(page: Page, name: string) {
   await page.goto("/workspace/rmit");
-  await page.getByTestId("user-menu").click();
-  await page.getByRole("menuitem", { name: /switch user/i }).click();
-  await page.getByRole("menuitem", { name: new RegExp(name) }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(name.split(" ")[0]!, { timeout: 20_000 });
+  await switchAccount(page, name.split(" ")[0]!);
 }
 
 /** Posts an update mentioning someone, as whoever is signed in. */

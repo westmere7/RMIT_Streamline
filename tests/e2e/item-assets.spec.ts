@@ -34,13 +34,13 @@ test.describe("asset lines and the recap column", () => {
     await expect(card.getByTestId("asset-type")).toBeVisible({ timeout: 20_000 });
   }
 
-  /** The developer user switch, so the same browser can look at the board as someone else. */
+  /** Read the board as someone else, so the same browser can see what they can do. */
   async function switchTo(page: Page, displayName: string) {
     await page.goto("/workspace/rmit");
     await page.getByTestId("user-menu").click();
-    await page.getByRole("menuitem", { name: /switch user/i }).click();
+    await page.getByTestId("menu-view-as").click();
     await page.getByRole("menuitem", { name: new RegExp(displayName) }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(displayName.split(" ")[0]!, { timeout: 20_000 });
+    await expect(page.getByTestId("viewing-as-banner")).toContainText(displayName, { timeout: 20_000 });
   }
 
   test("lines are added from the panel, totals follow live, and the board cell summarises them", async ({ page }) => {
@@ -97,11 +97,11 @@ test.describe("asset lines and the recap column", () => {
     await expect(panel(page).getByTestId("assets-due")).toContainText(/Next due/);
 
     // The board cell follows: 3 posters + 1 tile, one type, one person.
-    await expect(cell).toContainText("4 assets · 1 PIC", { timeout: 20_000 });
+    await expect(cell).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
 
     // Everything survives a reload, and the badge on the tab counts the lines.
     await page.reload();
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("4 assets · 1 PIC", { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
     await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
     await expect(panel(page).getByTestId("tab-assets")).toContainText("2");
 
@@ -121,7 +121,7 @@ test.describe("asset lines and the recap column", () => {
     await openLine(page, "Instagram tile");
     await line(page, "Instagram tile").getByTestId("asset-remove").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toContainText("3 assets · 1 PIC", { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /3 assets · 1 PIC/, { timeout: 20_000 });
   });
 
   test("a viewer sees the lines but cannot change them", async ({ page }) => {

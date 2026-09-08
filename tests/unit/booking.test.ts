@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BoardColumn, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
-import { customFields, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, newCustomField, standardFieldFor } from "@/domain";
+import { bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, newCustomField, standardFieldFor } from "@/domain";
 import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { createServices } from "@/services";
 import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, planStandardFields, resolveBookingTemplate, validateBookingAgainstTemplate } from "@/services/booking";
@@ -419,6 +419,17 @@ describe("shaping the booking form", () => {
     expect(await services.booking.listTemplates(SEED_WORKSPACE_ID)).toEqual([]);
   });
 
+  it("stores nothing when the form saved is the built-in one, so it keeps up with the app", async () => {
+    await services.booking.saveForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate());
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm ?? null).toBeNull();
+
+    // Anything of the workspace's own is stored as it is.
+    const own = defaultBookingFormTemplate();
+    own.submitLabel = "Send it";
+    await services.booking.saveForm(SEED_WORKSPACE_ID, own);
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm?.submitLabel).toBe("Send it");
+  });
+
   it("goes back to the built-in form on reset", async () => {
     const custom = defaultBookingFormTemplate();
     custom.submitLabel = "Go";
@@ -426,5 +437,25 @@ describe("shaping the booking form", () => {
     expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Go");
     await services.booking.resetForm(SEED_WORKSPACE_ID);
     expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Book this task");
+  });
+});
+
+describe("the reference a booking carries", () => {
+  let services: ReturnType<typeof createServices>;
+  beforeEach(() => {
+    services = createServices(createLocalRepositories({ databaseName: `booking-ref-${Date.now()}-${Math.random()}` }));
+  });
+
+  it("uses the id the form settled on, so the code shown before sending is the code that sticks", async () => {
+    const key = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
+    const itemId = "1f0a2b3c-4d5e-4f60-8a91-b2c3d4e5f607";
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
+    expect(receipt.itemId).toBe(itemId);
+    expect(receipt.reference).toBe(bookingReference(itemId));
+
+    // The same id a second time is already taken, so that booking gets its own.
+    const second = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
+    expect(second.itemId).not.toBe(itemId);
+    expect(second.reference).toBe(bookingReference(second.itemId));
   });
 });

@@ -71,6 +71,7 @@ export const bookingRequestSchema = z.object({
   referenceUrl: url.nullable().default(null),
   extra: z.record(z.string(), columnValueSchema).default({}),
   answers: z.record(z.string(), columnValueSchema).default({}),
+  itemId: z.uuid().nullable().default(null),
 });
 
 export type BookingRequestInput = z.input<typeof bookingRequestSchema>;

@@ -3,6 +3,7 @@
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { Check, ChevronRight, Circle } from "lucide-react";
 import * as React from "react";
+import { useMenuDragSelect } from "@/components/ui/menu-drag-select";
 import { cn } from "@/lib/utils";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -18,11 +19,26 @@ const contentClasses =
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  onPointerDown,
+  onPointerUp,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const drag = useMenuDragSelect();
   return (
     <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content sideOffset={sideOffset} className={cn(contentClasses, className)} {...props} />
+      <DropdownMenuPrimitive.Content
+        sideOffset={sideOffset}
+        className={cn(contentClasses, className)}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          drag.onPointerDown(event);
+        }}
+        onPointerUp={(event) => {
+          onPointerUp?.(event);
+          drag.onPointerUp(event);
+        }}
+        {...props}
+      />
     </DropdownMenuPrimitive.Portal>
   );
 }
@@ -48,8 +64,22 @@ function DropdownMenuSubTrigger({
   );
 }
 
-function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-  return <DropdownMenuPrimitive.SubContent className={cn(contentClasses, className)} {...props} />;
+function DropdownMenuSubContent({ className, onPointerDown, onPointerUp, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const drag = useMenuDragSelect();
+  return (
+    <DropdownMenuPrimitive.SubContent
+      className={cn(contentClasses, className)}
+      onPointerDown={(event) => {
+        onPointerDown?.(event);
+        drag.onPointerDown(event);
+      }}
+      onPointerUp={(event) => {
+        onPointerUp?.(event);
+        drag.onPointerUp(event);
+      }}
+      {...props}
+    />
+  );
 }
 
 function DropdownMenuItem({

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -52,9 +52,7 @@ test.describe("writing an update", () => {
 
     // Tuyet has it in her inbox.
     await page.goto("/workspace/rmit");
-    await page.getByTestId("user-menu").click();
-    await page.getByRole("menuitem", { name: /switch user/i }).click();
-    await page.getByRole("menuitem", { name: /Tuyet Le/ }).click();
+    await switchAccount(page, "Tuyet");
     await page.goto("/workspace/rmit/inbox");
     await expect(page.getByTestId("notification-row").filter({ hasText: "mentioned you" }).first()).toBeVisible({ timeout: 20000 });
   });

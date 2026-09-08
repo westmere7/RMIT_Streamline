@@ -24,19 +24,17 @@ test.describe("version check", () => {
     await resetLocalData(page);
   });
 
-  test("About shows the running version and reports it as up to date", async ({ page }) => {
+  test("About wears the running version on a badge beside the mark", async ({ page }) => {
     await signInAs(page, "Danh");
     await openAbout(page);
-    await expect(page.getByTestId("about-version")).toContainText(/Streamline v\d+\.\d+\.\d+ \(/);
-    await expect(page.getByTestId("version-status")).toContainText(/up to date/i, { timeout: 15000 });
-    await expect(page.getByTestId("version-reload")).toHaveCount(0);
+    await expect(page.getByTestId("about-version")).toHaveText(/^v\d+\.\d+\.\d+$/);
     await page.keyboard.press("Escape");
 
     // The version is nowhere else until asked for; the logo opens the same dialog.
     await page.goto("/workspace/rmit");
-    await expect(page.getByText(/Streamline v\d+\.\d+\.\d+/)).toHaveCount(0);
+    await expect(page.getByTestId("about-version")).toHaveCount(0);
     await openAbout(page, "logo");
-    await expect(page.getByTestId("about-dialog")).toContainText(/Streamline v\d+\.\d+\.\d+ \(/);
+    await expect(page.getByTestId("about-version")).toHaveText(/^v\d+\.\d+\.\d+$/);
   });
 
   test("a newer build on the server raises a notice that does not force a reload", async ({ page }) => {
@@ -57,20 +55,5 @@ test.describe("version check", () => {
     await page.goto("/workspace/rmit/my-work");
     await page.waitForTimeout(1500);
     await expect(page.getByText("A new version of Streamline is ready")).toHaveCount(0);
-
-    // About still says so and offers the reload.
-    await openAbout(page);
-    await expect(page.getByTestId("version-status")).toContainText(/newer version is live: v9\.9\.9 \(feedfac\)/, { timeout: 15000 });
-    await expect(page.getByTestId("version-reload")).toBeVisible();
-  });
-
-  test("a manual check picks up a build that appeared after the page loaded", async ({ page }) => {
-    await signInAs(page, "Danh");
-    await openAbout(page);
-    await expect(page.getByTestId("version-status")).toContainText(/up to date/i, { timeout: 15000 });
-    await serveNewerBuild(page);
-    await page.getByTestId("version-check").click();
-    await expect(page.getByTestId("version-status")).toContainText(/newer version is live/i, { timeout: 15000 });
-    await expect(page.getByText("A new version of Streamline is ready")).toBeVisible();
   });
 });

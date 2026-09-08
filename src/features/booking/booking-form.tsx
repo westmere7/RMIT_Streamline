@@ -6,8 +6,9 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { BookingAssetLine, BookingForm as BookingFormData, BookingReceipt, BookingRequest, BookingStandardKey, BookingTemplateField } from "@/domain";
-import { BOOKING_STANDARD_KEYS, customFields, standardFieldFor } from "@/domain";
+import { BOOKING_STANDARD_KEYS, bookingReference, customFields, standardFieldFor } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
+import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingRequestSchema, validateBookingAgainstTemplate } from "@/services/booking";
 import { AnswerField, AssetList, blankAsset, emptyDraft, routingNote, Section, specForExtraField, StandardField, type AssetRow, type BookingDraft } from "./booking-fields";
@@ -36,6 +37,9 @@ export interface BookingFormProps {
 export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: BookingFormProps) {
   const template = form.template;
   const [draft, setDraft] = React.useState<BookingDraft>(() => emptyDraft(defaults));
+  // The booking's reference, settled before it is sent: the id the item will be
+  // created with is made here, so the code on the form is the code on the receipt.
+  const [itemId, setItemId] = React.useState(() => newId());
   const [assets, setAssets] = React.useState<AssetRow[]>([blankAsset()]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [receipt, setReceipt] = React.useState<BookingReceipt | null>(null);
@@ -64,6 +68,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
     // Only answers to the chosen team's questions travel; a switch of team drops the others.
     extra: asks("team") ? Object.fromEntries(Object.entries(draft.extra).filter(([columnId]) => team?.fields.some((f) => f.columnId === columnId))) : {},
     answers: Object.fromEntries(customFields(template).flatMap((f) => (draft.answers[f.id] ? [[f.id, draft.answers[f.id]!]] : []))),
+    itemId,
   });
 
   const submit = useMutation({
@@ -104,6 +109,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
 
   const reset = () => {
     setReceipt(null);
+    setItemId(newId());
     setErrors({});
     setAssets([blankAsset()]);
     setTab("request");
@@ -228,8 +234,16 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
         </p>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-2xs text-muted-foreground">{template.submitNote}</p>
+      <div className="flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+            Reference
+            <span className="rounded-md border border-border/60 bg-surface/70 px-1.5 py-0.5 font-medium text-foreground tabular" title="The reference this booking will carry" data-testid="booking-reference-preview">
+              {bookingReference(itemId)}
+            </span>
+          </p>
+          {template.submitNote && <p className="text-2xs text-muted-foreground">{template.submitNote}</p>}
+        </div>
         <Button type="submit" size="lg" disabled={busy} className="sm:min-w-44" data-testid="booking-submit">
           {busy ? (
             <>

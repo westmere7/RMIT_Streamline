@@ -247,9 +247,11 @@ export function SizeCell({ item, column, value, onChange, readOnly, width }: Cel
 // ---- Assets recap --------------------------------------------------------------
 
 /**
- * Read-only: "14 assets · 3 types · 2 PIC", worked out from the item's live
- * asset lines when the board has them loaded and from the stored summary until
- * then. Clicking opens the item straight on its Assets tab, where the lines are.
+ * Read-only: how much there is and how many people are on it, worked out from
+ * the item's live asset lines when the board has them loaded and from the stored
+ * summary until then. It reads as a small badge rather than a sentence, so a
+ * column of these does not look like more text among the text. Clicking opens
+ * the item straight on its Assets tab, where the lines are.
  */
 export function AssetsRecapCell({ item, column, value, width }: CellProps) {
   const { board, openItem } = useBoardContext();
@@ -259,6 +261,8 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
   const live = React.useMemo(() => (assets.data ? recapAssets(assets.data.filter((a) => a.itemId === item.id), todayISO()) : null), [assets.data, item.id]);
   const lines = live ? live.lines : stored.lines;
   const overdue = live ? live.overdue : stored.overdue;
+  const quantity = live ? live.quantity : stored.quantity;
+  const people = live ? live.assigneeIds.length : stored.people;
   const text = live ? formatAssetsRecap({ lines: live.lines, quantity: live.quantity, types: live.types, people: live.assigneeIds }) : formatAssetsRecap(stored);
   const open = () => {
     setRequestedItemTab({ itemId: item.id, tab: "assets" });
@@ -266,14 +270,27 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
   };
   return (
     <CellShell width={width ?? column.width} align={columnAlign(column.type)} aria-label={`${column.name}: ${text || "no assets"} for ${item.name}`} data-testid="assets-recap-cell">
-      <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden px-1 text-left text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" title={text || "Open the Assets tab"}>
+      <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden px-1 text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" title={text || "Open the Assets tab"}>
         {lines === 0 ? (
           <span className="text-2xs text-muted-foreground/60">—</span>
         ) : (
-          <>
-            {overdue > 0 && <TriangleAlert className="size-3 shrink-0 text-red-600 dark:text-red-400" aria-label={`${overdue} overdue`} />}
-            <span className="truncate tabular">{text}</span>
-          </>
+          <span
+            className={cn(
+              "inline-flex h-5.5 min-w-0 items-center rounded-md border border-border/60 bg-surface/70 text-2xs tabular",
+              overdue > 0 && "border-red-300/80 dark:border-red-500/40",
+            )}
+          >
+            <span className="flex min-w-0 items-center gap-1 truncate px-1.5">
+              {overdue > 0 && <TriangleAlert className="size-2.5 shrink-0 text-red-600 dark:text-red-400" aria-label={`${overdue} overdue`} />}
+              <span className="truncate text-muted-foreground">
+                <span className="font-medium text-foreground">{quantity}</span> {quantity === 1 ? "asset" : "assets"}
+              </span>
+            </span>
+            <span aria-hidden className="h-full w-px shrink-0 bg-border/70" />
+            <span className="shrink-0 px-1.5 text-muted-foreground">
+              <span className="font-medium text-foreground">{people}</span> PIC
+            </span>
+          </span>
         )}
       </button>
     </CellShell>

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 const OTHER = "Cover concept – final artwork";
@@ -14,9 +14,7 @@ async function postUpdate(page: Page, item: string, body: string) {
 }
 
 async function switchUser(page: Page, name: RegExp) {
-  await page.getByTestId("user-menu").click();
-  await page.getByRole("menuitem", { name: /switch user/i }).click();
-  await page.getByRole("menuitem", { name }).click();
+  await switchAccount(page, String(name).replace(/[^A-Za-z ]/g, "").trim().split(" ")[0]!);
   // The account menu at the bottom of the sidebar shows who is signed in now.
   await expect(page.getByTestId("user-menu")).toContainText(name, { timeout: 15000 });
 }

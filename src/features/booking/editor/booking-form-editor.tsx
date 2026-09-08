@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Columns2, LoaderCircle, Lock, Plus, RectangleHorizontal, X } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,8 @@ export interface BookingFormEditorProps {
   onCancel: () => void;
   onSaveTemplate: (name: string, template: BookingFormTemplate) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
+  /** Where the editing controls go. Given one, they sit beside the form rather than above it. */
+  panelContainer?: HTMLElement | null;
 }
 
 /**
@@ -36,7 +39,7 @@ export interface BookingFormEditorProps {
  * question has its handles (required, width, order, remove), every section can
  * take another question or go. Nothing leaves the browser until "Save form".
  */
-export function BookingFormEditor({ form, initial, templates, saving, onSave, onCancel, onSaveTemplate, onDeleteTemplate }: BookingFormEditorProps) {
+export function BookingFormEditor({ form, initial, templates, saving, onSave, onCancel, onSaveTemplate, onDeleteTemplate, panelContainer }: BookingFormEditorProps) {
   const [draft, setDraft] = React.useState<BookingFormTemplate>(() => clone(initial));
   const [addingTo, setAddingTo] = React.useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
@@ -64,13 +67,23 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
   const removeField = (sectionId: string, fieldId: string) => update((t) => void (t.sections.find((s) => s.id === sectionId)!.fields = t.sections.find((s) => s.id === sectionId)!.fields.filter((f) => f.id !== fieldId)));
   const addField = (sectionId: string, field: BookingTemplateField) => update((t) => t.sections.find((s) => s.id === sectionId)!.fields.push(field));
 
-  return (
-    <div className="space-y-6" data-testid="booking-editor">
-      <div className="sticky -top-5 z-10 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-card/95 px-3.5 py-2.5 shadow-xs backdrop-blur sm:-top-7">
-        <p className="text-[13px] text-muted-foreground">
-          <span className="font-medium text-foreground">Editing the form.</span> Changes go live for everyone, the public link included, when you save.
+  // The controls: beside the form when the page offers a place for them, above it otherwise.
+  const panel = (
+    <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
+      <div>
+        <p className="text-[13px] font-medium">Editing the form</p>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Changes go live for everyone, the public link included, when you save.</p>
+      </div>
+      {problem && (
+        <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
+          {problem}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+      )}
+      <div className="grid gap-2">
+        <Button type="button" onClick={() => check.success && onSave(draft)} disabled={saving || !check.success || !dirty} title={problem ?? undefined} data-testid="booking-editor-save">
+          {saving ? <LoaderCircle className="animate-spin" /> : null} Save form
+        </Button>
+        <div className="flex items-center gap-2">
           <TemplatesMenu
             templates={templates}
             current={draft}
@@ -82,19 +95,17 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
             onDeleteTemplate={onDeleteTemplate}
             onReset={() => setDraft(defaultBookingFormTemplate())}
           />
-          <Button type="button" variant="ghost" size="sm" onClick={() => (dirty ? setConfirmDiscard(true) : onCancel())} disabled={saving} data-testid="booking-editor-discard">
+          <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={() => (dirty ? setConfirmDiscard(true) : onCancel())} disabled={saving} data-testid="booking-editor-discard">
             {dirty ? "Discard" : "Done"}
-          </Button>
-          <Button type="button" size="sm" onClick={() => check.success && onSave(draft)} disabled={saving || !check.success || !dirty} title={problem ?? undefined} data-testid="booking-editor-save">
-            {saving ? <LoaderCircle className="animate-spin" /> : null} Save form
           </Button>
         </div>
       </div>
-      {problem && (
-        <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
-          {problem}
-        </p>
-      )}
+    </section>
+  );
+
+  return (
+    <div className="space-y-6" data-testid="booking-editor">
+      {panelContainer ? createPortal(panel, panelContainer) : panel}
 
       {/* The tab row: the request tab's name, and whether there is an assets tab at all. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border/60 pb-2">

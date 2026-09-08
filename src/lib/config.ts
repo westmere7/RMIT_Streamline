@@ -36,5 +36,22 @@ export function getAppConfig(): AppConfig {
   return { dataProvider, supabaseUrl, supabaseAnonKey };
 }
 
+/** Which deployment this is: one of Vercel's environments, or a build made anywhere else. */
+export const DEPLOY_ENV = process.env.NEXT_PUBLIC_DEPLOY_ENV?.trim() || "local";
+
+/** The region the Supabase project sits in, when it has been named (NEXT_PUBLIC_SUPABASE_REGION). */
+export const BACKEND_REGION = process.env.NEXT_PUBLIC_SUPABASE_REGION?.trim() || null;
+
+/** The Supabase project's reference, taken from its URL: "https://abcd.supabase.co" → "abcd". */
+export function supabaseProjectRef(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const host = new URL(url).hostname;
+    return host.endsWith(".supabase.co") ? (host.split(".")[0] ?? null) : host;
+  } catch {
+    return null;
+  }
+}
+
 export const APP_NAME = "Streamline";
 export const IS_DEV = process.env.NODE_ENV !== "production";

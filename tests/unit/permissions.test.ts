@@ -50,11 +50,17 @@ describe("workspace permissions", () => {
 });
 
 describe("board permissions", () => {
-  it("workspace boards are editable by members but hidden from guests without membership", () => {
-    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER" }), board())).toBe("EDITOR");
+  it("workspace boards are readable by members, not editable, and hidden from guests without membership", () => {
+    // A workspace-visible board is open to read and closed to edit: being in the
+    // workspace is not being on the board.
+    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER" }), board())).toBe("VIEWER");
     expect(canViewBoard(ctx({ userId: "u", role: "GUEST" }), board())).toBe(false);
     expect(canViewBoard(ctx({ userId: "u", role: "GUEST", boardRoles: [["board-1", "VIEWER"]] }), board())).toBe(true);
     expect(canEditBoard(ctx({ userId: "u", role: "GUEST", boardRoles: [["board-1", "VIEWER"]] }), board())).toBe(false);
+    expect(canEditBoard(ctx({ userId: "u", role: "MEMBER" }), board())).toBe(false);
+    // Being put on the board, or being an admin, is what opens it up.
+    expect(canEditBoard(ctx({ userId: "u", role: "MEMBER", boardRoles: [["board-1", "EDITOR"]] }), board())).toBe(true);
+    expect(canEditBoard(ctx({ userId: "u", role: "ADMIN" }), board())).toBe(true);
   });
 
   it("team boards follow team membership", () => {

@@ -78,9 +78,13 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   if (isWorkspaceAdmin(ctx)) return "EDITOR";
   if (ctx.workspaceRole === null) return null;
 
+  // Visibility says who may read a board, not who may change it. Anyone in the
+  // workspace can open a workspace-visible board, but editing it takes a reason
+  // to be on it: its owner, someone added to it, its team, or a workspace admin
+  // (all of which are settled above).
   switch (board.visibility) {
     case "WORKSPACE":
-      return ctx.workspaceRole === "GUEST" ? null : "EDITOR";
+      return ctx.workspaceRole === "GUEST" ? null : "VIEWER";
     case "TEAM":
       return board.teamId && ctx.teamIds.has(board.teamId) ? "EDITOR" : null;
     case "PRIVATE":

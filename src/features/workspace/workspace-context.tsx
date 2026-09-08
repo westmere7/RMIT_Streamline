@@ -5,14 +5,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef } fr
 import type { Board, BoardFavourite, BoardMember, Team, TeamMember, User, Workspace, WorkspaceMember } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
-import { buildPermissionContext, canSeeSystemEntities, type PermissionContext } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canSeeSystemEntities, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
+import { useUiStore } from "@/stores/ui-store";
 
 export interface WorkspaceContextValue {
   workspace: Workspace;
   slug: string;
   currentUser: User;
+  /**
+   * The colleague whose view of the workspace is on screen, when an admin has
+   * asked for one. What is visible follows their access; anything saved is
+   * still saved as `currentUser`, who is the one actually signed in.
+   */
+  viewingAs: User | null;
   members: WorkspaceMember[];
   /** Everyone with a membership row, including pending and deactivated people, so history always resolves a name. */
   users: User[];
@@ -24,6 +31,8 @@ export interface WorkspaceContextValue {
   boardMembers: BoardMember[];
   favourites: BoardFavourite[];
   permissions: PermissionContext;
+  /** What the signed-in person may do, whoever they are reading the workspace as. */
+  ownPermissions: PermissionContext;
   userById: (id: string | null | undefined) => User | undefined;
   teamById: (id: string | null | undefined) => Team | undefined;
   boardById: (id: string | null | undefined) => Board | undefined;
@@ -78,14 +87,20 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   const boardMembers = boardMembersQuery.data;
   const favourites = favouritesQuery.data;
 
+  const viewAsUserId = useUiStore((s) => s.viewAsUserId);
   const value = useMemo<WorkspaceContextValue | null>(() => {
     if (!ctx || !allBoards || !boardMembers || !favourites) return null;
-    const permissions = buildPermissionContext({
+    const own = buildPermissionContext({
       userId: currentUser.id,
       workspaceMembers: ctx.members,
       teamMembers: ctx.teamMembers,
       boardMembers,
     });
+    // Only an admin may look through someone else's eyes, and only at someone who
+    // is a member here. The data still arrives with the admin's own access; what
+    // changes is how much of it the app is willing to show.
+    const viewingAs = viewAsUserId && isWorkspaceAdmin(own) ? (ctx.users.find((u) => u.id === viewAsUserId) ?? null) : null;
+    const permissions = viewingAs ? buildPermissionContext({ userId: viewingAs.id, workspaceMembers: ctx.members, teamMembers: ctx.teamMembers, boardMembers }) : own;
     // The Admin team and Task Allocation board exist for admins alone. Supabase
     // hides them through RLS; the local store has no such layer, so filter here.
     const admin = canSeeSystemEntities(permissions);
@@ -96,11 +111,12 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
     const teamsById = new Map(teams.map((t) => [t.id, t]));
     const boardsById = new Map(boards.map((b) => [b.id, b]));
     const favouriteIds = new Set(favourites.map((f) => f.boardId));
-    const myTeamIds = new Set(ctx.teamMembers.filter((m) => m.userId === currentUser.id).map((m) => m.teamId));
+    const myTeamIds = new Set(ctx.teamMembers.filter((m) => m.userId === (viewingAs?.id ?? currentUser.id)).map((m) => m.teamId));
     return {
       workspace: ctx.workspace,
       slug: ctx.workspace.slug,
       currentUser,
+      viewingAs,
       members: ctx.members,
       users: ctx.users,
       activeUsers: ctx.users.filter((u) => u.deactivatedAt === null && activeMemberIds.has(u.id)),
@@ -110,6 +126,7 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       boardMembers,
       favourites,
       permissions,
+      ownPermissions: own,
       userById: (id) => (id ? usersById.get(id) : undefined),
       teamById: (id) => (id ? teamsById.get(id) : undefined),
       boardById: (id) => (id ? boardsById.get(id) : undefined),
@@ -119,7 +136,7 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       boardPath: (board, options) => routes.board(ctx.workspace.slug, board.slug, options),
       refresh,
     };
-  }, [ctx, allBoards, boardMembers, favourites, currentUser, refresh]);
+  }, [ctx, allBoards, boardMembers, favourites, currentUser, viewAsUserId, refresh]);
 
   // An admin opening the workspace makes sure its built-in Admin team, Task
   // Allocation board and booking link exist, and that the board carries every

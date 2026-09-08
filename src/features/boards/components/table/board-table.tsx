@@ -253,7 +253,7 @@ export const BoardTable = React.memo(function BoardTable() {
             </DndContext>
 
             {nothingVisible && (
-              <div className="sticky left-0 w-[min(100%,60rem)]">
+              <div className="sticky left-0 w-fit max-w-[60rem] min-w-[min(100%,32rem)]">
                 <EmptyState
                   icon={loading ? LoaderCircle : SearchX}
                   title={loading ? "Still loading items…" : "No tasks match these filters."}
@@ -275,7 +275,7 @@ export const BoardTable = React.memo(function BoardTable() {
             )}
 
             {canEdit && (
-              <div className="sticky left-0 px-4 pt-2">
+              <div className="sticky left-0 w-fit px-4 pt-2">
                 <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="add-group">
                   <Plus /> Add new group
                 </Button>

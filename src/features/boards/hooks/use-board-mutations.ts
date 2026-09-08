@@ -433,7 +433,7 @@ export function useBoardMutations(boardId: string) {
           return created;
         },
         "Could not add the column",
-        (s, column) => ({ ...s, columns: s.columns.map((c) => (c.id === optimisticId ? column : c)) }),
+        (s, column) => ({ ...s, columns: s.columns.map((c) => (c.id === optimisticId ? { ...column, position: c.position } : c)) }),
       );
     },
     [run, services, boardId, queryClient, key],

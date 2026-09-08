@@ -19,6 +19,9 @@ export interface TrackerViewSettings {
 
 export const DEFAULT_TRACKER_VIEW: TrackerViewSettings = { gridLines: true, stripes: false, wrap: false, density: "default", crosshair: true };
 
+/** Where a "view as" preview is kept: this tab only. */
+const VIEW_AS_KEY = "streamline.view-as";
+
 interface UiState {
   sidebarCollapsed: boolean;
   trackerView: TrackerViewSettings;
@@ -33,6 +36,15 @@ interface UiState {
   commandPaletteOpen: boolean;
   /** Chosen search scope, or null to follow whatever the user is looking at. */
   searchScope: "view" | "workspace" | null;
+  /**
+   * An admin looking at the workspace through a colleague's eyes: their id, or
+   * null for your own. Kept for the tab, so the preview survives a page load and
+   * following a link, and is gone once the tab is closed.
+   */
+  viewAsUserId: string | null;
+  setViewAsUserId: (userId: string | null) => void;
+  /** Picks the preview up again after a reload; called once the app has mounted. */
+  restoreViewAs: () => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleTeam: (teamId: string) => void;
@@ -72,6 +84,24 @@ export const useUiStore = create<UiState>()(
       // Opening search always starts from the current view's scope again.
       setCommandPaletteOpen: (commandPaletteOpen) => set(commandPaletteOpen ? { commandPaletteOpen, searchScope: null } : { commandPaletteOpen }),
       setSearchScope: (searchScope) => set({ searchScope }),
+      viewAsUserId: null,
+      setViewAsUserId: (viewAsUserId) => {
+        try {
+          if (viewAsUserId) sessionStorage.setItem(VIEW_AS_KEY, viewAsUserId);
+          else sessionStorage.removeItem(VIEW_AS_KEY);
+        } catch {
+          // A tab that refuses storage simply forgets the preview on reload.
+        }
+        set({ viewAsUserId });
+      },
+      restoreViewAs: () => {
+        try {
+          const stored = sessionStorage.getItem(VIEW_AS_KEY);
+          if (stored) set({ viewAsUserId: stored });
+        } catch {
+          // nothing to pick up
+        }
+      },
     }),
     {
       name: "streamline.ui",

@@ -155,8 +155,12 @@ export class BookingService {
 
     const placement = mapBookingToColumns(request, columns, { team, template });
     const description = describeBooking(request, placement);
+    // The form works out the reference before anything is written by naming the
+    // id the item will have. Honoured only if it is still free: an id already in
+    // use would fail the insert, and the receipt then carries the real one.
+    const proposed = request.itemId && !(await this.repos.items.getById(request.itemId)) ? request.itemId : undefined;
     const item = await this.items.createItem(
-      { boardId: board.id, groupId: group.id, name: request.title, description: description || null, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
+      { id: proposed, boardId: board.id, groupId: group.id, name: request.title, description: description || null, values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })) },
       actorId,
     );
     // The asset lines are the only children of a brand-new item, so their
@@ -204,6 +208,12 @@ export class BookingService {
    */
   async saveForm(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
     const template = normaliseBookingTemplate(input);
+    // A form saved exactly as the built-in one is stored as nothing at all, so
+    // the workspace goes on following the built-in form as the app improves it
+    // rather than pinning today's copy of it. Both sides go through the same
+    // parser first: it settles the order of the keys, which a plain compare of
+    // the two objects would otherwise trip over.
+    if (JSON.stringify(template) === JSON.stringify(normaliseBookingTemplate(defaultBookingFormTemplate()))) return this.resetForm(workspaceId);
     const { board } = await this.systemEntities(workspaceId);
     const columns = await this.repos.boards.listColumns(board.id);
     for (const field of customFields(template)) {

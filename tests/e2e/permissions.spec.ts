@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openBoard, resetLocalData, row, signInAs } from "./helpers";
 
+/** Read the workspace as someone else: the same question as signing in as them, without their password. */
 async function switchTo(page: Page, name: string) {
   await page.goto("/workspace/rmit");
   await page.getByTestId("user-menu").click();
-  await page.getByRole("menuitem", { name: /switch user/i }).click();
+  await page.getByTestId("menu-view-as").click();
   await page.getByRole("menuitem", { name: new RegExp(name) }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(name.split(" ")[0]!, { timeout: 15000 });
+  await expect(page.getByTestId("viewing-as-banner")).toContainText(name, { timeout: 15000 });
 }
 
 test.describe("permissions", () => {
@@ -121,5 +122,25 @@ test.describe("permissions", () => {
     await page.getByTestId("comment-input").fill("Editor note");
     await page.getByTestId("comment-submit").click();
     await expect(page.getByTestId("comment").filter({ hasText: "Editor note" })).toBeVisible({ timeout: 15000 });
+  });
+});
+
+test.describe("reading the workspace as someone else", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetLocalData(page);
+  });
+
+  test("an admin sees what a member sees, and comes back to their own view", async ({ page }) => {
+    await signInAs(page, "Danh");
+    // The built-in Admin team is for admins alone, so it is the tell.
+    const adminTeam = page.getByTestId("sidebar").getByRole("link", { name: "Admin", exact: true });
+    await expect(adminTeam).toBeVisible({ timeout: 20000 });
+
+    await switchTo(page, "Jun Tanaka");
+    await expect(adminTeam).toHaveCount(0);
+
+    await page.getByTestId("viewing-as-exit").click();
+    await expect(page.getByTestId("viewing-as-banner")).toHaveCount(0);
+    await expect(adminTeam).toBeVisible();
   });
 });
