@@ -230,10 +230,10 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                   onClick={() => setCommandPaletteOpen(true)}
                   aria-label="Search"
                   aria-keyshortcuts="Control+F Meta+F"
-                  className={cn(navItemClasses(false), "justify-center px-0")}
+                  className={cn("group", primaryNavClasses(false), "justify-center px-0")}
                   data-testid="sidebar-search"
                 >
-                  <Search className="size-4 shrink-0" />
+                  <PrimaryIcon icon={Search} active={false} />
                 </button>
               </SimpleTooltip>
             </li>
@@ -255,10 +255,10 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                 href={routes.book(ws.slug)}
                 aria-label="Book a task"
                 onClick={onNavigate}
-                className={cn(navItemClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
+                className={cn("group", primaryNavClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
                 data-testid="sidebar-book-task"
               >
-                <ClipboardPen className="size-4 shrink-0" />
+                <PrimaryIcon icon={ClipboardPen} active={isActivePath(routes.book(ws.slug))} />
                 {!collapsed && <span className="flex-1 text-left">Book a task</span>}
               </Link>
             </SimpleTooltip>
@@ -480,6 +480,34 @@ function useBoardRowActions(board: Board): MenuAction[] {
 const subtleButtonClasses =
   "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
+/**
+ * The five pages at the top of the sidebar. They are destinations rather than
+ * documents, so they sit apart from the team and board rows below: a taller row,
+ * a heavier label, and the icon on a small tinted tile that lights up on the
+ * current page. Boards and trackers keep navItemClasses with a bare icon.
+ */
+function primaryNavClasses(active: boolean): string {
+  return cn(
+    "flex h-10 w-full items-center gap-3 rounded-xl px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+    active ? "bg-sidebar-accent font-semibold text-foreground" : "font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+  );
+}
+
+/** The tile behind a primary item's icon. */
+function PrimaryIcon({ icon: Icon, active, children }: { icon: React.ComponentType<{ className?: string }>; active: boolean; children?: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "relative flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+        active ? "bg-accent-soft text-accent-soft-foreground shadow-xs" : "bg-sidebar-accent/70 text-muted-foreground group-hover:text-foreground",
+      )}
+    >
+      <Icon className="size-4" />
+      {children}
+    </span>
+  );
+}
+
 function navItemClasses(active: boolean): string {
   return cn(
     "flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
@@ -514,17 +542,16 @@ function NavItem({
           aria-current={active ? "page" : undefined}
           // Collapsed, the icon is all that is visible, so the name has to be spoken.
           aria-label={anything || collapsed ? badgeLabel(label, loud, quiet) : undefined}
-          className={cn(navItemClasses(active), collapsed && "justify-center px-0")}
+          className={cn("group", primaryNavClasses(active), collapsed && "justify-center px-0")}
         >
-          <span className="relative">
-            <Icon className="size-4 shrink-0" />
+          <PrimaryIcon icon={Icon} active={active}>
             {collapsed && anything ? (
               <span className="absolute -top-1 -right-1 flex items-center gap-px">
-                {loud > 0 && <span className="size-2 rounded-full bg-primary" data-testid="badge-dot-notifications" />}
-                {quiet > 0 && <span className="size-2 rounded-full bg-muted-foreground/70" data-testid="badge-dot-updates" />}
+                {loud > 0 && <span className="size-2 rounded-full bg-primary ring-2 ring-sidebar" data-testid="badge-dot-notifications" />}
+                {quiet > 0 && <span className="size-2 rounded-full bg-muted-foreground/70 ring-2 ring-sidebar" data-testid="badge-dot-updates" />}
               </span>
             ) : null}
-          </span>
+          </PrimaryIcon>
           {!collapsed && <span className="flex-1 truncate">{label}</span>}
           {!collapsed && anything ? (
             <span className="flex shrink-0 items-center gap-1">
