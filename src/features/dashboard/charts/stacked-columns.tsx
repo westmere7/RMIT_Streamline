@@ -50,9 +50,12 @@ export function StackedColumns({
 
   return (
     <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-      <div ref={ref} className="relative min-h-[120px] flex-1">
+      {/* The svg is taken out of flow (absolute) so its measured size cannot feed back
+          into this flex parent and grow it a frame at a time — without a definite height
+          above it, as when the panels stack on a phone, that loop runs away. */}
+      <div ref={ref} className="relative min-h-[160px] flex-1">
         {width > 0 && height > 0 && (
-          <svg width={width} height={height} className="block" role="img" aria-label="Distribution">
+          <svg width={width} height={height} className="absolute inset-0 block" role="img" aria-label="Distribution">
             {ticks &&
               ticks.map((t) => {
                 const y = pad.top + plotH - (t / 100) * plotH;

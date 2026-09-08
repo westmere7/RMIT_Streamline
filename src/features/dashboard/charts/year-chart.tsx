@@ -98,13 +98,15 @@ export function YearChart({
 
   return (
     <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-      <div ref={ref} className="relative min-h-[150px] flex-1">
+      {/* Absolute so the svg's size cannot feed back into this flex parent and grow it
+          frame by frame wherever no definite height sits above it (stacked on a phone). */}
+      <div ref={ref} className="relative min-h-[180px] flex-1">
         {width > 0 && height > 0 && (
           <svg
             ref={svgRef}
             width={width}
             height={height}
-            className="block select-none"
+            className="absolute inset-0 block select-none"
             role="img"
             aria-label={`${unitLabel} per month`}
             onMouseMove={(e) => setHot(hotDot(e.clientX, e.clientY))}
