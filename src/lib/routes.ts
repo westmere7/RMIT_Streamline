@@ -12,6 +12,10 @@ export const routes = {
   workspace: (slug: string) => `/workspace/${slug}`,
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
   inbox: (slug: string) => `/workspace/${slug}/inbox`,
+  /** The workspace dashboard: what every team delivers, live. */
+  dashboard: (slug: string) => `/workspace/${slug}/dashboard`,
+  /** The dashboard someone shared by link. Read-only, needs no session, just the token. */
+  dashboardShare: (token: string) => `/dashboard/${encodeURIComponent(token)}`,
   /** Booking from inside the app, for members. */
   book: (slug: string) => `/workspace/${slug}/book`,
   members: (slug: string) => `/workspace/${slug}/members`,

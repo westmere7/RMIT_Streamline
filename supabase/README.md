@@ -15,6 +15,8 @@ supabase/
 │   ├── 0003_trackers_policies.sql    RLS for trackers
 │   ├── 0004_notification_preferences_policies.sql
 │   ├── 0005_workspace_invitations_policies.sql  admins may read their workspace's links
+│   ├── 0009_board_shares_policies.sql  board links: viewers read, managers change
+│   ├── 0010_dashboard_shares_policies.sql  dashboard link: members read, admins change
 │   └── README.md                 permission model, assumptions, realtime notes
 ├── seed.sql                      demo data (same ids as src/data/seed/seed-data.ts)
 └── README.md                     this file

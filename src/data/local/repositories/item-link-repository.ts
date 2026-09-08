@@ -29,6 +29,12 @@ export class LocalItemLinkRepository implements ItemLinkRepository {
     return linksTouching(await this.conn.getDb(), itemIds);
   }
 
+  async listByWorkspace(workspaceId: string): Promise<ItemLink[]> {
+    const db = await this.conn.getDb();
+    const links = await db.getAllFromIndex("itemLinks", "byWorkspace", workspaceId);
+    return links.map((link) => ({ ...link, excluded: link.excluded ?? [] })).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
   async getById(id: string): Promise<ItemLink | null> {
     const db = await this.conn.getDb();
     const link = await db.get("itemLinks", id);

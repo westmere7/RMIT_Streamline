@@ -44,6 +44,11 @@ export function canManageMembers(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }
 
+/** The dashboard sums up every board, so only workspace admins may hand it to the internet (policies/0010). */
+export function canManageDashboardShare(ctx: PermissionContext): boolean {
+  return isWorkspaceAdmin(ctx);
+}
+
 export function canCreateTeam(ctx: PermissionContext): boolean {
   return ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN" || ctx.workspaceRole === "MEMBER";
 }

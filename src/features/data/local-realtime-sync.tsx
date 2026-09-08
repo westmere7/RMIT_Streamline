@@ -16,6 +16,10 @@ export function LocalRealtimeSync() {
     return subscribeDataChanges((change: DataChange) => {
       const kinds = new Set(change.kinds);
       const invalidate = (key: readonly unknown[]) => void queryClient.invalidateQueries({ queryKey: key });
+      if (kinds.has("board") || kinds.has("items") || kinds.has("links") || kinds.has("assets") || kinds.has("workspace")) {
+        // The dashboard sums up every board, so anything that moves a task, a line or a team refreshes it.
+        invalidate(["dashboard"]);
+      }
       if (kinds.has("board") || kinds.has("items") || kinds.has("links")) {
         // Linked items mirror across boards, so refresh every snapshot rather than just the named ones.
         invalidate(["board-snapshot"]);

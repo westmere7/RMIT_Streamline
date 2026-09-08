@@ -120,6 +120,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
     links: {
       listByItem: async (itemId) => payload().links.filter((l) => l.itemAId === itemId || l.itemBId === itemId),
       listByItems: async (ids) => payload().links.filter((l) => ids.includes(l.itemAId) || ids.includes(l.itemBId)),
+      listByWorkspace: async () => payload().links,
       getById: async (id) => payload().links.find((l) => l.id === id) ?? null,
       create: readOnly("linking items"),
       update: readOnly("editing a link"),
@@ -164,6 +165,13 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       getByBoard: async () => null,
       getByToken: async () => null,
       create: readOnly("sharing a board"),
+      update: readOnly("changing a link"),
+      delete: readOnly("removing a link"),
+    },
+    dashboardShares: {
+      getByWorkspace: async () => null,
+      getByToken: async () => null,
+      create: readOnly("sharing the dashboard"),
       update: readOnly("changing a link"),
       delete: readOnly("removing a link"),
     },

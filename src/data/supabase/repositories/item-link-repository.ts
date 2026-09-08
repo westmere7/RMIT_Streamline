@@ -23,6 +23,11 @@ export class SupabaseItemLinkRepository implements ItemLinkRepository {
     return [...seen.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
+  async listByWorkspace(workspaceId: string): Promise<ItemLink[]> {
+    const result = await db().from("item_links").select(LINK).eq("workspace_id", workspaceId).order("created_at", { ascending: true });
+    return unwrapList<ItemLinkRow>(result, "item_links.listByWorkspace").map(toItemLink);
+  }
+
   async getById(id: string): Promise<ItemLink | null> {
     const result = await db().from("item_links").select(LINK).eq("id", id).maybeSingle();
     const row = unwrapMaybe<ItemLinkRow>(result, "item_links.getById");

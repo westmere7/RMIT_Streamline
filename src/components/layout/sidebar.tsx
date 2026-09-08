@@ -13,6 +13,7 @@ import {
   Home,
   Inbox,
   Kanban,
+  LayoutDashboard,
   SquareKanban,
   ListTodo,
   Plus,
@@ -247,6 +248,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             collapsed={collapsed}
             badges={unread}
           />
+          <NavItem href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" active={isActivePath(routes.dashboard(ws.slug))} collapsed={collapsed} />
           <li>
             <SimpleTooltip label="Book a task" side="right" disabled={!collapsed}>
               <Link

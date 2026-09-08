@@ -3,6 +3,7 @@ import { BoardService } from "./board-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { CommentService } from "./comment-service";
+import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
 import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
@@ -20,6 +21,7 @@ export interface Services {
   workspace: WorkspaceService;
   boards: BoardService;
   shares: BoardShareService;
+  dashboard: DashboardService;
   items: ItemService;
   links: ItemLinkService;
   assets: ItemAssetService;
@@ -37,6 +39,8 @@ export interface ServiceOptions {
   bookingTransport?: BookingTransport | null;
   /** How a visitor without an account reads a shared board (Supabase). */
   shareTransport?: PublicShareTransport | null;
+  /** How a visitor without an account reads the shared dashboard (Supabase). */
+  dashboardTransport?: PublicDashboardTransport | null;
 }
 
 export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
@@ -52,6 +56,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     workspace,
     boards: new BoardService(repos, notifications),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
+    dashboard: new DashboardService(repos, options.dashboardTransport ?? null),
     items,
     links,
     assets,
@@ -78,5 +83,6 @@ export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings } from "./board-share-service";
+export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";
 export { ShareAccessError, shareAccessMessage } from "./board-share-service";
 export { BookingAccessError } from "./booking-service";

@@ -58,6 +58,7 @@ The main hierarchy is a workspace containing teams and boards. Boards contain gr
 | Update | Depending on context, either a comment in an item's Updates tab or a quiet notification delivery class. |
 | Task Allocation | The built-in, administrator-only board receiving bookings without a valid direct destination. |
 | Board share | A read-only public link with optional password and expiry. |
+| Dashboard | The workspace-wide figures: tasks and asset units by team, mix, workload across the year, stakeholder requests. Derived from the boards; nothing stored but its share link. |
 | Invitation | A token-based onboarding link for a pending workspace member. |
 
 ### Main user journeys
@@ -249,6 +250,8 @@ Use `src/lib/routes.ts` for application links. Board and workspace slugs are dis
 | `/workspace/[workspaceSlug]/boards/[boardSlug]` | Board and selected view. |
 | `/workspace/[workspaceSlug]/my-work` | Assigned work across boards. |
 | `/workspace/[workspaceSlug]/inbox` | Notifications and quiet updates. |
+| `/workspace/[workspaceSlug]/dashboard` | The live delivery dashboard across every board the reader can see. |
+| `/dashboard/[token]` | Public, full-screen, read-only dashboard behind a share token. |
 | `/workspace/[workspaceSlug]/book` | Booking from inside the signed-in workspace. |
 | `/workspace/[workspaceSlug]/members` | Member directory and administration. |
 | `/workspace/[workspaceSlug]/people/[userId]` | Person profile. |
@@ -272,6 +275,7 @@ Relevant query parameters are `view` and `item` on boards, `sheet` on trackers, 
 | `/api/join/[token]` | GET, POST | Previews an invitation, then completes profile/password setup. |
 | `/api/book/[slug]` | GET, POST | Loads a booking form or creates a booking using a valid key or active-member session. |
 | `/api/share/[token]` | GET, POST | GET reports the access gate; POST returns the board after password validation. |
+| `/api/dashboard/[token]` | GET, POST | GET reports the dashboard link's gate; POST returns the trimmed workspace snapshot after password validation. |
 
 Dynamic handlers shown in the implementation use promised route parameters and await them. The repository's `AGENTS.md` requires reading the relevant installed Next.js guides in `node_modules/next/dist/docs/` before writing Next.js code; do not substitute assumptions from older releases.
 
@@ -297,17 +301,17 @@ Domain types use camelCase. SQL rows normally use snake_case. `src/data/supabase
 
 ### Repository contracts
 
-`Repositories` exposes `users`, `workspaces`, `onboarding`, `teams`, `boards`, `items`, `links`, `trackers`, `comments`, `itemAssets`, `bookingTemplates`, `boardShares`, `itemReads`, `messages`, `activities`, `notifications`, `notificationPreferences`, and `admin`.
+`Repositories` exposes `users`, `workspaces`, `onboarding`, `teams`, `boards`, `items`, `links`, `trackers`, `comments`, `itemAssets`, `bookingTemplates`, `boardShares`, `dashboardShares`, `itemReads`, `messages`, `activities`, `notifications`, `notificationPreferences`, and `admin`. `links.listByWorkspace()` exists because a workspace's item ids do not fit in one PostgREST URL: `listByItems()` builds an `or(in…)` filter that exceeds Node's 16 KB header limit past roughly two hundred ids.
 
 A change to a contract can affect local repositories, Supabase repositories, the public memory adapter, service composition, and test fixtures. `NotFoundError` represents required missing entities; optional lookups return `null` where their contracts specify it.
 
 ### Local database
 
-The IndexedDB database is named `rmit-streamline`, at schema version **10**. `LocalConnection` caches one opening promise per connection instance and injects a `getDb` function into repositories.
+The IndexedDB database is named `rmit-streamline`, at schema version **11**. `LocalConnection` caches one opening promise per connection instance and injects a `getDb` function into repositories.
 
 The schema covers users, workspaces, workspace members, invitations, local credentials, teams and memberships, boards and memberships, favourites, groups, columns, items, values, links, trackers and sheets, comments, assets, booking templates, shares, read markers, activity, notifications and preferences, direct messages, board visits, and metadata.
 
-Incremental IndexedDB upgrades added links in v2, trackers in v3, messages in v4, notification preferences in v5, onboarding/credentials in v6, read markers in v7, assets in v8, booking templates in v9, and shares in v10. Upgrade callbacks log when another open tab blocks progress.
+Incremental IndexedDB upgrades added links in v2, trackers in v3, messages in v4, notification preferences in v5, onboarding/credentials in v6, read markers in v7, assets in v8, booking templates in v9, board shares in v10, and dashboard shares in v11. Upgrade callbacks log when another open tab blocks progress.
 
 ### Supabase database
 
@@ -601,6 +605,22 @@ The public-user sanitizer currently clears the `email` field while retaining oth
 
 A share link grants access to the shared-board payload, not workspace membership. Password hashing and token validation live in the service/domain helpers, while Supabase sharing uses the privileged server transport because visitors have no normal authenticated table session.
 
+## 13b. Workspace dashboard
+
+`src/features/dashboard` draws the whole page from one `DashboardSnapshot` (`src/domain/dashboard/dashboard.ts`): every active board the reader can see with its groups, columns, items, values, asset lines and links, plus teams and the people named. `DashboardService.loadSnapshot()` reads it with one round of parallel per-board requests (`src/services/dashboard-service.ts`); `useDashboardSnapshot()` caches it under `queryKeys.dashboard(workspaceId)` and `useDashboardRealtime()` invalidates it from a Supabase channel over items, values, assets, groups, columns, boards, teams and links, coalesced over 500 ms, with a 60-second refetch underneath. Local mode invalidates the same key from the BroadcastChannel sync.
+
+`analytics.ts` is pure and unit-tested (`tests/unit/dashboard-analytics.test.ts`). `buildFacts()` turns items into `TaskFact`s and lines into `AssetFact`s once; everything else filters and counts those facts, so span, team, unit and basis changes never refetch. Rules worth knowing:
+
+- A **task** is a top-level, unarchived item on a board that is not the Task Allocation board. Items linked across boards count once, under the earliest copy.
+- A **request** is an item on the Task Allocation board, or any task whose board records who asked (a PERSON or TEXT column whose name contains requester/requested by/stakeholder/client/booked by, or a TEXT column named like department/school/faculty/portfolio/unit/college). Requests are always dated by creation; their stage comes from the intake group name, else the status role.
+- **Asset units** are `assetCount()` of the asset lines of delivery tasks, the same figure as the Assets recap cell. Intake lines are requests, not delivery.
+- The **date basis** (settings menu) places work by due date (falling back to creation), creation, or completion; under "completed" only finished work counts. Completion of a task is the latest asset ticked off, else the item's last change.
+- The **year chart** always shows a whole year (the selected one, or the latest with data under Total) and stops at the current month for the current year.
+
+View preferences (unit, basis, span, hidden panels) persist per browser under `localStorage["streamline.dashboard"]` via a Zustand store hydrated after mount; the team filter and year are page state.
+
+**Sharing** mirrors board sharing at workspace level: one `dashboard_shares` row per workspace (migration 0024, policy 0010: members read, workspace admins manage; `canManageDashboardShare()` is the TypeScript twin), the same token alphabet and refusal rules, and a service-role read behind `/api/dashboard/<token>` (`src/server/dashboard-share.ts`). The public page (`/dashboard/<token>`) polls every 15 seconds and blocks same-origin links out of `/dashboard/`. Unlike a board share, the payload is trimmed on purpose by `publicDashboardSnapshot()`: item descriptions and covers, asset notes, LONG_TEXT and LINK values, every TEXT value except department-like columns, and user emails, job titles and departments are removed, so a wall display shows figures and first names only.
+
 ## 14. Personal work and collaboration
 
 ### Home and My Work
@@ -767,8 +787,9 @@ A checksum mismatch is logged as drift; the runner does not automatically reappl
 | 0021 | Item reference field. |
 | 0022 | Reference backfill. |
 | 0023 | Scrambling of selected legacy references. |
+| 0024 | Dashboard shares; boards and teams join the realtime publication. |
 
-Policy files 0001–0009 cover base RLS, item links, trackers, notification preferences, invitations, system entities, booking templates, read-only workspace visibility, and board shares. Later definitions may replace earlier helper functions.
+Policy files 0001–0010 cover base RLS, item links, trackers, notification preferences, invitations, system entities, booking templates, read-only workspace visibility, board shares, and dashboard shares. Later definitions may replace earlier helper functions.
 
 Storage-related SQL is advisory in places because the connected database role may not be able to alter Storage objects. A completed migration run should be followed by verification of the required buckets and policies when testing uploads.
 

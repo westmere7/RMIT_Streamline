@@ -6,6 +6,7 @@ import { LocalBoardRepository } from "./repositories/board-repository";
 import { LocalBoardShareRepository } from "./repositories/board-share-repository";
 import { LocalBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { LocalCommentRepository } from "./repositories/comment-repository";
+import { LocalDashboardShareRepository } from "./repositories/dashboard-share-repository";
 import { LocalItemAssetRepository } from "./repositories/item-asset-repository";
 import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemReadRepository } from "./repositories/item-read-repository";
@@ -51,6 +52,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     itemAssets: new LocalItemAssetRepository(connection),
     bookingTemplates: new LocalBookingTemplateRepository(connection),
     boardShares: new LocalBoardShareRepository(connection),
+    dashboardShares: new LocalDashboardShareRepository(connection),
     itemReads: new LocalItemReadRepository(connection),
     messages: new LocalMessageRepository(connection),
     activities: new LocalActivityRepository(connection),

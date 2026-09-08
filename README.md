@@ -14,6 +14,7 @@ Streamline runs on **Next.js 16, React 19, and TypeScript**, with a shared Supab
 - **Deliverables:** item asset lists with quantities, multiple assignees, due dates, completion, notes, and an optional Assets recap column.
 - **Stakeholder booking:** public forms, configurable questions and saved templates, booking references, direct team-board reception, and an administrator-only Task Allocation queue.
 - **Public board sharing:** read-only links with optional passwords and expiry dates.
+- **Dashboard:** what every team delivers in tasks and asset units, asset mix and distribution, workload across the year, stakeholder requests, people and boards, live from the boards, with span, team, unit and date-basis settings and a public full-screen share link.
 - **Personal work:** assignments across boards, date buckets, completion tracking, and collapsed linked copies in My Work.
 - **Collaboration:** rich-text Updates with mentions, inbox notifications and quiet updates, browser notifications, and direct messages.
 - **Trackers:** spreadsheet-style workbooks with typed cells, dropdowns, summaries, autosave, and `.xlsx` import/export.
@@ -154,6 +155,10 @@ Create a read-only board link and optionally set a password and expiry. Visitors
 
 The shared payload includes board content such as columns, descriptions, Updates, assets, and recent activity. Review that content when sharing externally; public sharing is not a field-redaction feature. See [public sharing details](KNOWLEDGE_BASE.md#13-public-board-sharing).
 
+### Read the dashboard
+
+Open Dashboard under Inbox. Every figure is computed in the browser from a snapshot of the boards you can see, refreshed as they change (Supabase Realtime, or the cross-tab channel in local mode). Filter by team, choose Total / Year / Half / Quarter, switch between asset units and tasks, and pick which date places work on the calendar (due, created or completed) from the settings menu, which also hides panels you do not need. Admins can Share the dashboard: a `/dashboard/<token>` link opens a full-screen, read-only copy with no sign-in that refreshes every 15 seconds. The public snapshot carries figures only: descriptions, asset notes, emails, links and every text cell except departments are stripped before it leaves the server. See [dashboard details](KNOWLEDGE_BASE.md#13b-workspace-dashboard).
+
 ### Use a tracker
 
 Create or import a workbook, edit typed cells, and organize rows with sections and subsections. Sheets autosave after a short debounce; wait for a successful save before leaving. Export creates `.xlsx` files with supported formatting, dropdowns, and summary formulas.
@@ -211,6 +216,7 @@ Use services and repository contracts for normal task data. Keep pure transforma
 | `src/data/local` | IndexedDB schema and repositories. |
 | `src/data/supabase` | Supabase repositories, row mapping, and HTTP transports. |
 | `src/data/memory` | Bounded read-only repositories for public boards. |
+| `src/features/dashboard` | Dashboard analytics, charts, panels, pages and the share dialog. |
 | `src/data/seed` | Demo data, history, tracker fixtures, and local seed application. |
 | `src/features` | Product screens, feature hooks, editors, and contexts. |
 | `src/components` | Layout, shared controls, and UI primitives. |

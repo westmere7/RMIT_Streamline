@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -181,6 +181,8 @@ export interface ItemLinkRepository {
   listByItem(itemId: EntityId): Promise<ItemLink[]>;
   /** Links touching any of the items (de-duplicated). */
   listByItems(itemIds: EntityId[]): Promise<ItemLink[]>;
+  /** Every link in the workspace, for reads that span every board (the dashboard). */
+  listByWorkspace(workspaceId: EntityId): Promise<ItemLink[]>;
   getById(id: EntityId): Promise<ItemLink | null>;
   /** Returns the existing link when the pair is already linked. */
   create(input: ItemLinkInput): Promise<ItemLink>;
@@ -223,6 +225,19 @@ export interface BoardShareRepository {
   getByToken(token: string): Promise<BoardShare | null>;
   create(input: BoardShareInput): Promise<BoardShare>;
   update(id: EntityId, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<BoardShare>;
+  delete(id: EntityId): Promise<void>;
+}
+
+/**
+ * The public link of a workspace's dashboard: at most one per workspace, looked
+ * up either from the workspace (to manage it) or from the token in the link (to
+ * serve it).
+ */
+export interface DashboardShareRepository {
+  getByWorkspace(workspaceId: EntityId): Promise<DashboardShare | null>;
+  getByToken(token: string): Promise<DashboardShare | null>;
+  create(input: DashboardShareInput): Promise<DashboardShare>;
+  update(id: EntityId, patch: Partial<Pick<DashboardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<DashboardShare>;
   delete(id: EntityId): Promise<void>;
 }
 
@@ -343,6 +358,7 @@ export interface Repositories {
   itemAssets: ItemAssetRepository;
   bookingTemplates: BookingTemplateRepository;
   boardShares: BoardShareRepository;
+  dashboardShares: DashboardShareRepository;
   itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;
