@@ -15,6 +15,9 @@ export interface DashboardViewProps {
   facts: DashboardFacts;
   report: VolumeReport;
   monthly: MonthlyComparisonRow[];
+  /** The same series per measure, for the trend drawn inside each headline card. */
+  monthlyTasks: MonthlyComparisonRow[];
+  monthlyAssets: MonthlyComparisonRow[];
   ops: OperationsSnapshot;
   attentionRows: AttentionRow[];
   upcomingTasks: TaskFact[];

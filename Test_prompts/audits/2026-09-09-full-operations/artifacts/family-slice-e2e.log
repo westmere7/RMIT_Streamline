@@ -37,3 +37,829 @@ Running 107 tests using 1 worker
 [8/107] tests\e2e\auth-and-navigation.spec.ts:17:7 › authentication and navigation › redirects signed-out visitors to login and remembers the session
 [9/107] tests\e2e\auth-and-navigation.spec.ts:25:7 › authentication and navigation › opens a board from the sidebar with populated groups
 [10/107] tests\e2e\auth-and-navigation.spec.ts:35:7 › authentication and navigation › opens My Work with sections
+[11/107] tests\e2e\auth-and-navigation.spec.ts:43:7 › authentication and navigation › global search finds items and navigates
+[12/107] tests\e2e\auth-and-navigation.spec.ts:52:7 › authentication and navigation › shows the inbox with unread notifications
+[13/107] tests\e2e\auth-and-navigation.spec.ts:60:7 › authentication and navigation › messages open from the account menu, not the sidebar
+[14/107] tests\e2e\auth-and-navigation.spec.ts:69:7 › authentication and navigation › board is reachable directly and persists across reload
+[15/107] tests\e2e\board-share.spec.ts:26:7 › sharing a board by link › a visitor with no account reads the board, switches views and opens a task
+[16/107] tests\e2e\board-share.spec.ts:69:7 › sharing a board by link › the board a visitor sees keeps up with the one the team is working on
+[17/107] tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in
+  2) tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByTestId('share-dialog').getByTestId('share-password')
+
+
+      92 |     const url = await createShareLink(page);
+      93 |     const dialog = page.getByTestId("share-dialog");
+    > 94 |     await dialog.getByTestId("share-password").fill("letmein");
+         |                                                ^
+      95 |     await dialog.getByTestId("share-password-set").click();
+      96 |     await expect(dialog.getByTestId("share-password-remove")).toBeVisible({ timeout: 15000 });
+      97 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-share.spec.ts:94:48
+
+    Error Context: test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[18/107] tests\e2e\board-share.spec.ts:115:7 › sharing a board by link › turning the link off, and a new link, shut the old one out
+[19/107] tests\e2e\board-share.spec.ts:147:7 › sharing a board by link › an expiry closes the link at the end of its day, and stopping forgets it
+[20/107] tests\e2e\board-share.spec.ts:168:7 › sharing a board by link › the share panel is in the board menu and in board settings
+[21/107] tests\e2e\board-share.spec.ts:184:7 › a link that opens nothing › says so without giving anything away
+[22/107] tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details
+  3) tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('lane-Design')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByTestId('lane-Design')
+      - Test timeout of 30000ms exceeded.
+
+
+      47 |     await page.reload();
+      48 |     await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "true", { timeout: 15000 });
+    > 49 |     await expect(page.getByTestId("lane-Design")).toBeVisible();
+         |                                                   ^
+      50 |     await page.getByTestId("kanban-tint").click();
+      51 |
+      52 |     // Clicking anywhere on a card opens it, and the panel floats over the lanes instead of squeezing them.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-views.spec.ts:49:51
+
+    Error Context: test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[23/107] tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date
+  4) tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByTestId('view-switcher')
+        - locator resolved to <button type="button" id="radix-_r_32_" data-slot="button" data-state="closed" aria-haspopup="menu" aria-expanded="false" data-testid="view-switcher" aria-label="Board view: Main Table" class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] transition-[background-color,border-color,box-shadow,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([…>…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+
+
+       at helpers.ts:46
+
+      44 | /** Picks a view from the board bar's view switcher and waits for the menu to close. */
+      45 | export async function switchView(page: Page, kind: "table" | "kanban" | "timeline" | "calendar" | "gantt" | "workload" | "chart"): Promise<void> {
+    > 46 |   await page.getByTestId("view-switcher").click();
+         |                                           ^
+      47 |   await page.getByTestId(`view-${kind}`).click();
+      48 |   await expect(page.getByRole("menu")).toHaveCount(0);
+      49 | }
+        at switchView (E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\helpers.ts:46:43)
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-views.spec.ts:75:21
+
+    Error Context: test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[24/107] tests\e2e\board-views.spec.ts:82:7 › board views › calendar switches between month and week and shows status on each entry
+[25/107] tests\e2e\board-views.spec.ts:95:7 › board views › gantt shows groups, bars, subitems on demand and dependency arrows
+[26/107] tests\e2e\board-views.spec.ts:114:7 › board views › workload lays people against weeks and a cell opens its items
+[27/107] tests\e2e\board-views.spec.ts:124:7 › board views › chart slices the board and switches between bars and a donut
+[28/107] tests\e2e\boards-lifecycle.spec.ts:21:7 › board lifecycle › each template builds the groups and columns it promises
+[29/107] tests\e2e\boards-lifecycle.spec.ts:53:7 › board lifecycle › duplicating a board deep-copies groups, columns, items and values
+  5) tests\e2e\boards-lifecycle.spec.ts:53:7 › board lifecycle › duplicating a board deep-copies groups, columns, items and values 
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\boards-lifecycle-board-lif-183f7-ps-columns-items-and-values\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\boards-lifecycle-board-lif-183f7-ps-columns-items-and-values\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\boards-lifecycle-board-lif-183f7-ps-columns-items-and-values\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[30/107] tests\e2e\boards-lifecycle.spec.ts:74:7 › board lifecycle › archive hides a board from the sidebar and restore brings it back
+[31/107] tests\e2e\boards-lifecycle.spec.ts:92:7 › board lifecycle › deleting a board removes it and its URL stops working
+[32/107] tests\e2e\boards-lifecycle.spec.ts:105:7 › board lifecycle › favourite pins to the sidebar and survives a reload
+[33/107] tests\e2e\boards-lifecycle.spec.ts:120:7 › board lifecycle › an unknown board slug shows not-found, not a blank page
+[34/107] tests\e2e\boards-lifecycle.spec.ts:125:7 › board lifecycle › rapid board switching lands on the right board
+[35/107] tests\e2e\booking.spec.ts:29:7 › task booking › an admin gets the built-in Admin team and Task Allocation board, which cannot be archived
+[36/107] tests\e2e\booking.spec.ts:48:7 › task booking › a member sees neither the Admin team nor the Task Allocation board
+[37/107] tests\e2e\booking.spec.ts:64:7 › task booking › a stakeholder books through the public link and the request lands on Task Allocation
+[38/107] tests\e2e\booking.spec.ts:125:7 › task booking › a validation error brings the request tab back into view
+[39/107] tests\e2e\booking.spec.ts:136:7 › task booking › a stakeholder needs the right key
+[40/107] tests\e2e\booking.spec.ts:145:7 › task booking › a member books from inside the app and a manager allocates it to a team board
+[41/107] tests\e2e\booking.spec.ts:168:7 › task booking › an admin reshapes the form and a booking answers the new question
+[42/107] tests\e2e\booking.spec.ts:211:7 › task booking › an admin keeps forms as templates and swaps them back in
+[43/107] tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist
+  6) tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').getByRole('textbox')
+    Expected: focused
+    Received: undefined
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').getByRole('textbox')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      49 |     await expect(cell(page, "Notes")).toContainText("Second note");
+      50 |     await cell(page, "Notes").click();
+    > 51 |     await expect(row(page, ITEM).getByRole("textbox")).toBeFocused();
+         |                                                        ^
+      52 |     await page.keyboard.press("Control+a");
+      53 |     await page.keyboard.press("Delete");
+      54 |     await page.keyboard.press("Enter");
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:51:56
+
+    Error Context: test-results\column-types-column-types--d2cac-text-set-edit-clear-persist\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--d2cac-text-set-edit-clear-persist\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--d2cac-text-set-edit-clear-persist\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[44/107] tests\e2e\column-types.spec.ts:68:7 › column types › number: accepts, formats and clears; refuses nonsense
+  7) tests\e2e\column-types.spec.ts:68:7 › column types › number: accepts, formats and clears; refuses nonsense 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.reload: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - waiting for navigation until "load"
+
+
+      89 |     await page.keyboard.press("Enter");
+      90 |     await expect(cell(page, "Budget")).toHaveAttribute("aria-label", /empty/, { timeout: 15000 });
+    > 91 |     await page.reload();
+         |                ^
+      92 |     await expect(cell(page, "Budget")).toHaveAttribute("aria-label", /empty/, { timeout: 15000 });
+      93 |   });
+      94 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:91:16
+
+    Error Context: test-results\column-types-column-types--351f8-and-clears-refuses-nonsense\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--351f8-and-clears-refuses-nonsense\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--351f8-and-clears-refuses-nonsense\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[45/107] tests\e2e\column-types.spec.ts:95:7 › column types › priority: every level, cleared, and reflected in the item panel
+  8) tests\e2e\column-types.spec.ts:95:7 › column types › priority: every level, cleared, and reflected in the item panel 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByTestId('item-panel')
+    Expected substring: "Medium"
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for getByTestId('item-panel')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      105 |     // The item panel shows the same value.
+      106 |     await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    > 107 |     await expect(page.getByTestId("item-panel")).toContainText("Medium");
+          |                                                  ^
+      108 |     await page.getByTestId("close-panel").click();
+      109 |
+      110 |     // And it can be cleared.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:107:50
+
+    Error Context: test-results\column-types-column-types--43ad2-reflected-in-the-item-panel\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--43ad2-reflected-in-the-item-panel\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--43ad2-reflected-in-the-item-panel\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[46/107] tests\e2e\column-types.spec.ts:118:7 › column types › checkbox toggles and persists
+[47/107] tests\e2e\column-types.spec.ts:128:7 › column types › link: stores a url, shows display text, and can be removed
+  9) tests\e2e\column-types.spec.ts:128:7 › column types › link: stores a url, shows display text, and can be removed 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Brief"]').first()
+        - locator resolved to <button type="button" role="gridcell" data-state="closed" aria-expanded="false" aria-haspopup="dialog" aria-label="Brief: https://example.com/brief.pdf for RMITinerary Explorer" class="flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03] justify-center">…</button>
+
+
+      140 |     await expect(cell(page, "Brief")).toContainText("The brief");
+      141 |
+    > 142 |     await cell(page, "Brief").click();
+          |                               ^
+      143 |     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Remove" }).click();
+      144 |     await expect(row(page, ITEM).getByRole("link")).toHaveCount(0, { timeout: 15000 });
+      145 |     await page.reload();
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:142:31
+
+    Error Context: test-results\column-types-column-types--8c288-lay-text-and-can-be-removed\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--8c288-lay-text-and-can-be-removed\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--8c288-lay-text-and-can-be-removed\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[48/107] tests\e2e\column-types.spec.ts:149:7 › column types › tags: add, reuse, remove, and always exactly one hash
+  10) tests\e2e\column-types.spec.ts:149:7 › column types › tags: add, reuse, remove, and always exactly one hash 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Channels"]').first()
+    Expected substring: "#Print"
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" with timeout 15000ms
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Channels"]').first()
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      165 |     expect(text, "a tag keeps exactly one hash").not.toContain("##");
+      166 |     await page.reload();
+    > 167 |     await expect(cell(page, "Channels")).toContainText("#Print", { timeout: 15000 });
+          |                                          ^
+      168 |
+      169 |     // The tag joins the column palette, so another item can pick it without retyping.
+      170 |     await cell(page, "Channels", "RMITinerary Independent").click();
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:167:42
+
+    Error Context: test-results\column-types-column-types--1f7d1-and-always-exactly-one-hash\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--1f7d1-and-always-exactly-one-hash\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--1f7d1-and-always-exactly-one-hash\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[49/107] tests\e2e\column-types.spec.ts:178:7 › column types › timeline: a range persists and an end-before-start range is not stored backwards
+[50/107] tests\e2e\column-types.spec.ts:191:7 › column types › dependency: link, blocked marker, self-dependency refused, deleted target drops out
+  11) tests\e2e\column-types.spec.ts:191:7 › column types › dependency: link, blocked marker, self-dependency refused, deleted target drops out 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Dependency"]').first()
+    Expected substring: not "Cover concept"
+    Received string: ""
+
+    Call log:
+      - Expect "not toContainText" with timeout 5000ms
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Dependency"]').first()
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      215 |     await page.reload();
+      216 |     await expect(row(page, ITEM)).toBeVisible({ timeout: 15000 });
+    > 217 |     await expect(cell(page, "Dependency")).not.toContainText("Cover concept");
+          |                                                ^
+      218 |     await expect(row(page, ITEM).getByLabel("Blocked")).toHaveCount(0);
+      219 |   });
+      220 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:217:48
+
+    Error Context: test-results\column-types-column-types--376de-ed-deleted-target-drops-out\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--376de-ed-deleted-target-drops-out\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--376de-ed-deleted-target-drops-out\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[51/107] tests\e2e\column-types.spec.ts:221:7 › column types › hiding, showing, reordering and renaming a column keeps every value
+  12) tests\e2e\column-types.spec.ts:221:7 › column types › hiding, showing, reordering and renaming a column keeps every value 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.innerText: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').locator('[aria-label^="Status"]').first()
+
+
+      243 |     await page.reload();
+      244 |     await expect.poll(() => page.getByRole("columnheader").allTextContents(), { timeout: 15000 }).toEqual(headersAfter);
+    > 245 |     expect(await cell(page, "Status").innerText()).toBe(before);
+          |                                       ^
+      246 |   });
+      247 |
+      248 |   test("deleting a column removes only its own values", async ({ page }) => {
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\column-types.spec.ts:245:39
+
+    Error Context: test-results\column-types-column-types--5fb00--a-column-keeps-every-value\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--5fb00--a-column-keeps-every-value\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--5fb00--a-column-keeps-every-value\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[52/107] tests\e2e\column-types.spec.ts:248:7 › column types › deleting a column removes only its own values
+  13) tests\e2e\column-types.spec.ts:248:7 › column types › deleting a column removes only its own values 
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\column-types-column-types--926ca-removes-only-its-own-values\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types--926ca-removes-only-its-own-values\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types--926ca-removes-only-its-own-values\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[53/107] tests\e2e\column-types.spec.ts:271:7 › column types › resizing a column persists
+  14) tests\e2e\column-types.spec.ts:271:7 › column types › resizing a column persists ─────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\column-types-column-types-resizing-a-column-persists\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\column-types-column-types-resizing-a-column-persists\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\column-types-column-types-resizing-a-column-persists\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[54/107] tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work
+  15) tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work 
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\cross-view-sync-changes-re-73a97--the-item-panel-and-My-Work\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\cross-view-sync-changes-re-73a97--the-item-panel-and-My-Work\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\cross-view-sync-changes-re-73a97--the-item-panel-and-My-Work\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[55/107] tests\e2e\cross-view-sync.spec.ts:39:7 › changes reaching every view › changing the owner moves the item in and out of My Work
+[56/107] tests\e2e\cross-view-sync.spec.ts:64:7 › changes reaching every view › moving a due date moves the item between My Work sections
+  16) tests\e2e\cross-view-sync.spec.ts:64:7 › changes reaching every view › moving a due date moves the item between My Work sections 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('board-table')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByTestId('board-table')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+       at helpers.ts:40
+
+      38 | export async function openBoard(page: Page, url = BOARD_URL): Promise<void> {
+      39 |   await page.goto(url);
+    > 40 |   await expect(page.getByTestId("board-table")).toBeVisible();
+         |                                                 ^
+      41 |   await expect(page.getByTestId("item-row").first()).toBeVisible();
+      42 | }
+      43 |
+        at openBoard (E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\helpers.ts:40:49)
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\cross-view-sync.spec.ts:91:5
+
+    Error Context: test-results\cross-view-sync-changes-re-cf849-em-between-My-Work-sections\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\cross-view-sync-changes-re-cf849-em-between-My-Work-sections\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\cross-view-sync-changes-re-cf849-em-between-My-Work-sections\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[57/107] tests\e2e\cross-view-sync.spec.ts:101:7 › changes reaching every view › completed work leaves the active sections, and archiving removes it entirely
+[58/107] tests\e2e\cross-view-sync.spec.ts:121:7 › changes reaching every view › updates: post, edit, delete, and refuse an empty one
+  17) tests\e2e\cross-view-sync.spec.ts:121:7 › changes reaching every view › updates: post, edit, delete, and refuse an empty one 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByTestId('item-panel').getByRole('tab', { name: /updates/i })
+
+
+      148 |     await expect(page.getByTestId("comment").first()).toContainText("Edited update", { timeout: 15000 });
+      149 |     await page.reload();
+    > 150 |     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
+          |                                                                                 ^
+      151 |     await expect(page.getByTestId("comment").first()).toContainText("Edited update", { timeout: 15000 });
+      152 |
+      153 |     // Delete it.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\cross-view-sync.spec.ts:150:81
+
+    Error Context: test-results\cross-view-sync-changes-re-87a4b-ete-and-refuse-an-empty-one\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\cross-view-sync-changes-re-87a4b-ete-and-refuse-an-empty-one\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\cross-view-sync-changes-re-87a4b-ete-and-refuse-an-empty-one\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[59/107] tests\e2e\cross-view-sync.spec.ts:163:7 › changes reaching every view › someone else's update cannot be edited or deleted by a non-admin
+[60/107] tests\e2e\cross-view-sync.spec.ts:182:7 › changes reaching every view › activity records what changed, with the old and new values
+[61/107] tests\e2e\cross-view-sync.spec.ts:193:7 › changes reaching every view › inbox: read one, mark all read, and open the item behind a notification
+[62/107] tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored
+  18) tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('option', { name: 'Waiting', exact: true })
+        - locator resolved to <button type="button" role="option" aria-selected="false" class="flex h-8 items-center justify-center gap-1 rounded px-2 text-xs font-medium transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ring bg-sky-500 text-white">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not stable
+        - retrying click action
+        - waiting 20ms
+
+
+      20 |     for (const status of wanted) {
+      21 |       await cell.click();
+    > 22 |       await page.getByRole("option", { name: status, exact: true }).click();
+         |                                                                     ^
+      23 |       await expect(cell).toContainText(status);
+      24 |     }
+      25 |     await page.reload();
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\data-integrity.spec.ts:22:69
+
+    Error Context: test-results\data-integrity-data-integr-f9748-w-leave-the-last-one-stored\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\data-integrity-data-integr-f9748-w-leave-the-last-one-stored\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\data-integrity-data-integr-f9748-w-leave-the-last-one-stored\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[63/107] tests\e2e\data-integrity.spec.ts:49:7 › data integrity under stress › create then delete immediately leaves nothing behind
+  19) tests\e2e\data-integrity.spec.ts:49:7 › data integrity under stress › create then delete immediately leaves nothing behind 
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\data-integrity-data-integr-415f5-ately-leaves-nothing-behind\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\data-integrity-data-integr-415f5-ately-leaves-nothing-behind\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\data-integrity-data-integr-415f5-ately-leaves-nothing-behind\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[64/107] tests\e2e\data-integrity.spec.ts:66:7 › data integrity under stress › switching boards straight after an edit keeps the edit
+[65/107] tests\e2e\data-integrity.spec.ts:77:7 › data integrity under stress › archived items stay out of the board, kanban, My Work and search
+[66/107] tests\e2e\data-integrity.spec.ts:104:7 › data integrity under stress › deleting a group with items removes exactly those items
+[67/107] tests\e2e\data-integrity.spec.ts:132:7 › data integrity under stress › a second tab sees the first tab's change
+[68/107] tests\e2e\data-integrity.spec.ts:146:7 › data integrity under stress › a corrupted local database is rebuilt instead of breaking the app
+  20) tests\e2e\data-integrity.spec.ts:146:7 › data integrity under stress › a corrupted local database is rebuilt instead of breaking the app 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Demo data reset')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 20000ms
+      - waiting for getByText('Demo data reset')
+      - Test timeout of 30000ms exceeded.
+
+
+      171 |     await page.getByRole("alertdialog").getByRole("button", { name: /reset/i }).click();
+      172 |     // The reseed runs in the page; a full navigation before it finishes would abort it half-way.
+    > 173 |     await expect(page.getByText("Demo data reset")).toBeVisible({ timeout: 20000 });
+          |                                                     ^
+      174 |     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
+      175 |     await expect(page.getByTestId("item-row").first()).toBeVisible({ timeout: 20000 });
+      176 |   });
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\data-integrity.spec.ts:173:53
+
+    Error Context: test-results\data-integrity-data-integr-4575b-instead-of-breaking-the-app\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\data-integrity-data-integr-4575b-instead-of-breaking-the-app\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\data-integrity-data-integr-4575b-instead-of-breaking-the-app\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[69/107] tests\e2e\data-integrity.spec.ts:178:7 › data integrity under stress › localStorage rubbish does not stop the app from starting
+[70/107] tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them
+  21) tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByTestId('item-panel').locator('[data-testid="asset-line"][data-asset-name="A1 poster"]').getByTestId('asset-quantity')
+    Expected: "3"
+    Received: ""
+
+    Call log:
+      - Expect "toHaveValue" with timeout 5000ms
+      - waiting for getByTestId('item-panel').locator('[data-testid="asset-line"][data-asset-name="A1 poster"]').getByTestId('asset-quantity')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      115 |     await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets");
+      116 |     await openLine(page, "A1 poster");
+    > 117 |     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3");
+          |                                                        ^
+      118 |     await poster.getByTestId("asset-toggle").click();
+      119 |
+      120 |     // The board cell follows: 3 posters + 1 tile, one type, one person.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\item-assets.spec.ts:117:56
+
+    Error Context: test-results\item-assets-asset-lines-an-99927--board-cell-summarises-them\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\item-assets-asset-lines-an-99927--board-cell-summarises-them\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\item-assets-asset-lines-an-99927--board-cell-summarises-them\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[71/107] tests\e2e\item-assets.spec.ts:153:7 › asset lines and the recap column › a viewer sees the deliverables but cannot change them
+[72/107] tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns
+  22) tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 300
+    Received: 104
+
+    Call Log:
+    - Timeout 60000ms exceeded while waiting on the predicate
+
+      164 |     const firstRow = Date.now() - openedAt;
+      165 |
+    > 166 |     await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 60_000 }).toBe(300);
+          |                                                                                        ^
+      167 |     const allRows = Date.now() - openedAt;
+      168 |
+      169 |     // 2. Typing into a cell.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\large-board.spec.ts:166:88
+
+    Error Context: test-results\large-board-a-board-far-bi-f94e3-th-300-items-and-12-columns\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\large-board-a-board-far-bi-f94e3-th-300-items-and-12-columns\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\large-board-a-board-far-bi-f94e3-th-300-items-and-12-columns\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[73/107] tests\e2e\permissions.spec.ts:19:7 › permissions › a viewer sees the board but cannot change anything
+[74/107] tests\e2e\permissions.spec.ts:48:7 › permissions › a private board is invisible and unreachable for a non-member
+[75/107] tests\e2e\permissions.spec.ts:72:7 › permissions › a guest cannot create boards, teams or trackers
+[76/107] tests\e2e\permissions.spec.ts:81:7 › permissions › a guest cannot open a workspace-visible board they are not a member of
+[77/107] tests\e2e\permissions.spec.ts:89:7 › permissions › only an owner or admin can delete a board
+[78/107] tests\e2e\permissions.spec.ts:106:7 › permissions › an editor can edit but only the author can edit their own update
+  23) tests\e2e\permissions.spec.ts:106:7 › permissions › an editor can edit but only the author can edit their own update 
+
+    Test timeout of 30000ms exceeded.
+
+    Error Context: test-results\permissions-permissions-an-25dfd-r-can-edit-their-own-update\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\permissions-permissions-an-25dfd-r-can-edit-their-own-update\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\permissions-permissions-an-25dfd-r-can-edit-their-own-update\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[79/107] tests\e2e\permissions.spec.ts:133:7 › reading the workspace as someone else › an admin sees what a member sees, and comes back to their own view
+[80/107] tests\e2e\stakeholder-portal.spec.ts:64:7 › the stakeholder portal › renames the destination without moving it, and keeps internal booking
+[81/107] tests\e2e\stakeholder-portal.spec.ts:77:7 › the stakeholder portal › gives each department its own link, closed until somebody opens it
+[82/107] tests\e2e\stakeholder-portal.spec.ts:88:7 › the stakeholder portal › a stakeholder books, sees the receipt, and finds the request waiting
+[83/107] tests\e2e\stakeholder-portal.spec.ts:105:7 › the stakeholder portal › shows a department only its own work
+[84/107] tests\e2e\stakeholder-portal.spec.ts:120:7 › the stakeholder portal › stops opening the moment the link is replaced
+[85/107] tests\e2e\stakeholder-portal.spec.ts:136:7 › the stakeholder portal › closing a portal shuts both reading and booking
+[86/107] tests\e2e\stakeholder-portal.spec.ts:146:7 › the stakeholder portal › asks for a password on the way in, and refuses a wrong one
+[87/107] tests\e2e\stakeholder-portal.spec.ts:171:7 › the stakeholder portal › carries the team's settings through to the link
+[88/107] tests\e2e\stakeholder-portal.spec.ts:193:7 › the stakeholder portal › keeps its theme to itself
+[89/107] tests\e2e\stakeholder-portal.spec.ts:206:7 › the stakeholder portal › deep-links a request, and Back leaves it
+[90/107] tests\e2e\stakeholder-portal.spec.ts:221:7 › the stakeholder portal › gives the department the board's own views
+[91/107] tests\e2e\stakeholder-portal.spec.ts:243:7 › the stakeholder portal › offers a stakeholder nothing to write with
+[92/107] tests\e2e\stakeholder-portal.spec.ts:269:7 › the stakeholder portal › publishes the brief and never the internal description
+[93/107] tests\e2e\teams-and-members.spec.ts:12:7 › teams and members › an unknown workspace slug says so instead of hanging or crashing
+[94/107] tests\e2e\teams-and-members.spec.ts:19:7 › teams and members › creates a team, renames it, adds and removes a member, then archives it
+[95/107] tests\e2e\teams-and-members.spec.ts:56:7 › teams and members › an invalid team id shows the not-found state
+[96/107] tests\e2e\teams-and-members.spec.ts:61:7 › teams and members › members page lists people, opens a profile and changes a role
+[97/107] tests\e2e\teams-and-members.spec.ts:80:7 › teams and members › deactivating a member takes them out of pickers
+[98/107] tests\e2e\trackers.spec.ts:22:7 › asset tracker grid › typing edits a cell, Enter moves down, and Ctrl+D fills the selection down
+[99/107] tests\e2e\trackers.spec.ts:43:7 › asset tracker grid › Ctrl+Arrow jumps to the edge of filled cells and the status bar follows
+[100/107] tests\e2e\trackers.spec.ts:52:7 › asset tracker grid › search narrows the sheet, keeps the bands that still have rows, and the counts say so
+[101/107] tests\e2e\trackers.spec.ts:63:7 › asset tracker grid › a column can be sorted and filtered from its header, without changing the data
+[102/107] tests\e2e\trackers.spec.ts:87:7 › asset tracker grid › the footer summarises columns and the summary can be changed per column
+[103/107] tests\e2e\trackers.spec.ts:98:7 › asset tracker grid › export offers the workbook and a CSV of the current sheet
+[104/107] tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look
+  24) tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').getByTestId('updates-badge')
+    Expected: "0"
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 15000ms
+      - waiting for locator('[data-testid="item-row"][data-item-name="RMITinerary Explorer"]').getByTestId('updates-badge')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      52 |     // And it stays read after a reload.
+      53 |     await page.reload();
+    > 54 |     await expect(badge(page, ITEM)).toHaveAttribute("data-unread", "0", { timeout: 15000 });
+         |                                     ^
+      55 |   });
+      56 |
+      57 |   test("reading the notification in the Inbox also clears the new marker", async ({ page }) => {
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\updates-badge.spec.ts:54:37
+
+    Error Context: test-results\updates-badge-update-badge-9e44d-eryone-else-until-they-look\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\updates-badge-update-badge-9e44d-eryone-else-until-they-look\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\updates-badge-update-badge-9e44d-eryone-else-until-they-look\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[105/107] tests\e2e\updates-badge.spec.ts:57:7 › update badges on items › reading the notification in the Inbox also clears the new marker
+  25) tests\e2e\updates-badge.spec.ts:57:7 › update badges on items › reading the notification in the Inbox also clears the new marker 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('[data-testid="item-row"][data-item-name="Cover concept – final artwork"]').getByTestId('updates-badge')
+    Expected: "0"
+    Received: ""
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 15000ms
+      - waiting for locator('[data-testid="item-row"][data-item-name="Cover concept – final artwork"]').getByTestId('updates-badge')
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      71 |
+      72 |     await openBoard(page);
+    > 73 |     await expect(badge(page, OTHER)).toHaveAttribute("data-unread", "0", { timeout: 15000 });
+         |                                      ^
+      74 |   });
+      75 | });
+      76 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\updates-badge.spec.ts:73:38
+
+    Error Context: test-results\updates-badge-update-badge-56ecc--also-clears-the-new-marker\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\updates-badge-update-badge-56ecc--also-clears-the-new-marker\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\updates-badge-update-badge-56ecc--also-clears-the-new-marker\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[106/107] tests\e2e\version-check.spec.ts:27:7 › version check › About wears the running version on a badge beside the mark
+[107/107] tests\e2e\version-check.spec.ts:40:7 › version check › a newer build on the server raises a notice that does not force a reload
+  25 failed
+    tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name 
+    tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in 
+    tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details 
+    tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date 
+    tests\e2e\boards-lifecycle.spec.ts:53:7 › board lifecycle › duplicating a board deep-copies groups, columns, items and values 
+    tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist 
+    tests\e2e\column-types.spec.ts:68:7 › column types › number: accepts, formats and clears; refuses nonsense 
+    tests\e2e\column-types.spec.ts:95:7 › column types › priority: every level, cleared, and reflected in the item panel 
+    tests\e2e\column-types.spec.ts:128:7 › column types › link: stores a url, shows display text, and can be removed 
+    tests\e2e\column-types.spec.ts:149:7 › column types › tags: add, reuse, remove, and always exactly one hash 
+    tests\e2e\column-types.spec.ts:191:7 › column types › dependency: link, blocked marker, self-dependency refused, deleted target drops out 
+    tests\e2e\column-types.spec.ts:221:7 › column types › hiding, showing, reordering and renaming a column keeps every value 
+    tests\e2e\column-types.spec.ts:248:7 › column types › deleting a column removes only its own values 
+    tests\e2e\column-types.spec.ts:271:7 › column types › resizing a column persists ───────────────
+    tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work 
+    tests\e2e\cross-view-sync.spec.ts:64:7 › changes reaching every view › moving a due date moves the item between My Work sections 
+    tests\e2e\cross-view-sync.spec.ts:121:7 › changes reaching every view › updates: post, edit, delete, and refuse an empty one 
+    tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored 
+    tests\e2e\data-integrity.spec.ts:49:7 › data integrity under stress › create then delete immediately leaves nothing behind 
+    tests\e2e\data-integrity.spec.ts:146:7 › data integrity under stress › a corrupted local database is rebuilt instead of breaking the app 
+    tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them 
+    tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns 
+    tests\e2e\permissions.spec.ts:106:7 › permissions › an editor can edit but only the author can edit their own update 
+    tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look 
+    tests\e2e\updates-badge.spec.ts:57:7 › update badges on items › reading the notification in the Inbox also clears the new marker 
+  82 passed (45.9m)

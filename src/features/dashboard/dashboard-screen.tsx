@@ -84,6 +84,10 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
 
   const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
   const monthly = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, prefs.unit, prefs.teamIds), [facts, resolved, prefs.basis, prefs.unit, prefs.teamIds]);
+  // Both measures, because each headline card draws its own trend and the unit
+  // toggle must not change what the other card is showing.
+  const monthlyTasks = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "tasks", prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
+  const monthlyAssets = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "assets", prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
   // As of now, and deliberately not a function of the reporting period.
   const ops = React.useMemo(() => operations(facts, today, prefs.teamIds), [facts, today, prefs.teamIds]);
   const attentionRows = React.useMemo(() => attention(ops, today), [ops, today]);
@@ -91,7 +95,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
   const views = publicLink ? (["overview", "demand"] as const) : DASHBOARD_VIEWS;
   // A stored preference for a view this link does not have would show nothing.
   const view = views.includes(prefs.view as never) ? prefs.view : "overview";
