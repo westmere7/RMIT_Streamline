@@ -189,10 +189,6 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   if (assetTypes.length > 0) {
     column("asset-types", "Asset types", "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
   }
-  // No "requested" date column. A DATE cell reads a past date as a missed
-  // deadline and marks it in red, and every request was made in the past.
-  // When it arrived is on the card and in the sort, not flagged as a problem.
-
   // ---- groups: the board each request is being run on --------------------------
   const sourceNames = [...new Set(tasks.map(({ task }) => task.sourceName ?? "Requests"))].sort((a, b) => a.localeCompare(b));
   const groups: BoardGroup[] = sourceNames.map((name, position) => ({
