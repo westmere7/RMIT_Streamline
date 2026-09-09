@@ -28,6 +28,10 @@ import type {
   Workspace,
   WorkspaceInvitation,
   WorkspaceListOption,
+  StakeholderDepartment,
+  DepartmentPortal,
+  PortalRequest,
+  PortalSubmission,
   WorkspaceMember,
 } from "@/domain";
 
@@ -101,6 +105,10 @@ export interface StreamlineDB extends DBSchema {
   boardShares: { key: string; value: BoardShare; indexes: { byBoard: string; byToken: string } };
   dashboardShares: { key: string; value: DashboardShare; indexes: { byWorkspace: string; byToken: string } };
   workspaceLists: { key: string; value: WorkspaceListOption; indexes: { byWorkspace: string } };
+  stakeholderDepartments: { key: string; value: StakeholderDepartment; indexes: { byWorkspace: string } };
+  departmentPortals: { key: string; value: DepartmentPortal; indexes: { byWorkspace: string; byDepartment: string; byToken: string } };
+  portalRequests: { key: string; value: PortalRequest; indexes: { byWorkspace: string; byDepartment: string; byItem: string } };
+  portalSubmissions: { key: string; value: PortalSubmission; indexes: { byPortal: string; byKey: [string, string] } };
   itemShares: { key: string; value: ItemShare; indexes: { byItem: string; byToken: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   activities: {
@@ -145,6 +153,10 @@ export const ALL_STORES: StoreName[] = [
   "boardShares",
   "dashboardShares",
   "workspaceLists",
+  "stakeholderDepartments",
+  "departmentPortals",
+  "portalRequests",
+  "portalSubmissions",
   "itemShares",
   "itemReads",
   "activities",
@@ -157,7 +169,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 13;
+export const DB_VERSION = 14;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -325,6 +337,33 @@ function createItemSharesStore(db: IDBPDatabase<StreamlineDB>): void {
   shares.createIndex("byToken", "token", { unique: true });
 }
 
+/** v14: stakeholder departments, their portals, and what each publishes. */
+function createPortalStores(db: IDBPDatabase<StreamlineDB>): void {
+  if (!db.objectStoreNames.contains("stakeholderDepartments")) {
+    const departments = db.createObjectStore("stakeholderDepartments", { keyPath: "id" });
+    departments.createIndex("byWorkspace", "workspaceId");
+  }
+  if (!db.objectStoreNames.contains("departmentPortals")) {
+    const portals = db.createObjectStore("departmentPortals", { keyPath: "id" });
+    portals.createIndex("byWorkspace", "workspaceId");
+    portals.createIndex("byDepartment", "departmentId", { unique: true });
+    portals.createIndex("byToken", "token", { unique: true });
+  }
+  if (!db.objectStoreNames.contains("portalRequests")) {
+    const requests = db.createObjectStore("portalRequests", { keyPath: "id" });
+    requests.createIndex("byWorkspace", "workspaceId");
+    requests.createIndex("byDepartment", "departmentId");
+    // One canonical request per item, the same rule the database enforces.
+    requests.createIndex("byItem", "itemId", { unique: true });
+  }
+  if (!db.objectStoreNames.contains("portalSubmissions")) {
+    const submissions = db.createObjectStore("portalSubmissions", { keyPath: "id" });
+    submissions.createIndex("byPortal", "portalId");
+    // portalId + key, so a retry finds its receipt and a second insert cannot win.
+    submissions.createIndex("byKey", ["portalId", "submissionKey"], { unique: true });
+  }
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -340,6 +379,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 11) createDashboardSharesStore(db);
   if (oldVersion < 12) createWorkspaceListsStore(db);
   if (oldVersion < 13) createItemSharesStore(db);
+  if (oldVersion < 14) createPortalStores(db);
 }
 
 export interface OpenDatabaseOptions {

@@ -29,7 +29,19 @@ export interface RemoveListOption {
  * about to leave behind (see usage) and can hand them to another option.
  */
 export class WorkspaceListService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    /**
+     * The department registry, kept in step here.
+     *
+     * Stakeholder groups are edited in exactly one place — this list — and a
+     * portal cannot hang off a list row, because saving rewrites the rows. So
+     * the save settles both: the words, and the departments those words name.
+     * Doing it here rather than in a second screen is what stops the two
+     * drifting apart.
+     */
+    private readonly portals?: { syncDepartments(workspaceId: EntityId, options: readonly TagOption[], renames?: Readonly<Record<string, string>>): Promise<unknown> },
+  ) {}
 
   /** Every list, defaults included. */
   async lists(workspaceId: EntityId): Promise<WorkspaceLists> {
@@ -51,16 +63,18 @@ export class WorkspaceListService {
     for (const [from, to] of Object.entries(renames)) {
       if (from !== to) await this.rewrite(workspaceId, listKey, from, to);
     }
+    // Identity flows through `renames`: it is the only record of what the person
+    // meant, and guessing from the names afterwards is how one department's
+    // history ends up attached to another.
+    if (listKey === "STAKEHOLDER_GROUPS") await this.portals?.syncDepartments(workspaceId, cleaned, renames);
     return this.lists(workspaceId);
   }
 
   /** How many rows still carry this option. */
   async usage(workspaceId: EntityId, listKey: WorkspaceListKey, name: string): Promise<ListOptionUsage> {
-    if (listKey !== "ASSET_TYPES") {
-      // Stakeholder groups are defined here and not yet asked for anywhere, so
-      // nothing can be carrying one. Give each new list its own branch as it
-      // finds a home.
-      return { count: 0, noun: "items" };
+    if (listKey === "STAKEHOLDER_GROUPS") {
+      const cells = await this.stakeholderCells(workspaceId, name);
+      return { count: cells.length, noun: cells.length === 1 ? "task" : "tasks" };
     }
     const assets = await this.assetsWithType(workspaceId, name);
     return { count: assets.length, noun: assets.length === 1 ? "deliverable" : "deliverables" };
@@ -81,9 +95,41 @@ export class WorkspaceListService {
 
   /** Moves every row carrying `from` onto `to` (or clears it when `to` is null). */
   private async rewrite(workspaceId: EntityId, listKey: WorkspaceListKey, from: string, to: string | null): Promise<void> {
-    if (listKey !== "ASSET_TYPES") return;
+    if (listKey === "STAKEHOLDER_GROUPS") {
+      // The cells store the word, so a rename has to carry them along or every
+      // task ends up labelled with a group the list no longer offers.
+      for (const cell of await this.stakeholderCells(workspaceId, from)) {
+        await this.repos.items.setValue(cell.itemId, cell.columnId, { type: "STAKEHOLDER", group: to });
+      }
+      return;
+    }
     const assets = await this.assetsWithType(workspaceId, from);
     for (const asset of assets) await this.repos.itemAssets.update(asset.id, { assetType: to });
+  }
+
+  /**
+   * Every STAKEHOLDER cell in the workspace carrying this word.
+   *
+   * Note what this does *not* do: it never touches a portal. Provenance lives in
+   * portal_requests, and a label is a display value — renaming a group changes
+   * what tasks are labelled, and moving a request between departments is a
+   * separate, deliberate action.
+   */
+  private async stakeholderCells(workspaceId: EntityId, name: string) {
+    const boards = await this.repos.boards.listByWorkspace(workspaceId);
+    const wanted = name.trim().toLowerCase();
+    const found: Array<{ itemId: EntityId; columnId: EntityId }> = [];
+    for (const board of boards) {
+      const columns = await this.repos.boards.listColumns(board.id);
+      const stakeholder = columns.filter((column) => column.type === "STAKEHOLDER");
+      if (stakeholder.length === 0) continue;
+      const ids = new Set(stakeholder.map((column) => column.id));
+      for (const value of await this.repos.items.listValuesByBoard(board.id)) {
+        if (!ids.has(value.columnId) || value.value.type !== "STAKEHOLDER") continue;
+        if ((value.value.group ?? "").trim().toLowerCase() === wanted) found.push({ itemId: value.itemId, columnId: value.columnId });
+      }
+    }
+    return found;
   }
 
   /** Every deliverable in the workspace with this asset type, board by board. */

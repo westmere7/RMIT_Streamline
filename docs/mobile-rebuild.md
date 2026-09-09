@@ -124,9 +124,17 @@ Two defects unrelated to layout, both fixed:
   13px text. Screenshots of Home, a board, Members and Trackers at 1440x900,
   taken from a production build of `1de5b41` and one of this tree, are
   byte-identical (sha256 99f8677e, 2395afd7, 7e9ca882, a26bdc75).
-- **Playwright**: 13/13 in the mobile suite. In the full suite every failure also
-  fails on a `1de5b41` build run beside it — a strict subset of the baseline's,
-  clustered in sign-in, drag-and-drop and share-password specs.
+- **Playwright**: 13/13 in the mobile suite. The full suite was run twice over,
+  once against this tree and once against a production build of `1de5b41`
+  beside it. The baseline failed 10 of 199; this tree failed the same 10, plus
+  `data-integrity.spec.ts:104`, which times out only under the load of two
+  suites at once and passes in 7.9s when run on its own. No regressions.
+
+  Pre-existing failures, unchanged by this work: `account.spec.ts:5`,
+  `board-share.spec.ts:91`, `board.spec.ts:98/153/186`,
+  `boards-management.spec.ts:35`, `filters-sort-and-dnd.spec.ts:132`,
+  `large-board.spec.ts:153`, `onboarding.spec.ts:29`,
+  `updates-composer.spec.ts:202`.
 - **Writes**: the Kanban move control was driven end to end (lane counts
   22→21/1→2, then back). A tracker cell was edited through the row editor, seen
   in the grid, undone, and confirmed restored after a reload.

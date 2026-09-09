@@ -13,6 +13,13 @@ export interface Workspace extends Timestamps {
   bookingKey?: string | null;
   /** The booking form as this workspace shaped it. Null or absent means the built-in form. */
   bookingForm?: BookingFormTemplate | null;
+  /**
+   * What the stakeholder portal calls the team — "RMIT Creative", say, where the
+   * workspace itself is "RMIT VN MKT". Presentation only: it never renames the
+   * workspace or touches its slug, and the workspace's own name stands in when
+   * it is unset.
+   */
+  creativeTeamName?: string | null;
 }
 
 export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";

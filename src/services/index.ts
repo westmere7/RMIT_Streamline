@@ -14,6 +14,7 @@ import { NotificationService } from "./notification-service";
 import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
+import { StakeholderPortalService } from "./stakeholder-portal-service";
 import { WorkspaceListService } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
 
@@ -36,6 +37,7 @@ export interface Services {
   search: SearchService;
   trackers: TrackerService;
   booking: BookingService;
+  portals: StakeholderPortalService;
 }
 
 export interface ServiceOptions {
@@ -56,11 +58,13 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const workspace = new WorkspaceService(repos);
   const items = new ItemService(repos, links, notifications);
   const assets = new ItemAssetService(repos);
+  const portals = new StakeholderPortalService(repos);
   return {
     repos,
     notifications,
     workspace,
-    lists: new WorkspaceListService(repos),
+    lists: new WorkspaceListService(repos, portals),
+    portals,
     boards: new BoardService(repos, notifications),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
     itemShares: new ItemShareService(repos, options.itemShareTransport ?? null),
@@ -90,6 +94,8 @@ export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service
 export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
+export { PortalAccessError, portalAccessMessage } from "./stakeholder-portal-service";
+export type { DepartmentOverview, PortalGrant, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
 export type { PublicItemTransport } from "./item-share-service";

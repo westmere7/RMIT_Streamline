@@ -19,3 +19,5 @@ export * from "./notification/notification";
 export * from "./auth/auth";
 export * from "./booking/booking";
 export * from "./booking/booking-template";
+export * from "./portal/stakeholder-portal";
+export * from "./portal/portal-view";

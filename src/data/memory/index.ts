@@ -152,6 +152,29 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       listByWorkspace: async () => [],
       replace: readOnly("editing a list"),
     },
+    // A shared board payload carries no portal, and this adapter must never be
+    // able to reach one: a portal's reads are assembled server-side behind their
+    // own gate, and every write here refuses.
+    stakeholderPortals: {
+      listDepartments: async () => [],
+      getDepartment: async () => null,
+      createDepartment: readOnly("creating a department"),
+      updateDepartment: readOnly("editing a department"),
+      listPortals: async () => [],
+      getPortalByDepartment: async () => null,
+      getPortalByToken: async () => null,
+      createPortal: readOnly("creating a portal"),
+      updatePortal: readOnly("editing a portal"),
+      listRequests: async () => ({ rows: [], nextCursor: null }),
+      countRequests: async () => 0,
+      getRequestByItem: async () => null,
+      listRequestsByItems: async () => [],
+      createRequest: readOnly("publishing a request"),
+      updateRequest: readOnly("moving a request"),
+      deleteRequest: readOnly("unpublishing a request"),
+      getSubmission: async () => null,
+      createSubmission: readOnly("recording a submission"),
+    },
     itemAssets: {
       getById: async (id) => payload().assets.find((a) => a.id === id) ?? null,
       listByItem: async (itemId) => payload().assets.filter((a) => a.itemId === itemId).sort((a, b) => a.position - b.position),
