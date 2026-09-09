@@ -115,7 +115,7 @@ function snapshot(): DashboardSnapshot {
   // a2 is mirrored on Beta's board as b2 (allocated copy): counted once, under the earlier copy.
   const links: ItemLink[] = [{ id: "l1", workspaceId: WS, itemAId: "a2", itemBId: "b2", excluded: [], createdBy: "u-danh", createdAt: now }];
   const users = [user("u-danh", "Danh Nguyen"), user("u-tuyet", "Tuyet Le"), user("u-duc", "Duc Tran"), user("u-grace", "Grace Kim", "Content")];
-  return { workspace: { id: WS, name: "Test", slug: "test" }, teams, boards, groups, columns, items, values, assets, links, users, generatedAt: now };
+  return { workspace: { id: WS, name: "Test", slug: "test" }, teams, boards, groups, columns, items, values, assets, links, users, departments: [], generatedAt: now };
 }
 
 const year2026: DashboardScope = { span: "year", year: 2026, half: 1, quarter: 1, teamIds: null, basis: "due" };

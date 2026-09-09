@@ -111,10 +111,13 @@ export class DashboardService {
  */
 export async function loadDashboardSnapshot(repos: Repositories, workspaceId: EntityId, boards: Board[]): Promise<DashboardSnapshot> {
   const active = boards.filter((b) => b.workspaceId === workspaceId && b.archivedAt === null);
-  const [workspace, teams, users, perBoard] = await Promise.all([
+  const [workspace, teams, users, departments, perBoard] = await Promise.all([
     repos.workspaces.getById(workspaceId),
     repos.teams.listByWorkspace(workspaceId),
     repos.users.list(),
+    // One row per department, and they are few. Worth a read of its own: it is
+    // what lets a renamed department keep one line in a year comparison.
+    repos.stakeholderPortals.listDepartments(workspaceId, { includeDisabled: true }),
     Promise.all(
       active.map(async (board) => {
         const [groups, columns, items, values, assets] = await Promise.all([
@@ -137,6 +140,7 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
   return {
     workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     teams: teams.filter((t) => t.archivedAt === null),
+    departments,
     boards: active,
     groups: perBoard.flatMap((b) => b.groups),
     columns: perBoard.flatMap((b) => b.columns),

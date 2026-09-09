@@ -104,6 +104,23 @@ export interface RequestFacts {
   stage: RequestStage;
 }
 
+/**
+ * Who the work is for.
+ *
+ * `id` comes from the workspace's department registry, so a department that has
+ * been renamed keeps one identity across a year comparison. It is null when the
+ * cell names something the registry does not know — a department removed from
+ * Settings -> Lists, or a value typed before the registry existed — and the
+ * name is then still shown, because "Widening Participation" is more use to a
+ * reader than "Unknown".
+ */
+export interface DepartmentRef {
+  id: string | null;
+  name: string;
+  /** True when the value came from a column *name* rather than a STAKEHOLDER column. */
+  inferred: boolean;
+}
+
 export interface TaskFact {
   id: string;
   name: string;
@@ -127,6 +144,8 @@ export interface TaskFact {
   assetUnits: number;
   assetLines: number;
   doneAssetUnits: number;
+  /** Which stakeholder department the work is for, from its STAKEHOLDER cell. */
+  department: DepartmentRef | null;
   /** Set when the item is a stakeholder request rather than (or as well as) a piece of work. */
   request: RequestFacts | null;
   /** True for items on the Task Allocation board: requests waiting to be placed, not delivery. */
@@ -193,6 +212,9 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   }
   for (const list of columnsByBoard.values()) list.sort((a, b) => a.position - b.position);
   const groupsById = new Map(snapshot.groups.map((g) => [g.id, g]));
+  // The registry, keyed the way a cell is written: trimmed and case-folded.
+  const departmentKey = (name: string) => name.trim().toLowerCase();
+  const departmentsByName = new Map((snapshot.departments ?? []).map((d) => [departmentKey(d.name), d]));
 
   const values = new Map<string, ColumnValue>();
   for (const v of snapshot.values) values.set(`${v.itemId}:${v.columnId}`, v.value);
@@ -256,12 +278,21 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     const owners = new Set<string>();
     const tags = new Set<string>();
     let requesterName: string | null = null;
-    let department: string | null = null;
+    let department: DepartmentRef | null = null;
     let requestedTeam: string | null = null;
     let requestAssetTypes: string[] = [];
     for (const column of columns) {
       const v = getValue(item.id, column.id);
       if (!v) continue;
+      // By type, never by name: a board may call this column "Department",
+      // "Requested by" or anything else, and the answer is the same.
+      if (v.type === "STAKEHOLDER") {
+        if (department === null && v.group?.trim()) {
+          const known = departmentsByName.get(departmentKey(v.group));
+          department = { id: known?.id ?? null, name: known?.name ?? v.group.trim(), inferred: false };
+        }
+        continue;
+      }
       switch (v.type) {
         case "PRIORITY":
           if (priority === null && v.labelId && column.settings.kind === "priority") priority = column.settings.labels.find((l) => l.id === v.labelId)?.name ?? null;
@@ -274,7 +305,10 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
             const requester = v.userIds.map((id) => users.get(id)).find(Boolean);
             if (requester) {
               requesterName = requester.displayName;
-              department = department ?? requester.department ?? null;
+              // A person's own profile department is a guess about the work.
+              if (department === null && requester.department?.trim()) {
+                department = { id: null, name: requester.department.trim(), inferred: true };
+              }
             }
           } else {
             for (const id of v.userIds) owners.add(id);
@@ -287,7 +321,13 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
           break;
         case "TEXT":
           if (v.text.trim() && hasHint(column.name, REQUESTER_HINTS) && !hasHint(column.name, ["email"])) requesterName = requesterName ?? v.text.trim();
-          else if (v.text.trim() && hasHint(column.name, DEPARTMENT_HINTS)) department = department ?? v.text.trim();
+          // Only where the board has no STAKEHOLDER column to ask. Kept for
+          // boards built before that column type existed, and marked inferred
+          // so the page can say the figure rests on a column's name.
+          else if (v.text.trim() && department === null && hasHint(column.name, DEPARTMENT_HINTS)) {
+            const known = departmentsByName.get(departmentKey(v.text));
+            department = { id: known?.id ?? null, name: known?.name ?? v.text.trim(), inferred: true };
+          }
           break;
         default:
           break;
@@ -316,7 +356,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       const lineTypes = [...new Set(lines.map((l) => l.assetType?.trim()).filter((t): t is string => !!t))];
       request = {
         requesterName,
-        department,
+        department: department?.name ?? null,
         teamName: requestedTeam ?? (isIntake ? null : team.id === NO_TEAM ? null : team.name),
         urgency: priority,
         assetTypes: requestAssetTypes.length ? requestAssetTypes : lineTypes,
@@ -342,6 +382,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       size,
       owners: [...owners],
       tags: [...tags],
+      department,
       assetUnits: lineUnits,
       assetLines: lines.length,
       doneAssetUnits: doneLineUnits,

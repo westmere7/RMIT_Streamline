@@ -5,6 +5,7 @@ import type { EntityId, ISODate, ISODateTime, Timestamps } from "@/domain/common
 import type { Item, ItemColumnValue } from "@/domain/item/item";
 import type { ItemAsset } from "@/domain/item/item-asset";
 import type { ItemLink } from "@/domain/item/item-link";
+import type { StakeholderDepartment } from "@/domain/portal/stakeholder-portal";
 import type { Team } from "@/domain/team/team";
 import type { User } from "@/domain/user/user";
 
@@ -32,6 +33,16 @@ export interface DashboardSnapshot {
   links: ItemLink[];
   /** The people the snapshot refers to, for names and avatars. */
   users: User[];
+  /**
+   * The workspace's stakeholder departments (Settings -> Lists, via the
+   * registry migration 0030).
+   *
+   * Carried so the dashboard can name a department by its durable identity
+   * rather than by whatever a cell happens to spell today: a department that
+   * was renamed keeps one row in the reporting, and a name nobody recognises
+   * becomes Unknown rather than a category of one.
+   */
+  departments: StakeholderDepartment[];
   generatedAt: ISODateTime;
 }
 
