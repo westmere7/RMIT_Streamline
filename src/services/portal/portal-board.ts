@@ -2,6 +2,7 @@ import type {
   Board,
   BoardColumn,
   BoardGroup,
+  Comment,
   ColorToken,
   ColumnValue,
   EntityId,
@@ -10,6 +11,7 @@ import type {
   ItemColumnValue,
   ItemLink,
   PortalDeliverable,
+  PortalPerson,
   PortalPriority,
   PortalStatus,
   PortalSubitem,
@@ -47,9 +49,11 @@ import { slugify } from "@/lib/slug";
  * themselves an allowlist. No repository row reaches this function, so a column
  * added to `items` later cannot arrive by accident:
  *
- *  · `comments` and `activities` are empty, always. A shared board publishes
- *    both because somebody chose to share that board; a portal task is an
- *    internal task that happens to carry a label, and its thread is internal.
+ *  · Update threads travel; the activity log does not. The team asked for the
+ *    updates to reach every public view, so what is written on a published task
+ *    is read by that department — worth knowing before posting. The activity
+ *    log is a different thing: an audit trail of who changed which field, which
+ *    names people and internals a stakeholder has no claim on.
  *  · `description` carries the requester's own brief, never `item.description`
  *    — that field holds the contact details the booking writer appended.
  *  · `createdBy` is nobody. Who opened a task internally is not published.
@@ -85,6 +89,15 @@ export interface PortalBoardInput {
   tasks: readonly PortalBoardTask[];
   /** Links whose two ends are both in scope. Anything else is left out. */
   links: readonly ItemLink[];
+  /** Update threads on the published tasks. */
+  comments: readonly Comment[];
+  /**
+   * Whoever wrote one of those updates, named the way an assignee is.
+   *
+   * Passed in rather than looked up: this function never touches a repository,
+   * and a workspace directory is precisely the thing it must not be handed.
+   */
+  commentAuthors: readonly PortalPerson[];
   workspaceName: string;
   now: string;
 }
@@ -121,7 +134,7 @@ function priorityLabelId(priority: PortalPriority | null): string | null {
 }
 
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
-  const { department, tasks, links, workspaceName, now } = input;
+  const { department, tasks, links, comments, commentAuthors, workspaceName, now } = input;
   const boardId = department.id;
 
   // ---- the labels the department's boards between them use --------------------
@@ -294,6 +307,20 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   });
 
   const inScope = new Set(items.map((item) => item.id));
+  // Threads on the published tasks only, and their authors named the same way
+  // an assignee is — a display name and an avatar colour, nothing else. The
+  // mentions are dropped: they are internal routing, and resolving them would
+  // publish people who never appear on the work.
+  const published = comments
+    .filter((comment) => inScope.has(comment.itemId))
+    .map((comment) => ({ ...comment, mentionUserIds: [] }))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const authors = new Map(commentAuthors.map((person) => [person.id, person]));
+  for (const comment of published) {
+    const author = authors.get(comment.authorId);
+    if (author) rememberPerson(people, author);
+  }
+
   return {
     board: {
       id: boardId,
@@ -317,7 +344,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     values,
     links: links.filter((link) => inScope.has(link.itemAId) && inScope.has(link.itemBId)),
     assets,
-    comments: [],
+    comments: published,
     activities: [],
     users: [...people.values()],
     workspaceName,

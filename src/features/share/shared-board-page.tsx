@@ -41,7 +41,11 @@ export function SharedBoardPage({ token }: { token: string }) {
     retry: false,
     staleTime: SHARE_REFRESH_MS,
     refetchInterval: SHARE_REFRESH_MS,
+    // Only while the tab is in front; a link left open behind other windows
+    // costs nothing.
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   if (gate.isPending) return <SharePlaceholder label="Opening the shared board…" />;

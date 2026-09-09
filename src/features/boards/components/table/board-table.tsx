@@ -226,8 +226,8 @@ export const BoardTable = React.memo(function BoardTable() {
               }}
               modifiers={activeDrag?.type === "column" ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]}
             >
-              <SortableContext items={model.groups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
-                {model.groups.map((group) => (
+              <SortableContext items={model.visibleGroups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
+                {model.visibleGroups.map((group) => (
                   <GroupSection
                     key={group.id}
                     group={group}

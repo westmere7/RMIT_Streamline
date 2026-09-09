@@ -71,7 +71,7 @@ export function MobileTableView({ mode, onModeChange }: { mode: "cards" | "grid"
             {nothingMatches ? (
               <EmptyState icon={SearchX} title="Nothing matches" description="No item on this board matches the current search and filters." />
             ) : (
-              model.groups.map((group) => <MobileGroup key={group.id} group={group} selectMode={selectMode} />)
+              model.visibleGroups.map((group) => <MobileGroup key={group.id} group={group} selectMode={selectMode} />)
             )}
             {loading && <p className="py-4 text-center text-2xs text-muted-foreground">Refreshing…</p>}
           </div>

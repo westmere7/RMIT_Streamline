@@ -16,8 +16,16 @@ import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
-/** How often the list is refreshed while somebody is looking at it. */
-const PORTAL_REFRESH_MS = 15_000;
+/**
+ * How often the board is refreshed while somebody is looking at it.
+ *
+ * Short, because a stakeholder watching a request move is the whole point of
+ * the page and fifteen seconds felt broken. Only while the tab is in front:
+ * `refetchIntervalInBackground` is off, so a portal left open behind other
+ * windows costs nothing. A socket would beat this and is the next step;
+ * polling is the honest floor while there is no session to hang one on.
+ */
+const PORTAL_REFRESH_MS = 4_000;
 
 /**
  * A department's portal.
@@ -64,6 +72,7 @@ export function PortalPage({ token }: { token: string }) {
     refetchInterval: PORTAL_REFRESH_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   // The open request lives in the URL, so Back, refresh and a pasted link all

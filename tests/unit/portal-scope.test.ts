@@ -150,6 +150,54 @@ describe("what a department's portal is allowed to see", () => {
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
   });
 
+  it("moves a task when its stakeholder is changed", async () => {
+    await label(items[0]!, "Comm.");
+    const commPortal = await open(comm);
+    const eventPortal = await open(event);
+    expect((await services.portals.tasks(commPortal)).tasks.map((t) => t.id)).toEqual([items[0]!.id]);
+
+    // The board reassigns it. Changing the cell plainly means "this is Event's
+    // now", so it appears there and stops appearing under Comm.
+    await label(items[0]!, "Event");
+    expect((await services.portals.tasks(commPortal)).tasks).toHaveLength(0);
+    expect((await services.portals.tasks(eventPortal)).tasks.map((t) => t.id)).toEqual([items[0]!.id]);
+    await expect(services.portals.task(commPortal, items[0]!.id, null)).rejects.toBeInstanceOf(PortalAccessError);
+  });
+
+  it("moves a booked request too, but keeps it when nothing is labelled", async () => {
+    const resolved = await open(comm);
+    const receipt = await services.portals.book(resolved, {
+      submissionKey: "key-scope-00002",
+      request: {
+        requesterName: "Priya",
+        requesterEmail: "priya@rmit.edu.vn",
+        department: null,
+        title: "Booked with Comm.",
+        brief: "The requester's own words.",
+        assetTypes: [],
+        assets: [],
+        teamId: null,
+        dueDate: null,
+        priority: null,
+        referenceUrl: null,
+        extra: {},
+        answers: {},
+      },
+      booking: services.booking,
+    });
+
+    // Unlabelled, the booking stays with the department that took it.
+    expect((await services.portals.tasks(resolved)).tasks.map((t) => t.id)).toEqual([receipt.itemId]);
+
+    // Labelled elsewhere, it goes there — the cell is the team's own statement
+    // about who the work is for, and it outranks where the form was filled in.
+    const booked = (await services.repos.items.getById(receipt.itemId))!;
+    await label(booked, "Event");
+    expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
+    const eventPortal = await open(event);
+    expect((await services.portals.tasks(eventPortal)).tasks.map((t) => t.id)).toEqual([receipt.itemId]);
+  });
+
   it("lists a linked pair once, and prefers the booked side", async () => {
     const [a, b] = [items[0]!, items[1]!];
     await label(a, "Comm.");

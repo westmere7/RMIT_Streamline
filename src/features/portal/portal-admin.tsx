@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, ExternalLink, KeyRound, Link2, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, Globe, KeyRound, Link2, Loader2, Lock, LockKeyhole, RefreshCw, Settings2, Users } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { PORTAL_THEMES, type PortalTheme } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
@@ -129,68 +128,88 @@ function TeamNameField() {
   );
 }
 
+/**
+ * One department, folded up.
+ *
+ * A workspace with a dozen departments was a dozen stacked panels of link,
+ * theme, password and regenerate — a page of controls to find the one switch
+ * anybody came for. Collapsed is the resting state: the name, whether the link
+ * is live, and the two things done most often (copy it, open it). Everything
+ * that changes the link is a fold away, which also puts a small deliberate
+ * distance between a passing glance and "New link".
+ */
 function DepartmentCard({ row }: { row: DepartmentOverview }) {
   const { department, portal } = row;
   const { setEnabled, setTheme, regenerate, setPassword } = usePortalMutations();
   const [confirmRegenerate, setConfirmRegenerate] = React.useState(false);
   const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [password, setPasswordValue] = React.useState("");
+  const [expanded, setExpanded] = React.useState(false);
   const colors = colorClasses(department.color);
   const open = !!portal?.enabled;
   const url = portal ? portalUrl(portal.token) : "";
+  // Opening a portal writes a row and, first time round, makes one; the button
+  // says so rather than sitting still for a second and a half.
+  const busy = setEnabled.isPending && setEnabled.variables?.departmentId === department.id;
 
   return (
-    <li className="rounded-xl border border-border/70 bg-card p-4" data-testid="portal-department" data-department={department.name}>
-      <div className="flex flex-wrap items-start gap-3">
-        <span aria-hidden className={cn("mt-1 size-3 shrink-0 rounded-full", colors.dot)} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[15px] font-semibold">{department.name}</h3>
-            <Badge variant={open ? "success" : "muted"} data-testid="portal-state">
-              {open ? "Open" : "Closed"}
+    <li className="rounded-xl border border-border/70 bg-card" data-testid="portal-department" data-department={department.name}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left"
+          data-testid="portal-department-expand"
+        >
+          <ChevronRight aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
+          <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colors.dot)} />
+          <span className="truncate text-[15px] font-semibold">{department.name}</span>
+          <Badge variant={open ? "success" : "muted"} data-testid="portal-state">
+            {open ? "Open" : "Closed"}
+          </Badge>
+          {portal?.passwordHash && (
+            <Badge variant="outline" className="gap-1">
+              <Lock className="size-3" aria-hidden /> Password
             </Badge>
-            {portal?.passwordHash && (
-              <Badge variant="outline" className="gap-1">
-                <Lock className="size-3" aria-hidden /> Password
-              </Badge>
-            )}
-          </div>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {open ? "Anyone with the link can see this department's work and book new tasks." : "Nobody can open this link."}
-          </p>
-        </div>
-        {/* A span, not a label. A <label> wrapping a control re-dispatches the
-            click onto it, so every click toggled twice and which of the two
-            writes landed last was a race — a portal could come back open after
-            being closed. The switch carries its own accessible name. */}
-        <span className="flex shrink-0 items-center gap-2 text-[13px]">
-          <span aria-hidden className="text-muted-foreground">
-            Open
-          </span>
-          <Switch
-            checked={open}
-            disabled={setEnabled.isPending}
-            onCheckedChange={(next) => setEnabled.mutate({ departmentId: department.id, enabled: next })}
-            aria-label={`${open ? "Close" : "Open"} the ${department.name} portal`}
+          )}
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {portal && (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => void copyToClipboard(url, "Link copied")} data-testid="portal-copy">
+                <Copy /> Copy
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <a href={routes.portal(portal.token)} target="_blank" rel="noreferrer noopener">
+                  <ExternalLink /> Preview
+                </a>
+              </Button>
+            </>
+          )}
+          <Button
+            variant={open ? "outline" : "default"}
+            size="sm"
+            disabled={busy}
+            onClick={() => setEnabled.mutate({ departmentId: department.id, enabled: !open })}
             data-testid="portal-toggle"
-          />
-        </span>
+          >
+            {busy ? <Loader2 className="animate-spin" /> : open ? <LockKeyhole /> : <Globe />}
+            {busy ? (open ? "Closing…" : "Opening…") : open ? "Close" : "Open"}
+          </Button>
+        </div>
       </div>
 
-      {portal && (
-        <div className="mt-3 space-y-2.5 border-t border-border/60 pt-3">
+      {expanded && portal && (
+        <div className="space-y-2.5 border-t border-border/60 p-3">
+          <p className="text-[13px] text-muted-foreground">
+            {open ? "Anyone with the link can see this department's work and book new tasks." : "Nobody can open this link."}
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-2 py-1.5 font-mono text-2xs text-muted-foreground" data-testid="portal-link">
               {url}
             </code>
-            <Button variant="outline" size="sm" onClick={() => void copyToClipboard(url, "Link copied")} data-testid="portal-copy">
-              <Copy /> Copy
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <a href={routes.portal(portal.token)} target="_blank" rel="noreferrer noopener">
-                <ExternalLink /> Preview
-              </a>
-            </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

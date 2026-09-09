@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ItemLink, PortalTask, StakeholderDepartment } from "@/domain";
+import type { Comment, ItemLink, PortalPerson, PortalTask, StakeholderDepartment } from "@/domain";
 import { buildPortalBoard, type PortalBoardTask } from "@/services/portal/portal-board";
 
 const DEPARTMENT: StakeholderDepartment = {
@@ -40,8 +40,19 @@ const entry = (t: PortalTask, extra: Partial<PortalBoardTask> = {}): PortalBoard
   ...extra,
 });
 
-const build = (tasks: PortalBoardTask[], links: ItemLink[] = []) =>
-  buildPortalBoard({ department: DEPARTMENT, tasks, links, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+const build = (tasks: PortalBoardTask[], links: ItemLink[] = [], comments: Comment[] = [], commentAuthors: PortalPerson[] = []) =>
+  buildPortalBoard({ department: DEPARTMENT, tasks, links, comments, commentAuthors, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+
+const comment = (id: string, itemId: string, authorId: string, body: string): Comment => ({
+  id,
+  itemId,
+  authorId,
+  body,
+  mentionUserIds: ["someone-internal"],
+  sharedId: null,
+  createdAt: `2026-09-0${id.length}T00:00:00.000Z`,
+  updatedAt: "2026-09-09T00:00:00.000Z",
+});
 
 /**
  * A department's requests, shaped as a board.
@@ -175,7 +186,8 @@ describe("a department's requests as a board", () => {
       }),
     ]);
 
-    expect(payload.comments).toEqual([]);
+    // The activity log is an audit trail of who changed which field; it never
+    // travels. Updates do — see the test below.
     expect(payload.activities).toEqual([]);
     // Nobody is named as the author of anything.
     expect(payload.items.every((i) => i.createdBy === "00000000-0000-0000-0000-000000000000")).toBe(true);
@@ -185,6 +197,23 @@ describe("a department's requests as a board", () => {
     expect(payload.users[0]!.displayName).toBe("Jane Morrison");
     // Production notes on a deliverable stay internal.
     expect(payload.assets.every((a) => a.notes === null)).toBe(true);
+  });
+
+  it("publishes the update thread on a published task, and only there", () => {
+    const author: PortalPerson = { id: "u9", displayName: "Minh Hoang", initials: "MH", color: "sky" };
+    const payload = build(
+      [entry(task({ id: "a" }))],
+      [],
+      [comment("c1", "a", "u9", "Proofs are with the printer."), comment("c22", "somewhere-else", "u9", "Not this department's business.")],
+      [author],
+    );
+
+    expect(payload.comments.map((c) => c.body)).toEqual(["Proofs are with the printer."]);
+    // The author is named the same way an assignee is, and nothing more.
+    expect(payload.users.find((u) => u.id === "u9")?.displayName).toBe("Minh Hoang");
+    expect(payload.users.find((u) => u.id === "u9")?.email).toBe("");
+    // Mentions are internal routing and would name people who are not on the work.
+    expect(payload.comments[0]!.mentionUserIds).toEqual([]);
   });
 
   it("keeps a link only when it names two requests this department can see", () => {

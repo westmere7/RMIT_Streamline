@@ -59,17 +59,22 @@ export function MobileBoardTools({
 
   return (
     <>
-      {/* Scrolls inside itself; the page never moves sideways. */}
-      <div className="-mx-3 shrink-0 overflow-x-auto overscroll-x-contain px-3" role="toolbar" aria-label="Board tools">
-        <div className="flex w-max items-center gap-1.5 pb-0.5">
-          <Chip onClick={() => setOpen("views")} icon={CurrentIcon} label={current.label} testId="mobile-view-switcher" active />
-          <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />
-          <Chip onClick={() => setOpen("filter")} icon={Filter} label="Filter" count={filterCount} active={filterCount > 0} testId="mobile-filter-chip" />
-          <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
-            {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}
-          </Chip>
-          <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />
+      <div className="flex min-w-0 items-center gap-2">
+        {/* Scrolls inside itself; the page never moves sideways. The actions sit
+            outside the scroller, so a button put there stays reachable however
+            many chips there are. */}
+        <div className={cn("-ml-3 min-w-0 flex-1 overflow-x-auto overscroll-x-contain pl-3", actions ? "pr-1" : "-mr-3 pr-3")} role="toolbar" aria-label="Board tools">
+          <div className="flex w-max items-center gap-1.5 pb-0.5">
+            <Chip onClick={() => setOpen("views")} icon={CurrentIcon} label={current.label} testId="mobile-view-switcher" active />
+            <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />
+            <Chip onClick={() => setOpen("filter")} icon={Filter} label="Filter" count={filterCount} active={filterCount > 0} testId="mobile-filter-chip" />
+            <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
+              {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}
+            </Chip>
+            <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />
+          </div>
         </div>
+        {actions && <span className="shrink-0">{actions}</span>}
       </div>
 
       <Sheet open={open === "views"} onOpenChange={(next) => !next && close()}>

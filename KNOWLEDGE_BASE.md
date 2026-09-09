@@ -643,14 +643,18 @@ Identity flows through the `renames` map the Lists editor already produces, neve
 
 **What a portal shows** is the union of two sources, and they differ in kind:
 
-- **Provenance** (`portal_requests`): a booking made through this portal. Deliberate, durable, and carrying the brief the requester typed. `item_id` is the canonical origin, unique per workspace.
 - **The STAKEHOLDER label**: any top-level task whose stakeholder cell names this department. This is how a department sees the work it already had, rather than only what arrived after its portal existed, and in practice it is the larger half by far.
+- **Provenance** (`portal_requests`): a booking made through this portal. It carries the brief the requester typed and the time it arrived, and it keeps an **unlabelled** booking visible to the department that took it.
+
+**The label wins.** A task whose stakeholder cell names a department belongs to that department, whichever portal it was booked through: relabelling it makes it appear under the new department and disappear from the old, because that is plainly what changing the cell means. Provenance only decides for a task carrying no stakeholder label at all. (This replaces an earlier rule that a booking could not be moved by an edit.)
 
 The label is matched by column **type**, never by column name — a board may call the column "Department" or "Requested by", and renaming it must not quietly empty a portal. The value is compared to the department name, trimmed and case-insensitively; a department rename carries its cells along (`WorkspaceListService.rewrite`), so the match survives it.
 
 Three rules keep the list honest. Only top-level, unarchived tasks: a subitem belongs inside its parent, not beside it. Linked tasks collapse to one row, because allocation makes a second item and both usually carry the label — the booked one represents the run, else the earliest made, never "whichever changed last". And a labelled task has **no brief**: `items.description` is not a brief, it carries whatever contact details the booking writer appended.
 
-**This is a deliberate trade.** A label any board editor can change now decides what an external audience sees. The safeguard is that the count on the management screen is computed from exactly what a portal would publish, so an administrator sees "265 requests" before opening the link rather than after. Portals are created switched off for the same reason.
+**This is a deliberate trade.** A label any board editor can change decides what an external audience sees, and moves it between audiences. The safeguard is that portals are created switched off, and a department's whole board is one click from the management screen (Preview) before the link goes anywhere.
+
+The management screen used to carry a request count per department. It was removed: producing it meant scoping every department on every load — the workspace's label index, then every candidate item and every link between them — which is the same work as opening every portal at once, and it made a page of switches take four seconds to show something that had not changed.
 
 `public_brief` is stored on the provenance row because `items.description` is **not** publishable: `describeBooking()` appends every answer the receiving board had no column for, and `requesterName`, `requesterEmail` and `department` all take that path when the board lacks a column. The brief the requester typed is captured at booking time, before that happens.
 
@@ -658,7 +662,13 @@ Three rules keep the list honest. Only top-level, unarchived tasks: a subitem be
 
 Portal passwords use **PBKDF2-SHA256** with the iteration count encoded in the hash (`pbkdf2$<iterations>$<salt>$<hash>`, `src/lib/auth/portal-password.ts`). This is deliberately *not* the `hashPassword()` used by board, item and dashboard shares, which is one round of SHA-256; rewriting that would invalidate every existing share password, so the two coexist and the older scheme can be migrated separately.
 
-**The payload** is an explicit allowlist (`src/domain/portal/portal-view.ts`), written field by field rather than subtracted from a row, so a column added to `items` later cannot join it by accident. Published: title, reference, the stored public brief, status (name, colour and semantic role), priority, dates, assignee display names, deliverable summaries, subitem titles, a linked-work count. Never published: requester contacts, `items.description`, internal comments and activity, hidden columns, asset notes and URLs, another department's anything.
+**A portal is a board.** A department's requests are assembled into a *synthetic* `PublicBoardPayload` (`src/services/portal/portal-board.ts`) and rendered by the application's own components through the read-only memory provider — the same mechanism the public board link uses (`ShareGuestProviders`). The department gets all seven views, the real toolbar with its search, filters, sort and grouping, and the real item panel. Nothing about the portal is a second implementation of a board.
+
+Reconciling several boards into one is the work this does. Statuses become one label set ordered by meaning (pending, working, stuck, done) so a kanban reads left to right however each board words them; the board a request is being run on becomes the group it sits in; a column nothing would fill is left out. Two traps are recorded in the code because both cost a debugging session: `columnLabels()` returns `DEFAULT_PRIORITY_LABELS` for any PRIORITY column whatever the column stores, so a synthesised priority id renders as an empty cell — priority maps back onto the fixed four steps; and a DATE cell marks any past date on unfinished work as overdue, so "Requested" is a TEXT column, not a date.
+
+**The payload** is an explicit allowlist (`src/domain/portal/portal-view.ts`), written field by field rather than subtracted from a row, so a column added to `items` later cannot join it by accident. Published: title, reference, the stored public brief, status (name, colour and semantic role), priority, dates, assignee display names, deliverable summaries, subitem titles, a linked-work count, and the **update thread** on a published task. Never published: requester contacts, `items.description`, the activity log, hidden columns, asset notes, mentions, who created a task, another department's anything, or a link whose other end is out of scope.
+
+Updates travel by request of the team: the thread is how anyone finds out what is happening, and a portal that hid it sent people back to email. What the team writes on a published task is therefore read by that department — worth knowing before posting. The activity log is a different thing and stays internal: it is an audit trail of who changed which field.
 
 Heterogeneous boards are read through `src/services/portal/portal-projection.ts`: status and priority come from the board's first column of that type, meaning travels as a role rather than a label id, a due date is the DATE column else the end of a TIMELINE, and people are every PERSON column pooled. A board with none of these emits nulls rather than guessing.
 
@@ -666,13 +676,24 @@ Heterogeneous boards are read through `src/services/portal/portal-projection.ts`
 
 **Permissions.** Anonymous and signed-in-but-unqualified visitors read the projection and may book; nothing else. Commenting or editing a deliverable requires a verified session, an ACTIVE membership of the item's own workspace, and OWNER or EDITOR on the *concrete item's own board*. A valid link never confers a write. Policies (0013) keep `anon` and `authenticated` out of the portal tables entirely - members may read `stakeholder_departments` and nothing more - so a direct PostgREST call cannot walk round the gate; visitors are served by the service role behind `src/server/portal.ts`.
 
-**Reads are batched.** A department with a few hundred labelled tasks made `getById`-per-item the whole response time, and a single `in(...)` filter over 265 uuids built an 18KB URL that PostgREST refused outright (`UND_ERR_HEADERS_OVERFLOW`). Items and links are read in batches of 80; `overview` gathers every department's candidates in one pass rather than scanning per department.
+**Reads are batched, targeted and paged.** Four separate costs were found by measuring against live data, and one of them was not a performance problem at all:
+
+- `getById`-per-item was the whole response time for a department with a few hundred tasks; items, links and comments are read with `listByIds`-style batches.
+- A single `in(...)` filter over 265 uuids built an 18KB URL that PostgREST refused outright (`UND_ERR_HEADERS_OVERFLOW`). Batches are 80 ids, roughly 3KB of filter.
+- The label scan walked every board in turn and read *every column value on each* — 7224 rows to answer a question about 1240. It now collects the workspace's STAKEHOLDER columns in parallel and makes one `listValuesByColumns` call. The projection did the same thing again: boards are read together and `listValuesByItems` fetches only the items in play.
+- **PostgREST answers a plain select with at most 1000 rows and says nothing about the rest.** The workspace-wide label read asks for 1240 and was getting 1000, so about a fifth of labelled tasks were missing from their portal, chosen arbitrarily by whatever order the database returned. `unwrapAll` (`src/data/supabase/client.ts`) pages with `range` until a short page comes back; every read whose size grows with the workspace uses it. This affected `listValuesByBoard` too, and so the public board link — no board has passed 1000 values yet, so it had not yet bitten there.
+
+Measured on the biggest department (265 requests): Departments tab 4214 ms -> 175 ms, first page 6167 ms -> 1429 ms, one task detail 5115 ms -> 1907 ms.
 
 **Providers.** `StakeholderPortalService` takes an optional `PortalTransport`: set for Supabase (HTTP to the route handlers), absent for the local provider, where the same service runs in the browser. That is what lets `tests/e2e/stakeholder-portal.spec.ts` drive the real gate, projection and idempotency rather than a stand-in. What it cannot prove is RLS and the service-role handlers, which need a Supabase environment.
 
-**Management** lives on the renamed destination (`/workspace/[slug]/book`, "Stakeholder Portal"). Admins get a Departments tab - open/close, copy, preview, default theme, password, new link, request count - and the editable creative-team name, which is presentation only and never renames the workspace or changes its slug. Ordinary members see the booking form exactly as before, with no tabs. A portal is created **switched off**; adding a department publishes nothing.
+**Management** lives on the renamed destination (`/workspace/[slug]/book`, "Stakeholder Portal"). Admins get a Departments tab and the editable creative-team name, which is presentation only and never renames the workspace or changes its slug. Ordinary members see the booking form exactly as before, with no tabs. A portal is created **switched off**; adding a department publishes nothing.
 
-The visitor's theme choice is stored under `streamline.portal-theme:<token>` and applied to a subtree, never to `<html>`, so it cannot touch the internal app's theme. The list polls every 15 seconds and shows when it was last updated; a realtime channel is not yet wired (see section 22).
+Each department is one collapsed row: name, whether the link is live, and the two things done most often (Copy, Preview), with an Open/Close button that shows its own progress — opening a portal writes a row and, first time round, creates one, which is long enough that a silent switch read as broken. Everything that changes a link (theme, password, new link) is behind the fold, which also puts a deliberate step between a passing glance and "New link".
+
+The visitor's theme choice is stored under `streamline.portal-theme:<token>` and applied to a subtree, never to `<html>`, so it cannot touch the internal app's theme. That subtree states `light` or `dark` explicitly, never only `dark`: the `dark` variant is `&:is(.dark *):not(.light *)` (`src/app/globals.css`), and without the `.light` escape a portal set to light inside an app set to dark inherited the dark it was sitting in — one page holds both themes, which no other part of the app has to do.
+
+The board polls every 4 seconds while the tab is in front and refetches on focus and reconnect; the header says when the figures were last true. A realtime channel would beat it and is still the next step (see section 22).
 
 ## 13d. The phone experience
 
@@ -1060,7 +1081,10 @@ The following findings explain why some older repository prose may disagree with
 | A share password is a salted hash | Board, item and dashboard shares use one round of SHA-256. Only portal passwords are adaptive (PBKDF2). Migrating the older scheme is outstanding work. |
 | The portal updates live | It polls every 15 seconds and shows when it last refreshed. A department-scoped realtime channel is designed (broadcast, no row data) but not yet wired. |
 | The portal offers all seven board views | It offers a grouped list with search and totals. Kanban, calendar, timeline, gantt, workload and chart are outstanding. |
-| A portal shows only what was booked through it | It shows the union of bookings and STAKEHOLDER-labelled tasks. The label is matched by column type, so renaming the column changes nothing. |
+| A portal shows only what was booked through it | It shows the union of bookings and STAKEHOLDER-labelled tasks, and the label wins: relabelling a task moves it between portals. The label is matched by column type, so renaming the column changes nothing. |
+| The portal has a list of its own | It is a board. The department's requests are assembled into a synthetic `PublicBoardPayload` and rendered by the app's own views and item panel. |
+| Internal updates never reach a portal | They do. The update thread on a published task is part of the payload; the activity log is not. |
+| A plain PostgREST select returns every row | It stops at 1000 and says nothing. Reads that grow with the workspace go through `unwrapAll`. |
 | Portal writes are transactional | Booking is a durable claim with compensation, not a database transaction; the repositories speak REST. A crash between booking and association leaves a claimed key that is released on the next failure path only. |
 | RLS for the portal is verified | Only the local provider is exercised end to end. Policy 0013 and the service-role handlers need a Supabase environment to prove. |
 | Public user payload is only name/avatar | `toPublicUser()` currently clears email and retains the rest of the selected user object. |

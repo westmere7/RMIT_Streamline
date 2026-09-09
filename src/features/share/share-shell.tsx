@@ -19,7 +19,7 @@ import { routes } from "@/lib/routes";
 import { createServices } from "@/services";
 
 /** How often a shared page looks for changes. */
-export const SHARE_REFRESH_MS = 10_000;
+export const SHARE_REFRESH_MS = 4_000;
 
 /** The app's own loading screen: a visitor waits on the same page a member does. */
 export function SharePlaceholder({ label }: { label: string }) {

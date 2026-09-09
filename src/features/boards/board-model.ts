@@ -18,6 +18,8 @@ export interface BoardModel {
   itemById: Map<string, Item>;
   /** Top-level items per group after search, filters and sort. */
   itemsByGroup: Map<string, Item[]>;
+  /** `groups`, minus the ones a search or filter has emptied. */
+  visibleGroups: BoardGroup[];
   /** Subitems per parent id (position order). */
   subitemsByParent: Map<string, Item[]>;
   /** Task links per item id (either side of the link). */
@@ -107,9 +109,15 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     return v.itemIds.some((id) => itemById.has(id) && !isDone(id));
   };
 
+  const isFiltered = sorted.length !== topLevel.length;
   return {
     snapshot,
     groups,
+    // While a search or a filter is on, a group with nothing left in it is a
+    // heading over an empty space — three of them turn one result into a page
+    // of scrolling. Unfiltered they all stay: an empty group is somewhere to
+    // put the next item.
+    visibleGroups: isFiltered ? groups.filter((group) => (itemsByGroup.get(group.id) ?? []).length > 0) : groups,
     columns,
     visibleColumns: columns.filter((c) => !c.hidden),
     statusColumn,
@@ -128,7 +136,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     dueDateOf: (itemId) => primaryDueDate(itemId, columns, getValue),
     totalTopLevel: topLevel.length,
     visibleTopLevel: sorted.length,
-    isFiltered: sorted.length !== topLevel.length,
+    isFiltered,
   };
 }
 

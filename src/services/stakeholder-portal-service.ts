@@ -2,6 +2,7 @@ import type {
   Board,
   BoardColumn,
   BookingForm,
+  Comment,
   BookingReceipt,
   BookingRequest,
   DepartmentPortal,
@@ -39,6 +40,7 @@ import { todayISO } from "@/lib/dates/dates";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import {
   matchesPortalSearch,
+  toPortalPerson,
   projectDeliverable,
   projectStatus,
   projectSubitem,
@@ -327,6 +329,11 @@ export class StakeholderPortalService {
       department: resolved.department,
       tasks,
       links: ctx.links,
+      comments: ctx.comments,
+      commentAuthors: [...new Set(ctx.comments.map((comment) => comment.authorId))]
+        .map((id) => ctx.projection.usersById.get(id))
+        .filter((user): user is User => !!user)
+        .map(toPortalPerson),
       // The team's own name for itself, which is what the header says.
       workspaceName: workspace?.creativeTeamName?.trim() || workspace?.name || "",
       now: new Date().toISOString(),
@@ -748,7 +755,18 @@ export class StakeholderPortalService {
       this.allRequests(department.id),
       preloaded?.labelled ? Promise.resolve(preloaded.labelled) : this.labelledItemIds(department.workspaceId),
     ]);
-    const candidates = new Set<EntityId>([...provenance.map((row) => row.itemId), ...(labelled.get(departmentKey(department.name)) ?? [])]);
+    // The stakeholder label decides. A task relabelled from one department to
+    // another moves: it appears under the new one and stops appearing under the
+    // old, which is what changing the cell plainly means. Provenance is what
+    // keeps a *booking* visible — a task booked here and never labelled belongs
+    // to the department that booked it — and it is what carries the brief, but
+    // it no longer pins a task to a department the board has since moved it out
+    // of.
+    const anyLabel = new Set<EntityId>([...labelled.values()].flat());
+    const candidates = new Set<EntityId>([
+      ...(labelled.get(departmentKey(department.name)) ?? []),
+      ...provenance.filter((row) => !anyLabel.has(row.itemId)).map((row) => row.itemId),
+    ]);
     if (candidates.size === 0) return { entries: [], items: new Map() };
 
     const loaded = preloaded?.items ?? (await this.itemsByIdFor([...candidates]));
@@ -781,6 +799,21 @@ export class StakeholderPortalService {
   private async itemsByIdFor(ids: readonly EntityId[]): Promise<Map<EntityId, Item>> {
     const batches = await Promise.all(chunk(ids).map((batch) => this.repos.items.listByIds(batch)));
     return new Map(batches.flat().map((item) => [item.id, item]));
+  }
+
+  /**
+   * The update threads on these items, in batches.
+   *
+   * A department reads the team's updates on its own work: the thread is how
+   * anybody finds out what is happening, and a portal that hid it sent people
+   * back to email. It is scoped exactly as everything else is — only items this
+   * portal already publishes — and it is the one place internal writing reaches
+   * a stakeholder, so what the team posts on a published task is public to that
+   * department.
+   */
+  private async commentsForItems(ids: readonly EntityId[]): Promise<Comment[]> {
+    const batches = await Promise.all(chunk(ids).map((batch) => this.repos.comments.listByItems(batch)));
+    return batches.flat();
   }
 
   /** Links touching any of these items, in batches for the same reason. */
@@ -891,10 +924,11 @@ export class StakeholderPortalService {
     // Values for exactly the items in play — this department's requests and
     // their subitems — rather than everything sitting on the boards they happen
     // to live on, which was an order of magnitude more rows than the answer.
-    const [values, links, users] = await Promise.all([
+    const [values, links, users, comments] = await Promise.all([
       this.repos.items.listValuesByItems([...itemsById.keys()]),
       this.linksForItems([...wanted]),
       this.repos.users.list(),
+      this.commentsForItems([...itemsById.keys()]),
     ]);
 
     for (const entry of perBoard) boards.set(entry.board.id, { board: entry.board, columns: entry.columns, values: new Map() });
@@ -931,7 +965,7 @@ export class StakeholderPortalService {
       publishSourceName: true,
       today: todayISO(),
     };
-    return { itemsById, projection, links };
+    return { itemsById, projection, links, comments };
   }
 
   /**

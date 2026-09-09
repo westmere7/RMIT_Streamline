@@ -87,10 +87,19 @@ Numbered against the brief's section 3, with departures called out.
 7. New portal bookings associate automatically; a labelled task appears without
    an import step. An explicit backfill remains useful only for tasks that carry
    no label.
-8. Editing a `STAKEHOLDER` cell does not move a published request. Reassignment
-   is a separate authorised action.
+8. **Superseded by the product owner.** Editing a `STAKEHOLDER` cell *does* move
+   a request: it appears under the new department and disappears from the old.
+   The owner's reasoning is that changing the cell plainly means "this is
+   theirs now", and a portal that kept showing work the board had reassigned
+   would be wrong in the way that matters. Provenance still decides for a
+   booking that carries no label at all, so a booking never vanishes from the
+   department that took it.
 9. Canonical origin is the item named by `portal_requests.item_id`.
-10. Anonymous: read the projection and book. Nothing else.
+10. Anonymous: read the projection and book. Nothing else. The projection is
+    now a synthetic board rather than a list (`portal-board.ts`), and it
+    includes the update thread on a published task — both at the owner's
+    request, and both recorded in the knowledge base under what a portal
+    publishes.
 11. Signing in never widens scope or bypasses the gate.
 12. Renaming a department changes its display name only.
 
