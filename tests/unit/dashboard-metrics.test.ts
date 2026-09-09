@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { AssetFact, DashboardFacts, TaskFact, TeamRef } from "@/features/dashboard/analytics";
-import { NO_TEAM } from "@/features/dashboard/analytics";
 import {
   assignedWorkload,
   attention,

@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
-import { LivePill } from "@/features/dashboard/dashboard-controls";
+import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { useAgo, useDashboardRealtime, useDashboardSnapshot } from "@/features/dashboard/hooks";
-import { useDashboardPrefs } from "@/features/dashboard/prefs";
 import { ShareDashboardDialog } from "@/features/dashboard/share-dashboard-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageDashboardShare } from "@/lib/permissions/permissions";
@@ -30,10 +29,6 @@ export function DashboardPage() {
   const [shareOpen, setShareOpen] = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    void useDashboardPrefs.persist.rehydrate();
-  }, []);
 
   // Full screen puts just this page on the display: no sidebar, no browser chrome.
   React.useEffect(() => {
@@ -59,30 +54,30 @@ export function DashboardPage() {
 
   return (
     <div ref={rootRef} className={cn("flex h-full min-h-0 flex-col bg-background", fullscreen && "overflow-hidden")} data-testid="dashboard-page">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2.5 text-[22px] font-semibold tracking-tight">
-            Dashboard
-            <LivePill ago={ago} refreshing={snapshot.isFetching} />
-          </h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">What every team delivers across {ws.workspace.name}, updated as the boards change.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canShare && (
-            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)} data-testid="dashboard-share">
-              <Share2 /> Share
-            </Button>
-          )}
-          <SimpleTooltip label={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
-            <Button variant="outline" size="icon-sm" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit full screen" : "Full screen"} data-testid="dashboard-fullscreen">
-              {fullscreen ? <Minimize2 /> : <Maximize2 />}
-            </Button>
-          </SimpleTooltip>
-        </div>
-      </div>
-
       {snapshot.data ? (
-        <DashboardScreen snapshot={snapshot.data} onOpenTask={openTask} onOpenBoard={openBoard} />
+        <DashboardScreen
+          snapshot={snapshot.data}
+          viewerId={ws.currentUser.id}
+          onOpenTask={openTask}
+          onOpenBoard={openBoard}
+          // A refresh that failed while a good snapshot is still on screen is
+          // "not updating", never "Live".
+          freshness={<Freshness ago={ago} refreshing={snapshot.isFetching} failed={snapshot.isError} />}
+          toolbarExtras={
+            <>
+              {canShare && (
+                <Button variant="outline" size="sm" onClick={() => setShareOpen(true)} data-testid="dashboard-share">
+                  <Share2 /> Share
+                </Button>
+              )}
+              <SimpleTooltip label={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
+                <Button variant="outline" size="icon-sm" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit full screen" : "Full screen"} data-testid="dashboard-fullscreen">
+                  {fullscreen ? <Minimize2 /> : <Maximize2 />}
+                </Button>
+              </SimpleTooltip>
+            </>
+          }
+        />
       ) : snapshot.isError ? (
         <ErrorState title="Could not load the dashboard." error={snapshot.error} onRetry={() => snapshot.refetch()} />
       ) : (

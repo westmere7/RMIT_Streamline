@@ -256,3 +256,48 @@ describe("publicDashboardSnapshot", () => {
     expect(facts.requests.find((r) => r.id === "in1")!.request).toMatchObject({ requesterName: null, department: "School of Business", teamName: "Alpha" });
   });
 });
+
+/**
+ * What a public link may carry.
+ *
+ * The payload is built field by field rather than subtracted from the internal
+ * snapshot, so these assertions are the contract: a field added to a row later
+ * has to be added here deliberately before it can leave the building.
+ */
+describe("the public dashboard payload", () => {
+  it("names nobody at all", () => {
+    const published = publicDashboardSnapshot(snapshot());
+
+    expect(published.users).toEqual([]);
+    // PERSON is the whole of the workload data, so it is not published as values.
+    expect(published.values.some((v) => v.value.type === "PERSON")).toBe(false);
+    expect(published.assets.every((a) => a.assigneeIds.length === 0)).toBe(true);
+    expect(published.items.every((i) => i.createdBy === "00000000-0000-0000-0000-000000000000")).toBe(true);
+    expect(published.boards.every((b) => b.ownerId === "00000000-0000-0000-0000-000000000000")).toBe(true);
+  });
+
+  it("carries no writing but a department", () => {
+    const published = publicDashboardSnapshot(snapshot());
+
+    expect(published.items.every((i) => i.description === null)).toBe(true);
+    expect(published.assets.every((a) => a.notes === null)).toBe(true);
+    expect(published.teams.every((t) => t.description === null)).toBe(true);
+    // A LONG_TEXT or LINK column is somebody's writing; its values never travel.
+    const publishedColumns = new Set(published.columns.map((c) => c.id));
+    const internal = snapshot();
+    for (const column of internal.columns) {
+      if (column.type === "LONG_TEXT" || column.type === "LINK" || column.type === "PERSON") {
+        expect(publishedColumns.has(column.id)).toBe(false);
+      }
+    }
+  });
+
+  it("keeps the categories the charts group by", () => {
+    const published = publicDashboardSnapshot(snapshot());
+    const kinds = new Set(published.columns.map((c) => c.type));
+    // Without these the page has nothing to draw.
+    expect(published.items.length).toBeGreaterThan(0);
+    expect(published.assets.length).toBeGreaterThan(0);
+    expect([...kinds].every((k) => k !== "PERSON")).toBe(true);
+  });
+});

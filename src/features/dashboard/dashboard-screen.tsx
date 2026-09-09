@@ -1,218 +1,145 @@
 "use client";
 
-import { X } from "lucide-react";
 import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
-import {
-  acrossTheYear,
-  assetMix,
-  assetTypesByTeam,
-  assetsInScope,
-  boardsLeaderboard,
-  buildFacts,
-  deliveryByTeam,
-  loadByPerson,
-  previousScope,
-  recentlyDelivered,
-  requestsInScope,
-  scopeLabel,
-  statusByTeam,
-  summarize,
-  summarizeRequests,
-  tasksInScope,
-  type DashboardScope,
-  type YearDot,
-} from "@/features/dashboard/analytics";
-import { formatCount } from "@/features/dashboard/charts/chart-utils";
-import { YearChart } from "@/features/dashboard/charts/year-chart";
-import { DashboardSettings, SpanFilter, TeamFilter, UnitToggle } from "@/features/dashboard/dashboard-controls";
+import { buildFacts } from "@/features/dashboard/analytics";
+import { ScopeToolbar, UnitToggle, ViewTabs } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
-import { AssetMixPanel, BoardsPanel, DeliveredPanel, DistributionPanel, HeroCard, Panel, PeoplePanel, RequestDetailPanel, RequestsPanel, StatTiles, StatusPanel, TeamsPanel } from "@/features/dashboard/panels";
-import { useDashboardPrefs, type PanelId } from "@/features/dashboard/prefs";
-import { formatShortDate } from "@/lib/dates/dates";
+import {
+  attention,
+  coverage,
+  monthlyComparison,
+  operations,
+  resolvePeriod,
+  upcoming,
+  volumeReport,
+  BUSINESS_TIMEZONE,
+  type ReportingPeriod,
+} from "@/features/dashboard/metrics";
+import { DASHBOARD_VIEWS, useDashboardPrefs, VIEW_META, type DashboardView } from "@/features/dashboard/prefs";
+import { DemandView } from "@/features/dashboard/views/demand";
+import { OverviewView } from "@/features/dashboard/views/overview";
+import { ResourcingView } from "@/features/dashboard/views/resourcing";
+import type { DashboardViewProps } from "@/features/dashboard/views/types";
 import { cn } from "@/lib/utils";
 
 export interface DashboardScreenProps {
   snapshot: DashboardSnapshot;
-  /** Where clicking a task or board should go; absent on the public page, where nothing leads anywhere. */
+  /** Who is reading, so preferences belong to them rather than to the browser. */
+  viewerId: string;
   onOpenTask?: (taskId: string, boardId: string) => void;
   onOpenBoard?: (boardId: string) => void;
-  /** Rendered at the right of the toolbar: Share, full screen, theme. */
+  /** Rendered at the right of the header: Share, full screen, theme. */
   toolbarExtras?: React.ReactNode;
+  /** When the snapshot was read, and whether a newer read is in flight. */
+  freshness?: React.ReactNode;
+  /**
+   * A public link. Restricts the page to the two views that report output, and
+   * says so: Resourcing is individual workload, and no payload behind a public
+   * link carries the people it would need.
+   */
+  publicLink?: boolean;
   className?: string;
 }
 
 /**
- * The dashboard itself: the scope controls and every panel, drawn from one
- * snapshot. Owns the scope (span, year, teams) and reads the browser's
- * preferences for unit, date basis and hidden panels. The same component serves
- * the signed-in page and the public link; only what is passed in differs.
+ * The workspace dashboard.
+ *
+ * Three views over one snapshot: Overview for the morning and the number
+ * reported upwards, Demand & Delivery for the operations review, Resourcing for
+ * the allocation meeting. Everything is derived here, once, and handed down —
+ * so a headline on one tab and a table on another are the same computation
+ * rather than two that ought to agree.
+ *
+ * The same component serves the signed-in page and the public link. What
+ * differs is what is passed in: a public visitor gets no task callbacks, so
+ * nothing on the page leads anywhere they cannot go.
  */
-export function DashboardScreen({ snapshot, onOpenTask, onOpenBoard, toolbarExtras, className }: DashboardScreenProps) {
+export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, toolbarExtras, freshness, publicLink = false, className }: DashboardScreenProps) {
   const today = useToday();
-  const unit = useDashboardPrefs((s) => s.unit);
-  const basis = useDashboardPrefs((s) => s.basis);
-  const span = useDashboardPrefs((s) => s.span);
-  const setUnit = useDashboardPrefs((s) => s.setUnit);
-  const setBasis = useDashboardPrefs((s) => s.setBasis);
-  const setSpan = useDashboardPrefs((s) => s.setSpan);
-  const hidden = useDashboardPrefs((s) => s.hiddenPanels);
-  const show = (id: PanelId) => !hidden.includes(id);
-
   const facts = React.useMemo(() => buildFacts(snapshot), [snapshot]);
+  const teamIds = React.useMemo(() => facts.teams.map((t) => t.id), [facts.teams]);
+  const { prefs, set, reset } = useDashboardPrefs(viewerId, snapshot.workspace.id, teamIds);
+
   const currentYear = Number(today.slice(0, 4));
-  const years = React.useMemo(() => (facts.years.includes(currentYear) ? facts.years : [currentYear, ...facts.years].sort((a, b) => b - a)), [facts.years, currentYear]);
-  const [year, setYear] = React.useState<number | null>(null);
-  const [half, setHalf] = React.useState<1 | 2>(Number(today.slice(5, 7)) <= 6 ? 1 : 2);
-  const [quarter, setQuarter] = React.useState<1 | 2 | 3 | 4>(Math.ceil(Number(today.slice(5, 7)) / 3) as 1 | 2 | 3 | 4);
-  const [teamIds, setTeamIds] = React.useState<string[] | null>(null);
-  const activeYear = year ?? (years.includes(currentYear) ? currentYear : (years[0] ?? currentYear));
+  const years = React.useMemo(() => {
+    const all = new Set([currentYear, ...facts.years]);
+    return [...all].sort((a, b) => b - a);
+  }, [facts.years, currentYear]);
+  const selectedYear = prefs.year ?? currentYear;
 
-  const scope = React.useMemo<DashboardScope>(() => ({ span, year: activeYear, half, quarter, teamIds, basis }), [span, activeYear, half, quarter, teamIds, basis]);
-  const prev = React.useMemo(() => previousScope(scope), [scope]);
+  const period = React.useMemo<ReportingPeriod>(
+    () => ({
+      mode: prefs.periodMode,
+      year: selectedYear,
+      quarter: prefs.quarter,
+      month: prefs.month,
+      from: prefs.from,
+      to: prefs.to,
+      comparisonYear: prefs.comparisonYear ?? selectedYear - 1,
+    }),
+    [prefs.periodMode, selectedYear, prefs.quarter, prefs.month, prefs.from, prefs.to, prefs.comparisonYear],
+  );
+  const resolved = React.useMemo(() => resolvePeriod(period, today), [period, today]);
 
-  const tasks = React.useMemo(() => tasksInScope(facts.tasks, scope), [facts, scope]);
-  const assets = React.useMemo(() => assetsInScope(facts.assets, scope), [facts, scope]);
-  const requests = React.useMemo(() => requestsInScope(facts.requests, scope), [facts, scope]);
-  const summary = React.useMemo(() => summarize(tasks, assets, requests, today), [tasks, assets, requests, today]);
-  const prevSummary = React.useMemo(() => (prev ? summarize(tasksInScope(facts.tasks, prev), assetsInScope(facts.assets, prev), requestsInScope(facts.requests, prev), today) : null), [facts, prev, today]);
-  const allTime = React.useMemo(() => summarize(facts.tasks, facts.assets, facts.requests, today), [facts, today]);
+  const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
+  const monthly = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, prefs.unit, prefs.teamIds), [facts, resolved, prefs.basis, prefs.unit, prefs.teamIds]);
+  // As of now, and deliberately not a function of the reporting period.
+  const ops = React.useMemo(() => operations(facts, today, prefs.teamIds), [facts, today, prefs.teamIds]);
+  const attentionRows = React.useMemo(() => attention(ops, today), [ops, today]);
+  const upcomingTasks = React.useMemo(() => upcoming(facts, today, prefs.teamIds, 4), [facts, today, prefs.teamIds]);
+  const gaps = React.useMemo(() => coverage(report.current.tasks), [report.current.tasks]);
 
-  const teams = React.useMemo(() => deliveryByTeam(tasks, assets, facts.teams, today, unit), [tasks, assets, facts.teams, today, unit]);
-  const mix = React.useMemo(() => assetMix(assets), [assets]);
-  const distribution = React.useMemo(() => assetTypesByTeam(assets, facts.teams), [assets, facts.teams]);
-  const status = React.useMemo(() => statusByTeam(tasks, facts.teams), [tasks, facts.teams]);
-  // Eight, not ten: this panel sits beside the request breakdown, and a longer list
-  // made that card taller than its own content needed.
-  const people = React.useMemo(() => loadByPerson(tasks, assets, facts.users, 8), [tasks, assets, facts.users]);
-  const boards = React.useMemo(() => boardsLeaderboard(tasks, assets, facts.boards, today), [tasks, assets, facts.boards, today]);
-  const delivered = React.useMemo(() => recentlyDelivered(tasks), [tasks]);
-  const requestSummary = React.useMemo(() => summarizeRequests(requests, activeYear, facts.teams), [requests, activeYear, facts.teams]);
-
-  // The year chart always shows a whole year: the selected one, or the latest with data in Total mode.
-  const chartYear = span === "total" ? (years[0] ?? currentYear) : activeYear;
-  const yearData = React.useMemo(() => acrossTheYear(facts.tasks, facts.assets, chartYear, basis, unit, teamIds), [facts, chartYear, basis, unit, teamIds]);
-  const nowMonth = chartYear === currentYear ? Number(today.slice(5, 7)) - 1 : null;
-  const [hoverDot, setHoverDot] = React.useState<YearDot | null>(null);
-
-  const focusTeam = (teamId: string) => setTeamIds((current) => (current?.length === 1 && current[0] === teamId ? null : [teamId]));
-  const unitWord = unit === "assets" ? "asset units" : "tasks";
-  const label = scopeLabel(scope);
-  const focusedTeams = teamIds?.map((id) => facts.teams.find((t) => t.id === id)?.name ?? "").filter(Boolean) ?? [];
-  const basisWord = basis === "completed" ? "completed" : basis === "created" ? "created" : "due";
-
-  // The top row is two columns of two panels. With one column hidden the other takes
-  // the full width and lays its pair side by side instead of stacking them.
-  const leftPair = [show("year"), show("teams")].filter(Boolean).length;
-  const rightPair = [show("assetMix"), show("status")].filter(Boolean).length;
-  const wide = leftPair > 0 && rightPair > 0;
-  const pairAcross = !wide && leftPair === 2;
-  const mixAcross = !wide && rightPair === 2;
+  const shared: DashboardViewProps = { facts, report, monthly, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
+  const views = publicLink ? (["overview", "demand"] as const) : DASHBOARD_VIEWS;
+  // A stored preference for a view this link does not have would show nothing.
+  const view = views.includes(prefs.view as never) ? prefs.view : "overview";
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5 sm:px-6" data-testid="dashboard-toolbar">
-        <TeamFilter teams={facts.teams} selected={teamIds} onChange={setTeamIds} />
-        <SpanFilter span={span} year={activeYear} half={half} quarter={quarter} years={years} onSpan={setSpan} onYear={setYear} onHalf={setHalf} onQuarter={setQuarter} />
-        <span className="hidden h-5 w-px bg-border/80 sm:block" aria-hidden />
-        <UnitToggle unit={unit} onChange={setUnit} />
-        <div className="ml-auto flex items-center gap-1.5">
-          {toolbarExtras}
-          <DashboardSettings basis={basis} onBasis={setBasis} />
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-[1.5rem]">Dashboard</h1>
+          <p className="truncate text-xs text-muted-foreground">
+            {snapshot.workspace.name} · {VIEW_META[view].hint}
+          </p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          {freshness}
+          {toolbarExtras}
+        </div>
+      </header>
+
+      <div className="border-b border-border/60 px-4 sm:px-6">
+        <ViewTabs views={views} current={view} onChange={(next: DashboardView) => set({ view: next })} meta={VIEW_META} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5 sm:px-6">
+        <ScopeToolbar
+          prefs={prefs}
+          set={set}
+          reset={reset}
+          period={resolved}
+          teams={facts.teams}
+          years={years}
+          unitToggle={view === "resourcing" ? null : <UnitToggle unit={prefs.unit} onChange={(unit) => set({ unit })} />}
+        />
+        <p className="ml-auto hidden text-2xs text-muted-foreground lg:block">
+          {resolved.alignment === "elapsed" ? "Matched to the same elapsed period" : "Whole periods"} · {BUSINESS_TIMEZONE}
+        </p>
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-surface/40">
-        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 p-3 sm:gap-4 sm:p-5">
-          {(focusedTeams.length > 0 || basis !== "due") && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="dashboard-scope-note">
-              {focusedTeams.length > 0 && (
-                <button type="button" onClick={() => setTeamIds(null)} className="inline-flex items-center gap-1 rounded-full state-on px-2.5 py-1 font-medium">
-                  {focusedTeams.join(", ")} <X className="size-3" />
-                </button>
-              )}
-              {basis !== "due" && <span className="rounded-full bg-card px-2.5 py-1 shadow-xs">Counting work by {basisWord} date</span>}
-            </div>
-          )}
-
-          {show("kpis") && (
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)] sm:gap-4" data-testid="dashboard-kpis">
-              <HeroCard label="Assets delivered" value={summary.assetUnits} previous={prevSummary?.assetUnits ?? null} deltaLabel={prev ? `vs ${scopeLabel(prev)}` : ""} hint={span === "total" ? (facts.earliest ? `units since ${formatShortDate(facts.earliest)}` : "units recorded") : `units ${basisWord} in ${label}`} accent="navy" testId="dashboard-hero-assets" />
-              <HeroCard label="Tasks" value={summary.tasks} previous={prevSummary?.tasks ?? null} deltaLabel={prev ? `vs ${scopeLabel(prev)}` : ""} hint={`across ${formatCount(summary.boards)} ${summary.boards === 1 ? "board" : "boards"} · ${formatCount(summary.requests)} booked by stakeholders`} accent="red" testId="dashboard-hero-tasks" />
-              <StatTiles summary={summary} />
-            </div>
-          )}
-
-          {/* Two columns of two. The workload chart shares its column with Delivery by
-              team rather than standing alone beside two stacked panels, which made it
-              twice their height and the whole screen. Equal rows keep all four level. */}
-          {(show("year") || show("teams") || show("assetMix") || show("status")) && (
-            <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-              {(show("year") || show("teams")) && (
-                <div className={cn("grid min-h-0 gap-3 sm:gap-4 xl:grid-rows-2", wide ? "xl:col-span-8" : "xl:col-span-12", pairAcross && "xl:grid-cols-2 xl:grid-rows-1")}>
-                  {show("year") && (
-                    <Panel
-                      title={`Workload across ${chartYear}`}
-                      subtitle={hoverDot ? `${hoverDot.name} · ${hoverDot.team.name} · ${formatCount(hoverDot.value)} ${unitWord} · ${formatShortDate(hoverDot.date)}` : `${unit === "assets" ? "Asset units" : "Tasks"} per month by ${basisWord} date · one dot per task${onOpenTask ? " · click a dot to open it" : ""}`}
-                      info="The red line is the monthly total; the dashed line is how much of it was done. Each dot is a task on its exact day, lifted by its asset count so a big job stands apart from a run of small ones."
-                      className="min-h-[15rem] xl:min-h-0"
-                      testId="dashboard-workload"
-                    >
-                      <YearChart months={yearData.months} dots={yearData.dots} nowMonth={nowMonth} unitLabel={unit === "assets" ? "Asset units" : "Tasks"} teams={facts.teams} onDotClick={onOpenTask ? (d) => onOpenTask(d.id, d.boardId) : undefined} onHoverDot={setHoverDot} />
-                    </Panel>
-                  )}
-                  {show("teams") && <TeamsPanel rows={teams} unit={unit} onSelect={focusTeam} />}
-                </div>
-              )}
-              {(show("assetMix") || show("status")) && (
-                <div className={cn("grid min-h-0 gap-3 sm:gap-4 xl:grid-rows-2", wide ? "xl:col-span-4" : "xl:col-span-12", mixAcross && "xl:grid-cols-2 xl:grid-rows-1")}>
-                  {show("assetMix") && <AssetMixPanel data={mix} />}
-                  {show("status") && <StatusPanel rows={status} />}
-                </div>
-              )}
-            </div>
-          )}
-
-          {(show("requests") || show("distribution")) && (
-            <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-              {show("distribution") && <div className={cn("min-h-[20rem] xl:col-span-6", !show("requests") && "xl:col-span-12")}><DistributionPanel rows={distribution} onSelect={focusTeam} /></div>}
-              {show("requests") && <div className={cn("xl:col-span-6", !show("distribution") && "xl:col-span-12")}><RequestsPanel requests={requestSummary} nowMonth={nowMonth} year={activeYear} /></div>}
-            </div>
-          )}
-
-          {(show("requestDetail") || show("people")) && (
-            <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-              {show("requestDetail") && <div className={cn("xl:col-span-8", !show("people") && "xl:col-span-12")}><RequestDetailPanel requests={requestSummary} /></div>}
-              {show("people") && <div className={cn("xl:col-span-4", !show("requestDetail") && "xl:col-span-12")}><PeoplePanel data={people} users={facts.users} /></div>}
-            </div>
-          )}
-
-          {(show("boards") || show("delivered")) && (
-            <div className="grid gap-3 sm:gap-4 xl:grid-cols-12">
-              {show("boards") && <div className={cn("xl:col-span-7", !show("delivered") && "xl:col-span-12")}><BoardsPanel rows={boards} onOpen={onOpenBoard} /></div>}
-              {show("delivered") && <div className={cn("xl:col-span-5", !show("boards") && "xl:col-span-12")}><DeliveredPanel entries={delivered} onOpen={onOpenTask} /></div>}
-            </div>
-          )}
-
-          <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-2xl border border-border/60 bg-card px-5 py-3 text-xs text-muted-foreground shadow-xs" data-testid="dashboard-alltime">
-            <span className="font-semibold uppercase tracking-wide text-foreground/80">Full range</span>
-            <span>
-              <strong className="text-foreground tabular">{formatCount(allTime.assetUnits)}</strong> asset units
-            </span>
-            <span>
-              <strong className="text-foreground tabular">{formatCount(allTime.tasks)}</strong> tasks
-            </span>
-            <span>
-              <strong className="text-foreground tabular">{formatCount(allTime.doneTasks)}</strong> done
-            </span>
-            <span>
-              <strong className="text-foreground tabular">{formatCount(allTime.requests)}</strong> stakeholder requests
-            </span>
-            <span>
-              <strong className="text-foreground tabular">{formatCount(allTime.people)}</strong> people · <strong className="text-foreground tabular">{formatCount(facts.teams.length)}</strong> teams · <strong className="text-foreground tabular">{formatCount(snapshot.boards.length)}</strong> boards
-            </span>
-            <span>{facts.earliest ? `since ${formatShortDate(facts.earliest)}` : ""}</span>
-          </footer>
+        <div
+          id={`dashboard-panel-${view}`}
+          role="tabpanel"
+          aria-labelledby={`dashboard-tab-${view}`}
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1600px] p-3 sm:p-5"
+        >
+          {view === "overview" && <OverviewView {...shared} />}
+          {view === "demand" && <DemandView {...shared} />}
+          {view === "resourcing" && <ResourcingView {...shared} />}
         </div>
       </div>
     </div>

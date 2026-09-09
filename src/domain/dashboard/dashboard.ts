@@ -86,31 +86,173 @@ export interface PublicDashboardPayload {
   expiresAt: ISODate | null;
 }
 
-/** The one kind of free text the charts read: which school or department asked. Everything else typed into a text cell stays home. */
-const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio", "unit", "college"];
-
-function isPersonalColumn(column: BoardColumn): boolean {
-  if (column.type === "LONG_TEXT" || column.type === "LINK") return true;
-  if (column.type !== "TEXT") return false;
-  const name = column.name.toLowerCase();
-  return !DEPARTMENT_COLUMN_HINTS.some((hint) => name.includes(hint));
-}
-
 /**
  * The snapshot a public link serves.
  *
- * The charts need counts, dates, statuses, types, teams and departments. They do
- * not need briefs, notes, emails, links or the names of the people who booked
- * the work, so every text cell but the department goes, along with descriptions
- * and asset notes. Members of the workspace are reduced to what an avatar needs.
+ * Built field by field. The previous version spread the internal snapshot and
+ * deleted a few things from it, which meant anything added to `DashboardSnapshot`
+ * later was published by default — the wrong way round for a payload that leaves
+ * the building. Nothing is spread here; every field is written out, and a new
+ * field on a row has to be added deliberately to appear.
+ *
+ * Three categories never travel:
+ *
+ *  · **People.** No users, no PERSON cells, no asset assignees, no board owner,
+ *    no `createdBy`. A public dashboard reports what the team produced, not who
+ *    is carrying what — the Resourcing view does not exist behind a public link
+ *    and its data does not either.
+ *  · **Words.** Descriptions, notes, long text and links. The one exception is a
+ *    department name, which is a category the charts group by.
+ *  · **Anything not drawn.** If no chart reads a field, it is not in the payload.
  */
 export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardSnapshot {
-  const personal = new Set(snapshot.columns.filter(isPersonalColumn).map((c) => c.id));
+  const publishedColumns = snapshot.columns.filter(isPublishableColumn);
+  const publishable = new Set(publishedColumns.map((c) => c.id));
+
   return {
-    ...snapshot,
-    items: snapshot.items.map((item) => ({ ...item, description: null, coverUrl: null })),
-    values: snapshot.values.filter((v) => !personal.has(v.columnId)),
-    assets: snapshot.assets.map((asset) => ({ ...asset, notes: null })),
-    users: snapshot.users.map((user) => ({ ...user, email: "", jobTitle: null, department: null })),
+    workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug },
+    teams: snapshot.teams.map((team) => ({
+      id: team.id,
+      workspaceId: team.workspaceId,
+      name: team.name,
+      // A team's description is written for the team, not for a visitor.
+      description: null,
+      color: team.color,
+      icon: team.icon,
+      archivedAt: team.archivedAt,
+      system: team.system,
+      createdAt: team.createdAt,
+      updatedAt: team.updatedAt,
+    })),
+    boards: snapshot.boards.map((board) => ({
+      id: board.id,
+      workspaceId: board.workspaceId,
+      teamId: board.teamId,
+      name: board.name,
+      slug: board.slug,
+      description: null,
+      type: board.type,
+      visibility: board.visibility,
+      // Nobody owns anything in public: the owner is a person.
+      ownerId: PUBLIC_NOBODY,
+      color: board.color,
+      icon: board.icon,
+      archivedAt: board.archivedAt,
+      system: board.system,
+      createdAt: board.createdAt,
+      updatedAt: board.updatedAt,
+    })),
+    groups: snapshot.groups.map((group) => ({
+      id: group.id,
+      boardId: group.boardId,
+      name: group.name,
+      color: group.color,
+      position: group.position,
+      collapsed: group.collapsed,
+      createdAt: group.createdAt,
+    })),
+    columns: publishedColumns.map((column) => ({
+      id: column.id,
+      boardId: column.boardId,
+      name: column.name,
+      type: column.type,
+      settings: column.settings,
+      position: column.position,
+      width: column.width,
+      hidden: column.hidden,
+      createdAt: column.createdAt,
+    })),
+    items: snapshot.items.map((item) => ({
+      id: item.id,
+      boardId: item.boardId,
+      groupId: item.groupId,
+      parentItemId: item.parentItemId,
+      name: item.name,
+      description: null,
+      position: item.position,
+      createdBy: PUBLIC_NOBODY,
+      archivedAt: item.archivedAt,
+      coverUrl: null,
+      reference: item.reference ?? null,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    })),
+    values: snapshot.values
+      .filter((value) => publishable.has(value.columnId))
+      .map((value) => ({ id: value.id, itemId: value.itemId, columnId: value.columnId, value: value.value, updatedAt: value.updatedAt })),
+    assets: snapshot.assets.map((asset) => ({
+      id: asset.id,
+      itemId: asset.itemId,
+      boardId: asset.boardId,
+      name: asset.name,
+      assetType: asset.assetType,
+      quantity: asset.quantity,
+      assigneeIds: [],
+      dueDate: asset.dueDate,
+      completedAt: asset.completedAt,
+      notes: null,
+      position: asset.position,
+      createdBy: PUBLIC_NOBODY,
+      createdAt: asset.createdAt,
+      updatedAt: asset.updatedAt,
+    })),
+    links: snapshot.links.map((link) => ({
+      id: link.id,
+      workspaceId: link.workspaceId,
+      itemAId: link.itemAId,
+      itemBId: link.itemBId,
+      excluded: [],
+      createdBy: PUBLIC_NOBODY,
+      createdAt: link.createdAt,
+    })),
+    users: [],
+    departments: snapshot.departments.map((department) => ({
+      id: department.id,
+      workspaceId: department.workspaceId,
+      name: department.name,
+      color: department.color,
+      position: department.position,
+      status: department.status,
+      createdAt: department.createdAt,
+      updatedAt: department.updatedAt,
+    })),
+    generatedAt: snapshot.generatedAt,
   };
+}
+
+/** Stands in wherever a row needs a person and the public payload will not name one. */
+const PUBLIC_NOBODY = "00000000-0000-0000-0000-000000000000";
+
+/** The one kind of free text the charts read: which school or department asked. */
+const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio", "unit", "college"];
+
+/**
+ * Whether a column's values may leave the building.
+ *
+ * An allowlist by type. STATUS, PRIORITY, DATE, TIMELINE, TAGS, SIZE,
+ * ASSETS_RECAP and STAKEHOLDER are categories and quantities the charts group
+ * by. PERSON is not published at all — it is the whole of the workload data —
+ * and free text is published only where the column is plainly a department.
+ */
+function isPublishableColumn(column: BoardColumn): boolean {
+  switch (column.type) {
+    case "STATUS":
+    case "PRIORITY":
+    case "DATE":
+    case "TIMELINE":
+    case "TAGS":
+    case "SIZE":
+    case "ASSETS_RECAP":
+    case "STAKEHOLDER":
+    case "NUMBER":
+    case "CHECKBOX":
+      return true;
+    case "TEXT": {
+      const name = column.name.toLowerCase();
+      return DEPARTMENT_COLUMN_HINTS.some((hint) => name.includes(hint));
+    }
+    default:
+      // PERSON, LONG_TEXT, LINK, DEPENDENCY and anything added later.
+      return false;
+  }
 }

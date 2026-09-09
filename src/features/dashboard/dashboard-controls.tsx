@@ -1,230 +1,277 @@
 "use client";
 
-import { Check, ChevronDown, Eye, EyeOff, Settings2, Users } from "lucide-react";
+import { Check, ChevronDown, Filter, RotateCcw, Users } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SimpleTooltip } from "@/components/ui/tooltip";
-import { Segmented } from "@/features/boards/components/views/view-shell";
-import { DATE_BASES, DATE_BASIS_HINTS, DATE_BASIS_LABELS, type DateBasis, type SpanMode, type TeamRef, type Unit, teamHex } from "@/features/dashboard/analytics";
-import { PANEL_IDS, PANEL_META, useDashboardPrefs, type PanelId } from "@/features/dashboard/prefs";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import type { TeamRef, Unit } from "@/features/dashboard/analytics";
+import { BASIS_HINTS, BASIS_LABELS, REPORTING_BASES, type PeriodMode, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
+import type { DashboardPrefs } from "@/features/dashboard/prefs";
 import { cn } from "@/lib/utils";
 
-/** Total / Year / Half / Quarter, with the year and the half or quarter beside it. */
-export function SpanFilter({
-  span,
-  year,
-  half,
-  quarter,
+const MODE_LABELS: Record<PeriodMode, string> = {
+  ytd: "Year to date",
+  year: "Full year",
+  quarter: "Quarter",
+  month: "Month",
+  custom: "Custom range",
+};
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * The reporting scope, in one row.
+ *
+ * Period and team are always visible because they change what every figure on
+ * the page means; the rest — date basis, comparison year, custom dates — sit
+ * behind one labelled control that counts what is active, so the toolbar stays
+ * a line rather than a wall of selects.
+ */
+export function ScopeToolbar({
+  prefs,
+  set,
+  reset,
+  period,
+  teams,
   years,
-  onSpan,
-  onYear,
-  onHalf,
-  onQuarter,
+  unitToggle,
 }: {
-  span: SpanMode;
-  year: number;
-  half: 1 | 2;
-  quarter: 1 | 2 | 3 | 4;
+  prefs: DashboardPrefs;
+  set: (patch: Partial<DashboardPrefs>) => void;
+  reset: () => void;
+  period: ResolvedPeriod;
+  teams: TeamRef[];
   years: number[];
-  onSpan: (span: SpanMode) => void;
-  onYear: (year: number) => void;
-  onHalf: (half: 1 | 2) => void;
-  onQuarter: (quarter: 1 | 2 | 3 | 4) => void;
+  unitToggle?: React.ReactNode;
 }) {
-  const options = years.includes(year) ? years : [year, ...years];
+  const selectedYear = prefs.year ?? Number(period.current.from.slice(0, 4));
+  const comparisonYear = prefs.comparisonYear ?? selectedYear - 1;
+  // What is not at its default, so the filter button can say how many.
+  const extra = [prefs.basis !== "created", prefs.comparisonYear !== null, prefs.periodMode === "custom"].filter(Boolean).length;
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5" data-testid="dashboard-span">
-      <Segmented
-        value={span}
-        onChange={onSpan}
-        ariaLabel="Time span"
-        testId="dashboard-span-mode"
-        options={[
-          { value: "total", label: "Total" },
-          { value: "year", label: "Year" },
-          { value: "half", label: "Half" },
-          { value: "quarter", label: "Quarter" },
-        ]}
-      />
-      {span !== "total" && (
-        <select
-          value={year}
-          onChange={(e) => onYear(Number(e.target.value))}
-          aria-label="Year"
-          data-testid="dashboard-year"
-          className="h-8 rounded-full border border-border/70 bg-card px-2.5 pr-7 text-xs font-medium text-foreground shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {options.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
+    <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-toolbar">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" data-testid="dashboard-period">
+            {MODE_LABELS[prefs.periodMode]} · {period.label} <ChevronDown />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Reporting period</DropdownMenuLabel>
+          {(Object.keys(MODE_LABELS) as PeriodMode[]).map((mode) => (
+            <DropdownMenuItem key={mode} onSelect={() => set({ periodMode: mode })}>
+              <span className="flex-1">{MODE_LABELS[mode]}</span>
+              {prefs.periodMode === mode && <Check className="size-3.5" />}
+            </DropdownMenuItem>
           ))}
-        </select>
-      )}
-      {span === "half" && (
-        <Segmented
-          value={String(half) as "1" | "2"}
-          onChange={(v) => onHalf(Number(v) as 1 | 2)}
-          ariaLabel="Half"
-          options={[
-            { value: "1", label: "H1" },
-            { value: "2", label: "H2" },
-          ]}
-        />
-      )}
-      {span === "quarter" && (
-        <Segmented
-          value={String(quarter) as "1" | "2" | "3" | "4"}
-          onChange={(v) => onQuarter(Number(v) as 1 | 2 | 3 | 4)}
-          ariaLabel="Quarter"
-          options={[
-            { value: "1", label: "Q1" },
-            { value: "2", label: "Q2" },
-            { value: "3", label: "Q3" },
-            { value: "4", label: "Q4" },
-          ]}
-        />
-      )}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Year</DropdownMenuLabel>
+          {years.slice(0, 6).map((year) => (
+            <DropdownMenuItem key={year} onSelect={() => set({ year })}>
+              <span className="flex-1 tabular">{year}</span>
+              {selectedYear === year && <Check className="size-3.5" />}
+            </DropdownMenuItem>
+          ))}
+          {prefs.periodMode === "quarter" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Quarter</DropdownMenuLabel>
+              {([1, 2, 3, 4] as const).map((q) => (
+                <DropdownMenuItem key={q} onSelect={() => set({ quarter: q })}>
+                  <span className="flex-1">Q{q}</span>
+                  {prefs.quarter === q && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+          {prefs.periodMode === "month" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Month</DropdownMenuLabel>
+              {MONTHS.map((name, index) => (
+                <DropdownMenuItem key={name} onSelect={() => set({ month: index + 1 })}>
+                  <span className="flex-1">{name}</span>
+                  {prefs.month === index + 1 && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <TeamFilter teams={teams} selected={prefs.teamIds} onChange={(teamIds) => set({ teamIds })} />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant={extra > 0 ? "secondary" : "outline"} size="sm" data-testid="dashboard-more-filters">
+            <Filter /> Filters{extra > 0 ? ` · ${extra}` : ""}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-72">
+          <DropdownMenuLabel>Count work by</DropdownMenuLabel>
+          {REPORTING_BASES.map((basis) => (
+            <DropdownMenuItem key={basis} onSelect={() => set({ basis: basis as ReportingBasis })} className="flex-col items-start gap-0.5">
+              <span className="flex w-full items-center">
+                <span className="flex-1 font-medium">{BASIS_LABELS[basis]}</span>
+                {prefs.basis === basis && <Check className="size-3.5" />}
+              </span>
+              <span className="text-2xs text-muted-foreground">{BASIS_HINTS[basis]}</span>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Compare with</DropdownMenuLabel>
+          {years
+            .filter((year) => year !== selectedYear)
+            .slice(0, 6)
+            .map((year) => (
+              <DropdownMenuItem key={year} onSelect={() => set({ comparisonYear: year })}>
+                <span className="flex-1 tabular">{year}</span>
+                {comparisonYear === year && <Check className="size-3.5" />}
+              </DropdownMenuItem>
+            ))}
+          {prefs.periodMode === "custom" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Range</DropdownMenuLabel>
+              <div className="flex items-center gap-2 px-2 pb-2" onKeyDown={(e) => e.stopPropagation()}>
+                <Input type="date" value={prefs.from ?? ""} onChange={(e) => set({ from: e.target.value || null })} aria-label="From" className="h-8" />
+                <Input type="date" value={prefs.to ?? ""} onChange={(e) => set({ to: e.target.value || null })} aria-label="To" className="h-8" />
+              </div>
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={reset}>
+            <RotateCcw className="size-3.5" /> Reset to defaults
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {unitToggle}
     </div>
   );
 }
 
-/** Tasks ↔ Assets: what the shared panels count. */
+export function TeamFilter({ teams, selected, onChange }: { teams: TeamRef[]; selected: string[] | null; onChange: (ids: string[] | null) => void }) {
+  const label = selected === null ? "All teams" : selected.length === 1 ? (teams.find((t) => t.id === selected[0])?.name ?? "1 team") : `${selected.length} teams`;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" data-testid="dashboard-team-filter">
+          <Users /> {label} <ChevronDown />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuItem onSelect={() => onChange(null)}>
+          <span className="flex-1">All teams</span>
+          {selected === null && <Check className="size-3.5" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {teams.map((team) => (
+          <DropdownMenuCheckboxItem
+            key={team.id}
+            checked={selected === null || selected.includes(team.id)}
+            onCheckedChange={(checked) => {
+              const base = selected ?? teams.map((t) => t.id);
+              const next = checked ? [...new Set([...base, team.id])] : base.filter((id) => id !== team.id);
+              onChange(next.length === 0 || next.length === teams.length ? null : next);
+            }}
+          >
+            {team.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Tasks or asset units. Switches charts; never hides either headline. */
 export function UnitToggle({ unit, onChange }: { unit: Unit; onChange: (unit: Unit) => void }) {
   return (
-    <Segmented
-      value={unit}
-      onChange={onChange}
-      ariaLabel="Unit"
-      testId="dashboard-unit"
-      options={[
-        { value: "assets", label: "Assets" },
-        { value: "tasks", label: "Tasks" },
-      ]}
-    />
+    <div role="radiogroup" aria-label="Measure" className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid="dashboard-unit">
+      {(["tasks", "assets"] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={unit === value}
+          onClick={() => onChange(value)}
+          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", unit === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+        >
+          {value === "tasks" ? "Tasks" : "Asset units"}
+        </button>
+      ))}
+    </div>
   );
 }
 
-/** Which teams the dashboard counts. Empty selection means all of them. */
-export function TeamFilter({ teams, selected, onChange }: { teams: TeamRef[]; selected: string[] | null; onChange: (ids: string[] | null) => void }) {
-  const [open, setOpen] = React.useState(false);
-  const label = selected === null ? "All teams" : selected.length === 1 ? (teams.find((t) => t.id === selected[0])?.name ?? "1 team") : `${selected.length} teams`;
-  const toggle = (id: string) => {
-    const current = new Set(selected ?? teams.map((t) => t.id));
-    if (current.has(id)) current.delete(id);
-    else current.add(id);
-    if (current.size === 0 || current.size === teams.length) onChange(null);
-    else onChange(teams.filter((t) => current.has(t.id)).map((t) => t.id));
+/** Overview / Demand & Delivery / Resourcing, with real tab semantics. */
+export function ViewTabs<T extends string>({ views, current, onChange, meta }: { views: readonly T[]; current: T; onChange: (view: T) => void; meta: Record<T, { label: string; hint: string }> }) {
+  const refs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const move = (delta: number) => {
+    const index = views.indexOf(current);
+    const next = views[(index + delta + views.length) % views.length]!;
+    onChange(next);
+    refs.current[next]?.focus();
   };
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("h-8 rounded-full text-xs", selected !== null && "state-on border-transparent")} data-testid="dashboard-teams">
-          <Users className="size-3.5" />
-          {label}
-          <ChevronDown className="size-3 opacity-60" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-60 p-1.5" align="start">
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className={cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] hover:bg-accent", selected === null && "font-semibold")}
-        >
-          <span className="flex size-4 items-center justify-center">{selected === null && <Check className="size-3.5" />}</span>
-          All teams
-        </button>
-        <div className="my-1 border-t border-border/70" />
-        <ul className="max-h-72 overflow-y-auto">
-          {teams.map((team) => {
-            const on = selected === null || selected.includes(team.id);
-            return (
-              <li key={team.id}>
-                <button type="button" onClick={() => toggle(team.id)} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] hover:bg-accent" aria-pressed={on}>
-                  <span className="flex size-4 items-center justify-center">{on && <Check className="size-3.5" />}</span>
-                  <span className="size-2.5 rounded-full" style={{ background: teamHex(team) }} />
-                  <span className="flex-1 truncate text-left">{team.name}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </PopoverContent>
-    </Popover>
+    <div role="tablist" aria-label="Dashboard views" className="flex items-end gap-0.5" data-testid="dashboard-tabs">
+      {views.map((view) => {
+        const active = view === current;
+        return (
+          <button
+            key={view}
+            ref={(node) => {
+              refs.current[view] = node;
+            }}
+            type="button"
+            role="tab"
+            id={`dashboard-tab-${view}`}
+            aria-selected={active}
+            aria-controls={`dashboard-panel-${view}`}
+            tabIndex={active ? 0 : -1}
+            title={meta[view].hint}
+            onClick={() => onChange(view)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowRight") move(1);
+              if (event.key === "ArrowLeft") move(-1);
+            }}
+            className={cn(
+              "relative -mb-px inline-flex h-9 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full",
+              active ? "text-foreground after:bg-ring" : "text-muted-foreground after:bg-transparent hover:text-foreground",
+            )}
+            data-testid={`dashboard-tab-${view}`}
+          >
+            {meta[view].label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-/** Date basis and which panels are shown. */
-export function DashboardSettings({ basis, onBasis }: { basis: DateBasis; onBasis: (basis: DateBasis) => void }) {
-  const hidden = useDashboardPrefs((s) => s.hiddenPanels);
-  const togglePanel = useDashboardPrefs((s) => s.togglePanel);
-  const showAll = useDashboardPrefs((s) => s.showAllPanels);
+/**
+ * How current the figures are, and whether that is still true.
+ *
+ * The old indicator said "Live" with a green dot whatever had happened, so a
+ * dashboard on a wall display whose refresh had been failing for an hour looked
+ * exactly like one that was working. Four states, and only one of them is
+ * green: reading, live, stale (a refresh failed but the last good snapshot is
+ * still on screen), and failed with nothing to show.
+ */
+export function Freshness({ ago, refreshing, failed, className }: { ago: string; refreshing?: boolean; failed?: boolean; className?: string }) {
+  const state = failed ? "stale" : refreshing ? "reading" : "live";
   return (
-    <Popover>
-      <SimpleTooltip label="Dashboard settings" side="bottom">
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="icon-sm" className="rounded-full" aria-label="Dashboard settings" data-testid="dashboard-settings">
-            <Settings2 />
-          </Button>
-        </PopoverTrigger>
-      </SimpleTooltip>
-      <PopoverContent className="w-72 p-3" align="end">
-        <p className="label-quiet mb-1.5">Count work by</p>
-        <div role="radiogroup" aria-label="Date basis" className="space-y-0.5">
-          {DATE_BASES.map((b) => (
-            <button
-              key={b}
-              type="button"
-              role="radio"
-              aria-checked={basis === b}
-              onClick={() => onBasis(b)}
-              className={cn("flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent", basis === b && "bg-accent-soft/60")}
-            >
-              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">{basis === b && <Check className="size-3.5" />}</span>
-              <span>
-                <span className="block text-[13px] font-medium">{DATE_BASIS_LABELS[b]}</span>
-                <span className="block text-2xs text-muted-foreground">{DATE_BASIS_HINTS[b]}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="my-2.5 border-t border-border/70" />
-        <div className="mb-1.5 flex items-center justify-between">
-          <p className="label-quiet">Panels</p>
-          {hidden.length > 0 && (
-            <button type="button" onClick={showAll} className="text-2xs font-medium text-muted-foreground hover:text-foreground">
-              Show all
-            </button>
-          )}
-        </div>
-        <ul className="space-y-0.5">
-          {PANEL_IDS.map((id: PanelId) => {
-            const on = !hidden.includes(id);
-            return (
-              <li key={id}>
-                <button type="button" onClick={() => togglePanel(id)} aria-pressed={on} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] hover:bg-accent" title={PANEL_META[id].hint}>
-                  {on ? <Eye className="size-3.5 text-foreground" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
-                  <span className={cn("flex-1 truncate text-left", !on && "text-muted-foreground")}>{PANEL_META[id].title}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/** A pulsing dot and the time of the last refresh: the dashboard is live. */
-export function LivePill({ ago, refreshing, className }: { ago: string; refreshing?: boolean; className?: string }) {
-  return (
-    <span className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 text-2xs font-medium text-muted-foreground shadow-xs", className)} data-testid="dashboard-live">
-      <span className="relative flex size-2">
-        <span className={cn("absolute inset-0 rounded-full", refreshing ? "bg-amber-400" : "bg-green-500", "dashboard-live")} />
-      </span>
-      <span className="text-foreground">Live</span>
-      {ago && <span>· {ago}</span>}
+    <span
+      className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium shadow-xs", failed ? "border-amber-500/40 bg-amber-500/10" : "border-border/70 bg-card", className)}
+      data-testid="dashboard-live"
+      data-state={state}
+      title={failed ? "The last refresh failed. These figures are the last good read." : refreshing ? "Reading the boards again." : "Up to date with the boards."}
+    >
+      <span aria-hidden className={cn("size-2 rounded-full", failed ? "bg-amber-500" : refreshing ? "bg-amber-400" : "bg-green-500")} />
+      <span className="text-foreground">{failed ? "Not updating" : refreshing ? "Reading" : "Live"}</span>
+      {ago && <span className="text-muted-foreground">· {ago}</span>}
     </span>
   );
 }

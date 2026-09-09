@@ -1,69 +1,133 @@
 "use client";
 
+import * as React from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { DateBasis, SpanMode, Unit } from "./analytics";
+import type { Unit } from "./analytics";
+import type { PeriodMode, ReportingBasis } from "./metrics";
 
-/** Every panel the dashboard can show, in the order they are laid out. */
-export const PANEL_IDS = ["kpis", "teams", "requests", "year", "assetMix", "status", "distribution", "requestDetail", "people", "boards", "delivered"] as const;
-export type PanelId = (typeof PANEL_IDS)[number];
+/** The three things the dashboard is for, in the order a manager meets them. */
+export const DASHBOARD_VIEWS = ["overview", "demand", "resourcing"] as const;
+export type DashboardView = (typeof DASHBOARD_VIEWS)[number];
 
-export const PANEL_META: Record<PanelId, { title: string; hint: string }> = {
-  kpis: { title: "Headline figures", hint: "Assets and tasks delivered, with completion, overdue and on-time rates." },
-  teams: { title: "Delivery by team", hint: "Tasks and asset units per team." },
-  requests: { title: "Stakeholder requests", hint: "Bookings received, how many are open, and where they came from." },
-  year: { title: "Workload across the year", hint: "Monthly volume with one dot per task." },
-  assetMix: { title: "Asset mix", hint: "Units delivered by asset type." },
-  status: { title: "Progress by team", hint: "Each team's tasks split by status." },
-  distribution: { title: "Asset distribution", hint: "How each asset type splits across teams." },
-  requestDetail: { title: "Request breakdown", hint: "Requests by team, urgency and asset type." },
-  people: { title: "People", hint: "Who carries the most tasks and assets." },
-  boards: { title: "Boards", hint: "Every board's tasks, assets and progress." },
-  delivered: { title: "Recently delivered", hint: "The latest tasks finished." },
+export const VIEW_META: Record<DashboardView, { label: string; hint: string }> = {
+  overview: { label: "Overview", hint: "Output so far, and what needs attention today." },
+  demand: { label: "Demand & Delivery", hint: "Requests and volume, by period, team, department and asset type." },
+  resourcing: { label: "Resourcing", hint: "Who is carrying what, and what nobody has picked up." },
 };
 
-interface DashboardPrefs {
+export interface DashboardPrefs {
+  view: DashboardView;
   unit: Unit;
-  basis: DateBasis;
-  span: SpanMode;
-  hiddenPanels: PanelId[];
-  setUnit: (unit: Unit) => void;
-  setBasis: (basis: DateBasis) => void;
-  setSpan: (span: SpanMode) => void;
-  togglePanel: (id: PanelId, visible?: boolean) => void;
-  showAllPanels: () => void;
+  basis: ReportingBasis;
+  periodMode: PeriodMode;
+  /** Null means "the current year"; a number pins the report to that year. */
+  year: number | null;
+  /** Null means "the year before the selected one". */
+  comparisonYear: number | null;
+  quarter: 1 | 2 | 3 | 4;
+  month: number;
+  from: string | null;
+  to: string | null;
+  teamIds: string[] | null;
+  /** How far ahead the resourcing view looks. */
+  weeks: 2 | 4 | 8;
+}
+
+export const DEFAULT_PREFS: DashboardPrefs = {
+  view: "overview",
+  unit: "tasks",
+  // Created, not due: every task has a creation date, so the default report is
+  // the one with no coverage gap. Due is a click away and says what it excludes.
+  basis: "created",
+  // The default a manager asked for: this year so far, against the same span
+  // last year. Never a partial year against a whole one.
+  periodMode: "ytd",
+  year: null,
+  comparisonYear: null,
+  quarter: 1,
+  month: 1,
+  from: null,
+  to: null,
+  teamIds: null,
+  weeks: 4,
+};
+
+interface PrefsStore {
+  /** Keyed by `<userId>:<workspaceId>`. */
+  byScope: Record<string, DashboardPrefs>;
+  set: (scope: string, patch: Partial<DashboardPrefs>) => void;
+  reset: (scope: string) => void;
 }
 
 /**
- * How this browser likes the dashboard drawn. Persisted per browser like the
- * sidebar width: a view preference, not shared state, and hydrated after mount
- * to keep server and client markup the same.
+ * How one person likes one workspace's dashboard.
+ *
+ * Keyed by user and workspace, not by browser. The old store was a single
+ * `streamline.dashboard` key, so two people sharing a machine — or one person
+ * with two workspaces — inherited each other's filters, and a team filter
+ * naming a team the next workspace has never heard of quietly emptied the page.
+ * `usePrefs` drops a team that is no longer selectable for exactly that reason.
  */
-export const useDashboardPrefs = create<DashboardPrefs>()(
+const useStore = create<PrefsStore>()(
   persist(
     (set) => ({
-      unit: "assets",
-      basis: "due",
-      span: "year",
-      hiddenPanels: [],
-      setUnit: (unit) => set({ unit }),
-      setBasis: (basis) => set({ basis }),
-      setSpan: (span) => set({ span }),
-      togglePanel: (id, visible) =>
-        set((s) => {
-          const hidden = new Set(s.hiddenPanels);
-          const show = visible ?? hidden.has(id);
-          if (show) hidden.delete(id);
-          else hidden.add(id);
-          return { hiddenPanels: PANEL_IDS.filter((p) => hidden.has(p)) };
-        }),
-      showAllPanels: () => set({ hiddenPanels: [] }),
+      byScope: {},
+      set: (scope, patch) => set((s) => ({ byScope: { ...s.byScope, [scope]: { ...DEFAULT_PREFS, ...s.byScope[scope], ...patch } } })),
+      reset: (scope) => set((s) => ({ byScope: { ...s.byScope, [scope]: DEFAULT_PREFS } })),
     }),
     {
-      name: "streamline.dashboard",
+      name: "streamline.dashboard.v2",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      partialize: (s) => ({ unit: s.unit, basis: s.basis, span: s.span, hiddenPanels: s.hiddenPanels }),
+      version: 2,
+      /**
+       * The browser-wide settings, carried once into whatever scope is read
+       * first. Only the two that still exist are taken: the old `span` and
+       * `basis` vocabularies are gone, and guessing at a mapping would be
+       * worse than starting from the default.
+       */
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === "object" && "byScope" in persisted) return persisted as PrefsStore;
+        return { byScope: {} } as PrefsStore;
+      },
     },
   ),
 );
+
+let hydrated = false;
+
+/**
+ * This person's preferences for this workspace.
+ *
+ * Rehydrated on the first mount rather than during render, so the server and
+ * the first client render agree; until then everybody gets the defaults, which
+ * is a correct dashboard rather than an empty one.
+ */
+export function useDashboardPrefs(userId: string, workspaceId: string, selectableTeams: string[]) {
+  const scope = `${userId}:${workspaceId}`;
+  React.useEffect(() => {
+    if (hydrated) return;
+    hydrated = true;
+    void useStore.persist.rehydrate();
+  }, []);
+
+  const stored = useStore((s) => s.byScope[scope]);
+  const write = useStore((s) => s.set);
+  const resetAll = useStore((s) => s.reset);
+
+  const prefs = React.useMemo<DashboardPrefs>(() => {
+    const base = { ...DEFAULT_PREFS, ...stored };
+    // A team that is no longer in this workspace, or that this person can no
+    // longer see, must not silently filter the page down to nothing.
+    if (base.teamIds) {
+      const kept = base.teamIds.filter((id) => selectableTeams.includes(id));
+      return { ...base, teamIds: kept.length > 0 ? kept : null };
+    }
+    return base;
+  }, [stored, selectableTeams]);
+
+  const set = React.useCallback((patch: Partial<DashboardPrefs>) => write(scope, patch), [write, scope]);
+  const reset = React.useCallback(() => resetAll(scope), [resetAll, scope]);
+  return { prefs, set, reset };
+}
