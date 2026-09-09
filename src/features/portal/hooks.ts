@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { PortalTheme } from "@/domain";
+import type { PortalPresentation, PortalTheme } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
@@ -44,6 +44,13 @@ export function usePortalMutations() {
     },
   });
 
+  // One mutation for every presentation setting: they are all the same write,
+  // and a card that saved each through its own hook would show six spinners.
+  const setPresentation = useMutation({
+    mutationFn: ({ departmentId, patch }: { departmentId: string; patch: PortalPresentation }) => services.portals.setPresentation(ws.workspace.id, departmentId, patch),
+    onSuccess: invalidate,
+  });
+
   const setTheme = useMutation({
     mutationFn: ({ departmentId, theme }: { departmentId: string; theme: PortalTheme }) => services.portals.setTheme(ws.workspace.id, departmentId, theme),
     onSuccess: invalidate,
@@ -73,7 +80,7 @@ export function usePortalMutations() {
     },
   });
 
-  return { setEnabled, setTheme, regenerate, setPassword, setTeamName };
+  return { setEnabled, setTheme, setPresentation, regenerate, setPassword, setTeamName };
 }
 
 /** The address to hand a department. Absolute, because it is going into an email. */

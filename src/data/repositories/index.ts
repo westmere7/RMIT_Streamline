@@ -244,7 +244,7 @@ export interface StakeholderPortalRepository {
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
   getPortalByToken(token: string): Promise<DepartmentPortal | null>;
   createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal>;
-  updatePortal(id: EntityId, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion">>): Promise<DepartmentPortal>;
+  updatePortal(id: EntityId, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal>;
 
   /** A department's requests, newest first, bounded and cursored for stable pagination. */
   listRequests(departmentId: EntityId, options?: { limit?: number; cursor?: string | null }): Promise<{ rows: PortalRequest[]; nextCursor: string | null }>;

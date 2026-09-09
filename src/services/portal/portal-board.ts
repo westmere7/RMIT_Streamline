@@ -10,6 +10,7 @@ import type {
   ItemAsset,
   ItemColumnValue,
   ItemLink,
+  PortalColumnKey,
   PortalDeliverable,
   PortalPerson,
   PortalPriority,
@@ -86,6 +87,14 @@ export interface PortalBoardTask {
 
 export interface PortalBoardInput {
   department: StakeholderDepartment;
+  /**
+   * Columns this department has been told it does not need.
+   *
+   * Presentation, not authorisation. The values behind a hidden column were
+   * already published to this department; leaving the column out is about
+   * clutter on the page, and nothing downstream may treat it as a boundary.
+   */
+  hiddenColumns?: readonly PortalColumnKey[];
   tasks: readonly PortalBoardTask[];
   /** Links whose two ends are both in scope. Anything else is left out. */
   links: readonly ItemLink[];
@@ -135,6 +144,7 @@ function priorityLabelId(priority: PortalPriority | null): string | null {
 
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   const { department, tasks, links, comments, commentAuthors, workspaceName, now } = input;
+  const hidden = new Set<string>(input.hiddenColumns ?? []);
   const boardId = department.id;
 
   // ---- the labels the department's boards between them use --------------------
@@ -155,8 +165,12 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   );
   const columns: BoardColumn[] = [];
   const column = (key: string, name: string, type: BoardColumn["type"], settings: BoardColumn["settings"], width: number) => {
+    if (hidden.has(key)) return;
     columns.push({ id: portalColumnId(boardId, key), boardId, name, type, settings, position: columns.length, width, hidden: false, createdAt: now });
   };
+  // A value with no column is dead weight in the payload, and the item panel
+  // reads its fields from the columns, so the two have to agree.
+  const shown = (key: string) => !hidden.has(key);
 
   // When the request arrived, first, and as text rather than a date. A DATE cell
   // reads any past date on unfinished work as a missed deadline and marks it in
@@ -231,16 +245,16 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     });
 
     value(task.id, "status", { type: "STATUS", labelId: task.status ? (statusIdByName.get(task.status.name) ?? null) : null }, task.updatedAt);
-    value(task.id, "priority", { type: "PRIORITY", labelId: priorityLabelId(task.priority) }, task.updatedAt);
-    value(task.id, "people", { type: "PERSON", userIds: task.people.map((person) => person.id) }, task.updatedAt);
-    value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
-    value(task.id, "requested", { type: "TEXT", text: task.bookedAt ? formatShortDate(task.bookedAt.slice(0, 10)) : "" }, task.updatedAt);
-    if (assetTypes.length > 0) {
+    if (shown("priority")) value(task.id, "priority", { type: "PRIORITY", labelId: priorityLabelId(task.priority) }, task.updatedAt);
+    if (shown("people")) value(task.id, "people", { type: "PERSON", userIds: task.people.map((person) => person.id) }, task.updatedAt);
+    if (shown("due")) value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
+    if (shown("requested")) value(task.id, "requested", { type: "TEXT", text: task.bookedAt ? formatShortDate(task.bookedAt.slice(0, 10)) : "" }, task.updatedAt);
+    if (assetTypes.length > 0 && shown("asset-types")) {
       const kinds = [...new Set(deliverables.map((d) => d.assetType).filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
       value(task.id, "asset-types", { type: "TAGS", tags: kinds }, task.updatedAt);
     }
-    if (hasTimeline) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
-    if (hasDeliverables) {
+    if (hasTimeline && shown("timeline")) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
+    if (hasDeliverables && shown("assets")) {
       const outstanding = deliverables.filter((d) => !d.done);
       const dues = outstanding.map((d) => d.dueDate).filter((d): d is string => !!d).sort();
       value(

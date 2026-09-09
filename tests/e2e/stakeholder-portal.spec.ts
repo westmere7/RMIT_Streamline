@@ -26,12 +26,26 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   await expect(page.getByTestId("portal-view-request")).toBeVisible();
 }
 
-/** Opens a department's portal from the management screen and returns its link. */
-async function openPortal(page: Page, department: string): Promise<string> {
+/**
+ * A department's card on the management screen, unfolded.
+ *
+ * The cards are collapsed by default — a workspace with a dozen departments is
+ * otherwise a page of settings — so anything but the name, the state and the
+ * two buttons most used has to be opened first.
+ */
+async function departmentCard(page: Page, department: string) {
   await page.goto("/workspace/rmit/book");
   await expect(page.getByRole("heading", { name: "Stakeholder Portal" })).toBeVisible();
   const card = page.locator(`[data-testid=portal-department][data-department="${department}"]`);
   await expect(card).toBeVisible();
+  const expander = card.getByTestId("portal-department-expand");
+  if ((await expander.getAttribute("aria-expanded")) !== "true") await expander.click();
+  return card;
+}
+
+/** Opens a department's portal from the management screen and returns its link. */
+async function openPortal(page: Page, department: string): Promise<string> {
+  const card = await departmentCard(page, department);
   if ((await card.getByTestId("portal-state").innerText()) !== "Open") {
     await card.getByTestId("portal-toggle").click();
   }
@@ -108,8 +122,7 @@ test.describe("the stakeholder portal", () => {
     await page.goto(portalPath);
     await expect(page.getByTestId("portal-department-name")).toBeVisible();
 
-    await page.goto("/workspace/rmit/book");
-    const card = page.locator('[data-testid=portal-department][data-department="Comm."]');
+    const card = await departmentCard(page, "Comm.");
     await card.getByTestId("portal-regenerate").click();
     await page.getByRole("alertdialog").getByRole("button", { name: /issue new link/i }).click();
     await expect(card.getByTestId("portal-link")).not.toHaveText(new RegExp(portalPath.split("/").pop()!));
@@ -122,8 +135,7 @@ test.describe("the stakeholder portal", () => {
 
   test("closing a portal shuts both reading and booking", async ({ page }) => {
     const portalPath = await openPortal(page, "Comm.");
-    await page.goto("/workspace/rmit/book");
-    const card = page.locator('[data-testid=portal-department][data-department="Comm."]');
+    const card = await departmentCard(page, "Comm.");
     await card.getByTestId("portal-toggle").click();
     await expect(card.getByTestId("portal-state")).toHaveText("Closed");
 
@@ -133,8 +145,7 @@ test.describe("the stakeholder portal", () => {
 
   test("asks for a password on the way in, and refuses a wrong one", async ({ page }) => {
     const portalPath = await openPortal(page, "Comm.");
-    await page.goto("/workspace/rmit/book");
-    const card = page.locator('[data-testid=portal-department][data-department="Comm."]');
+    const card = await departmentCard(page, "Comm.");
     await card.getByTestId("portal-password-toggle").click();
     await card.getByTestId("portal-password-input").fill("open sesame");
     await card.getByRole("button", { name: "Set password" }).click();
@@ -155,6 +166,28 @@ test.describe("the stakeholder portal", () => {
     await page.getByTestId("portal-password").fill("open sesame");
     await page.getByRole("button", { name: "Open the portal" }).click();
     await expect(page.getByTestId("portal-department-name")).toContainText("Comm.");
+  });
+
+  test("carries the team's settings through to the link", async ({ page }) => {
+    const portalPath = await openPortal(page, "Comm.");
+    await page.goto(portalPath);
+    await bookThroughPortal(page, "Settings ride along", "One request, to see the board with.");
+
+    const card = await departmentCard(page, "Comm.");
+    await card.getByTestId("portal-description").fill("Everything the Marketing team is making for you.");
+    await card.getByTestId("portal-description-save").click();
+    // Hiding a column is about clutter on the page, not about access.
+    await card.getByTestId("portal-column-priority").click();
+    await expect(card.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
+    // And a link can be set to reading only.
+    await card.getByTestId("portal-allow-booking").click();
+    await expect(card.getByTestId("portal-allow-booking")).toHaveAttribute("aria-checked", "false");
+
+    await page.goto(portalPath);
+    await expect(page.getByText("Everything the Marketing team is making for you.")).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Priority" })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+    await expect(page.getByTestId("portal-book-button")).toHaveCount(0);
   });
 
   test("keeps its theme to itself", async ({ page }) => {

@@ -76,12 +76,25 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
   async createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal> {
     const db = await this.conn.getDb();
     const now = nowIso();
-    const row: DepartmentPortal = { id: newId(), credentialVersion: 1, createdAt: now, updatedAt: now, ...input };
+    // The presentation defaults are the behaviour a portal had before it could
+            // be configured, so an existing link is unchanged by the settings arriving.
+    const row: DepartmentPortal = {
+      id: newId(),
+      credentialVersion: 1,
+      description: null,
+      hiddenColumns: [],
+      defaultView: "table",
+      allowBooking: true,
+      showRecap: true,
+      createdAt: now,
+      updatedAt: now,
+      ...input,
+    };
     await db.put("departmentPortals", row);
     return row;
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion">>): Promise<DepartmentPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
     const db = await this.conn.getDb();
     const existing = await db.get("departmentPortals", id);
     if (!existing) throw new NotFoundError("Portal", id);

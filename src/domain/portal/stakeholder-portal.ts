@@ -64,7 +64,56 @@ export interface DepartmentPortal extends Timestamps {
   /** Bumped by a link regeneration or any password change; every older grant dies with it. */
   credentialVersion: number;
   defaultTheme: PortalTheme;
+  /** A line of the team's own words, under the department name. */
+  description: string | null;
+  /** Board columns this department does not need. Keys, not ids: see `PORTAL_COLUMNS`. */
+  hiddenColumns: PortalColumnKey[];
+  /** Which view the link opens on. */
+  defaultView: PortalView;
+  /** Whether this link takes new requests. Off makes the portal read-only. */
+  allowBooking: boolean;
+  /** Whether the figures appear in the header. */
+  showRecap: boolean;
 }
+
+/**
+ * The columns a department's board can carry.
+ *
+ * Keys rather than ids, because the ids are derived per department and a
+ * setting has to survive a portal being rebuilt. `status` and `item` are not
+ * here: a board with no status is not worth reading, and the name is the row.
+ * A column with nothing in it is left out whatever this says — hiding is a
+ * choice about clutter, not a way to make an empty column appear.
+ */
+export const PORTAL_COLUMNS = ["requested", "priority", "people", "due", "timeline", "assets", "asset-types"] as const;
+export type PortalColumnKey = (typeof PORTAL_COLUMNS)[number];
+
+export const PORTAL_COLUMN_LABELS: Record<PortalColumnKey, string> = {
+  requested: "Requested",
+  priority: "Priority",
+  people: "Working on it",
+  due: "Due",
+  timeline: "Timeline",
+  assets: "Deliverables",
+  "asset-types": "Asset types",
+};
+
+export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
+export type PortalView = (typeof PORTAL_VIEWS)[number];
+
+/** A description is a line under a heading, not a page. */
+export const MAX_PORTAL_DESCRIPTION = 280;
+
+export function isPortalColumnKey(value: unknown): value is PortalColumnKey {
+  return typeof value === "string" && (PORTAL_COLUMNS as readonly string[]).includes(value);
+}
+
+export function isPortalView(value: unknown): value is PortalView {
+  return typeof value === "string" && (PORTAL_VIEWS as readonly string[]).includes(value);
+}
+
+/** What an administrator may change about how a portal presents itself. */
+export type PortalPresentation = Partial<Pick<DepartmentPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "defaultTheme">>;
 
 export type DepartmentPortalInput = Pick<DepartmentPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
 

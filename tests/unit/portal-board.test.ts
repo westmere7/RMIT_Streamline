@@ -223,6 +223,35 @@ describe("a department's requests as a board", () => {
     expect(payload.links.map((l) => l.id)).toEqual(["l1"]);
   });
 
+  it("leaves out the columns the team has hidden, and their values with them", () => {
+    const rich = () =>
+      entry(task({ id: "a", priority: { name: "High", color: "orange", strength: 2 }, dueDate: "2026-09-20", deliverables: { total: 1, done: 0 } }), {
+        deliverables: [{ id: "d1", name: "Poster", assetType: "Print", quantity: 1, dueDate: null, done: false, assignees: [] }],
+      });
+
+    const all = build([rich()]);
+    expect(all.columns.map((c) => c.name)).toContain("Priority");
+
+    const trimmed = buildPortalBoard({
+      department: DEPARTMENT,
+      tasks: [rich()],
+      links: [],
+      comments: [],
+      commentAuthors: [],
+      hiddenColumns: ["priority", "requested", "asset-types"],
+      workspaceName: "RMIT Marketing Team",
+      now: "2026-09-09T00:00:00.000Z",
+    });
+    expect(trimmed.columns.map((c) => c.name)).not.toContain("Priority");
+    expect(trimmed.columns.map((c) => c.name)).not.toContain("Requested");
+    expect(trimmed.columns.map((c) => c.name)).not.toContain("Asset types");
+    expect(trimmed.columns.map((c) => c.name)).toContain("Due");
+    // A value with no column is dead weight, and the panel reads its fields
+    // from the columns, so the two have to agree.
+    const columnIds = new Set(trimmed.columns.map((c) => c.id));
+    expect(trimmed.values.every((v) => columnIds.has(v.columnId))).toBe(true);
+  });
+
   it("gives the same department the same ids every time, so a visitor's settings stick", () => {
     const once = build([entry(task({ id: "a", status: inProgress }))]);
     const twice = build([entry(task({ id: "a", status: inProgress }))]);

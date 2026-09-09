@@ -1,10 +1,9 @@
 "use client";
 
-import { Moon, Sun, SunMoon } from "lucide-react";
+import { Check, LoaderCircle, Moon, Sun, SunMoon } from "lucide-react";
 import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
 import type { PortalTheme, PortalTotals } from "@/domain";
-import { RelativeTime } from "@/components/shared/relative-time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -86,6 +85,56 @@ export function PortalThemeScope({ token, preferred, children }: { token: string
 }
 
 /**
+ * Whether the page is current, as a glyph.
+ *
+ * A portal that quietly shows an hour-old board is worse than one that says so,
+ * but a line of prose about it in the header was louder than the figures beside
+ * it. Three states in one small mark: turning while a read is in flight, a tick
+ * for a moment when one lands, and a resting dot the rest of the time. The
+ * words are still there for anyone who wants them — as the tooltip and, for a
+ * screen reader, in a live region.
+ */
+function FreshnessMark({ stale, servedAt }: { stale: boolean; servedAt: string | null }) {
+  // A new `servedAt` means a read landed. Noticed during render rather than in
+  // an effect — an effect that sets state as it runs costs an extra render of
+  // the whole header every four seconds.
+  const [landedAt, setLandedAt] = React.useState<string | null>(null);
+  const [seen, setSeen] = React.useState(servedAt);
+  if (servedAt !== seen) {
+    setSeen(servedAt);
+    setLandedAt(servedAt);
+  }
+  React.useEffect(() => {
+    if (!landedAt) return;
+    const timer = window.setTimeout(() => setLandedAt(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [landedAt]);
+
+  const justLanded = !!landedAt && !stale;
+  const label = stale ? "Updating…" : servedAt ? `Updated ${new Date(servedAt).toLocaleTimeString()}` : "Loading";
+  return (
+    <span
+      className="flex size-6 shrink-0 items-center justify-center text-muted-foreground"
+      title={label}
+      data-testid="portal-served-at"
+      data-state={stale ? "updating" : justLanded ? "updated" : "idle"}
+    >
+      {stale ? (
+        <LoaderCircle aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
+      ) : justLanded ? (
+        <Check aria-hidden className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+      ) : (
+        <span aria-hidden className="size-1.5 rounded-full bg-current opacity-40" />
+      )}
+      {/* Announced rather than drawn: the glyph carries no text of its own. */}
+      <span className="sr-only" aria-live="polite">
+        {stale ? "Updating" : servedAt ? "Updated" : ""}
+      </span>
+    </span>
+  );
+}
+
+/**
  * What the department has, at a glance.
  *
  * Computed on the server over every request the department has, not over what
@@ -148,6 +197,7 @@ export function PortalHeader({
   servedAt,
   stale,
   totals,
+  description,
 }: {
   token: string;
   departmentName: string;
@@ -157,6 +207,8 @@ export function PortalHeader({
   stale: boolean;
   /** The figures over the whole department, shown beside its name. */
   totals?: PortalTotals | null;
+  /** The team's own line about this department, in place of the standing subtitle. */
+  description?: string | null;
 }) {
   const themeContext = React.useContext(PortalThemeContext);
   return (
@@ -165,21 +217,20 @@ export function PortalHeader({
           left the name floating in the middle of a full-width page. */}
       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
         <BrandMark className="size-9 shrink-0 rounded-lg" />
+        {/* The department leads. Whoever is reading this works in it, and the
+            page is about their work; the team's name is the answer to "who is
+            doing it", which is context, not the title. */}
         <div className="min-w-0 shrink-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight">{creativeTeamName}</p>
-          <p className="truncate text-2xs text-muted-foreground" data-testid="portal-department-name">
-            {departmentName} · requests and bookings
+          <p className="truncate text-[15px] font-semibold tracking-tight" data-testid="portal-department-name">
+            {departmentName}
           </p>
+          <p className="truncate text-2xs text-muted-foreground">{description?.trim() || `${creativeTeamName} · requests and bookings`}</p>
         </div>
 
         {totals && <PortalRecap totals={totals} />}
 
         <div className="flex flex-1 items-center justify-end gap-3">
-          {/* When the figures were last true. A portal that quietly shows an
-              hour-old board is worse than one that says so. */}
-          <span className="text-2xs text-muted-foreground" aria-live="polite" data-testid="portal-served-at">
-            {stale ? "Updating…" : servedAt ? <>Updated <RelativeTime iso={servedAt} /></> : null}
-          </span>
+          <FreshnessMark stale={stale} servedAt={servedAt} />
 
         {themeContext && (
           <div role="radiogroup" aria-label="Theme" className="inline-flex shrink-0 items-center rounded-full border border-border/70 p-0.5">

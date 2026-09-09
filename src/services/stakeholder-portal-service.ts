@@ -13,6 +13,7 @@ import type {
   ItemLink,
   PortalContext,
   PortalGate,
+  PortalPresentation,
   PortalRefusal,
   PortalRequest,
   PortalTask,
@@ -28,6 +29,9 @@ import type {
 import {
   generatePortalToken,
   isPlausiblePortalToken,
+  isPortalColumnKey,
+  isPortalView,
+  MAX_PORTAL_DESCRIPTION,
   MAX_PUBLIC_BRIEF,
   PORTAL_PAGE_SIZE,
   reconcileDepartments,
@@ -327,6 +331,7 @@ export class StakeholderPortalService {
     const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
     const payload = buildPortalBoard({
       department: resolved.department,
+      hiddenColumns: resolved.portal.hiddenColumns,
       tasks,
       links: ctx.links,
       comments: ctx.comments,
@@ -364,6 +369,26 @@ export class StakeholderPortalService {
       passwordHash: null,
       defaultTheme: "system",
     });
+  }
+
+  /**
+   * How a portal presents itself.
+   *
+   * Presentation only: nothing here widens what a link may see, and none of it
+   * touches the credential. Hiding a column removes it from the page, not from
+   * the authorisation — the value was already published to this department, and
+   * a setting that pretended otherwise would be a security claim it cannot keep.
+   */
+  async setPresentation(workspaceId: EntityId, departmentId: EntityId, patch: PortalPresentation): Promise<DepartmentPortal> {
+    const portal = await this.ensurePortal(workspaceId, departmentId);
+    const cleaned: PortalPresentation = { ...patch };
+    if (patch.description !== undefined) {
+      const trimmed = patch.description?.trim() ?? "";
+      cleaned.description = trimmed ? trimmed.slice(0, MAX_PORTAL_DESCRIPTION) : null;
+    }
+    if (patch.hiddenColumns !== undefined) cleaned.hiddenColumns = [...new Set(patch.hiddenColumns.filter(isPortalColumnKey))];
+    if (patch.defaultView !== undefined && !isPortalView(patch.defaultView)) delete cleaned.defaultView;
+    return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
 
   async setEnabled(workspaceId: EntityId, departmentId: EntityId, enabled: boolean): Promise<DepartmentPortal> {
@@ -466,6 +491,10 @@ export class StakeholderPortalService {
       defaultTheme: resolved.portal.defaultTheme,
       signedIn: !!viewer,
       viewerName: viewer?.displayName ?? null,
+      description: resolved.portal.description,
+      defaultView: resolved.portal.defaultView,
+      allowBooking: resolved.portal.allowBooking,
+      showRecap: resolved.portal.showRecap,
     };
   }
 
@@ -646,6 +675,10 @@ export class StakeholderPortalService {
     resolved: ResolvedPortal,
     input: { submissionKey: string; request: BookingRequest; booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null): Promise<BookingReceipt> }; memberId?: EntityId | null },
   ): Promise<BookingReceipt> {
+    // A link the team has set to reading only takes no requests. Checked here,
+    // where every path to a booking passes, rather than by hiding a button.
+    if (!resolved.portal.allowBooking) throw new PortalAccessError("off", "This portal is not taking new requests at the moment.");
+
     const key = input.submissionKey.trim();
     if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
 

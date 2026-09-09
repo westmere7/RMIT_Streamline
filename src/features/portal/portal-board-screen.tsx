@@ -43,10 +43,22 @@ import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
  * Read-only is not a matter of hiding buttons: the repositories underneath
  * refuse to write, and `canEdit` is false, so there is nothing to press.
  */
-export function PortalBoardScreen({ token, payload, onBook }: { token: string; payload: PortalBoardPayload; onBook: () => void }) {
+export function PortalBoardScreen({
+  token,
+  payload,
+  onBook,
+  defaultView,
+}: {
+  token: string;
+  payload: PortalBoardPayload;
+  /** Null when the link has been set to reading only. */
+  onBook: (() => void) | null;
+  /** The view a bare link lands on, chosen by the team. */
+  defaultView: BoardViewKind;
+}) {
   return (
     <ShareGuestProviders payload={payload} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={payload} onBook={onBook} />
+      <PortalBoard payload={payload} onBook={onBook} defaultView={defaultView} />
     </ShareGuestProviders>
   );
 }
@@ -55,7 +67,7 @@ function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
 }
 
-function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook: () => void }) {
+function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPayload; onBook: (() => void) | null; defaultView: BoardViewKind }) {
   const board = payload.board;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,7 +78,9 @@ function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook:
   const isMobile = useIsMobile();
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
-  const view: BoardViewKind = isViewKind(searchParams.get("view")) ? (searchParams.get("view") as BoardViewKind) : "table";
+  // The URL wins, so a link somebody was sent still opens where it says; the
+  // department's own default is what a bare link lands on.
+  const view: BoardViewKind = isViewKind(searchParams.get("view")) ? (searchParams.get("view") as BoardViewKind) : defaultView;
   // `task` rather than `item`: the portal has always deep-linked a request that
   // way, and links people were sent must keep working.
   const openTaskId = searchParams.get("task");
@@ -75,13 +89,13 @@ function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook:
     (patch: Record<string, string | null>) => {
       const next = new URLSearchParams(window.location.search);
       for (const [key, value] of Object.entries(patch)) {
-        if (value === null || value === "" || (key === "view" && value === "table")) next.delete(key);
+        if (value === null || value === "" || (key === "view" && value === defaultView)) next.delete(key);
         else next.set(key, value);
       }
       const query = next.toString();
       router.replace(`${window.location.pathname}${query ? `?${query}` : ""}`, { scroll: false });
     },
-    [router],
+    [router, defaultView],
   );
   const openItem = React.useCallback((id: string | null) => replaceParams({ task: id }), [replaceParams]);
 
@@ -136,7 +150,7 @@ function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook:
       {isMobile ? (
         <>
           <div className="shrink-0 border-b border-border/70 px-3 py-2">
-            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} actions={<BookButton onBook={onBook} />} />
+            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} actions={onBook ? <BookButton onBook={onBook} /> : undefined} />
           </div>
           {view === "table" ? (
             <MobileTableView mode={tableMode} onModeChange={setTableMode} />
@@ -151,7 +165,7 @@ function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook:
         </>
       ) : (
         <>
-          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} searchAlways actions={<BookButton onBook={onBook} />} />
+          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} searchAlways actions={onBook ? <BookButton onBook={onBook} /> : undefined} />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}

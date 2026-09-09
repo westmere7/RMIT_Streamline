@@ -7,7 +7,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { PortalGate } from "@/domain";
+import type { BoardViewKind, PortalGate } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import type { PortalCredentials } from "@/features/portal/portal-client";
@@ -160,7 +160,8 @@ export function PortalPage({ token }: { token: string }) {
           viewerName={context?.viewerName ?? null}
           servedAt={page.data?.servedAt ?? null}
           stale={page.isFetching}
-          totals={booking ? null : (page.data?.totals ?? null)}
+          totals={booking || context?.showRecap === false ? null : (page.data?.totals ?? null)}
+          description={context?.description ?? null}
         />
 
         {booking ? (
@@ -195,7 +196,12 @@ export function PortalPage({ token }: { token: string }) {
           // The department's work, rendered by the board the workspace uses:
           // the same views, the same cells, the same item panel.
           <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
-            <PortalBoardScreen token={token} payload={page.data} onBook={() => setBooking(true)} />
+            <PortalBoardScreen
+                token={token}
+                payload={page.data}
+                onBook={context?.allowBooking === false ? null : () => setBooking(true)}
+                defaultView={(context?.defaultView ?? "table") as BoardViewKind}
+              />
           </div>
         ) : (
           <div className="px-4 py-6 sm:px-6">

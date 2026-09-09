@@ -1,6 +1,6 @@
 import type { PublicBoardPayload } from "@/domain/board/board-share";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
-import type { PortalTheme } from "@/domain/portal/stakeholder-portal";
+import type { PortalTheme, PortalView } from "@/domain/portal/stakeholder-portal";
 
 /**
  * What a stakeholder is allowed to see.
@@ -150,6 +150,14 @@ export interface PortalContext {
   signedIn: boolean;
   /** The display name to show in the account control, when signed in. */
   viewerName: string | null;
+  /** The team's own line about this department, under its name. */
+  description: string | null;
+  /** Which view the link opens on. */
+  defaultView: PortalView;
+  /** Whether this link takes new requests, or is a reading link only. */
+  allowBooking: boolean;
+  /** Whether the figures appear in the header. */
+  showRecap: boolean;
 }
 
 /** What the portal's own search matches on, and returns. */

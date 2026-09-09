@@ -198,6 +198,53 @@ describe("what a department's portal is allowed to see", () => {
     expect((await services.portals.tasks(eventPortal)).tasks.map((t) => t.id)).toEqual([receipt.itemId]);
   });
 
+  it("refuses a booking on a link the team has set to reading only", async () => {
+    const resolved = await open(comm);
+    await services.portals.setPresentation(WS, comm.id, { allowBooking: false });
+    const closed = await services.portals.resolve({ token: resolved.portal.token, password: null });
+
+    const attempt = services.portals.book(closed, {
+      submissionKey: "key-scope-00003",
+      request: {
+        requesterName: "Priya",
+        requesterEmail: "priya@rmit.edu.vn",
+        department: null,
+        title: "Should not land",
+        brief: "The link is for reading.",
+        assetTypes: [],
+        assets: [],
+        teamId: null,
+        dueDate: null,
+        priority: null,
+        referenceUrl: null,
+        extra: {},
+        answers: {},
+      },
+      booking: services.booking,
+    });
+    // Refused on the server, not by hiding a button.
+    await expect(attempt).rejects.toBeInstanceOf(PortalAccessError);
+    // And reading still works: this setting is about requests, not access.
+    expect((await services.portals.tasks(closed)).tasks).toHaveLength(0);
+  });
+
+  it("keeps the presentation to presentation, and trims what it stores", async () => {
+    const portal = await services.portals.setPresentation(WS, comm.id, {
+      description: `   ${"x".repeat(400)}   `,
+      hiddenColumns: ["priority", "priority", "not-a-column" as never],
+      defaultView: "kanban",
+    });
+
+    expect(portal.description).toHaveLength(280);
+    // Deduplicated, and anything that is not a column of this board is dropped.
+    expect(portal.hiddenColumns).toEqual(["priority"]);
+    expect(portal.defaultView).toBe("kanban");
+    // An unknown view is ignored rather than stored and rendered as nothing.
+    expect((await services.portals.setPresentation(WS, comm.id, { defaultView: "spreadsheet" as never })).defaultView).toBe("kanban");
+    // Emptying the description clears it rather than storing a blank line.
+    expect((await services.portals.setPresentation(WS, comm.id, { description: "  " })).description).toBeNull();
+  });
+
   it("lists a linked pair once, and prefers the booked side", async () => {
     const [a, b] = [items[0]!, items[1]!];
     await label(a, "Comm.");
