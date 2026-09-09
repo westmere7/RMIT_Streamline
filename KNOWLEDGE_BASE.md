@@ -689,7 +689,22 @@ Measured on the biggest department (265 requests): Departments tab 4214 ms -> 17
 
 **Management** lives on the renamed destination (`/workspace/[slug]/book`, "Stakeholder Portal"). Admins get a Departments tab and the editable creative-team name, which is presentation only and never renames the workspace or changes its slug. Ordinary members see the booking form exactly as before, with no tabs. A portal is created **switched off**; adding a department publishes nothing.
 
-Each department is one collapsed row: name, whether the link is live, and the two things done most often (Copy, Preview), with an Open/Close button that shows its own progress — opening a portal writes a row and, first time round, creates one, which is long enough that a silent switch read as broken. Everything that changes a link (theme, password, new link) is behind the fold, which also puts a deliberate step between a passing glance and "New link".
+Each department is one collapsed row: name, whether the link is live, Copy, Preview, and the open/close switch. The switch shows a spinner while the write is in flight — opening a portal writes a row and, the first time, creates one, which is long enough that a silent toggle read as broken. Everything else is behind the fold, which also puts a deliberate step between a passing glance and "New link".
+
+Behind the fold are the portal's **presentation settings** (migration 0031, all defaulted to the behaviour a portal already had, so existing links are unchanged):
+
+| Setting | What it does |
+| --- | --- |
+| Description | A line of the team's own words under the department's name, in place of the standing subtitle. 280 characters. |
+| Opens on | Which of the seven views a bare link lands on. A `?view=` in the URL still wins, so a link somebody was sent opens where it says. |
+| Columns | Which of the board's optional columns the department sees. **Presentation, not authorisation** — the values behind a hidden column were already published to that department, and nothing downstream may treat the setting as a boundary. A column with nothing in it is left out whatever the setting says. |
+| Takes new requests | Off makes the link read-only. Enforced in `book()`, where every path to a booking passes, not by hiding the button. |
+| Shows the figures | Whether the recap appears in the header. |
+| Opens in | The theme the link paints before a visitor chooses one. |
+
+Column settings are stored as **keys** (`requested`, `priority`, `people`, `due`, `timeline`, `assets`, `asset-types`), not ids: the ids are derived per department and the board is rebuilt on every read. `setPresentation` trims the description, drops unknown column keys and ignores an unknown view rather than storing something that renders as nothing.
+
+The header leads with the **department**, not the team: whoever is reading works in that department and the page is about their work. How current the page is shows as a small glyph rather than a line of prose — turning while a read is in flight, a tick for a moment when one lands, a resting dot otherwise — with the time in its tooltip and in a live region for a screen reader.
 
 The visitor's theme choice is stored under `streamline.portal-theme:<token>` and applied to a subtree, never to `<html>`, so it cannot touch the internal app's theme. That subtree states `light` or `dark` explicitly, never only `dark`: the `dark` variant is `&:is(.dark *):not(.light *)` (`src/app/globals.css`), and without the `.light` escape a portal set to light inside an app set to dark inherited the dark it was sitting in — one page holds both themes, which no other part of the app has to do.
 
@@ -838,7 +853,7 @@ This mechanism protects registered in-flight work. It is not durable offline que
 
 ### Current schema heads
 
-The latest applied SQL is `migrations/0030_stakeholder_portal.sql` with `policies/0013_stakeholder_portal_policies.sql`; the local IndexedDB schema is at `DB_VERSION = 14`. Both were additive: 0030 creates four tables and adds `workspaces.creative_team_name`, and v14 adds four object stores. Nothing existing was altered, so an upgrade keeps every row.
+The latest applied SQL is `migrations/0031_portal_presentation.sql`, after `0030_stakeholder_portal.sql` with `policies/0013_stakeholder_portal_policies.sql`; the local IndexedDB schema is at `DB_VERSION = 14`. All additive: 0030 creates four tables and adds `workspaces.creative_team_name`, 0031 adds five defaulted columns to `department_portals` (description, hidden_columns, default_view, allow_booking, show_recap), and v14 adds four object stores. Nothing existing was altered, so an upgrade keeps every row — and because 0031's defaults are the behaviour the code already had, a portal created before it behaves identically after.
 
 New SQL takes the next free number in each directory. Do not edit a file that has been applied - the runner records a checksum and will refuse it.
 
