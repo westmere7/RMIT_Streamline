@@ -136,6 +136,8 @@ export interface PortalTotals {
   /** Counts by person in charge. A task with two owners counts under both; `requests` does not double. */
   byPerson: Array<{ person: PortalPerson; count: number }>;
   bySource: Array<{ name: string; count: number }>;
+  /** Deliverables across every request: how many lines, how many finished, how many kinds. */
+  deliverables: { total: number; done: number; types: number };
 }
 
 /** Everything the portal shell needs once the gate has opened. */

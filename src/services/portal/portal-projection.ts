@@ -182,12 +182,21 @@ export function projectTask(item: Item, ctx: ProjectionContext): PortalTask {
  * counts each request once. Labelling a page's numbers as a department's totals
  * would be a lie, so this is always given every task, not the page.
  */
-export function summarise(tasks: readonly PortalTask[], today: string): PortalTotals {
+/**
+ * The figures over the whole authorised set.
+ *
+ * `deliverableTypes` is passed in rather than derived: a `PortalTask` carries
+ * how many deliverables it has, not what kinds they are, and counting kinds
+ * across the department needs the deliverables themselves.
+ */
+export function summarise(tasks: readonly PortalTask[], today: string, deliverableTypes = 0): PortalTotals {
   const byStatus = new Map<string, { name: string; color: PortalStatus["color"]; count: number }>();
   const byPerson = new Map<string, { person: PortalPerson; count: number }>();
   const bySource = new Map<string, number>();
   let done = 0;
   let overdue = 0;
+  let deliverables = 0;
+  let deliverablesDone = 0;
 
   for (const task of tasks) {
     const complete = task.status?.role === "done";
@@ -205,12 +214,15 @@ export function summarise(tasks: readonly PortalTask[], today: string): PortalTo
       byPerson.set(person.id, entry);
     }
     if (task.sourceName) bySource.set(task.sourceName, (bySource.get(task.sourceName) ?? 0) + 1);
+    deliverables += task.deliverables.total;
+    deliverablesDone += task.deliverables.done;
   }
 
   return {
     requests: tasks.length,
     done,
     overdue,
+    deliverables: { total: deliverables, done: deliverablesDone, types: deliverableTypes },
     byStatus: [...byStatus.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
     byPerson: [...byPerson.values()].sort((a, b) => b.count - a.count || a.person.displayName.localeCompare(b.person.displayName)),
     bySource: [...bySource.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),

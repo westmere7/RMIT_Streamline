@@ -135,8 +135,6 @@ export interface PortalScopeEntry {
 export interface DepartmentOverview {
   department: StakeholderDepartment;
   portal: DepartmentPortal | null;
-  /** Canonical requests, so the number matches what the portal lists. */
-  requestCount: number;
 }
 
 /**
@@ -285,22 +283,19 @@ export class StakeholderPortalService {
    * open a link needs to know how much it exposes, and a number that only
    * counted bookings would say "0" for a department with forty labelled tasks.
    */
+  /**
+   * The departments and their links.
+   *
+   * No request count. Producing one meant scoping every department — the
+   * workspace's whole label index, then every candidate item and every link
+   * between them — which is the same work as opening six portals at once, and
+   * it was what made this screen take seconds to show a list of switches that
+   * had not changed. The count is a click away on the portal itself.
+   */
   async overview(workspaceId: EntityId): Promise<DepartmentOverview[]> {
-    const departments = await this.ensureDepartments(workspaceId);
-    const portals = await this.repos.stakeholderPortals.listPortals(workspaceId);
+    const [departments, portals] = await Promise.all([this.ensureDepartments(workspaceId), this.repos.stakeholderPortals.listPortals(workspaceId)]);
     const byDepartment = new Map(portals.map((portal) => [portal.departmentId, portal]));
-    // One pass over the workspace's labels and one batch of items for every
-    // department together, rather than a scan and a round of reads each. Six
-    // departments over a few hundred tasks is otherwise a thousand requests.
-    const labelled = await this.labelledItemIds(workspaceId);
-    const items = await this.itemsByIdFor([...new Set([...labelled.values()].flat())]);
-    return Promise.all(
-      departments.map(async (department) => ({
-        department,
-        portal: byDepartment.get(department.id) ?? null,
-        requestCount: (await this.scope(department, { labelled, items })).length,
-      })),
-    );
+    return departments.map((department) => ({ department, portal: byDepartment.get(department.id) ?? null }));
   }
 
   /**
@@ -338,9 +333,11 @@ export class StakeholderPortalService {
     });
     // Over the whole set, and computed here: which statuses mean done is a
     // property of the boards, not something a visitor should have to infer.
+    const types = new Set(tasks.flatMap((entry) => entry.deliverables.map((d) => d.assetType).filter(Boolean)));
     const totals = summarise(
       tasks.map((entry) => entry.task),
       ctx.projection.today,
+      types.size,
     );
     return { ...payload, totals, servedAt: new Date().toISOString() };
   }

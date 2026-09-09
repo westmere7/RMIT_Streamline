@@ -1,7 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * Dark applies inside `.dark`, and stops again inside `.light`.
+ *
+ * The escape matters because one page can hold both. A stakeholder portal picks
+ * its own theme, and the person reading it may be a member of staff whose app
+ * is set to dark — without the exception their choice of light did nothing at
+ * all, since every element under the portal still matched `.dark *`.
+ */
+@custom-variant dark (&:is(.dark *):not(.light *));
 
 /*
  * Light theme. The shell sits on a soft neutral canvas (--canvas) and the panels
@@ -10,6 +18,58 @@
  * comes from elevation (see --elev-*) first and lines second.
  */
 :root {
+  --canvas: #eceef6;
+  --background: #ffffff;
+  --foreground: #202138;
+  --surface: #f5f6fa;
+  --surface-strong: #eaecf5;
+  --card: #ffffff;
+  --card-foreground: #202138;
+  --popover: #ffffff;
+  --popover-foreground: #202138;
+  --primary: #e61e2a;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f2f8;
+  --secondary-foreground: #202138;
+  --muted: #f4f5fa;
+  --muted-foreground: #6e7291;
+  --accent: #f0f1f8;
+  --accent-foreground: #202138;
+  /* Selected / on state. One friendly indigo carries every interactive state so
+   * the brand red can stay reserved for primary actions. */
+  --accent-soft: #ecedff;
+  --accent-soft-foreground: #4a4ac4;
+  --destructive: #d83a3a;
+  --destructive-foreground: #ffffff;
+  --border: #e7e9f3;
+  --input: #dfe2ee;
+  --ring: #5b5bd6;
+  --navy: #000054;
+  --radius: 0.625rem;
+  --sidebar: #fbfbfe;
+  --sidebar-foreground: #3a3c56;
+  --sidebar-border: #ebecf5;
+  --sidebar-accent: #eef0f8;
+  --row-height: 40px;
+  --scrollbar-thumb: #cdd1de;
+
+  --elev-xs: 0 1px 2px rgb(20 22 48 / 0.04);
+  --elev-sm: 0 1px 2px rgb(20 22 48 / 0.05), 0 1px 3px rgb(20 22 48 / 0.04);
+  --elev-md: 0 2px 4px rgb(20 22 48 / 0.04), 0 6px 16px -4px rgb(20 22 48 / 0.08);
+  --elev-lg: 0 2px 6px rgb(20 22 48 / 0.05), 0 12px 28px -8px rgb(20 22 48 / 0.12);
+  --elev-xl: 0 4px 10px rgb(20 22 48 / 0.06), 0 20px 44px -12px rgb(20 22 48 / 0.16);
+  --elev-2xl: 0 6px 14px rgb(20 22 48 / 0.07), 0 30px 60px -16px rgb(20 22 48 / 0.2);
+}
+
+/*
+ * Light again, inside something dark.
+ *
+ * Same declarations as `:root`, so a subtree marked `.light` reads exactly as
+ * the light theme does at the top of the document. Kept next to the dark block
+ * because the two have to be changed together.
+ */
+.light {
+  color-scheme: light;
   --canvas: #eceef6;
   --background: #ffffff;
   --foreground: #202138;

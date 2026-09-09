@@ -127,13 +127,36 @@ describe("a department's requests as a board", () => {
 
   it("leaves out the columns nothing would fill", () => {
     const bare = build([entry(task({ id: "a" }))]);
-    expect(bare.columns.map((c) => c.type)).toEqual(["STATUS", "PRIORITY", "PERSON", "DATE"]);
+    expect(bare.columns.map((c) => c.name)).toEqual(["Requested", "Status", "Priority", "Working on it", "Due"]);
 
     const rich = build([
-      entry(task({ id: "a", timeline: { start: "2026-09-01", end: "2026-09-30" }, deliverables: { total: 2, done: 1 } })),
+      entry(task({ id: "a", timeline: { start: "2026-09-01", end: "2026-09-30" }, deliverables: { total: 2, done: 1 } }), {
+        deliverables: [
+          { id: "d1", name: "Poster", assetType: "Print", quantity: 1, dueDate: null, done: false, assignees: [] },
+          { id: "d2", name: "Tile", assetType: "Social", quantity: 1, dueDate: null, done: true, assignees: [] },
+        ],
+      }),
     ]);
-    expect(rich.columns.map((c) => c.type)).toContain("TIMELINE");
-    expect(rich.columns.map((c) => c.type)).toContain("ASSETS_RECAP");
+    expect(rich.columns.map((c) => c.name)).toContain("Timeline");
+    expect(rich.columns.map((c) => c.name)).toContain("Deliverables");
+    const types = rich.columns.find((c) => c.name === "Asset types")!;
+    expect(types.type).toBe("TAGS");
+    if (types.settings.kind !== "tags") throw new Error("unreachable");
+    expect(types.settings.options.map((o) => o.name)).toEqual(["Print", "Social"]);
+    const value = rich.values.find((v) => v.columnId === types.id)!.value;
+    expect(value).toEqual({ type: "TAGS", tags: ["Print", "Social"] });
+  });
+
+  it("shows when the request arrived, as plain text and first", () => {
+    // First column, and never a DATE: a DATE cell marks any past date on
+    // unfinished work as overdue, and every request was made in the past.
+    const payload = build([entry(task({ id: "a", bookedAt: "2026-09-01T00:00:00.000Z" }))]);
+    expect(payload.columns[0]!.name).toBe("Requested");
+    expect(payload.columns[0]!.type).toBe("TEXT");
+    const value = payload.values.find((v) => v.columnId === payload.columns[0]!.id)!.value;
+    expect(value.type).toBe("TEXT");
+    if (value.type !== "TEXT") throw new Error("unreachable");
+    expect(value.text).toMatch(/Sep/);
   });
 
   it("carries the requester's brief as the description, and nothing else", () => {

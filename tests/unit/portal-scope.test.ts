@@ -176,15 +176,13 @@ describe("what a department's portal is allowed to see", () => {
     expect(JSON.stringify(detail)).not.toContain("Request details");
   });
 
-  it("tells an administrator how much a link would publish before it is opened", async () => {
+  it("lists every department with its link, and creates them all shut", async () => {
     await label(items[0]!, "Comm.");
     await label(items[1]!, "Comm.");
-    await label(items[2]!, "Event");
 
     const overview = await services.portals.overview(WS);
-    expect(overview.find((row) => row.department.id === comm.id)!.requestCount).toBe(2);
-    expect(overview.find((row) => row.department.id === event.id)!.requestCount).toBe(1);
-    // Counted while every portal is still shut, which is the point of the number.
+    expect(overview.map((row) => row.department.name)).toContain("Comm.");
+    // Shut is the state a department starts in; the screen exists to change it.
     expect(overview.every((row) => !row.portal?.enabled)).toBe(true);
   });
 });

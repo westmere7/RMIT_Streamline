@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Lock } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBooking } from "@/features/portal/portal-booking";
-import { PortalActionsBar } from "@/features/portal/portal-actions-bar";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
@@ -152,23 +151,23 @@ export function PortalPage({ token }: { token: string }) {
           viewerName={context?.viewerName ?? null}
           servedAt={page.data?.servedAt ?? null}
           stale={page.isFetching}
+          totals={booking ? null : (page.data?.totals ?? null)}
         />
 
-        {page.data && (
-          <PortalActionsBar
-            boardId={page.data.board.id}
-            totals={page.data.totals}
-            booking={booking}
-            onBook={() => setBooking(true)}
-            onBackToTasks={() => {
-              setBooking(false);
-              void page.refetch();
-            }}
-          />
-        )}
-
         {booking ? (
-          <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-5 sm:px-6">
+          <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-4 sm:px-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 mb-3 text-muted-foreground"
+              onClick={() => {
+                setBooking(false);
+                void page.refetch();
+              }}
+              data-testid="portal-our-tasks"
+            >
+              <ArrowLeft /> Our tasks
+            </Button>
             <PortalBooking
               credentials={credentials}
               departmentName={gate.data.departmentName}
@@ -187,7 +186,7 @@ export function PortalPage({ token }: { token: string }) {
           // The department's work, rendered by the board the workspace uses:
           // the same views, the same cells, the same item panel.
           <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
-            <PortalBoardScreen token={token} payload={page.data} />
+            <PortalBoardScreen token={token} payload={page.data} onBook={() => setBooking(true)} />
           </div>
         ) : (
           <div className="px-4 py-6 sm:px-6">

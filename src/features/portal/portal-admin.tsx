@@ -17,7 +17,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
-import { cn, pluralize } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { DepartmentOverview } from "@/services";
 
 /**
@@ -130,7 +130,7 @@ function TeamNameField() {
 }
 
 function DepartmentCard({ row }: { row: DepartmentOverview }) {
-  const { department, portal, requestCount } = row;
+  const { department, portal } = row;
   const { setEnabled, setTheme, regenerate, setPassword } = usePortalMutations();
   const [confirmRegenerate, setConfirmRegenerate] = React.useState(false);
   const [passwordOpen, setPasswordOpen] = React.useState(false);
@@ -156,7 +156,7 @@ function DepartmentCard({ row }: { row: DepartmentOverview }) {
             )}
           </div>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {pluralize(requestCount, "request", "requests")} from this department.
+            {open ? "Anyone with the link can see this department's work and book new tasks." : "Nobody can open this link."}
           </p>
         </div>
         {/* A span, not a label. A <label> wrapping a control re-dispatches the

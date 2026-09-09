@@ -39,12 +39,20 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
 export function BoardToolbar({
   view,
   onViewChange,
-  hideSearch = false,
+  searchAlways = false,
+  actions,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
-  /** Set when something above the board owns the search box. */
-  hideSearch?: boolean;
+  /**
+   * Show the search box on every view, not only the table.
+   *
+   * The table is where a member of staff searches; on a stakeholder portal it
+   * is the first thing anyone does, whichever view they are looking at.
+   */
+  searchAlways?: boolean;
+  /** Rendered at the end of the row. The portal puts "Book a task" here. */
+  actions?: React.ReactNode;
 }) {
   const { board, model, canEdit, mutations, showReference, setShowReference } = useBoardContext();
   const ui = useBoardUi(board.id);
@@ -63,7 +71,7 @@ export function BoardToolbar({
       <BoardViewSwitcher view={view} onChange={onViewChange} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}
-      {tableTools && !hideSearch && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
+      {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {tableTools && (
           <>
@@ -157,6 +165,7 @@ export function BoardToolbar({
         <span className="pl-1.5 text-2xs text-muted-foreground tabular">
           {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel} items` : `${model.totalTopLevel} items`}
         </span>
+        {actions && <span className="ml-1 flex shrink-0 items-center gap-2">{actions}</span>}
       </div>
     </div>
   );

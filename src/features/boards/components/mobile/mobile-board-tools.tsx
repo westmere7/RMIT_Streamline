@@ -35,12 +35,12 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
 export function MobileBoardTools({
   view,
   onViewChange,
-  hideSearch = false,
+  actions,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
-  /** Set when something above the board owns the search box. */
-  hideSearch?: boolean;
+  /** Rendered at the end of the row. The portal puts "Book a task" here. */
+  actions?: React.ReactNode;
 }) {
   const { board, model } = useBoardContext();
   const ui = useBoardUi(board.id);
@@ -63,7 +63,7 @@ export function MobileBoardTools({
       <div className="-mx-3 shrink-0 overflow-x-auto overscroll-x-contain px-3" role="toolbar" aria-label="Board tools">
         <div className="flex w-max items-center gap-1.5 pb-0.5">
           <Chip onClick={() => setOpen("views")} icon={CurrentIcon} label={current.label} testId="mobile-view-switcher" active />
-          {!hideSearch && <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />}
+          <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />
           <Chip onClick={() => setOpen("filter")} icon={Filter} label="Filter" count={filterCount} active={filterCount > 0} testId="mobile-filter-chip" />
           <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
             {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}

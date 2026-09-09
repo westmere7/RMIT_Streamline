@@ -18,7 +18,8 @@ import type {
   StakeholderDepartment,
   User,
 } from "@/domain";
-import { DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH } from "@/domain";
+import { ASSET_TYPE_OPTIONS, DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH } from "@/domain";
+import { formatShortDate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 
 /**
@@ -55,6 +56,17 @@ import { slugify } from "@/lib/slug";
  *  · Only links between two in-scope requests travel. A link reaching work this
  *    department cannot see would name it.
  */
+
+/**
+ * The colour the workspace already gives an asset type.
+ *
+ * The booking form offers a fixed palette (Print, Digital, Video…) and a
+ * stakeholder has seen those colours on the way in; anything typed in by hand
+ * falls back to grey rather than inventing a colour for it.
+ */
+function assetTypeColor(name: string): ColorToken {
+  return ASSET_TYPE_OPTIONS.find((option) => option.name.toLowerCase() === name.toLowerCase())?.color ?? "gray";
+}
 
 /** Nobody. Used where a row needs an author and the portal will not name one. */
 const NOBODY = "00000000-0000-0000-0000-000000000000";
@@ -125,11 +137,19 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // ---- columns ----------------------------------------------------------------
   const hasTimeline = tasks.some(({ task }) => task.timeline?.start || task.timeline?.end);
   const hasDeliverables = tasks.some(({ task }) => task.deliverables.total > 0);
+  const assetTypes = [...new Set(tasks.flatMap(({ deliverables }) => deliverables.map((d) => d.assetType).filter((t): t is string => !!t)))].sort((a, b) =>
+    a.localeCompare(b),
+  );
   const columns: BoardColumn[] = [];
   const column = (key: string, name: string, type: BoardColumn["type"], settings: BoardColumn["settings"], width: number) => {
     columns.push({ id: portalColumnId(boardId, key), boardId, name, type, settings, position: columns.length, width, hidden: false, createdAt: now });
   };
 
+  // When the request arrived, first, and as text rather than a date. A DATE cell
+  // reads any past date on unfinished work as a missed deadline and marks it in
+  // red — and every request was made in the past. This is the one place the
+  // booking time is shown, so it is shown plainly.
+  column("requested", "Requested", "TEXT", { kind: "none" }, 120);
   column(
     "status",
     "Status",
@@ -153,6 +173,9 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   column("due", "Due", "DATE", { kind: "none" }, 130);
   if (hasTimeline) column("timeline", "Timeline", "TIMELINE", { kind: "none" }, 190);
   if (hasDeliverables) column("assets", "Deliverables", "ASSETS_RECAP", { kind: "none" }, 150);
+  if (assetTypes.length > 0) {
+    column("asset-types", "Asset types", "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
+  }
   // No "requested" date column. A DATE cell reads a past date as a missed
   // deadline and marks it in red, and every request was made in the past.
   // When it arrived is on the card and in the sort, not flagged as a problem.
@@ -202,6 +225,11 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     value(task.id, "priority", { type: "PRIORITY", labelId: priorityLabelId(task.priority) }, task.updatedAt);
     value(task.id, "people", { type: "PERSON", userIds: task.people.map((person) => person.id) }, task.updatedAt);
     value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
+    value(task.id, "requested", { type: "TEXT", text: task.bookedAt ? formatShortDate(task.bookedAt.slice(0, 10)) : "" }, task.updatedAt);
+    if (assetTypes.length > 0) {
+      const kinds = [...new Set(deliverables.map((d) => d.assetType).filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
+      value(task.id, "asset-types", { type: "TAGS", tags: kinds }, task.updatedAt);
+    }
     if (hasTimeline) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
     if (hasDeliverables) {
       const outstanding = deliverables.filter((d) => !d.done);

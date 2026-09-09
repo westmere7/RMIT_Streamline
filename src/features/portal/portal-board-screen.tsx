@@ -1,8 +1,10 @@
 "use client";
 
+import { ClipboardPen } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
+import { Button } from "@/components/ui/button";
 import { BOARD_VIEWS, type BoardViewKind, type PortalBoardPayload } from "@/domain";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
@@ -41,10 +43,10 @@ import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
  * Read-only is not a matter of hiding buttons: the repositories underneath
  * refuse to write, and `canEdit` is false, so there is nothing to press.
  */
-export function PortalBoardScreen({ token, payload }: { token: string; payload: PortalBoardPayload }) {
+export function PortalBoardScreen({ token, payload, onBook }: { token: string; payload: PortalBoardPayload; onBook: () => void }) {
   return (
     <ShareGuestProviders payload={payload} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={payload} />
+      <PortalBoard payload={payload} onBook={onBook} />
     </ShareGuestProviders>
   );
 }
@@ -53,7 +55,7 @@ function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
 }
 
-function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
+function PortalBoard({ payload, onBook }: { payload: PortalBoardPayload; onBook: () => void }) {
   const board = payload.board;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,7 +136,7 @@ function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
       {isMobile ? (
         <>
           <div className="shrink-0 border-b border-border/70 px-3 py-2">
-            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} hideSearch />
+            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} actions={<BookButton onBook={onBook} />} />
           </div>
           {view === "table" ? (
             <MobileTableView mode={tableMode} onModeChange={setTableMode} />
@@ -149,7 +151,7 @@ function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
         </>
       ) : (
         <>
-          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} hideSearch />
+          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} searchAlways actions={<BookButton onBook={onBook} />} />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}
@@ -161,6 +163,20 @@ function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
         </>
       )}
     </BoardContextProvider>
+  );
+}
+
+/**
+ * What a stakeholder came here to do, in the row they are already looking at.
+ *
+ * Beside the search rather than in a bar of its own: the two things a visitor
+ * uses are then in one place, and the board keeps the whole window below them.
+ */
+function BookButton({ onBook }: { onBook: () => void }) {
+  return (
+    <Button onClick={onBook} size="sm" data-testid="portal-book-button">
+      <ClipboardPen /> Book a task
+    </Button>
   );
 }
 

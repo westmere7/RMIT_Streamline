@@ -82,7 +82,7 @@ test.describe("the stakeholder portal", () => {
 
     // And the request is on the board straight away, which is what "submitted"
     // means. The board is the workspace's own, so the row is an ordinary one.
-    await page.getByTestId("portal-back-to-tasks").click();
+    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
     await expect(page.getByTestId("portal-board")).toBeVisible();
     await expect(page.getByRole("button", { name: "Open Day wayfinding posters", exact: true })).toBeVisible();
     await expect(page.getByTestId("portal-totals")).toContainText("1");
@@ -189,7 +189,7 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page, "Comm.");
     await page.goto(portalPath);
     await bookThroughPortal(page, "Something to look at", "One request, seven ways of looking at it.");
-    await page.getByTestId("portal-back-to-tasks").click();
+    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
 
     // The search sits above the board rather than inside the toolbar, so it is
     // there on every view — which is the point of moving it.

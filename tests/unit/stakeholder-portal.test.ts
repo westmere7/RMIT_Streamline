@@ -47,7 +47,6 @@ describe("the stakeholder portal", () => {
     const overview = await services.portals.overview(WS);
     // A department exists; a link does not, and nothing is published.
     expect(overview.every((row) => row.portal === null || row.portal.enabled === false)).toBe(true);
-    expect(overview.every((row) => row.requestCount === 0)).toBe(true);
   });
 
   it("keeps a portal and its requests through a rename, and the link still opens", async () => {
