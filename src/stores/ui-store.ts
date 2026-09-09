@@ -33,6 +33,12 @@ interface UiState {
   expandedTeamIds: string[];
   /** Whether the Favourites section is expanded. */
   favouritesExpanded: boolean;
+  /** Show the board/tracker tally beside each team in the sidebar. */
+  showTeamCounts: boolean;
+  setShowTeamCounts: (show: boolean) => void;
+  /** Whether the asset recap above an item's tabs is open past its one-line form. */
+  assetRecapExpanded: boolean;
+  toggleAssetRecap: () => void;
   commandPaletteOpen: boolean;
   /** Chosen search scope, or null to follow whatever the user is looking at. */
   searchScope: "view" | "workspace" | null;
@@ -68,6 +74,10 @@ export const useUiStore = create<UiState>()(
       setSidebarWidth: (width) => set({ sidebarWidth: Math.round(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))) }),
       expandedTeamIds: [],
       favouritesExpanded: true,
+      showTeamCounts: false,
+      setShowTeamCounts: (showTeamCounts) => set({ showTeamCounts }),
+      assetRecapExpanded: false,
+      toggleAssetRecap: () => set((s) => ({ assetRecapExpanded: !s.assetRecapExpanded })),
       commandPaletteOpen: false,
       searchScope: null,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -113,6 +123,8 @@ export const useUiStore = create<UiState>()(
         trackerView: s.trackerView,
         expandedTeamIds: s.expandedTeamIds,
         favouritesExpanded: s.favouritesExpanded,
+        showTeamCounts: s.showTeamCounts,
+        assetRecapExpanded: s.assetRecapExpanded,
       }),
     },
   ),

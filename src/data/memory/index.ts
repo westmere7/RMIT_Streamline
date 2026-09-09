@@ -148,6 +148,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       delete: readOnly("deleting an update"),
     },
     itemAssets: {
+      getById: async (id) => payload().assets.find((a) => a.id === id) ?? null,
       listByItem: async (itemId) => payload().assets.filter((a) => a.itemId === itemId).sort((a, b) => a.position - b.position),
       listByBoard: async (boardId) => (onBoard(boardId) ? payload().assets : []),
       create: readOnly("adding an asset"),

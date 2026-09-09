@@ -16,6 +16,12 @@ function normalize(asset: ItemAsset): ItemAsset {
 export class LocalItemAssetRepository implements ItemAssetRepository {
   constructor(private readonly conn: LocalConnection) {}
 
+  async getById(id: string): Promise<ItemAsset | null> {
+    const db = await this.conn.getDb();
+    const asset = await db.get("itemAssets", id);
+    return asset ? normalize(asset) : null;
+  }
+
   async listByItem(itemId: string): Promise<ItemAsset[]> {
     const db = await this.conn.getDb();
     return (await db.getAllFromIndex("itemAssets", "byItem", itemId)).map(normalize).sort(byPosition);

@@ -207,6 +207,8 @@ export interface TrackerRepository {
 }
 
 export interface ItemAssetRepository {
+  /** One line, or null — read before an edit so the activity feed can say what changed. */
+  getById(id: EntityId): Promise<ItemAsset | null>;
   /** An item's asset lines in position order. */
   listByItem(itemId: EntityId): Promise<ItemAsset[]>;
   /** Every line on a board, for the recap cells. */

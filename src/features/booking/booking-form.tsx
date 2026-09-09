@@ -11,7 +11,7 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingRequestSchema, validateBookingAgainstTemplate } from "@/services/booking";
-import { AnswerField, AssetList, blankAsset, emptyDraft, routingNote, Section, specForExtraField, StandardField, type AssetRow, type BookingDraft } from "./booking-fields";
+import { AnswerField, AssetList, emptyDraft, routingNote, Section, specForExtraField, StandardField, type AssetRow, type BookingDraft } from "./booking-fields";
 
 export interface BookingFormProps {
   form: BookingFormData;
@@ -40,7 +40,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
   // The booking's reference, settled before it is sent: the id the item will be
   // created with is made here, so the code on the form is the code on the receipt.
   const [itemId, setItemId] = React.useState(() => newId());
-  const [assets, setAssets] = React.useState<AssetRow[]>([blankAsset()]);
+  const [assets, setAssets] = React.useState<AssetRow[]>([]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [receipt, setReceipt] = React.useState<BookingReceipt | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -60,7 +60,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
     title: draft.title,
     brief: draft.brief,
     assetTypes: asks("assetTypes") ? draft.assetTypes : [],
-    assets: assetsOn ? assets.filter((a) => a.name.trim()).map<BookingAssetLine>((a) => ({ name: a.name.trim(), quantity: a.quantity.trim() ? Number(a.quantity) : null, spec: a.spec.trim() || null })) : [],
+    assets: assetsOn ? assets.filter((a) => a.name.trim()).map<BookingAssetLine>((a) => ({ name: a.name.trim(), quantity: a.quantity, spec: a.notes?.trim() || null })) : [],
     teamId: asks("team") ? draft.teamId : null,
     dueDate: asks("dueDate") ? draft.dueDate || null : null,
     priority: asks("priority") ? draft.priority : null,
@@ -111,7 +111,7 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
     setReceipt(null);
     setItemId(newId());
     setErrors({});
-    setAssets([blankAsset()]);
+    setAssets([]);
     setTab("request");
     setDraft((prev) => ({ ...emptyDraft(defaults), requesterName: prev.requesterName, requesterEmail: prev.requesterEmail, department: prev.department }));
   };

@@ -46,6 +46,12 @@ function toItemAsset(row: ItemAssetRow): ItemAsset {
  * board only. board_id is set by a trigger from the item, whatever is sent.
  */
 export class SupabaseItemAssetRepository implements ItemAssetRepository {
+  async getById(id: string): Promise<ItemAsset | null> {
+    const result = await db().from("item_assets").select(ASSET).eq("id", id).maybeSingle();
+    const row = unwrap<ItemAssetRow | null>(result, "item_assets.getById");
+    return row ? toItemAsset(row) : null;
+  }
+
   async listByItem(itemId: string): Promise<ItemAsset[]> {
     const result = await db().from("item_assets").select(ASSET).eq("item_id", itemId).order("position", { ascending: true }).order("created_at", { ascending: true });
     return unwrapList<ItemAssetRow>(result, "item_assets.listByItem").map(toItemAsset);

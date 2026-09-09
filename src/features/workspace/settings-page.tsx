@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import type { Team } from "@/domain";
 import { isDataExport, type DataExport } from "@/data/repositories";
 import { useDataContext, useServices } from "@/features/data/data-context";
@@ -24,10 +25,11 @@ import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "teams", "permissions", "data"] as const;
+const SECTIONS = ["general", "teams", "permissions", "view", "data"] as const;
 type Section = (typeof SECTIONS)[number];
-const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", data: "Data" };
+const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", view: "View", data: "Data" };
 
 export function SettingsPage() {
   const ws = useWorkspace();
@@ -77,6 +79,7 @@ export function SettingsPage() {
             {section === "general" && <GeneralSection />}
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
+            {section === "view" && <ViewSection />}
             {section === "data" && <DataSection />}
           </div>
         </div>
@@ -236,6 +239,26 @@ function PermissionsSection() {
       <p className="mt-3 text-2xs text-muted-foreground">
         Rules live in <code>src/lib/permissions/permissions.ts</code> and mirror the planned Supabase row-level security policies.
       </p>
+    </>
+  );
+}
+
+/** Personal display preferences: kept in this browser, seen by nobody else. */
+function ViewSection() {
+  const showTeamCounts = useUiStore((s) => s.showTeamCounts);
+  const setShowTeamCounts = useUiStore((s) => s.setShowTeamCounts);
+
+  return (
+    <>
+      <SectionTitle title="View" description="How the app looks for you. These settings stay on this device." />
+      <div className="rounded-md border p-4">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="show-team-counts" className="text-[13px] font-medium">
+            Item counts beside teams
+          </Label>
+          <Switch id="show-team-counts" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
+        </div>
+      </div>
     </>
   );
 }

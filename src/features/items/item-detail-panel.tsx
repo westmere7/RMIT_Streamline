@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, Plus, X } from "lucide-react";
+import { Boxes, CornerDownRight, History, MessageSquare, Plus, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { BoardColumn, Item } from "@/domain";
+import type { BoardColumn, Item, ItemAsset } from "@/domain";
 import { ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
@@ -21,6 +21,7 @@ import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
+import { AssetsRecapStrip } from "@/features/items/item-assets-recap";
 import { ItemAssetsTab } from "@/features/items/item-assets-tab";
 import { useMarkItemSeen } from "@/features/comments/updates";
 import { ItemCover } from "@/features/items/item-cover";
@@ -97,19 +98,23 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
         </div>
       ) : (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} />
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
             <UnderlineTabsList className="px-4">
-              <UnderlineTabsTrigger value="overview">Overview</UnderlineTabsTrigger>
+              <UnderlineTabsTrigger value="overview">
+                <SquarePen className="size-3.5" /> Overview
+              </UnderlineTabsTrigger>
               <UnderlineTabsTrigger value="updates">
-                Updates
+                <MessageSquare className="size-3.5" /> Updates
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
               <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
-                Assets
+                <Boxes className="size-3.5" /> Assets
                 {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="activity">Activity</UnderlineTabsTrigger>
+              <UnderlineTabsTrigger value="activity">
+                <History className="size-3.5" /> Activity
+              </UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
               <Overview key={item.id} item={item} />
@@ -130,7 +135,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
   );
 }
 
-function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => void; canEdit: boolean }) {
+function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: () => void; canEdit: boolean; assets: readonly ItemAsset[] }) {
   const { model, mutations, openItem, board } = useBoardContext();
   const ws = useWorkspace();
   const [renaming, setRenaming] = React.useState(false);
@@ -138,7 +143,8 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
   return (
-    <div className="border-b">
+    // Its own surface under the tabs: what the task is, set apart from the work on it.
+    <div className="border-b border-border bg-card">
       <ItemCover item={item} canEdit={canEdit} />
       <div className="px-5 pt-4 pb-4">
       <div className="flex items-start gap-3">
@@ -186,6 +192,7 @@ function PanelHeader({ item, onClose, canEdit }: { item: Item; onClose: () => vo
           Created by {creator?.firstName ?? "someone"} <RelativeTime iso={item.createdAt} />
         </p>
       </div>
+      <AssetsRecapStrip assets={assets} />
       </div>
     </div>
   );

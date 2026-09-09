@@ -1,15 +1,14 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
 import type { BookingExtraField, BookingFieldType, BookingForm as BookingFormData, BookingRequest, BookingStandardField, BookingTeamOption, ColumnValue, TagOption } from "@/domain";
 import { T_SHIRT_SIZES, emptyValueFor } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
@@ -314,25 +313,32 @@ export function AnswerField({ spec, value: given, onChange, error, disabled, idP
 
 // ---- the asset list ------------------------------------------------------------------
 
-export interface AssetRow {
-  key: number;
-  name: string;
-  quantity: string;
-  spec: string;
-}
+/** A deliverable on a booking, held in the same shape the asset composer edits. */
+export type AssetRow = AssetComposerRow;
 
 let assetKey = 0;
-export const blankAsset = (): AssetRow => ({ key: ++assetKey, name: "", quantity: "", spec: "" });
+
+/** A new row for the composer to open: quantity one, everything else to be filled in. */
+export function newAssetRow(name: string): AssetRow {
+  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, completedAt: null };
+}
+
+/** One filled-in row, so the form editor's preview shows what the tab will look like. */
+const PREVIEW_ROWS: AssetRow[] = [{ ...newAssetRow("A1 poster"), quantity: 6, notes: "594×841 mm, CMYK, print ready" }];
 
 /**
- * What exactly is being asked for: one line per deliverable with a quantity and
- * the spec it has to meet. Each line becomes a subitem of the request, so the
- * team can track them one by one. Its own tab, because a list can be long and
- * nobody has to fill it in: a spreadsheet or the asset tracker does as well.
+ * What exactly is being asked for: one row per deliverable with a quantity and
+ * the spec it has to meet. Each becomes a subitem of the request, so the team
+ * can track them one by one. Its own tab, because a list can be long and nobody
+ * has to fill it in: a spreadsheet or the asset tracker does as well.
+ *
+ * The rows are the same asset composer the item panel uses, minus the fields a
+ * stakeholder cannot answer — there is nobody to put in charge and nothing to
+ * tick off until the work exists.
  */
 export function AssetList({ rows, onChange, title, hint, error, preview }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void; title: string; hint: string; error?: string; preview?: boolean }) {
-  const update = (key: number, patch: Partial<AssetRow>) => onChange(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const remove = (key: number) => onChange(rows.length === 1 ? [blankAsset()] : rows.filter((r) => r.key !== key));
+  const shown = preview ? PREVIEW_ROWS : rows;
+  const patch = (id: string, p: AssetComposerPatch) => onChange(rows.map((r) => (r.id === id ? { ...r, ...p } : r)));
   const tid = (base: string) => (preview ? undefined : base);
   return (
     <div className="grid gap-3" data-testid={tid("booking-assets")}>
@@ -340,34 +346,21 @@ export function AssetList({ rows, onChange, title, hint, error, preview }: { row
         <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
         {hint && <p className="text-[13px] text-muted-foreground">{hint}</p>}
       </div>
-      <ul className="grid gap-2">
-        {rows.map((row, index) => (
-          <li key={row.key} className="grid grid-cols-[minmax(0,1fr)_72px_auto] gap-1.5 sm:grid-cols-[minmax(0,5fr)_72px_minmax(0,6fr)_auto]" data-testid={tid("booking-asset-row")}>
-            <Input aria-label={`Asset ${index + 1}`} placeholder="e.g. A1 poster" value={row.name} onChange={(e) => update(row.key, { name: e.target.value })} disabled={preview} data-testid={tid(`booking-asset-name-${index}`)} />
-            <Input aria-label={`Quantity of asset ${index + 1}`} type="number" inputMode="numeric" min={1} max={9999} placeholder="Qty" value={row.quantity} onChange={(e) => update(row.key, { quantity: e.target.value })} disabled={preview} data-testid={tid(`booking-asset-qty-${index}`)} />
-            <Input
-              aria-label={`Spec for asset ${index + 1}`}
-              placeholder="Spec: 594×841 mm, CMYK, print ready"
-              value={row.spec}
-              onChange={(e) => update(row.key, { spec: e.target.value })}
-              className="col-span-2 sm:col-span-1"
-              disabled={preview}
-              data-testid={tid(`booking-asset-spec-${index}`)}
-            />
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove asset ${index + 1}`} onClick={() => remove(row.key)} disabled={preview} className="col-start-3 row-start-1 text-muted-foreground sm:col-start-4">
-              <X />
-            </Button>
-          </li>
-        ))}
-      </ul>
+      <AssetComposer
+        rows={shown}
+        fields={{ done: false, people: false, type: false, due: false }}
+        disabled={preview}
+        emptyText="Nothing listed yet. Add what you need above — a name is enough, and you can open it for the quantity and the spec."
+        onAdd={(name) => onChange([...rows, newAssetRow(name)])}
+        onPatch={patch}
+        onDuplicate={(row) => onChange([...rows, { ...row, id: newAssetRow(row.name).id }])}
+        onRemove={(id) => onChange(rows.filter((r) => r.id !== id))}
+      />
       {error && (
         <p className="text-2xs text-destructive" role="alert">
           {error}
         </p>
       )}
-      <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => onChange([...rows, blankAsset()])} disabled={preview} data-testid={tid("booking-asset-add")}>
-        <Plus /> Add another asset
-      </Button>
     </div>
   );
 }

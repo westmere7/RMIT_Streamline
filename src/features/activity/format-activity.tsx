@@ -128,6 +128,47 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
         </>
       );
     }
+    case "ASSET_ADDED":
+      return (
+        <>
+          <Strong>{actor}</Strong> added {m.assetName ? <Strong>{m.assetName}</Strong> : <Strong>{`${m.count ?? 0} assets`}</Strong>} to the asset list
+          {item}
+        </>
+      );
+    case "ASSET_UPDATED":
+      return (
+        <>
+          <Strong>{actor}</Strong> set {m.assetField} on <Strong>{m.assetName}</Strong>
+          {m.from ? (
+            <>
+              {" "}from <Strong>{m.from}</Strong>
+            </>
+          ) : null}{" "}
+          to <Strong>{m.to ?? "empty"}</Strong>
+          {item}
+        </>
+      );
+    case "ASSET_REMOVED":
+      return (
+        <>
+          <Strong>{actor}</Strong> removed <Strong>{m.assetName}</Strong> from the asset list
+          {item}
+        </>
+      );
+    case "ASSET_COMPLETED":
+      return (
+        <>
+          <Strong>{actor}</Strong> ticked off <Strong>{m.assetName}</Strong>
+          {item}
+        </>
+      );
+    case "ASSET_REOPENED":
+      return (
+        <>
+          <Strong>{actor}</Strong> reopened <Strong>{m.assetName}</Strong>
+          {item}
+        </>
+      );
     case "COMMENT_ADDED":
       return (
         <>
@@ -204,6 +245,16 @@ export function describeActivityText(activity: Activity, users: readonly User[])
       return `${actor} linked ${m.itemName} with ${m.linkedItemName}`;
     case "ITEM_UNLINKED":
       return `${actor} unlinked ${m.itemName} from ${m.linkedItemName}`;
+    case "ASSET_ADDED":
+      return m.assetName ? `${actor} added ${m.assetName} to the asset list` : `${actor} added ${m.count ?? 0} assets`;
+    case "ASSET_UPDATED":
+      return `${actor} set ${m.assetField} on ${m.assetName} to ${m.to ?? "empty"}`;
+    case "ASSET_REMOVED":
+      return `${actor} removed ${m.assetName} from the asset list`;
+    case "ASSET_COMPLETED":
+      return `${actor} ticked off ${m.assetName}`;
+    case "ASSET_REOPENED":
+      return `${actor} reopened ${m.assetName}`;
     case "COMMENT_ADDED":
       return `${actor} posted an update`;
     default:

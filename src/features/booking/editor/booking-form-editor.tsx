@@ -14,7 +14,7 @@ import { BOOKING_FIELD_TYPE_LABELS, BOOKING_STANDARD_KEY_LABELS, defaultBookingF
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema } from "@/services/booking";
-import { AnswerField, AssetList, blankAsset, emptyDraft, StandardField } from "../booking-fields";
+import { AnswerField, AssetList, emptyDraft, StandardField } from "../booking-fields";
 import { AddFieldDialog } from "./add-field-dialog";
 import { optionsToText, parseOptions } from "./options";
 import { TemplatesMenu } from "./templates-menu";
@@ -172,7 +172,7 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
           <TextBox value={draft.assets.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Assets tab title" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
           <TextBox value={draft.assets.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Assets tab hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline />
           <div className="pointer-events-none opacity-70">
-            <AssetList rows={[blankAsset()]} onChange={() => {}} title="" hint="" preview />
+            <AssetList rows={[]} onChange={() => {}} title="" hint="" preview />
           </div>
         </section>
       )}

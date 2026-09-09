@@ -732,6 +732,7 @@ function TeamNode({
   const sidebar = useSidebarActions();
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
+  const showCounts = useUiStore((s) => s.showTeamCounts);
   const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug) || trackers.some((t) => t.id === activeTrackerId);
   const expanded = expandedIds.includes(team.id);
   const setTeamExpanded = useUiStore((s) => s.setTeamExpanded);
@@ -802,7 +803,7 @@ function TeamNode({
           <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
           <span className="truncate">{team.name}</span>
         </Link>
-        <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length + trackers.length}</span>
+        {showCounts && <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length + trackers.length}</span>}
       </div>
       </RowMenu>
       {expanded && (

@@ -86,6 +86,8 @@ export function useAssetMutations(item: Item) {
 
   const settle = async () => {
     await queryClient.invalidateQueries({ queryKey: ["item-assets"] });
+    // Every asset change is written to the feed, so the tab and the board's activity follow it.
+    void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(item.boardId) });
     publishDataChange({ itemIds: [item.id], boardIds: [item.boardId], kinds: ["assets", "board"] });
   };
@@ -124,7 +126,7 @@ export function useAssetMutations(item: Item) {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: ItemAssetPatch }) => services.assets.update(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: ItemAssetPatch }) => services.assets.update(id, patch, user.id),
     onMutate: async ({ id, patch }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ItemAsset[]>(key);
@@ -136,7 +138,7 @@ export function useAssetMutations(item: Item) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => services.assets.remove(id, item.id, item.boardId),
+    mutationFn: (id: string) => services.assets.remove(id, item.id, item.boardId, user.id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ItemAsset[]>(key);

@@ -3,8 +3,9 @@ import { BOARD_URL, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 /**
  * The Assets tab on an item and the "Assets recap" column that summarises it:
- * lines are added and edited from compact chips, the totals move as you type,
- * and the cell on the board follows without a reload.
+ * deliverables are added and edited from compact chips, the recap above the tabs
+ * follows once an edit is saved, and the cell on the board follows without a
+ * reload.
  */
 test.describe("asset lines and the recap column", () => {
   test.beforeEach(async ({ page }) => {
@@ -22,12 +23,12 @@ test.describe("asset lines and the recap column", () => {
     return page.getByTestId("item-panel");
   }
 
-  /** A line's card; the name is an input, so it is found by attribute rather than by text. */
+  /** A deliverable's card; the name is an input, so it is found by attribute rather than by text. */
   function line(page: Page, name: string) {
     return panel(page).locator(`[data-testid="asset-line"][data-asset-name="${name}"]`);
   }
 
-  /** Lines are a single row until opened; the pickers live inside the open one. */
+  /** They are a single row until opened; the pickers live inside the open one. */
   async function openLine(page: Page, name: string) {
     const card = line(page, name);
     if ((await card.getByTestId("asset-toggle").getAttribute("aria-expanded")) !== "true") await card.getByTestId("asset-toggle").click();
@@ -43,7 +44,7 @@ test.describe("asset lines and the recap column", () => {
     await expect(page.getByTestId("viewing-as-banner")).toContainText(displayName, { timeout: 20_000 });
   }
 
-  test("lines are added from the panel, totals follow live, and the board cell summarises them", async ({ page }) => {
+  test("deliverables are added from the panel, saved edits move the totals, and the board cell summarises them", async ({ page }) => {
     await openBoard(page, BOARD_URL);
     await addRecapColumn(page);
 
@@ -56,24 +57,29 @@ test.describe("asset lines and the recap column", () => {
     await expect(panel(page)).toBeVisible();
     await expect(panel(page).getByTestId("assets-tab")).toBeVisible({ timeout: 20_000 });
     await expect(panel(page).getByTestId("assets-empty")).toBeVisible();
+    // The recap above the tabs starts as one line; the rest of it is behind the toggle.
+    await expect(panel(page).getByTestId("assets-summary")).toHaveCount(0);
 
     // Two lines: the totals move as each one lands.
     await panel(page).getByTestId("asset-add-input").fill("A1 poster");
     await panel(page).getByTestId("asset-add-submit").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 line done");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 item done");
+    await expect(panel(page).getByTestId("assets-quantity")).toHaveCount(0);
+    await panel(page).getByTestId("assets-recap-toggle").click();
+    await expect(panel(page).getByTestId("assets-quantity")).toBeVisible();
     await panel(page).getByTestId("asset-add-input").fill("Instagram tile");
     await panel(page).getByTestId("asset-add-input").press("Enter");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 2 lines done");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 2 items done");
 
-    // Quantity from the stepper, type from the palette, a person in charge and a due date — on the poster.
+    // Quantity from the stepper, type from the palette, a person in charge and a
+    // due date — held as a draft on the open line until Update saves the lot.
     const poster = line(page, "A1 poster");
     await openLine(page, "A1 poster");
     await poster.getByTestId("asset-quantity-plus").click();
     await poster.getByTestId("asset-quantity-plus").click();
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets");
 
     await poster.getByTestId("asset-type").click();
     await page.getByTestId("asset-type-option-Print").click();
@@ -81,20 +87,35 @@ test.describe("asset lines and the recap column", () => {
     await expect(poster.getByTestId("asset-type")).toHaveAttribute("aria-label", "Asset type: Print", { timeout: 20_000 });
     // Escape closed the picker, not the panel.
     await expect(panel(page)).toBeVisible();
-    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Print");
 
     await poster.getByTestId("asset-assignee").click();
     await page.getByPlaceholder("Search people…").fill("Tuyet");
     await page.getByText("Tuyet Le").first().click();
     await page.keyboard.press("Escape");
     await expect(poster.getByTestId("asset-assignee")).toHaveAttribute("aria-label", /Tuyet Le/, { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-people")).toHaveAttribute("aria-label", /Tuyet Le/);
 
     await poster.getByTestId("asset-due").click();
     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Today", exact: true }).click();
     await page.keyboard.press("Escape");
     await expect(poster.getByTestId("asset-due")).not.toHaveAttribute("aria-label", /not set/, { timeout: 20_000 });
+
+    // None of it has landed yet — the recap above the tabs still reads the two
+    // lines as they were — and then Update puts all four changes through at once.
+    await expect(panel(page).getByTestId("assets-quantity")).toContainText("2 assets");
+    await poster.getByTestId("asset-update").click();
+    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets", { timeout: 20_000 });
+    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Print");
+    await expect(panel(page).getByTestId("assets-people")).toHaveAttribute("aria-label", /Tuyet Le/);
     await expect(panel(page).getByTestId("assets-due")).toContainText(/Next due/);
+
+    // Discard throws an edit away and leaves the line as it was.
+    await openLine(page, "A1 poster");
+    await poster.getByTestId("asset-quantity-plus").click();
+    await poster.getByTestId("asset-discard").click();
+    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets");
+    await openLine(page, "A1 poster");
+    await expect(poster.getByTestId("asset-quantity")).toHaveValue("3");
+    await poster.getByTestId("asset-toggle").click();
 
     // The board cell follows: 3 posters + 1 tile, one type, one person.
     await expect(cell).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
@@ -111,7 +132,7 @@ test.describe("asset lines and the recap column", () => {
     await openLine(page, "A1 poster");
     await line(page, "A1 poster").getByTestId("asset-done").click();
     await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "true", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-progress")).toContainText("1 of 2 lines done");
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("1 of 2 items done");
     await line(page, "A1 poster").getByTestId("asset-toggle").click();
     await expect(line(page, "A1 poster").getByTestId("asset-summary")).toContainText("Print");
     await line(page, "A1 poster").getByTestId("asset-done").click();
@@ -122,9 +143,14 @@ test.describe("asset lines and the recap column", () => {
     await line(page, "Instagram tile").getByTestId("asset-remove").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
     await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /3 assets · 1 PIC/, { timeout: 20_000 });
+
+    // Duplicating carries the details onto a second line: another three posters.
+    await line(page, "A1 poster").getByTestId("asset-duplicate").click();
+    await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /6 assets · 1 PIC/, { timeout: 20_000 });
   });
 
-  test("a viewer sees the lines but cannot change them", async ({ page }) => {
+  test("a viewer sees the deliverables but cannot change them", async ({ page }) => {
     // Jun is a viewer on DOOH Production.
     const url = "/workspace/rmit/boards/dooh-production";
     await openBoard(page, url);

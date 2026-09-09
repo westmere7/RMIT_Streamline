@@ -93,11 +93,11 @@ describe("asset lines on an item", () => {
     let stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
     expect(stored).toMatchObject({ type: "ASSETS_RECAP", lines: 2, quantity: 7, types: 2, people: 1 });
 
-    await services.assets.update(poster.id, { quantity: 10, assigneeIds: [SEED_USER_IDS.tuyet] });
+    await services.assets.update(poster.id, { quantity: 10, assigneeIds: [SEED_USER_IDS.tuyet] }, SEED_USER_IDS.danh);
     stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
     expect(stored).toMatchObject({ quantity: 11, people: 1 });
 
-    await services.assets.remove(tile.id, item.id, boardId);
+    await services.assets.remove(tile.id, item.id, boardId, SEED_USER_IDS.danh);
     lines = await services.assets.list(item.id);
     expect(lines).toHaveLength(1);
     stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
@@ -108,7 +108,7 @@ describe("asset lines on an item", () => {
 
     // Nonsense is refused.
     await expect(services.assets.add({ itemId: item.id, boardId, name: "   " }, SEED_USER_IDS.danh)).rejects.toThrow(/what the asset is/);
-    await expect(services.assets.update(poster.id, { quantity: -1 })).rejects.toThrow(/zero or more/);
+    await expect(services.assets.update(poster.id, { quantity: -1 }, SEED_USER_IDS.danh)).rejects.toThrow(/zero or more/);
   });
 
   it("fills a recap column added later from the lines that already exist, and go when the item goes", async () => {

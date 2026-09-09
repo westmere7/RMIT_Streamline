@@ -25,9 +25,9 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" className="p-0" data-testid="about-dialog">
+      <DialogContent size="lg" className="overflow-hidden p-0" data-testid="about-dialog">
         {/* The brand, on the navy the sign-in screen uses. */}
-        <div className="relative overflow-hidden rounded-t-xl bg-navy px-6 pt-7 pb-6 text-white">
+        <div className="relative overflow-hidden rounded-t-2xl bg-navy px-6 pt-7 pb-6 text-white">
           <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-64 rounded-full bg-primary/30 blur-3xl" />
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:36px_36px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
           <DialogTitle asChild>
@@ -58,7 +58,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </div>
 
         {/* The small print: which build this is and where it runs. */}
-        <footer className="rounded-b-xl border-t border-border/70 bg-surface/60 px-6 py-3.5" data-testid="about-facts">
+        <footer className="rounded-b-2xl border-t border-border/70 bg-surface/60 px-6 py-3.5" data-testid="about-facts">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
             <Fact label="Workspace" value={ws.workspace.name} />
             <Fact label="Data" value={providerKind === "supabase" ? "Supabase · shared" : "This browser only"} />

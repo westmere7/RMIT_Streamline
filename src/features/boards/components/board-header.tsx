@@ -27,6 +27,7 @@ import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { ShareBoardDialog, useBoardShareStatus } from "@/features/boards/components/dialogs/share-board-dialog";
+import { copyToClipboard } from "@/features/members/hooks";
 import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { isBoardMuted } from "@/domain";
@@ -58,6 +59,7 @@ export function BoardHeader({ board }: { board: Board }) {
   // can change that, so the badge is a button for them and a label for the rest.
   const share = useBoardShareStatus(board.id).data ?? null;
   const shared = !!share && share.enabled;
+  const shareUrl = share ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
 
   return (
     <header className="relative px-7 pt-5 pb-4">
@@ -90,10 +92,18 @@ export function BoardHeader({ board }: { board: Board }) {
             </h1>
             {board.archivedAt && <Badge variant="muted">Archived</Badge>}
             {shared && (
-              <SimpleTooltip label="This board is shared by link. Anyone with it can read the board.">
-                <Badge variant="outline" className="gap-1 text-emerald-700 dark:text-emerald-300" data-testid="board-shared-badge">
-                  <Globe className="size-3" /> Shared
-                </Badge>
+              <SimpleTooltip label="Shared by link. Click to copy it; anyone with it can read the board.">
+                <button
+                  type="button"
+                  onClick={() => void copyToClipboard(shareUrl)}
+                  aria-label="Copy share link"
+                  className="rounded-full focus-visible:outline-2 focus-visible:outline-ring"
+                  data-testid="board-shared-badge"
+                >
+                  <Badge variant="outline" className="gap-1 text-emerald-700 hover:bg-accent dark:text-emerald-300">
+                    <Globe className="size-3" /> Shared
+                  </Badge>
+                </button>
               </SimpleTooltip>
             )}
             {board.visibility !== "WORKSPACE" && (

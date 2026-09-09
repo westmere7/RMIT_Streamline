@@ -10,6 +10,11 @@ export const ACTIVITY_EVENT_TYPES = [
   "ITEM_COLUMN_VALUE_UPDATED",
   "ITEM_LINKED",
   "ITEM_UNLINKED",
+  "ASSET_ADDED",
+  "ASSET_UPDATED",
+  "ASSET_REMOVED",
+  "ASSET_COMPLETED",
+  "ASSET_REOPENED",
   "COMMENT_ADDED",
   "BOARD_CREATED",
   "BOARD_RENAMED",
@@ -48,6 +53,9 @@ export interface ActivityMetadata {
   linkedBoardName?: string;
   /** Set when the change was mirrored from a linked item rather than made directly. */
   syncedFrom?: string;
+  /** For the ASSET_* events: which deliverable, and which of its details changed. */
+  assetName?: string;
+  assetField?: string;
 }
 
 export interface Activity {

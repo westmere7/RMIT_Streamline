@@ -75,13 +75,22 @@ test.describe("task booking", () => {
     await page.getByRole("option", { name: /Digital/ }).click();
     await expect(page.getByTestId("booking-routing")).toContainText("marked for Digital");
 
-    // The asset list has its own tab and is optional; fill two lines.
+    // The asset list has its own tab and is optional; it is the same composer the
+    // item panel uses, so a row is added by name and opened for its details.
     await page.getByTestId("booking-tab-assets").click();
-    await page.getByTestId("booking-asset-name-0").fill("A1 poster");
-    await page.getByTestId("booking-asset-qty-0").fill("6");
-    await page.getByTestId("booking-asset-spec-0").fill("594×841 mm, CMYK, print ready");
-    await page.getByTestId("booking-asset-add").click();
-    await page.getByTestId("booking-asset-name-1").fill("Instagram tile");
+    const assets = page.getByTestId("booking-assets");
+    await assets.getByTestId("asset-add-input").fill("A1 poster");
+    await assets.getByTestId("asset-add-submit").click();
+    const poster = assets.locator('[data-testid="asset-line"][data-asset-name="A1 poster"]');
+    await expect(poster.getByTestId("asset-quantity")).toBeVisible({ timeout: 15_000 });
+    await poster.getByTestId("asset-quantity").fill("6");
+    await poster.getByTestId("asset-notes").fill("594×841 mm, CMYK, print ready");
+    await poster.getByTestId("asset-update").click();
+    await expect(poster.getByTestId("asset-summary")).toContainText("×6", { timeout: 15_000 });
+
+    await assets.getByTestId("asset-add-input").fill("Instagram tile");
+    await assets.getByTestId("asset-add-input").press("Enter");
+    await expect(assets.getByTestId("asset-line")).toHaveCount(2, { timeout: 15_000 });
     await expect(page.getByTestId("booking-tab-assets")).toContainText("2");
     // The form settles the reference before it sends, and the receipt keeps it.
     const promised = (await page.getByTestId("booking-reference-preview").textContent())?.trim();

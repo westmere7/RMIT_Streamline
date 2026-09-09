@@ -1,4 +1,4 @@
-import type { EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { ActivityEventType, ActivityInput, ActivityMetadata, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import { recapAssets, recapColumnValue } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -11,6 +11,10 @@ import { todayISO } from "@/lib/dates/dates";
  * cache written here after every change so the board can sort, filter and
  * export it without reading every line. Cells still recompute from the live
  * lines when they have them, so the two never disagree on screen.
+ *
+ * Every change is also written to the activity feed, with the item and the
+ * board on it, so the same movement is read on the task's Activity tab, in the
+ * board's activity and in the workspace feed.
  */
 export class ItemAssetService {
   constructor(private readonly repos: Repositories) {}
@@ -30,6 +34,7 @@ export class ItemAssetService {
     const position = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
     const created = await this.repos.itemAssets.create({ ...input, position, createdBy: actorId });
     await this.recompute(input.itemId, created.boardId);
+    await this.record(created.itemId, created.boardId, actorId, [{ eventType: "ASSET_ADDED", metadata: { assetName: created.name } }]);
     return created;
   }
 
@@ -40,20 +45,29 @@ export class ItemAssetService {
     const created = await Promise.all(kept.map((line, index) => this.repos.itemAssets.create({ ...line, position: index, createdBy: actorId })));
     const first = created[0]!;
     await this.recompute(first.itemId, first.boardId);
+    // One entry for the batch: a booking with a dozen deliverables should read as
+    // one arrival, not a dozen.
+    await this.record(first.itemId, first.boardId, actorId, [
+      created.length === 1 ? { eventType: "ASSET_ADDED", metadata: { assetName: first.name } } : { eventType: "ASSET_ADDED", metadata: { count: created.length } },
+    ]);
     return created;
   }
 
-  async update(id: EntityId, patch: ItemAssetPatch): Promise<ItemAsset> {
+  async update(id: EntityId, patch: ItemAssetPatch, actorId: EntityId): Promise<ItemAsset> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Say what the asset is");
     if (patch.quantity !== undefined && patch.quantity !== null && (!Number.isFinite(patch.quantity) || patch.quantity < 0)) throw new Error("Quantity must be zero or more");
+    const before = await this.repos.itemAssets.getById(id);
     const updated = await this.repos.itemAssets.update(id, patch);
     await this.recompute(updated.itemId, updated.boardId);
+    if (before) await this.record(updated.itemId, updated.boardId, actorId, changeEvents(before, updated));
     return updated;
   }
 
-  async remove(id: EntityId, itemId: EntityId, boardId: EntityId): Promise<void> {
+  async remove(id: EntityId, itemId: EntityId, boardId: EntityId, actorId: EntityId): Promise<void> {
+    const before = await this.repos.itemAssets.getById(id);
     await this.repos.itemAssets.delete(id);
     await this.recompute(itemId, boardId);
+    await this.record(itemId, boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: before?.name } }]);
   }
 
   /** Copies one item's lines onto another (an allocated request onto its team-board mirror). */
@@ -65,6 +79,25 @@ export class ItemAssetService {
     );
   }
 
+  /**
+   * Writes what happened to the feed. The item's and the board's names travel
+   * with it so the entry still reads once either is gone.
+   */
+  private async record(itemId: EntityId, boardId: EntityId, actorId: EntityId, events: AssetEvent[]): Promise<void> {
+    if (events.length === 0) return;
+    const [item, board] = await Promise.all([this.repos.items.getById(itemId), this.repos.boards.getById(boardId)]);
+    const common = { itemName: item?.name, boardName: board?.name };
+    const rows: ActivityInput[] = events.map((event) => ({
+      workspaceId: board?.workspaceId ?? "",
+      boardId,
+      itemId,
+      actorId,
+      eventType: event.eventType,
+      metadata: { ...common, ...event.metadata },
+    }));
+    await this.repos.activities.createMany(rows);
+  }
+
   /** Rewrites the item's ASSETS_RECAP values from its lines. A no-op on boards without such a column. */
   async recompute(itemId: EntityId, boardId: EntityId): Promise<void> {
     const columns = (await this.repos.boards.listColumns(boardId)).filter((c) => c.type === "ASSETS_RECAP");
@@ -73,6 +106,44 @@ export class ItemAssetService {
     const value = recapColumnValue(recapAssets(lines, todayISO()));
     await this.repos.items.setValues(columns.map((column) => ({ itemId, columnId: column.id, value })));
   }
+}
+
+interface AssetEvent {
+  eventType: ActivityEventType;
+  metadata: ActivityMetadata;
+}
+
+/** How each detail is named in the feed. */
+const FIELD_LABELS = { name: "the name", assetType: "the type", quantity: "the quantity", dueDate: "the due date", notes: "the spec" } as const;
+
+/**
+ * One entry per detail that actually moved, the way a column change is logged:
+ * saving four fields at once should read as four changes, not one vague edit.
+ */
+function changeEvents(before: ItemAsset, after: ItemAsset): AssetEvent[] {
+  const events: AssetEvent[] = [];
+  const assetName = after.name;
+
+  if (before.completedAt === null && after.completedAt !== null) events.push({ eventType: "ASSET_COMPLETED", metadata: { assetName } });
+  if (before.completedAt !== null && after.completedAt === null) events.push({ eventType: "ASSET_REOPENED", metadata: { assetName } });
+
+  for (const key of ["name", "assetType", "quantity", "dueDate", "notes"] as const) {
+    const from = before[key];
+    const to = after[key];
+    if (from === to) continue;
+    events.push({
+      eventType: "ASSET_UPDATED",
+      // A rename is about the line that was there a moment ago, so it names the old one.
+      metadata: { assetName: key === "name" ? before.name : assetName, assetField: FIELD_LABELS[key], from: from === null ? null : String(from), to: to === null ? null : String(to) },
+    });
+  }
+
+  const added = after.assigneeIds.filter((id) => !before.assigneeIds.includes(id));
+  const removed = before.assigneeIds.filter((id) => !after.assigneeIds.includes(id));
+  if (added.length || removed.length) {
+    events.push({ eventType: "ASSET_UPDATED", metadata: { assetName, assetField: "who is in charge", addedUserIds: added, removedUserIds: removed } });
+  }
+  return events;
 }
 
 /**
