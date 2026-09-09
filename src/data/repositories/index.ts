@@ -165,6 +165,14 @@ export interface ItemRepository {
 
   listValuesByBoard(boardId: EntityId): Promise<ItemColumnValue[]>;
   listValuesByItem(itemId: EntityId): Promise<ItemColumnValue[]>;
+  /**
+   * Values for a set of items, whichever board they sit on.
+   *
+   * For readers that hold a list of items rather than a board: asking each of
+   * their boards for everything it holds reads far more than the answer needs,
+   * and one call per item is worse still.
+   */
+  listValuesByItems(itemIds: EntityId[]): Promise<ItemColumnValue[]>;
   listValuesByColumns(columnIds: EntityId[]): Promise<ItemColumnValue[]>;
   setValue(itemId: EntityId, columnId: EntityId, value: ColumnValue): Promise<ItemColumnValue>;
   setValues(values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }>): Promise<ItemColumnValue[]>;

@@ -70,6 +70,32 @@ export class NotSupportedError extends Error {
   }
 }
 
+/**
+ * PostgREST's default `max-rows`.
+ *
+ * A select that asks for everything and gets back exactly this many rows has
+ * almost certainly been truncated, and PostgREST reports no error when it does
+ * — the caller just sees a short answer. Any read whose row count grows with
+ * usage has to page.
+ */
+export const PAGE_ROWS = 1000;
+
+/**
+ * Reads every row of a query, a page at a time.
+ *
+ * `page` is handed the inclusive bounds for `.range()` and must return the same
+ * query each time apart from those. A page shorter than the one asked for is
+ * the last one.
+ */
+export async function unwrapAll<T>(page: (from: number, to: number) => PromiseLike<Result<T[]>>, context: string): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const batch = unwrapList<T>(await page(from, from + PAGE_ROWS - 1), context);
+    rows.push(...batch);
+    if (batch.length < PAGE_ROWS) return rows;
+  }
+}
+
 /** PostgREST caps `in` lists; chunk long id lists so large boards keep working. */
 export const ID_CHUNK = 200;
 

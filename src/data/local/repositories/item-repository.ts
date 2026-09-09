@@ -91,6 +91,12 @@ export class LocalItemRepository implements ItemRepository {
     return db.getAllFromIndex("itemColumnValues", "byItem", itemId);
   }
 
+  async listValuesByItems(itemIds: string[]): Promise<ItemColumnValue[]> {
+    const db = await this.conn.getDb();
+    const perItem = await Promise.all(itemIds.map((id) => db.getAllFromIndex("itemColumnValues", "byItem", id)));
+    return perItem.flat();
+  }
+
   async listValuesByColumns(columnIds: string[]): Promise<ItemColumnValue[]> {
     const db = await this.conn.getDb();
     const perColumn = await Promise.all(columnIds.map((c) => db.getAllFromIndex("itemColumnValues", "byColumn", c)));

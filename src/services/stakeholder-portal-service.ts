@@ -1,8 +1,9 @@
 import type {
+  Board,
+  BoardColumn,
   BookingForm,
   BookingReceipt,
   BookingRequest,
-  ColumnValue,
   DepartmentPortal,
   DepartmentStatus,
   EntityId,
@@ -428,8 +429,8 @@ export class StakeholderPortalService {
     const limit = Math.max(1, Math.min(options.limit ?? PORTAL_PAGE_SIZE, 200));
     // Everything this department may see, for the totals and the search. Read
     // once and in full, because a figure computed over one page would be a lie.
-    const all = await this.scope(resolved.department);
-    const ctx = await this.projectionContext(resolved, all);
+    const { entries: all, items: loaded } = await this.scopeWithItems(resolved.department);
+    const ctx = await this.projectionContext(resolved, all, loaded);
     const projected = all
       .map((entry) => {
         const item = ctx.itemsById.get(entry.itemId);
@@ -461,9 +462,10 @@ export class StakeholderPortalService {
    * assets on this concrete task; it is computed, never taken from the request.
    */
   async task(resolved: ResolvedPortal, itemId: EntityId, viewer: PortalViewer | null): Promise<PortalTaskDetail> {
-    const entry = (await this.scope(resolved.department)).find((row) => row.itemId === itemId);
+    const scoped = await this.scopeWithItems(resolved.department);
+    const entry = scoped.entries.find((row) => row.itemId === itemId);
     if (!entry) throw new PortalAccessError("unknown", "That request is not part of this portal.");
-    const ctx = await this.projectionContext(resolved, [entry]);
+    const ctx = await this.projectionContext(resolved, [entry], scoped.items);
     const item = ctx.itemsById.get(itemId);
     if (!item) throw new PortalAccessError("unknown", "That request is no longer available.");
 
@@ -679,10 +681,26 @@ export class StakeholderPortalService {
    *    carries whatever contact details the booking writer appended.
    */
   private async scope(department: StakeholderDepartment, preloaded?: { labelled: Map<string, EntityId[]>; items: Map<EntityId, Item> }): Promise<PortalScopeEntry[]> {
-    const provenance = await this.allRequests(department.id);
-    const labelled = preloaded?.labelled ?? (await this.labelledItemIds(department.workspaceId));
+    return (await this.scopeWithItems(department, preloaded)).entries;
+  }
+
+  /**
+   * As `scope`, keeping the items it read.
+   *
+   * Deciding what is in scope means loading the candidates anyway, and the
+   * projection then needs the very same rows. Handing them over is one fewer
+   * round trip over a few hundred ids on every page and every task detail.
+   */
+  private async scopeWithItems(
+    department: StakeholderDepartment,
+    preloaded?: { labelled: Map<string, EntityId[]>; items: Map<EntityId, Item> },
+  ): Promise<{ entries: PortalScopeEntry[]; items: Map<EntityId, Item> }> {
+    const [provenance, labelled] = await Promise.all([
+      this.allRequests(department.id),
+      preloaded?.labelled ? Promise.resolve(preloaded.labelled) : this.labelledItemIds(department.workspaceId),
+    ]);
     const candidates = new Set<EntityId>([...provenance.map((row) => row.itemId), ...(labelled.get(departmentKey(department.name)) ?? [])]);
-    if (candidates.size === 0) return [];
+    if (candidates.size === 0) return { entries: [], items: new Map() };
 
     const loaded = preloaded?.items ?? (await this.itemsByIdFor([...candidates]));
     const items = [...candidates].map((id) => loaded.get(id)).filter((item): item is Item => !!item);
@@ -700,7 +718,8 @@ export class StakeholderPortalService {
       const row = briefs.get(id);
       entries.push({ itemId: id, bookedAt: row?.bookedAt ?? item.createdAt, publicBrief: row?.publicBrief ?? null, booked: !!row });
     }
-    return entries.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt) || b.itemId.localeCompare(a.itemId));
+    entries.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt) || b.itemId.localeCompare(a.itemId));
+    return { entries, items: loaded };
   }
 
   /**
@@ -711,25 +730,15 @@ export class StakeholderPortalService {
    * response time.
    */
   private async itemsByIdFor(ids: readonly EntityId[]): Promise<Map<EntityId, Item>> {
-    const byId = new Map<EntityId, Item>();
-    for (const batch of chunk(ids)) {
-      for (const item of await this.repos.items.listByIds(batch)) byId.set(item.id, item);
-    }
-    return byId;
+    const batches = await Promise.all(chunk(ids).map((batch) => this.repos.items.listByIds(batch)));
+    return new Map(batches.flat().map((item) => [item.id, item]));
   }
 
   /** Links touching any of these items, in batches for the same reason. */
   private async linksForItems(ids: readonly EntityId[]): Promise<ItemLink[]> {
-    const links: ItemLink[] = [];
-    const seen = new Set<EntityId>();
-    for (const batch of chunk(ids)) {
-      for (const link of await this.repos.links.listByItems(batch)) {
-        if (seen.has(link.id)) continue;
-        seen.add(link.id);
-        links.push(link);
-      }
-    }
-    return links;
+    const batches = await Promise.all(chunk(ids).map((batch) => this.repos.links.listByItems(batch)));
+    const byId = new Map(batches.flat().map((link) => [link.id, link]));
+    return [...byId.values()];
   }
 
   /**
@@ -741,21 +750,25 @@ export class StakeholderPortalService {
    * once per department.
    */
   private async labelledItemIds(workspaceId: EntityId): Promise<Map<string, EntityId[]>> {
+    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((board) => board.archivedAt === null);
+    // Every board's columns at once. Sequentially this was the larger half of
+    // the wait, and one board's columns do not depend on another's.
+    const columns = (await Promise.all(boards.map((board) => this.repos.boards.listColumns(board.id)))).flat();
+    // By type, never by name. A board may call its stakeholder column
+    // "Department", "Requested by" or anything else, and renaming it must not
+    // quietly empty a portal.
+    const stakeholder = columns.filter((column) => column.type === "STAKEHOLDER").map((column) => column.id);
+    if (stakeholder.length === 0) return new Map();
+
+    // Only the stakeholder columns. Asking each board for every value it holds
+    // read an order of magnitude more rows than the answer needed.
     const byName = new Map<string, EntityId[]>();
-    const boards = await this.repos.boards.listByWorkspace(workspaceId);
-    for (const board of boards) {
-      if (board.archivedAt !== null) continue;
-      const columns = await this.repos.boards.listColumns(board.id);
-      // By type, never by name. A board may call its stakeholder column
-      // "Department", "Requested by" or anything else, and renaming it must not
-      // quietly empty a portal.
-      const stakeholder = new Set(columns.filter((column) => column.type === "STAKEHOLDER").map((column) => column.id));
-      if (stakeholder.size === 0) continue;
-      for (const value of await this.repos.items.listValuesByBoard(board.id)) {
-        if (!stakeholder.has(value.columnId) || value.value.type !== "STAKEHOLDER" || !value.value.group) continue;
-        const key = departmentKey(value.value.group);
-        byName.set(key, [...(byName.get(key) ?? []), value.itemId]);
-      }
+    for (const value of await this.repos.items.listValuesByColumns(stakeholder)) {
+      if (value.value.type !== "STAKEHOLDER" || !value.value.group) continue;
+      const key = departmentKey(value.value.group);
+      const ids = byName.get(key);
+      if (ids) ids.push(value.itemId);
+      else byName.set(key, [value.itemId]);
     }
     return byName;
   }
@@ -779,8 +792,10 @@ export class StakeholderPortalService {
    * Everything the projection needs, read board by board rather than item by
    * item — the difference between one round trip per board and one per request.
    */
-  private async projectionContext(resolved: ResolvedPortal, entries: readonly PortalScopeEntry[]) {
-    const loaded = await this.itemsByIdFor(entries.map((entry) => entry.itemId));
+  private async projectionContext(resolved: ResolvedPortal, entries: readonly PortalScopeEntry[], preloaded?: Map<EntityId, Item>) {
+    // `scope` has already read these; loading them a second time cost a whole
+    // round trip per page for nothing.
+    const loaded = preloaded ?? (await this.itemsByIdFor(entries.map((entry) => entry.itemId)));
     const items = entries.map((entry) => loaded.get(entry.itemId)).filter((item): item is Item => !!item);
     const itemsById = new Map(items.map((item) => [item.id, item]));
     const boardIds = [...new Set(items.map((item) => item.boardId))];
@@ -790,27 +805,25 @@ export class StakeholderPortalService {
     const subitemsByParent = new Map<string, Item[]>();
     const wanted = new Set(items.map((item) => item.id));
 
-    for (const boardId of boardIds) {
-      const board = await this.repos.boards.getById(boardId);
-      if (!board) continue;
-      const [columns, values, boardItems, assets] = await Promise.all([
-        this.repos.boards.listColumns(boardId),
-        this.repos.items.listValuesByBoard(boardId),
-        this.repos.items.listByBoard(boardId),
-        this.repos.itemAssets.listByBoard(boardId),
-      ]);
-      const valueMap = new Map<string, Map<string, ColumnValue>>();
-      for (const value of values) {
-        let bucket = valueMap.get(value.itemId);
-        if (!bucket) {
-          bucket = new Map();
-          valueMap.set(value.itemId, bucket);
-        }
-        bucket.set(value.columnId, value.value);
-      }
-      boards.set(boardId, { board, columns, values: valueMap });
+    // Every board at once. Walking them in turn made the wait their sum, and a
+    // department with work on ten boards paid ten round trips for reads that
+    // depend on nothing.
+    const perBoard = (
+      await Promise.all(
+        boardIds.map(async (boardId) => {
+          const [board, columns, boardItems, assets] = await Promise.all([
+            this.repos.boards.getById(boardId),
+            this.repos.boards.listColumns(boardId),
+            this.repos.items.listByBoard(boardId),
+            this.repos.itemAssets.listByBoard(boardId),
+          ]);
+          return board ? { board, columns, boardItems, assets } : null;
+        }),
+      )
+    ).filter((entry): entry is { board: Board; columns: BoardColumn[]; boardItems: Item[]; assets: ItemAsset[] } => !!entry);
 
-      for (const candidate of boardItems) {
+    for (const entry of perBoard) {
+      for (const candidate of entry.boardItems) {
         // Subitems of a published request travel; every other item on the board
         // is none of this department's business.
         if (candidate.parentItemId && wanted.has(candidate.parentItemId)) {
@@ -820,13 +833,34 @@ export class StakeholderPortalService {
           itemsById.set(candidate.id, candidate);
         }
       }
-      for (const asset of assets) {
+      for (const asset of entry.assets) {
         if (!wanted.has(asset.itemId)) continue;
         assetsByItem.set(asset.itemId, [...(assetsByItem.get(asset.itemId) ?? []), asset]);
       }
     }
 
-    const links = await this.linksForItems([...wanted]);
+    // Values for exactly the items in play — this department's requests and
+    // their subitems — rather than everything sitting on the boards they happen
+    // to live on, which was an order of magnitude more rows than the answer.
+    const [values, links, users] = await Promise.all([
+      this.repos.items.listValuesByItems([...itemsById.keys()]),
+      this.linksForItems([...wanted]),
+      this.repos.users.list(),
+    ]);
+
+    for (const entry of perBoard) boards.set(entry.board.id, { board: entry.board, columns: entry.columns, values: new Map() });
+    for (const value of values) {
+      const item = itemsById.get(value.itemId);
+      const context = item ? boards.get(item.boardId) : undefined;
+      if (!context) continue;
+      let bucket = context.values.get(value.itemId);
+      if (!bucket) {
+        bucket = new Map();
+        context.values.set(value.itemId, bucket);
+      }
+      bucket.set(value.columnId, value.value);
+    }
+
     const linkCountByItem = new Map<string, number>();
     for (const link of links) {
       for (const id of [link.itemAId, link.itemBId]) {
@@ -834,7 +868,7 @@ export class StakeholderPortalService {
       }
     }
 
-    const usersById = new Map<string, User>((await this.repos.users.list()).map((user) => [user.id, user]));
+    const usersById = new Map<string, User>(users.map((user) => [user.id, user]));
     const projection: ProjectionContext = {
       boards,
       usersById,

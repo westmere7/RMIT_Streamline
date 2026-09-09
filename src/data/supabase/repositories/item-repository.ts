@@ -1,6 +1,6 @@
 import type { ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
-import { assertOk, chunk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
+import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from "../client";
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
 
 const ITEM =
@@ -9,10 +9,14 @@ const VALUE = "id, item_id, column_id, value_json, updated_at";
 
 export class SupabaseItemRepository implements ItemRepository {
   async listByBoard(boardId: string, options?: { includeArchived?: boolean }): Promise<Item[]> {
-    let query = db().from("items").select(ITEM).eq("board_id", boardId);
-    if (!options?.includeArchived) query = query.is("archived_at", null);
-    const result = await query.order("position", { ascending: true });
-    return unwrapList<ItemRow>(result, "items.listByBoard").map(toItem);
+    const rows = await unwrapAll<ItemRow>((from, to) => {
+      let query = db().from("items").select(ITEM).eq("board_id", boardId);
+      if (!options?.includeArchived) query = query.is("archived_at", null);
+      // Ordered inside the pager: `range` slices the ordered set, so the order
+      // has to be the same on every page or the pages overlap.
+      return query.order("position", { ascending: true }).order("id", { ascending: true }).range(from, to);
+    }, "items.listByBoard");
+    return rows.map(toItem);
   }
 
   async listByIds(ids: string[]): Promise<Item[]> {
@@ -96,12 +100,34 @@ export class SupabaseItemRepository implements ItemRepository {
     return unwrapList<ItemColumnValueRow>(result, "item_column_values.listValuesByItem").map(toItemColumnValue);
   }
 
+  /**
+   * Every value on these columns.
+   *
+   * Paged, not merely chunked: the chunks bound the *filter* so the URL stays
+   * short, and the range bounds the *answer* so PostgREST does not stop at its
+   * default 1000 rows and leave the caller thinking that was all of them. One
+   * workspace-wide read of a single column type already passes that mark.
+   */
+  /** As `listValuesByColumns`, filtered the other way. Same chunking, same paging. */
+  async listValuesByItems(itemIds: string[]): Promise<ItemColumnValue[]> {
+    if (itemIds.length === 0) return [];
+    const pages = await Promise.all(
+      chunk(itemIds).map((part) =>
+        unwrapAll<ItemColumnValueRow>(
+          (from, to) => db().from("item_column_values").select(VALUE).in("item_id", part).order("id", { ascending: true }).range(from, to),
+          "item_column_values.listValuesByItems",
+        ),
+      ),
+    );
+    return pages.flat().map(toItemColumnValue);
+  }
+
   async listValuesByColumns(columnIds: string[]): Promise<ItemColumnValue[]> {
     if (columnIds.length === 0) return [];
     const pages = await Promise.all(
-      chunk(columnIds).map(async (part) =>
-        unwrapList<ItemColumnValueRow>(
-          await db().from("item_column_values").select(VALUE).in("column_id", part),
+      chunk(columnIds).map((part) =>
+        unwrapAll<ItemColumnValueRow>(
+          (from, to) => db().from("item_column_values").select(VALUE).in("column_id", part).order("id", { ascending: true }).range(from, to),
           "item_column_values.listValuesByColumns",
         ),
       ),
