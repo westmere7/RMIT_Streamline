@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { User } from "@/domain";
 import { useProfileMutations } from "@/features/profile/hooks";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 
 /** Timezones the team actually works in, plus whatever the profile already had. */
 const TIMEZONES = ["Australia/Melbourne", "Australia/Sydney", "Asia/Ho_Chi_Minh", "Asia/Singapore", "Asia/Bangkok", "Europe/London", "UTC"];
@@ -32,6 +34,8 @@ export function EditProfileDialog({ user, open, onOpenChange }: EditProfileDialo
 }
 
 function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
+  const ws = useWorkspace();
+  const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
   const { save, changeAvatar, removeAvatar } = useProfileMutations(user.id);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const [form, setForm] = React.useState({
@@ -41,6 +45,9 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
     jobTitle: user.jobTitle ?? "",
     department: user.department ?? "",
     timezone: user.timezone,
+    stakeholderGroup: user.stakeholderGroup ?? "",
+    workHoursStart: user.workHoursStart ?? "",
+    workHoursEnd: user.workHoursEnd ?? "",
   });
 
   const zones = TIMEZONES.includes(user.timezone) ? TIMEZONES : [user.timezone, ...TIMEZONES];
@@ -56,6 +63,9 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
         jobTitle: form.jobTitle,
         department: form.department,
         timezone: form.timezone,
+        stakeholderGroup: form.stakeholderGroup || null,
+        workHoursStart: form.workHoursStart || null,
+        workHoursEnd: form.workHoursEnd || null,
       },
       { onSuccess: onClose },
     );
@@ -122,6 +132,34 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
             ))}
           </select>
         </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="stakeholderGroup">Stakeholder group</Label>
+          <select
+            id="stakeholderGroup"
+            value={form.stakeholderGroup}
+            onChange={(e) => set({ stakeholderGroup: e.target.value })}
+            className="h-9 w-full rounded-lg border border-border bg-transparent px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            data-testid="profile-stakeholder"
+          >
+            <option value="">Not set</option>
+            {groups.map((group) => (
+              <option key={group.name} value={group.name}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Read in their own timezone, so it says when to expect an answer. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="workHoursStart">Work hours from</Label>
+          <Input id="workHoursStart" type="time" value={form.workHoursStart} onChange={(e) => set({ workHoursStart: e.target.value })} data-testid="profile-hours-start" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="workHoursEnd">to</Label>
+          <Input id="workHoursEnd" type="time" value={form.workHoursEnd} onChange={(e) => set({ workHoursEnd: e.target.value })} data-testid="profile-hours-end" />
+        </div>
+
         <p className="text-2xs text-muted-foreground sm:col-span-2">
           Email is <span className="font-medium">{user.email}</span> — sign-in addresses are changed in Supabase Auth.
         </p>

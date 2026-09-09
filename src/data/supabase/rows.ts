@@ -60,13 +60,16 @@ export interface ProfileRow {
   job_title: string | null;
   department: string | null;
   timezone: string;
+  stakeholder_group: string | null;
+  work_hours_start: string | null;
+  work_hours_end: string | null;
   deactivated_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export const PROFILE_COLUMNS =
-  "id, email, first_name, last_name, display_name, avatar_url, job_title, department, timezone, deactivated_at, created_at, updated_at";
+  "id, email, first_name, last_name, display_name, avatar_url, job_title, department, timezone, stakeholder_group, work_hours_start, work_hours_end, deactivated_at, created_at, updated_at";
 
 export function toUser(row: ProfileRow): User {
   return {
@@ -79,6 +82,9 @@ export function toUser(row: ProfileRow): User {
     jobTitle: row.job_title,
     department: row.department,
     timezone: row.timezone,
+    stakeholderGroup: row.stakeholder_group ?? null,
+    workHoursStart: row.work_hours_start ?? null,
+    workHoursEnd: row.work_hours_end ?? null,
     deactivatedAt: row.deactivated_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -95,6 +101,9 @@ export function fromUserPatch(patch: Partial<Omit<User, "id" | "createdAt">>): R
     job_title: patch.jobTitle,
     department: patch.department,
     timezone: patch.timezone,
+    stakeholder_group: patch.stakeholderGroup,
+    work_hours_start: patch.workHoursStart,
+    work_hours_end: patch.workHoursEnd,
     deactivated_at: patch.deactivatedAt,
   });
 }

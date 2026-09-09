@@ -20,7 +20,9 @@ export function useProfile(userId: string | null) {
   });
 }
 
-type ProfilePatch = Partial<Pick<User, "firstName" | "lastName" | "displayName" | "jobTitle" | "department" | "timezone" | "avatarUrl">>;
+type ProfilePatch = Partial<
+  Pick<User, "firstName" | "lastName" | "displayName" | "jobTitle" | "department" | "timezone" | "avatarUrl" | "stakeholderGroup" | "workHoursStart" | "workHoursEnd">
+>;
 
 export function useProfileMutations(userId: string) {
   const services = useServices();
