@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput } from "@/domain";
+import type { BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -237,7 +237,16 @@ export interface BoardShareRepository {
   getByBoard(boardId: EntityId): Promise<BoardShare | null>;
   getByToken(token: string): Promise<BoardShare | null>;
   create(input: BoardShareInput): Promise<BoardShare>;
-  update(id: EntityId, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<BoardShare>;
+  update(id: EntityId, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash" | "access">>): Promise<BoardShare>;
+  delete(id: EntityId): Promise<void>;
+}
+
+/** The public link of one task. At most one per item; the same shape as a board's. */
+export interface ItemShareRepository {
+  getByItem(itemId: EntityId): Promise<ItemShare | null>;
+  getByToken(token: string): Promise<ItemShare | null>;
+  create(input: ItemShareInput): Promise<ItemShare>;
+  update(id: EntityId, patch: Partial<Pick<ItemShare, "token" | "enabled" | "expiresAt" | "passwordHash" | "access">>): Promise<ItemShare>;
   delete(id: EntityId): Promise<void>;
 }
 
@@ -372,6 +381,7 @@ export interface Repositories {
   workspaceLists: WorkspaceListRepository;
   bookingTemplates: BookingTemplateRepository;
   boardShares: BoardShareRepository;
+  itemShares: ItemShareRepository;
   dashboardShares: DashboardShareRepository;
   itemReads: ItemReadRepository;
   messages: MessageRepository;

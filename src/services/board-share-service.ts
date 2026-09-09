@@ -6,6 +6,8 @@ import {
   isPlausibleShareToken,
   type PublicBoardPayload,
   refuseShare,
+  type ShareAccess,
+  type ShareLike,
   type ShareRefusal,
   toPublicUser,
 } from "@/domain";
@@ -23,6 +25,19 @@ export interface ShareSettings {
   expiresAt?: ISODate | null;
   /** A new password, null to remove the one there is, or undefined to keep it. */
   password?: string | null;
+  /** Who the link opens for: anyone, or signed-in members of the workspace. */
+  access?: ShareAccess;
+}
+
+/**
+ * Who is asking, when anyone is. A private link is read by a signed-in member
+ * of the workspace, so the caller has to say who they are and the check happens
+ * here rather than in a policy — the read itself runs with the service role.
+ */
+export interface ShareViewer {
+  userId: EntityId;
+  /** True when they are an active member of the workspace the link belongs to. */
+  isWorkspaceMember: boolean;
 }
 
 export type ShareFailure = ShareRefusal | "password";
@@ -48,7 +63,16 @@ export function shareAccessMessage(reason: ShareFailure): string {
       return "This link has expired. Ask whoever sent it for a new one.";
     case "password":
       return "That password is not right.";
+    case "signin":
+      return "This link is shared inside the workspace. Sign in with your Streamline account to open it.";
   }
+}
+
+/** Stops a private link short of anyone who is not a signed-in member. */
+export function checkShareAccess(share: ShareLike, viewer: ShareViewer | null): void {
+  if (share.access !== "PRIVATE") return;
+  if (viewer?.isWorkspaceMember) return;
+  throw new ShareAccessError("signin", shareAccessMessage("signin"));
 }
 
 /**
@@ -99,6 +123,7 @@ export class BoardShareService {
         enabled: settings.enabled ?? true,
         expiresAt: settings.expiresAt ?? null,
         passwordHash,
+        access: settings.access ?? "PRIVATE",
         createdBy: actorId,
       });
     }
@@ -106,6 +131,7 @@ export class BoardShareService {
       enabled: settings.enabled ?? existing.enabled,
       expiresAt: settings.expiresAt === undefined ? existing.expiresAt : settings.expiresAt,
       passwordHash,
+      access: settings.access ?? existing.access,
     });
   }
 
@@ -128,13 +154,15 @@ export class BoardShareService {
     return gateShare(this.repos, token);
   }
 
-  /** The board behind the link. Throws ShareAccessError when the link or the password does not hold up. */
+  /** The board behind the link. Throws ShareAccessError when the link, the password or the sign-in does not hold up. */
   async load(token: string, password: string | null): Promise<PublicBoardPayload> {
     if (this.transport) return this.transport.load(token, password);
-    return loadSharedBoard(this.repos, token, password);
+    // Local mode has one signed-in person and no service role: whoever is
+    // reading is by definition inside the workspace.
+    return loadSharedBoard(this.repos, token, password, { userId: "local", isWorkspaceMember: true });
   }
 
-  private async nextPasswordHash(existing: BoardShare | null, password: string | null | undefined): Promise<string | null> {
+  private async nextPasswordHash(existing: ShareLike | null, password: string | null | undefined): Promise<string | null> {
     if (password === undefined) return existing?.passwordHash ?? null;
     if (password === null || password === "") return null;
     const salt = newSalt();
@@ -149,9 +177,14 @@ export class BoardShareService {
  */
 export async function gateShare(repos: Repositories, token: string): Promise<BoardShareGate> {
   const share = isPlausibleShareToken(token) ? await repos.boardShares.getByToken(token) : null;
+  return shareGate(share);
+}
+
+/** The same answer for either kind of link: is it live, does it want a password, who may read it. */
+export function shareGate(share: ShareLike | null): BoardShareGate {
   const refusal = refuseShare(share, todayISO());
-  if (refusal || !share) return { open: false, refusal: refusal ?? "unknown", needsPassword: false };
-  return { open: true, refusal: null, needsPassword: !!share.passwordHash };
+  if (refusal || !share) return { open: false, refusal: refusal ?? "unknown", needsPassword: false, access: "PUBLIC" };
+  return { open: true, refusal: null, needsPassword: !!share.passwordHash, access: share.access };
 }
 
 /**
@@ -162,8 +195,9 @@ export async function gateShare(repos: Repositories, token: string): Promise<Boa
  * items on it, their assets and updates, its recent history, and the people
  * those refer to.
  */
-export async function loadSharedBoard(repos: Repositories, token: string, password: string | null): Promise<PublicBoardPayload> {
+export async function loadSharedBoard(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<PublicBoardPayload> {
   const share = await resolveShare(repos, token);
+  checkShareAccess(share, viewer);
   await checkSharePassword(share, password);
 
   const board = await repos.boards.getById(share.boardId);
@@ -209,6 +243,8 @@ export async function loadSharedBoard(repos: Repositories, token: string, passwo
  * so only those the board points at travel: its owner, whoever is in a person
  * cell, on an asset line, behind an update or in its history.
  */
+export { peopleOnBoard };
+
 function peopleOnBoard(
   users: User[],
   board: { board: Board; items: Item[]; values: ItemColumnValue[]; assets: ItemAsset[]; comments: Comment[]; activities: Activity[] },
@@ -237,7 +273,7 @@ async function resolveShare(repos: Repositories, token: string): Promise<BoardSh
 }
 
 /** Throws unless the visitor typed the password the link was given, if it has one. */
-async function checkSharePassword(share: BoardShare, password: string | null): Promise<void> {
+export async function checkSharePassword(share: ShareLike, password: string | null): Promise<void> {
   if (!share.passwordHash) return;
   const [salt, expected] = share.passwordHash.split(":");
   const ok = !!salt && !!expected && !!password && (await verifyPassword(password, salt, expected));

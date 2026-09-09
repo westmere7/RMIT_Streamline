@@ -6,6 +6,7 @@ import { SupabaseDashboardShareRepository } from "./repositories/dashboard-share
 import { SupabaseItemLinkRepository } from "./repositories/item-link-repository";
 import { SupabaseItemRepository } from "./repositories/item-repository";
 import { SupabaseItemAssetRepository } from "./repositories/item-asset-repository";
+import { SupabaseItemShareRepository } from "./repositories/item-share-repository";
 import { SupabaseWorkspaceListRepository } from "./repositories/workspace-list-repository";
 import {
   SupabaseActivityRepository,
@@ -47,6 +48,7 @@ export function createSupabaseRepositories(): Repositories {
     comments: new SupabaseCommentRepository(),
     itemAssets: new SupabaseItemAssetRepository(),
     workspaceLists: new SupabaseWorkspaceListRepository(),
+    itemShares: new SupabaseItemShareRepository(),
     bookingTemplates: new SupabaseBookingTemplateRepository(),
     boardShares: new SupabaseBoardShareRepository(),
     dashboardShares: new SupabaseDashboardShareRepository(),

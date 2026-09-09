@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, History, MessageSquare, Package, Plus, SquarePen, X } from "lucide-react";
+import { CornerDownRight, Globe, History, MessageSquare, Package, Plus, Share2, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -10,6 +10,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item, ItemAsset } from "@/domain";
 import { ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
@@ -22,6 +23,7 @@ import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
 import { AssetsRecapStrip } from "@/features/items/item-assets-recap";
+import { ShareItemDialog, useItemShareStatus } from "@/features/items/share-item-dialog";
 import { ItemAssetsTab } from "@/features/items/item-assets-tab";
 import { useMarkItemSeen } from "@/features/comments/updates";
 import { ItemCover } from "@/features/items/item-cover";
@@ -35,7 +37,11 @@ import { cn } from "@/lib/utils";
 
 const FIELD_WIDTH = 260;
 
-export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: string; onClose: () => void; overlay?: boolean }) {
+/**
+ * `shared` is the whole page rather than a panel beside a board (a task opened
+ * from a link): it fills what holds it and there is nothing to close it back to.
+ */
+export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = false }: { itemId: string; onClose: () => void; overlay?: boolean; shared?: boolean }) {
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
@@ -81,9 +87,11 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
         // Reads as a card floating above the board: its own surface and elevation,
         // with the board beside it left untouched so items stay glanceable.
         "flex flex-col bg-surface",
-        narrow
-          ? "fixed inset-0 z-40"
-          : overlay
+        shared
+          ? "min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 shadow-sm"
+          : narrow
+            ? "fixed inset-0 z-40"
+            : overlay
             ? "absolute inset-y-2.5 right-2.5 z-30 w-[520px] overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
             : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
       )}
@@ -99,7 +107,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
         </div>
       ) : (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
             <UnderlineTabsList className="px-4">
               <UnderlineTabsTrigger value="overview">
@@ -136,8 +144,27 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
   );
 }
 
-function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: () => void; canEdit: boolean; assets: readonly ItemAsset[] }) {
-  const { model, mutations, openItem, board } = useBoardContext();
+function PanelHeader({
+  item,
+  onClose,
+  canEdit,
+  assets,
+  hideClose,
+  shared,
+}: {
+  item: Item;
+  onClose: () => void;
+  canEdit: boolean;
+  assets: readonly ItemAsset[];
+  hideClose?: boolean;
+  /** True on the page behind a link: there is nothing to share from inside a share. */
+  shared?: boolean;
+}) {
+  const { model, mutations, openItem, board, canManage } = useBoardContext();
+  const [sharing, setSharing] = React.useState(false);
+  // Everyone on the board can see that the task is out on a link; only the
+  // board's managers can change that.
+  const share = useItemShareStatus(shared ? "" : item.id).data ?? null;
   const ws = useWorkspace();
   const [renaming, setRenaming] = React.useState(false);
   const group = model.groups.find((g) => g.id === item.groupId);
@@ -183,12 +210,35 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
             />
           </h2>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
-          <X />
-        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {!shared && canManage && (
+            <SimpleTooltip label="Share this task by link">
+              <Button variant="ghost" size="icon-sm" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
+                <Share2 />
+              </Button>
+            </SimpleTooltip>
+          )}
+          {!hideClose && (
+            <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
+              <X />
+            </Button>
+          )}
+        </div>
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
         <ReferenceField item={item} canEdit={canEdit} onSave={(reference) => void mutations.updateReference(item.id, reference)} />
+        {share?.enabled && (
+          <SimpleTooltip label={share.access === "PUBLIC" ? "Shared by link with anyone who has it." : "Shared by link with signed-in members."}>
+            <button
+              type="button"
+              onClick={() => canManage && setSharing(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-2xs font-medium text-emerald-700 dark:text-emerald-300"
+              data-testid="panel-shared-badge"
+            >
+              <Globe className="size-3" /> {share.access === "PUBLIC" ? "Shared" : "Shared inside"}
+            </button>
+          </SimpleTooltip>
+        )}
         <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
           <UserAvatar user={creator} size="xs" tooltip={false} />
           Created by <Mention href={links.person(item.createdBy)} className="font-normal">{creator?.firstName ?? "someone"}</Mention> <RelativeTime iso={item.createdAt} />
@@ -196,6 +246,7 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
       </div>
       <AssetsRecapStrip assets={assets} />
       </div>
+      <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />
     </div>
   );
 }

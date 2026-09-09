@@ -1,4 +1,4 @@
-import type { Board, DashboardShare, DashboardShareGate, DashboardSnapshot, EntityId, ISODate, PublicDashboardPayload, User } from "@/domain";
+import type { Board, DashboardShare, DashboardShareGate, DashboardSnapshot, EntityId, ISODate, PublicDashboardPayload, ShareRefusal, User } from "@/domain";
 import { generateShareToken, isPlausibleShareToken, publicDashboardSnapshot, refuseDashboardShare } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -163,8 +163,9 @@ function peopleInSnapshot(users: User[], scope: Pick<DashboardSnapshot, "boards"
 export async function gateDashboardShare(repos: Repositories, token: string): Promise<DashboardShareGate> {
   const share = isPlausibleShareToken(token) ? await repos.dashboardShares.getByToken(token) : null;
   const refusal = refuseDashboardShare(share, todayISO());
-  if (refusal || !share) return { open: false, refusal: refusal ?? "unknown", needsPassword: false };
-  return { open: true, refusal: null, needsPassword: !!share.passwordHash };
+  if (refusal || !share) return { open: false, refusal: refusal ?? "unknown", needsPassword: false, access: "PUBLIC" };
+  // The dashboard's link is only ever handed outside; there is no private mode to choose.
+  return { open: true, refusal: null, needsPassword: !!share.passwordHash, access: "PUBLIC" };
 }
 
 /**
@@ -186,7 +187,8 @@ export async function loadSharedDashboard(repos: Repositories, token: string, pa
   return { snapshot: publicDashboardSnapshot(snapshot), expiresAt: share.expiresAt };
 }
 
-function refusalMessage(reason: "unknown" | "off" | "expired"): string {
+/** The dashboard link is public-only, so "signin" never reaches here. */
+function refusalMessage(reason: ShareRefusal): string {
   switch (reason) {
     case "off":
       return "Sharing has been turned off for this dashboard. Ask whoever sent you the link to turn it back on.";

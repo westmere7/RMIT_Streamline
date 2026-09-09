@@ -4,6 +4,7 @@ import type {
   Board,
   BoardShare,
   DashboardShare,
+  ItemShare,
   BoardViewKind,
   BoardColumn,
   BoardFavourite,
@@ -100,6 +101,7 @@ export interface StreamlineDB extends DBSchema {
   boardShares: { key: string; value: BoardShare; indexes: { byBoard: string; byToken: string } };
   dashboardShares: { key: string; value: DashboardShare; indexes: { byWorkspace: string; byToken: string } };
   workspaceLists: { key: string; value: WorkspaceListOption; indexes: { byWorkspace: string } };
+  itemShares: { key: string; value: ItemShare; indexes: { byItem: string; byToken: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   activities: {
     key: string;
@@ -143,6 +145,7 @@ export const ALL_STORES: StoreName[] = [
   "boardShares",
   "dashboardShares",
   "workspaceLists",
+  "itemShares",
   "itemReads",
   "activities",
   "notifications",
@@ -154,7 +157,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 12;
+export const DB_VERSION = 13;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -314,6 +317,14 @@ function createWorkspaceListsStore(db: IDBPDatabase<StreamlineDB>): void {
   lists.createIndex("byWorkspace", "workspaceId");
 }
 
+/** v13: the public link of a single task. */
+function createItemSharesStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("itemShares")) return;
+  const shares = db.createObjectStore("itemShares", { keyPath: "id" });
+  shares.createIndex("byItem", "itemId", { unique: true });
+  shares.createIndex("byToken", "token", { unique: true });
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -328,6 +339,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 10) createBoardSharesStore(db);
   if (oldVersion < 11) createDashboardSharesStore(db);
   if (oldVersion < 12) createWorkspaceListsStore(db);
+  if (oldVersion < 13) createItemSharesStore(db);
 }
 
 export interface OpenDatabaseOptions {

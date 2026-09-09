@@ -3,7 +3,7 @@ import type { BoardShareRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapMaybe } from "../client";
 import { pruneUndefined } from "../rows";
 
-const SHARE = "id, board_id, token, enabled, expires_at, password_hash, created_by, created_at, updated_at";
+const SHARE = "id, board_id, token, enabled, expires_at, password_hash, access, created_by, created_at, updated_at";
 
 interface BoardShareRow {
   id: string;
@@ -12,6 +12,7 @@ interface BoardShareRow {
   enabled: boolean;
   expires_at: string | null;
   password_hash: string | null;
+  access: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -25,6 +26,7 @@ function toBoardShare(row: BoardShareRow): BoardShare {
     enabled: row.enabled,
     expiresAt: row.expires_at,
     passwordHash: row.password_hash,
+    access: row.access === "PRIVATE" ? "PRIVATE" : "PUBLIC",
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -57,14 +59,15 @@ export class SupabaseBoardShareRepository implements BoardShareRepository {
       enabled: input.enabled,
       expires_at: input.expiresAt,
       password_hash: input.passwordHash,
+      access: input.access,
       created_by: input.createdBy,
     };
     const result = await db().from("board_shares").insert(payload).select(SHARE).single();
     return toBoardShare(unwrap<BoardShareRow>(result, "board_shares.create"));
   }
 
-  async update(id: string, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<BoardShare> {
-    const payload = pruneUndefined({ token: patch.token, enabled: patch.enabled, expires_at: patch.expiresAt, password_hash: patch.passwordHash });
+  async update(id: string, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash" | "access">>): Promise<BoardShare> {
+    const payload = pruneUndefined({ token: patch.token, enabled: patch.enabled, expires_at: patch.expiresAt, password_hash: patch.passwordHash, access: patch.access });
     const result = await db().from("board_shares").update(payload).eq("id", id).select(SHARE).single();
     return toBoardShare(unwrap<BoardShareRow>(result, "board_shares.update"));
   }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ShareItemDialog } from "@/features/items/share-item-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -28,7 +29,7 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, openItem, openItemUpdates, updates, showReference } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates, showReference } = useBoardContext();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
@@ -41,6 +42,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [addingSubitem, setAddingSubitem] = React.useState(false);
+  const [sharing, setSharing] = React.useState(false);
 
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const done = model.isDone(item.id);
@@ -80,6 +82,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             }),
         },
         { type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) },
+        ...(canManage ? [{ type: "item", label: "Share by link…", icon: <Share2 />, onSelect: () => setSharing(true) } satisfies MenuAction] : []),
         {
           type: "item",
           label: "Link to another item…",
@@ -290,6 +293,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         destructive
         onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
       />
+      {canManage && <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />}
     </>
   );
 });

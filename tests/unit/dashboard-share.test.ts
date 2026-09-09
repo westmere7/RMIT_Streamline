@@ -52,12 +52,12 @@ describe("DashboardService", () => {
     expect(off.id).toBe(created.id);
     expect(off.token).toBe(created.token);
     expect(off.enabled).toBe(false);
-    expect(await services.dashboard.gate(created.token)).toEqual({ open: false, refusal: "off", needsPassword: false });
+    expect(await services.dashboard.gate(created.token)).toEqual({ open: false, refusal: "off", needsPassword: false, access: "PUBLIC" });
     await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true });
     const renewed = await services.dashboard.regenerateShare(SEED_WORKSPACE_ID, ADMIN);
     expect(renewed.token).not.toBe(created.token);
     expect(await services.dashboard.gate(created.token)).toMatchObject({ open: false, refusal: "unknown" });
-    expect(await services.dashboard.gate(renewed.token)).toEqual({ open: true, refusal: null, needsPassword: false });
+    expect(await services.dashboard.gate(renewed.token)).toEqual({ open: true, refusal: null, needsPassword: false, access: "PUBLIC" });
     await services.dashboard.removeShare(SEED_WORKSPACE_ID);
     expect(await services.dashboard.getShare(SEED_WORKSPACE_ID)).toBeNull();
   });
@@ -65,7 +65,7 @@ describe("DashboardService", () => {
   it("serves a trimmed snapshot behind the token, and asks for the password when one is set", async () => {
     const { services } = freshServices();
     const share = await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true, password: "open-sesame" });
-    expect(await services.dashboard.gate(share.token)).toEqual({ open: true, refusal: null, needsPassword: true });
+    expect(await services.dashboard.gate(share.token)).toEqual({ open: true, refusal: null, needsPassword: true, access: "PUBLIC" });
     await expect(services.dashboard.loadPublic(share.token, null)).rejects.toBeInstanceOf(ShareAccessError);
     await expect(services.dashboard.loadPublic(share.token, "wrong")).rejects.toMatchObject({ reason: "password" });
     const payload = await services.dashboard.loadPublic(share.token, "open-sesame");

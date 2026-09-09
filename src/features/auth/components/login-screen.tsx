@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, LoaderCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
  */
 export function LoginScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn, status, user } = useAuth();
   const { providerKind } = useDataContext();
   const services = useServices();
@@ -50,9 +51,14 @@ export function LoginScreen() {
   });
   const destination = workspaces.data?.[0];
   const noWorkspace = status === "signed-in" && workspaces.isSuccess && !destination;
+  // A shared link sends people here to sign in; they belong back on it. Only a
+  // path on this site is followed, so the parameter cannot send anyone away.
+  const next = searchParams.get("next");
+  const backTo = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
   React.useEffect(() => {
-    if (destination) router.replace(routes.workspace(destination.slug));
-  }, [destination, router]);
+    if (backTo && status === "signed-in") router.replace(backTo);
+    else if (destination) router.replace(routes.workspace(destination.slug));
+  }, [destination, router, backTo, status]);
 
   const submit = async (target: string, secret?: string) => {
     setError(null);

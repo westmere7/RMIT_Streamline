@@ -24,6 +24,7 @@ function shareAt(patch: Partial<BoardShare>): BoardShare {
     enabled: true,
     expiresAt: null,
     passwordHash: null,
+    access: "PUBLIC",
     createdBy: ADMIN,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -113,7 +114,7 @@ describe("sharing a board", () => {
     expect(share.passwordHash).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
 
     const gate = await services.shares.gate(share.token);
-    expect(gate).toEqual({ open: true, refusal: null, needsPassword: true });
+    expect(gate).toEqual({ open: true, refusal: null, needsPassword: true, access: "PRIVATE" });
 
     await expect(services.shares.load(share.token, null)).rejects.toMatchObject({ reason: "password" });
     await expect(services.shares.load(share.token, "wrong")).rejects.toMatchObject({ reason: "password" });
@@ -128,8 +129,8 @@ describe("sharing a board", () => {
 
   it("tells a visitor nothing about a token that opens nothing", async () => {
     const { services } = freshServices();
-    expect(await services.shares.gate("notatokenatall")).toEqual({ open: false, refusal: "unknown", needsPassword: false });
-    expect(await services.shares.gate(generateShareToken())).toEqual({ open: false, refusal: "unknown", needsPassword: false });
+    expect(await services.shares.gate("notatokenatall")).toEqual({ open: false, refusal: "unknown", needsPassword: false, access: "PUBLIC" });
+    expect(await services.shares.gate(generateShareToken())).toEqual({ open: false, refusal: "unknown", needsPassword: false, access: "PUBLIC" });
   });
 
   it("forgets the link when sharing stops", async () => {

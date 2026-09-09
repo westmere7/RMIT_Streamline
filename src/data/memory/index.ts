@@ -167,6 +167,13 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       update: readOnly("saving a form"),
       delete: readOnly("deleting a form"),
     },
+    itemShares: {
+      getByItem: async () => null,
+      getByToken: async () => null,
+      create: readOnly("sharing a task"),
+      update: readOnly("changing a link"),
+      delete: readOnly("removing a link"),
+    },
     boardShares: {
       getByBoard: async () => null,
       getByToken: async () => null,

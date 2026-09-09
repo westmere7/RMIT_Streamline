@@ -10,12 +10,15 @@ export class LocalBoardShareRepository implements BoardShareRepository {
 
   async getByBoard(boardId: string): Promise<BoardShare | null> {
     const db = await this.conn.getDb();
-    return (await db.getFromIndex("boardShares", "byBoard", boardId)) ?? null;
+    const row = await db.getFromIndex("boardShares", "byBoard", boardId);
+    // Rows written before links could be private open to anyone, as they did then.
+    return row ? { ...row, access: row.access ?? "PUBLIC" } : null;
   }
 
   async getByToken(token: string): Promise<BoardShare | null> {
     const db = await this.conn.getDb();
-    return (await db.getFromIndex("boardShares", "byToken", token)) ?? null;
+    const row = await db.getFromIndex("boardShares", "byToken", token);
+    return row ? { ...row, access: row.access ?? "PUBLIC" } : null;
   }
 
   async create(input: BoardShareInput): Promise<BoardShare> {
@@ -26,7 +29,7 @@ export class LocalBoardShareRepository implements BoardShareRepository {
     return share;
   }
 
-  async update(id: string, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash">>): Promise<BoardShare> {
+  async update(id: string, patch: Partial<Pick<BoardShare, "token" | "enabled" | "expiresAt" | "passwordHash" | "access">>): Promise<BoardShare> {
     const db = await this.conn.getDb();
     const existing = await db.get("boardShares", id);
     if (!existing) throw new NotFoundError("BoardShare", id);

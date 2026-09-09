@@ -26,6 +26,8 @@ export const queryKeys = {
   board: (boardId: string) => ["board", boardId] as const,
   /** The public link of a board, for the Share dialog. */
   boardShare: (boardId: string) => ["board-share", boardId] as const,
+  /** The public link of one task. */
+  itemShare: (itemId: string) => ["item-share", itemId] as const,
   /** Every board's groups, columns, items, values and assets in one snapshot, for the dashboard. */
   dashboard: (workspaceId: string) => ["dashboard", workspaceId] as const,
   /** The public link of the workspace dashboard, for its Share dialog. */

@@ -2,11 +2,14 @@ import type { BoardViewKind } from "@/domain";
 
 export const routes = {
   root: () => "/",
-  login: () => "/login",
+  /** `next` brings someone back where they were once they are signed in. */
+  login: (next?: string) => `/login${next ? `?next=${encodeURIComponent(next)}` : ""}`,
   /** The onboarding page an invited person opens; needs no session. */
   join: (token: string) => `/join/${encodeURIComponent(token)}`,
   /** A board someone shared by link. Read-only, needs no session, just the token. */
   share: (token: string) => `/share/${encodeURIComponent(token)}`,
+  /** One task someone shared by link. */
+  itemShare: (token: string) => `/share/item/${encodeURIComponent(token)}`,
   /** The public booking form stakeholders open; needs no session, just the workspace's key. */
   publicBooking: (slug: string, key: string) => `/book/${encodeURIComponent(slug)}/${encodeURIComponent(key)}`,
   workspace: (slug: string) => `/workspace/${slug}`,

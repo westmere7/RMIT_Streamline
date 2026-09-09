@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, KeyRound, LoaderCircle, RefreshCw, Trash2 } from "lucide-react";
+import { Building2, Copy, ExternalLink, Globe, KeyRound, LoaderCircle, RefreshCw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { Board, BoardShare } from "@/domain";
+import type { Board, ShareAccess, ShareLike } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
 import { todayISO } from "@/lib/dates/dates";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 import type { ShareSettings } from "@/services";
 
 /**
@@ -85,7 +86,7 @@ export function ShareBoardDialog({ board, open, onOpenChange }: { board: Board; 
         <DialogContent size="md" data-testid="share-dialog">
           <DialogHeader>
             <DialogTitle>Share {board.name}</DialogTitle>
-            <DialogDescription>Anyone with the link can read this board. Nothing else, and nothing they can change.</DialogDescription>
+            <DialogDescription>A link that opens this board, read-only. Nothing else of the workspace comes with it.</DialogDescription>
           </DialogHeader>
           <BoardSharePanel board={board} />
         </DialogContent>
@@ -110,24 +111,86 @@ export function BoardSharePanel({ board }: { board: Board }) {
   if (!current) {
     return (
       <div className="space-y-3 py-1">
-        <p className="text-[13px] text-muted-foreground">Not shared. A link makes this board readable by anyone who has it.</p>
+        <p className="text-[13px] text-muted-foreground">Not shared. A link makes this board readable by whoever you choose to let in.</p>
         <Button onClick={() => save.mutate({ enabled: true })} disabled={busy} data-testid="share-create">
           {save.isPending ? <LoaderCircle className="animate-spin" /> : null} Create a share link
         </Button>
       </div>
     );
   }
-  return <ShareControls share={current} busy={busy} onSave={(settings) => save.mutate(settings)} onRegenerate={() => regenerate.mutate()} onStop={() => stop.mutate()} />;
+  return (
+    <ShareControls
+      share={current}
+      what="board"
+      url={shareUrl(routes.share(current.token))}
+      busy={busy}
+      onSave={(settings) => save.mutate(settings)}
+      onRegenerate={() => regenerate.mutate()}
+      onStop={() => stop.mutate()}
+    />
+  );
 }
 
-function ShareControls({
+/** The address a visitor would paste. Only ever read in the browser. */
+export function shareUrl(path: string): string {
+  return `${typeof window === "undefined" ? "" : window.location.origin}${path}`;
+}
+
+/**
+ * Who a link lets in. Two plain choices rather than a switch, because the
+ * difference matters more than most settings on this panel: one of them puts
+ * the work on the open internet.
+ */
+export function ShareAccessChoice({ access, busy, what, onChange }: { access: ShareAccess; busy: boolean; what: string; onChange: (access: ShareAccess) => void }) {
+  const options: { value: ShareAccess; icon: typeof Globe; label: string; hint: string }[] = [
+    { value: "PRIVATE", icon: Building2, label: "Workspace", hint: `Signed-in members. They need no place on the ${what}.` },
+    { value: "PUBLIC", icon: Globe, label: "Anyone", hint: "No account at all. Treat the link as the password." },
+  ];
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-2 text-[13px] font-medium">Who can open it</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const active = access === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={busy}
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "rounded-xl border px-3 py-2.5 text-left transition-colors disabled:opacity-60",
+                active ? "border-ring bg-accent-soft/60 ring-2 ring-ring/25" : "border-border/60 hover:bg-accent/60",
+              )}
+              data-testid={`share-access-${option.value.toLowerCase()}`}
+            >
+              <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                <option.icon className="size-3.5" /> {option.label}
+              </span>
+              <span className="mt-0.5 block text-2xs text-muted-foreground">{option.hint}</span>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** The one set of controls behind both kinds of link: the address, who it opens for, and when it stops. */
+export function ShareControls({
   share,
+  what,
+  url,
   busy,
   onSave,
   onRegenerate,
   onStop,
 }: {
-  share: BoardShare;
+  share: ShareLike;
+  /** "board" or "task" — the wording changes, the controls do not. */
+  what: string;
+  url: string;
   busy: boolean;
   onSave: (settings: ShareSettings) => void;
   onRegenerate: () => void;
@@ -135,10 +198,10 @@ function ShareControls({
 }) {
   const [password, setPassword] = React.useState("");
   const [confirmingNew, setConfirmingNew] = React.useState(false);
-  // This only ever mounts in the browser, where the address bar is what a
-  // visitor would paste.
-  const url = `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}`;
   const expired = !!share.expiresAt && share.expiresAt < todayISO();
+  // Signing in is already the check on a workspace link, so a password would be
+  // a second lock on the same door. Switching to it takes any password off.
+  const workspaceOnly = share.access === "PRIVATE";
 
   return (
     <div className="space-y-4">
@@ -158,6 +221,13 @@ function ShareControls({
         Link is on
         <Switch checked={share.enabled} disabled={busy} onCheckedChange={(enabled) => onSave({ enabled })} aria-label="Link is on" data-testid="share-enabled" />
       </label>
+
+      <ShareAccessChoice
+        access={share.access}
+        busy={busy}
+        what={what}
+        onChange={(access) => onSave(access === "PRIVATE" && share.passwordHash ? { access, password: null } : { access })}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -181,9 +251,13 @@ function ShareControls({
           {expired && <p className="text-2xs text-destructive">Expired.</p>}
         </div>
 
-        <div className="space-y-2">
+        <div className={cn("space-y-2", workspaceOnly && "opacity-55")}>
           <Label htmlFor="share-password">Password</Label>
-          {share.passwordHash ? (
+          {workspaceOnly ? (
+            <p className="flex h-9 items-center rounded-lg border border-border/60 bg-surface/40 px-3 text-2xs text-muted-foreground" data-testid="share-password-not-needed">
+              Not needed — signing in is the check.
+            </p>
+          ) : share.passwordHash ? (
             <div className="flex items-center gap-2">
               <span className="flex h-9 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-surface/40 px-3 text-[13px] text-muted-foreground">
                 <KeyRound className="size-3.5" /> Protected

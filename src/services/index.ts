@@ -7,6 +7,7 @@ import { DashboardService, type PublicDashboardTransport } from "./dashboard-ser
 import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
+import { ItemShareService, type PublicItemTransport } from "./item-share-service";
 import { MessageService } from "./message-service";
 import { MyWorkService } from "./my-work-service";
 import { NotificationService } from "./notification-service";
@@ -23,6 +24,7 @@ export interface Services {
   lists: WorkspaceListService;
   boards: BoardService;
   shares: BoardShareService;
+  itemShares: ItemShareService;
   dashboard: DashboardService;
   items: ItemService;
   links: ItemLinkService;
@@ -41,6 +43,8 @@ export interface ServiceOptions {
   bookingTransport?: BookingTransport | null;
   /** How a visitor without an account reads a shared board (Supabase). */
   shareTransport?: PublicShareTransport | null;
+  /** The same for a single shared task. */
+  itemShareTransport?: PublicItemTransport | null;
   /** How a visitor without an account reads the shared dashboard (Supabase). */
   dashboardTransport?: PublicDashboardTransport | null;
 }
@@ -59,6 +63,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     lists: new WorkspaceListService(repos),
     boards: new BoardService(repos, notifications),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
+    itemShares: new ItemShareService(repos, options.itemShareTransport ?? null),
     dashboard: new DashboardService(repos, options.dashboardTransport ?? null),
     items,
     links,
@@ -86,7 +91,8 @@ export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
-export type { PublicShareTransport, ShareFailure, ShareSettings } from "./board-share-service";
+export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
+export type { PublicItemTransport } from "./item-share-service";
 export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";
 export { ShareAccessError, shareAccessMessage } from "./board-share-service";
 export { BookingAccessError } from "./booking-service";
