@@ -51,7 +51,7 @@ export function MorePage() {
 
         <Group title="Work">
           <Row href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" />
-          <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Book a task" />
+          <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Stakeholder Portal" />
           <Row href={routes.messages(ws.slug)} icon={MessageSquare} label="Messages" />
         </Group>
 

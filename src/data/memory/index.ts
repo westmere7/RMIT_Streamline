@@ -174,6 +174,8 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       deleteRequest: readOnly("unpublishing a request"),
       getSubmission: async () => null,
       createSubmission: readOnly("recording a submission"),
+      completeSubmission: readOnly("recording a submission"),
+      deleteSubmission: readOnly("recording a submission"),
     },
     itemAssets: {
       getById: async (id) => payload().assets.find((a) => a.id === id) ?? null,

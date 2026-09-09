@@ -1,4 +1,7 @@
 import type {
+  BookingForm,
+  BookingReceipt,
+  BookingRequest,
   ColumnValue,
   DepartmentPortal,
   DepartmentStatus,
@@ -12,6 +15,7 @@ import type {
   PortalTask,
   PortalTaskDetail,
   PortalTaskPage,
+  PortalSubmission,
   PortalTheme,
   StakeholderDepartment,
   TagOption,
@@ -74,6 +78,14 @@ export interface PortalGrant {
   password: string | null;
   /** The version the grant was issued under. A stale one is refused. */
   credentialVersion?: number;
+  /**
+   * Who is asking, on the local provider only.
+   *
+   * Under Supabase this is ignored entirely: the server resolves the viewer
+   * from a bearer token it verifies itself, because a caller claiming to be
+   * somebody is not evidence of anything.
+   */
+  viewer?: PortalViewer | null;
 }
 
 /** Who is asking, when anyone is. Resolved from a real session, never from the body. */
@@ -99,6 +111,25 @@ export interface DepartmentOverview {
 }
 
 /**
+ * How a portal page reaches the server when the browser cannot read for itself.
+ *
+ * Under Supabase it cannot: a stakeholder has no session, so the reads run with
+ * the service role behind a route handler. Under the local provider the browser
+ * *is* the database, so the same calls run straight through the service. The
+ * page never knows which — it calls the same four methods either way, which is
+ * how the local suite exercises the real behaviour rather than a stand-in.
+ */
+export interface PortalTransport {
+  gate(token: string): Promise<PortalGate>;
+  tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string }): Promise<PortalTaskPage & { context: PortalContext }>;
+  task(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail>;
+  book(grant: PortalGrant, submissionKey: string, request: BookingRequest): Promise<BookingReceipt>;
+  bookingForm(grant: PortalGrant): Promise<BookingForm>;
+  comment(grant: PortalGrant, itemId: EntityId, body: string): Promise<void>;
+  setDeliverableDone(grant: PortalGrant, itemId: EntityId, assetId: EntityId, done: boolean): Promise<void>;
+}
+
+/**
  * The stakeholder portal.
  *
  * Two audiences and one rule between them. Administrators shape departments and
@@ -109,7 +140,55 @@ export interface DepartmentOverview {
  * name in the projection rather than subtracted from a row.
  */
 export class StakeholderPortalService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    /** Set for Supabase, where a visitor's reads must go through the server. */
+    private readonly transport: PortalTransport | null = null,
+    /** Builds the workspace's booking form. Injected rather than imported, to keep the two services apart. */
+    private readonly buildForm: (workspaceId: EntityId) => Promise<BookingForm> = async () => {
+      throw new Error("This portal cannot build a booking form.");
+    },
+  ) {}
+
+  // ---- what a portal page calls ---------------------------------------------
+
+  /**
+   * The four calls the page makes, over the transport when there is one.
+   *
+   * With no transport these run here, against the repositories the browser
+   * already holds — which is the local provider, and which is what lets the
+   * end-to-end suite drive the genuine gate, projection and idempotency rather
+   * than a mock of them.
+   */
+  async publicGate(token: string): Promise<PortalGate> {
+    return this.transport ? this.transport.gate(token) : this.gate(token);
+  }
+
+  async publicTasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string } = {}): Promise<PortalTaskPage & { context: PortalContext }> {
+    if (this.transport) return this.transport.tasks(grant, options);
+    const resolved = await this.resolve(grant);
+    const [page, context] = await Promise.all([this.tasks(resolved, options), this.context(resolved, grant.viewer ?? null)]);
+    return { ...page, context };
+  }
+
+  async publicTask(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail> {
+    if (this.transport) return this.transport.task(grant, itemId);
+    const resolved = await this.resolve(grant);
+    return this.task(resolved, itemId, grant.viewer ?? null);
+  }
+
+  /** The booking form, behind the same gate: a workspace's questions are not public. */
+  async publicBookingForm(grant: PortalGrant): Promise<BookingForm> {
+    if (this.transport) return this.transport.bookingForm(grant);
+    const resolved = await this.resolve(grant);
+    return this.buildForm(resolved.workspaceId);
+  }
+
+  async publicBook(grant: PortalGrant, submissionKey: string, request: BookingRequest, booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null): Promise<BookingReceipt> }): Promise<BookingReceipt> {
+    if (this.transport) return this.transport.book(grant, submissionKey, request);
+    const resolved = await this.resolve(grant);
+    return this.book(resolved, { submissionKey, request, booking, memberId: grant.viewer?.userId ?? null });
+  }
 
   // ---- departments ---------------------------------------------------------
 
@@ -407,6 +486,135 @@ export class StakeholderPortalService {
     });
   }
 
+  /**
+   * The two things a member of staff may do from inside a portal.
+   *
+   * Both re-check everything on the way through, here as well as in the route
+   * handler: the task must belong to this portal, and the caller must hold an
+   * editor's or owner's seat on that task's own board. A stakeholder reaches
+   * neither, and a member of staff reaching one for a task on a board they are
+   * not on is refused just the same.
+   */
+  async publicComment(grant: PortalGrant, itemId: EntityId, body: string, comments: { addComment(itemId: EntityId, body: string, actorId: EntityId, users: readonly User[]): Promise<unknown> }): Promise<void> {
+    if (this.transport) return void (await this.transport.comment(grant, itemId, body));
+    const { resolved, viewer } = await this.admitWriter(grant, itemId);
+    void resolved;
+    await comments.addComment(itemId, body, viewer.userId, await this.repos.users.list());
+  }
+
+  async publicSetDeliverableDone(grant: PortalGrant, itemId: EntityId, assetId: EntityId, done: boolean, assets: { update(id: EntityId, patch: { completedAt: string | null }, actorId: EntityId): Promise<unknown> }): Promise<void> {
+    if (this.transport) return void (await this.transport.setDeliverableDone(grant, itemId, assetId, done));
+    const { viewer } = await this.admitWriter(grant, itemId);
+    const asset = await this.repos.itemAssets.getById(assetId);
+    // The asset's own owner decides, not the id it was paired with in the call.
+    if (!asset || asset.itemId !== itemId) throw new PortalAccessError("unknown", "That deliverable is not part of this request.");
+    await assets.update(assetId, { completedAt: done ? new Date().toISOString() : null }, viewer.userId);
+  }
+
+  /** The gate, the portal's own scope, and a seat on the board — in that order. */
+  private async admitWriter(grant: PortalGrant, itemId: EntityId): Promise<{ resolved: ResolvedPortal; viewer: PortalViewer }> {
+    const resolved = await this.resolve(grant);
+    const request = await this.repos.stakeholderPortals.getRequestByItem(resolved.workspaceId, itemId);
+    if (!request || request.departmentId !== resolved.department.id) throw new PortalAccessError("unknown", "That request is not part of this portal.");
+    const viewer = grant.viewer ?? null;
+    if (!viewer || !(await this.canAct(resolved, itemId, viewer))) throw new PortalAccessError("unknown", "Only someone on this task's board can do that here.");
+    return { resolved, viewer };
+  }
+
+  // ---- booking through a portal -------------------------------------------------
+
+  /**
+   * A booking made from a department's portal.
+   *
+   * Three things make this different from the public booking form.
+   *
+   * The department is not negotiable. It comes from the token that got the
+   * caller this far, and whatever the body said about a department is
+   * overwritten before the request is validated. There is no path from the body
+   * to another department: `extra` and `answers` can only address columns whose
+   * type is in BOOKING_FIELD_TYPES, and STAKEHOLDER is not one of them, so a
+   * spoofed stakeholder value cannot even reach a column.
+   *
+   * The submission key makes a retry safe. It is claimed in the database before
+   * anything is written, and the unique constraint on (portal, key) is what
+   * settles a race between two taps: one insert wins and the other replays the
+   * winner's receipt. The same key arriving with different content is refused —
+   * that is a different booking wearing an old key.
+   *
+   * The provenance and the task are written together, in the sense that matters:
+   * the claim is released if anything fails, so a caller may retry, and the
+   * receipt is only recorded once the request is genuinely visible in the
+   * portal. This is a durable claim with compensation, not a transaction — the
+   * repositories speak REST and cannot offer one — and the failure it cannot
+   * fully close is noted in the portal's documentation.
+   */
+  async book(
+    resolved: ResolvedPortal,
+    input: { submissionKey: string; request: BookingRequest; booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null): Promise<BookingReceipt> }; memberId?: EntityId | null },
+  ): Promise<BookingReceipt> {
+    const key = input.submissionKey.trim();
+    if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
+
+    // The department is decided here, from the credential, and written over
+    // whatever arrived. The brief the requester typed is captured before the
+    // booking writer appends their contact details to the description.
+    const request: BookingRequest = { ...input.request, department: resolved.department.name };
+    const publicBrief = request.brief?.trim() ? request.brief.trim().slice(0, MAX_PUBLIC_BRIEF) : null;
+    const requestHash = await hashSubmission(resolved.portal.id, request);
+
+    const existing = await this.repos.stakeholderPortals.getSubmission(resolved.portal.id, key);
+    if (existing) return this.replay(existing, requestHash);
+
+    let claim;
+    try {
+      claim = await this.repos.stakeholderPortals.createSubmission({ portalId: resolved.portal.id, submissionKey: key, requestHash, itemId: null, receipt: null });
+    } catch {
+      // Somebody else claimed it between the read and the write: the other
+      // attempt is the booking, and this one replays its receipt.
+      const winner = await this.repos.stakeholderPortals.getSubmission(resolved.portal.id, key);
+      if (!winner) throw new Error("That booking could not be recorded. Try again.");
+      return this.replay(winner, requestHash);
+    }
+
+    try {
+      const receipt = await input.booking.book(resolved.workspaceId, request, input.memberId ?? null);
+      await this.associate({
+        workspaceId: resolved.workspaceId,
+        departmentId: resolved.department.id,
+        itemId: receipt.itemId,
+        source: "PORTAL_BOOKING",
+        publicBrief,
+      });
+      await this.repos.stakeholderPortals.completeSubmission(claim.id, { itemId: receipt.itemId, receipt });
+      return receipt;
+    } catch (error) {
+      // The key goes back so the stakeholder can try again with it. Without
+      // this a failed attempt would burn the key and every retry would be
+      // refused as a duplicate.
+      await this.repos.stakeholderPortals.deleteSubmission(claim.id).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Hands back what the first attempt produced.
+   *
+   * A key that arrives with different content is not a retry. Replaying the old
+   * receipt would tell the caller their new booking succeeded when nothing was
+   * written, so it is refused instead.
+   */
+  private replay(submission: PortalSubmission, requestHash: string): BookingReceipt {
+    if (submission.requestHash !== requestHash) {
+      throw new Error("That submission key has already been used for a different booking. Reload the form and try again.");
+    }
+    if (!submission.receipt) {
+      // Claimed but never completed: an attempt is in flight, or one died
+      // mid-way. Either way this caller must not start a second booking.
+      throw new Error("That booking is still being recorded. Give it a moment and check your requests before sending it again.");
+    }
+    return submission.receipt as BookingReceipt;
+  }
+
   // ---- internals --------------------------------------------------------------
 
   private async requireDepartment(workspaceId: EntityId, departmentId: EntityId): Promise<StakeholderDepartment> {
@@ -538,6 +746,29 @@ export class StakeholderPortalService {
       }),
     );
   }
+}
+
+/**
+ * A digest of what was submitted, so a reused key can be told from a retry.
+ *
+ * Not a security hash — it never guards anything — just a stable fingerprint of
+ * the payload that decided the booking. The portal is part of it so the same key
+ * cannot mean one thing in one department and something else in another.
+ */
+async function hashSubmission(portalId: EntityId, request: BookingRequest): Promise<string> {
+  const canonical = JSON.stringify([
+    portalId,
+    request.title?.trim() ?? "",
+    request.brief?.trim() ?? "",
+    request.requesterEmail?.trim().toLowerCase() ?? "",
+    request.teamId ?? null,
+    request.dueDate ?? null,
+    request.priority ?? null,
+    request.assetTypes,
+    request.assets.map((a) => [a.name, a.quantity, a.spec ?? ""]),
+  ]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Sortable and unique: when a request arrived, then its id to break ties. */

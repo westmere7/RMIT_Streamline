@@ -291,6 +291,15 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     const result = await db().from("portal_submissions").insert(payload).select(SUBMISSION).single();
     return toSubmission(unwrap<SubmissionRow>(result, "portal_submissions.create"));
   }
+
+  async completeSubmission(id: string, patch: { itemId: string; receipt: unknown }): Promise<PortalSubmission> {
+    const result = await db().from("portal_submissions").update({ item_id: patch.itemId, receipt: patch.receipt }).eq("id", id).select(SUBMISSION).single();
+    return toSubmission(unwrap<SubmissionRow>(result, "portal_submissions.complete"));
+  }
+
+  async deleteSubmission(id: string): Promise<void> {
+    assertOk(await db().from("portal_submissions").delete().eq("id", id), "portal_submissions.delete");
+  }
 }
 
 /** `bookedAt|id`, or null for anything that is not shaped like one. */

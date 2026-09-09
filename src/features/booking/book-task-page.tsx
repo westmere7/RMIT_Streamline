@@ -18,13 +18,18 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageWorkspace, canSeeSystemEntities, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { PortalAdmin } from "@/features/portal/portal-admin";
 import { routes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 
 /**
- * Booking from inside the app. Members use the same form as stakeholders, with
- * their own details filled in. Admins also see the public link to send out,
- * can replace it, can jump to the Task Allocation board, and can edit the form
- * itself: its questions, their wording and order, and saved versions of it.
+ * The Stakeholder Portal destination, at the URL "Book a task" always had.
+ *
+ * Two things live here now. Departments and their links are an administrator's
+ * business, and booking from inside the app is everyone's — so an ordinary
+ * member sees the form exactly as they always did, with no tabs and nothing
+ * taken away, and an admin gets a tab in front of it. The URL is unchanged, so
+ * every existing link, bookmark and search entry still lands here.
  */
 export function BookTaskPage() {
   const ws = useWorkspace();
@@ -33,6 +38,7 @@ export function BookTaskPage() {
   const admin = canSeeSystemEntities(ws.permissions);
   const manager = canManageWorkspace(ws.permissions);
   const [editing, setEditing] = React.useState(false);
+  const [tab, setTab] = React.useState<"portals" | "book">(manager ? "portals" : "book");
   // Where the editor hangs its controls: the top of the aside, so the card holds the form alone.
   const [editorPanel, setEditorPanel] = React.useState<HTMLDivElement | null>(null);
 
@@ -85,20 +91,59 @@ export function BookTaskPage() {
           with the aside's right edge. */}
       <div className="mx-auto w-full max-w-[66rem] shrink-0">
         <PageHeader
-          title="Book a task"
+          title="Stakeholder Portal"
           // Held to a reading width: at full width the line pushes the button onto one of its own.
-          description={<span className="block max-w-[44rem]">Ask the creative team for work. Requests wait on Task Allocation until a manager places them, unless the team you pick takes bookings directly.</span>}
+          description={
+            <span className="block max-w-[44rem]">
+              {tab === "portals"
+                ? "Each stakeholder department reads its own requests through its own link, and books new work from the same place."
+                : "Ask the creative team for work. Requests wait on Task Allocation until a manager places them, unless the team you pick takes bookings directly."}
+            </span>
+          }
           actions={
-            manager && !editing && form.data ? (
+            manager && tab === "book" && !editing && form.data ? (
               <Button type="button" onClick={() => setEditing(true)} data-testid="booking-edit">
                 <Pencil /> Edit form
               </Button>
             ) : undefined
           }
         />
+        {manager && (
+          <div role="tablist" aria-label="Stakeholder Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
+            {(
+              [
+                ["portals", "Departments"],
+                ["book", "Book a task"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={cn(
+                  "relative -mb-px inline-flex h-10 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12",
+                  tab === id ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
+                )}
+                data-testid={`portal-tab-${id}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {manager && tab === "portals" && (
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7">
+          <div className="mx-auto w-full max-w-[66rem]">
+            <PortalAdmin />
+          </div>
+        </div>
+      )}
       {/* On a desktop the form card scrolls by itself under the header; on a phone the whole page scrolls. */}
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible">
+      <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", manager && tab !== "book" && "hidden")}>
         <div className="mx-auto grid w-full max-w-[66rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,44rem)_minmax(16rem,20rem)]">
         <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
           {form.isLoading ? (

@@ -178,6 +178,20 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
     await db.add("portalSubmissions", row);
     return row;
   }
+
+  async completeSubmission(id: string, patch: { itemId: string; receipt: unknown }): Promise<PortalSubmission> {
+    const db = await this.conn.getDb();
+    const existing = await db.get("portalSubmissions", id);
+    if (!existing) throw new NotFoundError("Portal submission", id);
+    const row: PortalSubmission = { ...existing, itemId: patch.itemId, receipt: patch.receipt };
+    await db.put("portalSubmissions", row);
+    return row;
+  }
+
+  async deleteSubmission(id: string): Promise<void> {
+    const db = await this.conn.getDb();
+    await db.delete("portalSubmissions", id);
+  }
 }
 
 /** Sortable and unique: the time a request arrived, then its id to break ties. */

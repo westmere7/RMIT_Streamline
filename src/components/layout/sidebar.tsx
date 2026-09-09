@@ -239,16 +239,16 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           />
           <NavItem href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" active={isActivePath(routes.dashboard(ws.slug))} collapsed={collapsed} />
           <li>
-            <SimpleTooltip label="Book a task" side="right" disabled={!collapsed}>
+            <SimpleTooltip label="Stakeholder Portal" side="right" disabled={!collapsed}>
               <Link
                 href={routes.book(ws.slug)}
-                aria-label="Book a task"
+                aria-label="Stakeholder Portal"
                 onClick={onNavigate}
                 className={cn("group", primaryNavClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
                 data-testid="sidebar-book-task"
               >
                 <PrimaryIcon icon={ClipboardPen} active={isActivePath(routes.book(ws.slug))} />
-                {!collapsed && <span className="flex-1 text-left">Book a task</span>}
+                {!collapsed && <span className="flex-1 text-left">Stakeholder Portal</span>}
               </Link>
             </SimpleTooltip>
           </li>

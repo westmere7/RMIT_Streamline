@@ -121,7 +121,7 @@ export function HomeMobile() {
           </>
         )}
 
-        <Heading title="Book a task" href={routes.book(ws.slug)} action="Open" icon={ClipboardPen} />
+        <Heading title="Stakeholder Portal" href={routes.book(ws.slug)} action="Open" icon={ClipboardPen} />
         <Link
           href={routes.book(ws.slug)}
           className="flex min-h-14 items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2 active:bg-accent/70"

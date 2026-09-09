@@ -256,6 +256,10 @@ export interface StakeholderPortalRepository {
    * constraint is the arbiter, so two parallel retries cannot both win.
    */
   createSubmission(input: Omit<PortalSubmission, "id" | "createdAt">): Promise<PortalSubmission>;
+  /** Fills in the receipt once the booking behind a claimed key is durable. */
+  completeSubmission(id: EntityId, patch: { itemId: EntityId; receipt: unknown }): Promise<PortalSubmission>;
+  /** Releases a claimed key whose booking failed, so the caller may retry with it. */
+  deleteSubmission(id: EntityId): Promise<void>;
 }
 
 export interface ItemAssetRepository {

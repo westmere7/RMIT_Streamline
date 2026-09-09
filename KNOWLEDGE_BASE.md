@@ -246,13 +246,14 @@ Use `src/lib/routes.ts` for application links. Board and workspace slugs are dis
 | `/join/[token]` | Public onboarding screen. |
 | `/book/[slug]/[key]` | Public stakeholder booking form. |
 | `/share/[token]` | Public read-only board. |
+| `/portal/[token]` | A stakeholder department's own portal: its requests, and the form to add another. |
 | `/workspace/[workspaceSlug]` | Workspace home. |
 | `/workspace/[workspaceSlug]/boards/[boardSlug]` | Board and selected view. |
 | `/workspace/[workspaceSlug]/my-work` | Assigned work across boards. |
 | `/workspace/[workspaceSlug]/inbox` | Notifications and quiet updates. |
 | `/workspace/[workspaceSlug]/dashboard` | The live delivery dashboard across every board the reader can see. |
 | `/dashboard/[token]` | Public, full-screen, read-only dashboard behind a share token. |
-| `/workspace/[workspaceSlug]/book` | Booking from inside the signed-in workspace. |
+| `/workspace/[workspaceSlug]/book` | Stakeholder Portal: department links (admins) and booking from inside the workspace. The URL is unchanged; only the destination's name is. |
 | `/workspace/[workspaceSlug]/members` | Member directory and administration. |
 | `/workspace/[workspaceSlug]/people/[userId]` | Person profile. |
 | `/workspace/[workspaceSlug]/messages` | Direct-message threads. |
@@ -261,7 +262,9 @@ Use `src/lib/routes.ts` for application links. Board and workspace slugs are dis
 | `/workspace/[workspaceSlug]/trackers/[trackerId]` | Tracker and selected sheet. |
 | `/workspace/[workspaceSlug]/settings` | Workspace settings. |
 
-Relevant query parameters are `view` and `item` on boards, `sheet` on trackers, `to` on messages, and `section` on settings. `routes.board()` omits `view=table`, the default view. An `item` deep link allows a task panel to reopen after refresh.
+Relevant query parameters are `view` and `item` on boards, `task` on a portal, `sheet` on trackers, `to` on messages, and `section` on settings.
+
+Search - both a board's own box (`matchesSearch`) and the command palette (`SearchService`) - matches an item's booking code as well as its name, with the hyphen optional, so `TA-7441`, `ta7441` and `7441` all find the same task. The palette shows the code it matched on. `routes.board()` omits `view=table`, the default view. An `item` deep link allows a task panel to reopen after refresh.
 
 ### HTTP endpoints
 
@@ -276,6 +279,12 @@ Relevant query parameters are `view` and `item` on boards, `sheet` on trackers, 
 | `/api/book/[slug]` | GET, POST | Loads a booking form or creates a booking using a valid key or active-member session. |
 | `/api/share/[token]` | GET, POST | GET reports the access gate; POST returns the board after password validation. |
 | `/api/dashboard/[token]` | GET, POST | GET reports the dashboard link's gate; POST returns the trimmed workspace snapshot after password validation. |
+| `/api/portal/[token]` | GET | Reports the portal gate. A closed portal and an unknown token answer identically. |
+| `/api/portal/[token]/tasks` | POST | One page of the department's requests, plus totals over the whole authorised set. |
+| `/api/portal/[token]/tasks/[itemId]` | POST | One request, after checking it belongs to this portal. |
+| `/api/portal/[token]/book` | PUT, POST | PUT loads the booking form behind the gate; POST submits, idempotent on a submission key. |
+| `/api/portal/[token]/comments` | POST | Staff-only update; re-checks the gate, the portal scope and a board seat. |
+| `/api/portal/[token]/assets` | POST | Staff-only deliverable edit; also verifies the asset belongs to the named item. |
 
 Dynamic handlers shown in the implementation use promised route parameters and await them. The repository's `AGENTS.md` requires reading the relevant installed Next.js guides in `node_modules/next/dist/docs/` before writing Next.js code; do not substitute assumptions from older releases.
 
@@ -296,6 +305,7 @@ Booking POST accepts a body containing `key` and `request`; the key is a query p
 | Collaboration | Comment, activity, notification, notification preferences, direct message. |
 | Booking | Workspace booking configuration, form template, named template, request, receipt. |
 | Tracker | Tracker/workbook, ordered sheet, column definition, row, primitive cell value. |
+| Stakeholder portal | Department (a stakeholder group with a durable id), department portal (one per department, holding the link credentials), portal request (provenance: which task belongs to which department), portal submission (idempotency for a booking). |
 
 Domain types use camelCase. SQL rows normally use snake_case. `src/data/supabase/rows.ts` performs conversion. JSON structures such as column settings, typed cell payloads, and tracker documents preserve their application shapes.
 
@@ -591,6 +601,8 @@ Workspace booking form configuration lives on the workspace; named reusable form
 
 Removing a question does not delete its old column and historical answers. Saving an exact normalized copy of the built-in form resets the stored override to null so the workspace follows future built-in defaults. Named templates are replaced by case-insensitive name matching, and their names are capped at 80 characters.
 
+A booking made from a department's portal takes the same path with two differences: the department is resolved from the portal credential rather than the body, and the submission is idempotent on a client-generated key. See section 13c.
+
 ## 13. Public board sharing
 
 A board has at most one share record, containing a random token, enabled flag, optional expiry date, optional password hash, creator, and timestamps. The generated token length is 22 characters. Disabling retains the token; regeneration replaces the link credential.
@@ -620,6 +632,56 @@ A share link grants access to the shared-board payload, not workspace membership
 View preferences (unit, basis, span, hidden panels) persist per browser under `localStorage["streamline.dashboard"]` via a Zustand store hydrated after mount; the team filter and year are page state.
 
 **Sharing** mirrors board sharing at workspace level: one `dashboard_shares` row per workspace (migration 0024, policy 0010: members read, workspace admins manage; `canManageDashboardShare()` is the TypeScript twin), the same token alphabet and refusal rules, and a service-role read behind `/api/dashboard/<token>` (`src/server/dashboard-share.ts`). The public page (`/dashboard/<token>`) polls every 15 seconds and blocks same-origin links out of `/dashboard/`. Unlike a board share, the payload is trimmed on purpose by `publicDashboardSnapshot()`: item descriptions and covers, asset notes, LONG_TEXT and LINK values, every TEXT value except department-like columns, and user emails, job titles and departments are removed, so a wall display shows figures and first names only.
+
+## 13c. Stakeholder portal
+
+Each stakeholder department gets one link showing every request it has made and a form for the next one. `/portal/<token>`; the token is the whole of the authorisation.
+
+**Department identity.** Stakeholder groups live in Settings -> Lists as `{name, color}` with no stable id: saving a list deletes every row and re-inserts it (`WorkspaceListRepository.replace`). A portal cannot hang off that, so `stakeholder_departments` (migration 0030) gives a department a durable row, reconciled whenever the list is saved. Settings -> Lists stays the only editing surface, which is what stops the two drifting apart.
+
+Identity flows through the `renames` map the Lists editor already produces, never a name match: renamed means the same department keeps its portal, link and history; a name that simply appears is a new department; a name that disappears has its department **disabled**, never deleted, so its requests keep their provenance. Re-adding the same word later creates a *new* department with no claim on the old one's history or credentials. `reconcileDepartments()` in `src/domain/portal/stakeholder-portal.ts` is pure and unit-tested (`tests/unit/department-reconciliation.test.ts`).
+
+**Provenance.** `portal_requests` is the only thing that puts a task in a portal: not a matching STAKEHOLDER label, not a requester's email domain, because those are display values people edit. `item_id` is the canonical origin, unique per workspace, so allocation's second item appears as a linked detail rather than a duplicate row. Editing a STAKEHOLDER cell does **not** move a published request between departments.
+
+`public_brief` is stored on the provenance row because `items.description` is **not** publishable: `describeBooking()` appends every answer the receiving board had no column for, and `requesterName`, `requesterEmail` and `department` all take that path when the board lacks a column. The brief the requester typed is captured at booking time, before that happens.
+
+**The gate.** `StakeholderPortalService.resolve()` is the single entry every scoped call goes through: token shape, portal enabled, department ACTIVE, credential version, then password. `credential_version` is what makes revocation reach a tab that is already open - regenerating a link or changing a password bumps it, and any grant carrying an older version is refused. A closed portal, an unknown token and another department's token all answer the same way, so the reply cannot be used to enumerate departments.
+
+Portal passwords use **PBKDF2-SHA256** with the iteration count encoded in the hash (`pbkdf2$<iterations>$<salt>$<hash>`, `src/lib/auth/portal-password.ts`). This is deliberately *not* the `hashPassword()` used by board, item and dashboard shares, which is one round of SHA-256; rewriting that would invalidate every existing share password, so the two coexist and the older scheme can be migrated separately.
+
+**The payload** is an explicit allowlist (`src/domain/portal/portal-view.ts`), written field by field rather than subtracted from a row, so a column added to `items` later cannot join it by accident. Published: title, reference, the stored public brief, status (name, colour and semantic role), priority, dates, assignee display names, deliverable summaries, subitem titles, a linked-work count. Never published: requester contacts, `items.description`, internal comments and activity, hidden columns, asset notes and URLs, another department's anything.
+
+Heterogeneous boards are read through `src/services/portal/portal-projection.ts`: status and priority come from the board's first column of that type, meaning travels as a role rather than a label id, a due date is the DATE column else the end of a TIMELINE, and people are every PERSON column pooled. A board with none of these emits nulls rather than guessing.
+
+**Booking** resolves the department from the credential and overwrites whatever the body claimed. A spoofed STAKEHOLDER value cannot reach a column at all, because `BOOKING_FIELD_TYPES` excludes that type. Idempotency is a client-generated submission key, unique per portal in the database: a retry replays the first receipt, the same key with different content is refused, and a failed attempt releases its claim so the key can be reused. This is a durable claim with compensation, not a transaction - the repositories speak REST - and the write order is claim, book, associate, record receipt.
+
+**Permissions.** Anonymous and signed-in-but-unqualified visitors read the projection and may book; nothing else. Commenting or editing a deliverable requires a verified session, an ACTIVE membership of the item's own workspace, and OWNER or EDITOR on the *concrete item's own board*. A valid link never confers a write. Policies (0013) keep `anon` and `authenticated` out of the portal tables entirely - members may read `stakeholder_departments` and nothing more - so a direct PostgREST call cannot walk round the gate; visitors are served by the service role behind `src/server/portal.ts`.
+
+**Providers.** `StakeholderPortalService` takes an optional `PortalTransport`: set for Supabase (HTTP to the route handlers), absent for the local provider, where the same service runs in the browser. That is what lets `tests/e2e/stakeholder-portal.spec.ts` drive the real gate, projection and idempotency rather than a stand-in. What it cannot prove is RLS and the service-role handlers, which need a Supabase environment.
+
+**Management** lives on the renamed destination (`/workspace/[slug]/book`, "Stakeholder Portal"). Admins get a Departments tab - open/close, copy, preview, default theme, password, new link, request count - and the editable creative-team name, which is presentation only and never renames the workspace or changes its slug. Ordinary members see the booking form exactly as before, with no tabs. A portal is created **switched off**; adding a department publishes nothing.
+
+The visitor's theme choice is stored under `streamline.portal-theme:<token>` and applied to a subtree, never to `<html>`, so it cannot touch the internal app's theme. The list polls every 15 seconds and shows when it was last updated; a realtime channel is not yet wired (see section 22).
+
+## 13d. The phone experience
+
+Below 768 CSS pixels the application mounts a phone interface of its own. At 768 and above it serves the existing one unchanged: four screenshots taken at 1440x900 before and after the rebuild are byte-identical.
+
+**One boundary, one hook.** `useIsMobile()` (`src/hooks/use-mobile.ts`) is the only place 767 appears. It reads a media query through `useSyncExternalStore` whose server snapshot is `false`, so the server renders the desktop branch, hydration matches, and the swap lands on the first commit. Width, never the user agent.
+
+**One shell is mounted, not two.** `AppShell` branches on that hook and returns either the phone shell (`src/components/layout/mobile-shell.tsx`: a compact top bar and five destinations - Home, My Work, Browse, Inbox, More) or the existing frame. The other is absent from the tree rather than hidden with CSS, so its queries, subscriptions and focusable controls never exist. Providers, notifications, the command palette and the version watcher sit above the branch and are shared.
+
+**Two new routes**, `browse` and `more`, carry what the sidebar used to: teams, boards, favourites, trackers, people; and Dashboard, Book, Messages, Members, Settings, Profile, theme, About, sign out. Every other destination keeps its existing URL.
+
+**Boards.** The Main Table becomes a grouped card list carrying status, priority, owners, due date, overdue, blocked state and the booking code; the real grid stays one tap away and scrolls inside its own box. Kanban shows one lane at a time with an explicit "Move to" control instead of dragging. The five date-axis views keep their existing implementations, framed to the screen. Task details open full screen, fields stacked, and every column type edits through a bottom sheet because `PopoverCell` renders a `Sheet` below 768 - one change that gives every column type a touch editor with no second implementation.
+
+**Presentation is new; logic is reused.** Nothing is reimplemented: the mobile board reads the same `BoardModel`, writes the same `useBoardMutations`, and drives the same `board-ui-store`. Where a rule lived inside a desktop component it was extracted rather than copied - Kanban lane building into `useKanbanLanes`, the member row's mutations into `MemberActions`.
+
+**Touch sizing lives in the primitives.** Button, Input, Textarea, Select, Tabs and the dropdown rows carry `max-md:` variants giving every control a 44px floor and 16px text (16px specifically because iOS Safari zooms a focused input below that). These are added variants, never changed defaults, which is why desktop output is identical.
+
+**State isolation** is the rebuild's one non-negotiable, and it has three parts. The narrow-screen sidebar fold is derived (`preferCollapsed || autoCollapsed`), never persisted - the old shell wrote `setSidebarCollapsed(true)` into the shared preference, which then followed the reader back to their desktop. Phone-only presentation choices (cards or grid, the mobile Kanban's lane) live under `streamline.mobile-view`. Explicit view switches still go through the normal `setView`, and deep-linked `?view=` and `?item=` keep working on both.
+
+Related: `useUiStore.persist.rehydrate()` runs in a parent effect while the sidebar's team auto-expand runs in a child one, and child effects run first. Opening straight onto a board therefore used to persist the session's defaults over the reader's saved sidebar width; the auto-expand now waits for hydration.
 
 ## 14. Personal work and collaboration
 
@@ -742,6 +804,12 @@ This mechanism protects registered in-flight work. It is not durable offline que
 
 ## 17. Database operations
 
+### Current schema heads
+
+The latest applied SQL is `migrations/0030_stakeholder_portal.sql` with `policies/0013_stakeholder_portal_policies.sql`; the local IndexedDB schema is at `DB_VERSION = 14`. Both were additive: 0030 creates four tables and adds `workspaces.creative_team_name`, and v14 adds four object stores. Nothing existing was altered, so an upgrade keeps every row.
+
+New SQL takes the next free number in each directory. Do not edit a file that has been applied - the runner records a checksum and will refuse it.
+
 ### Migration runner
 
 `scripts/db-migrate.mjs` reads `.env.local` and `.env` when needed, connects with `SUPABASE_DB_URL`, and collects SQL from migrations followed by policies. Files are ordered lexicographically within each directory.
@@ -857,6 +925,8 @@ It reuses an existing server outside CI, retains traces on failure, and allows o
 
 Suites exercise board lifecycle, groups/items, columns, filters/sort/drag/drop, multiple views, deep links, cross-view sync, permissions, teams/members, onboarding, messages/account behavior, notifications, bookings, assets/covers, references, trackers, mobile layout, large boards, accessibility, and version notices.
 
+`tests/e2e/mobile-layout.spec.ts` covers the phone shell, the card list, all seven views, the contained grid, the explicit Kanban move, ID search, a full-screen item with its deep link and Back, and every destination for overflow; two of its cases assert the 767/768 boundary by resizing live, and a desktop-to-mobile-to-desktop round trip that leaves a non-default sidebar width alone. `tests/e2e/stakeholder-portal.spec.ts` drives the portal end to end on the local provider: opening a department's link, booking through it, cross-department isolation, revocation, the password gate, theme isolation, deep links, and that a signed-out visitor is offered nothing to write with.
+
 ### Supabase and deployment tests
 
 `scripts/e2e-supabase.mjs` loads environment values, sets `E2E_PROVIDER=supabase` and `PW_PROVIDER=supabase`, and runs `supabase-smoke.spec.ts`. That suite includes direct API checks of RLS; it is skipped under the normal local-provider setting.
@@ -931,6 +1001,14 @@ Review domain definitions, Zod validation, template normalization, template-requ
 
 Test both public-key and active-member paths, with direct team reception and Task Allocation fallback. Do not trust actor IDs supplied by an unauthenticated browser.
 
+### Changing the stakeholder portal
+
+Anything a visitor can see passes through three places, and all three have to agree: `portal_requests` decides *which* tasks (never a label), `src/domain/portal/portal-view.ts` decides *which fields*, and `src/services/portal/portal-projection.ts` decides how a board's own columns become those fields. Adding a field means adding it to the view model by name - the payload is an allowlist, not a subtraction, so nothing joins it by accident.
+
+Every scoped call must go through `StakeholderPortalService.resolve()`; that is the only place the token, the switch, the department's status, the credential version and the password are checked. A write additionally re-checks the portal scope and a seat on the concrete item's own board, and never trusts an actor id from the body.
+
+Changing department identity means changing `reconcileDepartments()`, which is pure and unit-tested. Keep Settings -> Lists as the only editing surface, and keep identity flowing through the rename map rather than matching names - the tests in `tests/unit/department-reconciliation.test.ts` pin the cases where guessing would hand one department's history to another.
+
 ### Changing links or shared Updates
 
 Review validation, mapping, translation, exclusions, chain traversal, comment reachability, label-definition synchronization, notification behavior, and multi-board query invalidation together. Include asymmetric column names, missing labels, single-person destinations, exclusions, and chains in regression coverage.
@@ -966,6 +1044,13 @@ The following findings explain why some older repository prose may disagree with
 | The Files column and workspace-files instructions describe current attachments | FILES is absent from the current domain union; covers and avatars use distinct storage helpers. |
 | Every item reference is derived from the ID tail | Runtime generation uses a digest; legacy migration backfills have their own transformations. |
 | Assets recap always displays quantity, types, and people | The current formatter displays quantity and people; type counts remain in data. |
+| "Book a task" is a booking page | The destination is now Stakeholder Portal at the same URL: department links for admins, the same booking form for everyone. |
+| Stakeholder groups are just words in a list | They are still edited only in Settings -> Lists, but each one now also has a durable `stakeholder_departments` row, reconciled on save. |
+| A share password is a salted hash | Board, item and dashboard shares use one round of SHA-256. Only portal passwords are adaptive (PBKDF2). Migrating the older scheme is outstanding work. |
+| The portal updates live | It polls every 15 seconds and shows when it last refreshed. A department-scoped realtime channel is designed (broadcast, no row data) but not yet wired. |
+| The portal offers all seven board views | It offers a grouped list with search and totals. Kanban, calendar, timeline, gantt, workload and chart are outstanding. |
+| Portal writes are transactional | Booking is a durable claim with compensation, not a database transaction; the repositories speak REST. A crash between booking and association leaves a claimed key that is released on the next failure path only. |
+| RLS for the portal is verified | Only the local provider is exercised end to end. Policy 0013 and the service-role handlers need a Supabase environment to prove. |
 | Public user payload is only name/avatar | `toPublicUser()` currently clears email and retains the rest of the selected user object. |
 | Tracker cleanup flushes a pending debounce | The inspected cleanup clears the timer without performing the documented flush. |
 | Migration dry-run makes no database writes at all | It skips migration bodies but still ensures the migration ledger and its RLS. |

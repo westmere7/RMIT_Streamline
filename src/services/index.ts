@@ -14,7 +14,7 @@ import { NotificationService } from "./notification-service";
 import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
-import { StakeholderPortalService } from "./stakeholder-portal-service";
+import { StakeholderPortalService, type PortalTransport } from "./stakeholder-portal-service";
 import { WorkspaceListService } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
 
@@ -49,6 +49,8 @@ export interface ServiceOptions {
   itemShareTransport?: PublicItemTransport | null;
   /** How a visitor without an account reads the shared dashboard (Supabase). */
   dashboardTransport?: PublicDashboardTransport | null;
+  /** How a stakeholder reads their department's portal (Supabase). */
+  portalTransport?: PortalTransport | null;
 }
 
 export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
@@ -58,7 +60,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const workspace = new WorkspaceService(repos);
   const items = new ItemService(repos, links, notifications);
   const assets = new ItemAssetService(repos);
-  const portals = new StakeholderPortalService(repos);
+  const booking = new BookingService(repos, workspace, items, links, assets, notifications, options.bookingTransport ?? null);
+  const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   return {
     repos,
     notifications,
@@ -72,7 +75,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     items,
     links,
     assets,
-    booking: new BookingService(repos, workspace, items, links, assets, notifications, options.bookingTransport ?? null),
+    booking,
     comments: new CommentService(repos, notifications, links),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
@@ -95,7 +98,7 @@ export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
 export { PortalAccessError, portalAccessMessage } from "./stakeholder-portal-service";
-export type { DepartmentOverview, PortalGrant, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
+export type { DepartmentOverview, PortalGrant, PortalTransport, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
 export type { PublicItemTransport } from "./item-share-service";

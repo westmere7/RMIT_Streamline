@@ -12,6 +12,18 @@ export const routes = {
   itemShare: (token: string) => `/share/item/${encodeURIComponent(token)}`,
   /** The public booking form stakeholders open; needs no session, just the workspace's key. */
   publicBooking: (slug: string, key: string) => `/book/${encodeURIComponent(slug)}/${encodeURIComponent(key)}`,
+  /**
+   * A department's own portal: its requests, and the form to add another.
+   *
+   * The token is the whole of the authorisation, so it is the whole of the
+   * address too. `task` deep-links one request; `book` opens the form. Both are
+   * ordinary routes, so Back and refresh behave.
+   */
+  portal: (token: string, options: { task?: string | null } = {}) => {
+    const query = options.task ? `?task=${encodeURIComponent(options.task)}` : "";
+    return `/portal/${encodeURIComponent(token)}${query}`;
+  },
+  portalBooking: (token: string) => `/portal/${encodeURIComponent(token)}/book`,
   workspace: (slug: string) => `/workspace/${slug}`,
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
   /**
