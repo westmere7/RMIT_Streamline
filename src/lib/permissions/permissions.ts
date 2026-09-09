@@ -77,11 +77,19 @@ export function canSeeSystemEntities(ctx: PermissionContext): boolean {
 /** Effective board role considering ownership, explicit membership and visibility. */
 export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): BoardRole | null {
   if (board.system && !canSeeSystemEntities(ctx)) return null;
+  // Membership first, before ownership and before an explicit seat.
+  //
+  // `workspaceRole` is null for somebody who is not an ACTIVE member — which
+  // includes anyone an administrator has deactivated. Honouring ownership above
+  // this check meant deactivating a departing colleague left them full OWNER on
+  // every board they had created, and their explicit seats intact, which is the
+  // opposite of what the Members screen promises. Deactivation is the
+  // offboarding control; it has to reach the boards. (Audit F-001.)
+  if (ctx.workspaceRole === null) return null;
   if (board.ownerId === ctx.userId) return "OWNER";
   const explicit = ctx.boardRoles.get(board.id);
   if (explicit) return explicit;
   if (isWorkspaceAdmin(ctx)) return "EDITOR";
-  if (ctx.workspaceRole === null) return null;
 
   // Visibility says who may read a board, not who may change it. Anyone in the
   // workspace can open a workspace-visible board, but editing it takes a reason
@@ -111,6 +119,10 @@ export function canManageBoard(ctx: PermissionContext, board: BoardAccessInput):
 }
 
 export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
+  // Membership first, for the reason given on `boardRoleFor`: this check reads
+  // ownership directly, so without it a deactivated owner could still delete
+  // the board.
+  if (ctx.workspaceRole === null) return false;
   return board.ownerId === ctx.userId || isWorkspaceAdmin(ctx);
 }
 

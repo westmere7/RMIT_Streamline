@@ -88,7 +88,8 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const ops = React.useMemo(() => operations(facts, today, prefs.teamIds), [facts, today, prefs.teamIds]);
   const attentionRows = React.useMemo(() => attention(ops, today), [ops, today]);
   const upcomingTasks = React.useMemo(() => upcoming(facts, today, prefs.teamIds, 4), [facts, today, prefs.teamIds]);
-  const gaps = React.useMemo(() => coverage(report.current.tasks), [report.current.tasks]);
+  const scopedTasks = report.current.tasks;
+  const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
   const shared: DashboardViewProps = { facts, report, monthly, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
   const views = publicLink ? (["overview", "demand"] as const) : DASHBOARD_VIEWS;

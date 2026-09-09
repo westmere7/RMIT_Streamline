@@ -1,0 +1,17 @@
+
+ RUN  v4.1.11 E:/WORK_OFFLINE/apps/RMIT_Streamline
+
+ ❯ tests/unit/audit-regressions.test.ts (8 tests | 5 failed) 21ms
+     × takes a deactivated member off the board they own 7ms
+     × takes away an explicit seat too 1ms
+     × treats somebody still invited the same way 1ms
+     × keeps the staff directory out of it 1ms
+     × is an allowlist, so a new field on User cannot join by accident 5ms
+ ❯ tests/unit/components/tracker-flush.test.tsx (3 tests | 1 failed) 44ms
+     × saves when the editor unmounts inside the debounce window 31ms
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 5 passed (11)
+   Start at  20:43:03
+   Duration  1.99s (transform 452ms, setup 1.08s, import 535ms, tests 66ms, environment 1.30s)
+

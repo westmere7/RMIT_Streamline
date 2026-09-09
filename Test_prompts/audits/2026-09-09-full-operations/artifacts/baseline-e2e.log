@@ -1,0 +1,649 @@
+
+Running 222 tests using 1 worker
+
+[1/222] tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name
+  1) tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.waitForTimeout: Test timeout of 30000ms exceeded.
+
+      48 |     for (const route of ["/workspace/rmit", "/workspace/rmit/my-work", "/workspace/rmit/boards/rmitinerary-2026", "/workspace/rmit/members", "/workspace/rmit/inbox"]) {
+      49 |       await page.goto(route);
+    > 50 |       await page.waitForTimeout(1500);
+         |                  ^
+      51 |       const result = await audit(page);
+      52 |       expect(result.namelessControls, `${route}: controls with no accessible name`).toEqual([]);
+      53 |       expect(result.unlabelledInputs, `${route}: inputs with no label`).toEqual([]);
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\accessibility.spec.ts:50:18
+
+    Error Context: test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[2/222] tests\e2e\accessibility.spec.ts:59:7 › accessibility › the board can be driven from the keyboard
+[3/222] tests\e2e\accessibility.spec.ts:81:7 › accessibility › a status cell opens, chooses and closes with the keyboard alone
+[4/222] tests\e2e\accessibility.spec.ts:94:7 › accessibility › dialogs trap focus, close on Escape and return focus
+  2) tests\e2e\accessibility.spec.ts:94:7 › accessibility › dialogs trap focus, close on Escape and return focus 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByTestId('board-menu')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for getByTestId('board-menu')
+        14 × locator resolved to <button type="button" id="radix-_r_25_" data-slot="button" data-state="closed" aria-haspopup="menu" aria-expanded="false" data-testid="board-menu" aria-label="Board options" class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[13px] font-medium transition-[background-color,border-color,box-shadow,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:s…>…</button>
+           - unexpected value "inactive"
+
+
+      106 |     await page.keyboard.press("Escape");
+      107 |     await expect(dialog).toHaveCount(0, { timeout: 15000 });
+    > 108 |     await expect(page.getByTestId("board-menu")).toBeFocused();
+          |                                                  ^
+      109 |   });
+      110 |
+      111 |   test("the command palette is reachable and dismissable from the keyboard", async ({ page }) => {
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\accessibility.spec.ts:108:50
+
+    Error Context: test-results\accessibility-accessibilit-8912a--on-Escape-and-return-focus\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\accessibility-accessibilit-8912a--on-Escape-and-return-focus\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\accessibility-accessibilit-8912a--on-Escape-and-return-focus\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[5/222] tests\e2e\accessibility.spec.ts:111:7 › accessibility › the command palette is reachable and dismissable from the keyboard
+[6/222] tests\e2e\accessibility.spec.ts:121:7 › accessibility › headings describe each page
+[7/222] tests\e2e\account.spec.ts:5:7 › signing in and out › rejects an unknown email with a message and stays on login
+  3) tests\e2e\account.spec.ts:5:7 › signing in and out › rejects an unknown email with a message and stays on login 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/no account|not found|unable/i)
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText(/no account|not found|unable/i)
+
+
+       8 |     await page.getByLabel(/email/i).fill("nobody@example.com");
+       9 |     await page.getByRole("button", { name: /continue|sign in/i }).click();
+    > 10 |     await expect(page.getByText(/no account|not found|unable/i)).toBeVisible({ timeout: 5000 });
+         |                                                                  ^
+      11 |     await expect(page).toHaveURL(/\/login/);
+      12 |   });
+      13 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\account.spec.ts:10:66
+
+    Error Context: test-results\account-signing-in-and-out-a4e0b--message-and-stays-on-login\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\account-signing-in-and-out-a4e0b--message-and-stays-on-login\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\account-signing-in-and-out-a4e0b--message-and-stays-on-login\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[8/222] tests\e2e\account.spec.ts:14:7 › signing in and out › signs in with a typed email
+  4) tests\e2e\account.spec.ts:14:7 › signing in and out › signs in with a typed email ─────────────
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/workspace\/rmit$/
+    Received string:  "http://localhost:3100/login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        23 × locator resolved to <html lang="en" class="inter_c15e96cb-module__0bjUvq__variable">…</html>
+           - unexpected value "http://localhost:3100/login"
+
+
+      17 |     await page.getByLabel(/email/i).fill("emily@rmit.local");
+      18 |     await page.getByRole("button", { name: /continue|sign in/i }).click();
+    > 19 |     await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 10000 });
+         |                        ^
+      20 |   });
+      21 |
+      22 |   test("session survives reload and deep links", async ({ page }) => {
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\account.spec.ts:19:24
+
+    Error Context: test-results\account-signing-in-and-out-signs-in-with-a-typed-email\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\account-signing-in-and-out-signs-in-with-a-typed-email\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\account-signing-in-and-out-signs-in-with-a-typed-email\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[9/222] tests\e2e\account.spec.ts:22:7 › signing in and out › session survives reload and deep links
+[10/222] tests\e2e\account.spec.ts:30:7 › signing in and out › protected routes redirect when signed out
+[11/222] tests\e2e\account.spec.ts:38:7 › signing in and out › signing out clears the session and the previous user's data
+[12/222] tests\e2e\account.spec.ts:51:7 › signing in and out › an empty email cannot be submitted
+[13/222] tests\e2e\auth-and-navigation.spec.ts:9:7 › authentication and navigation › signs in as Danh and lands on the workspace home
+[14/222] tests\e2e\auth-and-navigation.spec.ts:17:7 › authentication and navigation › redirects signed-out visitors to login and remembers the session
+[15/222] tests\e2e\auth-and-navigation.spec.ts:25:7 › authentication and navigation › opens a board from the sidebar with populated groups
+[16/222] tests\e2e\auth-and-navigation.spec.ts:35:7 › authentication and navigation › opens My Work with sections
+[17/222] tests\e2e\auth-and-navigation.spec.ts:43:7 › authentication and navigation › global search finds items and navigates
+[18/222] tests\e2e\auth-and-navigation.spec.ts:52:7 › authentication and navigation › shows the inbox with unread notifications
+[19/222] tests\e2e\auth-and-navigation.spec.ts:60:7 › authentication and navigation › messages open from the account menu, not the sidebar
+[20/222] tests\e2e\auth-and-navigation.spec.ts:69:7 › authentication and navigation › board is reachable directly and persists across reload
+[21/222] tests\e2e\board-share.spec.ts:26:7 › sharing a board by link › a visitor with no account reads the board, switches views and opens a task
+[22/222] tests\e2e\board-share.spec.ts:69:7 › sharing a board by link › the board a visitor sees keeps up with the one the team is working on
+[23/222] tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in
+  5) tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.fill: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByTestId('share-dialog').getByTestId('share-password')
+
+
+      92 |     const url = await createShareLink(page);
+      93 |     const dialog = page.getByTestId("share-dialog");
+    > 94 |     await dialog.getByTestId("share-password").fill("letmein");
+         |                                                ^
+      95 |     await dialog.getByTestId("share-password-set").click();
+      96 |     await expect(dialog.getByTestId("share-password-remove")).toBeVisible({ timeout: 15000 });
+      97 |
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-share.spec.ts:94:48
+
+    Error Context: test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-share-sharing-a-boar-1e0b0-a-wrong-one-does-not-get-in\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[24/222] tests\e2e\board-share.spec.ts:115:7 › sharing a board by link › turning the link off, and a new link, shut the old one out
+[25/222] tests\e2e\board-share.spec.ts:147:7 › sharing a board by link › an expiry closes the link at the end of its day, and stopping forgets it
+[26/222] tests\e2e\board-share.spec.ts:168:7 › sharing a board by link › the share panel is in the board menu and in board settings
+[27/222] tests\e2e\board-share.spec.ts:184:7 › a link that opens nothing › says so without giving anything away
+[28/222] tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details
+  6) tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('lane-Design')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByTestId('lane-Design')
+      - Test timeout of 30000ms exceeded.
+
+
+      47 |     await page.reload();
+      48 |     await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "true", { timeout: 15000 });
+    > 49 |     await expect(page.getByTestId("lane-Design")).toBeVisible();
+         |                                                   ^
+      50 |     await page.getByTestId("kanban-tint").click();
+      51 |
+      52 |     // Clicking anywhere on a card opens it, and the panel floats over the lanes instead of squeezing them.
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-views.spec.ts:49:51
+
+    Error Context: test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-views-board-views-ka-8a0d0-d-cards-carry-their-details\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[29/222] tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date
+  7) tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByTestId('view-switcher')
+        - locator resolved to <button type="button" id="radix-_r_32_" data-slot="button" data-state="closed" aria-haspopup="menu" aria-expanded="false" data-testid="view-switcher" aria-label="Board view: Main Table" class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[13px] transition-[background-color,border-color,box-shadow,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([…>…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+
+
+       at helpers.ts:46
+
+      44 | /** Picks a view from the board bar's view switcher and waits for the menu to close. */
+      45 | export async function switchView(page: Page, kind: "table" | "kanban" | "timeline" | "calendar" | "gantt" | "workload" | "chart"): Promise<void> {
+    > 46 |   await page.getByTestId("view-switcher").click();
+         |                                           ^
+      47 |   await page.getByTestId(`view-${kind}`).click();
+      48 |   await expect(page.getByRole("menu")).toHaveCount(0);
+      49 | }
+        at switchView (E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\helpers.ts:46:43)
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\board-views.spec.ts:75:21
+
+    Error Context: test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-views-board-views-ti-8b68f--lists-items-without-a-date\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[30/222] tests\e2e\board-views.spec.ts:82:7 › board views › calendar switches between month and week and shows status on each entry
+[31/222] tests\e2e\board-views.spec.ts:95:7 › board views › gantt shows groups, bars, subitems on demand and dependency arrows
+[32/222] tests\e2e\board-views.spec.ts:114:7 › board views › workload lays people against weeks and a cell opens its items
+[33/222] tests\e2e\board-views.spec.ts:124:7 › board views › chart slices the board and switches between bars and a donut
+[34/222] tests\e2e\board.spec.ts:11:7 › board interactions › creates an item from the add row and keeps it after reload
+[35/222] tests\e2e\board.spec.ts:21:7 › board interactions › changes a status through the picker
+[36/222] tests\e2e\board.spec.ts:30:7 › board interactions › celebrates finishing a task and clears within three seconds
+[37/222] tests\e2e\board.spec.ts:59:7 › board interactions › assigns an owner with the person picker
+[WebServer] ⨯ Failed to generate static paths for /workspace/[workspaceSlug]:
+
+[WebServer] Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+[WebServer]     at ignore-listed frames {
+[WebServer]   type: 'WorkerError'
+[WebServer] }
+
+[WebServer] ⨯ Failed to generate static paths for /workspace/[workspaceSlug]/boards/[boardSlug]:
+
+[WebServer] Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+[WebServer]     at ignore-listed frames {
+[WebServer]   type: 'WorkerError'
+[WebServer] }
+
+[38/222] tests\e2e\board.spec.ts:69:7 › board interactions › changes a due date
+  8) tests\e2e\board.spec.ts:69:7 › board interactions › changes a due date ────────────────────────
+
+    Error: browserContext.newPage: Target crashed 
+
+    Error Context: test-results\board-board-interactions-changes-a-due-date\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\board-board-interactions-changes-a-due-date\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\board-board-interactions-changes-a-due-date\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[39/222] tests\e2e\board.spec.ts:79:7 › board interactions › moves an item between groups with drag and drop
+  9) tests\e2e\board.spec.ts:79:7 › board interactions › moves an item between groups with drag and drop 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[40/222] tests\e2e\board.spec.ts:98:7 › board interactions › previews the landing slot in the group being dragged over
+[41/222] tests\e2e\board.spec.ts:153:7 › board interactions › keeps the drop line the same weight at the top of a group
+[42/222] tests\e2e\board.spec.ts:186:7 › board interactions › previews a landing slot in an empty group
+[43/222] tests\e2e\board.spec.ts:223:7 › board interactions › filters by owner and by search
+[44/222] tests\e2e\board.spec.ts:238:7 › board interactions › opens the item panel and posts a comment
+[45/222] tests\e2e\board.spec.ts:253:7 › board interactions › bulk archives selected items
+[46/222] tests\e2e\board.spec.ts:268:7 › board interactions › kanban moves a card between statuses and reflects in the table
+[47/222] tests\e2e\boards-lifecycle.spec.ts:21:7 › board lifecycle › each template builds the groups and columns it promises
+  10) tests\e2e\boards-lifecycle.spec.ts:21:7 › board lifecycle › each template builds the groups and columns it promises 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[48/222] tests\e2e\boards-lifecycle.spec.ts:53:7 › board lifecycle › duplicating a board deep-copies groups, columns, items and values
+[49/222] tests\e2e\boards-lifecycle.spec.ts:74:7 › board lifecycle › archive hides a board from the sidebar and restore brings it back
+[50/222] tests\e2e\boards-lifecycle.spec.ts:92:7 › board lifecycle › deleting a board removes it and its URL stops working
+[51/222] tests\e2e\boards-lifecycle.spec.ts:105:7 › board lifecycle › favourite pins to the sidebar and survives a reload
+[52/222] tests\e2e\boards-lifecycle.spec.ts:120:7 › board lifecycle › an unknown board slug shows not-found, not a blank page
+[53/222] tests\e2e\boards-lifecycle.spec.ts:125:7 › board lifecycle › rapid board switching lands on the right board
+[54/222] tests\e2e\boards-management.spec.ts:10:7 › board management › creates a board from the Campaign template and lands on it
+  11) tests\e2e\boards-management.spec.ts:10:7 › board management › creates a board from the Campaign template and lands on it 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[55/222] tests\e2e\boards-management.spec.ts:25:7 › board management › toggles a favourite from the board header
+[56/222] tests\e2e\boards-management.spec.ts:35:7 › board management › resets demo data from the developer menu
+[57/222] tests\e2e\booking.spec.ts:29:7 › task booking › an admin gets the built-in Admin team and Task Allocation board, which cannot be archived
+  12) tests\e2e\booking.spec.ts:29:7 › task booking › an admin gets the built-in Admin team and Task Allocation board, which cannot be archived 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[58/222] tests\e2e\booking.spec.ts:48:7 › task booking › a member sees neither the Admin team nor the Task Allocation board
+[59/222] tests\e2e\booking.spec.ts:64:7 › task booking › a stakeholder books through the public link and the request lands on Task Allocation
+[60/222] tests\e2e\booking.spec.ts:125:7 › task booking › a validation error brings the request tab back into view
+[61/222] tests\e2e\booking.spec.ts:136:7 › task booking › a stakeholder needs the right key
+[62/222] tests\e2e\booking.spec.ts:145:7 › task booking › a member books from inside the app and a manager allocates it to a team board
+[63/222] tests\e2e\booking.spec.ts:168:7 › task booking › an admin reshapes the form and a booking answers the new question
+[64/222] tests\e2e\booking.spec.ts:211:7 › task booking › an admin keeps forms as templates and swaps them back in
+[65/222] tests\e2e\column-layout.spec.ts:23:7 › columns: alignment, dragging and renaming › short values sit under the middle of their header, long ones stay left
+  13) tests\e2e\column-layout.spec.ts:23:7 › columns: alignment, dragging and renaming › short values sit under the middle of their header, long ones stay left 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[66/222] tests\e2e\column-layout.spec.ts:40:7 › columns: alignment, dragging and renaming › a number column is centred like the rest
+[67/222] tests\e2e\column-layout.spec.ts:48:7 › columns: alignment, dragging and renaming › dragging a header moves the column, and only within its own row
+[68/222] tests\e2e\column-layout.spec.ts:69:7 › columns: alignment, dragging and renaming › clicking a header still opens its menu
+[69/222] tests\e2e\column-layout.spec.ts:76:7 › columns: alignment, dragging and renaming › renaming works from the header menu and from the right-click menu
+[70/222] tests\e2e\column-layout.spec.ts:105:7 › columns: alignment, dragging and renaming › renaming a column renames the matching one on a linked board
+[71/222] tests\e2e\column-layout.spec.ts:147:7 › renaming an item from a menu › the field stays open after the menu closes, wherever the pointer goes
+[72/222] tests\e2e\column-layout.spec.ts:171:7 › renaming an item from a menu › the pencil and the right-click menu behave the same way
+[73/222] tests\e2e\column-layout.spec.ts:189:7 › search says when it is still loading › an empty result is an empty result once the board has settled
+[74/222] tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist
+  14) tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[75/222] tests\e2e\column-types.spec.ts:68:7 › column types › number: accepts, formats and clears; refuses nonsense
+[76/222] tests\e2e\column-types.spec.ts:95:7 › column types › priority: every level, cleared, and reflected in the item panel
+[77/222] tests\e2e\column-types.spec.ts:118:7 › column types › checkbox toggles and persists
+[78/222] tests\e2e\column-types.spec.ts:128:7 › column types › link: stores a url, shows display text, and can be removed
+[79/222] tests\e2e\column-types.spec.ts:149:7 › column types › tags: add, reuse, remove, and always exactly one hash
+[80/222] tests\e2e\column-types.spec.ts:178:7 › column types › timeline: a range persists and an end-before-start range is not stored backwards
+[81/222] tests\e2e\column-types.spec.ts:191:7 › column types › dependency: link, blocked marker, self-dependency refused, deleted target drops out
+[82/222] tests\e2e\column-types.spec.ts:221:7 › column types › hiding, showing, reordering and renaming a column keeps every value
+[83/222] tests\e2e\column-types.spec.ts:248:7 › column types › deleting a column removes only its own values
+[84/222] tests\e2e\column-types.spec.ts:271:7 › column types › resizing a column persists
+[85/222] tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work
+  15) tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[86/222] tests\e2e\cross-view-sync.spec.ts:39:7 › changes reaching every view › changing the owner moves the item in and out of My Work
+[87/222] tests\e2e\cross-view-sync.spec.ts:64:7 › changes reaching every view › moving a due date moves the item between My Work sections
+[88/222] tests\e2e\cross-view-sync.spec.ts:101:7 › changes reaching every view › completed work leaves the active sections, and archiving removes it entirely
+[89/222] tests\e2e\cross-view-sync.spec.ts:121:7 › changes reaching every view › updates: post, edit, delete, and refuse an empty one
+[90/222] tests\e2e\cross-view-sync.spec.ts:163:7 › changes reaching every view › someone else's update cannot be edited or deleted by a non-admin
+[91/222] tests\e2e\cross-view-sync.spec.ts:182:7 › changes reaching every view › activity records what changed, with the old and new values
+[92/222] tests\e2e\cross-view-sync.spec.ts:193:7 › changes reaching every view › inbox: read one, mark all read, and open the item behind a notification
+[93/222] tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored
+  16) tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[94/222] tests\e2e\data-integrity.spec.ts:49:7 › data integrity under stress › create then delete immediately leaves nothing behind
+[95/222] tests\e2e\data-integrity.spec.ts:66:7 › data integrity under stress › switching boards straight after an edit keeps the edit
+[96/222] tests\e2e\data-integrity.spec.ts:77:7 › data integrity under stress › archived items stay out of the board, kanban, My Work and search
+[97/222] tests\e2e\data-integrity.spec.ts:104:7 › data integrity under stress › deleting a group with items removes exactly those items
+[98/222] tests\e2e\data-integrity.spec.ts:132:7 › data integrity under stress › a second tab sees the first tab's change
+[99/222] tests\e2e\data-integrity.spec.ts:146:7 › data integrity under stress › a corrupted local database is rebuilt instead of breaking the app
+[100/222] tests\e2e\data-integrity.spec.ts:178:7 › data integrity under stress › localStorage rubbish does not stop the app from starting
+[101/222] tests\e2e\filters-sort-and-dnd.spec.ts:20:7 › filtering, sorting, bulk actions and drag and drop › status, priority and group filters combine, and clear again
+  17) tests\e2e\filters-sort-and-dnd.spec.ts:20:7 › filtering, sorting, bulk actions and drag and drop › status, priority and group filters combine, and clear again 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[102/222] tests\e2e\filters-sort-and-dnd.spec.ts:63:7 › filtering, sorting, bulk actions and drag and drop › search narrows the board and combines with a filter
+[103/222] tests\e2e\filters-sort-and-dnd.spec.ts:83:7 › filtering, sorting, bulk actions and drag and drop › sorting orders by name and by due date, both directions, and clears
+[104/222] tests\e2e\filters-sort-and-dnd.spec.ts:115:7 › filtering, sorting, bulk actions and drag and drop › sorting by due date puts empty values last
+[105/222] tests\e2e\filters-sort-and-dnd.spec.ts:132:7 › filtering, sorting, bulk actions and drag and drop › bulk select, move, archive and delete
+[106/222] tests\e2e\filters-sort-and-dnd.spec.ts:170:7 › filtering, sorting, bulk actions and drag and drop › dragging a row within a group changes the stored order
+[107/222] tests\e2e\filters-sort-and-dnd.spec.ts:192:7 › filtering, sorting, bulk actions and drag and drop › repeated drags between groups keep every item exactly once
+[108/222] tests\e2e\filters-sort-and-dnd.spec.ts:217:7 › filtering, sorting, bulk actions and drag and drop › kanban: a card moved between lanes keeps its new status after a reload
+[109/222] tests\e2e\groups-and-items.spec.ts:24:7 › groups, items and subitems › group lifecycle: create, rename, duplicate, collapse, delete with items
+  18) tests\e2e\groups-and-items.spec.ts:24:7 › groups, items and subitems › group lifecycle: create, rename, duplicate, collapse, delete with items 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[110/222] tests\e2e\groups-and-items.spec.ts:60:7 › groups, items and subitems › reordering groups sticks after a reload
+[111/222] tests\e2e\groups-and-items.spec.ts:80:7 › groups, items and subitems › item names: empty is refused, long and unicode names survive a reload
+[112/222] tests\e2e\groups-and-items.spec.ts:102:7 › groups, items and subitems › creating ten items in a burst keeps all of them, in order
+[113/222] tests\e2e\groups-and-items.spec.ts:115:7 › groups, items and subitems › duplicate copies the values, archive and delete remove the row
+[114/222] tests\e2e\groups-and-items.spec.ts:140:7 › groups, items and subitems › moving an item between groups through the menu persists
+[115/222] tests\e2e\groups-and-items.spec.ts:152:7 › groups, items and subitems › subitems: add, rename, persist, and vanish with their parent
+[116/222] tests\e2e\groups-and-items.spec.ts:181:7 › groups, items and subitems › an item deep link opens the detail panel and survives a reload
+[117/222] tests\e2e\groups-and-items.spec.ts:194:7 › groups, items and subitems › a deleted item's deep link does not hang the board
+[118/222] tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them
+  19) tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[119/222] tests\e2e\item-assets.spec.ts:153:7 › asset lines and the recap column › a viewer sees the deliverables but cannot change them
+[120/222] tests\e2e\item-cover.spec.ts:32:7 › item covers › a cover can be added, shows on the kanban card, and can be replaced and removed
+  20) tests\e2e\item-cover.spec.ts:32:7 › item covers › a cover can be added, shows on the kanban card, and can be replaced and removed 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[121/222] tests\e2e\item-cover.spec.ts:64:7 › item covers › files that are not images or are over 3MB are refused with a message
+[122/222] tests\e2e\item-reference.spec.ts:13:7 › the ID# column › sits in front of the item name, shows each task's code, and hides from the Hide menu
+  21) tests\e2e\item-reference.spec.ts:13:7 › the ID# column › sits in front of the item name, shows each task's code, and hides from the Hide menu 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[123/222] tests\e2e\item-reference.spec.ts:40:7 › the ID# column › is edited from the item panel, and the board follows
+[124/222] tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns
+  22) tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[125/222] tests\e2e\mobile-layout.spec.ts:20:7 › phone layout › the shell is the bottom navigation, and the sidebar is not mounted
+  23) tests\e2e\mobile-layout.spec.ts:20:7 › phone layout › the shell is the bottom navigation, and the sidebar is not mounted 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[126/222] tests\e2e\mobile-layout.spec.ts:35:7 › phone layout › a board is a list of cards carrying status, priority and the due date
+[127/222] tests\e2e\mobile-layout.spec.ts:45:7 › phone layout › the view switcher is a sheet, and every view fits the screen
+[128/222] tests\e2e\mobile-layout.spec.ts:56:7 › phone layout › the grid is reachable and scrolls inside itself
+[129/222] tests\e2e\mobile-layout.spec.ts:66:7 › phone layout › kanban offers an explicit move instead of a drag
+[130/222] tests\e2e\mobile-layout.spec.ts:80:7 › phone layout › search matches the booking code as well as the name
+[131/222] tests\e2e\mobile-layout.spec.ts:90:7 › phone layout › an item opens full screen, keeps its deep link, and Back returns to the board
+[132/222] tests\e2e\mobile-layout.spec.ts:109:7 › phone layout › messages show one pane at a time with a way back
+[133/222] tests\e2e\mobile-layout.spec.ts:122:7 › phone layout › members read as cards rather than a seven-column table
+[134/222] tests\e2e\mobile-layout.spec.ts:129:7 › phone layout › every main destination fits the screen
+[135/222] tests\e2e\mobile-layout.spec.ts:159:7 › the 767/768 boundary › 767 is the phone and 768 is the existing interface
+[136/222] tests\e2e\mobile-layout.spec.ts:170:7 › the 767/768 boundary › a desktop → mobile → desktop round trip leaves the sidebar preference alone
+[137/222] tests\e2e\mobile-layout.spec.ts:197:7 › the 767/768 boundary › a tablet folds the sidebar without writing that into the preference
+[138/222] tests\e2e\notifications.spec.ts:52:7 › notifications and updates › the sidebar shows a red badge and a grey badge side by side
+  24) tests\e2e\notifications.spec.ts:52:7 › notifications and updates › the sidebar shows a red badge and a grey badge side by side 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[139/222] tests\e2e\notifications.spec.ts:68:7 › notifications and updates › the tabs separate the loud ones from the quiet ones
+[140/222] tests\e2e\notifications.spec.ts:92:7 › notifications and updates › marking all read on one tab leaves the other badge alone
+[141/222] tests\e2e\notifications.spec.ts:106:7 › notifications and updates › unread only narrows the list without changing the counts
+[142/222] tests\e2e\notifications.spec.ts:118:7 › notifications and updates › a type set to Update arrives quietly instead of interrupting
+[143/222] tests\e2e\notifications.spec.ts:144:7 › notifications and updates › a type set to Off is never written at all
+[144/222] tests\e2e\notifications.spec.ts:160:7 › notifications and updates › unsubscribing from a board silences it, and resubscribing brings it back
+[145/222] tests\e2e\notifications.spec.ts:197:7 › notifications and updates › muting a board does not take away access to it
+[146/222] tests\e2e\notifications.spec.ts:241:7 › operating-system notifications › the settings screen turns them on and can send a test
+[147/222] tests\e2e\notifications.spec.ts:258:7 › operating-system notifications › an arriving notification becomes an OS notification, an update does not
+[148/222] tests\e2e\notifications.spec.ts:302:7 › operating-system notifications › nothing is raised while the switch is off
+[149/222] tests\e2e\onboarding.spec.ts:29:7 › member onboarding › pending members are listed, cannot sign in, and are kept out of pickers
+  25) tests\e2e\onboarding.spec.ts:29:7 › member onboarding › pending members are listed, cannot sign in, and are kept out of pickers 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[150/222] tests\e2e\onboarding.spec.ts:57:7 › member onboarding › an admin adds a member, gets a link, and the person onboards through it
+[151/222] tests\e2e\onboarding.spec.ts:142:7 › member onboarding › a seeded pending member onboards with the seeded link, and the admin sees them become active
+[152/222] tests\e2e\onboarding.spec.ts:162:7 › member onboarding › links can be renewed and invitations cancelled
+[153/222] tests\e2e\permissions.spec.ts:19:7 › permissions › a viewer sees the board but cannot change anything
+  26) tests\e2e\permissions.spec.ts:19:7 › permissions › a viewer sees the board but cannot change anything 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[154/222] tests\e2e\permissions.spec.ts:48:7 › permissions › a private board is invisible and unreachable for a non-member
+[155/222] tests\e2e\permissions.spec.ts:72:7 › permissions › a guest cannot create boards, teams or trackers
+[156/222] tests\e2e\permissions.spec.ts:81:7 › permissions › a guest cannot open a workspace-visible board they are not a member of
+[157/222] tests\e2e\permissions.spec.ts:89:7 › permissions › only an owner or admin can delete a board
+[158/222] tests\e2e\permissions.spec.ts:106:7 › permissions › an editor can edit but only the author can edit their own update
+[159/222] tests\e2e\permissions.spec.ts:133:7 › reading the workspace as someone else › an admin sees what a member sees, and comes back to their own view
+[160/222] tests\e2e\stakeholder-portal.spec.ts:64:7 › the stakeholder portal › renames the destination without moving it, and keeps internal booking
+  27) tests\e2e\stakeholder-portal.spec.ts:64:7 › the stakeholder portal › renames the destination without moving it, and keeps internal booking 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[161/222] tests\e2e\stakeholder-portal.spec.ts:77:7 › the stakeholder portal › gives each department its own link, closed until somebody opens it
+[162/222] tests\e2e\stakeholder-portal.spec.ts:88:7 › the stakeholder portal › a stakeholder books, sees the receipt, and finds the request waiting
+[163/222] tests\e2e\stakeholder-portal.spec.ts:105:7 › the stakeholder portal › shows a department only its own work
+[164/222] tests\e2e\stakeholder-portal.spec.ts:120:7 › the stakeholder portal › stops opening the moment the link is replaced
+[165/222] tests\e2e\stakeholder-portal.spec.ts:136:7 › the stakeholder portal › closing a portal shuts both reading and booking
+[166/222] tests\e2e\stakeholder-portal.spec.ts:146:7 › the stakeholder portal › asks for a password on the way in, and refuses a wrong one
+[167/222] tests\e2e\stakeholder-portal.spec.ts:171:7 › the stakeholder portal › carries the team's settings through to the link
+[168/222] tests\e2e\stakeholder-portal.spec.ts:193:7 › the stakeholder portal › keeps its theme to itself
+[169/222] tests\e2e\stakeholder-portal.spec.ts:206:7 › the stakeholder portal › deep-links a request, and Back leaves it
+[170/222] tests\e2e\stakeholder-portal.spec.ts:221:7 › the stakeholder portal › gives the department the board's own views
+[171/222] tests\e2e\stakeholder-portal.spec.ts:243:7 › the stakeholder portal › offers a stakeholder nothing to write with
+[172/222] tests\e2e\stakeholder-portal.spec.ts:269:7 › the stakeholder portal › publishes the brief and never the internal description
+[173/222] tests\e2e\supabase-smoke.spec.ts:105:7 › supabase provider › reads the seeded workspace
+[174/222] tests\e2e\supabase-smoke.spec.ts:119:7 › supabase provider › creates, renames and deletes an item
+[175/222] tests\e2e\supabase-smoke.spec.ts:163:7 › supabase provider › writes every column type
+[176/222] tests\e2e\supabase-smoke.spec.ts:211:7 › supabase provider › comments on an item
+[177/222] tests\e2e\supabase-smoke.spec.ts:239:7 › supabase provider › favourites a board
+[178/222] tests\e2e\supabase-smoke.spec.ts:257:7 › supabase provider › adds and removes a group and a column
+[179/222] tests\e2e\supabase-smoke.spec.ts:308:7 › supabase provider › opens every board view
+[180/222] tests\e2e\supabase-smoke.spec.ts:321:7 › supabase provider › reads the other pages
+[181/222] tests\e2e\supabase-smoke.spec.ts:339:7 › supabase provider › opens a tracker sheet
+[182/222] tests\e2e\supabase-smoke.spec.ts:347:7 › supabase provider › searches across the workspace
+[183/222] tests\e2e\supabase-smoke.spec.ts:357:7 › supabase provider › opens a person's profile from the members list
+[184/222] tests\e2e\supabase-smoke.spec.ts:372:7 › supabase provider › edits contact details on a profile
+[185/222] tests\e2e\supabase-smoke.spec.ts:399:7 › supabase provider › converts an uploaded avatar to WebP and stores it
+[186/222] tests\e2e\supabase-smoke.spec.ts:443:7 › supabase provider › sends a direct message and reads it back
+[187/222] tests\e2e\supabase-smoke.spec.ts:477:7 › supabase provider › row-level security refuses a guest, not just the UI
+[188/222] tests\e2e\supabase-smoke.spec.ts:532:7 › supabase provider › notification settings round-trip and are private to their owner
+[189/222] tests\e2e\supabase-smoke.spec.ts:582:7 › supabase provider › unsubscribing from a board is stored, and does not touch access to it
+[190/222] tests\e2e\teams-and-members.spec.ts:12:7 › teams and members › an unknown workspace slug says so instead of hanging or crashing
+  28) tests\e2e\teams-and-members.spec.ts:12:7 › teams and members › an unknown workspace slug says so instead of hanging or crashing 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[191/222] tests\e2e\teams-and-members.spec.ts:19:7 › teams and members › creates a team, renames it, adds and removes a member, then archives it
+[192/222] tests\e2e\teams-and-members.spec.ts:56:7 › teams and members › an invalid team id shows the not-found state
+[193/222] tests\e2e\teams-and-members.spec.ts:61:7 › teams and members › members page lists people, opens a profile and changes a role
+[194/222] tests\e2e\teams-and-members.spec.ts:80:7 › teams and members › deactivating a member takes them out of pickers
+[195/222] tests\e2e\trackers.spec.ts:22:7 › asset tracker grid › typing edits a cell, Enter moves down, and Ctrl+D fills the selection down
+  29) tests\e2e\trackers.spec.ts:22:7 › asset tracker grid › typing edits a cell, Enter moves down, and Ctrl+D fills the selection down 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[196/222] tests\e2e\trackers.spec.ts:43:7 › asset tracker grid › Ctrl+Arrow jumps to the edge of filled cells and the status bar follows
+[197/222] tests\e2e\trackers.spec.ts:52:7 › asset tracker grid › search narrows the sheet, keeps the bands that still have rows, and the counts say so
+[198/222] tests\e2e\trackers.spec.ts:63:7 › asset tracker grid › a column can be sorted and filtered from its header, without changing the data
+[199/222] tests\e2e\trackers.spec.ts:87:7 › asset tracker grid › the footer summarises columns and the summary can be changed per column
+[200/222] tests\e2e\trackers.spec.ts:98:7 › asset tracker grid › export offers the workbook and a CSV of the current sheet
+[201/222] tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look
+  30) tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[202/222] tests\e2e\updates-badge.spec.ts:57:7 › update badges on items › reading the notification in the Inbox also clears the new marker
+[203/222] tests\e2e\updates-composer.spec.ts:23:7 › writing an update › typing @ offers people and inserts the one chosen
+  31) tests\e2e\updates-composer.spec.ts:23:7 › writing an update › typing @ offers people and inserts the one chosen 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[204/222] tests\e2e\updates-composer.spec.ts:46:7 › writing an update › a posted mention is highlighted and reaches the person
+[205/222] tests\e2e\updates-composer.spec.ts:60:7 › writing an update › formatting shows as you write: bold, headings, lists and colour
+[206/222] tests\e2e\updates-composer.spec.ts:86:7 › writing an update › the link window checks the address, and a link can be edited or removed
+[207/222] tests\e2e\updates-composer.spec.ts:121:7 › writing an update › lists continue themselves and end on an empty item
+[208/222] tests\e2e\updates-composer.spec.ts:142:7 › writing an update › what was written is what is shown
+[209/222] tests\e2e\updates-composer.spec.ts:187:7 › writing an update › editing shows the update formatted, not as markup
+[210/222] tests\e2e\updates-composer.spec.ts:202:7 › writing an update › markup that is not a real address stays text
+[211/222] tests\e2e\updates-composer.spec.ts:227:7 › an update posted to a linked task › is marked as linked, and editing it changes the copy too
+[212/222] tests\e2e\updates-composer.spec.ts:260:7 › an update posted to a linked task › an update posted with the toggle off stays on this task only
+[213/222] tests\e2e\version-check.spec.ts:27:7 › version check › About wears the running version on a badge beside the mark
+  32) tests\e2e\version-check.spec.ts:27:7 › version check › About wears the running version on a badge beside the mark 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[214/222] tests\e2e\version-check.spec.ts:40:7 › version check › a newer build on the server raises a notice that does not force a reload
+[215/222] tests\e2e\views-and-routing.spec.ts:20:7 › views, routing and error states › every board view opens, switches repeatedly and stays in sync
+  33) tests\e2e\views-and-routing.spec.ts:20:7 › views, routing and error states › every board view opens, switches repeatedly and stays in sync 
+
+    Error: worker process exited unexpectedly (code=3221225794, signal=null)
+
+
+[216/222] tests\e2e\views-and-routing.spec.ts:47:7 › views, routing and error states › the timeline plots dated items and reflects a change made in the table
+[217/222] tests\e2e\views-and-routing.spec.ts:72:7 › views, routing and error states › the calendar shows dated items, navigates months and opens an item
+[218/222] tests\e2e\views-and-routing.spec.ts:91:7 › views, routing and error states › every route survives a direct load and a refresh
+[219/222] tests\e2e\views-and-routing.spec.ts:114:7 › views, routing and error states › browser back and forward keep the app coherent
+[220/222] tests\e2e\views-and-routing.spec.ts:131:7 › views, routing and error states › invalid ids show a state, never a blank screen
+[221/222] tests\e2e\views-and-routing.spec.ts:144:7 › views, routing and error states › the command palette finds and opens things
+[222/222] tests\e2e\views-and-routing.spec.ts:169:7 › views, routing and error states › a My Work row and a notification both land on the right item
+  33 failed
+    tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name 
+    tests\e2e\accessibility.spec.ts:94:7 › accessibility › dialogs trap focus, close on Escape and return focus 
+    tests\e2e\account.spec.ts:5:7 › signing in and out › rejects an unknown email with a message and stays on login 
+    tests\e2e\account.spec.ts:14:7 › signing in and out › signs in with a typed email ──────────────
+    tests\e2e\board-share.spec.ts:91:7 › sharing a board by link › a password stands in front of the board, and a wrong one does not get in 
+    tests\e2e\board-views.spec.ts:17:7 › board views › kanban lanes by status, priority, person or group, and cards carry their details 
+    tests\e2e\board-views.spec.ts:60:7 › board views › timeline zooms, colours bars by status, and lists items without a date 
+    tests\e2e\board.spec.ts:69:7 › board interactions › changes a due date ─────────────────────────
+    tests\e2e\board.spec.ts:79:7 › board interactions › moves an item between groups with drag and drop 
+    tests\e2e\boards-lifecycle.spec.ts:21:7 › board lifecycle › each template builds the groups and columns it promises 
+    tests\e2e\boards-management.spec.ts:10:7 › board management › creates a board from the Campaign template and lands on it 
+    tests\e2e\booking.spec.ts:29:7 › task booking › an admin gets the built-in Admin team and Task Allocation board, which cannot be archived 
+    tests\e2e\column-layout.spec.ts:23:7 › columns: alignment, dragging and renaming › short values sit under the middle of their header, long ones stay left 
+    tests\e2e\column-types.spec.ts:33:7 › column types › text and long text: set, edit, clear, persist 
+    tests\e2e\cross-view-sync.spec.ts:17:7 › changes reaching every view › a status change shows up in kanban, the item panel and My Work 
+    tests\e2e\data-integrity.spec.ts:16:7 › data integrity under stress › ten status changes in a row leave the last one stored 
+    tests\e2e\filters-sort-and-dnd.spec.ts:20:7 › filtering, sorting, bulk actions and drag and drop › status, priority and group filters combine, and clear again 
+    tests\e2e\groups-and-items.spec.ts:24:7 › groups, items and subitems › group lifecycle: create, rename, duplicate, collapse, delete with items 
+    tests\e2e\item-assets.spec.ts:47:7 › asset lines and the recap column › deliverables are added from the panel, saved edits move the totals, and the board cell summarises them 
+    tests\e2e\item-cover.spec.ts:32:7 › item covers › a cover can be added, shows on the kanban card, and can be replaced and removed 
+    tests\e2e\item-reference.spec.ts:13:7 › the ID# column › sits in front of the item name, shows each task's code, and hides from the Hide menu 
+    tests\e2e\large-board.spec.ts:153:7 › a board far bigger than the seed › stays responsive with 300 items and 12 columns 
+    tests\e2e\mobile-layout.spec.ts:20:7 › phone layout › the shell is the bottom navigation, and the sidebar is not mounted 
+    tests\e2e\notifications.spec.ts:52:7 › notifications and updates › the sidebar shows a red badge and a grey badge side by side 
+    tests\e2e\onboarding.spec.ts:29:7 › member onboarding › pending members are listed, cannot sign in, and are kept out of pickers 
+    tests\e2e\permissions.spec.ts:19:7 › permissions › a viewer sees the board but cannot change anything 
+    tests\e2e\stakeholder-portal.spec.ts:64:7 › the stakeholder portal › renames the destination without moving it, and keeps internal booking 
+    tests\e2e\teams-and-members.spec.ts:12:7 › teams and members › an unknown workspace slug says so instead of hanging or crashing 
+    tests\e2e\trackers.spec.ts:22:7 › asset tracker grid › typing edits a cell, Enter moves down, and Ctrl+D fills the selection down 
+    tests\e2e\updates-badge.spec.ts:31:7 › update badges on items › shows the count quietly for your own updates and as new for everyone else until they look 
+    tests\e2e\updates-composer.spec.ts:23:7 › writing an update › typing @ offers people and inserts the one chosen 
+    tests\e2e\version-check.spec.ts:27:7 › version check › About wears the running version on a badge beside the mark 
+    tests\e2e\views-and-routing.spec.ts:20:7 › views, routing and error states › every board view opens, switches repeatedly and stays in sync 
+  17 skipped
+  142 did not run
+  30 passed (13.9m)

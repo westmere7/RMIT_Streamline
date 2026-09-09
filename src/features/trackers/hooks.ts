@@ -156,6 +156,10 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
   const [store] = React.useState<{ past: TrackerSheet[]; future: TrackerSheet[]; dirty: boolean }>(() => ({ past: [], future: [], dirty: false }));
   const timer = React.useRef<number | null>(null);
   const pendingSave = React.useRef<(() => void) | null>(null);
+  // The debounced write, callable early. Set whenever a save is waiting and
+  // cleared once it runs; the unmount cleanup uses it to finish rather than
+  // cancel. See the effect at the bottom of this hook.
+  const flush = React.useRef<(() => void) | null>(null);
   const [saving, setSaving] = React.useState<"idle" | "pending" | "saving" | "error">("idle");
 
   // A newer server copy (another tab saved) replaces the local one while nothing
@@ -173,7 +177,10 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
       // in memory for up to a second: hold the unload guard for that whole time.
       const settled = pendingSave.current ?? beginUnsavedWork();
       pendingSave.current = settled;
-      timer.current = window.setTimeout(async () => {
+
+      const run = async () => {
+        timer.current = null;
+        flush.current = null;
         setSaving("saving");
         try {
           const saved = await services.trackers.saveSheet(next.id, { columns: next.columns, rows: next.rows, frozenColumns: next.frozenColumns });
@@ -188,7 +195,13 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
           pendingSave.current = null;
           settled();
         }
-      }, 600);
+      };
+
+      flush.current = () => {
+        if (timer.current) window.clearTimeout(timer.current);
+        void run();
+      };
+      timer.current = window.setTimeout(() => void run(), 600);
     },
     [services, queryClient, store],
   );
@@ -232,11 +245,21 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
     });
   }, [persist, store]);
 
-  // Flush a pending save if the user navigates away mid-debounce.
+  /**
+   * Finish a pending save when the editor goes away.
+   *
+   * This used to call `clearTimeout` and nothing else, under a comment saying
+   * it flushed — so an edit made within 600 ms of switching sheet, closing the
+   * panel or leaving the page was silently discarded, with the value still on
+   * screen as the user left. `beginUnsavedWork()` covers closing the *browser*;
+   * this covers React unmount, which is the common case because
+   * `SheetEditorProvider` is mounted with `key={sheet.id}` and a sheet switch
+   * therefore unmounts the hook. (Audit F-004.)
+   *
+   * Fire and forget: the component is going, the write is not.
+   */
   React.useEffect(() => {
-    return () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    };
+    return () => flush.current?.();
   }, []);
 
   return { sheet: draft, commit, undo, redo, saving };

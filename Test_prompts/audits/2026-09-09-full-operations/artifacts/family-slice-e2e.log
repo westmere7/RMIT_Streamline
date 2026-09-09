@@ -1,0 +1,39 @@
+
+Running 107 tests using 1 worker
+
+[1/107] tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name
+  1) tests\e2e\accessibility.spec.ts:47:7 › accessibility › every visible control on the main pages has a name 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.waitForTimeout: Test timeout of 30000ms exceeded.
+
+      48 |     for (const route of ["/workspace/rmit", "/workspace/rmit/my-work", "/workspace/rmit/boards/rmitinerary-2026", "/workspace/rmit/members", "/workspace/rmit/inbox"]) {
+      49 |       await page.goto(route);
+    > 50 |       await page.waitForTimeout(1500);
+         |                  ^
+      51 |       const result = await audit(page);
+      52 |       expect(result.namelessControls, `${route}: controls with no accessible name`).toEqual([]);
+      53 |       expect(result.unlabelledInputs, `${route}: inputs with no label`).toEqual([]);
+        at E:\WORK_OFFLINE\apps\RMIT_Streamline\tests\e2e\accessibility.spec.ts:50:18
+
+    Error Context: test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\accessibility-accessibilit-14370-n-the-main-pages-has-a-name\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[2/107] tests\e2e\accessibility.spec.ts:59:7 › accessibility › the board can be driven from the keyboard
+[3/107] tests\e2e\accessibility.spec.ts:81:7 › accessibility › a status cell opens, chooses and closes with the keyboard alone
+[4/107] tests\e2e\accessibility.spec.ts:94:7 › accessibility › dialogs trap focus, close on Escape and return focus
+[5/107] tests\e2e\accessibility.spec.ts:111:7 › accessibility › the command palette is reachable and dismissable from the keyboard
+[6/107] tests\e2e\accessibility.spec.ts:121:7 › accessibility › headings describe each page
+[7/107] tests\e2e\auth-and-navigation.spec.ts:9:7 › authentication and navigation › signs in as Danh and lands on the workspace home
+[8/107] tests\e2e\auth-and-navigation.spec.ts:17:7 › authentication and navigation › redirects signed-out visitors to login and remembers the session
+[9/107] tests\e2e\auth-and-navigation.spec.ts:25:7 › authentication and navigation › opens a board from the sidebar with populated groups
+[10/107] tests\e2e\auth-and-navigation.spec.ts:35:7 › authentication and navigation › opens My Work with sections

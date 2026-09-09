@@ -146,7 +146,39 @@ export interface PublicItemPayload extends PublicBoardPayload {
   itemId: EntityId;
 }
 
-/** Strips a person down to what a shared board shows of them. */
+/**
+ * A person as a public link may name them.
+ *
+ * An allowlist, written out field by field. It used to be `{ ...user, email: "" }`,
+ * which published every other column of `users` to anyone holding the link:
+ * job title, department, timezone, working hours, stakeholder group. That is a
+ * staff directory attached to a link meant to show a project's status, and it
+ * told a stranger when each named person was at their desk. Worse, it was the
+ * shape rather than a slip — a field added to `User` later joined the payload
+ * by default. (Audit F-003.)
+ *
+ * Three fields travel. The id, because a cell has to match its avatar; the
+ * display name, because a task with an owner nobody can name is not much use;
+ * and the avatar image, which is already a public object. The rest of the type
+ * is filled with blanks rather than omitted, because the public payload reuses
+ * `User` and the board components read it.
+ */
 export function toPublicUser(user: User): User {
-  return { ...user, email: "" };
+  return {
+    id: user.id,
+    email: "",
+    firstName: user.displayName,
+    lastName: "",
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    jobTitle: null,
+    department: null,
+    timezone: "",
+    stakeholderGroup: null,
+    workHoursStart: null,
+    workHoursEnd: null,
+    deactivatedAt: null,
+    createdAt: "",
+    updatedAt: "",
+  };
 }
