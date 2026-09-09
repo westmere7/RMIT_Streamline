@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Item } from "@/domain";
 import { AssetComposer } from "@/features/assets/asset-composer";
 import { useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
 /**
@@ -20,6 +21,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   const assets = useItemAssets(item.id);
   const mutations = useAssetMutations(item);
   const ws = useWorkspace();
+  const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const rows = React.useMemo(() => (assets.data ?? []).slice().sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)), [assets.data]);
 
   if (assets.isLoading) {
@@ -34,6 +36,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
     <div className="p-4" data-testid="assets-tab">
       <AssetComposer
         rows={rows}
+        assetTypes={assetTypes}
         users={ws.users}
         canEdit={canEdit}
         emptyText={canEdit ? "No items yet. Add one above, then open it to set its type, who is in charge, how many and when it is due." : "No items listed."}

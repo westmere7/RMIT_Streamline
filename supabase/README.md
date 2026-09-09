@@ -57,6 +57,31 @@ only variable the runner needs. It is server-side only and lives in `.env.local`
 `.github/workflows/db-migrate.yml` runs the same command on every push to `main`
 that touches SQL, using a `SUPABASE_DB_URL` repository secret.
 
+## Scheduled keep alive
+
+The [Supabase keep alive workflow](../.github/workflows/supabase-keep-alive.yml)
+executes a read-only `SELECT 1` every six hours (`17 */6 * * *`, UTC). It reuses
+the `SUPABASE_DB_URL` repository secret used by the migration workflow, retries
+failed connections three times, and fails visibly if the query cannot complete.
+
+To enable it:
+
+1. In GitHub, open **Settings > Secrets and variables > Actions** and set
+   `SUPABASE_DB_URL` to the Supabase Postgres connection URI with its password.
+   Use the **session pooler** URI from Supabase's **Connect** panel for IPv4
+   compatibility with GitHub-hosted runners. URL-encode special characters in
+   the password and use `sslmode=require` if specifying SSL mode in the URI.
+2. Push the workflow to the repository's default branch with Actions enabled.
+3. Open **Actions > Supabase keep alive > Run workflow** to verify connectivity.
+   If the project is already paused, resume it in Supabase first.
+
+[Supabase's pausing documentation](https://supabase.com/docs/guides/platform/free-project-pausing)
+says a few user database requests each day are typically sufficient. This job
+generates activity but does not guarantee exemption; paid plans are exempt from
+inactivity pausing. [GitHub schedules](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+can be delayed, and public repositories have schedules disabled after 60 days
+without repository activity. Re-enable the workflow if that happens.
+
 ## Order
 
 `migrations/` before `policies/`, so RLS lands after the tables it protects:

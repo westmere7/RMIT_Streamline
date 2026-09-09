@@ -1,0 +1,54 @@
+name: Supabase keep alive
+
+on:
+  schedule:
+    # Four database queries daily, away from the busy start of the hour (UTC).
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: supabase-keep-alive
+  cancel-in-progress: false
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ensure PostgreSQL client is available
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+
+      - name: Query Supabase database
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGCONNECT_TIMEOUT: "15"
+          PGSSLMODE: require
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Set the SUPABASE_DB_URL repository secret in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            # No application data is read or changed. Suppress connection errors
+            # so a malformed connection URI cannot expose credentials in logs.
+            if psql "$SUPABASE_DB_URL" -X -w -v ON_ERROR_STOP=1 -Atc 'SELECT 1;' >/dev/null 2>&1; then
+              echo "Supabase database query succeeded."
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Database connection failed (attempt $attempt/3); retrying."
+              sleep 10
+            fi
+          done
+
+          echo "::error::Supabase query failed after 3 attempts. Check the SUPABASE_DB_URL secret, network access, and whether the project needs resuming. Use the Supabase session pooler URI for IPv4 runners."
+          exit 1

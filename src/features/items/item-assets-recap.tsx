@@ -4,18 +4,23 @@ import { CalendarDays, ChevronRight, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import type { ColumnLabel, ItemAsset, User } from "@/domain";
+import type { ColumnLabel, ItemAsset, TagOption, User } from "@/domain";
 import { ASSET_TYPE_OPTIONS, countByType, recapAssets } from "@/domain";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { tagColorFor } from "@/lib/colors";
 import { formatShortDate, todayISO } from "@/lib/dates/dates";
 import { useUiStore } from "@/stores/ui-store";
 import { cn } from "@/lib/utils";
 
-/** The chip for an asset type: the shared palette's colour when it is one of theirs, a stable colour otherwise. */
-export function assetTypeLabel(type: string | null): ColumnLabel | null {
+/**
+ * The chip for an asset type: the colour the workspace gave it in Settings →
+ * Lists, and a stable one for a word that is no longer on the list — history
+ * keeps its colour when a list changes under it.
+ */
+export function assetTypeLabel(type: string | null, options: readonly TagOption[] = ASSET_TYPE_OPTIONS): ColumnLabel | null {
   if (!type) return null;
-  const option = ASSET_TYPE_OPTIONS.find((o) => o.name.toLowerCase() === type.toLowerCase());
+  const option = options.find((o) => o.name.toLowerCase() === type.toLowerCase());
   return { id: type, name: option?.name ?? type, color: option?.color ?? tagColorFor(type) };
 }
 
@@ -37,6 +42,7 @@ const PEOPLE_SHOWN = 4;
  */
 export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
   const ws = useWorkspace();
+  const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const today = todayISO();
   const expanded = useUiStore((s) => s.assetRecapExpanded);
   const toggle = useUiStore((s) => s.toggleAssetRecap);
@@ -129,7 +135,7 @@ export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="assets-breakdown">
           {shownTypes.map(({ type, quantity }) => (
             <span key={type ?? "none"} className="inline-flex items-center gap-1">
-              <LabelPill label={assetTypeLabel(type)} appearance="soft" size="sm" emptyText="No type" />
+              <LabelPill label={assetTypeLabel(type, assetTypes)} appearance="soft" size="sm" emptyText="No type" />
               <span className="tabular">×{quantity}</span>
             </span>
           ))}

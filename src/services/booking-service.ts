@@ -15,7 +15,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine } from "@/domain";
+import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -114,8 +114,13 @@ export class BookingService {
 
     const priorityColumn = columns.find((c) => c.type === "PRIORITY");
     const priorities = priorityColumn ? (priorityColumn.settings as PriorityColumnSettings).labels.map((l) => ({ name: l.name, color: l.color })) : [];
+    // The workspace's own list first (Settings → Lists), then the receiving
+    // column's palette, then the built-in words.
     const assetColumn = columns.find((c) => c.type === "TAGS" && c.settings.kind === "tags" && c.name.toLowerCase().includes("asset"));
-    const assetTypes = assetColumn && assetColumn.settings.kind === "tags" && assetColumn.settings.options.length ? assetColumn.settings.options : BOOKING_ASSET_TYPES;
+    const columnTypes = assetColumn && assetColumn.settings.kind === "tags" && assetColumn.settings.options.length ? assetColumn.settings.options : BOOKING_ASSET_TYPES;
+    const storedLists = await this.repos.workspaceLists.listByWorkspace(workspaceId);
+    const listTypes = storedLists.filter((row) => row.listKey === "ASSET_TYPES");
+    const assetTypes = listTypes.length > 0 ? toTagOptions(listTypes) : columnTypes;
 
     const options: BookingTeamOption[] = offered.map((team, i) => {
       const board = receiving[i];

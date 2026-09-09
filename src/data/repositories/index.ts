@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { BoardShare, BoardShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -206,6 +206,17 @@ export interface TrackerRepository {
   reorderSheets(trackerId: EntityId, orderedIds: EntityId[]): Promise<TrackerSheet[]>;
 }
 
+/**
+ * The workspace's shared option lists (asset types, stakeholder groups). A list
+ * nobody has edited has no rows: the domain stands the built-in defaults in for
+ * it, and the first save writes the list out whole.
+ */
+export interface WorkspaceListRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<WorkspaceListOption[]>;
+  /** Replaces one list with exactly these options, in this order. */
+  replace(workspaceId: EntityId, listKey: WorkspaceListKey, options: WorkspaceListOptionInput[]): Promise<WorkspaceListOption[]>;
+}
+
 export interface ItemAssetRepository {
   /** One line, or null — read before an edit so the activity feed can say what changed. */
   getById(id: EntityId): Promise<ItemAsset | null>;
@@ -358,6 +369,7 @@ export interface Repositories {
   trackers: TrackerRepository;
   comments: CommentRepository;
   itemAssets: ItemAssetRepository;
+  workspaceLists: WorkspaceListRepository;
   bookingTemplates: BookingTemplateRepository;
   boardShares: BoardShareRepository;
   dashboardShares: DashboardShareRepository;

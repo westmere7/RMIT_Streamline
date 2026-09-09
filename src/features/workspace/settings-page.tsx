@@ -19,6 +19,7 @@ import { isDataExport, type DataExport } from "@/data/repositories";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
+import { ListsSection } from "@/features/workspace/lists-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
@@ -27,9 +28,9 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "teams", "permissions", "view", "data"] as const;
+const SECTIONS = ["general", "teams", "permissions", "lists", "view", "data"] as const;
 type Section = (typeof SECTIONS)[number];
-const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", view: "View", data: "Data" };
+const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", lists: "Lists", view: "View", data: "Data" };
 
 export function SettingsPage() {
   const ws = useWorkspace();
@@ -79,6 +80,7 @@ export function SettingsPage() {
             {section === "general" && <GeneralSection />}
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
+            {section === "lists" && <ListsSection />}
             {section === "view" && <ViewSection />}
             {section === "data" && <DataSection />}
           </div>

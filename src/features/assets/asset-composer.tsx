@@ -6,7 +6,7 @@ import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { User } from "@/domain";
+import type { TagOption, User } from "@/domain";
 import { ASSET_TYPE_OPTIONS, assetCount } from "@/domain";
 import { DatePicker } from "@/features/boards/components/pickers/date-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
@@ -67,6 +67,7 @@ const ALL_FIELDS: Required<AssetComposerFields> = { done: true, type: true, peop
 export function AssetComposer({
   rows,
   fields,
+  assetTypes = ASSET_TYPE_OPTIONS,
   users = [],
   canEdit = true,
   disabled = false,
@@ -79,6 +80,8 @@ export function AssetComposer({
 }: {
   rows: readonly AssetComposerRow[];
   fields?: AssetComposerFields;
+  /** The workspace's asset types (Settings → Lists). Needed only when `fields.type` is on. */
+  assetTypes?: readonly TagOption[];
   /** Needed only when `fields.people` is on. */
   users?: User[];
   canEdit?: boolean;
@@ -149,6 +152,7 @@ export function AssetComposer({
             row={row}
             number={index + 1}
             fields={on}
+            assetTypes={assetTypes}
             users={users}
             canEdit={canEdit && !disabled}
             open={open.has(row.id) || row.name === justAdded}
@@ -220,6 +224,7 @@ function AssetRowCard({
   row,
   number,
   fields,
+  assetTypes,
   users,
   canEdit,
   open,
@@ -231,6 +236,7 @@ function AssetRowCard({
   row: AssetComposerRow;
   number: number;
   fields: Required<AssetComposerFields>;
+  assetTypes: readonly TagOption[];
   users: User[];
   canEdit: boolean;
   open: boolean;
@@ -256,7 +262,7 @@ function AssetRowCard({
   const assignees = shown.assigneeIds.map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
   const done = row.completedAt !== null;
   const overdue = !done && isOverdue(shown.dueDate);
-  const typeLabel = assetTypeLabel(shown.assetType);
+  const typeLabel = assetTypeLabel(shown.assetType, assetTypes);
   const inCharge = assignees.length === 0 ? "Not set" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
   const [renaming, setRenaming] = React.useState(false);
   // The first click of a double click has to be held back, or a rename would
@@ -415,7 +421,7 @@ function AssetRowCard({
                 <PopoverContent align="start" className="w-60 p-2">
                   <p className="mb-1.5 label-quiet">Asset type</p>
                   <div className="flex flex-wrap gap-1">
-                    {ASSET_TYPE_OPTIONS.map((option) => {
+                    {assetTypes.map((option) => {
                       const active = draft.assetType?.toLowerCase() === option.name.toLowerCase();
                       return (
                         <button
@@ -433,7 +439,7 @@ function AssetRowCard({
                     })}
                   </div>
                   <input
-                    defaultValue={draft.assetType && !ASSET_TYPE_OPTIONS.some((o) => o.name.toLowerCase() === draft.assetType!.toLowerCase()) ? draft.assetType : ""}
+                    defaultValue={draft.assetType && !assetTypes.some((o) => o.name.toLowerCase() === draft.assetType!.toLowerCase()) ? draft.assetType : ""}
                     placeholder="Or type another and press Enter"
                     aria-label="Custom asset type"
                     onKeyDown={(e) => {

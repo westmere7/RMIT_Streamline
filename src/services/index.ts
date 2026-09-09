@@ -13,12 +13,14 @@ import { NotificationService } from "./notification-service";
 import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
+import { WorkspaceListService } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
 
 export interface Services {
   repos: Repositories;
   notifications: NotificationService;
   workspace: WorkspaceService;
+  lists: WorkspaceListService;
   boards: BoardService;
   shares: BoardShareService;
   dashboard: DashboardService;
@@ -54,6 +56,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     repos,
     notifications,
     workspace,
+    lists: new WorkspaceListService(repos),
     boards: new BoardService(repos, notifications),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
     dashboard: new DashboardService(repos, options.dashboardTransport ?? null),
@@ -81,6 +84,7 @@ export type { DirectThreadView } from "./message-service";
 export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service";
 export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
+export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings } from "./board-share-service";
 export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";

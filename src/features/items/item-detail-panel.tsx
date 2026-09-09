@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, CornerDownRight, History, MessageSquare, Plus, SquarePen, X } from "lucide-react";
+import { CornerDownRight, History, MessageSquare, Package, Plus, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -110,7 +110,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false }: { itemId: 
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
               <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
-                <Boxes className="size-3.5" /> Assets
+                <Package className="size-3.5" /> Assets
                 {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
               </UnderlineTabsTrigger>
               <UnderlineTabsTrigger value="activity">
@@ -170,7 +170,7 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
               </>
             )}
           </p>
-          <h2 className="mt-1 text-[19px] font-semibold leading-snug tracking-tight">
+          <h2 className="mt-1 text-[23px] font-semibold leading-tight tracking-tight">
             <InlineEdit
               value={item.name}
               editing={renaming}
@@ -179,7 +179,7 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
               disabled={!canEdit}
               ariaLabel="Item name"
               className={cn("-mx-1 whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
-              inputClassName="h-9 text-[19px] font-semibold"
+              inputClassName="h-10 text-[23px] font-semibold"
             />
           </h2>
         </div>
@@ -241,8 +241,8 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
   }
 
   return (
-    <span className="inline-flex h-7 items-center overflow-hidden rounded-lg bg-accent-soft text-accent-soft-foreground ring-1 ring-inset ring-accent-soft-foreground/15" data-testid="panel-reference-chip">
-      <span className="px-2 text-2xs font-medium opacity-70">ID#</span>
+    <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60 text-muted-foreground" data-testid="panel-reference-chip">
+      <span className="pl-1.5 text-2xs font-medium opacity-70">ID#</span>
       <button
         type="button"
         onClick={() => (code ? void copyToClipboard(code, `${code} copied`) : canEdit && setEditing(true))}
@@ -250,9 +250,9 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
         title={canEdit ? "Click to copy, double-click to edit" : "Booking code"}
         data-testid="panel-reference"
         className={cn(
-          "h-full pr-2.5 pl-0.5 font-mono text-[13px] font-semibold tabular transition-colors",
-          canEdit && "hover:bg-accent-soft-foreground/10",
-          !code && "pl-2 text-2xs font-normal italic opacity-70",
+          "h-full pr-1.5 pl-1 font-mono text-2xs font-medium tabular transition-colors hover:text-foreground",
+          canEdit && "hover:bg-foreground/[0.06]",
+          !code && "pl-1.5 font-normal italic opacity-70",
         )}
       >
         {code ?? (canEdit ? "Add an ID" : "None")}

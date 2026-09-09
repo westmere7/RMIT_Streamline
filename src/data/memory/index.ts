@@ -147,6 +147,11 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       update: readOnly("editing an update"),
       delete: readOnly("deleting an update"),
     },
+    workspaceLists: {
+      // A shared board is read with the built-in lists; nobody is signed in to edit them.
+      listByWorkspace: async () => [],
+      replace: readOnly("editing a list"),
+    },
     itemAssets: {
       getById: async (id) => payload().assets.find((a) => a.id === id) ?? null,
       listByItem: async (itemId) => payload().assets.filter((a) => a.itemId === itemId).sort((a, b) => a.position - b.position),

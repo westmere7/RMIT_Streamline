@@ -8,6 +8,7 @@ import { LocalBookingTemplateRepository } from "./repositories/booking-template-
 import { LocalCommentRepository } from "./repositories/comment-repository";
 import { LocalDashboardShareRepository } from "./repositories/dashboard-share-repository";
 import { LocalItemAssetRepository } from "./repositories/item-asset-repository";
+import { LocalWorkspaceListRepository } from "./repositories/workspace-list-repository";
 import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemReadRepository } from "./repositories/item-read-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
@@ -50,6 +51,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     trackers: new LocalTrackerRepository(connection),
     comments: new LocalCommentRepository(connection),
     itemAssets: new LocalItemAssetRepository(connection),
+    workspaceLists: new LocalWorkspaceListRepository(connection),
     bookingTemplates: new LocalBookingTemplateRepository(connection),
     boardShares: new LocalBoardShareRepository(connection),
     dashboardShares: new LocalDashboardShareRepository(connection),

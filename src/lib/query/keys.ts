@@ -52,6 +52,8 @@ export const queryKeys = {
   itemActivity: (itemId: string) => ["activity", "item", itemId] as const,
   boardActivity: (boardId: string) => ["activity", "board", boardId] as const,
   workspaceActivity: (workspaceId: string) => ["activity", "workspace", workspaceId] as const,
+  /** The workspace's shared option lists (asset types, stakeholder groups). */
+  workspaceLists: (workspaceId: string) => ["workspace-lists", workspaceId] as const,
 
   trackers: (workspaceId: string) => ["trackers", workspaceId] as const,
   tracker: (trackerId: string) => ["tracker", trackerId] as const,
