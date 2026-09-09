@@ -171,24 +171,22 @@ function Choice({ options, value, onChange, name }: { options: Array<{ value: st
   );
 }
 
+/**
+ * A setting that is on or off.
+ *
+ * The application's own `Switch`, not a hand-drawn one: it carries the accent
+ * the rest of the app switches with, and a track painted in `foreground`
+ * instead read as a white slab that belonged to no palette.
+ *
+ * A span rather than a `<label>` around it, for the reason recorded on the
+ * open/close switch: a label re-dispatches the click onto the control.
+ */
 function Toggle({ label, checked, onChange, testId }: { label: string; checked: boolean; onChange: (next: boolean) => void; testId: string }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="inline-flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground"
-      data-testid={testId}
-    >
-      <span
-        aria-hidden
-        className={cn("flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors", checked ? "bg-foreground" : "bg-border")}
-      >
-        <span className={cn("size-3 rounded-full bg-background transition-transform", checked && "translate-x-3")} />
-      </span>
+    <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+      <Switch size="sm" checked={checked} onCheckedChange={onChange} aria-label={label} data-testid={testId} />
       {label}
-    </button>
+    </span>
   );
 }
 
@@ -250,7 +248,17 @@ function DepartmentCard({ row }: { row: DepartmentOverview }) {
   const busy = setEnabled.isPending && setEnabled.variables?.departmentId === department.id;
 
   return (
-    <li className="rounded-xl border border-border/70 bg-card" data-testid="portal-department" data-department={department.name}>
+    <li
+      // Open, it is the thing being worked on: lifted off the page and ringed
+      // in the accent, so a column of six identical panels has an obvious
+      // subject. Closed, it goes back to being one of a list.
+      className={cn(
+        "rounded-xl border bg-card transition-shadow",
+        expanded ? "border-ring/40 shadow-md ring-1 ring-ring/15" : "border-border/70",
+      )}
+      data-testid="portal-department"
+      data-department={department.name}
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
         <button
           type="button"
@@ -308,7 +316,7 @@ function DepartmentCard({ row }: { row: DepartmentOverview }) {
       </div>
 
       {expanded && portal && (
-        <div className="space-y-4 border-t border-border/60 p-3">
+        <div className="space-y-4 rounded-b-xl border-t border-border/60 bg-surface/40 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-2 py-1.5 font-mono text-2xs text-muted-foreground" data-testid="portal-link">
               {url}
