@@ -215,7 +215,13 @@ export function TeamPage() {
                 <li key={membership.id} className="group flex h-11 items-center gap-2.5 px-3 text-[13px]">
                   <UserAvatar user={user} size="md" tooltip={false} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{user?.displayName ?? "Unknown"}</span>
+                    {user ? (
+                      <Link href={routes.person(ws.slug, user.id)} className="block truncate font-medium hover:underline">
+                        {user.displayName}
+                      </Link>
+                    ) : (
+                      <span className="block truncate font-medium">Unknown</span>
+                    )}
                     <span className="block truncate text-2xs text-muted-foreground">{user?.jobTitle}</span>
                   </span>
                   {membership.role === "LEAD" && <Badge variant="primary">Lead</Badge>}

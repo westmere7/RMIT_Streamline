@@ -28,6 +28,7 @@ import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
+import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -142,6 +143,7 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
   const group = model.groups.find((g) => g.id === item.groupId);
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
+  const links = useMentionLinks();
   return (
     // Its own surface under the tabs: what the task is, set apart from the work on it.
     <div className="border-b border-border bg-card">
@@ -189,7 +191,7 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
         <ReferenceField item={item} canEdit={canEdit} onSave={(reference) => void mutations.updateReference(item.id, reference)} />
         <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
           <UserAvatar user={creator} size="xs" tooltip={false} />
-          Created by {creator?.firstName ?? "someone"} <RelativeTime iso={item.createdAt} />
+          Created by <Mention href={links.person(item.createdBy)} className="font-normal">{creator?.firstName ?? "someone"}</Mention> <RelativeTime iso={item.createdAt} />
         </p>
       </div>
       <AssetsRecapStrip assets={assets} />

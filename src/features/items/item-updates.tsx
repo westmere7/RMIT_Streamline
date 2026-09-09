@@ -14,6 +14,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { Comment } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
+import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
 
@@ -105,6 +106,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
 
 function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; names: string[]; onEdit: (body: string) => void; onDelete: () => void }) {
   const ws = useWorkspace();
+  const links = useMentionLinks();
   const author = ws.userById(comment.authorId);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(comment.body);
@@ -114,7 +116,7 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
       <UserAvatar user={author} size="md" tooltip={false} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-[13px]">
-          <span className="font-medium">{author?.displayName ?? "Unknown"}</span>
+          <Mention href={links.person(comment.authorId)}>{author?.displayName ?? "Unknown"}</Mention>
           <RelativeTime iso={comment.createdAt} className="text-2xs text-muted-foreground" />
           {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
           {comment.sharedId && (
@@ -171,7 +173,7 @@ function CommentItem({ comment, names, onEdit, onDelete }: { comment: Comment; n
             </div>
           </form>
         ) : (
-          <RichText body={comment.body} mentionNames={names} className="mt-0.5 leading-relaxed" />
+          <RichText body={comment.body} mentionNames={names} className="mt-0.5 leading-relaxed" mentionHref={links.personNamed} />
         )}
       </div>
     </li>
