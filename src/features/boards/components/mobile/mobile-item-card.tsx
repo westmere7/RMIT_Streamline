@@ -3,6 +3,7 @@
 import { ChevronDown, CornerDownRight, Link2, MoreHorizontal, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -104,7 +105,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
 
         <span className="flex shrink-0 flex-col items-end justify-between">
           <CardMenu item={item} group={group} />
-          <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
+          <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} className="min-h-11 px-2.5" />
         </span>
       </div>
 
@@ -114,7 +115,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
             type="button"
             onClick={() => toggleExpanded(board.id, item.id)}
             aria-expanded={expanded}
-            className="flex min-h-9 items-center gap-1 rounded-lg px-1 text-2xs font-medium text-muted-foreground active:bg-accent/70"
+            className="flex min-h-11 items-center gap-1 rounded-lg px-1 text-2xs font-medium text-muted-foreground active:bg-accent/70"
             data-testid="mobile-subitems-toggle"
           >
             <ChevronDown aria-hidden className={cn("size-3.5 transition-transform motion-reduce:transition-none", !expanded && "-rotate-90")} />
@@ -144,7 +145,9 @@ function Owners({ userIds }: { userIds: string[] }) {
 function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
   const { model, mutations, canEdit, openItem } = useBoardContext();
   const [open, setOpen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const reference = item.reference;
+  const subitems = model.subitemsByParent.get(item.id) ?? [];
 
   const actions: MenuAction[] = React.useMemo(() => {
     const base: MenuAction[] = [{ type: "item", label: "Open", onSelect: () => openItem(item.id) }];
@@ -161,7 +164,7 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
       },
       { type: "separator" },
       { type: "item", label: "Archive", onSelect: () => void mutations.archiveItems([item.id]) },
-      { type: "item", label: "Delete", destructive: true, onSelect: () => void mutations.deleteItems([item.id]) },
+      { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
     ];
   }, [item.id, item.groupId, reference, group.id, canEdit, model.groups, mutations, openItem]);
 
@@ -171,12 +174,22 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Actions for ${item.name}`}
-        className="flex size-9 items-center justify-center rounded-lg text-muted-foreground active:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex size-11 items-center justify-center rounded-lg text-muted-foreground active:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
         data-testid="mobile-item-menu"
       >
         <MoreHorizontal className="size-4" aria-hidden />
       </button>
       <MenuSheet open={open} onOpenChange={setOpen} title={item.name} actions={actions} />
+      {/* Deleting asks first, exactly as the desktop row does. */}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${item.name}”?`}
+        description={subitems.length ? `This also deletes its ${subitems.length} subitems and all updates.` : "This permanently deletes the item and its updates."}
+        confirmLabel="Delete item"
+        destructive
+        onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
+      />
     </>
   );
 }

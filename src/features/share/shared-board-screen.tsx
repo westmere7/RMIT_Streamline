@@ -18,6 +18,11 @@ import { CalendarView } from "@/features/boards/components/views/calendar-view";
 import { ChartView } from "@/features/boards/components/views/chart-view";
 import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
+import { MobileBoardTools } from "@/features/boards/components/mobile/mobile-board-tools";
+import { MobileKanbanView } from "@/features/boards/components/mobile/mobile-kanban-view";
+import { MobileTableView } from "@/features/boards/components/mobile/mobile-table-view";
+import { useMobileViewPref } from "@/features/boards/components/mobile/mobile-view-prefs";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
 import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
@@ -52,6 +57,8 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
   const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showReference: true });
+  const isMobile = useIsMobile();
+  const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
   const view: BoardViewKind = isViewKind(searchParams.get("view")) ? (searchParams.get("view") as BoardViewKind) : "table";
   const itemId = searchParams.get("item");
@@ -127,19 +134,47 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
       {snapshot.isError && <ErrorState title="Something went wrong while opening this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
-          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} />
-          <div className="relative flex min-h-0 flex-1">
-            <div className="flex min-w-0 flex-1 flex-col">
-              {view === "table" && <BoardTable />}
-              {view === "kanban" && <KanbanView />}
-              {view === "timeline" && <TimelineView />}
-              {view === "calendar" && <CalendarView />}
-              {view === "gantt" && <GanttView />}
-              {view === "workload" && <WorkloadView />}
-              {view === "chart" && <ChartView />}
-            </div>
-            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
-          </div>
+          {/* A visitor on a phone gets the same reading experience a member
+              gets: cards rather than a grid, and the lane picker rather than a
+              row of lanes. Read-only either way — the context says canEdit is
+              false, so the cards offer nothing but Open. */}
+          {isMobile ? (
+            <>
+              <div className="shrink-0 border-b border-border/70 px-3 py-2">
+                <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} />
+              </div>
+              {view === "table" ? (
+                <MobileTableView mode={tableMode} onModeChange={setTableMode} />
+              ) : view === "kanban" ? (
+                <MobileKanbanView />
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {view === "timeline" && <TimelineView />}
+                  {view === "calendar" && <CalendarView />}
+                  {view === "gantt" && <GanttView />}
+                  {view === "workload" && <WorkloadView />}
+                  {view === "chart" && <ChartView />}
+                </div>
+              )}
+              {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
+            </>
+          ) : (
+            <>
+              <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} />
+              <div className="relative flex min-h-0 flex-1">
+                <div className="flex min-w-0 flex-1 flex-col">
+                  {view === "table" && <BoardTable />}
+                  {view === "kanban" && <KanbanView />}
+                  {view === "timeline" && <TimelineView />}
+                  {view === "calendar" && <CalendarView />}
+                  {view === "gantt" && <GanttView />}
+                  {view === "workload" && <WorkloadView />}
+                  {view === "chart" && <ChartView />}
+                </div>
+                {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
+              </div>
+            </>
+          )}
         </BoardContextProvider>
       )}
     </div>

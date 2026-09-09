@@ -7,6 +7,7 @@ import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { Board, BoardViewKind } from "@/domain";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
@@ -157,32 +158,25 @@ function RenameSheet({ board, open, onOpenChange }: { board: Board; open: boolea
   };
 
   return (
-    <MenuSheetShell open={open} onOpenChange={onOpenChange} title="Rename board" onSave={save}>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && save()}
-        aria-label="Board name"
-        autoFocus
-        className="h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        data-testid="mobile-board-rename-input"
-      />
-    </MenuSheetShell>
-  );
-}
-
-function MenuSheetShell({ open, onOpenChange, title, onSave, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; onSave: () => void; children: React.ReactNode }) {
-  return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        title={title}
+        title="Rename board"
         footer={
-          <Button className="h-11 w-full" onClick={onSave}>
+          <Button className="h-11 w-full" onClick={save}>
             Save
           </Button>
         }
       >
-        <div className="pb-2">{children}</div>
+        <div className="pb-2">
+          <Input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && save()}
+            aria-label="Board name"
+            data-testid="mobile-board-rename-input"
+          />
+        </div>
       </SheetContent>
     </Sheet>
   );

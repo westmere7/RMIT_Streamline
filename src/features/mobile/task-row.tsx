@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, Link2, MessageSquare } from "lucide-react";
+import { CornerDownRight, Link2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -81,5 +81,3 @@ export function MobileTaskList({ children, ...props }: React.ComponentProps<"ul"
     </ul>
   );
 }
-
-export { MessageSquare };

@@ -30,6 +30,15 @@ function useCellStyle(width: number): React.CSSProperties {
   return { width, minWidth: width };
 }
 
+/**
+ * Centring is a table habit: it keeps a column of short values tidy under its
+ * heading. A stacked field list has no column, so a centred value floats away
+ * from the label above it — in `fill` the value starts where the label starts.
+ */
+function useAlign(align: "left" | "center"): "left" | "center" {
+  return React.useContext(StretchContext) === "fill" ? "left" : align;
+}
+
 export interface CellShellProps extends React.ComponentProps<"div"> {
   width: number;
   /** Cells look like display values; `interactive` adds hover affordance. */
@@ -40,13 +49,14 @@ export interface CellShellProps extends React.ComponentProps<"div"> {
 /** Fixed-width table cell container. */
 export function CellShell({ width, interactive = true, align = "left", className, children, ...props }: CellShellProps) {
   const style = useCellStyle(width);
+  const alignment = useAlign(align);
   return (
     <div
       role="gridcell"
       style={style}
       className={cn(
         "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-[13px]",
-        align === "center" && "justify-center",
+        alignment === "center" && "justify-center",
         interactive && "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
         className,
       )}
@@ -86,11 +96,12 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
   const isMobile = useIsMobile();
   const close = React.useCallback(() => setOpen(false), []);
   const style = useCellStyle(width);
+  const alignment = useAlign(align);
   if (disabled) {
     // A read-only cell still says what it is: without the label a screen reader
     // would read the value with no column or item to hang it on.
     return (
-      <CellShell width={width} interactive={false} align={align} aria-label={ariaLabel} data-testid={testId}>
+      <CellShell width={width} interactive={false} align={alignment} aria-label={ariaLabel} data-testid={testId}>
         {trigger}
       </CellShell>
     );
@@ -98,7 +109,7 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
 
   const triggerClassName = cn(
     "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03]",
-    align === "center" && "justify-center",
+    alignment === "center" && "justify-center",
     open && "bg-black/[0.04] dark:bg-white/[0.06]",
   );
 

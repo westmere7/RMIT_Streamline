@@ -139,7 +139,7 @@ export function ProfilePage({ userId }: { userId: string }) {
               <ul className="space-y-1">
                 {teams.map((team) => (
                   <li key={team.id}>
-                    <Link href={routes.team(ws.slug, team.id)} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70">
+                    <Link href={routes.team(ws.slug, team.id)} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]">
                       <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${colorClasses(team.color).dot}`} />
                       <span className="truncate">{team.name}</span>
                     </Link>
@@ -156,7 +156,7 @@ export function ProfilePage({ userId }: { userId: string }) {
               <ul className="space-y-1">
                 {boards.map(({ board, relation }) => (
                   <li key={board.id}>
-                    <Link href={routes.board(ws.slug, board.slug)} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70">
+                    <Link href={routes.board(ws.slug, board.slug)} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]">
                       <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${colorClasses(board.color).dot}`} />
                       <span className="truncate">{board.name}</span>
                       <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{RELATION_LABEL[relation]}</span>
@@ -176,7 +176,7 @@ export function ProfilePage({ userId }: { userId: string }) {
                   <li key={task.item.id}>
                     <Link
                       href={routes.board(ws.slug, task.board.slug, { itemId: task.item.id })}
-                      className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70"
+                      className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]"
                       data-testid="profile-task"
                     >
                       <span className="min-w-0 flex-1 truncate">{task.item.name}</span>

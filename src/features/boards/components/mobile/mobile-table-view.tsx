@@ -4,6 +4,7 @@ import { Archive, ArrowRight, CheckSquare, ChevronDown, Copy, LayoutList, Plus, 
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -97,7 +98,7 @@ function ModeToggle({ mode, onChange }: { mode: "cards" | "grid"; onChange: (mod
           role="radio"
           aria-checked={mode === value}
           onClick={() => onChange(value)}
-          className={cn("inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-2xs font-medium transition-colors motion-reduce:transition-none", mode === value ? "bg-foreground text-background" : "text-muted-foreground")}
+          className={cn("inline-flex h-11 items-center gap-1.5 rounded-full px-3.5 text-2xs font-medium transition-colors motion-reduce:transition-none", mode === value ? "bg-foreground text-background" : "text-muted-foreground")}
           data-testid={`mobile-mode-${value}`}
         >
           <Icon className="size-3.5" aria-hidden /> {label}
@@ -162,51 +163,49 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
       </div>
 
       {!collapsed && (
-        <>
-          <ul className={cn("divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card", `border-l-[3px] ${colors.border}`)}>
-            {items.map((item) => (
-              <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
-            ))}
-            {items.length === 0 && <li className="px-3 py-3 text-[13px] text-muted-foreground">Nothing in this group.</li>}
-            {canEdit && !selectMode && (
-              <li>
-                {adding ? (
-                  <div className="flex items-center gap-2 px-2.5 py-2">
-                    <Input
-                      autoFocus
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") submit();
-                        if (e.key === "Escape") {
-                          setDraft("");
-                          setAdding(false);
-                        }
-                      }}
-                      onBlur={() => {
-                        submit();
+        <ul className={cn("divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card", `border-l-[3px] ${colors.border}`)}>
+          {items.map((item) => (
+            <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
+          ))}
+          {items.length === 0 && <li className="px-3 py-3 text-[13px] text-muted-foreground">Nothing in this group.</li>}
+          {canEdit && !selectMode && (
+            <li>
+              {adding ? (
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <Input
+                    autoFocus
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submit();
+                      if (e.key === "Escape") {
+                        setDraft("");
                         setAdding(false);
-                      }}
-                      placeholder="Item name"
-                      aria-label={`New item in ${group.name}`}
-                      className="h-11 text-base"
-                      data-testid="mobile-new-item-input"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAdding(true)}
-                    className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[13px] text-muted-foreground active:bg-accent/70"
-                    data-testid="mobile-add-item"
-                  >
-                    <Plus className="size-4" aria-hidden /> Add item
-                  </button>
-                )}
-              </li>
-            )}
-          </ul>
-        </>
+                      }
+                    }}
+                    onBlur={() => {
+                      submit();
+                      setAdding(false);
+                    }}
+                    placeholder="Item name"
+                    aria-label={`New item in ${group.name}`}
+                    className="h-11 text-base"
+                    data-testid="mobile-new-item-input"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[13px] text-muted-foreground active:bg-accent/70"
+                  data-testid="mobile-add-item"
+                >
+                  <Plus className="size-4" aria-hidden /> Add item
+                </button>
+              )}
+            </li>
+          )}
+        </ul>
       )}
     </section>
   );
@@ -223,6 +222,7 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
   const { board, model, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const [moveOpen, setMoveOpen] = React.useState(false);
+  const [confirm, setConfirm] = React.useState<"archive" | "delete" | null>(null);
   const ids = ui.selectedItemIds.filter((id) => model.itemById.has(id));
   if (ids.length === 0) return null;
 
@@ -255,11 +255,35 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
         <div className="mt-1.5 grid grid-cols-4 gap-1.5">
           <BulkButton icon={ArrowRight} label="Move" onClick={() => setMoveOpen(true)} testId="mobile-bulk-move" />
           <BulkButton icon={Copy} label="Duplicate" onClick={() => after(() => ids.forEach((id) => void mutations.duplicateItem(id)))} />
-          <BulkButton icon={Archive} label="Archive" onClick={() => after(() => void mutations.archiveItems(ids))} />
-          <BulkButton icon={Trash2} label="Delete" destructive onClick={() => after(() => void mutations.deleteItems(ids))} />
+          {/* Archive and delete ask first, exactly as the desktop bar does. */}
+          <BulkButton icon={Archive} label="Archive" onClick={() => setConfirm("archive")} />
+          <BulkButton icon={Trash2} label="Delete" destructive onClick={() => setConfirm("delete")} testId="mobile-bulk-delete" />
         </div>
       </div>
       <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title="Move to group" actions={moveActions} />
+      <ConfirmDialog
+        open={confirm === "archive"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={`Archive ${pluralize(ids.length, "item")}?`}
+        description="Archived items are hidden from the board. They can be restored from the data layer later."
+        confirmLabel="Archive"
+        onConfirm={async () => {
+          await mutations.archiveItems(ids);
+          onDone();
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === "delete"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={`Delete ${pluralize(ids.length, "item")}?`}
+        description="This permanently deletes the selected items, their subitems and updates."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          await mutations.deleteItems(ids);
+          onDone();
+        }}
+      />
     </>
   );
 }

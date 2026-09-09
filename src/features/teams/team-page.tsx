@@ -216,7 +216,7 @@ export function TeamPage() {
                   <UserAvatar user={user} size="md" tooltip={false} />
                   <span className="min-w-0 flex-1">
                     {user ? (
-                      <Link href={routes.person(ws.slug, user.id)} className="block truncate font-medium hover:underline">
+                      <Link href={routes.person(ws.slug, user.id)} className="block truncate font-medium hover:underline max-md:flex max-md:min-h-11 max-md:items-center">
                         {user.displayName}
                       </Link>
                     ) : (
