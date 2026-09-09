@@ -2,21 +2,32 @@
 
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { columnCellStyle } from "@/features/boards/board-model";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 /**
- * Table rows stretch their cells to fill a wide screen; other hosts (the item detail panel)
- * keep the width they ask for.
+ * How a cell sizes itself, decided by its host rather than by the cell.
+ *
+ * `table` stretches cells to fill a wide screen, `none` keeps the width asked
+ * for (the item detail panel), and `fill` lets the cell take whatever its
+ * container gives it — a phone's field list, where a 260px cell in a 190px slot
+ * would push the page sideways.
  */
-const StretchContext = React.createContext(false);
+type StretchMode = "none" | "table" | "fill";
 
-export function CellStretchProvider({ children }: { children: React.ReactNode }) {
-  return <StretchContext.Provider value={true}>{children}</StretchContext.Provider>;
+const StretchContext = React.createContext<StretchMode>("none");
+
+export function CellStretchProvider({ mode = "table", children }: { mode?: StretchMode; children: React.ReactNode }) {
+  return <StretchContext.Provider value={mode}>{children}</StretchContext.Provider>;
 }
 
 function useCellStyle(width: number): React.CSSProperties {
-  return React.useContext(StretchContext) ? columnCellStyle(width) : { width, minWidth: width };
+  const mode = React.useContext(StretchContext);
+  if (mode === "table") return columnCellStyle(width);
+  if (mode === "fill") return { width: "100%", minWidth: 0 };
+  return { width, minWidth: width };
 }
 
 export interface CellShellProps extends React.ComponentProps<"div"> {
@@ -59,9 +70,20 @@ export interface PopoverCellProps {
   testId?: string;
 }
 
-/** A cell that opens an editor popover when clicked. */
+/**
+ * A cell that opens an editor when clicked: a popover on a desktop, a bottom
+ * sheet on a phone.
+ *
+ * The editor itself is the same content either way, so every column type —
+ * status, person, date, timeline, tags, dependency and the rest — gets a
+ * touch-sized editor without a second implementation to keep in step. A popover
+ * anchored to a 100px cell is the wrong shape on a 375px screen: it opens off to
+ * one side, its own controls shrink to fit, and it sits under the thumb holding
+ * the phone. The desktop branch below 768px is untouched.
+ */
 export function PopoverCell({ width, trigger, children, disabled, align = "left", contentClassName, ariaLabel, testId }: PopoverCellProps) {
   const [open, setOpen] = React.useState(false);
+  const isMobile = useIsMobile();
   const close = React.useCallback(() => setOpen(false), []);
   const style = useCellStyle(width);
   if (disabled) {
@@ -73,21 +95,30 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
       </CellShell>
     );
   }
+
+  const triggerClassName = cn(
+    "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03]",
+    align === "center" && "justify-center",
+    open && "bg-black/[0.04] dark:bg-white/[0.06]",
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={setOpen}>
+        <button type="button" role="gridcell" aria-label={ariaLabel} data-testid={testId} style={style} className={triggerClassName} onClick={() => setOpen(true)}>
+          {trigger}
+        </button>
+        <SheetContent title={ariaLabel} className="[&_[data-radix-popper-content-wrapper]]:!static">
+          <div className="pb-2">{children(close)}</div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          role="gridcell"
-          aria-label={ariaLabel}
-          data-testid={testId}
-          style={style}
-          className={cn(
-            "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03]",
-            align === "center" && "justify-center",
-            open && "bg-black/[0.04] dark:bg-white/[0.06]",
-          )}
-        >
+        <button type="button" role="gridcell" aria-label={ariaLabel} data-testid={testId} style={style} className={triggerClassName}>
           {trigger}
         </button>
       </PopoverTrigger>

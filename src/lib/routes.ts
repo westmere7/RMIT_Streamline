@@ -14,6 +14,13 @@ export const routes = {
   publicBooking: (slug: string, key: string) => `/book/${encodeURIComponent(slug)}/${encodeURIComponent(key)}`,
   workspace: (slug: string) => `/workspace/${slug}`,
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
+  /**
+   * Two screens the phone's bottom bar needs and the sidebar does not: the
+   * workspace's directory, and everything reached rarely. Ordinary routes, so
+   * they deep-link, refresh and go Back like the rest.
+   */
+  browse: (slug: string) => `/workspace/${slug}/browse`,
+  more: (slug: string) => `/workspace/${slug}/more`,
   inbox: (slug: string) => `/workspace/${slug}/inbox`,
   /** The workspace dashboard: what every team delivers, live. */
   dashboard: (slug: string) => `/workspace/${slug}/dashboard`,

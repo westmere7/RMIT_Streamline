@@ -14,13 +14,21 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { isStuckLabel } from "@/domain";
 import { useMyWork } from "@/features/my-work/hooks";
+import { MyWorkMobile } from "@/features/mobile/my-work-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn, groupBy } from "@/lib/utils";
 import { MY_WORK_SECTION_LABELS, MY_WORK_SECTIONS, sectionFor, type MyWorkItem, type MyWorkSection } from "@/services/my-work-service";
 
+/** The same work, in the shape the screen calls for. */
 export function MyWorkPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MyWorkMobile /> : <MyWorkDesktop />;
+}
+
+function MyWorkDesktop() {
   const ws = useWorkspace();
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
   const [showCompleted, setShowCompleted] = React.useState(false);

@@ -19,6 +19,7 @@ import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
+import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
@@ -33,6 +34,7 @@ import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const FIELD_WIDTH = 260;
@@ -109,7 +111,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-            <UnderlineTabsList className="px-4">
+            <UnderlineTabsList className={cn("px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain")}>
               <UnderlineTabsTrigger value="overview">
                 <SquarePen className="size-3.5" /> Overview
               </UnderlineTabsTrigger>
@@ -205,7 +207,7 @@ function PanelHeader({
               onSubmit={(name) => void mutations.renameItem(item.id, name)}
               disabled={!canEdit}
               ariaLabel="Item name"
-              className={cn("-mx-1 whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
+              className={cn("-mx-1 break-words whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
               inputClassName="h-10 text-[23px] font-semibold"
             />
           </h2>
@@ -365,6 +367,9 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
 }
 
 function Overview({ item }: { item: Item }) {
+  // Below 768 the field rows stack; the cell fills the row rather than holding
+  // its desktop width, which at 375px would push the panel sideways.
+  const isMobile = useIsMobile();
   const { model, mutations, canEdit, openItem } = useBoardContext();
   const [description, setDescription] = React.useState(item.description ?? "");
   const subitems = model.subitemsByParent.get(item.id) ?? [];
@@ -397,9 +402,10 @@ function Overview({ item }: { item: Item }) {
         <h3 className="mb-1.5 label-quiet">Fields</h3>
         <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
           {fieldColumns.map((column) => (
-            <div key={column.id} className="flex h-10 items-center">
-              <span className="w-32 shrink-0 truncate px-3 text-[13px] text-muted-foreground">{column.name}</span>
-              <div className="flex h-8 min-w-0 flex-1 items-center [&>*]:border-r-0">
+            <div key={column.id} className={cn("flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : "h-10 items-center")}>
+              <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : "w-32 shrink-0 px-3")}>{column.name}</span>
+              <CellStretchProvider mode={isMobile ? "fill" : "none"}>
+              <div className={cn("flex min-w-0 items-center [&>*]:border-r-0", isMobile ? "min-h-11 w-full" : "h-8 flex-1")}>
                 <CellRenderer
                   item={item}
                   column={column}
@@ -410,6 +416,7 @@ function Overview({ item }: { item: Item }) {
                   isDone={model.isDone(item.id)}
                 />
               </div>
+              </CellStretchProvider>
             </div>
           ))}
         </div>

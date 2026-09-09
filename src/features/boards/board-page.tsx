@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BOARD_VIEWS, type BoardColumn, type BoardViewKind } from "@/domain";
+import type { BoardSnapshot } from "@/services";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardHeader } from "@/features/boards/components/board-header";
@@ -28,6 +29,11 @@ import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
+import { MobileBoardHeader, MobileBoardToolsRow } from "@/features/boards/components/mobile/mobile-board-screen";
+import { MobileKanbanView } from "@/features/boards/components/mobile/mobile-kanban-view";
+import { MobileTableView } from "@/features/boards/components/mobile/mobile-table-view";
+import { useMobileViewPref } from "@/features/boards/components/mobile/mobile-view-prefs";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { tagOptionsFor } from "@/features/boards/tag-palette";
 import { useServices } from "@/features/data/data-context";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
@@ -81,6 +87,10 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const [now] = React.useState(() => new Date());
   // The ID# column is the table's own setting: per person, per board.
   const [tableSettings, updateTableSettings] = useViewSettingsFor(boardId, "table", { showReference: true });
+  const isMobile = useIsMobile();
+  // Cards or the grid on a phone. Its own key: the desktop table has no such
+  // choice, and the board's view settings follow the person to another device.
+  const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${boardId}`, "cards");
   const setShowReference = React.useCallback((showReference: boolean) => updateTableSettings({ showReference }), [updateTableSettings]);
   useBoardRealtime(boardId);
 
@@ -193,6 +203,25 @@ function BoardScreen({ boardId }: { boardId: string }) {
     [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showReference, setShowReference],
   );
 
+  if (isMobile) {
+    return (
+      <div className="flex h-full min-h-0 flex-col" data-testid="board-page">
+        <MobileBoardHeader board={board} />
+        {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
+        {!snapshot.isError && !contextValue && <BoardSkeleton />}
+        {contextValue && (
+          <BoardContextProvider value={contextValue}>
+            <MobileBoardToolsRow view={view} onViewChange={setView} />
+            <MobileBoardViews view={view} tableMode={tableMode} onTableModeChange={setTableMode} />
+            {/* Full screen on a phone: the panel already goes fixed inset-0 below 1024. */}
+            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
+            <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
+          </BoardContextProvider>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="board-page">
       <BoardHeader board={board} />
@@ -229,22 +258,66 @@ function BoardScreen({ boardId }: { boardId: string }) {
             {/* On the Kanban the panel floats over the lanes rather than squeezing them. */}
             {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
           </div>
-          <EditLabelsDialog
-            column={editLabelsColumn?.type === "TAGS" ? null : editLabelsColumn}
-            open={editLabelsColumn !== null && editLabelsColumn.type !== "TAGS"}
-            onOpenChange={(open) => !open && setEditLabelsColumn(null)}
-            onSave={(columnId, settings) => void mutations.updateColumn(columnId, { settings })}
-          />
-          <EditTagsDialog
-            column={editLabelsColumn?.type === "TAGS" ? editLabelsColumn : null}
-            options={editLabelsColumn?.type === "TAGS" && snapshot.data ? tagOptionsFor(editLabelsColumn, snapshot.data.values) : []}
-            open={editLabelsColumn?.type === "TAGS"}
-            onOpenChange={(open) => !open && setEditLabelsColumn(null)}
-            onSave={(columnId, options, renames) => void mutations.updateColumnTags(columnId, options, renames)}
-          />
+          <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
         </BoardContextProvider>
       )}
     </div>
+  );
+}
+
+/**
+ * Which presentation each view gets on a phone.
+ *
+ * The Main Table and the Kanban have mobile presentations of their own, because
+ * a grid of cells and a row of 300px lanes are the two things a phone cannot
+ * show. The date-axis views — timeline, calendar, gantt, workload, chart — keep
+ * their existing implementations: they already scroll inside their own
+ * containers and their control bars wrap, so what they need is a frame that
+ * holds them to the screen, not a rewrite that would cost them their
+ * capabilities.
+ */
+function MobileBoardViews({ view, tableMode, onTableModeChange }: { view: BoardViewKind; tableMode: "cards" | "grid"; onTableModeChange: (mode: "cards" | "grid") => void }) {
+  if (view === "table") return <MobileTableView mode={tableMode} onModeChange={onTableModeChange} />;
+  if (view === "kanban") return <MobileKanbanView />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="mobile-view-frame">
+      {view === "timeline" && <TimelineView />}
+      {view === "calendar" && <CalendarView />}
+      {view === "gantt" && <GanttView />}
+      {view === "workload" && <WorkloadView />}
+      {view === "chart" && <ChartView />}
+    </div>
+  );
+}
+
+/** The two label editors, shared by both shells so neither can drift. */
+function BoardLabelDialogs({
+  column,
+  onClose,
+  snapshot,
+  mutations,
+}: {
+  column: BoardColumn | null;
+  onClose: () => void;
+  snapshot: BoardSnapshot | null;
+  mutations: ReturnType<typeof useBoardMutations>;
+}) {
+  return (
+    <>
+      <EditLabelsDialog
+        column={column?.type === "TAGS" ? null : column}
+        open={column !== null && column.type !== "TAGS"}
+        onOpenChange={(open) => !open && onClose()}
+        onSave={(columnId, settings) => void mutations.updateColumn(columnId, { settings })}
+      />
+      <EditTagsDialog
+        column={column?.type === "TAGS" ? column : null}
+        options={column?.type === "TAGS" && snapshot ? tagOptionsFor(column, snapshot.values) : []}
+        open={column?.type === "TAGS"}
+        onOpenChange={(open) => !open && onClose()}
+        onSave={(columnId, options, renames) => void mutations.updateColumnTags(columnId, options, renames)}
+      />
+    </>
   );
 }
 

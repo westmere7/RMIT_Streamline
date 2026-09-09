@@ -50,6 +50,14 @@ describe("filterItems", () => {
     expect(filterItems(items, "", EMPTY_FILTERS, ctx)).toHaveLength(4);
   });
 
+  it("finds an item by its booking code, with or without the hyphen", () => {
+    const coded = [{ ...items[0]!, reference: "TA-7441" }, ...items.slice(1)];
+    for (const query of ["TA-7441", "ta-7441", "ta7441", "7441"]) {
+      expect(filterItems(coded, query, EMPTY_FILTERS, ctx).map((i) => i.id)).toEqual(["a"]);
+    }
+    expect(filterItems(coded, "TA-0000", EMPTY_FILTERS, ctx)).toEqual([]);
+  });
+
   it("filters by any assigned person", () => {
     expect(filterItems(items, "", { ...EMPTY_FILTERS, personIds: ["danh"] }, ctx).map((i) => i.id)).toEqual(["a", "b"]);
     expect(filterItems(items, "", { ...EMPTY_FILTERS, personIds: ["jun", "emily"] }, ctx).map((i) => i.id)).toEqual(["b", "d"]);

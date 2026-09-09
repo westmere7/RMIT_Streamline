@@ -32,9 +32,21 @@ export function primaryDueDate(itemId: string, columns: BoardColumn[], getValue:
   return null;
 }
 
+/**
+ * The board's search box: the name, and the booking code.
+ *
+ * The code is what people have to hand — it is what an email or a corridor
+ * conversation quotes — so typing "TA-4F2K" has to find the task. A hyphen is
+ * dropped from both sides, because nobody remembers whether the code has one.
+ */
 export function matchesSearch(item: Item, search: string): boolean {
   const q = search.trim().toLowerCase();
-  return !q || item.name.toLowerCase().includes(q);
+  if (!q) return true;
+  if (item.name.toLowerCase().includes(q)) return true;
+  const reference = item.reference?.toLowerCase();
+  if (!reference) return false;
+  const loose = (value: string) => value.replace(/[\s-]/g, "");
+  return reference.includes(q) || loose(reference).includes(loose(q));
 }
 
 export function matchesFilters(item: Item, filters: BoardFilters, ctx: FilterContext): boolean {

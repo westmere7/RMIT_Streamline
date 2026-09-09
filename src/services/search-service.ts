@@ -12,6 +12,17 @@ function matches(haystack: string | null | undefined, needle: string): boolean {
   return !!haystack && haystack.toLowerCase().includes(needle);
 }
 
+/**
+ * A booking code, matched the way people quote it: "TA-4F2K", "ta4f2k", or the
+ * tail of it. The hyphen is dropped from both sides because nobody remembers
+ * whether the code has one.
+ */
+function matchesReference(reference: string | null | undefined, needle: string): boolean {
+  if (!reference) return false;
+  const loose = (value: string) => value.toLowerCase().replace(/[\s-]/g, "");
+  return reference.toLowerCase().includes(needle) || loose(reference).includes(loose(needle));
+}
+
 export class SearchService {
   constructor(private readonly repos: Repositories) {}
 
@@ -34,7 +45,7 @@ export class SearchService {
       if (itemMatches.length >= limitPerGroup * 2) break;
       const items = await this.repos.items.listByBoard(board.id);
       for (const item of items) {
-        if (matches(item.name, needle)) itemMatches.push({ item, board });
+        if (matches(item.name, needle) || matchesReference(item.reference, needle)) itemMatches.push({ item, board });
       }
     }
 

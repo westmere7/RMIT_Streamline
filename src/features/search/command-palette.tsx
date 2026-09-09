@@ -133,6 +133,8 @@ export function CommandPalette() {
                 <CommandItem key={item.id} value={`item-${item.id}`} onSelect={() => go(ws.boardPath(board, { itemId: item.id }))}>
                   <ListTodo />
                   <span className="truncate">{item.name}</span>
+                  {/* Searching by booking code should show the code that matched. */}
+                  {item.reference && <span className="shrink-0 font-mono text-2xs text-muted-foreground/70 tabular">{item.reference}</span>}
                   <span className="ml-auto truncate text-2xs text-muted-foreground">{board.name}</span>
                 </CommandItem>
               ))}

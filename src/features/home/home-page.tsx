@@ -17,7 +17,9 @@ import { useWorkspaceActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
 import { useMyWork } from "@/features/my-work/hooks";
 import { useTrackers } from "@/features/trackers/hooks";
+import { HomeMobile } from "@/features/mobile/home-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue, isToday } from "@/lib/dates/dates";
 import { canViewBoard } from "@/lib/permissions/permissions";
@@ -33,7 +35,17 @@ function greeting(now: Date): string {
   return "Good evening";
 }
 
+/**
+ * Home, in the shape the screen calls for. Only one is mounted: the phone's
+ * version asks for less and arranges it differently, and hiding one behind CSS
+ * would run both sets of queries.
+ */
 export function HomePage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <HomeMobile /> : <HomeDesktop />;
+}
+
+function HomeDesktop() {
   const ws = useWorkspace();
   const trackers = useTrackers().data ?? [];
   const services = useServices();

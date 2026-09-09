@@ -9,7 +9,7 @@ import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
-import type { BoardColumn, ColorToken, ColumnLabel, ColumnValue, Item, User } from "@/domain";
+import type { ColumnLabel, Item, User } from "@/domain";
 import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { SizePill } from "@/features/boards/components/pickers/size-picker";
@@ -21,24 +21,9 @@ import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
+import { useKanbanLanes, useLaneOptions, type Lane, type LaneBy } from "./kanban-lanes";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
-
-const NONE = "__none__";
-
-type LaneBy = "status" | "priority" | "person" | "group";
-
-interface Lane {
-  id: string;
-  name: string;
-  color: ColorToken | null;
-  user?: User;
-  items: Item[];
-  /** What dropping a card here writes. */
-  apply: (item: Item) => void;
-  /** Initial values for a card added in this lane. */
-  initial: { groupId: string; values: Array<{ columnId: string; value: ColumnValue }> } | null;
-}
 
 /**
  * How much of an item a card carries, and so how tall it stands: the name alone
@@ -70,17 +55,8 @@ interface KanbanSettings extends Record<string, unknown> {
  * kept. Each card carries what a glance needs and opens on click.
  */
 export function KanbanView() {
-  const { model, mutations, canEdit, users } = useBoardContext();
-  const options = React.useMemo(
-    () =>
-      [
-        model.statusColumn && { value: "status" as const, label: "Status" },
-        model.priorityColumn && { value: "priority" as const, label: "Priority" },
-        model.personColumns[0] && { value: "person" as const, label: "Person" },
-        model.groups.length > 0 && { value: "group" as const, label: "Group" },
-      ].filter((o): o is { value: LaneBy; label: string } => !!o),
-    [model],
-  );
+  const { model, mutations, canEdit } = useBoardContext();
+  const options = useLaneOptions();
   const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tint: false, collapsed: [], detail: "standard" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
@@ -89,61 +65,8 @@ export function KanbanView() {
 
 
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
-  const firstGroup = model.groups[0];
-  const personColumn = model.personColumns[0] ?? null;
 
-  const lanes = React.useMemo<Lane[]>(() => {
-    const byLabel = (column: BoardColumn, type: "STATUS" | "PRIORITY"): Lane[] => {
-      const labels = columnLabels(column);
-      const valueOf = (item: Item) => {
-        const v = model.getValue(item.id, column.id);
-        return v?.type === type ? v.labelId : null;
-      };
-      const out: Lane[] = labels.map((label) => ({
-        id: label.id,
-        name: label.name,
-        color: label.color,
-        items: visibleItems.filter((i) => valueOf(i) === label.id),
-        apply: (item) => void mutations.setValue(item, column, { type, labelId: label.id } as ColumnValue),
-        initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type, labelId: label.id } as ColumnValue }] } : null,
-      }));
-      const unset = visibleItems.filter((i) => !labels.some((l) => l.id === valueOf(i)));
-      if (unset.length) out.push({ id: NONE, name: type === "STATUS" ? "No status" : "No priority", color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
-      return out;
-    };
-    if (laneBy === "status" && model.statusColumn) return byLabel(model.statusColumn, "STATUS");
-    if (laneBy === "priority" && model.priorityColumn) return byLabel(model.priorityColumn, "PRIORITY");
-    if (laneBy === "person" && personColumn) {
-      const column = personColumn;
-      const ownersOf = (item: Item) => {
-        const v = model.getValue(item.id, column.id);
-        return v?.type === "PERSON" ? v.userIds : [];
-      };
-      const out: Lane[] = users
-        .filter((u) => visibleItems.some((i) => ownersOf(i).includes(u.id)))
-        .sort((a, b) => a.displayName.localeCompare(b.displayName))
-        .map((user) => ({
-          id: user.id,
-          name: user.displayName,
-          color: null,
-          user,
-          items: visibleItems.filter((i) => ownersOf(i).includes(user.id)),
-          apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [user.id] }),
-          initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type: "PERSON", userIds: [user.id] } }] } : null,
-        }));
-      const unassigned = visibleItems.filter((i) => ownersOf(i).length === 0);
-      out.push({ id: NONE, name: "Unassigned", color: null, items: unassigned, apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [] }), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
-      return out;
-    }
-    return model.groups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      color: group.color,
-      items: model.itemsByGroup.get(group.id) ?? [],
-      apply: (item) => void mutations.moveItemsToGroup([item.id], group.id),
-      initial: { groupId: group.id, values: [] },
-    }));
-  }, [laneBy, model, visibleItems, users, personColumn, firstGroup, mutations]);
+  const lanes = useKanbanLanes(laneBy);
 
   // Which card sits where. During a drag this is a working copy that the pointer
   // rearranges, so the other cards make way for the ghost of the one in hand.

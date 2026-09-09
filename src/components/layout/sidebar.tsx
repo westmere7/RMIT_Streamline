@@ -36,6 +36,7 @@ import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canMa
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
+import { useAutoCollapseSidebar } from "@/hooks/use-mobile";
 import { SIDEBAR_MIN_WIDTH, useUiStore } from "@/stores/ui-store";
 
 /** Actions rows can trigger that need dialogs owned by the sidebar itself. */
@@ -69,7 +70,12 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const services = useServices();
   const queryClient = useQueryClient();
   // A drawer is always the full sidebar, whatever the desktop preference says.
-  const collapsed = useUiStore((s) => s.sidebarCollapsed) && !drawer;
+  // Their own choice, or the window being too narrow to hold it open. The
+  // second is never written back: resizing a window is not a preference, and a
+  // phone must not decide what the desktop remembers.
+  const preferCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const autoCollapsed = useAutoCollapseSidebar();
+  const collapsed = (preferCollapsed || autoCollapsed) && !drawer;
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCounts(user?.id ?? "");
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
@@ -687,7 +693,13 @@ function TeamNode({
   // that sticks: the row keeps the highlight, so nothing is lost.
   const openedKey = containsActive ? `${activeBoardSlug ?? ""}:${activeTrackerId ?? ""}` : "";
   React.useEffect(() => {
-    if (openedKey) setTeamExpanded(team.id, true);
+    if (!openedKey) return;
+    // Held until the stored preferences have landed. The store hydrates from a
+    // parent effect, and a child's effects run first, so writing here on the
+    // first mount would persist this session's defaults — including the default
+    // sidebar width — over the width the reader had saved. Rehydrating is cheap
+    // and idempotent; opening straight onto a board is exactly when this fires.
+    void useUiStore.persist.rehydrate()?.then(() => setTeamExpanded(team.id, true));
   }, [openedKey, team.id, setTeamExpanded]);
   const highlighted = activeTeam || (containsActive && !expanded);
   const colors = colorClasses(team.color);
