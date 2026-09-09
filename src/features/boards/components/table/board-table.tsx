@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
+import { TableScrollProvider } from "./virtual-rows";
 import { tableWidth } from "@/features/boards/board-model";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { BulkActionsBar } from "./bulk-actions-bar";
@@ -194,6 +195,8 @@ export const BoardTable = React.memo(function BoardTable() {
     void mutations.moveItem({ itemId, toGroupId: targetGroupId, orderedIdsInTargetGroup: nextTarget, orderedIdsInSourceGroup: nextSource });
   };
 
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+
   const width = tableWidth(
     model.visibleColumns.map((c) => ({ ...c, width: widthOverrides[c.id] ?? c.width })),
     showReference,
@@ -206,8 +209,9 @@ export const BoardTable = React.memo(function BoardTable() {
   // frozen column stops, and the rows are clipped there.
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-surface/50">
-      <div className="scrollbar-thin ml-6 flex-1 overflow-auto" data-testid="board-table">
+      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 overflow-auto" data-testid="board-table">
         <CellStretchProvider>
+        <TableScrollProvider scrollRef={scrollRef}>
           <div style={{ minWidth: width }} className="pb-24">
             <DndContext
               sensors={sensors}
@@ -285,6 +289,7 @@ export const BoardTable = React.memo(function BoardTable() {
               </div>
             )}
           </div>
+        </TableScrollProvider>
         </CellStretchProvider>
       </div>
       <BulkActionsBar />

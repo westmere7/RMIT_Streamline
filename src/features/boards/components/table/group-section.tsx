@@ -30,9 +30,9 @@ import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 /** One array, so the store selector does not hand back a new one on every render. */
 const NO_OVERRIDES: string[] = [];
+import { GroupRows } from "./virtual-rows";
 import { AddItemRow } from "./add-item-row";
 import { ColumnHeaderRow } from "./column-header-row";
-import { ItemRow } from "./item-row";
 
 export interface GroupSectionProps {
   group: BoardGroup;
@@ -56,15 +56,6 @@ export interface GroupSectionProps {
  * the whole table, in a zero-height wrapper so no row moves when it appears —
  * shifting rows was the laggy part, and a line reads more clearly anyway.
  */
-function DropLine({ color }: { color: BoardGroup["color"] }) {
-  const colors = colorClasses(color);
-  return (
-    <div className="relative z-[8] h-0" data-testid="drop-slot" aria-hidden>
-      <div className={cn("absolute inset-x-0 -top-[2px] h-[3px] rounded-full", colors.dot)} />
-    </div>
-  );
-}
-
 /** One shared empty list, so a group with no rows keeps a stable identity. */
 const NO_ITEMS: Item[] = [];
 
@@ -245,15 +236,8 @@ export function GroupSection({
             onWidthOverride={onWidthOverride}
           />
           <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-            {items.map((item, index) => (
-              <React.Fragment key={item.id}>
-                {dropIndex === index && <DropLine color={group.color} />}
-                <ItemRow item={item} group={group} dndEnabled={dndEnabled} widthOverrides={widthOverrides} />
-              </React.Fragment>
-            ))}
+            <GroupRows group={group} items={items} dndEnabled={dndEnabled} widthOverrides={widthOverrides} dropIndex={dropIndex} dragging={draggingItem} />
           </SortableContext>
-          {/* Landing at the end, and the only line an empty group can show. */}
-          {dropIndex !== null && dropIndex >= items.length && <DropLine color={group.color} />}
           {items.length === 0 && !canEdit && dropIndex === null && (
             <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showReference) }}>
               This group is empty.
