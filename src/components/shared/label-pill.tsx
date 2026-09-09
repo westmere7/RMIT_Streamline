@@ -11,9 +11,11 @@ export interface LabelPillProps extends React.ComponentProps<"span"> {
   size?: "sm" | "md";
   /** Stuck statuses wear hazard stripes. */
   striped?: boolean;
+  /** Drawn in front of the name — the priority's signal bars. */
+  children?: React.ReactNode;
 }
 
-export function LabelPill({ label, appearance = "solid", emptyText = "", size = "md", striped = false, className, ...props }: LabelPillProps) {
+export function LabelPill({ label, appearance = "solid", emptyText = "", size = "md", striped = false, className, children, ...props }: LabelPillProps) {
   if (!label) {
     return (
       <span className={cn("inline-flex items-center text-[13px] text-muted-foreground/70", className)} {...props}>
@@ -33,6 +35,7 @@ export function LabelPill({ label, appearance = "solid", emptyText = "", size = 
       )}
       {...props}
     >
+      {children}
       <span className="truncate">{label.name}</span>
     </span>
   );

@@ -182,12 +182,27 @@ export const DEFAULT_STATUS_LABELS: ColumnLabel[] = [
   { id: "done", name: "Done", color: "green" },
 ];
 
+/**
+ * Priority is the one label set nobody edits.
+ *
+ * Everything else on a board is the team's own vocabulary, but priority is a
+ * scale: four steps, always the same four, so it means the same thing on every
+ * board and can be drawn as signal strength rather than read as a word. Empty
+ * is the fifth state and needs no label.
+ */
 export const DEFAULT_PRIORITY_LABELS: ColumnLabel[] = [
   { id: "critical", name: "Critical", color: "rose" },
   { id: "high", name: "High", color: "orange" },
   { id: "medium", name: "Medium", color: "blue" },
   { id: "low", name: "Low", color: "gray" },
 ];
+
+/** How many of the three bars a priority lights. Low lights none — it is the floor, not a step up. */
+export const PRIORITY_STRENGTH: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+
+export function priorityStrength(labelId: string | null | undefined): number {
+  return labelId ? (PRIORITY_STRENGTH[labelId] ?? 0) : 0;
+}
 
 export function defaultSettingsFor(type: ColumnType): ColumnSettings {
   switch (type) {
@@ -234,6 +249,9 @@ export function columnTagOptions(column: BoardColumn): TagOption[] {
 
 /** Labels for STATUS/PRIORITY columns, or an empty list for other types. */
 export function columnLabels(column: BoardColumn): ColumnLabel[] {
+  // Priority is fixed (see DEFAULT_PRIORITY_LABELS): whatever a board has
+  // stored, the four steps are the four steps.
+  if (column.type === "PRIORITY") return DEFAULT_PRIORITY_LABELS.map((l) => ({ ...l }));
   if (column.settings.kind === "status" || column.settings.kind === "priority") {
     return column.settings.labels;
   }

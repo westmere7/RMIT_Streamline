@@ -86,7 +86,7 @@ export function ShareBoardDialog({ board, open, onOpenChange }: { board: Board; 
         <DialogContent size="md" data-testid="share-dialog">
           <DialogHeader>
             <DialogTitle>Share {board.name}</DialogTitle>
-            <DialogDescription>A link that opens this board, read-only. Nothing else of the workspace comes with it.</DialogDescription>
+            <DialogDescription>A read-only link to this board.</DialogDescription>
           </DialogHeader>
           <BoardSharePanel board={board} />
         </DialogContent>
@@ -110,8 +110,7 @@ export function BoardSharePanel({ board }: { board: Board }) {
   }
   if (!current) {
     return (
-      <div className="space-y-3 py-1">
-        <p className="text-[13px] text-muted-foreground">Not shared. A link makes this board readable by whoever you choose to let in.</p>
+      <div className="py-1">
         <Button onClick={() => save.mutate({ enabled: true })} disabled={busy} data-testid="share-create">
           {save.isPending ? <LoaderCircle className="animate-spin" /> : null} Create a share link
         </Button>

@@ -1,38 +1,27 @@
 "use client";
 
-import { Archive, ArrowLeft, Bell, BellOff, Copy, Globe, History, MoreHorizontal, Palette, Settings2, Share2, Star, Trash2, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Globe, History, MoreHorizontal, Share2, Star, UserPlus } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { ColorPicker } from "@/components/shared/color-picker";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
-import { IconPicker } from "@/components/shared/icon-picker";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { AvatarStack } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { Board } from "@/domain";
+import { renderDropdown } from "@/components/layout/row-menu";
+import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { ShareBoardDialog, useBoardShareStatus } from "@/features/boards/components/dialogs/share-board-dialog";
 import { copyToClipboard } from "@/features/members/hooks";
-import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { isBoardMuted } from "@/domain";
 import { colorClasses } from "@/lib/colors";
-import { canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
+import { canManageBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -49,16 +38,18 @@ export function BoardHeader({ board }: { board: Board }) {
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
-  // Unsubscribing is per person: nothing from this board reaches their inbox,
-  // and their access to the board itself is untouched.
-  const preferences = useNotificationPreferences(ws.currentUser.id);
-  const { setBoardSubscribed } = useNotificationPreferenceMutations(ws.currentUser.id);
-  const muted = isBoardMuted(preferences.data, board.id);
   const team = ws.teamById(board.teamId);
   // Everyone on the board can see that it is out in the open; only its managers
   // can change that, so the badge is a button for them and a label for the rest.
   const share = useBoardShareStatus(board.id).data ?? null;
   const shared = !!share && share.enabled;
+  // The same list the sidebar's board row shows; only the dialogs are ours.
+  const menuActions = useBoardMenuActions(board, {
+    openSettings: setSettings,
+    rename: () => setRenaming(true),
+    share: () => setShareOpen(true),
+    requestDelete: () => setDeleteOpen(true),
+  });
   const shareUrl = share ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
 
   return (
@@ -170,77 +161,8 @@ export function BoardHeader({ board }: { board: Board }) {
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onSelect={() => setSettings("general")}>
-                <Settings2 /> Board settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSettings("members")}>
-                <Users /> Manage members
-              </DropdownMenuItem>
-              {manage && (
-                <DropdownMenuItem onSelect={() => setShareOpen(true)} data-testid="board-menu-share">
-                  <Share2 /> Share by link&hellip;
-                </DropdownMenuItem>
-              )}
-              {manage && (
-                <>
-                  <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename board</DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Palette /> Colour &amp; icon
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-72 space-y-3 p-3">
-                      <ColorPicker value={board.color} onChange={(color) => actions.updateBoard.mutate({ color })} />
-                      <IconPicker value={board.icon} onChange={(icon) => actions.updateBoard.mutate({ icon })} />
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger disabled={!!board.system}>
-                      <Users /> Move to team
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem disabled={board.teamId === null} onSelect={() => actions.updateBoard.mutate({ teamId: null })}>
-                        No team
-                      </DropdownMenuItem>
-                      {ws.teams
-                        .filter((t) => t.archivedAt === null)
-                        .map((t) => (
-                          <DropdownMenuItem key={t.id} disabled={t.id === board.teamId} onSelect={() => actions.updateBoard.mutate({ teamId: t.id })}>
-                            <DynamicIcon name={t.icon} className={colorClasses(t.color).text} /> {t.name}
-                          </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </>
-              )}
-              <DropdownMenuItem onSelect={() => actions.duplicateBoard.mutate()}>
-                <Copy /> Duplicate board
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => setBoardSubscribed.mutate({ boardId: board.id, subscribed: muted })}
-                data-testid="toggle-board-subscription"
-              >
-                {muted ? <Bell /> : <BellOff />} {muted ? "Resume notifications" : "Mute notifications"}
-              </DropdownMenuItem>
-              {manage && !board.system && (
-                <>
-                  <DropdownMenuSeparator />
-                  {board.archivedAt ? (
-                    <DropdownMenuItem onSelect={() => actions.restoreBoard.mutate()}>
-                      <Archive /> Restore board
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onSelect={() => actions.archiveBoard.mutate()}>
-                      <Archive /> Archive board
-                    </DropdownMenuItem>
-                  )}
-                </>
-              )}
-              {canDeleteBoard(ws.permissions, board) && !board.system && (
-                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-                  <Trash2 /> Delete board
-                </DropdownMenuItem>
-              )}
+            <DropdownMenuContent align="end" className="w-56">
+              {renderDropdown(menuActions)}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

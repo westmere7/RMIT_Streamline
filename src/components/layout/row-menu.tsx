@@ -28,8 +28,9 @@ import { cn } from "@/lib/utils";
 
 /** Declarative menu description rendered as both a right-click menu and a hover "…" dropdown. */
 export type MenuAction =
-  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string }
-  | { type: "sub"; label: string; icon?: React.ReactNode; items: MenuAction[]; disabled?: boolean }
+  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string; testId?: string }
+  /** A sub-menu of more actions, or — with `content` — a panel such as a colour picker. */
+  | { type: "sub"; label: string; icon?: React.ReactNode; items?: MenuAction[]; content?: React.ReactNode; contentClassName?: string; disabled?: boolean }
   | { type: "label"; label: string }
   | { type: "separator" };
 
@@ -79,12 +80,12 @@ export function renderContext(actions: MenuAction[]): React.ReactNode {
             <ContextMenuSubTrigger disabled={action.disabled}>
               {action.icon} {action.label}
             </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-48">{renderContext(action.items)}</ContextMenuSubContent>
+            <ContextMenuSubContent className={action.contentClassName ?? "w-48"}>{action.content ?? renderContext(action.items ?? [])}</ContextMenuSubContent>
           </ContextMenuSub>
         );
       case "item":
         return (
-          <ContextMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"}>
+          <ContextMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"} data-testid={action.testId}>
             {action.icon} {action.label}
             {action.hint && <span className="ml-auto text-2xs text-muted-foreground">{action.hint}</span>}
           </ContextMenuItem>
@@ -107,12 +108,12 @@ export function renderDropdown(actions: MenuAction[]): React.ReactNode {
             <DropdownMenuSubTrigger disabled={action.disabled}>
               {action.icon} {action.label}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-48">{renderDropdown(action.items)}</DropdownMenuSubContent>
+            <DropdownMenuSubContent className={action.contentClassName ?? "w-48"}>{action.content ?? renderDropdown(action.items ?? [])}</DropdownMenuSubContent>
           </DropdownMenuSub>
         );
       case "item":
         return (
-          <DropdownMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"}>
+          <DropdownMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"} data-testid={action.testId}>
             {action.icon} {action.label}
             {action.hint && <span className="ml-auto text-2xs text-muted-foreground">{action.hint}</span>}
           </DropdownMenuItem>

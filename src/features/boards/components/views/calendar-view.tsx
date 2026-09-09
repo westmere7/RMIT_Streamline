@@ -4,6 +4,7 @@ import { addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek,
 import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
+import { PriorityPill } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -197,7 +198,7 @@ function DayCard({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen:
       </span>
       <span className="mt-1.5 flex flex-wrap items-center gap-1">
         {entry.status && <LabelPill label={entry.status} appearance="soft" size="sm" striped={entry.stuck} />}
-        {entry.priority && <LabelPill label={entry.priority} appearance="soft" size="sm" />}
+        {entry.priority && <PriorityPill label={entry.priority} />}
         {late && <TriangleAlert className="size-3 text-red-600 dark:text-red-400" aria-label="Overdue" />}
         {entry.owners.length > 0 && <AvatarStack users={entry.owners} size="xs" max={3} className="ml-auto" />}
       </span>

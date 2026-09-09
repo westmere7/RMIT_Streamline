@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
+import { PriorityPill } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { BoardColumn, ColorToken, ColumnLabel, ColumnValue, Item, User } from "@/domain";
@@ -487,7 +488,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           {chips && (
             <div className="mt-2 flex flex-wrap items-center gap-1">
               {showStatus && <LabelPill label={statusLabel} appearance="soft" size="sm" striped={isStuckLabel(statusColumn, statusLabel.id)} />}
-              {showPriority && <LabelPill label={priorityLabel} appearance="soft" size="sm" />}
+              {showPriority && <PriorityPill label={priorityLabel} />}
               {size?.type === "SIZE" && size.size && <SizePill size={size.size} />}
               {shownTags.map((t) => (
                 <span key={t.name} className={cn("rounded-full px-1.5 py-0.5 text-2xs font-medium", colorClasses(t.color ?? tagColorFor(t.name)).soft)}>

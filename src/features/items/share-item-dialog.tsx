@@ -74,7 +74,7 @@ export function ShareItemDialog({ item, open, onOpenChange }: { item: Item; open
         <DialogContent size="md" data-testid="share-item-dialog">
           <DialogHeader>
             <DialogTitle>Share {item.name}</DialogTitle>
-            <DialogDescription>A link that opens this task alone, read-only. The rest of the board stays where it is.</DialogDescription>
+            <DialogDescription>A read-only link to this task alone.</DialogDescription>
           </DialogHeader>
           <ItemSharePanel item={item} />
         </DialogContent>
@@ -97,8 +97,7 @@ function ItemSharePanel({ item }: { item: Item }) {
   }
   if (!current) {
     return (
-      <div className="space-y-3 py-1">
-        <p className="text-[13px] text-muted-foreground">Not shared. A link makes this task readable by whoever you choose to let in.</p>
+      <div className="py-1">
         <Button onClick={() => save.mutate({ enabled: true })} disabled={busy} data-testid="item-share-create">
           {save.isPending ? <LoaderCircle className="animate-spin" /> : null} Create a share link
         </Button>

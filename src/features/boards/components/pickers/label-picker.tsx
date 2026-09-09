@@ -15,10 +15,12 @@ export interface LabelPickerProps {
   stripedIds?: string[];
   allowClear?: boolean;
   onEditLabels?: () => void;
+  /** Drawn in front of each label — the priority picker puts its signal bars here. */
+  leading?: (label: ColumnLabel) => React.ReactNode;
 }
 
 /** Grid of status/priority labels used inside popovers. */
-export function LabelPicker({ labels, value, onChange, appearance = "solid", stripedIds = [], allowClear = true, onEditLabels }: LabelPickerProps) {
+export function LabelPicker({ labels, value, onChange, appearance = "solid", stripedIds = [], allowClear = true, onEditLabels, leading }: LabelPickerProps) {
   return (
     <div className="w-56">
       <div role="listbox" aria-label="Choose a label" className="grid grid-cols-2 gap-1">
@@ -39,6 +41,7 @@ export function LabelPicker({ labels, value, onChange, appearance = "solid", str
                 selected && "ring-2 ring-foreground/60 ring-offset-1",
               )}
             >
+              {leading?.(label)}
               <span className="truncate">{label.name}</span>
               {selected && <Check className="size-3 shrink-0" strokeWidth={3} />}
             </button>

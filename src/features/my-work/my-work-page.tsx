@@ -7,6 +7,7 @@ import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LabelPill } from "@/components/shared/label-pill";
+import { PriorityPill } from "@/components/shared/priority-signal";
 import { PageHeader } from "@/components/shared/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -112,7 +113,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                   <LabelPill label={entry.status} size="sm" emptyText="—" striped={isStuckLabel(entry.statusColumn, entry.status?.id)} />
                 </span>
                 <span className="hidden md:block">
-                  <LabelPill label={entry.priority} appearance="soft" size="sm" emptyText="—" />
+                  <PriorityPill label={entry.priority} emptyText="—" />
                 </span>
                 <span className={cn("text-right text-xs tabular", section === "overdue" ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                   {entry.dueDate ? formatShortDate(entry.dueDate, now) : "—"}

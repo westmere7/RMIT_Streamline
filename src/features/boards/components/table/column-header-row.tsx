@@ -257,7 +257,8 @@ function ColumnHeaderCell({
 
   const headerSort = useHeaderSort(columnSortField(column.id));
 
-  const hasLabels = column.type === "STATUS" || column.type === "PRIORITY";
+  // Priority is a fixed scale, so there is nothing to edit on it.
+  const hasLabels = column.type === "STATUS";
   const hasTags = column.type === "TAGS";
   const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
     void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id });

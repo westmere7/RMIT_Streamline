@@ -1,29 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Archive,
-  ArchiveRestore,
-  ArrowRight,
-  ChevronDown,
-  ChevronRight,
-  ClipboardPen,
-  Copy,
-  FileSpreadsheet,
-  Home,
-  Inbox,
-  Kanban,
-  LayoutDashboard,
-  SquareKanban,
-  ListTodo,
-  Plus,
-  Search,
-  Settings2,
-  Star,
-  Trash2,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -40,6 +18,7 @@ import { CreateBoardDialog } from "@/features/boards/components/create-board-dia
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
+import { ShareBoardDialog } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
@@ -50,9 +29,10 @@ import { AboutDialog } from "@/features/version/about-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
 import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
+import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canDeleteBoard, canEditTrackers, canManageBoard, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
@@ -61,6 +41,7 @@ import { SIDEBAR_MIN_WIDTH, useUiStore } from "@/stores/ui-store";
 /** Actions rows can trigger that need dialogs owned by the sidebar itself. */
 interface SidebarActions {
   openBoardSettings: (board: Board, section: BoardSettingsSection) => void;
+  openBoardShare: (board: Board) => void;
   requestDeleteBoard: (board: Board) => void;
   newBoardInTeam: (teamId: string) => void;
   newTrackerInTeam: (teamId: string) => void;
@@ -103,6 +84,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const trackers = useTrackers();
   const trackerMutations = useTrackerMutations();
   const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
+  const [sharingBoard, setSharingBoard] = React.useState<Board | null>(null);
   const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
   const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
   const [deletingTeam, setDeletingTeam] = React.useState<Team | null>(null);
@@ -136,6 +118,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const sidebarActions = React.useMemo<SidebarActions>(
     () => ({
       openBoardSettings: (board, section) => setBoardSettings({ board, section }),
+      openBoardShare: (board) => setSharingBoard(board),
       requestDeleteBoard: (board) => setDeletingBoard(board),
       newBoardInTeam: (teamId) => {
         setCreateBoardTeamId(teamId);
@@ -396,6 +379,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         />
       )}
       {deletingBoard && <SidebarDeleteBoard board={deletingBoard} onClose={() => setDeletingBoard(null)} />}
+      {sharingBoard && <ShareBoardDialog board={sharingBoard} open onOpenChange={(open) => !open && setSharingBoard(null)} />}
       <ConfirmDialog
         open={archivingTeam !== null}
         onOpenChange={(open) => !open && setArchivingTeam(null)}
@@ -427,54 +411,16 @@ function SidebarDeleteBoard({ board, onClose }: { board: Board; onClose: () => v
   return <DeleteBoardDialog board={board} open onOpenChange={(open) => !open && onClose()} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />;
 }
 
-/** Context/hover menu actions for a board row. */
+/** The board's menu, the same one its own header shows. */
 function useBoardRowActions(board: Board): MenuAction[] {
-  const ws = useWorkspace();
-  const router = useRouter();
-  const actions = useBoardActions(board);
   const sidebar = useSidebarActions();
-  const manage = canManageBoard(ws.permissions, board);
-  const favourite = ws.isFavourite(board.id);
-  const teams = ws.teams.filter((t) => t.archivedAt === null);
-
-  const list: MenuAction[] = [
-    { type: "item", label: "Open", icon: <SquareKanban />, onSelect: () => router.push(ws.boardPath(board)) },
-    { type: "item", label: "Open as Kanban", icon: <Kanban />, onSelect: () => router.push(ws.boardPath(board, { view: "kanban" })) },
-    { type: "item", label: favourite ? "Remove from favourites" : "Add to favourites", icon: <Star />, onSelect: () => actions.toggleFavourite.mutate(!favourite) },
-    { type: "separator" },
-    { type: "item", label: "Board settings", icon: <Settings2 />, onSelect: () => sidebar.openBoardSettings(board, "general") },
-    { type: "item", label: "Manage members", icon: <Users />, onSelect: () => sidebar.openBoardSettings(board, "members") },
-    {
-      type: "sub",
-      label: "Move to team",
-      icon: <ArrowRight />,
-      disabled: !manage || !!board.system,
-      items: [
-        { type: "item", label: "No team", disabled: board.teamId === null, onSelect: () => actions.updateBoard.mutate({ teamId: null }) },
-        { type: "separator" },
-        ...teams.map<MenuAction>((t) => ({
-          type: "item",
-          label: t.name,
-          icon: <DynamicIcon name={t.icon} className={colorClasses(t.color).text} />,
-          disabled: t.id === board.teamId,
-          onSelect: () => actions.updateBoard.mutate({ teamId: t.id }),
-        })),
-      ],
-    },
-    { type: "item", label: "Duplicate board", icon: <Copy />, onSelect: () => actions.duplicateBoard.mutate() },
-  ];
-  if (manage && !board.system) {
-    list.push({ type: "separator" });
-    list.push(
-      board.archivedAt
-        ? { type: "item", label: "Restore board", icon: <ArchiveRestore />, onSelect: () => actions.restoreBoard.mutate() }
-        : { type: "item", label: "Archive board", icon: <Archive />, onSelect: () => actions.archiveBoard.mutate() },
-    );
-  }
-  if (canDeleteBoard(ws.permissions, board) && !board.system) {
-    list.push({ type: "item", label: "Delete board", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.requestDeleteBoard(board) });
-  }
-  return list;
+  return useBoardMenuActions(board, {
+    openSettings: (section) => sidebar.openBoardSettings(board, section),
+    // There is no board name to click here, so renaming happens where the field is.
+    rename: () => sidebar.openBoardSettings(board, "general"),
+    share: () => sidebar.openBoardShare(board),
+    requestDelete: () => sidebar.requestDeleteBoard(board),
+  });
 }
 
 const subtleButtonClasses =

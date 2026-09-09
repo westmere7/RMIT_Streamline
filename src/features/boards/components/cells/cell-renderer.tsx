@@ -2,10 +2,10 @@
 
 import { Check, ExternalLink, Link2, TriangleAlert } from "lucide-react";
 import * as React from "react";
-import { LabelPill } from "@/components/shared/label-pill";
+import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isProgressLabel, isStuckLabel, recapAssets, statusRoleIds } from "@/domain";
+import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isProgressLabel, isStuckLabel, priorityStrength, recapAssets, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -188,7 +188,6 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
 }
 
 export function PriorityCell({ item, column, value, onChange, readOnly, width }: CellProps) {
-  const { openEditLabels } = useBoardContext();
   const v = valueOf("PRIORITY", value);
   const labels = columnLabels(column);
   const label = labels.find((l) => l.id === v.labelId) ?? null;
@@ -200,20 +199,21 @@ export function PriorityCell({ item, column, value, onChange, readOnly, width }:
       testId="priority-cell"
       align={columnAlign(column.type)}
       contentClassName="p-2"
-      trigger={<LabelPill label={label} appearance="soft" size="sm" emptyText="" className="mx-1" />}
+      // A block of one width, centred in the cell and left-aligned inside it: the
+      // bars land on the same pixel down the whole column, and the block still sits
+      // in the middle rather than against an edge. shrink-0 or the flex parent
+      // squeezes it back to the width of its own text.
+      trigger={<PriorityPill label={label} className="w-[70px] shrink-0 justify-start" />}
     >
       {(close) => (
         <LabelPicker
           labels={labels}
           value={v.labelId}
           appearance="soft"
+          leading={(label) => <PrioritySignal level={priorityStrength(label.id)} />}
           onChange={(labelId) => {
             onChange({ type: "PRIORITY", labelId });
             close();
-          }}
-          onEditLabels={() => {
-            close();
-            openEditLabels(column);
           }}
         />
       )}
