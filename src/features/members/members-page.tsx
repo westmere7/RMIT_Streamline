@@ -33,6 +33,7 @@ import { InviteLinkDialog } from "@/features/members/components/invite-link-dial
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import { copyToClipboard, invitationUrl, useLiveInvitations, useMemberMutations } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { canManageMembers } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
@@ -89,6 +90,7 @@ export function MembersPage() {
   const [page, setPage] = React.useState(1);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const manage = canManageMembers(ws.permissions);
+  const isMobile = useIsMobile();
   const invitations = useLiveInvitations();
 
   const teamsByUser = React.useMemo(() => {
@@ -166,6 +168,15 @@ export function MembersPage() {
       <div className="scrollbar-thin flex-1 overflow-auto px-4 pb-8 sm:px-7">
         {rows.length === 0 ? (
           <EmptyState icon={Users} title="No members match" description="Try a different name or email." />
+        ) : isMobile ? (
+          <>
+            <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
+              {pageRows.map((row) => (
+                <MobileMemberCard key={row.member.id} row={row} manage={manage} invitation={invitations.data?.get(row.user.id) ?? null} />
+              ))}
+            </ul>
+            {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
+          </>
         ) : (
           <div className="inline-block min-w-full align-top">
             <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
@@ -248,7 +259,102 @@ function Pagination({ page, pageCount, total, onChange }: { page: number; pageCo
   );
 }
 
-function MemberRow({ row: { member, user, teams }, manage, invitation }: { row: Row; manage: boolean; invitation: WorkspaceInvitation | null }) {
+function MemberRow({ row, manage, invitation }: { row: Row; manage: boolean; invitation: WorkspaceInvitation | null }) {
+  const ws = useWorkspace();
+  const { member, user, teams } = row;
+  const isSelf = user.id === ws.currentUser.id;
+  const pending = member.status === "INVITED";
+
+  return (
+    <tr className={cn("h-11 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground")} data-testid="member-row" data-member-status={member.status}>
+      <td className="px-3">
+        <Link href={routes.person(ws.slug, user.id)} className="flex items-center gap-2 hover:underline" data-testid="member-profile-link">
+          <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
+          <span className="font-medium">
+            {user.displayName}
+            {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
+          </span>
+        </Link>
+      </td>
+      <td className="px-3 text-muted-foreground">{user.email}</td>
+      <td className="px-3">{user.jobTitle ?? "—"}</td>
+      <td className="px-3">
+        <span className="flex items-center gap-1">
+          {teams.length === 0 ? (
+            <span className="text-muted-foreground">&mdash;</span>
+          ) : (
+            teams.map((t) => (
+              <Badge key={t.id} variant="muted">
+                {t.name}
+              </Badge>
+            ))
+          )}
+        </span>
+      </td>
+      <td className="px-3">{ROLE_LABEL[member.role]}</td>
+      <td className="px-3">
+        <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
+          {STATUS_LABEL[member.status]}
+        </Badge>
+      </td>
+      {manage && (
+        <td className="px-3">
+          <div className="flex items-center justify-end gap-1">
+            <MemberActions row={row} invitation={invitation} />
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+/**
+ * One member as a phone shows it.
+ *
+ * The desktop table has seven columns; at 390px those become a stacked card,
+ * with the same actions behind the same menu — MemberActions is shared, so a
+ * role change or a cancelled invitation goes through exactly one code path.
+ */
+function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boolean; invitation: WorkspaceInvitation | null }) {
+  const ws = useWorkspace();
+  const { member, user, teams } = row;
+  const isSelf = user.id === ws.currentUser.id;
+  const pending = member.status === "INVITED";
+
+  return (
+    <li className="flex items-start gap-3 px-3 py-2.5" data-testid="member-row" data-member-status={member.status}>
+      <Link href={routes.person(ws.slug, user.id)} className="flex min-w-0 flex-1 items-start gap-3" data-testid="member-profile-link">
+        <UserAvatar user={user} size="lg" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium">
+            {user.displayName}
+            {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
+          </span>
+          <span className="block truncate text-[13px] text-muted-foreground">{user.jobTitle ?? user.email}</span>
+          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
+              {STATUS_LABEL[member.status]}
+            </Badge>
+            <Badge variant="outline">{ROLE_LABEL[member.role]}</Badge>
+            {teams.map((t) => (
+              <Badge key={t.id} variant="muted">
+                {t.name}
+              </Badge>
+            ))}
+          </span>
+        </span>
+      </Link>
+      {manage && (
+        <span className="flex shrink-0 items-center">
+          <MemberActions row={row} invitation={invitation} />
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** A member's mutations, menu and confirmations. Shared by the table row and the phone card. */
+function MemberActions({ row: { member, user, teams }, invitation }: { row: Row; invitation: WorkspaceInvitation | null }) {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
@@ -284,40 +390,7 @@ function MemberRow({ row: { member, user, teams }, manage, invitation }: { row: 
   });
 
   return (
-    <tr className={cn("h-11 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground")} data-testid="member-row" data-member-status={member.status}>
-      <td className="px-3">
-        <Link href={routes.person(ws.slug, user.id)} className="flex items-center gap-2 hover:underline" data-testid="member-profile-link">
-          <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
-          <span className="font-medium">
-            {user.displayName}
-            {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
-          </span>
-        </Link>
-      </td>
-      <td className="px-3 text-muted-foreground">{user.email}</td>
-      <td className="px-3">{user.jobTitle ?? "—"}</td>
-      <td className="px-3">
-        <span className="flex items-center gap-1">
-          {teams.length === 0 ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            teams.map((t) => (
-              <Badge key={t.id} variant="muted">
-                {t.name}
-              </Badge>
-            ))
-          )}
-        </span>
-      </td>
-      <td className="px-3">{ROLE_LABEL[member.role]}</td>
-      <td className="px-3">
-        <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
-          {STATUS_LABEL[member.status]}
-        </Badge>
-      </td>
-      {manage && (
-        <td className="px-3">
-          <div className="flex items-center justify-end gap-1">
+    <>
             {pending && (
               <Button variant="ghost" size="icon-sm" aria-label={`Invitation link for ${user.displayName}`} onClick={() => setLinkOpen(true)} data-testid="invite-link-button">
                 <Link2 />
@@ -385,7 +458,6 @@ function MemberRow({ row: { member, user, teams }, manage, invitation }: { row: 
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
           <ConfirmDialog
             open={confirmDeactivate}
             onOpenChange={setConfirmDeactivate}
@@ -422,8 +494,6 @@ function MemberRow({ row: { member, user, teams }, manage, invitation }: { row: 
             }
           />
           {(pending || linkOpen) && <InviteLinkDialog user={user} invitation={invitation} open={linkOpen} onOpenChange={setLinkOpen} />}
-        </td>
-      )}
-    </tr>
+    </>
   );
 }

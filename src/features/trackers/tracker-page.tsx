@@ -15,8 +15,10 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { TrackerSheet } from "@/domain";
 import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations, useTrackerSheets } from "@/features/trackers/hooks";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
+import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { canEditTrackers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -238,11 +240,50 @@ function SaveIndicator({ state }: { state: "idle" | "pending" | "saving" | "erro
   );
 }
 
+/**
+ * The active sheet's own actions, for a phone.
+ *
+ * On a desktop these live on a double-click (rename) and a right-click (the
+ * rest). Neither exists on a touch screen, so below md the same three actions
+ * get a button and a sheet. Rendered only there; the desktop tab strip is
+ * unchanged.
+ */
+function MobileSheetActions({ sheet, canDelete, onRename, onDuplicate, onDelete }: { sheet: TrackerSheet; canDelete: boolean; onRename: () => void; onDuplicate: () => void; onDelete: () => void }) {
+  const isMobile = useIsMobile();
+  const [open, setOpen] = React.useState(false);
+  if (!isMobile) return null;
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Actions for ${sheet.name}`}
+        onClick={() => setOpen(true)}
+        className="mb-1 ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent/70"
+        data-testid="mobile-sheet-actions"
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+      <MenuSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={sheet.name}
+        actions={[
+          { type: "item", label: "Rename sheet", onSelect: onRename },
+          { type: "item", label: "Duplicate layout", onSelect: onDuplicate },
+          { type: "separator" },
+          { type: "item", label: "Delete sheet", destructive: true, disabled: !canDelete, onSelect: onDelete },
+        ]}
+      />
+    </>
+  );
+}
+
 /** Excel-style sheet tabs: click to switch, double-click to rename, right-click for more. */
 function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets: TrackerSheet[]; activeId: string | null; trackerId: string; canEdit: boolean; onSelect: (id: string) => void }) {
   const mutations = useTrackerMutations();
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState<TrackerSheet | null>(null);
+  const activeSheet = sheets.find((sheet) => sheet.id === activeId) ?? null;
 
   const add = (layout: "campaign" | "blank" | "copy") => {
     const name = `Sheet ${sheets.length + 1}`;
@@ -250,7 +291,7 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
   };
 
   return (
-    <div role="tablist" aria-label="Sheets" className="flex items-end gap-0.5 border-b px-6" data-testid="sheet-tabs">
+    <div role="tablist" aria-label="Sheets" className="scrollbar-none flex items-end gap-0.5 overflow-x-auto overscroll-x-contain border-b px-6 max-md:px-3" data-testid="sheet-tabs">
       {sheets.map((sheet) => {
         const active = sheet.id === activeId;
         const tab = (
@@ -261,7 +302,7 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
             onClick={() => onSelect(sheet.id)}
             onDoubleClick={() => canEdit && setRenamingId(sheet.id)}
             className={cn(
-              "relative -mb-px flex h-10 max-w-56 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+              "relative -mb-px flex h-10 max-w-56 shrink-0 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring max-md:h-12",
               active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
@@ -304,7 +345,7 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
             <button
               type="button"
               aria-label="Add sheet"
-              className="mb-1 ml-1 flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="mb-1 ml-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground max-md:size-11"
               data-testid="add-sheet"
             >
               <Plus className="size-4" />
@@ -319,6 +360,15 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
             <DropdownMenuItem onSelect={() => add("blank")}>Blank grid</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+      {canEdit && activeSheet && (
+        <MobileSheetActions
+          sheet={activeSheet}
+          canDelete={sheets.length > 1}
+          onRename={() => setRenamingId(activeSheet.id)}
+          onDuplicate={() => mutations.addSheet.mutate({ trackerId, name: `${activeSheet.name} (copy)`, layout: "copy", copyOf: activeSheet.id }, { onSuccess: (sheet) => onSelect(sheet.id) })}
+          onDelete={() => setDeleting(activeSheet)}
+        />
       )}
       <ConfirmDialog
         open={deleting !== null}

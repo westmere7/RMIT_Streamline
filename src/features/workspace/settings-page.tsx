@@ -54,7 +54,7 @@ export function SettingsPage() {
                   onClick={() => router.replace(routes.settings(ws.slug, s))}
                   aria-current={section === s ? "page" : undefined}
                   className={cn(
-                    "flex h-8 w-full items-center rounded-md px-2 text-[13px] font-medium max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap",
+                    "flex h-8 w-full items-center rounded-md px-2 text-[13px] max-md:h-11 max-md:px-3 max-md:text-[15px] font-medium max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap",
                     section === s ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                   )}
                 >

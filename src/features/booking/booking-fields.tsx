@@ -432,7 +432,7 @@ export function Chip({ active, onClick, color, testId, disabled, children }: { a
       disabled={disabled}
       data-testid={testId}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-70",
+        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-70 max-md:h-11 max-md:text-[15px]",
         active ? "border-foreground/80 bg-foreground text-background" : "border-border bg-card text-foreground enabled:hover:border-foreground/40 enabled:hover:bg-accent",
       )}
     >

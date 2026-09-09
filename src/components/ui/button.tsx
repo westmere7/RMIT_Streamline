@@ -16,13 +16,17 @@ const buttonVariants = cva(
         destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Below md every size keeps its desktop height and gains a 44px floor:
+      // the minimum a finger can hit reliably. `max-md:` variants are emitted
+      // after the base utilities, so the desktop rule is untouched and the
+      // rendered desktop output is identical.
       size: {
-        default: "h-9 px-3.5",
-        sm: "h-8 px-3",
-        lg: "h-10 px-4.5",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-xs": "size-7 [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 px-3.5 max-md:min-h-11",
+        sm: "h-8 px-3 max-md:min-h-11",
+        lg: "h-10 px-4.5 max-md:min-h-11",
+        icon: "size-9 max-md:size-11",
+        "icon-sm": "size-8 max-md:size-11",
+        "icon-xs": "size-7 max-md:size-11 [&_svg:not([class*='size-'])]:size-3.5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

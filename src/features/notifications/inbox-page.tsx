@@ -89,7 +89,7 @@ export function InboxPage() {
                       onClick={() => setTab(t.id)}
                       data-testid={`inbox-tab-${t.id}`}
                       className={cn(
-                        "flex h-7 items-center gap-1.5 rounded-[5px] px-3 font-medium",
+                        "flex h-7 items-center gap-1.5 rounded-[5px] px-3 font-medium max-md:h-10",
                         tab === t.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
                       )}
                     >
@@ -192,7 +192,7 @@ export function InboxPage() {
                         type="button"
                         aria-label={unreadItem ? "Mark as read" : "Mark as unread"}
                         onClick={() => markRead.mutate({ id: n.id, read: unreadItem })}
-                        className="mt-1.5 flex size-5 items-center justify-center rounded-full hover:bg-surface-strong"
+                        className="mt-1.5 flex size-5 items-center justify-center rounded-full hover:bg-surface-strong max-md:-m-3 max-md:size-11 max-md:p-3"
                       >
                         <span
                           className={cn(

@@ -1,33 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  Columns3,
-  Copy,
-  Eraser,
-  ExternalLink,
-  ListPlus,
-  PanelTop,
-  Pencil,
-  Plus,
-  Redo2,
-  Rows3,
-  SlidersHorizontal,
-  Snowflake,
-  Trash2,
-  Type,
-  Undo2,
-  WrapText,
-  ArrowDownAZ,
-  ArrowUpAZ,
-  Filter,
-  Hash,
-  Sigma,
-  ArrowDownToLine,
-} from "lucide-react";
+import { ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, ListPlus, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Undo2, WrapText } from "lucide-react";
 import { toast } from "sonner";
 import * as React from "react";
 import {
@@ -79,6 +52,8 @@ import { FilterValuesDialog, HeaderViewMarks, SheetViewBar, SummaryCell } from "
 import { Chip, ChipColorPicker } from "@/features/trackers/chip";
 import { STATUS_COLORS, TEMPLATE_STYLE, chipColor, nextChipColor, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { cn } from "@/lib/utils";
+import { MobileRowEditor } from "@/features/trackers/mobile-row-editor";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { TrackerService } from "@/services/tracker-service";
 import { type TrackerViewSettings, useUiStore } from "@/stores/ui-store";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -114,6 +89,7 @@ interface EditingState {
 export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerGridProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [active, setActive] = React.useState<CellAddress | null>(null);
+  const [rowEditorOpen, setRowEditorOpen] = React.useState(false);
   const [anchor, setAnchor] = React.useState<CellAddress | null>(null);
   const [editing, setEditing] = React.useState<EditingState | null>(null);
   const [widthOverrides, setWidthOverrides] = React.useState<Record<string, number>>({});
@@ -417,10 +393,27 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
     return () => window.removeEventListener("mouseup", stop);
   }, []);
 
+  // The touch alternative to editing in the grid: the selected data row as a
+  // stack of labelled fields. Only offered below md, and only for a data row —
+  // a section or total row has nothing to fill in.
+  const activeDataRow = active ? (rows[active.row]?.kind === "data" ? rows[active.row]! : null) : null;
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <GridToolbar canEdit={canEdit} hasSelection={!!range} activeCol={active?.col ?? null} frozen={frozen} view={view} onView={setView} onUndo={onUndo} onRedo={onRedo} actions={toolbar} />
+      <GridToolbar
+        canEdit={canEdit}
+        hasSelection={!!range}
+        activeCol={active?.col ?? null}
+        frozen={frozen}
+        view={view}
+        onView={setView}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        actions={toolbar}
+        onEditRow={canEdit && activeDataRow ? () => setRowEditorOpen(true) : null}
+      />
       <SheetViewBar sheet={sheet} view={sheetView} hidden={projection.hiddenDataRows} visibleDataRows={dataRowCount(rows)} onChange={setSheetView} searchRef={searchRef} />
+      <MobileRowEditor sheet={sheet} row={activeDataRow} open={rowEditorOpen} onOpenChange={setRowEditorOpen} commit={commit} />
       <div
         ref={containerRef}
         tabIndex={0}
@@ -1387,13 +1380,21 @@ interface GridToolbarProps {
     setKind: (kind: TrackerRowKind) => void;
     freeze: () => void;
   };
+  /** Opens the row editor; null when there is no data row selected or no phone. */
+  onEditRow?: (() => void) | null;
 }
 
 /** Editing actions and view settings, Excel-ribbon style but small. */
-function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, onUndo, onRedo, actions }: GridToolbarProps) {
+function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, onUndo, onRedo, actions, onEditRow }: GridToolbarProps) {
   const frozenHere = activeCol !== null && frozen === activeCol + 1;
+  const isMobile = useIsMobile();
   return (
     <div role="toolbar" aria-label="Sheet tools" className="flex flex-wrap items-center gap-1 border-b px-3 py-1.5" data-testid="grid-toolbar">
+      {isMobile && (
+        <Button size="sm" variant="outline" disabled={!onEditRow} onClick={() => onEditRow?.()} className="mr-1" data-testid="mobile-edit-row">
+          <PencilLine /> Edit row
+        </Button>
+      )}
       {canEdit && (
         <>
           <ToolButton label="Undo (Ctrl+Z)" onClick={onUndo}>

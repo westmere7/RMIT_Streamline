@@ -9,7 +9,7 @@ const Tabs = TabsPrimitive.Root;
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      className={cn("inline-flex h-10 items-center gap-1 rounded-full bg-surface p-1 text-muted-foreground", className)}
+      className={cn("inline-flex h-10 items-center gap-1 rounded-full bg-surface p-1 text-muted-foreground max-md:h-12", className)}
       {...props}
     />
   );
@@ -19,7 +19,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] max-md:h-10 font-medium whitespace-nowrap transition-colors duration-150 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm",
         className,
       )}
       {...props}
@@ -40,7 +40,7 @@ function UnderlineTabsTrigger({ className, ...props }: React.ComponentProps<type
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "relative inline-flex h-10 items-center gap-1.5 rounded-t-lg px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-150 after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50 data-[state=active]:text-foreground data-[state=active]:after:bg-ring",
+        "relative inline-flex h-10 items-center gap-1.5 rounded-t-lg px-3 text-[13px] max-md:h-12 font-medium text-muted-foreground transition-colors duration-150 after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50 data-[state=active]:text-foreground data-[state=active]:after:bg-ring",
         className,
       )}
       {...props}
