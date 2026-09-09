@@ -27,10 +27,13 @@ export function Panel({ title, subtitle, action, info, children, className, body
     // h-full: a panel wrapped in a column-span div would otherwise stop at its content
     // and leave the canvas showing under it while its neighbour ran on.
     <section className={cn("flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-border/60 bg-card p-4 shadow-xs sm:p-5", className)} data-testid={testId}>
-      <header className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      {/* Wraps below the title on a narrow screen. Kept on one row the panel
+          heading was squeezed to "Ass…" beside its own controls, which is worse
+          than a second line. */}
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="min-w-[min(100%,12rem)] flex-1">
           <h2 className="flex items-center gap-1.5 text-[14px] font-semibold tracking-tight">
-            <span className="truncate">{title}</span>
+            <span className="min-w-0 break-words">{title}</span>
             {info && (
               <SimpleTooltip label={info} side="top">
                 <span className="text-muted-foreground/70 hover:text-foreground">
@@ -39,9 +42,9 @@ export function Panel({ title, subtitle, action, info, children, className, body
               </SimpleTooltip>
             )}
           </h2>
-          {subtitle && <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-1.5">{action}</div>}
+        {action && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{action}</div>}
       </header>
       <div className={cn("flex min-h-0 flex-1 flex-col", bodyClassName)}>{children}</div>
     </section>

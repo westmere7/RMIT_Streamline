@@ -619,19 +619,48 @@ A share link grants access to the shared-board payload, not workspace membership
 
 ## 13b. Workspace dashboard
 
-`src/features/dashboard` draws the whole page from one `DashboardSnapshot` (`src/domain/dashboard/dashboard.ts`): every active board the reader can see with its groups, columns, items, values, asset lines and links, plus teams and the people named. `DashboardService.loadSnapshot()` reads it with one round of parallel per-board requests (`src/services/dashboard-service.ts`); `useDashboardSnapshot()` caches it under `queryKeys.dashboard(workspaceId)` and `useDashboardRealtime()` invalidates it from a Supabase channel over items, values, assets, groups, columns, boards, teams and links, coalesced over 500 ms, with a 60-second refetch underneath. Local mode invalidates the same key from the BroadcastChannel sync.
+Three views over one snapshot: **Overview** (what shipped, and what needs a decision today), **Demand & Delivery** (the operations review), **Resourcing** (the allocation meeting). Real tab semantics with arrow-key movement; the reading order on Overview is headline figures -> month comparison -> current operations -> attention -> upcoming, and on a 1440x900 screen everything down to the operations strip is above the fold.
 
-`analytics.ts` is pure and unit-tested (`tests/unit/dashboard-analytics.test.ts`). `buildFacts()` turns items into `TaskFact`s and lines into `AssetFact`s once; everything else filters and counts those facts, so span, team, unit and basis changes never refetch. Rules worth knowing:
+`DashboardService.loadSnapshot()` reads one `DashboardSnapshot` (`src/domain/dashboard/dashboard.ts`) with a round of parallel per-board requests: every active board the reader can see, plus teams, the people named, and — since the portal work — the workspace's **stakeholder department registry**. `useDashboardSnapshot()` caches it under `queryKeys.dashboard(workspaceId)`; `useDashboardRealtime()` invalidates from a Supabase channel coalesced over 500 ms, with a 60-second refetch underneath.
 
-- A **task** is a top-level, unarchived item on a board that is not the Task Allocation board. Items linked across boards count once, under the earliest copy.
-- A **request** is an item on the Task Allocation board, or any task whose board records who asked (a PERSON or TEXT column whose name contains requester/requested by/stakeholder/client/booked by, or a TEXT column named like department/school/faculty/portfolio/unit/college). Requests are always dated by creation; their stage comes from the intake group name, else the status role.
-- **Asset units** are `assetCount()` of the asset lines of delivery tasks, the same figure as the Assets recap cell. Intake lines are requests, not delivery.
-- The **date basis** (settings menu) places work by due date (falling back to creation), creation, or completion; under "completed" only finished work counts. Completion of a task is the latest asset ticked off, else the item's last change.
-- The **year chart** always shows a whole year (the selected one, or the latest with data under Total) and stops at the current month for the current year.
+### Facts, then contracts
 
-View preferences (unit, basis, span, hidden panels) persist per browser under `localStorage["streamline.dashboard"]` via a Zustand store hydrated after mount; the team filter and year are page state.
+`analytics.ts` builds the facts once (`tests/unit/dashboard-analytics.test.ts`); `metrics.ts` holds the reporting contracts (`tests/unit/dashboard-metrics.test.ts`). Both are pure, so a period or team change is a re-render.
 
-**Sharing** mirrors board sharing at workspace level: one `dashboard_shares` row per workspace (migration 0024, policy 0010: members read, workspace admins manage; `canManageDashboardShare()` is the TypeScript twin), the same token alphabet and refusal rules, and a service-role read behind `/api/dashboard/<token>` (`src/server/dashboard-share.ts`). The public page (`/dashboard/<token>`) polls every 15 seconds and blocks same-origin links out of `/dashboard/`. Unlike a board share, the payload is trimmed on purpose by `publicDashboardSnapshot()`: item descriptions and covers, asset notes, LONG_TEXT and LINK values, every TEXT value except department-like columns, and user emails, job titles and departments are removed, so a wall display shows figures and first names only.
+- A **task** is a top-level, unarchived item on a board that is not Task Allocation. Linked copies count once, under the earliest.
+- **Asset units** are `assetCount()` of a task's asset lines — the same figure the Assets recap cell shows. Intake lines are requests, not delivery.
+- The **department** a task is for comes from its STAKEHOLDER cell, matched by column **type** and resolved against the registry, so a renamed department keeps one row in a year comparison. A board with no such column falls back to a TEXT column whose name looks like a department, and that value is marked `inferred`. Work with neither is **Unknown**, its own bucket, never folded into a real one.
+
+### Reporting rules, and why
+
+Two rules run through `metrics.ts` and explain most of it.
+
+**A period is a range of days, not a year number.** `resolvePeriod` returns matched ranges: year-to-date compares 1 January to today against 1 January to the same day of the comparison year, 29 February clamping to the 28th in a common year. The previous implementation shifted the year number and kept anything inside it, so the default view compared this year to date against *all twelve months* of last year and reported the shortfall as a decline. A chosen full year that has not finished is labelled partial actuals.
+
+**A missing value is not a zero.** No history at all reads "Unavailable"; a real zero baseline shows the absolute difference and "no % comparison"; a month the current period has not reached draws nothing rather than a zero bar. `(selected − comparison) / comparison × 100` only where the comparison is positive.
+
+Also load-bearing:
+
+- **No completion basis.** `TaskFact.completedAt` falls back to `item.updatedAt`, so a task renamed today would count as finished today. Created and due are offered; completed is not, and the page says so. On-time delivery is withheld for the same reason plus a second one: the due date is mutable, so a deadline extended after it was missed would rewrite history in the team's favour.
+- **A due-date report never counts creation.** Undated work is excluded and reported separately as a coverage note. The old `taskDate` returned `dueDate ?? createdAt`.
+- **Operations take no period.** `operations()` has no period argument at all, so a historical filter cannot hide today's overdue work. Its figures overlap — a task can be overdue and blocked — and the strip says so rather than offering a total.
+- **Attention is ordered, not scored**: reason, then deadline, then name. Each task appears once under its most pressing reason.
+- **Workload is association counts.** A task with two owners is counted under both and the panel says the column does not sum to unique tasks. Everybody is listed — not the busiest eight — with unassigned work as its own row and former members who still hold work. No capacity percentage exists, because effort, contracted hours, leave and commitments are none of them recorded; the Resourcing view names those four as what would be needed.
+- **Asset types are measured in units.** One task can hold three types, so task counts by type would not be additive; the table says this in its caption.
+
+### Preferences
+
+Per user **and** workspace under `localStorage["streamline.dashboard.v2"]`, keyed `<userId>:<workspaceId>`, hydrated after mount. The old single `streamline.dashboard` key was shared by everyone on a machine and by every workspace. A stored team filter naming a team the reader can no longer see is dropped rather than silently emptying the page.
+
+### Sharing
+
+One `dashboard_shares` row per workspace (migration 0024, policy 0010), a service-role read behind `/api/dashboard/<token>` (`src/server/dashboard-share.ts`), and a public page at `/dashboard/<token>` that polls and blocks same-origin links out.
+
+`publicDashboardSnapshot()` is an **allowlist built field by field**, not a spread with deletions — the previous version published anything added to the snapshot later by default. Nothing about a person travels: no users, no PERSON values, no asset assignees, no `createdBy`, no board owner. Column values are allowlisted by type (STATUS, PRIORITY, DATE, TIMELINE, TAGS, SIZE, NUMBER, CHECKBOX, ASSETS_RECAP, STAKEHOLDER, plus TEXT only where the column is plainly a department). Descriptions, notes, LONG_TEXT and LINK never travel. A public link also has **no Resourcing tab** and no owner-derived figures, because that view is individual workload. Asserted in `tests/unit/dashboard-analytics.test.ts`.
+
+### What is deferred, and what it needs
+
+Recorded in `docs/dashboard-revision-note.md` rather than faked: task lifecycle events (an append-only `task_events` table) for throughput, cycle time and WIP age; a committed deadline kept when the due date moves, for on-time delivery; effort and availability for capacity; a campaign entity for campaign readiness. Archived boards are still excluded from the snapshot, so archiving a finished campaign removes it from historical totals — a known limitation, not a fix in this pass.
 
 ## 13c. Stakeholder portal
 
@@ -1100,6 +1129,10 @@ The following findings explain why some older repository prose may disagree with
 | The portal has a list of its own | It is a board. The department's requests are assembled into a synthetic `PublicBoardPayload` and rendered by the app's own views and item panel. |
 | Internal updates never reach a portal | They do. The update thread on a published task is part of the payload; the activity log is not. |
 | A plain PostgREST select returns every row | It stops at 1000 and says nothing. Reads that grow with the workspace go through `unwrapAll`. |
+| The dashboard shows "assets delivered" | It shows asset **units in the period**, labelled as such. The old headline counted unfinished assets under a "delivered" label. |
+| The dashboard can report completion or on-time delivery | It cannot, and does not try. There is no completion event; `completedAt` falls back to the item's last edit. |
+| Year comparison compares two years | It compares two matched *ranges*. Year-to-date is against the same elapsed days, not the whole prior year. |
+| The public dashboard is the internal one minus a few fields | It is an allowlist built field by field, with no people in it and no Resourcing tab. |
 | Portal writes are transactional | Booking is a durable claim with compensation, not a database transaction; the repositories speak REST. A crash between booking and association leaves a claimed key that is released on the next failure path only. |
 | RLS for the portal is verified | Only the local provider is exercised end to end. Policy 0013 and the service-role handlers need a Supabase environment to prove. |
 | Public user payload is only name/avatar | `toPublicUser()` currently clears email and retains the rest of the selected user object. |
