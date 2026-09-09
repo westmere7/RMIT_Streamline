@@ -159,15 +159,22 @@ function DepartmentCard({ row }: { row: DepartmentOverview }) {
             {pluralize(requestCount, "request", "requests")} from this department.
           </p>
         </div>
-        <label className="flex shrink-0 items-center gap-2 text-[13px]">
-          <span className="text-muted-foreground">Open</span>
+        {/* A span, not a label. A <label> wrapping a control re-dispatches the
+            click onto it, so every click toggled twice and which of the two
+            writes landed last was a race — a portal could come back open after
+            being closed. The switch carries its own accessible name. */}
+        <span className="flex shrink-0 items-center gap-2 text-[13px]">
+          <span aria-hidden className="text-muted-foreground">
+            Open
+          </span>
           <Switch
             checked={open}
+            disabled={setEnabled.isPending}
             onCheckedChange={(next) => setEnabled.mutate({ departmentId: department.id, enabled: next })}
             aria-label={`${open ? "Close" : "Open"} the ${department.name} portal`}
             data-testid="portal-toggle"
           />
-        </label>
+        </span>
       </div>
 
       {portal && (

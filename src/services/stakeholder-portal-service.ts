@@ -8,6 +8,7 @@ import type {
   EntityId,
   Item,
   ItemAsset,
+  ItemLink,
   PortalContext,
   PortalGate,
   PortalRefusal,
@@ -101,6 +102,31 @@ export interface ResolvedPortal {
   portal: DepartmentPortal;
   department: StakeholderDepartment;
   workspaceId: EntityId;
+}
+
+/**
+ * One request in a department's portal, and how it got there.
+ *
+ * Two things put a task in front of a department, and they are deliberately
+ * different in kind. A booking made through the portal leaves a `portal_requests`
+ * row: deliberate, durable, and carrying the brief the requester typed. A task
+ * simply *labelled* with the department in its STAKEHOLDER column is the team's
+ * own record of who the work is for, and it is what makes the portal show a
+ * department everything it has, rather than only what arrived after the portal
+ * existed.
+ *
+ * The difference matters downstream. A labelled task has no stored brief, and it
+ * never borrows `items.description` for one — that field carries requester
+ * contact details the booking writer appended.
+ */
+export interface PortalScopeEntry {
+  itemId: EntityId;
+  /** When it arrived: its booking time when it was booked here, else when the task was made. */
+  bookedAt: string;
+  /** The requester's own words. Only ever from provenance; null for a labelled task. */
+  publicBrief: string | null;
+  /** True when a portal_requests row names this item. */
+  booked: boolean;
 }
 
 export interface DepartmentOverview {
@@ -240,16 +266,28 @@ export class StakeholderPortalService {
 
   // ---- managing a portal ----------------------------------------------------
 
-  /** Every department with its link and its request count, for the management screen. */
+  /**
+   * Every department with its link and its request count.
+   *
+   * The count is what the portal would actually publish — bookings *and*
+   * labelled tasks — not just the provenance rows. An administrator about to
+   * open a link needs to know how much it exposes, and a number that only
+   * counted bookings would say "0" for a department with forty labelled tasks.
+   */
   async overview(workspaceId: EntityId): Promise<DepartmentOverview[]> {
     const departments = await this.ensureDepartments(workspaceId);
     const portals = await this.repos.stakeholderPortals.listPortals(workspaceId);
     const byDepartment = new Map(portals.map((portal) => [portal.departmentId, portal]));
+    // One pass over the workspace's labels and one batch of items for every
+    // department together, rather than a scan and a round of reads each. Six
+    // departments over a few hundred tasks is otherwise a thousand requests.
+    const labelled = await this.labelledItemIds(workspaceId);
+    const items = await this.itemsByIdFor([...new Set([...labelled.values()].flat())]);
     return Promise.all(
       departments.map(async (department) => ({
         department,
         portal: byDepartment.get(department.id) ?? null,
-        requestCount: await this.repos.stakeholderPortals.countRequests(department.id),
+        requestCount: (await this.scope(department, { labelled, items })).length,
       })),
     );
   }
@@ -388,30 +426,30 @@ export class StakeholderPortalService {
    */
   async tasks(resolved: ResolvedPortal, options: { cursor?: string | null; limit?: number; search?: string } = {}): Promise<PortalTaskPage> {
     const limit = Math.max(1, Math.min(options.limit ?? PORTAL_PAGE_SIZE, 200));
-    // Every request in the department, for the totals and the search. Bounded by
-    // the department, which is the smallest scope there is.
-    const all = await this.allRequests(resolved.department.id);
+    // Everything this department may see, for the totals and the search. Read
+    // once and in full, because a figure computed over one page would be a lie.
+    const all = await this.scope(resolved.department);
     const ctx = await this.projectionContext(resolved, all);
     const projected = all
-      .map((request) => {
-        const item = ctx.itemsById.get(request.itemId);
-        return item ? { request, task: projectTask(item, ctx.projection) } : null;
+      .map((entry) => {
+        const item = ctx.itemsById.get(entry.itemId);
+        return item ? { entry, task: projectTask(item, ctx.projection) } : null;
       })
-      .filter((entry): entry is { request: PortalRequest; task: PortalTask } => !!entry);
+      .filter((row): row is { entry: PortalScopeEntry; task: PortalTask } => !!row);
 
     const search = options.search?.trim() ?? "";
-    const matching = search ? projected.filter((entry) => matchesPortalSearch(entry.task, entry.request.publicBrief, search)) : projected;
+    const matching = search ? projected.filter((row) => matchesPortalSearch(row.task, row.entry.publicBrief, search)) : projected;
     const totals = summarise(
-      matching.map((entry) => entry.task),
+      matching.map((row) => row.task),
       ctx.projection.today,
     );
 
-    const after = options.cursor ? matching.findIndex((entry) => cursorOf(entry.request) === options.cursor) : -1;
+    const after = options.cursor ? matching.findIndex((row) => cursorOf(row.entry) === options.cursor) : -1;
     const start = after >= 0 ? after + 1 : 0;
     const page = matching.slice(start, start + limit);
-    const nextCursor = start + limit < matching.length && page.length > 0 ? cursorOf(page[page.length - 1]!.request) : null;
+    const nextCursor = start + limit < matching.length && page.length > 0 ? cursorOf(page[page.length - 1]!.entry) : null;
 
-    return { tasks: page.map((entry) => entry.task), nextCursor, totals, servedAt: new Date().toISOString() };
+    return { tasks: page.map((row) => row.task), nextCursor, totals, servedAt: new Date().toISOString() };
   }
 
   /**
@@ -423,11 +461,9 @@ export class StakeholderPortalService {
    * assets on this concrete task; it is computed, never taken from the request.
    */
   async task(resolved: ResolvedPortal, itemId: EntityId, viewer: PortalViewer | null): Promise<PortalTaskDetail> {
-    const request = await this.repos.stakeholderPortals.getRequestByItem(resolved.workspaceId, itemId);
-    if (!request || request.departmentId !== resolved.department.id) {
-      throw new PortalAccessError("unknown", "That request is not part of this portal.");
-    }
-    const ctx = await this.projectionContext(resolved, [request]);
+    const entry = (await this.scope(resolved.department)).find((row) => row.itemId === itemId);
+    if (!entry) throw new PortalAccessError("unknown", "That request is not part of this portal.");
+    const ctx = await this.projectionContext(resolved, [entry]);
     const item = ctx.itemsById.get(itemId);
     if (!item) throw new PortalAccessError("unknown", "That request is no longer available.");
 
@@ -438,7 +474,7 @@ export class StakeholderPortalService {
 
     return {
       ...base,
-      brief: request.publicBrief,
+      brief: entry.publicBrief,
       fullDeliverables: assets.map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
       fullSubitems: subitems.map((sub) => projectSubitem(sub, ctx.projection)),
       linked,
@@ -514,8 +550,8 @@ export class StakeholderPortalService {
   /** The gate, the portal's own scope, and a seat on the board — in that order. */
   private async admitWriter(grant: PortalGrant, itemId: EntityId): Promise<{ resolved: ResolvedPortal; viewer: PortalViewer }> {
     const resolved = await this.resolve(grant);
-    const request = await this.repos.stakeholderPortals.getRequestByItem(resolved.workspaceId, itemId);
-    if (!request || request.departmentId !== resolved.department.id) throw new PortalAccessError("unknown", "That request is not part of this portal.");
+    const inScope = (await this.scope(resolved.department)).some((row) => row.itemId === itemId);
+    if (!inScope) throw new PortalAccessError("unknown", "That request is not part of this portal.");
     const viewer = grant.viewer ?? null;
     if (!viewer || !(await this.canAct(resolved, itemId, viewer))) throw new PortalAccessError("unknown", "Only someone on this task's board can do that here.");
     return { resolved, viewer };
@@ -623,6 +659,107 @@ export class StakeholderPortalService {
     return department;
   }
 
+  /**
+   * Everything a department may see, deduplicated and newest first.
+   *
+   * The union of two sources: tasks booked through this portal (provenance), and
+   * tasks the team has labelled with this department in a STAKEHOLDER column.
+   * The label is how a department sees the work it already had, rather than only
+   * what arrived after its portal existed.
+   *
+   * Three rules keep the list honest:
+   *
+   *  · Only top-level, unarchived tasks. A subitem belongs inside its parent,
+   *    not beside it, and archived work is gone.
+   *  · Linked tasks collapse to one row. Allocation makes a second item and
+   *    links it, and both usually carry the label; listing both would count one
+   *    request twice. The booked one wins, else the earliest — deterministic,
+   *    and never "whichever changed last".
+   *  · A labelled task has no brief. `items.description` is not a brief; it
+   *    carries whatever contact details the booking writer appended.
+   */
+  private async scope(department: StakeholderDepartment, preloaded?: { labelled: Map<string, EntityId[]>; items: Map<EntityId, Item> }): Promise<PortalScopeEntry[]> {
+    const provenance = await this.allRequests(department.id);
+    const labelled = preloaded?.labelled ?? (await this.labelledItemIds(department.workspaceId));
+    const candidates = new Set<EntityId>([...provenance.map((row) => row.itemId), ...(labelled.get(departmentKey(department.name)) ?? [])]);
+    if (candidates.size === 0) return [];
+
+    const loaded = preloaded?.items ?? (await this.itemsByIdFor([...candidates]));
+    const items = [...candidates].map((id) => loaded.get(id)).filter((item): item is Item => !!item);
+    const eligible = items.filter((item) => item.parentItemId === null && item.archivedAt === null);
+    const byId = new Map(eligible.map((item) => [item.id, item]));
+    const briefs = new Map(provenance.map((row) => [row.itemId, row]));
+
+    // Collapse each run of linked tasks to the one that represents it.
+    const links = await this.linksForItems([...byId.keys()]);
+    const canonical = collapseLinked([...byId.keys()], links, (id) => ({ booked: briefs.has(id), createdAt: byId.get(id)!.createdAt }));
+
+    const entries: PortalScopeEntry[] = [];
+    for (const id of canonical) {
+      const item = byId.get(id)!;
+      const row = briefs.get(id);
+      entries.push({ itemId: id, bookedAt: row?.bookedAt ?? item.createdAt, publicBrief: row?.publicBrief ?? null, booked: !!row });
+    }
+    return entries.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt) || b.itemId.localeCompare(a.itemId));
+  }
+
+  /**
+   * Items by id, in batches.
+   *
+   * `listByIds` is one request per batch where `getById` is one per item, and a
+   * department with a few hundred labelled tasks makes that difference the whole
+   * response time.
+   */
+  private async itemsByIdFor(ids: readonly EntityId[]): Promise<Map<EntityId, Item>> {
+    const byId = new Map<EntityId, Item>();
+    for (const batch of chunk(ids)) {
+      for (const item of await this.repos.items.listByIds(batch)) byId.set(item.id, item);
+    }
+    return byId;
+  }
+
+  /** Links touching any of these items, in batches for the same reason. */
+  private async linksForItems(ids: readonly EntityId[]): Promise<ItemLink[]> {
+    const links: ItemLink[] = [];
+    const seen = new Set<EntityId>();
+    for (const batch of chunk(ids)) {
+      for (const link of await this.repos.links.listByItems(batch)) {
+        if (seen.has(link.id)) continue;
+        seen.add(link.id);
+        links.push(link);
+      }
+    }
+    return links;
+  }
+
+  /**
+   * Every STAKEHOLDER value in the workspace, grouped by the word it holds.
+   *
+   * Read board by board through each board's own columns, so a workspace with
+   * no stakeholder columns costs one listing and nothing more. The result is
+   * shared across departments by `overview`, which would otherwise repeat this
+   * once per department.
+   */
+  private async labelledItemIds(workspaceId: EntityId): Promise<Map<string, EntityId[]>> {
+    const byName = new Map<string, EntityId[]>();
+    const boards = await this.repos.boards.listByWorkspace(workspaceId);
+    for (const board of boards) {
+      if (board.archivedAt !== null) continue;
+      const columns = await this.repos.boards.listColumns(board.id);
+      // By type, never by name. A board may call its stakeholder column
+      // "Department", "Requested by" or anything else, and renaming it must not
+      // quietly empty a portal.
+      const stakeholder = new Set(columns.filter((column) => column.type === "STAKEHOLDER").map((column) => column.id));
+      if (stakeholder.size === 0) continue;
+      for (const value of await this.repos.items.listValuesByBoard(board.id)) {
+        if (!stakeholder.has(value.columnId) || value.value.type !== "STAKEHOLDER" || !value.value.group) continue;
+        const key = departmentKey(value.value.group);
+        byName.set(key, [...(byName.get(key) ?? []), value.itemId]);
+      }
+    }
+    return byName;
+  }
+
   /** Every provenance row for a department, walked in pages so nothing is unbounded. */
   private async allRequests(departmentId: EntityId): Promise<PortalRequest[]> {
     const rows: PortalRequest[] = [];
@@ -642,8 +779,9 @@ export class StakeholderPortalService {
    * Everything the projection needs, read board by board rather than item by
    * item — the difference between one round trip per board and one per request.
    */
-  private async projectionContext(resolved: ResolvedPortal, requests: readonly PortalRequest[]) {
-    const items = (await Promise.all(requests.map((request) => this.repos.items.getById(request.itemId)))).filter((item): item is Item => !!item);
+  private async projectionContext(resolved: ResolvedPortal, entries: readonly PortalScopeEntry[]) {
+    const loaded = await this.itemsByIdFor(entries.map((entry) => entry.itemId));
+    const items = entries.map((entry) => loaded.get(entry.itemId)).filter((item): item is Item => !!item);
     const itemsById = new Map(items.map((item) => [item.id, item]));
     const boardIds = [...new Set(items.map((item) => item.boardId))];
 
@@ -688,7 +826,7 @@ export class StakeholderPortalService {
       }
     }
 
-    const links = await this.repos.links.listByItems([...wanted]);
+    const links = await this.linksForItems([...wanted]);
     const linkCountByItem = new Map<string, number>();
     for (const link of links) {
       for (const id of [link.itemAId, link.itemBId]) {
@@ -703,7 +841,7 @@ export class StakeholderPortalService {
       assetsByItem,
       subitemsByParent,
       linkCountByItem,
-      bookedAtByItem: new Map(requests.map((request) => [request.itemId, request.bookedAt])),
+      bookedAtByItem: new Map(entries.map((entry) => [entry.itemId, entry.bookedAt])),
       // A board's name says which team is doing the work, which is what the
       // stakeholder asked for. It is a board name, not its contents.
       publishSourceName: true,
@@ -722,12 +860,11 @@ export class StakeholderPortalService {
    * comes back as a restricted marker with no name.
    */
   private async linkedSummaries(resolved: ResolvedPortal, item: Item, ctx: Awaited<ReturnType<StakeholderPortalService["projectionContext"]>>) {
-    const links = await this.repos.links.listByItems([item.id]);
+    const links = await this.linksForItems([item.id]);
     const otherIds = links.map((link) => (link.itemAId === item.id ? link.itemBId : link.itemAId)).filter((id) => id !== item.id);
     const unique = [...new Set(otherIds)];
 
-    const inScope = await this.repos.stakeholderPortals.listRequestsByItems(resolved.workspaceId, unique);
-    const publishable = new Set(inScope.filter((request) => request.departmentId === resolved.department.id).map((request) => request.itemId));
+    const publishable = new Set((await this.scope(resolved.department)).map((row) => row.itemId));
 
     return Promise.all(
       unique.map(async (id) => {
@@ -771,7 +908,78 @@ async function hashSubmission(portalId: EntityId, request: BookingRequest): Prom
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Ids in batches small enough to ask for.
+ *
+ * PostgREST puts the filter in the URL, and a URL has a length limit — a few
+ * hundred uuids in one `in(...)` overflows the request headers and the whole
+ * read fails, which is exactly what a department with a couple of hundred
+ * labelled tasks produces. Eighty ids is roughly 3KB of filter, comfortably
+ * inside every limit involved.
+ */
+function chunk(ids: readonly EntityId[], size = 80): EntityId[][] {
+  const batches: EntityId[][] = [];
+  for (let i = 0; i < ids.length; i += size) batches.push(ids.slice(i, i + size) as EntityId[]);
+  return batches;
+}
+
 /** Sortable and unique: when a request arrived, then its id to break ties. */
-function cursorOf(request: PortalRequest): string {
-  return `${request.bookedAt}|${request.id}`;
+function cursorOf(entry: PortalScopeEntry): string {
+  return `${entry.bookedAt}|${entry.itemId}`;
+}
+
+/** How two department names are compared: trimmed and case-insensitive. */
+function departmentKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * One row per run of linked tasks.
+ *
+ * Allocation makes a second item and links it to the first, and both usually
+ * carry the same stakeholder label, so without this a department would see one
+ * request twice. The run is walked breadth-first with a visited set, so a cycle
+ * terminates, and the representative is chosen deterministically: the booked one
+ * if there is exactly one, else the earliest made, else the lowest id. Never
+ * "whichever changed most recently", which would make the list reorder itself
+ * as people work.
+ */
+function collapseLinked(
+  ids: readonly EntityId[],
+  links: readonly { itemAId: EntityId; itemBId: EntityId }[],
+  describe: (id: EntityId) => { booked: boolean; createdAt: string },
+): EntityId[] {
+  const present = new Set(ids);
+  const neighbours = new Map<EntityId, EntityId[]>();
+  for (const link of links) {
+    if (!present.has(link.itemAId) || !present.has(link.itemBId)) continue;
+    neighbours.set(link.itemAId, [...(neighbours.get(link.itemAId) ?? []), link.itemBId]);
+    neighbours.set(link.itemBId, [...(neighbours.get(link.itemBId) ?? []), link.itemAId]);
+  }
+
+  const seen = new Set<EntityId>();
+  const chosen: EntityId[] = [];
+  for (const start of ids) {
+    if (seen.has(start)) continue;
+    const run: EntityId[] = [];
+    const queue = [start];
+    seen.add(start);
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      run.push(id);
+      for (const next of neighbours.get(id) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+    run.sort((a, b) => {
+      const left = describe(a);
+      const right = describe(b);
+      if (left.booked !== right.booked) return left.booked ? -1 : 1;
+      return left.createdAt.localeCompare(right.createdAt) || a.localeCompare(b);
+    });
+    chosen.push(run[0]!);
+  }
+  return chosen;
 }

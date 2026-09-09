@@ -73,9 +73,20 @@ Numbered against the brief's section 3, with departures called out.
 4. Receiving-board and Task Allocation routing is untouched.
 5. **The server resolves the department from the portal credential.** The
    request body's department is ignored entirely for portal bookings.
-6. **Membership is the `portal_requests` row**, not a label match.
-7. New portal bookings associate automatically; historical tasks only through an
-   authorised import with a dry-run.
+6. **Superseded by the product owner.** The plan originally scoped a portal to
+   `portal_requests` alone, on the brief's instruction not to publish a task
+   because a label happens to match. In review the owner asked for the opposite:
+   a department should see everything carrying its STAKEHOLDER label, not only
+   what was booked through the portal, because a portal that starts empty on the
+   day it opens is not much use. Implemented as the union of the two.
+
+   The trade is recorded rather than hidden: a display value any board editor can
+   change now decides what an external audience sees. Mitigations are that the
+   management screen's count is computed from exactly what would be published, so
+   it is visible before the link is opened, and that portals are created off.
+7. New portal bookings associate automatically; a labelled task appears without
+   an import step. An explicit backfill remains useful only for tasks that carry
+   no label.
 8. Editing a `STAKEHOLDER` cell does not move a published request. Reassignment
    is a separate authorised action.
 9. Canonical origin is the item named by `portal_requests.item_id`.

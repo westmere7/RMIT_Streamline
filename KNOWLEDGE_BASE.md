@@ -641,7 +641,16 @@ Each stakeholder department gets one link showing every request it has made and 
 
 Identity flows through the `renames` map the Lists editor already produces, never a name match: renamed means the same department keeps its portal, link and history; a name that simply appears is a new department; a name that disappears has its department **disabled**, never deleted, so its requests keep their provenance. Re-adding the same word later creates a *new* department with no claim on the old one's history or credentials. `reconcileDepartments()` in `src/domain/portal/stakeholder-portal.ts` is pure and unit-tested (`tests/unit/department-reconciliation.test.ts`).
 
-**Provenance.** `portal_requests` is the only thing that puts a task in a portal: not a matching STAKEHOLDER label, not a requester's email domain, because those are display values people edit. `item_id` is the canonical origin, unique per workspace, so allocation's second item appears as a linked detail rather than a duplicate row. Editing a STAKEHOLDER cell does **not** move a published request between departments.
+**What a portal shows** is the union of two sources, and they differ in kind:
+
+- **Provenance** (`portal_requests`): a booking made through this portal. Deliberate, durable, and carrying the brief the requester typed. `item_id` is the canonical origin, unique per workspace.
+- **The STAKEHOLDER label**: any top-level task whose stakeholder cell names this department. This is how a department sees the work it already had, rather than only what arrived after its portal existed, and in practice it is the larger half by far.
+
+The label is matched by column **type**, never by column name — a board may call the column "Department" or "Requested by", and renaming it must not quietly empty a portal. The value is compared to the department name, trimmed and case-insensitively; a department rename carries its cells along (`WorkspaceListService.rewrite`), so the match survives it.
+
+Three rules keep the list honest. Only top-level, unarchived tasks: a subitem belongs inside its parent, not beside it. Linked tasks collapse to one row, because allocation makes a second item and both usually carry the label — the booked one represents the run, else the earliest made, never "whichever changed last". And a labelled task has **no brief**: `items.description` is not a brief, it carries whatever contact details the booking writer appended.
+
+**This is a deliberate trade.** A label any board editor can change now decides what an external audience sees. The safeguard is that the count on the management screen is computed from exactly what a portal would publish, so an administrator sees "265 requests" before opening the link rather than after. Portals are created switched off for the same reason.
 
 `public_brief` is stored on the provenance row because `items.description` is **not** publishable: `describeBooking()` appends every answer the receiving board had no column for, and `requesterName`, `requesterEmail` and `department` all take that path when the board lacks a column. The brief the requester typed is captured at booking time, before that happens.
 
@@ -656,6 +665,8 @@ Heterogeneous boards are read through `src/services/portal/portal-projection.ts`
 **Booking** resolves the department from the credential and overwrites whatever the body claimed. A spoofed STAKEHOLDER value cannot reach a column at all, because `BOOKING_FIELD_TYPES` excludes that type. Idempotency is a client-generated submission key, unique per portal in the database: a retry replays the first receipt, the same key with different content is refused, and a failed attempt releases its claim so the key can be reused. This is a durable claim with compensation, not a transaction - the repositories speak REST - and the write order is claim, book, associate, record receipt.
 
 **Permissions.** Anonymous and signed-in-but-unqualified visitors read the projection and may book; nothing else. Commenting or editing a deliverable requires a verified session, an ACTIVE membership of the item's own workspace, and OWNER or EDITOR on the *concrete item's own board*. A valid link never confers a write. Policies (0013) keep `anon` and `authenticated` out of the portal tables entirely - members may read `stakeholder_departments` and nothing more - so a direct PostgREST call cannot walk round the gate; visitors are served by the service role behind `src/server/portal.ts`.
+
+**Reads are batched.** A department with a few hundred labelled tasks made `getById`-per-item the whole response time, and a single `in(...)` filter over 265 uuids built an 18KB URL that PostgREST refused outright (`UND_ERR_HEADERS_OVERFLOW`). Items and links are read in batches of 80; `overview` gathers every department's candidates in one pass rather than scanning per department.
 
 **Providers.** `StakeholderPortalService` takes an optional `PortalTransport`: set for Supabase (HTTP to the route handlers), absent for the local provider, where the same service runs in the browser. That is what lets `tests/e2e/stakeholder-portal.spec.ts` drive the real gate, projection and idempotency rather than a stand-in. What it cannot prove is RLS and the service-role handlers, which need a Supabase environment.
 
@@ -1049,6 +1060,7 @@ The following findings explain why some older repository prose may disagree with
 | A share password is a salted hash | Board, item and dashboard shares use one round of SHA-256. Only portal passwords are adaptive (PBKDF2). Migrating the older scheme is outstanding work. |
 | The portal updates live | It polls every 15 seconds and shows when it last refreshed. A department-scoped realtime channel is designed (broadcast, no row data) but not yet wired. |
 | The portal offers all seven board views | It offers a grouped list with search and totals. Kanban, calendar, timeline, gantt, workload and chart are outstanding. |
+| A portal shows only what was booked through it | It shows the union of bookings and STAKEHOLDER-labelled tasks. The label is matched by column type, so renaming the column changes nothing. |
 | Portal writes are transactional | Booking is a durable claim with compensation, not a database transaction; the repositories speak REST. A crash between booking and association leaves a claimed key that is released on the next failure path only. |
 | RLS for the portal is verified | Only the local provider is exercised end to end. Policy 0013 and the service-role handlers need a Supabase environment to prove. |
 | Public user payload is only name/avatar | `toPublicUser()` currently clears email and retains the rest of the selected user object. |

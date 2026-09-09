@@ -8,9 +8,16 @@ import { resetLocalData, row, signInAs } from "./helpers";
 
 const TASK_ALLOCATION_URL = "/workspace/rmit/boards/task-allocation";
 
+/**
+ * The destination is the Stakeholder Portal now, at the same URL. An
+ * administrator lands on Departments, so booking is one tab across; a member
+ * without those controls still lands straight on the form.
+ */
 async function openBookPage(page: Page) {
   await page.getByTestId("sidebar-book-task").click();
   await expect(page).toHaveURL(/\/workspace\/rmit\/book$/);
+  const bookTab = page.getByTestId("portal-tab-book");
+  if (await bookTab.isVisible().catch(() => false)) await bookTab.click();
   await expect(page.getByTestId("booking-form")).toBeVisible();
 }
 
