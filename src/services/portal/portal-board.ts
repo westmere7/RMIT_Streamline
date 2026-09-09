@@ -10,6 +10,7 @@ import type {
   ItemColumnValue,
   ItemLink,
   PortalDeliverable,
+  PortalPriority,
   PortalStatus,
   PortalSubitem,
   PortalTask,
@@ -17,6 +18,7 @@ import type {
   StakeholderDepartment,
   User,
 } from "@/domain";
+import { DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH } from "@/domain";
 import { slugify } from "@/lib/slug";
 
 /**
@@ -90,25 +92,35 @@ export function portalColumnId(departmentId: EntityId, key: string): EntityId {
  */
 const ROLE_ORDER: Record<PortalStatus["role"], number> = { pending: 0, working: 1, stuck: 2, done: 3 };
 
+/**
+ * A priority back to the id the app uses for it.
+ *
+ * The projection strips a priority to a name, a colour and a strength, because
+ * a board's label ids mean nothing outside that board. Priority is the
+ * exception: its four steps are fixed application-wide, so `strength` maps
+ * straight back. The name is tried first for the same reason a board may word
+ * it differently, and strength is the fallback that always resolves.
+ */
+function priorityLabelId(priority: PortalPriority | null): string | null {
+  if (!priority) return null;
+  const byName = DEFAULT_PRIORITY_LABELS.find((label) => label.name.toLowerCase() === priority.name.toLowerCase());
+  if (byName) return byName.id;
+  return DEFAULT_PRIORITY_LABELS.find((label) => PRIORITY_STRENGTH[label.id] === priority.strength)?.id ?? null;
+}
+
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   const { department, tasks, links, workspaceName, now } = input;
   const boardId = department.id;
 
   // ---- the labels the department's boards between them use --------------------
   const statuses = new Map<string, PortalStatus>();
-  const priorities = new Map<string, { name: string; color: ColorToken; strength: number }>();
   for (const { task } of tasks) {
     if (task.status && !statuses.has(task.status.name)) statuses.set(task.status.name, task.status);
-    if (task.priority && !priorities.has(task.priority.name)) priorities.set(task.priority.name, task.priority);
   }
   const statusLabels = [...statuses.values()]
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
     .map((status) => ({ id: `st-${slugify(status.name)}`, name: status.name, color: status.color, role: status.role }));
-  const priorityLabels = [...priorities.values()]
-    .sort((a, b) => b.strength - a.strength || a.name.localeCompare(b.name))
-    .map((priority) => ({ id: `pr-${slugify(priority.name)}`, name: priority.name, color: priority.color }));
   const statusIdByName = new Map(statusLabels.map((label) => [label.name, label.id]));
-  const priorityIdByName = new Map(priorityLabels.map((label) => [label.name, label.id]));
 
   // ---- columns ----------------------------------------------------------------
   const hasTimeline = tasks.some(({ task }) => task.timeline?.start || task.timeline?.end);
@@ -132,7 +144,11 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     },
     150,
   );
-  column("priority", "Priority", "PRIORITY", { kind: "priority", labels: priorityLabels }, 120);
+  // Priority is the app's own four steps, not a set gathered from the tasks.
+  // `columnLabels` returns DEFAULT_PRIORITY_LABELS for a PRIORITY column
+  // whatever the column has stored, so a made-up label id renders as nothing at
+  // all — which is exactly what an invented `pr-high` did.
+  column("priority", "Priority", "PRIORITY", { kind: "priority", labels: DEFAULT_PRIORITY_LABELS.map((label) => ({ ...label })) }, 120);
   column("people", "Working on it", "PERSON", { kind: "person", allowMultiple: true }, 150);
   column("due", "Due", "DATE", { kind: "none" }, 130);
   if (hasTimeline) column("timeline", "Timeline", "TIMELINE", { kind: "none" }, 190);
@@ -183,7 +199,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     });
 
     value(task.id, "status", { type: "STATUS", labelId: task.status ? (statusIdByName.get(task.status.name) ?? null) : null }, task.updatedAt);
-    value(task.id, "priority", { type: "PRIORITY", labelId: task.priority ? (priorityIdByName.get(task.priority.name) ?? null) : null }, task.updatedAt);
+    value(task.id, "priority", { type: "PRIORITY", labelId: priorityLabelId(task.priority) }, task.updatedAt);
     value(task.id, "people", { type: "PERSON", userIds: task.people.map((person) => person.id) }, task.updatedAt);
     value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
     if (hasTimeline) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);

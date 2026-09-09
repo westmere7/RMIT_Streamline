@@ -13,7 +13,7 @@ import { resetLocalData, signInAs } from "./helpers";
 
 /** Fills the portal's booking form and sends it. */
 async function bookThroughPortal(page: Page, title: string, brief: string): Promise<void> {
-  await page.getByTestId("portal-tab-book").click();
+  await page.getByTestId("portal-book-button").click();
   const form = page.getByTestId("portal-book");
   await expect(form).toBeVisible();
   await form.getByLabel(/Your name/).fill("Priya Nair");
@@ -76,14 +76,16 @@ test.describe("the stakeholder portal", () => {
 
     await page.goto(portalPath);
     await expect(page.getByTestId("portal-department-name")).toContainText("Comm.");
-    await expect(page.getByText("No requests yet")).toBeVisible();
+    await expect(page.getByTestId("portal-totals")).toContainText("0");
 
     await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.");
 
-    // And the request is in the list straight away, which is what "submitted" means.
+    // And the request is on the board straight away, which is what "submitted"
+    // means. The board is the workspace's own, so the row is an ordinary one.
     await page.getByTestId("portal-back-to-tasks").click();
-    const task = page.getByTestId("portal-task").filter({ hasText: "Open Day wayfinding posters" });
-    await expect(task).toHaveCount(1);
+    await expect(page.getByTestId("portal-board")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open Day wayfinding posters", exact: true })).toBeVisible();
+    await expect(page.getByTestId("portal-totals")).toContainText("1");
   });
 
   test("shows a department only its own work", async ({ page }) => {
@@ -97,8 +99,8 @@ test.describe("the stakeholder portal", () => {
     // Event's portal knows nothing about it.
     await page.goto(eventPath);
     await expect(page.getByTestId("portal-department-name")).toContainText("Event");
-    await expect(page.getByText("No requests yet")).toBeVisible();
-    await expect(page.getByTestId("portal-task")).toHaveCount(0);
+    await expect(page.getByTestId("portal-totals")).toContainText("0");
+    await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toHaveCount(0);
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {
@@ -174,26 +176,46 @@ test.describe("the stakeholder portal", () => {
     await bookThroughPortal(page, "Deep link me", "A request to open by URL.");
 
     await page.getByTestId("portal-view-request").click();
-    await expect(page.getByTestId("portal-task-detail")).toBeVisible();
+    await expect(page.getByTestId("item-panel")).toBeVisible();
     await expect(page).toHaveURL(/[?&]task=/);
 
     await page.reload();
-    await expect(page.getByTestId("portal-task-detail")).toBeVisible();
+    await expect(page.getByTestId("item-panel")).toBeVisible();
     await page.goBack();
-    await expect(page.getByTestId("portal-task-detail")).toHaveCount(0);
+    await expect(page.getByTestId("item-panel")).toHaveCount(0);
+  });
+
+  test("gives the department the board's own views", async ({ page }) => {
+    const portalPath = await openPortal(page, "Comm.");
+    await page.goto(portalPath);
+    await bookThroughPortal(page, "Something to look at", "One request, seven ways of looking at it.");
+    await page.getByTestId("portal-back-to-tasks").click();
+
+    // The search sits above the board rather than inside the toolbar, so it is
+    // there on every view — which is the point of moving it.
+    await expect(page.getByTestId("search-input")).toBeVisible();
+    for (const view of ["kanban", "calendar", "chart"]) {
+      await page.goto(`${portalPath}?view=${view}`);
+      await expect(page.getByTestId("portal-board")).toBeVisible();
+      await expect(page.getByTestId("search-input")).toBeVisible();
+    }
+
+    // And it filters, on a view that never had a search box of its own.
+    await page.getByTestId("search-input").fill("Something to look at");
+    await expect(page.getByTestId("search-input")).toHaveValue("Something to look at");
+    await page.getByTestId("search-input").fill("nothing matches this");
+    await expect(page.getByRole("button", { name: "Something to look at", exact: true })).toHaveCount(0);
   });
 
   test("offers a stakeholder nothing to write with", async ({ page }) => {
     const portalPath = await openPortal(page, "Comm.");
     await page.goto(portalPath);
     await bookThroughPortal(page, "Read only please", "Nothing here should be editable by a visitor.");
-
-    // Signed in, the same person may write: they own or edit the board.
     await page.getByTestId("portal-view-request").click();
-    await expect(page.getByTestId("portal-comment")).toBeVisible();
+    await expect(page.getByTestId("item-panel")).toBeVisible();
 
-    // Signed out — a stakeholder holding nothing but the link — the same page
-    // offers no way to write at all. The data stays put; only the session goes.
+    // A stakeholder holding nothing but the link. The data stays put; only the
+    // session goes.
     await page.evaluate(() => {
       window.localStorage.removeItem("streamline.local-session");
       for (const key of Object.keys(window.localStorage)) {
@@ -201,10 +223,27 @@ test.describe("the stakeholder portal", () => {
       }
     });
     await page.goto(portalPath);
-    await page.getByTestId("portal-task").first().click();
-    await expect(page.getByTestId("portal-task-detail")).toBeVisible();
-    await expect(page.getByTestId("portal-comment")).toHaveCount(0);
-    await expect(page.getByTestId("portal-task-detail").getByRole("checkbox")).toHaveCount(0);
+    await page.getByRole("button", { name: "Open Read only please" }).click();
+    await expect(page.getByTestId("item-panel")).toBeVisible();
+
+    // Nothing on the panel or the board writes: the repositories behind this
+    // page refuse to, and the board context says the visitor cannot edit.
+    await expect(page.getByTestId("item-panel").getByRole("textbox")).toHaveCount(0);
+    await expect(page.getByTestId("link-item-button")).toHaveCount(0);
     await expect(page.getByTestId("portal-signin")).toBeVisible();
+  });
+
+  test("publishes the brief and never the internal description", async ({ page }) => {
+    const portalPath = await openPortal(page, "Comm.");
+    await page.goto(portalPath);
+    await bookThroughPortal(page, "Brief only", "The words the requester actually typed.");
+    await page.getByTestId("portal-view-request").click();
+
+    const panel = page.getByTestId("item-panel");
+    await expect(panel).toContainText("The words the requester actually typed.");
+    // The booking writer appends contact details to items.description; that
+    // field must never reach a portal.
+    await expect(panel).not.toContainText("priya@rmit.edu.vn");
+    await expect(panel).not.toContainText("Request details");
   });
 });

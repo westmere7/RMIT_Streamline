@@ -36,7 +36,16 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
 ];
 
 /** The board's single control line: which view is open, plus the tools for it. */
-export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onViewChange: (view: BoardViewKind) => void }) {
+export function BoardToolbar({
+  view,
+  onViewChange,
+  hideSearch = false,
+}: {
+  view: BoardViewKind;
+  onViewChange: (view: BoardViewKind) => void;
+  /** Set when something above the board owns the search box. */
+  hideSearch?: boolean;
+}) {
   const { board, model, canEdit, mutations, showReference, setShowReference } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
@@ -54,7 +63,7 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
       <BoardViewSwitcher view={view} onChange={onViewChange} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}
-      {tableTools && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
+      {tableTools && !hideSearch && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {tableTools && (
           <>
@@ -154,17 +163,22 @@ export function BoardToolbar({ view, onViewChange }: { view: BoardViewKind; onVi
 }
 
 /**
- * Always visible — searching is the toolbar's most-used control.
+ * The board's search box.
+ *
+ * Exported because the stakeholder portal keeps a search of its own above the
+ * board — a visitor there searches far more than they do anything else, and on
+ * every view rather than just the table — and it must be the same control, not
+ * a lookalike.
  *
  * The wrapper carries the width and shrinks with the toolbar; the input fills
  * it. With the width on the input instead, it overflowed the wrapper on a narrow
  * window and painted over the Person and Filter buttons, which could then not be
  * clicked at all between roughly 1000 and 1200 pixels.
  */
-function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function SearchBox({ value, onChange, className }: { value: string; onChange: (value: string) => void; className?: string }) {
   const loading = useBoardUiStore((s) => s.boardLoading);
   return (
-    <div className="relative w-56 min-w-28 shrink">
+    <div className={cn("relative w-56 min-w-28 shrink", className)}>
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       {loading && (
         <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground" data-testid="search-loading">

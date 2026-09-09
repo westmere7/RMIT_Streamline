@@ -32,7 +32,16 @@ const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
  * room for real targets. The state is the same board UI store the desktop
  * toolbar writes, so a filter set here is the filter the grid shows.
  */
-export function MobileBoardTools({ view, onViewChange }: { view: BoardViewKind; onViewChange: (view: BoardViewKind) => void }) {
+export function MobileBoardTools({
+  view,
+  onViewChange,
+  hideSearch = false,
+}: {
+  view: BoardViewKind;
+  onViewChange: (view: BoardViewKind) => void;
+  /** Set when something above the board owns the search box. */
+  hideSearch?: boolean;
+}) {
   const { board, model } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
@@ -54,7 +63,7 @@ export function MobileBoardTools({ view, onViewChange }: { view: BoardViewKind; 
       <div className="-mx-3 shrink-0 overflow-x-auto overscroll-x-contain px-3" role="toolbar" aria-label="Board tools">
         <div className="flex w-max items-center gap-1.5 pb-0.5">
           <Chip onClick={() => setOpen("views")} icon={CurrentIcon} label={current.label} testId="mobile-view-switcher" active />
-          <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />
+          {!hideSearch && <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />}
           <Chip onClick={() => setOpen("filter")} icon={Filter} label="Filter" count={filterCount} active={filterCount > 0} testId="mobile-filter-chip" />
           <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
             {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}

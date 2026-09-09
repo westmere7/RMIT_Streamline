@@ -134,7 +134,7 @@ function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
       {isMobile ? (
         <>
           <div className="shrink-0 border-b border-border/70 px-3 py-2">
-            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} />
+            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} hideSearch />
           </div>
           {view === "table" ? (
             <MobileTableView mode={tableMode} onModeChange={setTableMode} />
@@ -149,7 +149,7 @@ function PortalBoard({ payload }: { payload: PortalBoardPayload }) {
         </>
       ) : (
         <>
-          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} />
+          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} hideSearch />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}

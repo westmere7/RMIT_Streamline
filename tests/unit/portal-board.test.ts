@@ -1,0 +1,195 @@
+import { describe, expect, it } from "vitest";
+import type { ItemLink, PortalTask, StakeholderDepartment } from "@/domain";
+import { buildPortalBoard, type PortalBoardTask } from "@/services/portal/portal-board";
+
+const DEPARTMENT: StakeholderDepartment = {
+  id: "dept-1",
+  workspaceId: "ws-1",
+  name: "Comm.",
+  color: "blue",
+  position: 0,
+  status: "ACTIVE",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
+  return {
+    reference: null,
+    name: `Task ${overrides.id}`,
+    status: null,
+    priority: null,
+    dueDate: null,
+    timeline: null,
+    people: [],
+    sourceName: "Creative Request VN",
+    deliverables: { total: 0, done: 0 },
+    subitems: { total: 0, done: 0 },
+    linkedCount: 0,
+    bookedAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const entry = (t: PortalTask, extra: Partial<PortalBoardTask> = {}): PortalBoardTask => ({
+  task: t,
+  brief: null,
+  deliverables: [],
+  subitems: [],
+  ...extra,
+});
+
+const build = (tasks: PortalBoardTask[], links: ItemLink[] = []) =>
+  buildPortalBoard({ department: DEPARTMENT, tasks, links, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+
+/**
+ * A department's requests, shaped as a board.
+ *
+ * Two things are being checked. That the reconciliation is right — several
+ * boards' statuses becoming one set of labels, several boards becoming groups —
+ * and that the allowlist survives the change of shape, because a board payload
+ * has a great many more fields to fill in than a list did.
+ */
+describe("a department's requests as a board", () => {
+  const inProgress = { name: "In Progress", color: "orange" as const, role: "working" as const };
+  const shipped = { name: "Shipped", color: "green" as const, role: "done" as const };
+  const blocked = { name: "Blocked", color: "red" as const, role: "stuck" as const };
+
+  it("makes one label set out of statuses that came from different boards", () => {
+    const payload = build([
+      entry(task({ id: "a", status: inProgress, sourceName: "Board A" })),
+      entry(task({ id: "b", status: shipped, sourceName: "Board B" })),
+      entry(task({ id: "c", status: inProgress, sourceName: "Board B" })),
+    ]);
+
+    const status = payload.columns.find((c) => c.type === "STATUS")!;
+    expect(status.settings.kind).toBe("status");
+    if (status.settings.kind !== "status") throw new Error("unreachable");
+    // Once each, and the meanings carried across rather than the label ids.
+    expect(status.settings.labels.map((l) => l.name)).toEqual(["In Progress", "Shipped"]);
+    expect(status.settings.doneLabelIds).toHaveLength(1);
+    expect(status.settings.progressLabelIds).toHaveLength(1);
+
+    const done = status.settings.doneLabelIds[0];
+    const forB = payload.values.find((v) => v.itemId === "b" && v.columnId === status.id)!;
+    expect(forB.value).toEqual({ type: "STATUS", labelId: done });
+  });
+
+  it("orders the labels the way work moves, not the way it arrived", () => {
+    const payload = build([entry(task({ id: "a", status: shipped })), entry(task({ id: "b", status: blocked })), entry(task({ id: "c", status: inProgress }))]);
+    const status = payload.columns.find((c) => c.type === "STATUS")!;
+    if (status.settings.kind !== "status") throw new Error("unreachable");
+    expect(status.settings.labels.map((l) => l.name)).toEqual(["In Progress", "Blocked", "Shipped"]);
+  });
+
+  it("maps priority onto the scale the app actually renders", () => {
+    // columnLabels() returns DEFAULT_PRIORITY_LABELS for any PRIORITY column,
+    // whatever the column stores, so a label id invented here renders as an
+    // empty cell. This is that regression, pinned.
+    const payload = build([
+      entry(task({ id: "a", priority: { name: "High", color: "orange", strength: 2 } })),
+      entry(task({ id: "b", priority: { name: "Critical", color: "rose", strength: 3 } })),
+      // A board that words it differently still lands on the right step.
+      entry(task({ id: "c", priority: { name: "Nice to have", color: "gray", strength: 0 } })),
+      entry(task({ id: "d" })),
+    ]);
+
+    const priority = payload.columns.find((c) => c.type === "PRIORITY")!;
+    if (priority.settings.kind !== "priority") throw new Error("unreachable");
+    expect(priority.settings.labels.map((l) => l.id)).toEqual(["critical", "high", "medium", "low"]);
+
+    const labelOf = (id: string) => {
+      const value = payload.values.find((v) => v.itemId === id && v.columnId === priority.id)!.value;
+      return value.type === "PRIORITY" ? value.labelId : "wrong type";
+    };
+    expect(labelOf("a")).toBe("high");
+    expect(labelOf("b")).toBe("critical");
+    expect(labelOf("c")).toBe("low");
+    expect(labelOf("d")).toBeNull();
+  });
+
+  it("groups by the board the work is being run on", () => {
+    const payload = build([
+      entry(task({ id: "a", sourceName: "Open Day 2026" })),
+      entry(task({ id: "b", sourceName: "Creative Request VN" })),
+      entry(task({ id: "c", sourceName: "Open Day 2026" })),
+      entry(task({ id: "d", sourceName: null })),
+    ]);
+
+    expect(payload.groups.map((g) => g.name)).toEqual(["Creative Request VN", "Open Day 2026", "Requests"]);
+    const byName = new Map(payload.groups.map((g) => [g.name, g.id]));
+    const groupOf = (id: string) => payload.items.find((i) => i.id === id)!.groupId;
+    expect(groupOf("a")).toBe(byName.get("Open Day 2026"));
+    expect(groupOf("c")).toBe(byName.get("Open Day 2026"));
+    expect(groupOf("d")).toBe(byName.get("Requests"));
+  });
+
+  it("leaves out the columns nothing would fill", () => {
+    const bare = build([entry(task({ id: "a" }))]);
+    expect(bare.columns.map((c) => c.type)).toEqual(["STATUS", "PRIORITY", "PERSON", "DATE"]);
+
+    const rich = build([
+      entry(task({ id: "a", timeline: { start: "2026-09-01", end: "2026-09-30" }, deliverables: { total: 2, done: 1 } })),
+    ]);
+    expect(rich.columns.map((c) => c.type)).toContain("TIMELINE");
+    expect(rich.columns.map((c) => c.type)).toContain("ASSETS_RECAP");
+  });
+
+  it("carries the requester's brief as the description, and nothing else", () => {
+    const payload = build([entry(task({ id: "a" }), { brief: "Six A1 posters, print ready." }), entry(task({ id: "b" }))]);
+    expect(payload.items.find((i) => i.id === "a")!.description).toBe("Six A1 posters, print ready.");
+    // A labelled task was never booked here, so it has no brief and must not
+    // borrow items.description for one.
+    expect(payload.items.find((i) => i.id === "b")!.description).toBeNull();
+  });
+
+  it("publishes nothing internal", () => {
+    const payload = build([
+      entry(task({ id: "a", people: [{ id: "u1", displayName: "Jane Morrison", initials: "JM", color: "pink" }] }), {
+        brief: "A brief.",
+        deliverables: [{ id: "d1", name: "A1 poster", assetType: "Print", quantity: 6, dueDate: "2026-09-20", done: false, assignees: [] }],
+      }),
+    ]);
+
+    expect(payload.comments).toEqual([]);
+    expect(payload.activities).toEqual([]);
+    // Nobody is named as the author of anything.
+    expect(payload.items.every((i) => i.createdBy === "00000000-0000-0000-0000-000000000000")).toBe(true);
+    expect(payload.board.ownerId).toBe("00000000-0000-0000-0000-000000000000");
+    // A person is a name and a face; their email is not published.
+    expect(payload.users.map((u) => u.email)).toEqual([""]);
+    expect(payload.users[0]!.displayName).toBe("Jane Morrison");
+    // Production notes on a deliverable stay internal.
+    expect(payload.assets.every((a) => a.notes === null)).toBe(true);
+  });
+
+  it("keeps a link only when it names two requests this department can see", () => {
+    const link = (id: string, a: string, b: string): ItemLink => ({ id, workspaceId: "ws-1", itemAId: a, itemBId: b, excluded: [], createdBy: "u1", createdAt: "" });
+    const payload = build([entry(task({ id: "a" })), entry(task({ id: "b" }))], [link("l1", "a", "b"), link("l2", "a", "secret-item-on-another-board")]);
+
+    expect(payload.links.map((l) => l.id)).toEqual(["l1"]);
+  });
+
+  it("gives the same department the same ids every time, so a visitor's settings stick", () => {
+    const once = build([entry(task({ id: "a", status: inProgress }))]);
+    const twice = build([entry(task({ id: "a", status: inProgress }))]);
+    expect(twice.board.id).toBe(once.board.id);
+    expect(twice.columns.map((c) => c.id)).toEqual(once.columns.map((c) => c.id));
+    expect(twice.groups.map((g) => g.id)).toEqual(once.groups.map((g) => g.id));
+  });
+
+  it("hangs subitems off their request rather than beside it", () => {
+    const payload = build([
+      entry(task({ id: "a", subitems: { total: 2, done: 1 } }), {
+        subitems: [
+          { id: "s1", name: "Draft", done: true },
+          { id: "s2", name: "Print", done: false },
+        ],
+      }),
+    ]);
+
+    expect(payload.items.filter((i) => i.parentItemId === "a").map((i) => i.name)).toEqual(["Draft", "Print"]);
+    expect(payload.items.filter((i) => i.parentItemId === null)).toHaveLength(1);
+  });
+});

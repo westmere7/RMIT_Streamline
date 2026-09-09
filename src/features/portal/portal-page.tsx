@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardPen, ListTodo, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,9 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBooking } from "@/features/portal/portal-booking";
+import { PortalActionsBar } from "@/features/portal/portal-actions-bar";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
-import { PortalTotalsBar } from "@/features/portal/portal-totals";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
 /** How often the list is refreshed while somebody is looking at it. */
@@ -82,7 +82,9 @@ export function PortalPage({ token }: { token: string }) {
     [router],
   );
 
-  const [tab, setTab] = React.useState<"tasks" | "book">("tasks");
+  // Booking replaces the board rather than sitting beside it in a tab strip:
+  // it is the one thing a stakeholder comes here to *do*, and it gets a button.
+  const [booking, setBooking] = React.useState(false);
 
   if (gate.isPending) {
     return (
@@ -142,7 +144,7 @@ export function PortalPage({ token }: { token: string }) {
 
   return (
     <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
-      <PortalShell fill={tab === "tasks"}>
+      <PortalShell fill={!booking}>
         <PortalHeader
           token={token}
           departmentName={context?.departmentName ?? gate.data.departmentName}
@@ -152,78 +154,49 @@ export function PortalPage({ token }: { token: string }) {
           stale={page.isFetching}
         />
 
-        <div className={tab === "tasks" ? "flex min-h-0 flex-1 flex-col" : "mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6"}>
-          <div
-            role="tablist"
-            aria-label="Portal"
-            className={`flex items-end gap-0.5 border-b border-border/70 ${tab === "tasks" ? "shrink-0 px-4 sm:px-6" : "mb-4"}`}
-          >
-            <PortalTab id="tasks" current={tab} onSelect={setTab} icon={ListTodo} label="Our tasks" />
-            <PortalTab id="book" current={tab} onSelect={setTab} icon={ClipboardPen} label="Book a task" />
-          </div>
+        {page.data && (
+          <PortalActionsBar
+            boardId={page.data.board.id}
+            totals={page.data.totals}
+            booking={booking}
+            onBook={() => setBooking(true)}
+            onBackToTasks={() => {
+              setBooking(false);
+              void page.refetch();
+            }}
+          />
+        )}
 
-          {tab === "tasks" ? (
-            // The department's work, rendered by the board the workspace uses:
-            // the same toolbar, the same seven views, the same item panel.
-            <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
-              {page.data && <PortalTotalsBar totals={page.data.totals} />}
-              {page.data ? (
-                <PortalBoardScreen token={token} payload={page.data} />
-              ) : (
-                <div className="px-4 py-6 sm:px-6">
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="mt-3 h-64 w-full" />
-                </div>
-              )}
-            </div>
-          ) : (
+        {booking ? (
+          <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-5 sm:px-6">
             <PortalBooking
               credentials={credentials}
               departmentName={gate.data.departmentName}
               onView={(itemId) => {
                 void page.refetch();
-                setTab("tasks");
+                setBooking(false);
                 setOpenTask(itemId);
               }}
               onBackToTasks={() => {
-                setTab("tasks");
+                setBooking(false);
                 void page.refetch();
               }}
             />
-          )}
-        </div>
+          </div>
+        ) : page.data ? (
+          // The department's work, rendered by the board the workspace uses:
+          // the same views, the same cells, the same item panel.
+          <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
+            <PortalBoardScreen token={token} payload={page.data} />
+          </div>
+        ) : (
+          <div className="px-4 py-6 sm:px-6">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="mt-3 h-64 w-full" />
+          </div>
+        )}
       </PortalShell>
     </PortalThemeScope>
-  );
-}
-
-function PortalTab({
-  id,
-  current,
-  onSelect,
-  icon: Icon,
-  label,
-}: {
-  id: "tasks" | "book";
-  current: string;
-  onSelect: (id: "tasks" | "book") => void;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  const active = current === id;
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={() => onSelect(id)}
-      className={`relative -mb-px inline-flex h-11 items-center gap-1.5 rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12 ${
-        active ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground"
-      }`}
-      data-testid={`portal-tab-${id}`}
-    >
-      <Icon className="size-4" aria-hidden /> {label}
-    </button>
   );
 }
 
