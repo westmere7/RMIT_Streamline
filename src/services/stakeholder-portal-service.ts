@@ -18,6 +18,7 @@ import type {
   PortalTaskDetail,
   PortalTaskPage,
   PortalSubmission,
+  PortalBoardPayload,
   PortalTheme,
   StakeholderDepartment,
   TagOption,
@@ -35,6 +36,7 @@ import {
 import type { Repositories } from "@/data/repositories";
 import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-password";
 import { todayISO } from "@/lib/dates/dates";
+import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import {
   matchesPortalSearch,
   projectDeliverable,
@@ -148,6 +150,7 @@ export interface DepartmentOverview {
  */
 export interface PortalTransport {
   gate(token: string): Promise<PortalGate>;
+  board(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }>;
   tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string }): Promise<PortalTaskPage & { context: PortalContext }>;
   task(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail>;
   book(grant: PortalGrant, submissionKey: string, request: BookingRequest): Promise<BookingReceipt>;
@@ -189,6 +192,13 @@ export class StakeholderPortalService {
    */
   async publicGate(token: string): Promise<PortalGate> {
     return this.transport ? this.transport.gate(token) : this.gate(token);
+  }
+
+  async publicBoard(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }> {
+    if (this.transport) return this.transport.board(grant);
+    const resolved = await this.resolve(grant);
+    const [payload, context] = await Promise.all([this.board(resolved), this.context(resolved, grant.viewer ?? null)]);
+    return { ...payload, context };
   }
 
   async publicTasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string } = {}): Promise<PortalTaskPage & { context: PortalContext }> {
@@ -291,6 +301,48 @@ export class StakeholderPortalService {
         requestCount: (await this.scope(department, { labelled, items })).length,
       })),
     );
+  }
+
+  /**
+   * The department's requests, as a board.
+   *
+   * Same authorisation, same projection, same allowlist as `tasks` — this only
+   * arranges the result differently, so that the app's own views and item panel
+   * can render it. Nothing extra is read and nothing extra is published; see
+   * `buildPortalBoard` for what is deliberately left out.
+   */
+  async board(resolved: ResolvedPortal): Promise<PortalBoardPayload> {
+    const { entries, items: loaded } = await this.scopeWithItems(resolved.department);
+    const ctx = await this.projectionContext(resolved, entries, loaded);
+
+    const tasks: PortalBoardTask[] = [];
+    for (const entry of entries) {
+      const item = ctx.itemsById.get(entry.itemId);
+      if (!item) continue;
+      tasks.push({
+        task: projectTask(item, ctx.projection),
+        brief: entry.publicBrief,
+        deliverables: (ctx.projection.assetsByItem.get(entry.itemId) ?? []).map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
+        subitems: (ctx.projection.subitemsByParent.get(entry.itemId) ?? []).map((subitem) => projectSubitem(subitem, ctx.projection)),
+      });
+    }
+
+    const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
+    const payload = buildPortalBoard({
+      department: resolved.department,
+      tasks,
+      links: ctx.links,
+      // The team's own name for itself, which is what the header says.
+      workspaceName: workspace?.creativeTeamName?.trim() || workspace?.name || "",
+      now: new Date().toISOString(),
+    });
+    // Over the whole set, and computed here: which statuses mean done is a
+    // property of the boards, not something a visitor should have to infer.
+    const totals = summarise(
+      tasks.map((entry) => entry.task),
+      ctx.projection.today,
+    );
+    return { ...payload, totals, servedAt: new Date().toISOString() };
   }
 
   /** The portal for a department, made on first use. Created switched off. */
@@ -868,6 +920,7 @@ export class StakeholderPortalService {
       }
     }
 
+
     const usersById = new Map<string, User>(users.map((user) => [user.id, user]));
     const projection: ProjectionContext = {
       boards,
@@ -881,7 +934,7 @@ export class StakeholderPortalService {
       publishSourceName: true,
       today: todayISO(),
     };
-    return { itemsById, projection };
+    return { itemsById, projection, links };
   }
 
   /**

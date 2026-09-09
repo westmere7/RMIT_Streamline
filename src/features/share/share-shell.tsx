@@ -170,7 +170,7 @@ export function useLinksStayHere(): void {
       if (!href || href.startsWith("#")) return;
       const url = new URL(href, window.location.href);
       if (url.origin !== window.location.origin) return;
-      if (url.pathname.startsWith("/share/") || url.pathname.startsWith("/login")) return;
+      if (url.pathname.startsWith("/share/") || url.pathname.startsWith("/portal/") || url.pathname.startsWith("/login")) return;
       event.preventDefault();
       event.stopPropagation();
     };

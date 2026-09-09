@@ -1,4 +1,4 @@
-import type { BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalTaskDetail, PortalTaskPage } from "@/domain";
+import type { BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalTaskDetail, PortalTaskPage, PortalBoardPayload } from "@/domain";
 import type { PortalGrant, PortalTransport } from "@/services/stakeholder-portal-service";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -16,6 +16,10 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 export class HttpPortalTransport implements PortalTransport {
   async gate(token: string): Promise<PortalGate> {
     return call<PortalGate>(`/api/portal/${encodeURIComponent(token)}`, { method: "GET" });
+  }
+
+  async board(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }> {
+    return call(`/api/portal/${encodeURIComponent(grant.token)}/board`, { method: "POST", body: JSON.stringify(body(grant)) });
   }
 
   async tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string }): Promise<PortalTaskPage & { context: PortalContext }> {

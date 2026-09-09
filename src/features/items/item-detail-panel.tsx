@@ -241,10 +241,19 @@ function PanelHeader({
             </button>
           </SimpleTooltip>
         )}
-        <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-          <UserAvatar user={creator} size="xs" tooltip={false} />
-          Created by <Mention href={links.person(item.createdBy)} className="font-normal">{creator?.firstName ?? "someone"}</Mention> <RelativeTime iso={item.createdAt} />
-        </p>
+        {/* Only when there is somebody to name. A payload that deliberately
+            withholds the author — a stakeholder portal does — used to render
+            "Created by someone", which reads as a fault rather than a choice. */}
+        {creator ? (
+          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+            <UserAvatar user={creator} size="xs" tooltip={false} />
+            Created by <Mention href={links.person(item.createdBy)} className="font-normal">{creator.firstName}</Mention> <RelativeTime iso={item.createdAt} />
+          </p>
+        ) : (
+          <p className="text-2xs text-muted-foreground">
+            Created <RelativeTime iso={item.createdAt} />
+          </p>
+        )}
       </div>
       <AssetsRecapStrip assets={assets} />
       </div>

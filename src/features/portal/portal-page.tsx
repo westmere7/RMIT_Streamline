@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardPen, ListTodo, Lock, Search, X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { ClipboardPen, ListTodo, Lock } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,9 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBooking } from "@/features/portal/portal-booking";
+import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
-import { PortalTaskDetailPanel } from "@/features/portal/portal-task-detail";
-import { PortalTaskList } from "@/features/portal/portal-task-list";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { PortalTotalsBar } from "@/features/portal/portal-totals";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
 /** How often the list is refreshed while somebody is looking at it. */
@@ -37,10 +36,7 @@ export function PortalPage({ token }: { token: string }) {
   const services = useServices();
   const auth = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [password, setPassword] = React.useState<string | null>(null);
-  const [search, setSearch] = React.useState("");
-  const debouncedSearch = useDebouncedValue(search.trim(), 250);
 
   const gate = useQuery({
     queryKey: ["portal-gate", token],
@@ -57,8 +53,8 @@ export function PortalPage({ token }: { token: string }) {
   const credentials: PortalCredentials = { token, password, credentialVersion: gate.data?.credentialVersion, viewer };
 
   const page = useQuery({
-    queryKey: ["portal-tasks", token, gate.data?.credentialVersion, password, debouncedSearch],
-    queryFn: () => services.portals.publicTasks(credentials, { search: debouncedSearch || undefined }),
+    queryKey: ["portal-board", token, gate.data?.credentialVersion, password],
+    queryFn: () => services.portals.publicBoard(credentials),
     enabled: !!gate.data?.open && (!needsPassword || password !== null),
     retry: false,
     staleTime: PORTAL_REFRESH_MS,
@@ -72,8 +68,9 @@ export function PortalPage({ token }: { token: string }) {
   });
 
   // The open request lives in the URL, so Back, refresh and a pasted link all
-  // behave, and the list keeps its place behind the panel.
-  const openTaskId = searchParams.get("task");
+  // behave, and the board keeps its place behind the panel. The board screen
+  // reads the parameter for itself; this is here so booking can open what it
+  // just created.
   const setOpenTask = React.useCallback(
     (id: string | null) => {
       const next = new URLSearchParams(window.location.search);
@@ -145,7 +142,7 @@ export function PortalPage({ token }: { token: string }) {
 
   return (
     <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
-      <PortalShell>
+      <PortalShell fill={tab === "tasks"}>
         <PortalHeader
           token={token}
           departmentName={context?.departmentName ?? gate.data.departmentName}
@@ -155,57 +152,37 @@ export function PortalPage({ token }: { token: string }) {
           stale={page.isFetching}
         />
 
-        <div className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6">
-          <div role="tablist" aria-label="Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70">
+        <div className={tab === "tasks" ? "flex min-h-0 flex-1 flex-col" : "mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6"}>
+          <div
+            role="tablist"
+            aria-label="Portal"
+            className={`flex items-end gap-0.5 border-b border-border/70 ${tab === "tasks" ? "shrink-0 px-4 sm:px-6" : "mb-4"}`}
+          >
             <PortalTab id="tasks" current={tab} onSelect={setTab} icon={ListTodo} label="Our tasks" />
             <PortalTab id="book" current={tab} onSelect={setTab} icon={ClipboardPen} label="Book a task" />
           </div>
 
           {tab === "tasks" ? (
-            <>
-              <label className="relative mb-4 flex items-center">
-                <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
-                <span className="sr-only">Search this department&rsquo;s requests</span>
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by title or ID"
-                  className="h-11 pl-9 pr-10 text-base"
-                  data-testid="portal-search"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    aria-label="Clear search"
-                    onClick={() => setSearch("")}
-                    className="absolute right-1.5 flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent/70"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </label>
-
-              <PortalTaskList
-                page={page.data ?? null}
-                loading={page.isLoading}
-                searching={!!debouncedSearch}
-                onOpen={setOpenTask}
-                onLoadMore={
-                  page.data?.nextCursor
-                    ? async () => {
-                        const more = await services.portals.publicTasks(credentials, { cursor: page.data!.nextCursor, search: debouncedSearch || undefined });
-                        return more.tasks;
-                      }
-                    : null
-                }
-              />
-            </>
+            // The department's work, rendered by the board the workspace uses:
+            // the same toolbar, the same seven views, the same item panel.
+            <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
+              {page.data && <PortalTotalsBar totals={page.data.totals} />}
+              {page.data ? (
+                <PortalBoardScreen token={token} payload={page.data} />
+              ) : (
+                <div className="px-4 py-6 sm:px-6">
+                  <Skeleton className="h-9 w-full" />
+                  <Skeleton className="mt-3 h-64 w-full" />
+                </div>
+              )}
+            </div>
           ) : (
             <PortalBooking
               credentials={credentials}
               departmentName={gate.data.departmentName}
               onView={(itemId) => {
                 void page.refetch();
+                setTab("tasks");
                 setOpenTask(itemId);
               }}
               onBackToTasks={() => {
@@ -215,8 +192,6 @@ export function PortalPage({ token }: { token: string }) {
             />
           )}
         </div>
-
-        {openTaskId && <PortalTaskDetailPanel credentials={credentials} itemId={openTaskId} onClose={() => setOpenTask(null)} />}
       </PortalShell>
     </PortalThemeScope>
   );

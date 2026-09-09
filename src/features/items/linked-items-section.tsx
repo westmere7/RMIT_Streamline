@@ -58,7 +58,11 @@ export function LinkedItemsSection({ item }: { item: Item }) {
       {links.isLoading ? (
         <Skeleton className="h-12" />
       ) : views.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share.</p>
+        // What linking does is worth explaining to somebody who can do it. To a
+        // reader it is a description of a door they cannot open.
+        <p className="text-[13px] text-muted-foreground">
+          {canEdit ? "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share." : "Not linked to any other item."}
+        </p>
       ) : (
         <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
           {views.map((view) => (

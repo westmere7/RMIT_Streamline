@@ -15,8 +15,12 @@ import { cn } from "@/lib/utils";
  * invitation to try doors that are locked. What they get is the team's name,
  * their own department's, and the two things they came for.
  */
-export function PortalShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-dvh bg-canvas text-foreground">{children}</div>;
+export function PortalShell({ children, fill = false }: { children: React.ReactNode; fill?: boolean }) {
+  // A board owns its own scrolling — it has a sticky header row, a horizontal
+  // scrollport and a panel that has to sit beside them — so on that tab the
+  // shell is a column exactly one window tall. A form is happier scrolling with
+  // the page.
+  return <div className={cn("bg-canvas text-foreground", fill ? "flex h-dvh min-h-0 flex-col overflow-hidden" : "min-h-dvh")}>{children}</div>;
 }
 
 /**

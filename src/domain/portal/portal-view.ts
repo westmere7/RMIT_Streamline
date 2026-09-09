@@ -1,3 +1,4 @@
+import type { PublicBoardPayload } from "@/domain/board/board-share";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
 import type { PortalTheme } from "@/domain/portal/stakeholder-portal";
 
@@ -154,4 +155,18 @@ export interface PortalSearchResult {
   tasks: PortalTask[];
   /** How many matched in total, so "showing 20 of 64" is honest. */
   matched: number;
+}
+
+/**
+ * The department's requests arranged as a board.
+ *
+ * `PublicBoardPayload` is the shape the public board link already produces, so
+ * the portal reuses the whole read-only data layer and every view built on it.
+ * The totals ride along because they are computed over the full set on the
+ * server, where the rule about what counts as done lives.
+ */
+export interface PortalBoardPayload extends PublicBoardPayload {
+  totals: PortalTotals;
+  /** When the server assembled this. Shown so stale data is visible as stale. */
+  servedAt: string;
 }
