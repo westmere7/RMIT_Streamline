@@ -200,23 +200,73 @@ function PanelHeader({ item, onClose, canEdit, assets }: { item: Item; onClose: 
   );
 }
 
+/** Long enough to tell a double click from two single ones, short enough that a copy still feels immediate. */
+const REFERENCE_DOUBLE_CLICK_MS = 220;
+
 /**
  * The task's ID#.
  *
  * Booking hands it out, and the board shows it read-only, but a task that
  * arrived some other way needs a way to be given one — and a code typed wrongly
- * into an email needs a way to be put right. Seven characters, upper case, and
- * clicking it when it is not being edited copies it.
+ * into an email needs a way to be put right. Seven characters, upper case; one
+ * click copies it and two open it for editing.
  */
 function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolean; onSave: (reference: string | null) => void }) {
   const [editing, setEditing] = React.useState(false);
   const code = item.reference ?? null;
+  // The first click of a double click has to be held back, or opening the code
+  // for editing would copy it twice on the way through.
+  const pending = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (pending.current !== null) window.clearTimeout(pending.current);
+    },
+    [],
+  );
+
+  const click = () => {
+    if (!code) {
+      if (canEdit) setEditing(true);
+      return;
+    }
+    if (!canEdit) {
+      void copyToClipboard(code, `${code} copied`);
+      return;
+    }
+    if (pending.current !== null) return;
+    pending.current = window.setTimeout(() => {
+      pending.current = null;
+      void copyToClipboard(code, `${code} copied`);
+    }, REFERENCE_DOUBLE_CLICK_MS);
+  };
+
+  // Opening the code for editing takes the caret and selects what is there, so
+  // typing replaces the code rather than appending to it.
+  const input = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (!editing) return;
+    const frame = requestAnimationFrame(() => {
+      input.current?.focus();
+      input.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editing]);
+
+  const edit = () => {
+    if (!canEdit) return;
+    if (pending.current !== null) {
+      window.clearTimeout(pending.current);
+      pending.current = null;
+    }
+    setEditing(true);
+  };
 
   if (editing) {
     return (
       <span className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-accent-soft pl-2 text-accent-soft-foreground ring-2 ring-ring/30">
-        <span className="text-2xs font-medium opacity-70">ID#</span>
+        <span className="text-[10px] font-medium opacity-60">ID#</span>
         <input
+          ref={input}
           autoFocus
           defaultValue={code ?? ""}
           maxLength={ITEM_REFERENCE_MAX}
@@ -241,18 +291,20 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
   }
 
   return (
-    <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60 text-muted-foreground" data-testid="panel-reference-chip">
-      <span className="pl-1.5 text-2xs font-medium opacity-70">ID#</span>
+    // The chip is quiet beside the task's name, but inside it the code leads and
+    // the label only says what it is.
+    <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60" data-testid="panel-reference-chip">
+      <span className="pl-1.5 text-[10px] font-medium text-muted-foreground/70">ID#</span>
       <button
         type="button"
-        onClick={() => (code ? void copyToClipboard(code, `${code} copied`) : canEdit && setEditing(true))}
-        onDoubleClick={() => canEdit && setEditing(true)}
-        title={canEdit ? "Click to copy, double-click to edit" : "Booking code"}
+        onClick={click}
+        onDoubleClick={edit}
+        title={canEdit ? "Click to copy, double click to edit" : "Booking code"}
         data-testid="panel-reference"
         className={cn(
-          "h-full pr-1.5 pl-1 font-mono text-2xs font-medium tabular transition-colors hover:text-foreground",
+          "h-full pr-1.5 pl-1 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground",
           canEdit && "hover:bg-foreground/[0.06]",
-          !code && "pl-1.5 font-normal italic opacity-70",
+          !code && "pl-1.5 text-2xs font-normal text-muted-foreground italic",
         )}
       >
         {code ?? (canEdit ? "Add an ID" : "None")}
