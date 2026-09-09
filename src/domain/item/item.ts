@@ -47,6 +47,8 @@ export type ColumnValue =
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
   | { type: "TAGS"; tags: string[] }
+  /** Who the work is for. The name of one of the workspace's stakeholder groups (Settings → Lists). */
+  | { type: "STAKEHOLDER"; group: string | null }
   | { type: "SIZE"; size: TShirtSize | null }
   /** A cached summary of the item's asset lines (src/domain/item/item-asset.ts), rewritten whenever they change. */
   | { type: "ASSETS_RECAP"; lines: number; quantity: number; types: number; people: number; nextDue: ISODate | null; overdue: number }
@@ -86,6 +88,8 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, url: "", text: null };
     case "TAGS":
       return { type, tags: [] };
+    case "STAKEHOLDER":
+      return { type, group: null };
     case "SIZE":
       return { type, size: null };
     case "ASSETS_RECAP":
@@ -118,6 +122,8 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.url.trim() === "";
     case "TAGS":
       return value.tags.length === 0;
+    case "STAKEHOLDER":
+      return value.group === null;
     case "SIZE":
       return value.size === null;
     case "ASSETS_RECAP":

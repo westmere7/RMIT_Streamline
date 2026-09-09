@@ -17,6 +17,8 @@ import { columnAlign } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { useBoardAssets, useItemAssetProgress } from "@/features/items/asset-hooks";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,8 @@ export function CellRenderer(props: CellProps) {
       return <LinkCell {...props} />;
     case "TAGS":
       return <TagsCell {...props} />;
+    case "STAKEHOLDER":
+      return <StakeholderCell {...props} />;
     case "SIZE":
       return <SizeCell {...props} />;
     case "ASSETS_RECAP":
@@ -683,6 +687,85 @@ export function TagsCell({ item, column, value, onChange, readOnly, width }: Cel
           }}
           onEditTags={() => openEditLabels(column)}
         />
+      )}
+    </PopoverCell>
+  );
+}
+
+/**
+ * Who the work is for: one of the workspace's stakeholder groups (Settings →
+ * Lists), the same list on every board that asks.
+ *
+ * Deliberately unlike the other chips. A tag or a status is a filled pill; this
+ * is a small outline over a wash of the group's colour, with the colour again as
+ * a dot in front — a stakeholder is not a state of the work, it is who is
+ * waiting for it, so it reads as a name rather than as another badge.
+ */
+export function StakeholderCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const ws = useWorkspace();
+  const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
+  const v = valueOf("STAKEHOLDER", value);
+  const chosen = groups.find((g) => g.name.toLowerCase() === (v.group ?? "").toLowerCase());
+  return (
+    <PopoverCell
+      width={width ?? column.width}
+      disabled={readOnly}
+      align={columnAlign(column.type)}
+      ariaLabel={`${column.name}: ${v.group ?? "not set"} for ${item.name}`}
+      contentClassName="w-56 p-1"
+      trigger={
+        <span className="flex items-center gap-1.5 overflow-hidden px-1.5">
+          {v.group ? (
+            <span
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1 rounded border border-border/60 py-px pr-1.5 pl-1 text-[10px] font-medium tracking-wide uppercase",
+                colorClasses(chosen?.color ?? tagColorFor(v.group)).soft,
+              )}
+            >
+              <span className={cn("size-1 shrink-0 rounded-full", colorClasses(chosen?.color ?? tagColorFor(v.group)).dot)} />
+              <span className="truncate">{v.group}</span>
+            </span>
+          ) : null}
+        </span>
+      }
+    >
+      {(close) => (
+        <div role="listbox" aria-label={column.name}>
+          {groups.map((group) => {
+            const active = group.name.toLowerCase() === (v.group ?? "").toLowerCase();
+            return (
+              <button
+                key={group.name}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange({ type: "STAKEHOLDER", group: active ? null : group.name });
+                  close();
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent"
+                data-testid={`stakeholder-option-${group.name}`}
+              >
+                <span className={cn("size-2 shrink-0 rounded-full", colorClasses(group.color).dot)} />
+                <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                {active && <Check className="size-3.5 shrink-0" />}
+              </button>
+            );
+          })}
+          {groups.length === 0 && <p className="px-2 py-3 text-center text-2xs text-muted-foreground">No stakeholder groups yet. Add them in Settings → Lists.</p>}
+          {v.group && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange({ type: "STAKEHOLDER", group: null });
+                close();
+              }}
+              className="mt-1 flex w-full items-center gap-2 border-t border-border/60 px-2 py-1.5 text-left text-2xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       )}
     </PopoverCell>
   );

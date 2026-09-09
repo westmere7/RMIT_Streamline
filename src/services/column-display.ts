@@ -28,6 +28,8 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return value.url || null;
     case "TAGS":
       return value.tags.join(", ") || null;
+    case "STAKEHOLDER":
+      return value.group;
     case "SIZE":
       return value.size;
     case "ASSETS_RECAP":

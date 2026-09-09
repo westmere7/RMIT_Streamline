@@ -131,6 +131,8 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return value.text?.trim() || value.url.trim() || null;
     case "TAGS":
       return value.tags.length ? [...value.tags].sort((x, y) => x.localeCompare(y)).join(", ") : null;
+    case "STAKEHOLDER":
+      return value.group;
     case "SIZE":
       return value.size ? T_SHIRT_SIZES.indexOf(value.size) : null;
     case "ASSETS_RECAP":
