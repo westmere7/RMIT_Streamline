@@ -17,6 +17,15 @@ export interface BookingFormProps {
   form: BookingFormData;
   /** Pre-filled for a signed-in member; a stakeholder starts blank. */
   defaults?: Partial<Pick<BookingRequest, "requesterName" | "requesterEmail" | "department">>;
+  /**
+   * Standard questions this caller does not ask, whatever the template says.
+   *
+   * For context the caller already knows and the server decides for itself. The
+   * portal omits "department": it comes from the link, is overwritten on the
+   * server, and a box for it invited a stakeholder to type an answer that was
+   * then thrown away. An omitted key is not rendered and travels as empty.
+   */
+  omit?: readonly BookingStandardKey[];
   onSubmit: (request: BookingRequest) => Promise<BookingReceipt>;
   /** Where the booked item can be opened, for people who may see its board. Null hides the link. */
   itemHref?: (receipt: BookingReceipt) => string | null;
@@ -34,7 +43,7 @@ export interface BookingFormProps {
  * onto one of its boards, that board's simple extra columns appear under the
  * team question, so nothing the team needs is missing on arrival.
  */
-export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: BookingFormProps) {
+export function BookingForm({ form, defaults, omit, onSubmit, itemHref, onBooked }: BookingFormProps) {
   const template = form.template;
   const [draft, setDraft] = React.useState<BookingDraft>(() => emptyDraft(defaults));
   // The booking's reference, settled before it is sent: the id the item will be
@@ -50,7 +59,8 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
   const patch = (p: Partial<BookingDraft>) => setDraft((prev) => ({ ...prev, ...p }));
 
   const team = form.teams.find((t) => t.id === draft.teamId) ?? null;
-  const asks = (key: BookingStandardKey) => standardFieldFor(template, key) !== null;
+  const omitted = React.useMemo(() => new Set<BookingStandardKey>(omit ?? []), [omit]);
+  const asks = (key: BookingStandardKey) => !omitted.has(key) && standardFieldFor(template, key) !== null;
 
   /** The draft as a request: only what the form asks travels. */
   const buildRequest = (): BookingRequest => ({
@@ -192,17 +202,22 @@ export function BookingForm({ form, defaults, onSubmit, itemHref, onBooked }: Bo
     return <StandardField field={field} form={form} draft={draft} onChange={patch} error={errors[field.id]} teamExtras={teamExtras} />;
   };
 
-  const sections = template.sections.map((section) => (
-    <Section key={section.id} title={section.title} hint={section.hint}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {section.fields.map((field) => (
-          <div key={field.id} className={cn("min-w-0", field.width === "full" && "sm:col-span-2")}>
-            {renderField(field)}
-          </div>
-        ))}
-      </div>
-    </Section>
-  ));
+  // A section left with nothing to ask is not rendered: omitting the only
+  // question in "About you" must not leave its heading standing alone.
+  const sections = template.sections
+    .map((section) => ({ section, fields: section.fields.filter((field) => !(field.kind === "standard" && omitted.has(field.key))) }))
+    .filter(({ fields }) => fields.length > 0)
+    .map(({ section, fields }) => (
+      <Section key={section.id} title={section.title} hint={section.hint}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {fields.map((field) => (
+            <div key={field.id} className={cn("min-w-0", field.width === "full" && "sm:col-span-2")}>
+              {renderField(field)}
+            </div>
+          ))}
+        </div>
+      </Section>
+    ));
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit} noValidate data-testid="booking-form">

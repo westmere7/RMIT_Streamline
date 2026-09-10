@@ -122,15 +122,21 @@ function plural(n: number, word: string): string {
 }
 
 /**
- * The cell text: "14 assets · 3 types · 2 PIC". Short by design — the panel
- * has the full list. Empty when there is nothing to say.
+ * The cell text: "3 assets ×24 · 2 PIC". Short by design — the panel has the
+ * full list. Empty when there is nothing to say.
+ *
+ * The count is the number of deliverable *lines*, not the number of copies
+ * ordered. Those are different numbers — one poster ×25 is one thing to make
+ * — and counting copies here said "25 assets" for a request whose receipt said
+ * "1 asset" and whose subitem list said "1 item". The multiplier is shown next
+ * to it when it adds anything, so the quantity is still on the board.
  */
 export function formatAssetsRecap(recap: Pick<AssetsRecap, "lines" | "quantity"> & { types: number | string[]; people: number | EntityId[] }): string {
   if (recap.lines === 0) return "";
   // How much there is and how many people are on it. The types are in the value
   // for sorting and export, but a cell this narrow reads better without them.
   const people = Array.isArray(recap.people) ? recap.people.length : recap.people;
-  return `${plural(recap.quantity, "asset")} · ${people} PIC`;
+  return `${plural(recap.lines, "asset")}${recap.quantity > recap.lines ? ` ×${recap.quantity}` : ""} · ${people} PIC`;
 }
 
 /** The value stored in an "Assets recap" column, so the board can sort, filter and export it. */

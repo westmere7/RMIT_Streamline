@@ -60,7 +60,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const workspace = new WorkspaceService(repos);
   const items = new ItemService(repos, links, notifications);
   const assets = new ItemAssetService(repos);
-  const booking = new BookingService(repos, workspace, items, links, assets, notifications, options.bookingTransport ?? null);
+  const booking = new BookingService(repos, workspace, items, assets, notifications, options.bookingTransport ?? null);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   return {
     repos,
@@ -97,7 +97,7 @@ export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service
 export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
-export { PortalAccessError, portalAccessMessage } from "./stakeholder-portal-service";
+export { PortalAccessError, portalAccessMessage, PortalSubmissionError } from "./stakeholder-portal-service";
 export type { DepartmentOverview, PortalGrant, PortalTransport, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";

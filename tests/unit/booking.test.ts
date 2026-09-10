@@ -288,35 +288,47 @@ describe("booking a task", () => {
     if (!plan.requesterEmail) expect(item.description).toContain("priya@rmit.edu.au");
   });
 
-  it("lets a manager allocate a request to a team board as a linked item", async () => {
+  it("moves an allocated request onto the team board rather than copying it", async () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
     const target = boards.find((b) => b.slug === "rmitinerary-2026")!;
-    const { item, created, board } = await services.booking.allocate(receipt.itemId, target.id, owner);
-    expect(board.id).toBe(target.id);
-    expect(created.boardId).toBe(target.id);
-    expect(created.name).toBe("Open Day wayfinding posters");
-    expect(created.description).toContain(request().brief);
-    const links = await services.repos.links.listByItem(receipt.itemId);
-    expect(links).toHaveLength(1);
-    // The asset subitems came along.
-    const copies = (await services.repos.items.listByBoard(target.id)).filter((i) => i.parentItemId === created.id);
-    expect(copies.map((i) => i.name).sort()).toEqual(["A1 poster ×6", "Instagram tile"]);
-
     const allocation = boards.find((b) => b.system === "TASK_ALLOCATION")!;
-    const groups = await services.repos.boards.listGroups(allocation.id);
-    expect(groups.find((g) => g.id === item.groupId)?.name).toBe("Allocated");
-    // …and its asset subitems moved with it rather than staying behind in Incoming.
-    const ownSubitems = (await services.repos.items.listByBoard(allocation.id)).filter((i) => i.parentItemId === item.id);
-    expect(ownSubitems).toHaveLength(2);
-    expect(ownSubitems.every((s) => s.groupId === item.groupId)).toBe(true);
-    const columns = await services.repos.boards.listColumns(allocation.id);
-    const allocatedTo = columns.find((c) => c.name === "Allocated to")!;
+
+    const { item, board } = await services.booking.allocate(receipt.itemId, target.id, owner);
+    expect(board.id).toBe(target.id);
+    // The same row, on the new board: the id is what provenance and links hold.
+    expect(item.id).toBe(receipt.itemId);
+    expect(item.boardId).toBe(target.id);
+    expect(item.name).toBe("Open Day wayfinding posters");
+    expect(item.description).toContain(request().brief);
+
+    // Nothing was copied and nothing was linked.
+    expect(await services.repos.links.listByItem(receipt.itemId)).toHaveLength(0);
+    const onTarget = await services.repos.items.listByBoard(target.id);
+    expect(onTarget.filter((i) => i.name === "Open Day wayfinding posters")).toHaveLength(1);
+
+    // The request has left the queue, with its asset subitems.
+    const onAllocation = await services.repos.items.listByBoard(allocation.id);
+    expect(onAllocation.some((i) => i.id === receipt.itemId)).toBe(false);
+    expect(onAllocation.some((i) => i.parentItemId === receipt.itemId)).toBe(false);
+    const subitems = onTarget.filter((i) => i.parentItemId === item.id);
+    expect(subitems.map((i) => i.name).sort()).toEqual(["A1 poster ×6", "Instagram tile"]);
+    expect(subitems.every((s) => s.boardId === target.id && s.groupId === item.groupId)).toBe(true);
+
+    // The deliverables came too, and answer to the board they landed on.
+    const assets = await services.repos.itemAssets.listByItem(item.id);
+    expect(assets).toHaveLength(2);
+    expect(assets.every((a) => a.boardId === target.id)).toBe(true);
+
+    // Values that had a column on the new board were translated across; the
+    // ones that had none did not survive as cells pointing at the old board.
     const values = await services.repos.items.listValuesByItem(item.id);
-    expect(values.find((v) => v.columnId === allocatedTo.id)?.value).toEqual({ type: "TEXT", text: target.name });
+    const targetColumnIds = new Set((await services.repos.boards.listColumns(target.id)).map((c) => c.id));
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.every((v) => targetColumnIds.has(v.columnId))).toBe(true);
 
     // Only requests on Task Allocation can be allocated, and only onto ordinary boards.
-    await expect(services.booking.allocate(created.id, allocation.id, owner)).rejects.toThrow(/Task Allocation/);
+    await expect(services.booking.allocate(item.id, allocation.id, owner)).rejects.toThrow(/Task Allocation/);
   });
 });
 

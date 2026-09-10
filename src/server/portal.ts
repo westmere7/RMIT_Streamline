@@ -3,7 +3,7 @@ import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServices, type Services } from "@/services";
-import { PortalAccessError, type PortalViewer, type ResolvedPortal } from "@/services/stakeholder-portal-service";
+import { PortalAccessError, PortalSubmissionError, type PortalViewer, type ResolvedPortal } from "@/services/stakeholder-portal-service";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
 
@@ -121,8 +121,15 @@ export function portalErrorStatus(error: PortalAccessError): number {
   return error.reason === "password" ? 401 : 404;
 }
 
-/** Turns a PortalAccessError thrown deeper in a call into its HTTP shape. */
+/**
+ * Turns an error thrown deeper in a call into its HTTP shape.
+ *
+ * A submission conflict is a 409: the server refused on purpose, and the
+ * message says what to do about it. Left to bubble it became a 500 with a
+ * generic body, which reads as a fault in the server rather than an answer.
+ */
 export function asPortalHttpError(error: unknown): never {
   if (error instanceof PortalAccessError) throw new HttpError(portalErrorStatus(error), error.message);
+  if (error instanceof PortalSubmissionError) throw new HttpError(409, error.message);
   throw error;
 }

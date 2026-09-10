@@ -74,6 +74,35 @@ export class LocalItemRepository implements ItemRepository {
     return results;
   }
 
+  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
+    const db = await this.conn.getDb();
+    const item = await db.get("items", itemId);
+    if (!item) throw new NotFoundError("Item", itemId);
+    const subitems = await db.getAllFromIndex("items", "byParent", itemId);
+    const moving = [item, ...subitems];
+    const now = nowIso();
+
+    // Values whose column belongs to the board being left. A value is keyed by
+    // a column, and the new board does not have that column.
+    const keep = new Set(await db.getAllKeysFromIndex("boardColumns", "byBoard", input.boardId));
+    for (const moved of moving) {
+      for (const value of await db.getAllFromIndex("itemColumnValues", "byItem", moved.id)) {
+        if (!keep.has(value.columnId)) await db.delete("itemColumnValues", value.id);
+      }
+      // The deliverables' denormalised board, so the new board finds them.
+      for (const asset of await db.getAllFromIndex("itemAssets", "byItem", moved.id)) {
+        await db.put("itemAssets", { ...asset, boardId: input.boardId, updatedAt: now });
+      }
+    }
+
+    for (const sub of subitems) {
+      await db.put("items", { ...sub, boardId: input.boardId, groupId: input.groupId, updatedAt: now });
+    }
+    const moved: Item = { ...item, boardId: input.boardId, groupId: input.groupId, position: input.position, updatedAt: now };
+    await db.put("items", moved);
+    return moved;
+  }
+
   async deleteMany(ids: string[]): Promise<void> {
     const db = await this.conn.getDb();
     await deleteItemsCascade(db, ids);

@@ -1,4 +1,4 @@
-import { admitPortal, portalBookSchema, portalGrantSchema, portalServices, portalViewer } from "@/server/portal";
+import { admitPortal, asPortalHttpError, portalBookSchema, portalGrantSchema, portalServices, portalViewer } from "@/server/portal";
 import { handleRoute, json, readJson } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +20,19 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
   // A member who happens to be signed in is recorded as the author; a
   // stakeholder is not, and neither can choose who they are.
   const viewer = await portalViewer(request, resolved.workspaceId);
-  const receipt = await services.portals.book(resolved, {
-    submissionKey: body.submissionKey,
-    request: body.request,
-    booking: services.booking,
-    memberId: viewer?.isWorkspaceMember ? viewer.userId : null,
-  });
-  return json(receipt);
+  try {
+    const receipt = await services.portals.book(resolved, {
+      submissionKey: body.submissionKey,
+      request: body.request,
+      booking: services.booking,
+      memberId: viewer?.isWorkspaceMember ? viewer.userId : null,
+    });
+    return json(receipt);
+  } catch (error) {
+    // A key reused for different content, or one still being written, is a
+    // conflict the caller can act on — not a server fault.
+    asPortalHttpError(error);
+  }
 });
 
 /**

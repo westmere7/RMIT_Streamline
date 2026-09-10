@@ -36,8 +36,11 @@ describe("asset recap maths", () => {
     expect(recap.doneQuantity).toBe(3);
     expect(recap.nextDue).toBe("2026-09-07");
     expect(recap.overdue).toBe(1);
-    expect(formatAssetsRecap({ lines: recap.lines, quantity: recap.quantity, types: recap.types, people: recap.assigneeIds })).toBe("12 assets · 2 PIC");
+    // The count is the deliverable lines; the copies ordered ride alongside as
+    // a multiplier, so this never disagrees with "N of M done".
+    expect(formatAssetsRecap({ lines: recap.lines, quantity: recap.quantity, types: recap.types, people: recap.assigneeIds })).toBe(`${recap.lines} assets ×12 · 2 PIC`);
     expect(formatAssetsRecap({ lines: 1, quantity: 1, types: 0, people: 0 })).toBe("1 asset · 0 PIC");
+    expect(formatAssetsRecap({ lines: 1, quantity: 25, types: 0, people: 0 })).toBe("1 asset ×25 · 0 PIC");
     expect(formatAssetsRecap({ lines: 0, quantity: 0, types: 0, people: 0 })).toBe("");
     expect(countByType([{ quantity: 2, assetType: "Print" }, { quantity: 1, assetType: "Print" }, { quantity: null, assetType: null }])).toEqual([
       { type: "Print", quantity: 3, lines: 2 },
@@ -53,7 +56,7 @@ describe("asset recap maths", () => {
     const column: BoardColumn = { id: "c", boardId: "b", name: "Assets recap", type: "ASSETS_RECAP", settings: { kind: "none" }, position: 0, width: 200, hidden: false, createdAt: "" };
     const value = recapColumnValue(recapAssets([{ quantity: 4, assetType: "Print", assigneeIds: ["u1"], dueDate: null, completedAt: null }], TODAY));
     expect(isEmptyValue(value)).toBe(false);
-    expect(displayValue(column, value, [])).toBe("4 assets · 1 PIC");
+    expect(displayValue(column, value, [])).toBe("1 asset ×4 · 1 PIC");
     expect(displayValue(column, empty, [])).toBeNull();
 
     // Sorts by how much is being produced, blanks last.
@@ -161,11 +164,14 @@ describe("asset lines on an item", () => {
     const stored = (await repos.items.listValuesByItem(receipt.itemId)).find((v) => v.columnId === recap.id)?.value;
     expect(stored).toMatchObject({ lines: 2, quantity: 7, types: 1 });
 
+    // Allocating moves the request, so its deliverables move with it rather
+    // than being copied onto a second item.
     const boards = await repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
     const target = boards.find((b) => b.slug === "rmitinerary-2026")!;
-    const { created } = await services.booking.allocate(receipt.itemId, target.id, owner);
-    const copied = await services.assets.list(created.id);
-    expect(copied.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
-    expect(copied.every((l) => l.boardId === target.id)).toBe(true);
+    const { item: moved } = await services.booking.allocate(receipt.itemId, target.id, owner);
+    expect(moved.id).toBe(receipt.itemId);
+    const travelled = await services.assets.list(receipt.itemId);
+    expect(travelled.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
+    expect(travelled.every((l) => l.boardId === target.id)).toBe(true);
   });
 });

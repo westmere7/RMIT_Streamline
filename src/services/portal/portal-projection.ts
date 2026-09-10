@@ -127,6 +127,22 @@ export function projectPeople(columns: readonly BoardColumn[], values: Map<strin
   return people;
 }
 
+/**
+ * The asset types the request itself named, from the board's own tag column.
+ *
+ * These are the requester's answer to "what kind of thing is this?" and belong
+ * to the task, not to any one deliverable. A deliverable only carries a type
+ * when the request named exactly one — with two there is no way to know which
+ * line is which — so reading kinds off the deliverables alone reported nothing
+ * for every request that picked more than one.
+ */
+export function projectAssetTypes(columns: readonly BoardColumn[], values: Map<string, ColumnValue> | undefined): string[] {
+  const column = columns.filter((c) => c.type === "TAGS").sort((a, b) => a.position - b.position).find((c) => c.name.toLowerCase().includes("asset"));
+  const value = column ? values?.get(column.id) : undefined;
+  if (value?.type !== "TAGS") return [];
+  return [...new Set(value.tags.map((tag) => tag.trim()).filter(Boolean))];
+}
+
 export function projectDeliverable(asset: ItemAsset, usersById: Map<string, User>): PortalDeliverable {
   return {
     id: asset.id,
@@ -166,6 +182,7 @@ export function projectTask(item: Item, ctx: ProjectionContext): PortalTask {
     timeline,
     people: projectPeople(columns, values, ctx.usersById),
     sourceName: ctx.publishSourceName ? (board?.board.name ?? null) : null,
+    assetTypes: projectAssetTypes(columns, values),
     deliverables: { total: assets.length, done: assets.filter((a) => a.completedAt !== null).length },
     subitems: { total: subitems.length, done: subitems.filter((s) => projectSubitem(s, ctx).done).length },
     linkedCount: ctx.linkCountByItem.get(item.id) ?? 0,

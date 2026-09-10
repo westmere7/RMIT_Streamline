@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BookingRequest, StakeholderDepartment } from "@/domain";
-import { createServices, type Services } from "@/services";
+import { createServices, PortalSubmissionError, type Services } from "@/services";
 import type { ResolvedPortal } from "@/services";
 
 let counter = 0;
@@ -148,6 +148,17 @@ describe("booking through a portal", () => {
     await book("key-reuse-0001");
     await expect(book("key-reuse-0001", { title: "Something else entirely" })).rejects.toThrow(/already been used/i);
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(1);
+  });
+
+  it("refuses a reused key as a conflict, not as a fault in the server", async () => {
+    await book("key-reuse-0002");
+    // The refusal is deliberate, so it has to be able to say so: thrown as a
+    // plain Error it reached the caller as a 500 and "something went wrong on
+    // the server", which told a stakeholder nothing they could act on.
+    const refusal = await book("key-reuse-0002", { title: "A different request" }).catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(PortalSubmissionError);
+    expect((refusal as PortalSubmissionError).reason).toBe("reused");
+    expect((refusal as Error).message).toMatch(/reload the form/i);
   });
 
   it("survives two taps at once with one task and one receipt", async () => {

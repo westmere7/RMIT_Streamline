@@ -70,6 +70,8 @@ export interface DepartmentPortal extends Timestamps {
   hiddenColumns: PortalColumnKey[];
   /** Which view the link opens on. */
   defaultView: PortalView;
+  /** What the board's groups are: the board each request is run on, or its status. */
+  grouping: PortalGrouping;
   /** Whether this link takes new requests. Off makes the portal read-only. */
   allowBooking: boolean;
   /** Whether the figures appear in the header. */
@@ -101,6 +103,26 @@ export const PORTAL_COLUMN_LABELS: Record<PortalColumnKey, string> = {
 export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
 export type PortalView = (typeof PORTAL_VIEWS)[number];
 
+/**
+ * How a department's board is divided into groups.
+ *
+ * "board" keeps the original arrangement: one group per board the department's
+ * work is being run on, which answers "who has this". "status" groups by the
+ * reconciled status label instead, which answers "where is it up to" — the
+ * question a stakeholder usually opens the link with, and the one arrangement
+ * the portal could not offer while the groups were always the source boards.
+ *
+ * Reconciled, not per board: the labels are the ones `buildPortalBoard` already
+ * merges across boards, so two boards that both call something "In Progress"
+ * make one group rather than two that happen to share a name.
+ */
+export const PORTAL_GROUPINGS = ["board", "status"] as const;
+export type PortalGrouping = (typeof PORTAL_GROUPINGS)[number];
+
+export function isPortalGrouping(value: unknown): value is PortalGrouping {
+  return typeof value === "string" && (PORTAL_GROUPINGS as readonly string[]).includes(value);
+}
+
 /** A description is a line under a heading, not a page. */
 export const MAX_PORTAL_DESCRIPTION = 280;
 
@@ -113,7 +135,7 @@ export function isPortalView(value: unknown): value is PortalView {
 }
 
 /** What an administrator may change about how a portal presents itself. */
-export type PortalPresentation = Partial<Pick<DepartmentPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "defaultTheme">>;
+export type PortalPresentation = Partial<Pick<DepartmentPortal, "description" | "hiddenColumns" | "defaultView" | "grouping" | "allowBooking" | "showRecap" | "defaultTheme">>;
 
 export type DepartmentPortalInput = Pick<DepartmentPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
 

@@ -30,6 +30,7 @@ import {
   generatePortalToken,
   isPlausiblePortalToken,
   isPortalColumnKey,
+  isPortalGrouping,
   isPortalView,
   MAX_PORTAL_DESCRIPTION,
   MAX_PUBLIC_BRIEF,
@@ -66,6 +67,26 @@ export class PortalAccessError extends Error {
   ) {
     super(message);
     this.name = "PortalAccessError";
+  }
+}
+
+/**
+ * A submission key that cannot be honoured as sent.
+ *
+ * Both cases are conflicts over one key rather than anything wrong with the
+ * request, so they carry a reason the HTTP layer turns into a 409. Thrown as a
+ * plain Error, these read as an unhandled fault: the caller got a 500 and
+ * "something went wrong on the server" for a refusal the server made on
+ * purpose, and the form could not tell them what to do about it.
+ */
+export class PortalSubmissionError extends Error {
+  constructor(
+    /** `reused` is a different booking wearing an old key; `pending` is one still being written. */
+    readonly reason: "reused" | "pending",
+    message: string,
+  ) {
+    super(message);
+    this.name = "PortalSubmissionError";
   }
 }
 
@@ -332,6 +353,7 @@ export class StakeholderPortalService {
     const payload = buildPortalBoard({
       department: resolved.department,
       hiddenColumns: resolved.portal.hiddenColumns,
+      grouping: resolved.portal.grouping,
       tasks,
       links: ctx.links,
       comments: ctx.comments,
@@ -345,7 +367,7 @@ export class StakeholderPortalService {
     });
     // Over the whole set, and computed here: which statuses mean done is a
     // property of the boards, not something a visitor should have to infer.
-    const types = new Set(tasks.flatMap((entry) => entry.deliverables.map((d) => d.assetType).filter(Boolean)));
+    const types = new Set(tasks.flatMap((entry) => [...entry.task.assetTypes, ...entry.deliverables.map((d) => d.assetType)]).filter(Boolean));
     const totals = summarise(
       tasks.map((entry) => entry.task),
       ctx.projection.today,
@@ -388,6 +410,7 @@ export class StakeholderPortalService {
     }
     if (patch.hiddenColumns !== undefined) cleaned.hiddenColumns = [...new Set(patch.hiddenColumns.filter(isPortalColumnKey))];
     if (patch.defaultView !== undefined && !isPortalView(patch.defaultView)) delete cleaned.defaultView;
+    if (patch.grouping !== undefined && !isPortalGrouping(patch.grouping)) delete cleaned.grouping;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
 
@@ -735,12 +758,12 @@ export class StakeholderPortalService {
    */
   private replay(submission: PortalSubmission, requestHash: string): BookingReceipt {
     if (submission.requestHash !== requestHash) {
-      throw new Error("That submission key has already been used for a different booking. Reload the form and try again.");
+      throw new PortalSubmissionError("reused", "That submission key has already been used for a different booking. Reload the form and try again.");
     }
     if (!submission.receipt) {
       // Claimed but never completed: an attempt is in flight, or one died
       // mid-way. Either way this caller must not start a second booking.
-      throw new Error("That booking is still being recorded. Give it a moment and check your requests before sending it again.");
+      throw new PortalSubmissionError("pending", "That booking is still being recorded. Give it a moment and check your requests before sending it again.");
     }
     return submission.receipt as BookingReceipt;
   }

@@ -191,8 +191,15 @@ describe("what a department's portal is allowed to see", () => {
 
     // Labelled elsewhere, it goes there — the cell is the team's own statement
     // about who the work is for, and it outranks where the form was filled in.
+    //
+    // The cell to edit is the one on the request's own board. A portal booking
+    // fills in the receiving board's STAKEHOLDER column itself, so relabelling
+    // means overwriting that value; writing to some other board's column would
+    // leave the original standing and the request would answer to both.
     const booked = (await services.repos.items.getById(receipt.itemId))!;
-    await label(booked, "Event");
+    const ownColumn = (await services.repos.boards.listColumns(booked.boardId)).find((c) => c.type === "STAKEHOLDER")!;
+    expect(ownColumn).toBeDefined();
+    await services.repos.items.setValue(booked.id, ownColumn.id, { type: "STAKEHOLDER", group: "Event" });
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
     const eventPortal = await open(event);
     expect((await services.portals.tasks(eventPortal)).tasks.map((t) => t.id)).toEqual([receipt.itemId]);

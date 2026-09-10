@@ -66,13 +66,20 @@ export function PortalBooking({
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="portal-book">
       <p className="mb-4 text-[13px] text-muted-foreground">
-        Booking as <strong className="font-semibold text-foreground">{departmentName}</strong>. Your request appears under Our tasks as soon as it is in.
+        {/* A department whose name already ends in a full stop ("Comm.") must
+            not get a second one. The sentence break belongs to the sentence,
+            not to the name. */}
+        Booking as <strong className="font-semibold text-foreground">{departmentName}</strong>
+        {departmentName.trim().endsWith(".") ? "" : "."} Your request appears under Our tasks as soon as it is in.
       </p>
       <BookingForm
         form={form.data}
         // The department is context, not an answer: the server takes it from
-        // the link either way, and offering a box would imply otherwise.
+        // the link either way, and offering a box would imply otherwise. The
+        // default is still set, so a template that shows the department
+        // somewhere other than a question has the right value to show.
         defaults={{ department: departmentName }}
+        omit={["department"]}
         onSubmit={(request) => services.portals.publicBook(credentials, submissionKey, request, services.booking)}
         // Nothing here links into the application: a stakeholder has no account
         // and the board is not theirs to open.

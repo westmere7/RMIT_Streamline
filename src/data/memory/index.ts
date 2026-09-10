@@ -109,6 +109,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       create: readOnly("adding an item"),
       update: readOnly("editing an item"),
       updateMany: readOnly("editing items"),
+      moveToBoard: readOnly("moving an item to another board"),
       deleteMany: readOnly("deleting items"),
       listValuesByBoard: async (boardId) => values(boardId),
       listValuesByItem: async (itemId) => payload().values.filter((v) => v.itemId === itemId),

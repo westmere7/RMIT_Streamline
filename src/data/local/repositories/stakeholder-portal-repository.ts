@@ -84,6 +84,7 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
       description: null,
       hiddenColumns: [],
       defaultView: "table",
+      grouping: "board",
       allowBooking: true,
       showRecap: true,
       createdAt: now,
@@ -94,7 +95,7 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
     return row;
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "grouping" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
     const db = await this.conn.getDb();
     const existing = await db.get("departmentPortals", id);
     if (!existing) throw new NotFoundError("Portal", id);

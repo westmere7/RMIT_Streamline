@@ -20,12 +20,16 @@ import { cn } from "@/lib/utils";
 
 /**
  * On the Task Allocation board only: the manager's control for placing a
- * request with a team. Allocating creates a linked item on the chosen board,
- * filled from the request, so progress there shows here (and to the
- * stakeholder) without anyone copying anything by hand.
+ * request with a team.
+ *
+ * Allocating moves the request onto the chosen board. Nothing is copied and
+ * nothing is linked, so there is one task from here on — the one the team
+ * works on is the one the stakeholder booked, and it carries its own progress
+ * to the portal without anything being kept in step. The request leaves this
+ * queue, so the panel closes behind it.
  */
 export function AllocationSection({ item }: { item: Item }) {
-  const { board, model, canEdit } = useBoardContext();
+  const { board, canEdit, openItem } = useBoardContext();
   const ws = useWorkspace();
   const user = useCurrentUser();
   const services = useServices();
@@ -34,23 +38,21 @@ export function AllocationSection({ item }: { item: Item }) {
   const allocate = useMutation({
     mutationFn: () => services.booking.allocate(item.id, targetId, user.id),
     onSuccess: async ({ board: target }) => {
+      // The item is no longer on this board, so the panel showing it has
+      // nothing left to show.
+      openItem(null);
       publishDataChange({ kinds: ["items", "links", "board"] });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(board.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(target.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.itemLinks(item.id) }),
       ]);
-      toast.success(`Allocated to ${target.name}`, { description: "The two items stay in sync from here." });
+      toast.success(`Moved to ${target.name}`, { description: "It has left the allocation queue." });
       setTargetId("");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not allocate the request"),
   });
 
   if (board.system !== "TASK_ALLOCATION" || item.parentItemId !== null) return null;
-
-  const allocatedColumn = model.columns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"));
-  const allocatedValue = allocatedColumn ? model.getValue(item.id, allocatedColumn.id) : undefined;
-  const allocatedTo = allocatedValue?.type === "TEXT" && allocatedValue.text.trim() ? allocatedValue.text.trim() : null;
 
   const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
   const teams = ws.teams.filter((t) => t.archivedAt === null && !t.system).sort(byName);
@@ -64,13 +66,7 @@ export function AllocationSection({ item }: { item: Item }) {
       <h3 className="mb-1.5 label-quiet">Allocation</h3>
       <div className="space-y-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs">
         <p className="text-[13px] text-muted-foreground" data-testid="allocation-status">
-          {allocatedTo ? (
-            <>
-              Allocated to <span className="font-medium text-foreground">{allocatedTo}</span>. Progress there shows on this row.
-            </>
-          ) : (
-            "Not placed with a team yet. Pick the board that should do the work; a linked item is created there."
-          )}
+          Pick the board that should do the work. The request moves there.
         </p>
         {canEdit && (
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -104,7 +100,7 @@ export function AllocationSection({ item }: { item: Item }) {
               </SelectContent>
             </Select>
             <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate()} data-testid="allocation-submit">
-              {allocate.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} {allocatedTo ? "Allocate again" : "Allocate"}
+              {allocate.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} Allocate
             </Button>
           </div>
         )}

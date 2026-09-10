@@ -79,6 +79,42 @@ export class SupabaseItemRepository implements ItemRepository {
     return updated;
   }
 
+  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
+    // Subitems come along: they are part of the task, and a subitem left on the
+    // old board would be an orphan row its parent no longer lists.
+    const subitems = await db().from("items").select("id").eq("parent_item_id", itemId);
+    const moving = [itemId, ...unwrapList<{ id: string }>(subitems, "items.moveToBoard.subitems").map((row) => row.id)];
+
+    // Values keyed by a column of the board being left. Read the destination's
+    // columns and delete every value whose column is not among them, rather
+    // than deleting all of them: a board may legitimately share a column id
+    // with itself when the move is a no-op.
+    const destColumns = await db().from("board_columns").select("id").eq("board_id", input.boardId);
+    const keep = new Set(unwrapList<{ id: string }>(destColumns, "items.moveToBoard.columns").map((c) => c.id));
+    for (const part of chunk(moving)) {
+      const existing = await db().from("item_column_values").select("id, column_id").in("item_id", part);
+      const stale = unwrapList<{ id: string; column_id: string }>(existing, "items.moveToBoard.values")
+        .filter((row) => !keep.has(row.column_id))
+        .map((row) => row.id);
+      for (const ids of chunk(stale)) {
+        if (ids.length) assertOk(await db().from("item_column_values").delete().in("id", ids), "items.moveToBoard.deleteValues");
+      }
+    }
+
+    // The deliverables' denormalised board, so the new board's asset reads find
+    // them and the old board's stop counting them.
+    for (const part of chunk(moving)) {
+      assertOk(await db().from("item_assets").update({ board_id: input.boardId }).in("item_id", part), "items.moveToBoard.assets");
+    }
+
+    const subitemIds = moving.slice(1);
+    for (const part of chunk(subitemIds)) {
+      if (part.length) assertOk(await db().from("items").update({ board_id: input.boardId, group_id: input.groupId }).in("id", part), "items.moveToBoard.subitems");
+    }
+    const result = await db().from("items").update({ board_id: input.boardId, group_id: input.groupId, position: input.position }).eq("id", itemId).select(ITEM).single();
+    return toItem(unwrap<ItemRow>(result, "items.moveToBoard"));
+  }
+
   /** Subitems, values, comments and links cascade from the item rows. */
   async deleteMany(ids: string[]): Promise<void> {
     if (ids.length === 0) return;

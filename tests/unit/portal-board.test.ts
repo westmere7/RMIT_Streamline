@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Comment, ItemLink, PortalPerson, PortalTask, StakeholderDepartment } from "@/domain";
+import type { Comment, ItemLink, PortalGrouping, PortalPerson, PortalTask, StakeholderDepartment } from "@/domain";
 import { buildPortalBoard, type PortalBoardTask } from "@/services/portal/portal-board";
 
 const DEPARTMENT: StakeholderDepartment = {
@@ -23,6 +23,7 @@ function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
     timeline: null,
     people: [],
     sourceName: "Creative Request VN",
+    assetTypes: [],
     deliverables: { total: 0, done: 0 },
     subitems: { total: 0, done: 0 },
     linkedCount: 0,
@@ -42,6 +43,9 @@ const entry = (t: PortalTask, extra: Partial<PortalBoardTask> = {}): PortalBoard
 
 const build = (tasks: PortalBoardTask[], links: ItemLink[] = [], comments: Comment[] = [], commentAuthors: PortalPerson[] = []) =>
   buildPortalBoard({ department: DEPARTMENT, tasks, links, comments, commentAuthors, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+
+const buildGrouped = (grouping: PortalGrouping, tasks: PortalBoardTask[]) =>
+  buildPortalBoard({ department: DEPARTMENT, grouping, tasks, links: [], comments: [], commentAuthors: [], workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
 
 const comment = (id: string, itemId: string, authorId: string, body: string): Comment => ({
   id,
@@ -258,6 +262,69 @@ describe("a department's requests as a board", () => {
     expect(twice.board.id).toBe(once.board.id);
     expect(twice.columns.map((c) => c.id)).toEqual(once.columns.map((c) => c.id));
     expect(twice.groups.map((g) => g.id)).toEqual(once.groups.map((g) => g.id));
+  });
+
+  it("groups by status when the team asks for it, reusing the reconciled labels", () => {
+    const payload = buildGrouped("status", [
+      entry(task({ id: "a", status: inProgress, sourceName: "Open Day 2026" })),
+      entry(task({ id: "b", status: shipped, sourceName: "Creative Request VN" })),
+      entry(task({ id: "c", status: inProgress, sourceName: "Creative Request VN" })),
+      entry(task({ id: "d", status: blocked, sourceName: "Open Day 2026" })),
+    ]);
+
+    // The order work moves in, not the order the tasks arrived — the same order
+    // the status column offers, so the board and its groups agree.
+    expect(payload.groups.map((g) => g.name)).toEqual(["In Progress", "Blocked", "Shipped"]);
+    // The group wears the status's own colour rather than the department's.
+    expect(payload.groups.find((g) => g.name === "Blocked")!.color).toBe("red");
+
+    const byName = new Map(payload.groups.map((g) => [g.name, g.id]));
+    const groupOf = (id: string) => payload.items.find((i) => i.id === id)!.groupId;
+    // Two boards, one "In Progress" group: the labels were merged, so the
+    // groups are too.
+    expect(groupOf("a")).toBe(byName.get("In Progress"));
+    expect(groupOf("c")).toBe(byName.get("In Progress"));
+    expect(groupOf("b")).toBe(byName.get("Shipped"));
+    expect(groupOf("d")).toBe(byName.get("Blocked"));
+  });
+
+  it("gathers requests with no status under one heading rather than dropping them", () => {
+    const payload = buildGrouped("status", [entry(task({ id: "a", status: inProgress })), entry(task({ id: "b" }))]);
+    expect(payload.groups.map((g) => g.name)).toEqual(["In Progress", "No status"]);
+    const noStatus = payload.groups.find((g) => g.name === "No status")!;
+    expect(payload.items.find((i) => i.id === "b")!.groupId).toBe(noStatus.id);
+    // Every request is still on the board.
+    expect(payload.items.filter((i) => i.parentItemId === null)).toHaveLength(2);
+  });
+
+  it("defaults to grouping by board, so an untouched portal looks as it did", () => {
+    const tasks = [entry(task({ id: "a", status: inProgress, sourceName: "Open Day 2026" }))];
+    expect(buildGrouped("board", tasks).groups.map((g) => g.name)).toEqual(build(tasks).groups.map((g) => g.name));
+    expect(build(tasks).groups.map((g) => g.name)).toEqual(["Open Day 2026"]);
+  });
+
+  it("shows the asset types a request asked for, not only the ones its deliverables carry", () => {
+    const payload = build([
+      // Two kinds named on the request: the booking writer cannot put both on a
+      // deliverable, so the request is the only place they exist.
+      entry(task({ id: "a", assetTypes: ["Print", "Social"] })),
+      // One kind, which did reach the deliverable.
+      entry(task({ id: "b", assetTypes: ["Digital"], deliverables: { total: 1, done: 0 } }), {
+        deliverables: [{ id: "d1", name: "Tile", assetType: "Digital", quantity: 1, dueDate: null, done: false, assignees: [] }],
+      }),
+    ]);
+
+    const column = payload.columns.find((c) => c.name === "Asset types")!;
+    expect(column).toBeDefined();
+    if (column.settings.kind !== "tags") throw new Error("unreachable");
+    expect(column.settings.options.map((o) => o.name)).toEqual(["Digital", "Print", "Social"]);
+
+    const tagsOf = (id: string) => {
+      const value = payload.values.find((v) => v.itemId === id && v.columnId === column.id)!.value;
+      return value.type === "TAGS" ? value.tags : ["wrong type"];
+    };
+    expect(tagsOf("a")).toEqual(["Print", "Social"]);
+    expect(tagsOf("b")).toEqual(["Digital"]);
   });
 
   it("hangs subitems off their request rather than beside it", () => {

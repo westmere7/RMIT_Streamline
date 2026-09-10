@@ -160,6 +160,22 @@ export interface ItemRepository {
   create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;
   update(id: EntityId, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item>;
   updateMany(patches: Array<{ id: EntityId; patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">> }>): Promise<Item[]>;
+  /**
+   * Moves an item, with its subitems and its deliverables, onto another board.
+   *
+   * `boardId` is not patchable through `update` on purpose: an item carries
+   * rows that name its board, and changing the one field would strand them.
+   * This moves the lot — the item, its subitems, and the `board_id` its
+   * deliverables carry — and drops every column value belonging to a column of
+   * the board being left, because a value is keyed by a column that the new
+   * board does not have. What the new board's columns should say is the
+   * caller's business: it maps them and writes the result afterwards.
+   *
+   * Everything that identifies the item survives, ids included, so provenance
+   * and links pointing at it still resolve. That is the whole reason this is a
+   * move rather than a copy and a delete.
+   */
+  moveToBoard(itemId: EntityId, input: { boardId: EntityId; groupId: EntityId; position: number }): Promise<Item>;
   /** Deletes items, their subitems, values and comments. */
   deleteMany(ids: EntityId[]): Promise<void>;
 
@@ -244,7 +260,7 @@ export interface StakeholderPortalRepository {
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
   getPortalByToken(token: string): Promise<DepartmentPortal | null>;
   createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal>;
-  updatePortal(id: EntityId, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal>;
+  updatePortal(id: EntityId, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "grouping" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal>;
 
   /** A department's requests, newest first, bounded and cursored for stable pagination. */
   listRequests(departmentId: EntityId, options?: { limit?: number; cursor?: string | null }): Promise<{ rows: PortalRequest[]; nextCursor: string | null }>;

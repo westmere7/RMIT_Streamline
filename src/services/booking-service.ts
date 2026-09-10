@@ -8,6 +8,7 @@ import type {
   BookingRequest,
   BookingTeamOption,
   BookingTemplate,
+  ColumnValue,
   EntityId,
   Item,
   NotificationInput,
@@ -15,13 +16,13 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine, isEmptyValue, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
 import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, normaliseBookingTemplate, resolveBookingTemplate, validateBookingAgainstTemplate } from "./booking";
 import type { ItemAssetService } from "./item-asset-service";
-import type { ItemLinkService } from "./item-link-service";
+import { mapColumns, translateValue } from "./item-link-sync";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
 import type { WorkspaceService } from "./workspace-service";
@@ -64,7 +65,6 @@ export class BookingService {
     private readonly repos: Repositories,
     private readonly workspace: WorkspaceService,
     private readonly items: ItemService,
-    private readonly links: ItemLinkService,
     private readonly assets: ItemAssetService,
     private readonly notifications: NotificationService,
     private readonly transport: BookingTransport | null,
@@ -304,13 +304,26 @@ export class BookingService {
   // ---- allocation ----------------------------------------------------------
 
   /**
-   * A manager places a request from Task Allocation onto a team's board: a new
-   * item is created there, filled from the request through the boards' column
-   * mapping, and the two are linked so progress on the team's board shows on
-   * Task Allocation (and to the stakeholder later). The request moves to the
-   * "Allocated" group and records where it went.
+   * A manager places a request from Task Allocation onto a team's board.
+   *
+   * The request *moves*. It is not copied and the two are not linked: the task
+   * the stakeholder booked and the task the team works on are one row, so there
+   * is one status, one due date and one set of deliverables, and nothing has to
+   * be kept in step. Task Allocation is a queue, and an allocated request has
+   * left it.
+   *
+   * The item keeps its id, so everything pointing at it still resolves - its
+   * provenance above all, which is what puts the request in its department's
+   * portal. That is why this is a move and not a create-and-delete: deleting
+   * the origin would cascade the portal row away and the request would vanish
+   * from the portal it was booked through.
+   *
+   * Column values are translated across, because the two boards describe
+   * themselves differently: the mapping is the one a link uses, so a status or
+   * a date lands in the column that means the same thing on the team's board,
+   * and a value with nowhere to go is dropped rather than stranded.
    */
-  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId): Promise<{ item: Item; created: Item; board: Board }> {
+  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId): Promise<{ item: Item; board: Board }> {
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);
@@ -318,41 +331,42 @@ export class BookingService {
     if (source.system !== "TASK_ALLOCATION") throw new Error("Only requests on the Task Allocation board can be allocated.");
     if (target.system || target.archivedAt || target.workspaceId !== source.workspaceId) throw new Error("Pick an active team board in this workspace.");
 
-    const groups = (await this.repos.boards.listGroups(target.id)).sort((a, b) => a.position - b.position);
+    const [groups, sourceColumns, targetColumns, sourceValues, targetItems] = await Promise.all([
+      this.repos.boards.listGroups(target.id).then((gs) => gs.slice().sort((a, b) => a.position - b.position)),
+      this.repos.boards.listColumns(source.id),
+      this.repos.boards.listColumns(target.id),
+      this.repos.items.listValuesByItem(item.id),
+      this.repos.items.listByBoard(target.id),
+    ]);
     const group = groups[0];
     if (!group) throw new Error(`${target.name} has no group to receive the task.`);
 
-    const placeholder = await this.items.createItem({ boardId: target.id, groupId: group.id, name: item.name }, actorId);
-    // Linking fills the new item from the request (name, description and every
-    // column the two boards have in common) and keeps them in step from now on.
-    await this.links.link(item.id, placeholder.id, actorId, { seedFrom: "item" });
-    const [created, sourceItems, columns, sourceGroups] = await Promise.all([
-      this.repos.items.getById(placeholder.id).then((fresh) => fresh ?? placeholder),
-      this.repos.items.listByBoard(source.id),
-      this.repos.boards.listColumns(source.id),
-      this.repos.boards.listGroups(source.id),
-    ]);
-    // The asset lines travel as subitems of the new item; they are not linked one
-    // by one. They are the new item's only children, so they go in together.
-    const subitems = sourceItems.filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
-    await Promise.all([
-      ...subitems.map((sub, index) => this.items.createItem({ boardId: target.id, groupId: group.id, name: sub.name, parentItemId: created.id, position: index, description: sub.description }, actorId)),
-      this.assets.copyTo(item.id, created.id, target.id, actorId),
-    ]);
-
-    const allocatedTo = columns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"));
-    if (allocatedTo) await this.repos.items.setValue(item.id, allocatedTo.id, { type: "TEXT", text: target.name });
-    const allocated = sourceGroups.find((g) => g.name.toLowerCase() === "allocated");
-    let updated = item;
-    if (allocated && item.groupId !== allocated.id) {
-      const siblings = sourceItems.filter((i) => i.groupId === allocated.id && i.parentItemId === null);
-      updated = await this.repos.items.update(item.id, { groupId: allocated.id, position: siblings.length });
-      // The asset lines belong with their request: left in "Incoming" they would
-      // be deleted with that group and counted against it.
-      const stranded = subitems.filter((s) => s.groupId !== allocated.id);
-      if (stranded.length) await this.repos.items.updateMany(stranded.map((s) => ({ id: s.id, patch: { groupId: allocated.id } })));
+    // Worked out before the move, while the values still have their columns.
+    // Anything the team's board has no column for is left behind: what the
+    // requester actually asked for is in the description, which travels.
+    const carried: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
+    for (const { source: sc, target: tc } of mapColumns(sourceColumns, targetColumns).mapped) {
+      const value = sourceValues.find((v) => v.columnId === sc.id)?.value;
+      if (!value || isEmptyValue(value)) continue;
+      const translated = translateValue(value, sc, tc);
+      if (translated.kind === "value") carried.push({ itemId: item.id, columnId: tc.id, value: translated.value });
     }
-    return { item: updated, created, board: target };
+
+    const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
+    const moved = await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
+    if (carried.length) await this.repos.items.setValues(carried);
+    // The recap column counts an item's deliverables per board, and they have
+    // just changed board, so the figure is worked out again where they landed.
+    await this.assets.recompute(item.id, target.id);
+    await this.repos.activities.create({
+      workspaceId: source.workspaceId,
+      boardId: target.id,
+      itemId: item.id,
+      actorId,
+      eventType: "ITEM_MOVED",
+      metadata: { itemName: item.name, boardName: target.name, from: source.name, to: target.name },
+    });
+    return { item: moved, board: target };
   }
 
   // ---- helpers -------------------------------------------------------------

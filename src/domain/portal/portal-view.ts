@@ -99,6 +99,14 @@ export interface PortalTask {
   people: PortalPerson[];
   /** The board this came from, when that label is approved for publication. */
   sourceName: string | null;
+  /**
+   * The kinds of thing the request asked for, as the requester named them.
+   *
+   * A property of the request, not of its deliverables: a deliverable only
+   * carries a type when the request named exactly one, so this is what a
+   * request that picked "Print" and "Social" has to show.
+   */
+  assetTypes: string[];
   deliverables: { total: number; done: number };
   subitems: { total: number; done: number };
   linkedCount: number;

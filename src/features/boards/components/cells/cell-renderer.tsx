@@ -286,8 +286,11 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
           >
             <span className="flex min-w-0 items-center gap-1 truncate px-1.5">
               {overdue > 0 && <TriangleAlert className="size-2.5 shrink-0 text-red-600 dark:text-red-400" aria-label={`${overdue} overdue`} />}
+              {/* Lines, not copies: "1 asset ×25" is one thing to make. The
+                  receipt and the subitem list count it that way too. */}
               <span className="truncate text-muted-foreground">
-                <span className="font-medium text-foreground">{quantity}</span> {quantity === 1 ? "asset" : "assets"}
+                <span className="font-medium text-foreground">{lines}</span> {lines === 1 ? "asset" : "assets"}
+                {quantity > lines && <span className="ml-1 tabular">×{quantity}</span>}
               </span>
             </span>
             <span aria-hidden className="h-full w-px shrink-0 bg-border/70" />
