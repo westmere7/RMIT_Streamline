@@ -207,9 +207,18 @@ function draftPatch(row: AssetComposerRow, draft: AssetDraft): AssetComposerPatc
   return patch;
 }
 
-/** The quiet icon buttons at the end of a closed row. */
-const rowActionClass =
-  "shrink-0 rounded-md p-1 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/line:opacity-100";
+/** The quiet icon buttons at the end of a closed row. Revealed by the rail they sit in, not by themselves. */
+const rowActionClass = "shrink-0 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground";
+
+/**
+ * The rail every icon on a closed row lives in: the links it holds, then rename
+ * and duplicate. Collapsed it takes no width at all — an invisible-but-present
+ * button would leave a hole between the summary and the chevron on every row
+ * anyone is not pointing at — and it opens on hover, or on focus reaching a
+ * button inside it, so the keyboard finds them too.
+ */
+const rowActionsRailClass =
+  "flex max-w-0 items-center gap-0.5 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-hover/line:max-w-32 group-hover/line:opacity-100 group-focus-within/line:max-w-32 group-focus-within/line:opacity-100";
 
 /** A control in an open row's little form. Full width, so the fields line up in columns. */
 const fieldClass =
@@ -271,6 +280,7 @@ function AssetRowCard({
   const done = row.completedAt !== null;
   const overdue = !done && isOverdue(shown.dueDate);
   const typeLabel = assetTypeLabel(shown.assetType, assetTypes);
+  const count = assetCount(shown);
   const inCharge = assignees.length === 0 ? "Not set" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
   const [renaming, setRenaming] = React.useState(false);
   // The first click of a double click has to be held back, or a rename would
@@ -312,13 +322,22 @@ function AssetRowCard({
 
   return (
     <li
-      className={cn("group/line rounded-xl border border-border/70 bg-card shadow-xs transition-colors", open && "border-border ring-1 ring-border/60", done && "bg-card/60")}
+      className={cn(
+        // A thicker left edge carries the row's standing — done, late, or
+        // neither — so the shape of a long list reads down the margin before
+        // anyone reads a date.
+        "group/line rounded-xl border border-l-2 border-border/70 bg-card shadow-xs transition-colors",
+        !open && "hover:bg-accent/40",
+        open && "border-border ring-1 ring-border/60",
+        done && "border-l-emerald-500/60 bg-card/60",
+        overdue && "border-l-red-500/60",
+      )}
       data-testid="asset-line"
       data-asset-name={row.name}
       data-asset-done={done ? "true" : "false"}
     >
       {/* ---- The row you read ---------------------------------------------- */}
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
+      <div className="flex items-center gap-2 px-2.5 py-2">
         {fields.done && (
           <button
             type="button"
@@ -338,8 +357,8 @@ function AssetRowCard({
           </button>
         )}
 
-        <span className="w-5 shrink-0 text-xs tabular text-muted-foreground/60" aria-hidden data-testid="asset-number">
-          #{number}
+        <span className="min-w-5 shrink-0 rounded bg-muted/60 px-1 py-px text-center text-2xs font-medium tabular text-muted-foreground/70" aria-hidden data-testid="asset-number">
+          {number}
         </span>
 
         {/* Name and summary together: one target, so a click anywhere along the row opens it. */}
@@ -361,7 +380,7 @@ function AssetRowCard({
               type="button"
               aria-expanded={open}
               title={canEdit ? "Click to open, double click to rename" : undefined}
-              className="min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-[13px] font-medium hover:bg-accent"
+              className="min-w-0 flex-1 truncate rounded-md py-1 text-left text-[13px] font-medium"
               data-testid="asset-name"
             >
               <span className={cn(done && "text-muted-foreground line-through")}>{row.name}</span>
@@ -372,7 +391,9 @@ function AssetRowCard({
           {!open && !renaming && (
             <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
               {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" />}
-              <span className="tabular">×{assetCount(shown)}</span>
+              {/* A count only when there is more than one: "×1" down every row
+                  of the list is a column of noise. */}
+              {count > 1 && <span className="rounded bg-muted/70 px-1.5 py-px text-2xs font-medium tabular text-muted-foreground">×{count}</span>}
               {fields.people && assignees.length > 0 && (
                 <span className="flex -space-x-1">
                   {assignees.slice(0, 3).map((u) => (
@@ -380,37 +401,50 @@ function AssetRowCard({
                   ))}
                 </span>
               )}
-              {fields.due && shown.dueDate && <span className={cn("tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>{formatShortDate(shown.dueDate)}</span>}
-              {/* Which links this deliverable has, without opening it: the
-                  preview, the final artwork, or both. Anchors rather than
-                  buttons, so a click opens the thing itself — and the click is
-                  stopped from reaching the row, which would open the editor. */}
-              <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />
+              {fields.due && shown.dueDate && (
+                <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+                  {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
+                  {formatShortDate(shown.dueDate)}
+                </span>
+              )}
             </span>
           )}
         </div>
 
-        {canEdit && !renaming && (
-          <>
-            <button type="button" onClick={rename} aria-label={`Rename ${row.name}`} title="Rename" data-testid="asset-rename" className={rowActionClass}>
-              <Pencil className="size-3.5" />
-            </button>
-            <button type="button" onClick={onDuplicate} aria-label={`Duplicate ${row.name}`} title="Duplicate" data-testid="asset-duplicate" className={rowActionClass}>
-              <Copy className="size-3.5" />
-            </button>
-          </>
-        )}
+        {/* Every icon the row offers, then the chevron: one rail, so the
+            chevron stays against the edge and the icons that come and go cost
+            no width while they are away. Nothing but the chevron is on a row at
+            rest, so the list reads as words and dates. */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {!renaming && (
+            <div className={rowActionsRailClass}>
+              {/* The links this deliverable holds: the preview, the final
+                  artwork, or both. */}
+              {!open && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
+              {canEdit && (
+                <>
+                  <button type="button" onClick={rename} aria-label={`Rename ${row.name}`} title="Rename" data-testid="asset-rename" className={rowActionClass}>
+                    <Pencil className="size-3.5" />
+                  </button>
+                  <button type="button" onClick={onDuplicate} aria-label={`Duplicate ${row.name}`} title="Duplicate" data-testid="asset-duplicate" className={rowActionClass}>
+                    <Copy className="size-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-label={open ? `Close ${row.name}` : `Open ${row.name}`}
-          data-testid="asset-toggle"
-          className="shrink-0 rounded-md p-1 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-        >
-          <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-        </button>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-label={open ? `Close ${row.name}` : `Open ${row.name}`}
+            data-testid="asset-toggle"
+            className="shrink-0 rounded-md p-1 text-muted-foreground/60 transition-colors group-hover/line:text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+          </button>
+        </div>
       </div>
 
       {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
@@ -577,10 +611,12 @@ function AssetRowCard({
 const LINK_ICON: Record<AssetLinkKind, typeof Eye> = { preview: Eye, artwork: FileCheck2 };
 
 /**
- * The links a closed row has, as icons.
+ * The links a closed row has, as icons in its action rail.
  *
  * One icon per link that exists: the preview alone, the artwork alone, or both.
  * Nothing at all when there is neither, rather than a pair of empty slots.
+ * Anchors rather than buttons, so a click opens the thing itself — and the click
+ * is stopped from reaching the row, which would open the editor.
  */
 function LinkChips({ preview, artwork, name }: { preview: string | null; artwork: string | null; name: string }) {
   const held = ASSET_LINK_KINDS.filter((kind) => (kind === "preview" ? preview : artwork));
@@ -599,7 +635,7 @@ function LinkChips({ preview, artwork, name }: { preview: string | null; artwork
             onClick={(event) => event.stopPropagation()}
             title={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
             aria-label={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
-            className="rounded p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
+            className={rowActionClass}
             data-testid={`asset-link-chip-${kind}`}
           >
             <Icon className="size-3.5" />
