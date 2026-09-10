@@ -4,7 +4,7 @@ import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
 import { normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
-import { ScopeToolbar, UnitToggle, ViewTabs } from "@/features/dashboard/dashboard-controls";
+import { ScopeToolbar, UnitToggle } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
 import {
   attention,
@@ -17,10 +17,8 @@ import {
   BUSINESS_TIMEZONE,
   type ReportingPeriod,
 } from "@/features/dashboard/metrics";
-import { DASHBOARD_VIEWS, useDashboardPrefs, VIEW_META, type DashboardView } from "@/features/dashboard/prefs";
-import { DemandView } from "@/features/dashboard/views/demand";
-import { OverviewView } from "@/features/dashboard/views/overview";
-import { ResourcingView } from "@/features/dashboard/views/resourcing";
+import { useDashboardPrefs } from "@/features/dashboard/prefs";
+import { DashboardBody } from "@/features/dashboard/views/overview";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
 import { cn } from "@/lib/utils";
 
@@ -101,17 +99,13 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
   const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
-  const views = publicLink ? (["overview", "demand"] as const) : DASHBOARD_VIEWS;
-  // A stored preference for a view this link does not have would show nothing.
-  const view = views.includes(prefs.view as never) ? prefs.view : "overview";
-
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-tight sm:text-[1.5rem]">Dashboard</h1>
           <p className="truncate text-xs text-muted-foreground">
-            {snapshot.workspace.name} · {VIEW_META[view].hint}
+            {snapshot.workspace.name} · Output so far, who is carrying it, and what needs attention today.
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -119,10 +113,6 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
           {toolbarExtras}
         </div>
       </header>
-
-      <div className="border-b border-border/60 px-4 sm:px-6">
-        <ViewTabs views={views} current={view} onChange={(next: DashboardView) => set({ view: next })} meta={VIEW_META} />
-      </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5 sm:px-6">
         <ScopeToolbar
@@ -132,7 +122,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
           period={resolved}
           teams={facts.teams}
           years={years}
-          unitToggle={view === "resourcing" ? null : <UnitToggle unit={prefs.unit} onChange={(unit) => set({ unit })} />}
+          unitToggle={<UnitToggle unit={prefs.unit} onChange={(unit) => set({ unit })} />}
         />
         <p className="ml-auto hidden text-2xs text-muted-foreground lg:block">
           {resolved.alignment === "elapsed" ? "Matched to the same elapsed period" : "Whole periods"} · {BUSINESS_TIMEZONE}
@@ -140,16 +130,8 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-surface/40">
-        <div
-          id={`dashboard-panel-${view}`}
-          role="tabpanel"
-          aria-labelledby={`dashboard-tab-${view}`}
-          tabIndex={-1}
-          className="mx-auto w-full max-w-[1600px] p-3 sm:p-5"
-        >
-          {view === "overview" && <OverviewView {...shared} />}
-          {view === "demand" && <DemandView {...shared} />}
-          {view === "resourcing" && <ResourcingView {...shared} />}
+        <div className="mx-auto w-full max-w-[1600px] p-3 sm:p-5">
+          <DashboardBody {...shared} />
         </div>
       </div>
     </div>

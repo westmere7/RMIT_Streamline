@@ -3,7 +3,8 @@
 import * as React from "react";
 import { formatHours, hasAnyRate, unratedTypes } from "@/domain";
 import { assetMix, priorityMix, statusMix, teamHex, UNTYPED, type TaskFact } from "@/features/dashboard/analytics";
-import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
+import { formatCount } from "@/features/dashboard/charts/chart-utils";
+import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { AttentionList, UpcomingList } from "@/features/dashboard/components/attention";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
 import { ShareBar } from "@/features/dashboard/components/stat-visuals";
@@ -11,24 +12,42 @@ import { YearComparisonChart } from "@/features/dashboard/components/year-compar
 import { departmentHex, UNKNOWN_DEPARTMENT } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
+import { DemandSection } from "./demand-section";
 import type { DashboardViewProps } from "./types";
+import { CapacityNote, WorkloadSection } from "./workload-section";
 
 /**
- * The morning stand-up, and the number the team reports upwards.
+ * The dashboard: one page.
  *
- * Read as a picture, not a page. The two figures that get reported are large
- * and carry their own twelve-month trend; the counts that are true *now* are
- * bars, so the shape of the morning is visible before any of them is read; the
- * composition of the work — status, team, department, asset type — is four
- * charts in one row rather than four tabs. Only the two lists at the bottom are
- * meant to be read, and they are the two that name individual tasks.
+ * It was three tabs — Overview, Demand & Delivery, Resourcing — and they cost
+ * more than they gave. Two of them drew the same by-month chart, one restated
+ * that chart as a twelve-row table underneath it, and answering "are we busier
+ * than last year, and who is carrying it" meant visiting all three and holding
+ * the first in your head. Folded together the duplication goes and the page
+ * reads in one pass, top to bottom:
  *
- * Nothing on this page mixes the two kinds of time. Everything above the strip
- * is *reporting* and moves with the period control; everything from the strip
- * down is *now* and does not, because a manager reading last year's volume
- * still needs to know what is late today.
+ *   what the period came to      the three headline figures
+ *   how it arrived               the year against last year, and how it divides
+ *   where it came from           requests in, and the period by team or department
+ *   what is true right now       the operations strip and the two lists that name tasks
+ *   who is carrying it           a bar per person
+ *   what the page cannot say     assignment is not capacity, and why
+ *
+ * Read as a picture, not a page. Almost everything is a shape; where a figure
+ * has to be exact it sits behind a disclosure rather than beside the shape,
+ * because a manager reporting upwards needs the exact one and everybody else
+ * needs the picture first.
+ *
+ * Nothing here mixes the two kinds of time. Everything above the operations
+ * strip is *reporting* and moves with the period control; everything from the
+ * strip down is *now* and does not, because a manager reading last year's
+ * volume still needs to know what is late today.
  */
-export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, onOpenTask, publicLink }: DashboardViewProps) {
+export function DashboardBody(props: DashboardViewProps) {
+  // Destructured for the body, and kept whole for the sections that take the
+  // lot — they are handed the same figures this page is drawn from, so the two
+  // cannot disagree about the period they describe.
+  const { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, onOpenTask, publicLink } = props;
   // A public payload carries no people, so every task looks unowned. The two
   // reasons that do not depend on an owner are still true and still useful; the
   // two that do are dropped rather than shown as a page of false positives.
@@ -42,6 +61,7 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
   const status = React.useMemo(() => statusMix(scoped), [scoped]);
   const priority = React.useMemo(() => priorityMix(scoped), [scoped]);
   const mix = React.useMemo(() => assetMix(scopedAssets), [scopedAssets]);
+  const mixUnits = React.useMemo(() => mix.reduce((sum, row) => sum + row.value, 0), [mix]);
   const byTeam = React.useMemo(() => {
     const rowsByTeam = new Map<string, { name: string; value: number; color: string }>();
     for (const task of scoped) {
@@ -151,21 +171,42 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
         </Panel>
 
+        {/* Three ranked splits, and only three: the column sets the height of
+            the row, so every panel added here is height the chart beside it has
+            to grow into. The two share-of-whole splits sit on their own line
+            underneath for that reason. */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
-          <Panel title="Status" subtitle={`${report.tasks.current} tasks`} className="p-4" testId="dashboard-status-mix">
-            <ShareBar data={status} />
-          </Panel>
           <Panel title="By team" subtitle={unitWord} className="p-4" testId="dashboard-by-team">
             <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." />
           </Panel>
           <Panel title="By department" subtitle={unitWord} className="p-4" testId="dashboard-by-department">
             <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />
           </Panel>
-          <Panel title={prefs.unit === "assets" ? "Asset types" : "Priority"} subtitle={prefs.unit === "assets" ? "units" : "tasks"} className="p-4" testId="dashboard-fourth-mix">
-            <RankedBars data={(prefs.unit === "assets" ? mix : priority).slice(0, 5)} compact emptyMessage="Nothing to split yet." />
+          <Panel title="Priority" subtitle="tasks" className="p-4" testId="dashboard-fourth-mix">
+            <RankedBars data={priority.slice(0, 5)} compact emptyMessage="Nothing to split yet." />
           </Panel>
         </div>
       </div>
+
+      {/* What the period is made of, as two shares of one whole each. They pair
+          because they answer the same shape of question — how the work divides,
+          not which slice is biggest — and they are a line of their own because
+          in the column beside the chart they made it taller than it wanted to
+          be. Asset types no longer waits on the unit toggle either: the mix of
+          work is worth knowing whether you are counting tasks or units, and it
+          was the one split that disappeared depending on a control elsewhere. */}
+      <div className="grid gap-3 lg:grid-cols-2" data-testid="dashboard-shares">
+        <Panel title="Status" subtitle={`${report.tasks.current} tasks`} className="p-4" testId="dashboard-status-mix">
+          <ShareBar data={status} />
+        </Panel>
+        <Panel title="Asset types" subtitle={`${formatCount(mixUnits)} units`} className="p-4" testId="dashboard-asset-mix">
+          {mix.length > 0 ? <ShareBar data={mix} testId="dashboard-asset-share" /> : <ChartEmpty message="No deliverables in this period." />}
+        </Panel>
+      </div>
+
+      {/* Where the work came from. Under the year, because it breaks the same
+          period down — and above the strip, because it is still reporting. */}
+      <DemandSection {...props} />
 
       <OperationsStrip
         asOf={ops.asOf}
@@ -189,6 +230,15 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           <UpcomingList tasks={upcomingTasks} onOpen={onOpenTask ? open : undefined} limit={8} />
         </Panel>
       </div>
+
+      {/* Who is carrying it. Behind a public link there are no people in the
+          payload, so every task would look unowned and every bar empty. */}
+      {!publicLink && (
+        <>
+          <WorkloadSection {...props} />
+          <CapacityNote />
+        </>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
         <CoverageNote lines={coverageLines} />

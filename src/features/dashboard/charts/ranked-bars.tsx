@@ -68,10 +68,16 @@ export function RankedBars({
               {leading?.(row)}
               <span className="truncate">{row.name}</span>
             </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-strong/80">
+            {/* Capped, because a bar is a comparison and not a progress
+                meter. Given a whole wide panel the track ran to nearly 900px,
+                and with one row at 10,148 against another at 39 that is a 3px
+                fill in a 900px tube — nine tenths of every row empty. The cap
+                never binds in the narrow composition column, where the track is
+                a couple of hundred pixels wide anyway. */}
+            <div className="h-2 max-w-[26rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80">
               <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${width}%`, background: row.color }} />
             </div>
-            <span className={cn("flex shrink-0 items-baseline justify-end gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem]" : "w-[4.25rem]")}>
+            <span className={cn("flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem] justify-start" : "w-[4.25rem] justify-end")}>
               <span className="font-semibold text-foreground">{formatCount(row.value)}</span>
               {row.secondary != null && <span className="text-2xs text-muted-foreground">· {formatCount(row.secondary)}</span>}
             </span>
