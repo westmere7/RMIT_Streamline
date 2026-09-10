@@ -36,6 +36,10 @@ export function RankedBars({
   if (data.length === 0) return <ChartEmpty message={emptyMessage} />;
   const max = maxOverride ?? Math.max(1, ...data.map((d) => d.value));
   const clickable = !!onSelect;
+  // A row carrying both figures needs room for the pair: "10,367 · 5,877" in
+  // 4.25rem wrapped onto a second line and threw the row out of alignment.
+  // Widened for the whole list rather than per row, so the bars still line up.
+  const paired = data.some((row) => row.secondary != null);
   return (
     <div className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1", className)} role="list">
       {data.map((row) => {
@@ -67,7 +71,7 @@ export function RankedBars({
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-strong/80">
               <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${width}%`, background: row.color }} />
             </div>
-            <span className="flex w-[4.25rem] shrink-0 items-baseline justify-end gap-1 tabular-nums">
+            <span className={cn("flex shrink-0 items-baseline justify-end gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem]" : "w-[4.25rem]")}>
               <span className="font-semibold text-foreground">{formatCount(row.value)}</span>
               {row.secondary != null && <span className="text-2xs text-muted-foreground">· {formatCount(row.secondary)}</span>}
             </span>

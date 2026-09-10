@@ -1,13 +1,13 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, Hash, Minus, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, Eye, FileCheck2, Hash, Minus, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TagOption, User } from "@/domain";
-import { ASSET_TYPE_OPTIONS, assetCount } from "@/domain";
+import { ASSET_LINK_KINDS, ASSET_LINK_LABELS, ASSET_TYPE_OPTIONS, assetCount, type AssetLinkKind } from "@/domain";
 import { DatePicker } from "@/features/boards/components/pickers/date-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
@@ -29,6 +29,10 @@ export interface AssetComposerRow {
   assigneeIds: string[];
   dueDate: string | null;
   notes: string | null;
+  /** Something to look at while it is being made. */
+  previewUrl: string | null;
+  /** The signed-off final artwork. */
+  artworkUrl: string | null;
   completedAt: string | null;
 }
 
@@ -182,10 +186,12 @@ interface AssetDraft {
   quantity: number | null;
   dueDate: string | null;
   notes: string | null;
+  previewUrl: string | null;
+  artworkUrl: string | null;
 }
 
 function draftOf(row: AssetComposerRow): AssetDraft {
-  return { assetType: row.assetType, assigneeIds: row.assigneeIds, quantity: row.quantity, dueDate: row.dueDate, notes: row.notes };
+  return { assetType: row.assetType, assigneeIds: row.assigneeIds, quantity: row.quantity, dueDate: row.dueDate, notes: row.notes, previewUrl: row.previewUrl, artworkUrl: row.artworkUrl };
 }
 
 /** Only what the draft actually changed, so Update writes nothing it does not have to. */
@@ -195,6 +201,8 @@ function draftPatch(row: AssetComposerRow, draft: AssetDraft): AssetComposerPatc
   if (draft.quantity !== row.quantity) patch.quantity = draft.quantity;
   if (draft.dueDate !== row.dueDate) patch.dueDate = draft.dueDate;
   if (draft.notes !== row.notes) patch.notes = draft.notes;
+  if (draft.previewUrl !== row.previewUrl) patch.previewUrl = draft.previewUrl;
+  if (draft.artworkUrl !== row.artworkUrl) patch.artworkUrl = draft.artworkUrl;
   if (draft.assigneeIds.length !== row.assigneeIds.length || draft.assigneeIds.some((id, i) => id !== row.assigneeIds[i])) patch.assigneeIds = draft.assigneeIds;
   return patch;
 }
@@ -373,6 +381,11 @@ function AssetRowCard({
                 </span>
               )}
               {fields.due && shown.dueDate && <span className={cn("tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>{formatShortDate(shown.dueDate)}</span>}
+              {/* Which links this deliverable has, without opening it: the
+                  preview, the final artwork, or both. Anchors rather than
+                  buttons, so a click opens the thing itself — and the click is
+                  stopped from reaching the row, which would open the editor. */}
+              <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />
             </span>
           )}
         </div>
@@ -511,7 +524,7 @@ function AssetRowCard({
             </Detail>
           )}
 
-          <Detail label="Spec" className={cn("col-span-2", !canEdit && !draft.notes && "hidden")}>
+          <Detail label="Specs / notes" className={cn("col-span-2", !canEdit && !draft.notes && "hidden")}>
             <TextField
               value={draft.notes ?? ""}
               placeholder={canEdit ? "Size, format, finish…" : ""}
@@ -521,6 +534,14 @@ function AssetRowCard({
               testId="asset-notes"
               className="h-8 w-full min-w-0 rounded-lg border border-border/70 px-2 text-xs"
             />
+          </Detail>
+
+          {/* One line for two links, because a deliverable acquires them in
+              order: something to review, then the artwork that was signed off.
+              The switch says which one the box is holding, and each side shows
+              a tick once it has a link, so both are visible without toggling. */}
+          <Detail label="Link" className={cn("col-span-2", !canEdit && !draft.previewUrl && !draft.artworkUrl && "hidden")}>
+            <LinkField draft={draft} canEdit={canEdit} onChange={edit} />
           </Detail>
 
           {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
@@ -550,6 +571,110 @@ function AssetRowCard({
         </div>
       )}
     </li>
+  );
+}
+
+const LINK_ICON: Record<AssetLinkKind, typeof Eye> = { preview: Eye, artwork: FileCheck2 };
+
+/**
+ * The links a closed row has, as icons.
+ *
+ * One icon per link that exists: the preview alone, the artwork alone, or both.
+ * Nothing at all when there is neither, rather than a pair of empty slots.
+ */
+function LinkChips({ preview, artwork, name }: { preview: string | null; artwork: string | null; name: string }) {
+  const held = ASSET_LINK_KINDS.filter((kind) => (kind === "preview" ? preview : artwork));
+  if (held.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-0.5" data-testid="asset-link-chips">
+      {held.map((kind) => {
+        const Icon = LINK_ICON[kind];
+        const href = (kind === "preview" ? preview : artwork)!;
+        return (
+          <a
+            key={kind}
+            href={href}
+            target="_blank"
+            rel="noreferrer noopener"
+            onClick={(event) => event.stopPropagation()}
+            title={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
+            aria-label={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
+            className="rounded p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
+            data-testid={`asset-link-chip-${kind}`}
+          >
+            <Icon className="size-3.5" />
+          </a>
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * One box for two links, with a switch for which one it is holding.
+ *
+ * It opens on whichever kind is worth showing: the artwork when that is the only
+ * one filled in, and the preview otherwise — so a deliverable that is finished
+ * does not open on an empty preview box.
+ */
+function LinkField({ draft, canEdit, onChange }: { draft: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">; canEdit: boolean; onChange: (patch: AssetComposerPatch) => void }) {
+  const [kind, setKind] = React.useState<AssetLinkKind>(!draft.previewUrl && draft.artworkUrl ? "artwork" : "preview");
+  const value = kind === "preview" ? draft.previewUrl : draft.artworkUrl;
+  const Icon = LINK_ICON[kind];
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="inline-flex shrink-0 rounded-lg border border-border/70 p-0.5" role="group" aria-label="Which link">
+        {ASSET_LINK_KINDS.map((option) => {
+          const OptionIcon = LINK_ICON[option];
+          const on = kind === option;
+          const filled = !!(option === "preview" ? draft.previewUrl : draft.artworkUrl);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setKind(option)}
+              aria-pressed={on}
+              title={ASSET_LINK_LABELS[option].long}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                on ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+              )}
+              data-testid={`asset-link-switch-${option}`}
+            >
+              <OptionIcon className="size-3" />
+              {ASSET_LINK_LABELS[option].short}
+              {/* Already has one, so the other side is not a blank slate. */}
+              {filled && <Check className={cn("size-2.5", on ? "opacity-80" : "text-emerald-500")} />}
+            </button>
+          );
+        })}
+      </span>
+
+      <TextField
+        value={value ?? ""}
+        placeholder={canEdit ? `Paste the ${ASSET_LINK_LABELS[kind].long.toLowerCase()} link…` : ""}
+        ariaLabel={`${ASSET_LINK_LABELS[kind].long} link: ${value ?? "none"}`}
+        canEdit={canEdit}
+        onCommit={(next) => onChange({ [kind === "preview" ? "previewUrl" : "artworkUrl"]: next.trim() || null })}
+        testId={`asset-link-${kind}`}
+        className="h-8 w-full min-w-0 rounded-lg border border-border/70 px-2 text-xs"
+      />
+
+      {value && (
+        <a
+          href={value}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={`Open the ${ASSET_LINK_LABELS[kind].long.toLowerCase()}`}
+          aria-label={`Open the ${ASSET_LINK_LABELS[kind].long.toLowerCase()}`}
+          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          data-testid="asset-link-open"
+        >
+          <Icon className="size-3.5" />
+        </a>
+      )}
+    </div>
   );
 }
 

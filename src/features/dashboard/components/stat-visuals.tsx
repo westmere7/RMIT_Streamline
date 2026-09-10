@@ -129,25 +129,100 @@ export function StatBar({
  *
  * Twelve numbers nobody would read, in a shape anybody can. The last point is
  * marked because "where are we now" is the question a trend is asked.
+ *
+ * Three things here are deliberate and easy to get wrong again.
+ *
+ * The line is drawn with `preserveAspectRatio="none"`, which stretches the
+ * coordinate system to whatever box the card gives it. That is right for a line
+ * and wrong for anything meant to be round: the marker used to be a `<circle>`
+ * and came out as a flattened ellipse. It is an HTML element positioned by
+ * percentage instead, so it is a circle at any card size. The gridlines survive
+ * the stretch because a horizontal line stays horizontal however it is scaled,
+ * and `vectorEffect="non-scaling-stroke"` keeps them hairlines.
+ *
+ * The horizontal scale spans the months that have *answers*, not the twelve of
+ * a calendar year. Under a year-to-date range the last three months have not
+ * happened, and scaling across all twelve left the series stopping short with a
+ * third of the card empty.
+ *
+ * The month labels are HTML too, placed at the same percentages as the points,
+ * so a label sits under its own month rather than being evenly spaced and
+ * approximately wrong. The two at the ends are pulled inside the box instead of
+ * being centred, which would hang them over the edge.
  */
-export function TrendLine({ values, className, label }: { values: Array<number | null>; className?: string; label: string }) {
+export function TrendLine({
+  values,
+  labels,
+  className,
+  label,
+}: {
+  values: Array<number | null>;
+  /** Month names aligned to `values`, drawn small under the line. Omitted draws none. */
+  labels?: readonly string[];
+  className?: string;
+  label: string;
+}) {
   const points = values.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v !== null);
   if (points.length < 2) return null;
-  const peak = Math.max(1, ...points.map((p) => p.v));
-  const width = 100;
-  const height = 28;
-  const x = (i: number) => (i / Math.max(1, values.length - 1)) * width;
-  const y = (v: number) => height - (v / peak) * (height - 3) - 1.5;
-  const path = points.map((p, index) => `${index === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+
+  // The drawn range: from the first month with an answer to the last. Anything
+  // beyond that has not happened and is not the chart's to leave room for.
+  const first = points[0]!.i;
   const last = points[points.length - 1]!;
-  const area = `${path} L${x(last.i).toFixed(1)},${height} L${x(points[0]!.i).toFixed(1)},${height} Z`;
+  const span = Math.max(1, last.i - first);
+  const peak = Math.max(1, ...points.map((p) => p.v));
+  const height = 100;
+  const pad = 6;
+  const x = (i: number) => ((i - first) / span) * 100;
+  const y = (v: number) => height - (v / peak) * (height - pad * 2) - pad;
+
+  const path = points.map((p, index) => `${index === 0 ? "M" : "L"}${x(p.i).toFixed(2)},${y(p.v).toFixed(2)}`).join(" ");
+  const area = `${path} L${x(last.i).toFixed(2)},${height} L${x(first).toFixed(2)},${height} Z`;
+  const shown = labels ? points.map((p) => ({ at: x(p.i), text: labels[p.i] ?? "" })).filter((entry) => entry.text) : [];
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={label} className={cn("h-7 w-full", className)}>
-      <path d={area} className="fill-primary/10" />
-      <path d={path} fill="none" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="stroke-primary" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x(last.i)} cy={y(last.v)} r={2} className="fill-primary" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div className={cn("flex min-h-14 flex-col", className)} data-testid="trend-line">
+      {/* The line needs a band of its own. The month labels underneath are
+          twelve more pixels, and sharing a 28px minimum with them left the
+          chart itself twelve pixels tall — a squiggle with a grid behind it. */}
+      <div className="relative min-h-11 flex-1">
+        <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" role="img" aria-label={label} className="absolute inset-0 size-full overflow-visible">
+          {/* Something to read the height against, quiet enough to ignore. */}
+          {[0.25, 0.5, 0.75].map((at) => (
+            <line key={at} x1={0} x2={100} y1={height * at} y2={height * at} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/40" />
+          ))}
+          <line x1={0} x2={100} y1={height} y2={height} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/70" />
+          <path d={area} className="fill-primary/10" />
+          <path d={path} fill="none" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="stroke-primary" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+        {/* Round at any card width, which a stretched <circle> is not. */}
+        <span
+          aria-hidden
+          className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
+          style={{ left: `${x(last.i)}%`, top: `${(y(last.v) / height) * 100}%` }}
+          data-testid="trend-line-marker"
+        />
+      </div>
+
+      {shown.length > 0 && (
+        <div className="relative mt-1 h-3 shrink-0" aria-hidden>
+          {shown.map((entry, index) => (
+            <span
+              key={entry.text}
+              className="absolute top-0 text-[9px] leading-3 whitespace-nowrap text-muted-foreground/70 tabular"
+              style={{
+                left: `${entry.at}%`,
+                // Centred, except at the ends, where centring would hang the
+                // label over the edge of the card.
+                transform: index === 0 ? "translateX(0)" : index === shown.length - 1 ? "translateX(-100%)" : "translateX(-50%)",
+              }}
+            >
+              {entry.text}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

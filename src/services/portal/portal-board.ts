@@ -294,6 +294,10 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
         assigneeIds: deliverable.assignees.map((a) => a.id),
         dueDate: deliverable.dueDate,
         completedAt: deliverable.done ? task.updatedAt : null,
+        // Neither link is published: see PortalDeliverable, which carries no
+        // URL for the same reason it carries no notes.
+        previewUrl: null,
+        artworkUrl: null,
         // Free text on a deliverable is where production notes live.
         notes: null,
         position: index,

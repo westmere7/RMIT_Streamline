@@ -53,7 +53,13 @@ export function useDashboardRealtime(workspaceId: string | null): void {
       }, COALESCE_MS);
     };
     const channel = supabase.channel(`dashboard:${workspaceId}`);
-    for (const table of ["items", "item_column_values", "item_assets", "board_groups", "board_columns", "boards", "teams", "item_links"]) {
+    // `workspaces` and `workspace_lists` are here because the dashboard is not
+    // drawn from rows alone. The output rates that turn deliverables into hours
+    // live on the workspace, and the asset types the effort figure is keyed by
+    // live in the list — so renaming a type or correcting a rate changes what
+    // the page says without touching a single item. Left out, those two edits
+    // showed up only when the sixty-second safety refresh came round.
+    for (const table of ["items", "item_column_values", "item_assets", "board_groups", "board_columns", "boards", "teams", "item_links", "workspaces", "workspace_lists"]) {
       channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule);
     }
     channel.subscribe();

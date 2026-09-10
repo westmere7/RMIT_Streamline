@@ -320,7 +320,7 @@ let assetKey = 0;
 
 /** A new row for the composer to open: quantity one, everything else to be filled in. */
 export function newAssetRow(name: string): AssetRow {
-  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, completedAt: null };
+  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, previewUrl: null, artworkUrl: null, completedAt: null };
 }
 
 /** One filled-in row, so the form editor's preview shows what the tab will look like. */

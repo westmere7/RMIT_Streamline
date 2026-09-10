@@ -29,14 +29,40 @@ export interface ItemAsset extends Timestamps {
   completedAt: ISODateTime | null;
   /** Size, format, dimensions, colour, duration… free text. */
   notes: string | null;
+  /**
+   * Where to look at this deliverable, and where the final file is.
+   *
+   * Two links rather than one with a flag, because a deliverable normally
+   * acquires them in order and then has both: something to review while it is
+   * being made, and the signed-off artwork once it is done. Which of the two
+   * exist is what the closed row reports.
+   *
+   * Internal, like `notes`. Neither reaches a stakeholder portal or a public
+   * dashboard — a review link is working material, and a final file is the
+   * team's to hand over deliberately rather than by being on a page.
+   */
+  previewUrl: string | null;
+  artworkUrl: string | null;
   position: number;
   createdBy: EntityId;
 }
 
 export type ItemAssetInput = Pick<ItemAsset, "itemId" | "boardId" | "name" | "createdBy"> &
-  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "position">>;
+  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "previewUrl" | "artworkUrl" | "position">>;
 
-export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "position">>;
+export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "previewUrl" | "artworkUrl" | "position">>;
+
+/** The two kinds of link a deliverable carries. */
+export const ASSET_LINK_KINDS = ["preview", "artwork"] as const;
+export type AssetLinkKind = (typeof ASSET_LINK_KINDS)[number];
+
+/** Which field each kind is stored in, so the editor and the row agree. */
+export const ASSET_LINK_FIELD: Record<AssetLinkKind, "previewUrl" | "artworkUrl"> = { preview: "previewUrl", artwork: "artworkUrl" };
+
+export const ASSET_LINK_LABELS: Record<AssetLinkKind, { short: string; long: string }> = {
+  preview: { short: "Preview", long: "Preview" },
+  artwork: { short: "FA", long: "Final artwork" },
+};
 
 /** The palette the asset-type picker offers; anything else can still be typed. */
 export const ASSET_TYPE_OPTIONS: readonly TagOption[] = BOOKING_ASSET_TYPES;

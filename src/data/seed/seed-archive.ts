@@ -189,6 +189,8 @@ export function buildSeedArchive(ctx: SeedExtrasContext): SeedBundle {
             dueDate,
             completedAt: done ? iso(touched) : rng.chance(0.35) ? iso(touched) : null,
             notes: line.notes,
+            previewUrl: null,
+            artworkUrl: null,
             position: index,
             createdBy: item.createdBy,
             createdAt: item.createdAt,

@@ -1099,6 +1099,8 @@ export function buildSeedHistory(ctx: SeedExtrasContext): SeedBundle {
           // Delivered work is fully ticked off; work in flight is part-way.
           completedAt: status === "done" ? item.updatedAt : rng.chance(0.3) ? item.updatedAt : null,
           notes: line.notes,
+          previewUrl: null,
+          artworkUrl: null,
           position: index,
           createdBy: item.createdBy,
           createdAt: item.createdAt,

@@ -30,15 +30,7 @@ describe("HeadlineFigure", () => {
   };
 
   it("reads every figure in hours when effort passes its own formatter", () => {
-    render(
-      <HeadlineFigure
-        {...base}
-        comparison={comparison(1240, 800)}
-        valueFormat={formatHours}
-        ring={{ value: 620, total: 1240, label: "done" }}
-        testId="effort"
-      />,
-    );
+    render(<HeadlineFigure {...base} comparison={comparison(1240, 800)} valueFormat={formatHours} testId="effort" />);
 
     // The headline.
     expect(screen.getByTestId("effort-value")).toHaveTextContent("1,240 h");
@@ -46,16 +38,27 @@ describe("HeadlineFigure", () => {
     expect(screen.getByText(/vs/)).toHaveTextContent("800 h");
     expect(screen.getByText(/\+440 h/)).toBeInTheDocument();
     expect(screen.getByText(/\+55%/)).toBeInTheDocument();
-    // The ring: half of it done, said in hours.
-    expect(screen.getByText("620 h")).toBeInTheDocument();
-    expect(screen.getByText(/50% of 1,240 h/)).toBeInTheDocument();
+  });
+
+  it("says how far a figure fell, rather than reading a fall as nothing", () => {
+    // The regression: `formatHours` treats anything at or below nothing as
+    // "0 h", so a drop of 2,409 hours rendered as "0 h · -51%". The sign is the
+    // prefix's job and the figure is a magnitude.
+    render(<HeadlineFigure {...base} comparison={comparison(2301, 4710)} valueFormat={formatHours} testId="effort" />);
+    expect(screen.getByText(/-2,409 h/)).toBeInTheDocument();
+    expect(screen.queryByText(/\b0 h\b/)).not.toBeInTheDocument();
   });
 
   it("still counts plainly for the two figures that are counts", () => {
-    render(<HeadlineFigure {...base} label="Tasks" unitWord="tasks" comparison={comparison(485, 332)} ring={{ value: 156, total: 485, label: "done" }} testId="tasks" />);
+    render(<HeadlineFigure {...base} label="Tasks" unitWord="tasks" comparison={comparison(485, 332)} testId="tasks" />);
     expect(screen.getByTestId("tasks-value")).toHaveTextContent("485");
     expect(screen.getByTestId("tasks-value")).not.toHaveTextContent("h");
-    expect(screen.getByText(/32% of 485/)).toBeInTheDocument();
+    expect(screen.getByText(/\+153/)).toBeInTheDocument();
+  });
+
+  it("no longer carries a done ring", () => {
+    render(<HeadlineFigure {...base} comparison={comparison(1240, 800)} valueFormat={formatHours} testId="effort" />);
+    expect(screen.queryByText(/% of/)).not.toBeInTheDocument();
   });
 
   it("names what the effort total leaves out, when something is missing", () => {

@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { effortHours, formatHours, hasAnyRate, unratedTypes } from "@/domain";
-import { assetMix, priorityMix, statusMix, teamHex, type TaskFact } from "@/features/dashboard/analytics";
+import { formatHours, hasAnyRate, unratedTypes } from "@/domain";
+import { assetMix, priorityMix, statusMix, teamHex, UNTYPED, type TaskFact } from "@/features/dashboard/analytics";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { AttentionList, UpcomingList } from "@/features/dashboard/components/attention";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
@@ -62,16 +62,18 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
     return [...rowsByDept.values()].sort((a, b) => b.value - a.value);
   }, [scoped, prefs.unit]);
 
-  const doneTasks = scoped.filter((t) => t.isDone).length;
-  const doneUnits = scopedAssets.reduce((sum, a) => sum + (a.done ? a.units : 0), 0);
-
   // Effort leads only when somebody has recorded a rate. With none, the figure
   // would be a confident nought against a thousand deliverables, so the row
   // goes back to the two counts and the Settings link says what is missing.
   const ratesOn = hasAnyRate(rates);
-  const doneEffort = React.useMemo(() => effortHours(scopedAssets.filter((a) => a.done), rates), [scopedAssets, rates]);
   // Types carrying volume with no rate: exactly what the total leaves out.
-  const unrated = React.useMemo(() => unratedTypes(scopedAssets, rates), [scopedAssets, rates]);
+  //
+  // "Untyped" is not one of them. It is the placeholder for a deliverable that
+  // was never given a type, so there is no type to rate and nothing anybody
+  // could do about being told — a permanent warning is worse than none. Those
+  // units still count as nought hours, exactly as before; what the note names
+  // is the types a rate is actually missing from.
+  const unrated = React.useMemo(() => unratedTypes(scopedAssets, rates).filter((name) => name !== UNTYPED), [scopedAssets, rates]);
 
   const coverageLines: string[] = [];
   if (prefs.basis === "due" && report.current.undatedTasks > 0) coverageLines.push(`${report.current.undatedTasks} tasks have no due date and are not counted here`);
@@ -99,7 +101,7 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
             comparisonLabel={report.period.comparisonLabel}
             basisLine={basisLine}
             trend={monthlyEffort.map((row) => row.current)}
-            ring={{ value: doneEffort, total: report.effort.current, label: "done" }}
+            trendLabels={monthlyEffort.map((row) => row.label)}
             footnote={
               unrated.length > 0 ? (
                 <>
@@ -119,7 +121,7 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           comparisonLabel={report.period.comparisonLabel}
           basisLine={basisLine}
           trend={monthlyTasks.map((row) => row.current)}
-          ring={{ value: doneTasks, total: report.tasks.current, label: "done" }}
+          trendLabels={monthlyTasks.map((row) => row.label)}
           testId="dashboard-headline-tasks"
         />
         <HeadlineFigure
@@ -130,19 +132,40 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           comparisonLabel={report.period.comparisonLabel}
           basisLine={basisLine}
           trend={monthlyAssets.map((row) => row.current)}
-          ring={{ value: doneUnits, total: report.assetUnits.current, label: "done" }}
+          trendLabels={monthlyAssets.map((row) => row.label)}
           testId="dashboard-headline-assets"
         />
       </div>
 
-      <Panel
-        title={`${prefs.unit === "assets" ? "Asset units" : "Tasks"} by month`}
-        subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
-        className="p-4"
-        testId="dashboard-year-comparison"
-      >
-        <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
-      </Panel>
+      {/* The year against last year, with what the period is made of beside
+          it. The four splits are a column rather than a row of their own:
+          read down the right-hand side they answer "and of what?" about the
+          chart they sit next to, which is the question the chart raises. */}
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        <Panel
+          title={`${prefs.unit === "assets" ? "Asset units" : "Tasks"} by month`}
+          subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
+          className="p-4"
+          testId="dashboard-year-comparison"
+        >
+          <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
+        </Panel>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
+          <Panel title="Status" subtitle={`${report.tasks.current} tasks`} className="p-4" testId="dashboard-status-mix">
+            <ShareBar data={status} />
+          </Panel>
+          <Panel title="By team" subtitle={unitWord} className="p-4" testId="dashboard-by-team">
+            <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." />
+          </Panel>
+          <Panel title="By department" subtitle={unitWord} className="p-4" testId="dashboard-by-department">
+            <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />
+          </Panel>
+          <Panel title={prefs.unit === "assets" ? "Asset types" : "Priority"} subtitle={prefs.unit === "assets" ? "units" : "tasks"} className="p-4" testId="dashboard-fourth-mix">
+            <RankedBars data={(prefs.unit === "assets" ? mix : priority).slice(0, 5)} compact emptyMessage="Nothing to split yet." />
+          </Panel>
+        </div>
+      </div>
 
       <OperationsStrip
         asOf={ops.asOf}
@@ -153,23 +176,6 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           { key: "blocked", label: "blocked", count: ops.blocked.length, hint: "Work whose board says it is stuck." },
         ]}
       />
-
-      {/* What the period is made of. Four questions a manager would otherwise
-          have to change tab to ask, each answered by a shape. */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Panel title="Status" subtitle={`${report.tasks.current} tasks`} className="p-4" testId="dashboard-status-mix">
-          <ShareBar data={status} />
-        </Panel>
-        <Panel title="By team" subtitle={unitWord} className="p-4" testId="dashboard-by-team">
-          <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." />
-        </Panel>
-        <Panel title="By department" subtitle={unitWord} className="p-4" testId="dashboard-by-department">
-          <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />
-        </Panel>
-        <Panel title={prefs.unit === "assets" ? "Asset types" : "Priority"} subtitle={prefs.unit === "assets" ? "units" : "tasks"} className="p-4" testId="dashboard-fourth-mix">
-          <RankedBars data={(prefs.unit === "assets" ? mix : priority).slice(0, 5)} compact emptyMessage="Nothing to split yet." />
-        </Panel>
-      </div>
 
       {/* The only two things on this page meant to be read, because they name
           individual tasks somebody has to decide about. */}

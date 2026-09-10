@@ -42,6 +42,9 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         emptyText={canEdit ? "No items yet. Add one above, then open it to set its type, who is in charge, how many and when it is due." : "No items listed."}
         onAdd={(name) => mutations.add.mutate({ name, quantity: 1 })}
         onPatch={(id, patch) => mutations.update.mutate({ id, patch })}
+        // A duplicate is another thing to make, so it takes the specification
+        // and not the links: a preview belongs to the copy it was made from, and
+        // a final artwork to the one that was signed off.
         onDuplicate={(row) =>
           mutations.add.mutate({ name: row.name, assetType: row.assetType, quantity: row.quantity, assigneeIds: row.assigneeIds, dueDate: row.dueDate, notes: row.notes })
         }

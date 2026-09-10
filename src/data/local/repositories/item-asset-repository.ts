@@ -10,7 +10,7 @@ const byPosition = (a: ItemAsset, b: ItemAsset) => a.position - b.position || a.
 function normalize(asset: ItemAsset): ItemAsset {
   if (Array.isArray(asset.assigneeIds)) return asset.completedAt === undefined ? { ...asset, completedAt: null } : asset;
   const legacy = (asset as ItemAsset & { assigneeId?: string | null }).assigneeId;
-  return { ...asset, assigneeIds: legacy ? [legacy] : [], completedAt: asset.completedAt ?? null };
+  return { ...asset, assigneeIds: legacy ? [legacy] : [], completedAt: asset.completedAt ?? null, previewUrl: asset.previewUrl ?? null, artworkUrl: asset.artworkUrl ?? null };
 }
 
 export class LocalItemAssetRepository implements ItemAssetRepository {
@@ -49,6 +49,8 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
       dueDate: input.dueDate ?? null,
       completedAt: null,
       notes: input.notes?.trim() || null,
+      previewUrl: input.previewUrl?.trim() || null,
+      artworkUrl: input.artworkUrl?.trim() || null,
       position: input.position ?? 0,
       createdBy: input.createdBy,
       createdAt: now,

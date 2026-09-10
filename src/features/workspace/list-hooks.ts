@@ -37,6 +37,12 @@ export function useWorkspaceListMutations(workspaceId: string) {
     // A list is the workspace's vocabulary: the boards read it too.
     void queryClient.invalidateQueries({ queryKey: ["item-assets"] });
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
+    // And the dashboard, which keys its effort figure by asset-type name: a
+    // rename rewrites every deliverable carrying the old word, so the figures
+    // are stale the moment this returns. Said here rather than left to the
+    // realtime channel, so the page moves as soon as the save lands instead of
+    // a round trip later — and so it moves at all in local mode.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(workspaceId) });
     publishDataChange({ kinds: ["board"] });
   };
   const failed = (fallback: string) => (error: unknown) => toast.error(error instanceof Error ? error.message : fallback);

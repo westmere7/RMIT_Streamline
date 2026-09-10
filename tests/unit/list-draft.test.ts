@@ -220,3 +220,81 @@ describe("what a save actually has to write", () => {
     expect(ratesChangedFrom(commit, RATES)).toBe(false);
   });
 });
+
+/**
+ * The stranded rename.
+ *
+ * A draft that never stops claiming a rename it has already made never goes
+ * clean, so the editor never reseeds it, so its rows keep an `origin` the
+ * server has replaced. The next rename of such a row is reported against a word
+ * the server has never heard of, `rewrite` matches nothing, and the deliverables
+ * keep the old asset type while the list moves on. That is how 27 deliverables
+ * ended up on "Copies" while the list said "Copy" — and how the dashboard came
+ * to report "no rate yet for Copies" about a type that had one.
+ */
+describe("a rename that has already landed", () => {
+  const RENAMED: TagOption[] = [
+    { name: "Copy", color: "orange" },
+    { name: "Social", color: "pink" },
+    { name: "Video", color: "violet" },
+  ];
+
+  /** The draft immediately after saving Copies -> Copy, before any reseed. */
+  const afterSaving = () => {
+    const result = renameRow(rows(), RATES, idOf("Print"), "Copy");
+    if ("refused" in result) throw new Error("refused");
+    return result;
+  };
+
+  it("is still outstanding while the server has the old word", () => {
+    const { rows: draft, rates } = afterSaving();
+    // Stored still says "Print": the rename has not been written yet.
+    expect(draftCommit(draft, rates, OPTIONS).renames).toEqual({ Print: "Copy" });
+  });
+
+  it("stops being claimed once the server carries the new word", () => {
+    const { rows: draft, rates } = afterSaving();
+    // The save landed, so the stored list says "Copy". There is nothing left to
+    // tell the server, and repeating it would be a rename from a word it has
+    // never heard of.
+    expect(draftCommit(draft, rates, RENAMED).renames).toEqual({});
+  });
+
+  it("lets the draft go clean after a save, which is what triggers the reseed", () => {
+    const { rows: draft, rates } = afterSaving();
+    const landed = draftCommit(draft, rates, RENAMED);
+    // Clean against the list as it now stands — so the editor reseeds and the
+    // rows pick up an `origin` that exists.
+    expect(listChanged(landed, RENAMED)).toBe(false);
+    expect(draftDirty(landed, RENAMED, { ...RATES, Copy: RATES.Print!, Print: undefined as never }, false)).toBe(false);
+  });
+
+  it("reports the second rename against the word the server actually has", () => {
+    // The sequence that stranded the data: rename, save, then rename again.
+    // With the draft reseeded from the saved list, the row's origin is "Copy",
+    // so the second rename is reported as Copy -> Copies and reaches the
+    // deliverables. Before the fix the origin was still "Print" and the server
+    // was told to rewrite a word nothing carried.
+    const reseeded = rowsFromOptions(RENAMED);
+    const second = renameRow(reseeded, RATES, "Copy", "Copies");
+    if ("refused" in second) throw new Error("refused");
+    expect(draftCommit(second.rows, second.rates, RENAMED).renames).toEqual({ Copy: "Copies" });
+  });
+
+  it("does not try to remove a word the server has already lost", () => {
+    const { rows: draft } = afterSaving();
+    const marked = removeRow(draft, idOf("Print"), {});
+    // Its origin is gone from the stored list, so there is nothing to remove
+    // there — sending it would be a removal of a word the server does not have.
+    expect(draftCommit(marked, RATES, RENAMED).removals).toEqual([]);
+    // Against the list that still has it, the removal stands.
+    expect(draftCommit(marked, RATES, OPTIONS).removals).toEqual([{ name: "Print", removal: {} }]);
+  });
+
+  it("takes a first save at face value, when the server has written no list yet", () => {
+    // A list nobody has edited has no stored rows at all; the domain stands the
+    // defaults in for it. Every claimed rename is then genuinely outstanding.
+    const { rows: draft, rates } = afterSaving();
+    expect(draftCommit(draft, rates, []).renames).toEqual({ Print: "Copy" });
+  });
+});

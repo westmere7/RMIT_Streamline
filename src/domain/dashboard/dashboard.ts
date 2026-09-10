@@ -201,6 +201,11 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       dueDate: asset.dueDate,
       completedAt: asset.completedAt,
       notes: null,
+      // Neither link travels. A review link is working material and a final
+      // file is the team's to hand over deliberately, not by being on a page
+      // somebody was sent.
+      previewUrl: null,
+      artworkUrl: null,
       position: asset.position,
       createdBy: PUBLIC_NOBODY,
       createdAt: asset.createdAt,

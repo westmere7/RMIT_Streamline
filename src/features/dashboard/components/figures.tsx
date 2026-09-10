@@ -5,7 +5,7 @@ import * as React from "react";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import type { Comparison } from "@/features/dashboard/metrics";
 import { cn } from "@/lib/utils";
-import { StatBar, StatRing, TrendLine } from "./stat-visuals";
+import { StatBar, TrendLine } from "./stat-visuals";
 
 /**
  * A headline figure and what it is being compared with.
@@ -31,7 +31,7 @@ export function HeadlineFigure({
   footnote,
   onDrill,
   trend,
-  ring,
+  trendLabels,
   valueFormat = formatCount,
   testId,
 }: {
@@ -45,8 +45,8 @@ export function HeadlineFigure({
   onDrill?: () => void;
   /** The same measure month by month, drawn inside the card. */
   trend?: Array<number | null>;
-  /** A proportion worth seeing beside the headline — done against the total. */
-  ring?: { value: number; total: number; label: string };
+  /** Month names for the trend's own axis, aligned to `trend`. */
+  trendLabels?: readonly string[];
   /**
    * How every figure on the card reads: the headline, the ring, the comparison
    * and the change. Counts by default; effort passes `formatHours`, because
@@ -70,7 +70,6 @@ export function HeadlineFigure({
           </p>
           <p className="mt-1 text-2xs text-muted-foreground">{basisLine}</p>
         </div>
-        {ring && <StatRing value={ring.value} total={ring.total} label={ring.label} tone="good" size={54} format={valueFormat} />}
       </div>
 
       {/* The card sits in a grid row with the year chart, which is taller, so
@@ -78,8 +77,8 @@ export function HeadlineFigure({
           rather than leaving it blank under the footer: the same line, drawn
           bigger, and no dead space. `preserveAspectRatio="none"` on the svg is
           what lets it fill a height it does not choose. */}
-      <div className="mt-3 flex min-h-7 flex-1 flex-col justify-end">
-        {trend && <TrendLine values={trend} label={`${label} by month`} className="h-full min-h-7" />}
+      <div className="mt-3 flex min-h-14 flex-1 flex-col justify-end">
+        {trend && <TrendLine values={trend} labels={trendLabels} label={`${label} by month`} className="h-full min-h-14" />}
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/50 pt-2.5 text-xs">
@@ -113,8 +112,12 @@ export function ChangeChip({ delta, percent, className, format = formatCount }: 
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full bg-surface-strong/60 px-2 py-0.5 font-medium tabular", className)}>
       <Icon className="size-3.5" aria-hidden />
-      {delta > 0 ? "+" : ""}
-      {format(delta)}
+      {/* The sign is the arrow's and the prefix's job, so the figure itself is
+          a magnitude. `formatHours` cannot express a negative — it reads
+          anything at or below nothing as "0 h" — and a fall of 2,409 hours
+          rendering as "0 h" is worse than no chip at all. */}
+      {delta > 0 ? "+" : delta < 0 ? "-" : ""}
+      {format(Math.abs(delta))}
       {percent === null ? (
         // A zero baseline. "+12 from nothing" is a fact; "+∞%" is not.
         <span className="font-normal text-muted-foreground">· no % comparison</span>

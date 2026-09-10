@@ -113,6 +113,8 @@ export function useAssetMutations(item: Item) {
         dueDate: line.dueDate ?? null,
         completedAt: null,
         notes: line.notes ?? null,
+        previewUrl: null,
+        artworkUrl: null,
         position: (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1,
         createdBy: user.id,
         createdAt: now,

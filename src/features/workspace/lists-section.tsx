@@ -97,7 +97,9 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   const [asking, setAsking] = React.useState<DraftRow | null>(null);
 
   const live = liveRows(rows);
-  const pending = draftCommit(rows, rates);
+  // `options` is what the server has now, which is what decides whether a
+  // rename this draft claims is still outstanding.
+  const pending = draftCommit(rows, rates, options);
   // Asked apart, because they cost wildly different amounts to write.
   const wordsChanged = listChanged(pending, options);
   const ratesChanged = carriesRates && ratesChangedFrom(pending, storedRates);
@@ -111,12 +113,16 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   // their Save wins; losing the edit silently would be the worse of the two.
   const settled = JSON.stringify([options, storedRates]);
   const [seen, setSeen] = React.useState(settled);
-  if (seen !== settled) {
+  // `seen` advances only together with an actual reseed. Advancing it while the
+  // draft was dirty was the other half of the stranded-rename bug: the editor
+  // recorded that it had seen the new list without ever refreshing the rows'
+  // `origin`, so they went on describing themselves against a word the server
+  // had replaced. Left alone, this simply reseeds as soon as the draft is clean
+  // — which a landed save now makes it.
+  if (seen !== settled && !dirty) {
     setSeen(settled);
-    if (!dirty) {
-      setRows(rowsFromOptions(options));
-      setRates(storedRates);
-    }
+    setRows(rowsFromOptions(options));
+    setRates(storedRates);
   }
 
   const commit = useMutation({
@@ -141,7 +147,13 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
       // workspace context is refetched, not the boards and their members too.
       if (ratesChanged) {
         await services.repos.workspaces.update(ws.workspace.id, { assetRates: pending.rates });
-        await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }),
+          // The dashboard weighs deliverables into hours with these, so its
+          // effort figure is wrong until it re-reads them. Nothing else about
+          // the boards changed, which is why only these two are invalidated.
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(ws.workspace.id) }),
+        ]);
       }
     },
     onSuccess: () => toast.success(`${meta.label} saved`),

@@ -40,7 +40,7 @@ function value(itemId: string, columnId: string, v: ItemColumnValue["value"]): I
   return { id: `${itemId}:${columnId}`, itemId, columnId, value: v, updatedAt: now };
 }
 function asset(id: string, itemId: string, boardId: string, type: string | null, quantity: number | null, completedAt: string | null = null, dueDate: string | null = null): ItemAsset {
-  return { id, itemId, boardId, name: id, assetType: type, quantity, assigneeIds: ["u-tuyet"], dueDate, completedAt, notes: "1080×1080", position: 0, createdBy: "u-danh", createdAt: now, updatedAt: now };
+  return { id, itemId, boardId, name: id, assetType: type, quantity, assigneeIds: ["u-tuyet"], dueDate, completedAt, notes: "1080×1080", previewUrl: null, artworkUrl: null, position: 0, createdBy: "u-danh", createdAt: now, updatedAt: now };
 }
 function user(id: string, displayName: string, department: string | null = null): User {
   return { id, email: `${id}@rmit.local`, firstName: displayName, lastName: "", displayName, avatarUrl: null, jobTitle: "Designer", department, timezone: "Australia/Melbourne", deactivatedAt: null, createdAt: now, updatedAt: now };

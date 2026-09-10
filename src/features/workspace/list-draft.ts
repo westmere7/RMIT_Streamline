@@ -96,13 +96,34 @@ export interface DraftCommit {
   rates: AssetRates;
 }
 
-export function draftCommit(rows: readonly DraftRow[], rates: AssetRates): DraftCommit {
+/**
+ * Everything one commit has to write.
+ *
+ * `stored` is what the list looks like on the server *right now*, and it is what
+ * decides whether a row's rename is still outstanding. A rename is only a
+ * rename while the server still has the old word: once a save lands, the stored
+ * list carries the new one, and a draft row that goes on claiming
+ * "Copies → Copy" is describing something that has already happened.
+ *
+ * That distinction is not pedantry — it was a bug. A draft that never stopped
+ * claiming a landed rename never went clean, so the editor never reseeded it,
+ * so the row kept an `origin` that no longer existed. The next rename of that
+ * row was then reported against a word the server had never heard of, `rewrite`
+ * matched nothing, and the deliverables kept the old asset type while the list
+ * moved on — which is exactly how "Copies" ended up stranded on 27 deliverables
+ * while the list said "Copy".
+ */
+export function draftCommit(rows: readonly DraftRow[], rates: AssetRates, stored: readonly TagOption[] = []): DraftCommit {
   const live = liveRows(rows);
   const surviving = new Set(live.map((row) => row.name.trim().toLowerCase()));
+  const known = new Set(stored.map((option) => option.name));
+  // With no stored list to check against, every claimed rename is taken at face
+  // value — the first save of a list the server has never written.
+  const outstanding = (row: DraftRow) => !!row.origin && row.origin !== row.name && (known.size === 0 || known.has(row.origin));
   return {
     options: live.map((row) => ({ name: row.name, color: row.color })),
-    renames: Object.fromEntries(live.filter((row) => row.origin && row.origin !== row.name).map((row) => [row.origin!, row.name])),
-    removals: rows.filter((row) => row.removal && row.origin).map((row) => ({ name: row.origin!, removal: row.removal! })),
+    renames: Object.fromEntries(live.filter(outstanding).map((row) => [row.origin!, row.name])),
+    removals: rows.filter((row) => row.removal && row.origin && (known.size === 0 || known.has(row.origin))).map((row) => ({ name: row.origin!, removal: row.removal! })),
     rates: normaliseAssetRates(Object.fromEntries(Object.entries(rates).filter(([name]) => surviving.has(name.trim().toLowerCase())))),
   };
 }
