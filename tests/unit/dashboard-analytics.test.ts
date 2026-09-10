@@ -265,13 +265,17 @@ describe("publicDashboardSnapshot", () => {
  * has to be added here deliberately before it can leave the building.
  */
 describe("the public dashboard payload", () => {
-  it("names nobody at all", () => {
-    const published = publicDashboardSnapshot(snapshot());
+  it("names the people the workload panel draws, and nothing else about them", () => {
+    const internal = snapshot();
+    const published = publicDashboardSnapshot(internal);
 
-    expect(published.users).toEqual([]);
-    // PERSON is the whole of the workload data, so it is not published as values.
-    expect(published.values.some((v) => v.value.type === "PERSON")).toBe(false);
-    expect(published.assets.every((a) => a.assigneeIds.length === 0)).toBe(true);
+    // A link reports the same figures as the app, and who is carrying the work
+    // is one of them — so the people travel, as a name and a face.
+    expect(published.users).toHaveLength(internal.users.length);
+    expect(published.users.every((u) => u.displayName.length > 0)).toBe(true);
+    expect(published.values.some((v) => v.value.type === "PERSON")).toBe(true);
+    // Nothing about them that no chart draws.
+    expect(published.users.every((u) => u.email === "" && u.jobTitle === null && u.department === null)).toBe(true);
     expect(published.items.every((i) => i.createdBy === "00000000-0000-0000-0000-000000000000")).toBe(true);
     expect(published.boards.every((b) => b.ownerId === "00000000-0000-0000-0000-000000000000")).toBe(true);
   });
@@ -282,11 +286,12 @@ describe("the public dashboard payload", () => {
     expect(published.items.every((i) => i.description === null)).toBe(true);
     expect(published.assets.every((a) => a.notes === null)).toBe(true);
     expect(published.teams.every((t) => t.description === null)).toBe(true);
+    expect(published.assets.every((a) => a.previewUrl === null && a.artworkUrl === null)).toBe(true);
     // A LONG_TEXT or LINK column is somebody's writing; its values never travel.
     const publishedColumns = new Set(published.columns.map((c) => c.id));
     const internal = snapshot();
     for (const column of internal.columns) {
-      if (column.type === "LONG_TEXT" || column.type === "LINK" || column.type === "PERSON") {
+      if (column.type === "LONG_TEXT" || column.type === "LINK") {
         expect(publishedColumns.has(column.id)).toBe(false);
       }
     }
@@ -298,6 +303,8 @@ describe("the public dashboard payload", () => {
     // Without these the page has nothing to draw.
     expect(published.items.length).toBeGreaterThan(0);
     expect(published.assets.length).toBeGreaterThan(0);
-    expect([...kinds].every((k) => k !== "PERSON")).toBe(true);
+    expect(kinds.has("STATUS")).toBe(true);
+    // The rates the effort figure is weighed with come too, or the tile is blank.
+    expect(published.workspace.assetRates).toEqual(snapshot().workspace.assetRates ?? null);
   });
 });

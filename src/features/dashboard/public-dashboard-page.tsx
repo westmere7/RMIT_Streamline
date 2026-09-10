@@ -104,7 +104,6 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
       <DashboardScreen
         snapshot={payload.snapshot}
         viewerId="public"
-        publicLink
         toolbarExtras={
           <>
             <SimpleTooltip label={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">

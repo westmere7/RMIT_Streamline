@@ -34,6 +34,4 @@ export interface DashboardViewProps {
   today: string;
   onOpenTask?: (taskId: string, boardId: string) => void;
   onOpenBoard?: (boardId: string) => void;
-  /** True behind a public link: no people in the payload, so nothing about them is drawn. */
-  publicLink?: boolean;
 }

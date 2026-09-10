@@ -30,7 +30,7 @@ const DIMENSIONS: Array<{ key: ComparisonDimension; label: string; column: strin
  * already on the bars, the change was already on the year chart above, and it
  * left the panel taller than the one beside it for a table nobody opened.
  */
-export function DemandSection({ facts, report, ops, prefs, set, publicLink }: DashboardViewProps) {
+export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewProps) {
   const [dimension, setDimension] = React.useState<ComparisonDimension>("team");
   const unitWord = prefs.unit === "assets" ? "asset units" : "tasks";
 
@@ -70,7 +70,7 @@ export function DemandSection({ facts, report, ops, prefs, set, publicLink }: Da
         <dl className="flex flex-col gap-2.5">
           <RequestFigure label={report.period.label} value={requestsNow.length} peak={peak} tone="good" />
           <RequestFigure label={report.period.comparisonLabel} value={requestsThen?.length ?? null} peak={peak} />
-          {!publicLink && <RequestFigure label="Open right now" value={openNow} peak={peak} tone={openNow > 0 ? "urgent" : undefined} hint="no team, nobody assigned" />}
+          <RequestFigure label="Open right now" value={openNow} peak={peak} tone={openNow > 0 ? "urgent" : undefined} hint="no team, nobody assigned" />
         </dl>
         <p className="mt-3 border-t border-border/50 pt-2 text-2xs leading-relaxed text-muted-foreground">
           One request can become several tasks, so these are never subtracted from the task count.

@@ -100,27 +100,31 @@ export interface PublicDashboardPayload {
  * the building. Nothing is spread here; every field is written out, and a new
  * field on a row has to be added deliberately to appear.
  *
- * Three categories never travel:
+ * A link is the same dashboard the workspace sees. It reports the same figures
+ * from the same panels — the effort a rate turns deliverables into, and who is
+ * carrying what — because a report that quietly leaves half of itself out is
+ * read as the whole and is wrong. What a visitor is handed is therefore the
+ * team's workload; that is the price of the link, and the way not to pay it is
+ * not to send one.
  *
- *  · **People.** No users, no PERSON cells, no asset assignees, no board owner,
- *    no `createdBy`. A public dashboard reports what the team produced, not who
- *    is carrying what — the Resourcing view does not exist behind a public link
- *    and its data does not either.
- *  · **Words.** Descriptions, notes, long text and links. The one exception is a
- *    department name, which is a category the charts group by.
- *  · **Anything not drawn.** If no chart reads a field, it is not in the payload.
+ * Two categories still never travel:
+ *
+ *  · **Words.** Descriptions, briefs, notes, long text and the links on a
+ *    deliverable: working material, and none of it is drawn on this page. The
+ *    exception is a department name, which is a category the charts group by.
+ *  · **Anything not drawn.** If no chart reads a field, it is not in the payload
+ *    — which is why a person arrives as a name, a face and nothing else, and
+ *    `createdBy` and a board's owner stay behind.
  */
 export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardSnapshot {
   const publishedColumns = snapshot.columns.filter(isPublishableColumn);
   const publishable = new Set(publishedColumns.map((c) => c.id));
 
   return {
-    // No `assetRates`: how fast the team produces each kind of thing is a
-    // statement about its capacity, and a link sent outside the workspace has
-    // no claim on it. The effort figure simply does not appear behind a public
-    // link, which is the honest outcome — better than publishing the rates so a
-    // visitor can read hours off them.
-    workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug },
+    // The rates travel, because the effort figure is drawn from them and a
+    // dashboard without it is a different dashboard. They are output rates, not
+    // anybody's hours.
+    workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug, assetRates: snapshot.workspace.assetRates ?? null },
     teams: snapshot.teams.map((team) => ({
       id: team.id,
       workspaceId: team.workspaceId,
@@ -197,7 +201,7 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       name: asset.name,
       assetType: asset.assetType,
       quantity: asset.quantity,
-      assigneeIds: [],
+      assigneeIds: asset.assigneeIds,
       dueDate: asset.dueDate,
       completedAt: asset.completedAt,
       notes: null,
@@ -220,7 +224,22 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       createdBy: PUBLIC_NOBODY,
       createdAt: link.createdAt,
     })),
-    users: [],
+    // A name and a face, which is what the workload rows draw. No email, no job
+    // title, no department, no working hours: none of it is on the page.
+    users: snapshot.users.map((user) => ({
+      id: user.id,
+      email: "",
+      firstName: user.firstName,
+      lastName: user.lastName,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      jobTitle: null,
+      department: null,
+      timezone: user.timezone,
+      deactivatedAt: user.deactivatedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    })),
     departments: snapshot.departments.map((department) => ({
       id: department.id,
       workspaceId: department.workspaceId,
@@ -246,8 +265,8 @@ const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio",
  *
  * An allowlist by type. STATUS, PRIORITY, DATE, TIMELINE, TAGS, SIZE,
  * ASSETS_RECAP and STAKEHOLDER are categories and quantities the charts group
- * by. PERSON is not published at all — it is the whole of the workload data —
- * and free text is published only where the column is plainly a department.
+ * by, and PERSON is who is carrying the work — the workload panel is drawn from
+ * it. Free text is published only where the column is plainly a department.
  */
 function isPublishableColumn(column: BoardColumn): boolean {
   switch (column.type) {
@@ -261,13 +280,14 @@ function isPublishableColumn(column: BoardColumn): boolean {
     case "STAKEHOLDER":
     case "NUMBER":
     case "CHECKBOX":
+    case "PERSON":
       return true;
     case "TEXT": {
       const name = column.name.toLowerCase();
       return DEPARTMENT_COLUMN_HINTS.some((hint) => name.includes(hint));
     }
     default:
-      // PERSON, LONG_TEXT, LINK, DEPENDENCY and anything added later.
+      // LONG_TEXT, LINK, DEPENDENCY and anything added later.
       return false;
   }
 }

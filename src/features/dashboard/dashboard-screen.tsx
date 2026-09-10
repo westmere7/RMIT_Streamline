@@ -32,12 +32,6 @@ export interface DashboardScreenProps {
   toolbarExtras?: React.ReactNode;
   /** When the snapshot was read, and whether a newer read is in flight. */
   freshness?: React.ReactNode;
-  /**
-   * A public link. Restricts the page to the two views that report output, and
-   * says so: Resourcing is individual workload, and no payload behind a public
-   * link carries the people it would need.
-   */
-  publicLink?: boolean;
   className?: string;
 }
 
@@ -50,11 +44,13 @@ export interface DashboardScreenProps {
  * so a headline on one tab and a table on another are the same computation
  * rather than two that ought to agree.
  *
- * The same component serves the signed-in page and the public link. What
- * differs is what is passed in: a public visitor gets no task callbacks, so
- * nothing on the page leads anywhere they cannot go.
+ * The same component serves the signed-in page and the public link, and draws
+ * the same panels for both — a report that leaves half of itself out behind a
+ * link is read as the whole and is wrong. What differs is what is passed in: a
+ * public visitor gets no task callbacks, so nothing on the page leads anywhere
+ * they cannot go.
  */
-export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, toolbarExtras, freshness, publicLink = false, className }: DashboardScreenProps) {
+export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, toolbarExtras, freshness, className }: DashboardScreenProps) {
   const today = useToday();
   const facts = React.useMemo(() => buildFacts(snapshot), [snapshot]);
   const teamIds = React.useMemo(() => facts.teams.map((t) => t.id), [facts.teams]);
@@ -98,7 +94,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">
