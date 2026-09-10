@@ -12,7 +12,6 @@ import type {
   ItemLink,
   PortalColumnKey,
   PortalDeliverable,
-  PortalGrouping,
   PortalPerson,
   PortalPriority,
   PortalStatus,
@@ -77,9 +76,6 @@ function assetTypeColor(name: string): ColorToken {
 /** Nobody. Used where a row needs an author and the portal will not name one. */
 const NOBODY = "00000000-0000-0000-0000-000000000000";
 
-/** The heading for requests whose board has no status to report. */
-const NO_STATUS = "No status";
-
 /** A task, with the parts of it the detail panel needs. */
 export interface PortalBoardTask {
   task: PortalTask;
@@ -99,14 +95,6 @@ export interface PortalBoardInput {
    * clutter on the page, and nothing downstream may treat it as a boundary.
    */
   hiddenColumns?: readonly PortalColumnKey[];
-  /**
-   * What the board's groups are, as the team set it on the link.
-   *
-   * Presentation, like `hiddenColumns`: rearranging the same authorised set
-   * publishes nothing new. Absent means "board", the arrangement the portal has
-   * always drawn.
-   */
-  grouping?: PortalGrouping;
   tasks: readonly PortalBoardTask[];
   /** Links whose two ends are both in scope. Anything else is left out. */
   links: readonly ItemLink[];
@@ -219,32 +207,21 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   if (assetTypes.length > 0) {
     column("asset-types", "Asset types", "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
   }
-  // ---- groups ------------------------------------------------------------------
-  // Either the board each request is being run on ("who has this") or the
-  // status it is in ("where is it up to"), as the team set on the link.
-  //
-  // Grouping by status uses the reconciled labels worked out above, so two
-  // boards that both call something "In Progress" make one group rather than
-  // two that happen to share a name, and the groups come out in the same order
-  // the status column offers them: pending, working, stuck, then done. Anything
-  // with no status at all gathers under one heading rather than disappearing.
-  const byStatus = input.grouping === "status";
-  const groupNames = byStatus
-    ? [...statusLabels.map((label) => label.name), ...(tasks.some(({ task }) => !task.status) ? [NO_STATUS] : [])]
-    : [...new Set(tasks.map(({ task }) => task.sourceName ?? "Requests"))].sort((a, b) => a.localeCompare(b));
-  const groups: BoardGroup[] = groupNames.map((name, position) => ({
+  // ---- groups: the board each request is being run on --------------------------
+  // The canonical arrangement. A visitor who would rather see the work by
+  // status switches that on in the toolbar, and the payload is regrouped in the
+  // browser (`groupPortalBoardByStatus`) rather than fetched again.
+  const sourceNames = [...new Set(tasks.map(({ task }) => task.sourceName ?? "Requests"))].sort((a, b) => a.localeCompare(b));
+  const groups: BoardGroup[] = sourceNames.map((name, position) => ({
     id: `${boardId}:g-${slugify(name) || position}`,
     boardId,
     name,
-    // Grouped by status, the group is the status, so it wears the status's own
-    // colour; grouped by board there is nothing to say but the department's.
-    color: (byStatus ? statuses.get(name)?.color : undefined) ?? department.color,
+    color: department.color,
     position,
     collapsed: false,
     createdAt: now,
   }));
-  const groupIdByName = new Map(groupNames.map((name, i) => [name, groups[i]!.id]));
-  const groupFor = (task: PortalTask) => groupIdByName.get(byStatus ? (task.status?.name ?? NO_STATUS) : (task.sourceName ?? "Requests"))!;
+  const groupIdBySource = new Map(sourceNames.map((name, i) => [name, groups[i]!.id]));
 
   // ---- items, their values, their deliverables and their steps -----------------
   const items: Item[] = [];
@@ -257,7 +234,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   };
 
   tasks.forEach(({ task, brief, deliverables, subitems }, position) => {
-    const groupId = groupFor(task);
+    const groupId = groupIdBySource.get(task.sourceName ?? "Requests")!;
     items.push({
       id: task.id,
       boardId,

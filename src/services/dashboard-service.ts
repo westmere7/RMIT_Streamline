@@ -138,7 +138,7 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
   const onBoards = new Set(items.map((i) => i.id));
   const links = (await repos.links.listByWorkspace(workspaceId)).filter((l) => onBoards.has(l.itemAId) && onBoards.has(l.itemBId));
   return {
-    workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
+    workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug, assetRates: workspace.assetRates ?? null },
     teams: teams.filter((t) => t.archivedAt === null),
     departments,
     boards: active,

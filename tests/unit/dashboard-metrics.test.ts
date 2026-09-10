@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
+import type { AssetRates } from "@/domain";
 import type { AssetFact, DashboardFacts, TaskFact, TeamRef } from "@/features/dashboard/analytics";
 import {
   assignedWorkload,
   attention,
   compare,
   coverage,
+  departmentHex,
   dimensionComparison,
   monthlyComparison,
   operations,
   reportingDate,
   resolvePeriod,
+  UNKNOWN_DEPARTMENT,
   upcoming,
   volumeReport,
   type ReportingPeriod,
@@ -164,6 +167,45 @@ describe("volume and comparison", () => {
     expect(report.assetUnits.comparison).toBe(320);
     expect(report.assetUnits.delta).toBe(80);
     expect(report.assetUnits.percent).toBeCloseTo(25, 5);
+  });
+
+  it("weighs the same deliverables into hours, and agrees with the counts", () => {
+    // Print takes 2 h a unit (4 a day); the fixture's assets are all Print.
+    const rates: AssetRates = { Print: { qty: 4, every: 1, per: "day" } };
+    const data = twoYears();
+    const resolved = resolvePeriod(period(), TODAY);
+    const report = volumeReport(data, resolved, "created", null, rates);
+
+    // 400 units this year, 320 last, at 2 h each — derived from exactly the
+    // deliverables the asset count came from, so the two cannot disagree about
+    // which period they describe.
+    expect(report.effort.current).toBe(800);
+    expect(report.effort.comparison).toBe(640);
+    expect(report.effort.delta).toBe(160);
+    expect(report.effort.percent).toBeCloseTo(25, 5);
+    expect(report.effort.percent).toBeCloseTo(report.assetUnits.percent!, 5);
+
+    // And the monthly effort series adds up to the headline.
+    const rows = monthlyComparison(data, resolved, "created", "effort", null, rates);
+    expect(rows.reduce((total, row) => total + (row.current ?? 0), 0)).toBe(800);
+  });
+
+  it("reports no effort at all for a workspace that has recorded no rates", () => {
+    // Not a small number — none. The page asks hasAnyRate before leading with
+    // it, because nought hours against 400 deliverables would be a lie.
+    const report = volumeReport(twoYears(), resolvePeriod(period(), TODAY), "created", null);
+    expect(report.assetUnits.current).toBe(400);
+    expect(report.effort.current).toBe(0);
+    expect(report.effort.comparison).toBe(0);
+  });
+
+  it("leaves an unrated type out of the hours rather than guessing at it", () => {
+    const rates: AssetRates = { Print: { qty: 4, every: 1, per: "day" } };
+    const data = facts([task({ id: "t1", createdAt: "2026-03-01" })], [asset("t1", 3, { type: "Print" }), asset("t1", 50, { type: "Video" })]);
+    const report = volumeReport(data, resolvePeriod(period(), TODAY), "created", null, rates);
+    expect(report.assetUnits.current).toBe(53);
+    // The 50 unrated video units contribute nothing; the 3 print units are 6 h.
+    expect(report.effort.current).toBe(6);
   });
 
   it("reconciles the monthly rows with the headline", () => {
@@ -337,5 +379,38 @@ describe("coverage", () => {
   it("counts what the figures cannot see", () => {
     const gaps = coverage([task({ dueDate: null }), task({ owners: [] }), task({ status: "none", owners: ["u1"], department: { id: "d", name: "Comm.", inferred: false } })]);
     expect(gaps).toMatchObject({ tasks: 3, withoutDueDate: 1, withoutOwner: 2, withoutDepartment: 2, withoutStatus: 1 });
+  });
+});
+
+/**
+ * Every chart in the dashboard paints with raw CSS, so a colour has to be a
+ * value and never a token. This is the regression that made bars vanish: the
+ * department palette handed back tokens, and CSS knows "indigo" and "pink" but
+ * not "sky", "amber" or "rose" — so some bars drew in a washed-out CSS colour
+ * and the rest drew nothing at all beside a perfectly good number.
+ */
+describe("departmentHex", () => {
+  it("is always a hex value, never a colour token", () => {
+    // The whole tag palette, reached through the names that hash onto it.
+    const names = ["Contents", "Events", "Digital", "Comm.", "Marketing VN", "Web", "Brand", "Publication", "Tech", "Melbourne", "Production", "A", "B", "C", "D", "E", "F", "G"];
+    for (const name of names) {
+      expect(departmentHex(name), name).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  it("covers the tokens CSS does not know, which is where the bars went", () => {
+    // "Events" hashes onto "amber" and "Digital" onto "sky"; neither is a CSS
+    // colour keyword, so each used to render as no fill at all.
+    expect(departmentHex("Events")).toBe("#fbbf24");
+    expect(departmentHex("Digital")).toBe("#0ea5e9");
+  });
+
+  it("gives an unnamed department the grey the rest of the page uses", () => {
+    expect(departmentHex(UNKNOWN_DEPARTMENT)).toBe("#9ca3af");
+  });
+
+  it("is stable, so a department keeps its colour between renders", () => {
+    expect(departmentHex("Comm.")).toBe(departmentHex("Comm."));
+    expect(departmentHex("Comm.")).not.toBe(departmentHex("Digital"));
   });
 });

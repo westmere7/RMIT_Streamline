@@ -14,10 +14,8 @@ import {
   MAX_PORTAL_DESCRIPTION,
   PORTAL_COLUMN_LABELS,
   PORTAL_COLUMNS,
-  PORTAL_GROUPINGS,
   PORTAL_THEMES,
   PORTAL_VIEWS,
-  type PortalGrouping,
   type PortalTheme,
   type PortalView,
 } from "@/domain";
@@ -343,15 +341,6 @@ function DepartmentCard({ row }: { row: DepartmentOverview }) {
               value={portal.defaultView}
               onChange={(defaultView) => setPresentation.mutate({ departmentId: department.id, patch: { defaultView: defaultView as PortalView } })}
               name={`View for ${department.name}`}
-            />
-          </Field>
-
-          <Field label="Group by" hint="What the board's groups are: the board doing the work, or the status it is in.">
-            <Choice
-              options={PORTAL_GROUPINGS.map((grouping) => ({ value: grouping, label: grouping }))}
-              value={portal.grouping}
-              onChange={(grouping) => setPresentation.mutate({ departmentId: department.id, patch: { grouping: grouping as PortalGrouping } })}
-              name={`Grouping for ${department.name}`}
             />
           </Field>
 

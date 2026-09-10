@@ -1,3 +1,4 @@
+import type { AssetRates } from "@/domain/workspace/asset-rate";
 import type { Board, BoardGroup } from "@/domain/board/board";
 import type { BoardColumn } from "@/domain/board/column";
 import type { BoardShareGate, ShareRefusal } from "@/domain/board/board-share";
@@ -19,7 +20,11 @@ import type { User } from "@/domain/user/user";
  * so a span or team filter never costs another request.
  */
 export interface DashboardSnapshot {
-  workspace: { id: EntityId; name: string; slug: string };
+  /**
+   * `assetRates` is how the dashboard weighs deliverables into hours. It is
+   * absent from the public payload on purpose — see `publicDashboardSnapshot`.
+   */
+  workspace: { id: EntityId; name: string; slug: string; assetRates?: AssetRates | null };
   teams: Team[];
   /** The boards the snapshot was read from — active ones only. */
   boards: Board[];
@@ -110,6 +115,11 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
   const publishable = new Set(publishedColumns.map((c) => c.id));
 
   return {
+    // No `assetRates`: how fast the team produces each kind of thing is a
+    // statement about its capacity, and a link sent outside the workspace has
+    // no claim on it. The effort figure simply does not appear behind a public
+    // link, which is the honest outcome — better than publishing the rates so a
+    // visitor can read hours off them.
     workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug },
     teams: snapshot.teams.map((team) => ({
       id: team.id,

@@ -1,4 +1,5 @@
 import type { BookingFormTemplate } from "@/domain/booking/booking-template";
+import type { AssetRates } from "@/domain/workspace/asset-rate";
 import type { EntityId, Timestamps } from "@/domain/common/types";
 
 export const WORKSPACE_ROLES = ["OWNER", "ADMIN", "MEMBER", "GUEST"] as const;
@@ -20,6 +21,14 @@ export interface Workspace extends Timestamps {
    * it is unset.
    */
   creativeTeamName?: string | null;
+  /**
+   * How fast each asset type is produced, keyed by type name.
+   *
+   * What turns a count of deliverables into hours of work on the dashboard.
+   * Absent or empty means nobody has recorded a rate yet, and the effort figure
+   * says so rather than guessing. See `@/domain/workspace/asset-rate`.
+   */
+  assetRates?: AssetRates | null;
 }
 
 export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";

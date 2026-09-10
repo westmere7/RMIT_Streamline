@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
+import { normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { ScopeToolbar, UnitToggle, ViewTabs } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
@@ -82,12 +83,16 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   );
   const resolved = React.useMemo(() => resolvePeriod(period, today), [period, today]);
 
-  const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
+  // Recorded in Settings and read straight off the workspace: the rates are
+  // what turn deliverables into hours, and nothing is stored per task.
+  const rates = React.useMemo(() => normaliseAssetRates(snapshot.workspace.assetRates), [snapshot.workspace.assetRates]);
+  const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds, rates), [facts, resolved, prefs.basis, prefs.teamIds, rates]);
   const monthly = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, prefs.unit, prefs.teamIds), [facts, resolved, prefs.basis, prefs.unit, prefs.teamIds]);
   // Both measures, because each headline card draws its own trend and the unit
   // toggle must not change what the other card is showing.
   const monthlyTasks = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "tasks", prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
   const monthlyAssets = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "assets", prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
+  const monthlyEffort = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "effort", prefs.teamIds, rates), [facts, resolved, prefs.basis, prefs.teamIds, rates]);
   // As of now, and deliberately not a function of the reporting period.
   const ops = React.useMemo(() => operations(facts, today, prefs.teamIds), [facts, today, prefs.teamIds]);
   const attentionRows = React.useMemo(() => attention(ops, today), [ops, today]);
@@ -95,7 +100,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard, publicLink };
   const views = publicLink ? (["overview", "demand"] as const) : DASHBOARD_VIEWS;
   // A stored preference for a view this link does not have would show nothing.
   const view = views.includes(prefs.view as never) ? prefs.view : "overview";

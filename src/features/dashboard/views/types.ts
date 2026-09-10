@@ -1,3 +1,4 @@
+import type { AssetRates } from "@/domain";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
 import type { AttentionRow, Coverage, MonthlyComparisonRow, OperationsSnapshot, VolumeReport } from "@/features/dashboard/metrics";
 import type { TaskFact } from "@/features/dashboard/analytics";
@@ -18,6 +19,12 @@ export interface DashboardViewProps {
   /** The same series per measure, for the trend drawn inside each headline card. */
   monthlyTasks: MonthlyComparisonRow[];
   monthlyAssets: MonthlyComparisonRow[];
+  monthlyEffort: MonthlyComparisonRow[];
+  /**
+   * The workspace's output rates, so a view can weigh deliverables into hours
+   * and name the types it had no rate for.
+   */
+  rates: AssetRates;
   ops: OperationsSnapshot;
   attentionRows: AttentionRow[];
   upcomingTasks: TaskFact[];

@@ -6,9 +6,8 @@ import { assetTypeHex, teamHex, type TeamRef } from "@/features/dashboard/analyt
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { CoverageNote } from "@/features/dashboard/components/figures";
 import { ComparisonTable, YearComparisonChart } from "@/features/dashboard/components/year-comparison";
-import { dimensionComparison, UNKNOWN_DEPARTMENT, type ComparisonDimension } from "@/features/dashboard/metrics";
+import { departmentHex, dimensionComparison, type ComparisonDimension } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
-import { tagColorFor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
 
@@ -40,7 +39,7 @@ export function DemandView({ facts, report, monthly, prefs, set, ops }: Dashboar
     return (key: string) => {
       if (dimension === "team") return teams.get(key) ?? "#94a3b8";
       if (dimension === "assetType") return assetTypeHex(key);
-      return key === UNKNOWN_DEPARTMENT ? "#94a3b8" : tagColorFor(key);
+      return departmentHex(key);
     };
   }, [dimension, facts.teams]);
 

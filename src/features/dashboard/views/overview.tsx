@@ -1,15 +1,16 @@
 "use client";
 
 import * as React from "react";
+import { effortHours, formatHours, hasAnyRate, unratedTypes } from "@/domain";
 import { assetMix, priorityMix, statusMix, teamHex, type TaskFact } from "@/features/dashboard/analytics";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { AttentionList, UpcomingList } from "@/features/dashboard/components/attention";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
 import { ShareBar } from "@/features/dashboard/components/stat-visuals";
 import { YearComparisonChart } from "@/features/dashboard/components/year-comparison";
-import { UNKNOWN_DEPARTMENT } from "@/features/dashboard/metrics";
+import { departmentHex, UNKNOWN_DEPARTMENT } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
-import { tagColorFor } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
 
 /**
@@ -27,7 +28,7 @@ import type { DashboardViewProps } from "./types";
  * down is *now* and does not, because a manager reading last year's volume
  * still needs to know what is late today.
  */
-export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAssets, ops, attentionRows, upcomingTasks, gaps, prefs, set, onOpenTask, publicLink }: DashboardViewProps) {
+export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, onOpenTask, publicLink }: DashboardViewProps) {
   // A public payload carries no people, so every task looks unowned. The two
   // reasons that do not depend on an owner are still true and still useful; the
   // two that do are dropped rather than shown as a page of false positives.
@@ -54,7 +55,7 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
     const rowsByDept = new Map<string, { name: string; value: number; color: string }>();
     for (const task of scoped) {
       const name = task.department?.name ?? UNKNOWN_DEPARTMENT;
-      const entry = rowsByDept.get(name) ?? { name, value: 0, color: name === UNKNOWN_DEPARTMENT ? "#94a3b8" : tagColorFor(name) };
+      const entry = rowsByDept.get(name) ?? { name, value: 0, color: departmentHex(name) };
       entry.value += prefs.unit === "assets" ? task.assetUnits : 1;
       rowsByDept.set(name, entry);
     }
@@ -64,15 +65,52 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
   const doneTasks = scoped.filter((t) => t.isDone).length;
   const doneUnits = scopedAssets.reduce((sum, a) => sum + (a.done ? a.units : 0), 0);
 
+  // Effort leads only when somebody has recorded a rate. With none, the figure
+  // would be a confident nought against a thousand deliverables, so the row
+  // goes back to the two counts and the Settings link says what is missing.
+  const ratesOn = hasAnyRate(rates);
+  const doneEffort = React.useMemo(() => effortHours(scopedAssets.filter((a) => a.done), rates), [scopedAssets, rates]);
+  // Types carrying volume with no rate: exactly what the total leaves out.
+  const unrated = React.useMemo(() => unratedTypes(scopedAssets, rates), [scopedAssets, rates]);
+
   const coverageLines: string[] = [];
   if (prefs.basis === "due" && report.current.undatedTasks > 0) coverageLines.push(`${report.current.undatedTasks} tasks have no due date and are not counted here`);
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
   if (gaps.withoutStatus > 0) coverageLines.push(`${gaps.withoutStatus} have no status`);
+  if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Output rates");
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Two figures and the year beside them, on one row on a wide screen. */}
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.35fr)]">
+      {/* Effort leads, with the two counts beside it.
+          Hours are what a manager plans capacity with — three hundred photo
+          edits and ten films are not thirty times the work — so effort gets the
+          wide column and the counts sit next to it, exact and secondary. The
+          year chart moves to its own row underneath: it was taller than these
+          cards and stretched them, which is what left the dead space under
+          their footers. */}
+      <div className={cn("grid gap-3", ratesOn ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : "xl:grid-cols-2")}>
+        {ratesOn && (
+          <HeadlineFigure
+            label="Effort"
+            unitWord="hours"
+            valueFormat={formatHours}
+            comparison={report.effort}
+            periodLabel={report.period.label}
+            comparisonLabel={report.period.comparisonLabel}
+            basisLine={basisLine}
+            trend={monthlyEffort.map((row) => row.current)}
+            ring={{ value: doneEffort, total: report.effort.current, label: "done" }}
+            footnote={
+              unrated.length > 0 ? (
+                <>
+                  No rate yet for {unrated.slice(0, 3).join(", ")}
+                  {unrated.length > 3 ? ` and ${unrated.length - 3} more` : ""} — their deliverables count as nought hours.
+                </>
+              ) : undefined
+            }
+            testId="dashboard-headline-effort"
+          />
+        )}
         <HeadlineFigure
           label="Tasks"
           unitWord="tasks"
@@ -95,15 +133,16 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
           ring={{ value: doneUnits, total: report.assetUnits.current, label: "done" }}
           testId="dashboard-headline-assets"
         />
-        <Panel
-          title={`${prefs.unit === "assets" ? "Asset units" : "Tasks"} by month`}
-          subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
-          className="p-4"
-          testId="dashboard-year-comparison"
-        >
-          <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
-        </Panel>
       </div>
+
+      <Panel
+        title={`${prefs.unit === "assets" ? "Asset units" : "Tasks"} by month`}
+        subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
+        className="p-4"
+        testId="dashboard-year-comparison"
+      >
+        <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
+      </Panel>
 
       <OperationsStrip
         asOf={ops.asOf}

@@ -10,13 +10,13 @@ import type {
   StakeholderDepartment,
   StakeholderDepartmentInput,
 } from "@/domain";
-import { asColor, isPortalColumnKey, isPortalGrouping, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
+import { asColor, isPortalColumnKey, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
 import type { StakeholderPortalRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, grouping, allow_booking, show_recap, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -43,7 +43,6 @@ interface PortalRow {
   description: string | null;
   hidden_columns: unknown;
   default_view: string;
-  grouping: string;
   allow_booking: boolean;
   show_recap: boolean;
   created_at: string;
@@ -100,8 +99,6 @@ function toPortal(row: PortalRow): DepartmentPortal {
     // older deployment, or by hand, may carry anything or nothing.
     hiddenColumns: Array.isArray(row.hidden_columns) ? row.hidden_columns.filter(isPortalColumnKey) : [],
     defaultView: isPortalView(row.default_view) ? row.default_view : "table",
-    // Migration 0033. Same defensive read: a row written before it has none.
-    grouping: isPortalGrouping(row.grouping) ? row.grouping : "board",
     allowBooking: row.allow_booking ?? true,
     showRecap: row.show_recap ?? true,
     createdAt: row.created_at,
@@ -207,7 +204,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     return toPortal(unwrap<PortalRow>(result, "department_portals.create"));
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "grouping" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
     const payload: Record<string, unknown> = {};
     if (patch.enabled !== undefined) payload.enabled = patch.enabled;
     if (patch.token !== undefined) payload.token = patch.token;
@@ -217,7 +214,6 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.description !== undefined) payload.description = patch.description;
     if (patch.hiddenColumns !== undefined) payload.hidden_columns = patch.hiddenColumns;
     if (patch.defaultView !== undefined) payload.default_view = patch.defaultView;
-    if (patch.grouping !== undefined) payload.grouping = patch.grouping;
     if (patch.allowBooking !== undefined) payload.allow_booking = patch.allowBooking;
     if (patch.showRecap !== undefined) payload.show_recap = patch.showRecap;
     const result = await db().from("department_portals").update(payload).eq("id", id).select(PORTAL).single();

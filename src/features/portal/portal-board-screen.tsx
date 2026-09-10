@@ -1,11 +1,12 @@
 "use client";
 
-import { ClipboardPen } from "lucide-react";
+import { ClipboardPen, Rows3 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Button } from "@/components/ui/button";
-import { BOARD_VIEWS, type BoardViewKind, type PortalBoardPayload } from "@/domain";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { BOARD_VIEWS, PORTAL_GROUPINGS, type BoardViewKind, type PortalBoardPayload, type PortalGrouping } from "@/domain";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
@@ -24,6 +25,7 @@ import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
+import { applyPortalGrouping } from "@/features/portal/portal-grouping";
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
@@ -56,9 +58,16 @@ export function PortalBoardScreen({
   /** The view a bare link lands on, chosen by the team. */
   defaultView: BoardViewKind;
 }) {
+  const searchParams = useSearchParams();
+  const grouping = isGrouping(searchParams.get("group")) ? (searchParams.get("group") as PortalGrouping) : "board";
+  // Regrouped before the read-only data layer is built over it, so every
+  // component below reads the arrangement through the ordinary hooks and none
+  // of them needs to know the visitor chose it.
+  const shown = React.useMemo(() => applyPortalGrouping(payload, grouping), [payload, grouping]);
+
   return (
-    <ShareGuestProviders payload={payload} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={payload} onBook={onBook} defaultView={defaultView} />
+    <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
+      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} />
     </ShareGuestProviders>
   );
 }
@@ -67,7 +76,21 @@ function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
 }
 
-function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPayload; onBook: (() => void) | null; defaultView: BoardViewKind }) {
+function isGrouping(value: string | null): value is PortalGrouping {
+  return !!value && (PORTAL_GROUPINGS as readonly string[]).includes(value);
+}
+
+function PortalBoard({
+  payload,
+  onBook,
+  defaultView,
+  grouping,
+}: {
+  payload: PortalBoardPayload;
+  onBook: (() => void) | null;
+  defaultView: BoardViewKind;
+  grouping: PortalGrouping;
+}) {
   const board = payload.board;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,7 +112,7 @@ function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPay
     (patch: Record<string, string | null>) => {
       const next = new URLSearchParams(window.location.search);
       for (const [key, value] of Object.entries(patch)) {
-        if (value === null || value === "" || (key === "view" && value === defaultView)) next.delete(key);
+        if (value === null || value === "" || (key === "view" && value === defaultView) || (key === "group" && value === "board")) next.delete(key);
         else next.set(key, value);
       }
       const query = next.toString();
@@ -150,7 +173,16 @@ function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPay
       {isMobile ? (
         <>
           <div className="shrink-0 border-b border-border/70 px-3 py-2">
-            <MobileBoardTools view={view} onViewChange={(next) => replaceParams({ view: next })} actions={onBook ? <BookButton onBook={onBook} /> : undefined} />
+            <MobileBoardTools
+              view={view}
+              onViewChange={(next) => replaceParams({ view: next })}
+              actions={
+                <>
+                  <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
+                  {onBook && <BookButton onBook={onBook} />}
+                </>
+              }
+            />
           </div>
           {view === "table" ? (
             <MobileTableView mode={tableMode} onModeChange={setTableMode} />
@@ -165,7 +197,17 @@ function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPay
         </>
       ) : (
         <>
-          <BoardToolbar view={view} onViewChange={(next) => replaceParams({ view: next })} searchAlways actions={onBook ? <BookButton onBook={onBook} /> : undefined} />
+          <BoardToolbar
+            view={view}
+            onViewChange={(next) => replaceParams({ view: next })}
+            searchAlways
+            actions={
+              <>
+                <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
+                {onBook && <BookButton onBook={onBook} />}
+              </>
+            }
+          />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}
@@ -177,6 +219,38 @@ function PortalBoard({ payload, onBook, defaultView }: { payload: PortalBoardPay
         </>
       )}
     </BoardContextProvider>
+  );
+}
+
+/**
+ * How the board is divided, as a view setting rather than something the team
+ * decides for everyone.
+ *
+ * "Board" answers who has the work; "Status" answers where it is up to, which
+ * is the question most visitors arrive with. The choice is in the URL beside
+ * the view, so a link a stakeholder forwards opens the same way it looked.
+ */
+const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status" };
+
+function GroupByControl({ grouping, onChange }: { grouping: PortalGrouping; onChange: (next: PortalGrouping) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-2xs" data-testid="portal-group-by">
+          <Rows3 className="size-3.5" aria-hidden />
+          Group: {GROUPING_LABELS[grouping]}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuRadioGroup value={grouping} onValueChange={(value) => onChange(value as PortalGrouping)}>
+          {PORTAL_GROUPINGS.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option} data-testid={`portal-group-by-${option}`}>
+              {GROUPING_LABELS[option]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

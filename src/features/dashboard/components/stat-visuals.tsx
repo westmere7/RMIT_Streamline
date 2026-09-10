@@ -26,6 +26,7 @@ export function StatRing({
   label,
   tone = "neutral",
   size = 60,
+  format = formatCount,
   testId,
 }: {
   value: number;
@@ -33,6 +34,8 @@ export function StatRing({
   label: string;
   tone?: "neutral" | "good" | "urgent";
   size?: number;
+  /** How the two figures read. Hours are not counts, so effort passes its own. */
+  format?: (value: number) => string;
   testId?: string;
 }) {
   const share = total > 0 ? Math.min(1, value / total) : 0;
@@ -46,7 +49,7 @@ export function StatRing({
       className="flex items-center gap-2.5 [--ring-good:theme(colors.emerald.500)] [--ring-neutral:theme(colors.slate.400)] [--ring-urgent:theme(colors.rose.500)]"
       data-testid={testId}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${value} of ${total} ${label}`} className="shrink-0 -rotate-90">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${format(value)} of ${format(total)} ${label}`} className="shrink-0 -rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} className="stroke-border/60" />
         <circle
           cx={size / 2}
@@ -62,9 +65,9 @@ export function StatRing({
         />
       </svg>
       <div className="min-w-0">
-        <p className="text-lg font-semibold leading-none tabular tracking-tight">{formatCount(value)}</p>
+        <p className="text-lg font-semibold leading-none tabular tracking-tight">{format(value)}</p>
         <p className="mt-1 truncate text-2xs text-muted-foreground">{label}</p>
-        {total > 0 && <p className="text-2xs tabular text-muted-foreground/80">{Math.round(share * 100)}% of {formatCount(total)}</p>}
+        {total > 0 && <p className="text-2xs tabular text-muted-foreground/80">{Math.round(share * 100)}% of {format(total)}</p>}
       </div>
     </div>
   );

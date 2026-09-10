@@ -30,7 +30,6 @@ import {
   generatePortalToken,
   isPlausiblePortalToken,
   isPortalColumnKey,
-  isPortalGrouping,
   isPortalView,
   MAX_PORTAL_DESCRIPTION,
   MAX_PUBLIC_BRIEF,
@@ -353,7 +352,6 @@ export class StakeholderPortalService {
     const payload = buildPortalBoard({
       department: resolved.department,
       hiddenColumns: resolved.portal.hiddenColumns,
-      grouping: resolved.portal.grouping,
       tasks,
       links: ctx.links,
       comments: ctx.comments,
@@ -410,7 +408,6 @@ export class StakeholderPortalService {
     }
     if (patch.hiddenColumns !== undefined) cleaned.hiddenColumns = [...new Set(patch.hiddenColumns.filter(isPortalColumnKey))];
     if (patch.defaultView !== undefined && !isPortalView(patch.defaultView)) delete cleaned.defaultView;
-    if (patch.grouping !== undefined && !isPortalGrouping(patch.grouping)) delete cleaned.grouping;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
 

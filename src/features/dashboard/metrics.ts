@@ -1,4 +1,6 @@
-import type { ISODate } from "@/domain";
+import type { AssetRates, ISODate } from "@/domain";
+import { effortHours as sumEffortHours } from "@/domain";
+import { colorClasses, tagColorFor } from "@/lib/colors";
 import type { AssetFact, DashboardFacts, TaskFact, TeamRef, Unit } from "./analytics";
 import { NO_TEAM } from "./analytics";
 
@@ -266,6 +268,16 @@ export function covered(range: DateRange, earliest: ISODate | null): boolean {
   return earliest !== null && range.to >= earliest;
 }
 
+/**
+ * What a monthly series can measure.
+ *
+ * Effort is not one of the dashboard's selectable units — the toggle stays
+ * tasks-or-assets, because those are what the team reports. It is a third
+ * measure a series can be asked for, so the effort card can draw its own trend
+ * without effort becoming a mode the whole page switches into.
+ */
+export type MeasureKind = Unit | "effort";
+
 export interface VolumeReport {
   period: ResolvedPeriod;
   basis: ReportingBasis;
@@ -273,9 +285,18 @@ export interface VolumeReport {
   comparison: VolumeSlice | null;
   tasks: Comparison;
   assetUnits: Comparison;
+  /**
+   * The same deliverables weighed by the workspace's output rates, in hours.
+   *
+   * Zero throughout when no rate has been recorded, which is why the page asks
+   * `hasAnyRate` before leading with it rather than reading the total: an
+   * unrated workspace has no effort to report, and nought hours against a
+   * thousand deliverables would be a lie told with a real number.
+   */
+  effort: Comparison;
 }
 
-export function volumeReport(facts: DashboardFacts, period: ResolvedPeriod, basis: ReportingBasis, teamIds: string[] | null): VolumeReport {
+export function volumeReport(facts: DashboardFacts, period: ResolvedPeriod, basis: ReportingBasis, teamIds: string[] | null, rates: AssetRates = {}): VolumeReport {
   const current = volumeIn(facts, period.current, basis, teamIds);
   const hasHistory = period.comparison !== null && covered(period.comparison, facts.earliest);
   const comparison = hasHistory ? volumeIn(facts, period.comparison!, basis, teamIds) : null;
@@ -286,6 +307,9 @@ export function volumeReport(facts: DashboardFacts, period: ResolvedPeriod, basi
     comparison,
     tasks: compare(current.taskCount, comparison?.taskCount ?? null),
     assetUnits: compare(current.assetUnits, comparison?.assetUnits ?? null),
+    // Derived from the same deliverables the counts came from, so effort and
+    // volume can never disagree about which period they are describing.
+    effort: compare(sumEffortHours(current.assets, rates), comparison ? sumEffortHours(comparison.assets, rates) : null),
   };
 }
 
@@ -309,9 +333,17 @@ export interface MonthlyComparisonRow {
  * difference between "nothing happened in November" and "November has not
  * happened yet" is the whole point of the chart.
  */
-export function monthlyComparison(facts: DashboardFacts, period: ResolvedPeriod, basis: ReportingBasis, unit: Unit, teamIds: string[] | null): MonthlyComparisonRow[] {
+export function monthlyComparison(
+  facts: DashboardFacts,
+  period: ResolvedPeriod,
+  basis: ReportingBasis,
+  unit: MeasureKind,
+  teamIds: string[] | null,
+  rates: AssetRates = {},
+): MonthlyComparisonRow[] {
   const measure = (range: DateRange) => {
     const slice = volumeIn(facts, range, basis, teamIds);
+    if (unit === "effort") return sumEffortHours(slice.assets, rates);
     return unit === "assets" ? slice.assetUnits : slice.taskCount;
   };
   const monthRange = (base: DateRange, month: number): DateRange | null => {
@@ -413,6 +445,24 @@ export function dimensionComparison(
 }
 
 export const UNKNOWN_DEPARTMENT = "Unknown";
+
+/**
+ * A department's colour on a chart, as a hex string.
+ *
+ * Charts paint with raw CSS (`background: row.color`), so what they need is a
+ * value, never a token. `tagColorFor` hands back a *token* — "sky", "amber" —
+ * and the two are easy to confuse because seven of the ten tokens happen to
+ * also be CSS colour keywords: passing a token straight through drew "indigo"
+ * and "pink" in CSS's own washed-out versions, and drew nothing at all for
+ * "sky", "amber" and "rose", which CSS does not know. That is a bar with a
+ * number beside it and no colour in it.
+ *
+ * So the conversion lives here, once, and no view has to remember it.
+ */
+export function departmentHex(name: string): string {
+  return name === UNKNOWN_DEPARTMENT ? colorClasses("gray").hex : colorClasses(tagColorFor(name)).hex;
+}
+
 
 // ---------------------------------------------------------------------------
 // As of now: the operational snapshot

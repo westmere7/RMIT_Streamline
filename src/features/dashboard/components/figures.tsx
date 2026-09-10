@@ -32,6 +32,7 @@ export function HeadlineFigure({
   onDrill,
   trend,
   ring,
+  valueFormat = formatCount,
   testId,
 }: {
   label: string;
@@ -46,6 +47,12 @@ export function HeadlineFigure({
   trend?: Array<number | null>;
   /** A proportion worth seeing beside the headline — done against the total. */
   ring?: { value: number; total: number; label: string };
+  /**
+   * How every figure on the card reads: the headline, the ring, the comparison
+   * and the change. Counts by default; effort passes `formatHours`, because
+   * "6,186" and "6,186 h" are not the same claim.
+   */
+  valueFormat?: (value: number) => string;
   testId?: string;
 }) {
   const { current, comparison: previous, delta, percent } = comparison;
@@ -57,20 +64,23 @@ export function HeadlineFigure({
           <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
             {/* Big, because this is the figure the team reports upwards. */}
             <span className="text-[2.5rem] font-semibold leading-none tracking-tight tabular sm:text-[3rem]" data-testid={testId ? `${testId}-value` : undefined}>
-              {formatCount(current)}
+              {valueFormat(current)}
             </span>
             <span className="text-[13px] text-muted-foreground">{unitWord}</span>
           </p>
           <p className="mt-1 text-2xs text-muted-foreground">{basisLine}</p>
         </div>
-        {ring && <StatRing value={ring.value} total={ring.total} label={ring.label} tone="good" size={54} />}
+        {ring && <StatRing value={ring.value} total={ring.total} label={ring.label} tone="good" size={54} format={valueFormat} />}
       </div>
 
-      {trend && (
-        <div className="mt-3">
-          <TrendLine values={trend} label={`${label} by month`} />
-        </div>
-      )}
+      {/* The card sits in a grid row with the year chart, which is taller, so
+          the row stretches it. The trend takes up whatever that stretch gives
+          rather than leaving it blank under the footer: the same line, drawn
+          bigger, and no dead space. `preserveAspectRatio="none"` on the svg is
+          what lets it fill a height it does not choose. */}
+      <div className="mt-3 flex min-h-7 flex-1 flex-col justify-end">
+        {trend && <TrendLine values={trend} label={`${label} by month`} className="h-full min-h-7" />}
+      </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/50 pt-2.5 text-xs">
         {previous === null ? (
@@ -79,9 +89,9 @@ export function HeadlineFigure({
           </span>
         ) : (
           <>
-            <ChangeChip delta={delta} percent={percent} />
+            <ChangeChip delta={delta} percent={percent} format={valueFormat} />
             <span className="text-muted-foreground">
-              vs <span className="tabular text-foreground/80">{formatCount(previous)}</span> in {comparisonLabel}
+              vs <span className="tabular text-foreground/80">{valueFormat(previous)}</span> in {comparisonLabel}
             </span>
           </>
         )}
@@ -97,14 +107,14 @@ export function HeadlineFigure({
 }
 
 /** The change itself: a direction, a number, and a percentage only when one exists. */
-export function ChangeChip({ delta, percent, className }: { delta: number | null; percent: number | null; className?: string }) {
+export function ChangeChip({ delta, percent, className, format = formatCount }: { delta: number | null; percent: number | null; className?: string; format?: (value: number) => string }) {
   if (delta === null) return null;
   const Icon = delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : ArrowRight;
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full bg-surface-strong/60 px-2 py-0.5 font-medium tabular", className)}>
       <Icon className="size-3.5" aria-hidden />
       {delta > 0 ? "+" : ""}
-      {formatCount(delta)}
+      {format(delta)}
       {percent === null ? (
         // A zero baseline. "+12 from nothing" is a fact; "+∞%" is not.
         <span className="font-normal text-muted-foreground">· no % comparison</span>
