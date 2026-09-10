@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils";
  * glance from across a desk. A month the current period has not reached draws
  * nothing at all, which is different from a month that drew a zero-height bar.
  *
- * It was the barest chart on the page — flat bars, four gridlines and a line of
- * text under it — while its siblings in charts/ had gradients, a marker for
- * today, a peak label and a proper hover card. This brings it up to them, and
- * every addition answers something the paired bars cannot:
+ * It was the barest chart on the page — bars, four gridlines and a line of text
+ * under it — while its siblings in charts/ had a marker for today, a peak label
+ * and a proper hover card. This brings it up to them, and every addition answers
+ * something the paired bars cannot:
  *
  *  · A **marker at the last month with an answer**, and dimmed labels past it.
  *    The right-hand third of a year-to-date chart is empty because those months
@@ -52,7 +52,6 @@ export function YearComparisonChart({
   const [hover, setHover] = React.useState<number | null>(null);
   const mounted = useMounted();
   const reduced = usePrefersReducedMotion();
-  const gradientId = React.useId();
 
   const peak = Math.max(1, ...rows.map((r) => Math.max(r.current ?? 0, r.comparison ?? 0)));
   const width = Math.max(size.width, 320);
@@ -97,13 +96,6 @@ export function YearComparisonChart({
           className="size-full select-none"
           onMouseLeave={() => setHover(null)}
         >
-          <defs>
-            <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-current)" stopOpacity={1} />
-              <stop offset="100%" stopColor="var(--chart-current)" stopOpacity={0.45} />
-            </linearGradient>
-          </defs>
-
           {/* Past the last answer the year has not happened. Saying so is why
               the right-hand third is empty. */}
           {roomy && lastAnswered >= 0 && lastAnswered < rows.length - 1 && (
@@ -159,7 +151,7 @@ export function YearComparisonChart({
                     width={barWidth}
                     height={Math.max(0, plot - y(row.current))}
                     rx={2}
-                    fill={`url(#${gradientId})`}
+                    fill="var(--chart-current)"
                     fillOpacity={hover !== null && !on ? 0.55 : 1}
                     className={cn("transition-[fill-opacity] duration-150", mounted && !reduced && "dashboard-area-in")}
                     // Left to right, the way the year happened.
