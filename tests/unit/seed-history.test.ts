@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSeed, buildSeedParts, SEED_BOARD_IDS, SEED_USER_IDS } from "@/data/seed/seed-data";
+import { BOOKING_ASSET_TYPES } from "@/domain";
 import { toISODate } from "@/lib/dates/dates";
 
 const NOW = new Date("2026-09-07T09:30:00.000Z");
@@ -179,7 +180,7 @@ describe("the generated seed history", () => {
     const withAssets = new Set(assets.map((a) => a.itemId));
     expect(withAssets.size / topLevel.length).toBeGreaterThanOrEqual(0.2);
     for (const a of assets) {
-      expect(["Print", "Digital", "Social", "Video", "Motion", "Web", "Brand", "Event", "Copy", "Photography"]).toContain(a.assetType);
+      expect(BOOKING_ASSET_TYPES.map((t) => t.name)).toContain(a.assetType);
       if (a.quantity !== null) expect(a.quantity).toBeGreaterThan(0);
     }
 

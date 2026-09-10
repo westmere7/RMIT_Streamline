@@ -13,13 +13,12 @@ import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
 import { useServices } from "@/features/data/data-context";
 import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
-import { useAgo } from "@/features/dashboard/hooks";
 import { formatShortDate } from "@/lib/dates/dates";
 import { resolveTheme, useThemePreference } from "@/lib/theme";
 import { ShareAccessError } from "@/services";
 
-/** How often the public dashboard asks for fresh figures. There is no session for realtime to ride on. */
-const REFRESH_MS = 15_000;
+/** How often the public dashboard asks for fresh figures. There is no session for realtime to ride on, so it reads on a short cycle instead. */
+const REFRESH_MS = 10_000;
 
 /**
  * The page behind a public dashboard link: full screen, read-only, no account.
@@ -37,8 +36,9 @@ export function PublicDashboardPage({ token }: { token: string }) {
     queryFn: () => services.dashboard.loadPublic(token, password),
     enabled: !!gate.data?.open && (!needsPassword || password !== null),
     retry: false,
-    staleTime: REFRESH_MS,
+    staleTime: 0,
     refetchInterval: REFRESH_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 
@@ -52,7 +52,7 @@ export function PublicDashboardPage({ token }: { token: string }) {
           : "This link does not open anything. Check that you copied all of it, or ask whoever sent it for a new one.";
     return <Closed message={message} />;
   }
-  if (payload.data) return <PublicDashboardShell payload={payload.data} updatedAt={payload.dataUpdatedAt} refreshing={payload.isFetching} />;
+  if (payload.data) return <PublicDashboardShell payload={payload.data} refreshing={payload.isFetching} />;
 
   const wrongPassword = payload.error instanceof ShareAccessError && payload.error.reason === "password";
   if (needsPassword && (password === null || wrongPassword)) return <PasswordPrompt busy={payload.isFetching} wrong={wrongPassword} onSubmit={setPassword} />;
@@ -60,8 +60,7 @@ export function PublicDashboardPage({ token }: { token: string }) {
   return <FullPageLoader label="Opening the dashboard…" />;
 }
 
-function PublicDashboardShell({ payload, updatedAt, refreshing }: { payload: PublicDashboardPayload; updatedAt: number; refreshing: boolean }) {
-  const ago = useAgo(updatedAt || null);
+function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboardPayload; refreshing: boolean }) {
   useLinksStayHere();
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard">
@@ -71,7 +70,7 @@ function PublicDashboardShell({ payload, updatedAt, refreshing }: { payload: Pub
         <div className="relative min-w-0 flex-1">
           <h1 className="flex min-w-0 items-center gap-2.5 text-[17px] font-semibold tracking-tight">
             <span className="truncate">{payload.snapshot.workspace.name} · Dashboard</span>
-            <Freshness ago={ago} refreshing={refreshing} />
+            <Freshness refreshing={refreshing} />
           </h1>
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
             <Eye className="size-3" /> View only · figures refresh every {REFRESH_MS / 1000} seconds

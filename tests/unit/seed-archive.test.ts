@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ARCHIVE_YEAR } from "@/data/seed/seed-archive";
+import { BOOKING_ASSET_TYPES } from "@/domain";
 import { buildSeed, buildSeedParts, SEED_BOARD_IDS } from "@/data/seed/seed-data";
 
 const NOW = new Date("2026-09-07T09:30:00.000Z");
@@ -92,7 +93,7 @@ describe("the closed year of delivered work", () => {
     const completed = assets.filter((a) => a.completedAt);
     expect(completed.length / assets.length).toBeGreaterThan(0.8);
     for (const a of assets) {
-      expect(["Print", "Digital", "Social", "Video", "Motion", "Web", "Brand", "Event", "Copy", "Photography"]).toContain(a.assetType);
+      expect(BOOKING_ASSET_TYPES.map((t) => t.name)).toContain(a.assetType);
       if (a.quantity !== null) expect(a.quantity).toBeGreaterThan(0);
       if (a.completedAt) expect(a.completedAt.slice(0, 4) >= String(ARCHIVE_YEAR)).toBe(true);
     }

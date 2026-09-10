@@ -22,18 +22,38 @@ export type TeamSystemKind = (typeof TEAM_SYSTEM_KINDS)[number];
 export const BOARD_SYSTEM_KINDS = ["TASK_ALLOCATION"] as const;
 export type BoardSystemKind = (typeof BOARD_SYSTEM_KINDS)[number];
 
-/** The kinds of asset the team produces; the palette of the "Asset type" column. */
+/**
+ * The kinds of asset the team produces; the palette of the "Asset type" column.
+ *
+ * Named by the thing and its size rather than by medium — a forty-page course
+ * guide and a two-page flyer are both "print", and treating them as one kind
+ * makes every count of them meaningless. The order runs from the longest job to
+ * the shortest, which is also the order the output rates fall in (Settings →
+ * Lists), so a list read top to bottom reads as a scale of effort.
+ */
 export const BOOKING_ASSET_TYPES: TagOption[] = [
-  { name: "Print", color: "red" },
-  { name: "Digital", color: "blue" },
-  { name: "Social", color: "pink" },
-  { name: "Video", color: "violet" },
-  { name: "Motion", color: "purple" },
-  { name: "Web", color: "cyan" },
-  { name: "Photography", color: "amber" },
-  { name: "Event", color: "orange" },
-  { name: "Brand", color: "navy" },
-  { name: "Copy", color: "green" },
+  { name: "Course Guide (40+ Pages)", color: "red" },
+  { name: "Guides (8+ Pages)", color: "rose" },
+  { name: "Brochure (under 8 Pages)", color: "orange" },
+  { name: "Flyer (1 - 2 Pages)", color: "amber" },
+  { name: "Videos (30s+)", color: "violet" },
+  { name: "Videos (Short form)", color: "purple" },
+  { name: "Articles", color: "green" },
+  { name: "Event Copy", color: "lime" },
+  { name: "OOH", color: "navy" },
+  { name: "Campaign Copy", color: "teal" },
+  { name: "Print assets", color: "red" },
+  { name: "Scripts", color: "yellow" },
+  { name: "Static Designs", color: "blue" },
+  { name: "Templates", color: "sky" },
+  { name: "Templates (Adobe Exp.)", color: "sky" },
+  { name: "Videos (Production)", color: "indigo" },
+  { name: "Website Copy", color: "cyan" },
+  { name: "GIF / Motion", color: "pink" },
+  { name: "Display ads", color: "blue" },
+  { name: "Signage", color: "navy" },
+  { name: "Slides", color: "gray" },
+  { name: "Photos (Uploaded)", color: "gray" },
 ];
 
 /**

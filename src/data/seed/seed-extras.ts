@@ -92,7 +92,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "hannah.lee@rmit.edu.au",
     department: "School of Business – Melbourne",
     brief: "Posters and a takeaway flyer for the postgraduate information evening at the Swanston Academic Building. Brand-compliant, using the new postgraduate key visual. Print-ready PDFs please; we will arrange printing through campus services.",
-    assetTypes: ["Print"],
+    assetTypes: ["Print assets"],
     assets: [
       { name: "A1 poster", quantity: 4, spec: "594×841 mm, CMYK, 3 mm bleed" },
       { name: "A4 flyer", quantity: 200, spec: "Double-sided, 150 gsm silk" },
@@ -112,7 +112,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "hoa.nguyen@rmit.edu.vn",
     department: "Student Recruitment – Vietnam",
     brief: "Announcing the 2027 Vietnam scholarship round across Facebook and Instagram. Bilingual copy is attached to the reference link; the amounts must be shown in VND and AUD.",
-    assetTypes: ["Social"],
+    assetTypes: ["Static Designs"],
     assets: [
       { name: "Instagram tile", quantity: 3, spec: "1080×1080" },
       { name: "Story", quantity: 3, spec: "1080×1920, safe zones for UI" },
@@ -133,7 +133,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "marcus.webb@rmit.edu.au",
     department: "STEM College – Research Office",
     brief: "A 90-second film on the renewable materials lab for the research showcase, plus two social cutdowns. Interviews with two researchers and b-roll of the lab; we can arrange access on any weekday morning.",
-    assetTypes: ["Video", "Motion"],
+    assetTypes: ["Videos (Short form)", "GIF / Motion"],
     assets: [
       { name: "90s film", quantity: null, spec: "16:9, 4K master, captions" },
       { name: "30s cutdown", quantity: 2, spec: "9:16 and 1:1" },
@@ -153,7 +153,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "aisha.rahman@rmit.edu.au",
     department: "Careers & Employability",
     brief: "Homepage and student portal banners for Careers Week, plus an email header for the weekly student digest. Copy is final; the Careers Week colourway from last year can be reused.",
-    assetTypes: ["Web", "Digital"],
+    assetTypes: ["Website Copy", "Display ads"],
     assets: [
       { name: "Homepage hero", quantity: null, spec: "1920×600, WebP under 300 KB" },
       { name: "Portal sidebar banner", quantity: null, spec: "300×600" },
@@ -174,7 +174,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "james.oconnor@rmit.edu.au",
     department: "Advancement",
     brief: "Printed invitation, name badges and two pull-up banners for the industry partner lunch at the Alumni Courtyard. Guest list of 120. Not sure which team this belongs to — happy for you to decide.",
-    assetTypes: ["Print", "Event"],
+    assetTypes: ["Print assets", "Event Copy"],
     assets: [
       { name: "A5 invitation", quantity: 120, spec: "Folded, uncoated 300 gsm" },
       { name: "Name badge", quantity: 120, spec: "90×55 mm, lanyard" },
@@ -195,7 +195,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "priyanka.desai@rmit.edu.au",
     department: "Graduate School of Business & Law",
     brief: "Poster series for the Executive MBA open lecture programme (six lectures, one poster each) and a slide for the campus digital screens. Speaker portraits are supplied; the series needs a consistent look that can run for the whole semester.",
-    assetTypes: ["Print", "Digital"],
+    assetTypes: ["Print assets", "Display ads"],
     assets: [
       { name: "A2 poster", quantity: 6, spec: "420×594 mm, CMYK" },
       { name: "Digital screen slide", quantity: null, spec: "1920×1080, 10 s static" },
@@ -216,7 +216,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "tom.nguyen@rmit.edu.au",
     department: "Alumni Relations",
     brief: "A short social campaign for the 20-year reunion: one carousel telling the class-of-2006 story and two reel covers for the alumni stories we are filming. Tone is warm and nostalgic; photography from the archive is in the shared folder.",
-    assetTypes: ["Social", "Copy"],
+    assetTypes: ["Static Designs", "Campaign Copy"],
     assets: [
       { name: "Carousel", quantity: null, spec: "5 cards, 1080×1080" },
       { name: "Reel cover", quantity: 2, spec: "1080×1920" },
@@ -237,7 +237,7 @@ const BOOKINGS: BookingSpec[] = [
     requesterEmail: "sophie.grant@rmit.edu.au",
     department: "RMIT Library",
     brief: "Floor decals guiding new students from the library entrance to the help desk and the group study rooms. Twelve decals, anti-slip laminate, to match the wayfinding refresh.",
-    assetTypes: ["Print"],
+    assetTypes: ["Print assets"],
     assets: [{ name: "Floor decal", quantity: 12, spec: "600 mm diameter, anti-slip laminate" }],
     team: "vietnam",
     due: -3,
@@ -397,22 +397,22 @@ const PRODUCTION_STATUS_COLORS: Record<string, string> = {
 /** Asset lines for a few of the fresh items, so the Assets tab and recap column have examples outside Task Allocation. */
 const FRESH_ASSETS: Record<string, Array<{ name: string; type: string | null; quantity: number | null; owner?: UserKey; due?: number; notes?: string }>> = {
   "masterclass:Masterclass social asset – Speaker 4": [
-    { name: "Instagram tile", type: "Social", quantity: 3, owner: "danh", due: 2, notes: "1080×1080" },
-    { name: "Story", type: "Social", quantity: 3, owner: "danh", due: 2, notes: "1080×1920, safe zones" },
-    { name: "LinkedIn banner", type: "Digital", quantity: 1, owner: "tuyet", due: 3, notes: "1584×396" },
+    { name: "Instagram tile", type: "Static Designs", quantity: 3, owner: "danh", due: 2, notes: "1080×1080" },
+    { name: "Story", type: "Static Designs", quantity: 3, owner: "danh", due: 2, notes: "1080×1920, safe zones" },
+    { name: "LinkedIn banner", type: "Display ads", quantity: 1, owner: "tuyet", due: 3, notes: "1584×396" },
   ],
   "openday:Sponsor acknowledgement board": [
-    { name: "Foamboard panel", type: "Print", quantity: 2, owner: "danh", due: 5, notes: "A0, 5 mm foamboard" },
-    { name: "Digital screen slide", type: "Digital", quantity: 1, owner: "duc", due: 4, notes: "1920×1080" },
+    { name: "Foamboard panel", type: "Print assets", quantity: 2, owner: "danh", due: 5, notes: "A0, 5 mm foamboard" },
+    { name: "Digital screen slide", type: "Display ads", quantity: 1, owner: "duc", due: 4, notes: "1920×1080" },
   ],
   "requests:Vietnam campus map refresh": [
-    { name: "Campus map (print)", type: "Print", quantity: 1, owner: "danh", due: 4, notes: "A3, CMYK" },
-    { name: "Campus map (web)", type: "Web", quantity: 1, owner: "hil", due: 4, notes: "SVG + PNG @2x" },
-    { name: "Wayfinding icons", type: "Brand", quantity: 12, due: 6 },
+    { name: "Campus map (print)", type: "Print assets", quantity: 1, owner: "danh", due: 4, notes: "A3, CMYK" },
+    { name: "Campus map (web)", type: "Website Copy", quantity: 1, owner: "hil", due: 4, notes: "SVG + PNG @2x" },
+    { name: "Wayfinding icons", type: "Static Designs", quantity: 12, due: 6 },
   ],
   "social:Open Day highlights carousel": [
-    { name: "Carousel card", type: "Social", quantity: 6, owner: "danh", due: 9, notes: "1080×1080" },
-    { name: "Reel cover", type: "Social", quantity: 1, owner: "chloe", due: 9 },
+    { name: "Carousel card", type: "Static Designs", quantity: 6, owner: "danh", due: 9, notes: "1080×1080" },
+    { name: "Reel cover", type: "Static Designs", quantity: 1, owner: "chloe", due: 9 },
   ],
 };
 

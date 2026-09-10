@@ -35,6 +35,12 @@ test.describe("asset lines and the recap column", () => {
     await expect(card.getByTestId("asset-type")).toBeVisible({ timeout: 20_000 });
   }
 
+  /** Rename, duplicate and remove live behind the row's "…". */
+  async function rowMenu(page: Page, name: string, action: string) {
+    await line(page, name).getByTestId("asset-menu").click();
+    await page.getByRole("menuitem", { name: action }).click();
+  }
+
   /** Read the board as someone else, so the same browser can see what they can do. */
   async function switchTo(page: Page, displayName: string) {
     await page.goto("/workspace/rmit");
@@ -145,7 +151,7 @@ test.describe("asset lines and the recap column", () => {
     await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /3 assets · 1 PIC/, { timeout: 20_000 });
 
     // Duplicating carries the details onto a second line: another three posters.
-    await line(page, "A1 poster").getByTestId("asset-duplicate").click();
+    await rowMenu(page, "A1 poster", "Duplicate");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
     await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /6 assets · 1 PIC/, { timeout: 20_000 });
   });

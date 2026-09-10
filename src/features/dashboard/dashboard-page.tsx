@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { Freshness } from "@/features/dashboard/dashboard-controls";
-import { useAgo, useDashboardRealtime, useDashboardSnapshot } from "@/features/dashboard/hooks";
+import { useDashboardRealtime, useDashboardSnapshot } from "@/features/dashboard/hooks";
 import { ShareDashboardDialog } from "@/features/dashboard/share-dashboard-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageDashboardShare } from "@/lib/permissions/permissions";
@@ -25,7 +25,6 @@ export function DashboardPage() {
   const router = useRouter();
   const snapshot = useDashboardSnapshot(ws.workspace.id, ws.boards);
   useDashboardRealtime(ws.workspace.id);
-  const ago = useAgo(snapshot.dataUpdatedAt || null);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -62,7 +61,7 @@ export function DashboardPage() {
           onOpenBoard={openBoard}
           // A refresh that failed while a good snapshot is still on screen is
           // "not updating", never "Live".
-          freshness={<Freshness ago={ago} refreshing={snapshot.isFetching} failed={snapshot.isError} />}
+          freshness={<Freshness refreshing={snapshot.isFetching} failed={snapshot.isError} />}
           toolbarExtras={
             <>
               {canShare && (

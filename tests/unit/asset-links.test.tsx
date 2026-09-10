@@ -22,7 +22,8 @@ function composer(overrides: Partial<AssetComposerRow> = {}, onPatch = vi.fn()) 
   return onPatch;
 }
 
-const chips = () => screen.queryByTestId("asset-link-chips");
+const chip = (kind: "preview" | "artwork") => screen.getByTestId(`asset-link-chip-${kind}`);
+const filled = (kind: "preview" | "artwork") => chip(kind).getAttribute("data-filled") === "true";
 
 /**
  * The two links a deliverable carries: something to review while it is being
@@ -33,36 +34,45 @@ const chips = () => screen.queryByTestId("asset-link-chips");
  * them through one box with a switch, so a long row does not grow two.
  */
 describe("a deliverable's links, on the closed row", () => {
-  it("shows nothing at all when it has neither", () => {
+  // Both slots are always on the row — a link that turns up only once it exists
+  // moves everything beside it — so what is being asserted is which of the two
+  // is filled in, not which of the two is there.
+  it("shows a pair of empty slots when it has neither", () => {
     composer();
-    expect(chips()).toBeNull();
+    expect(filled("preview")).toBe(false);
+    expect(filled("artwork")).toBe(false);
   });
 
-  it("shows the preview alone", () => {
+  it("fills the preview slot alone", () => {
     composer({ previewUrl: "https://example.com/proof.pdf" });
-    expect(screen.getByTestId("asset-link-chip-preview")).toBeInTheDocument();
-    expect(screen.queryByTestId("asset-link-chip-artwork")).not.toBeInTheDocument();
+    expect(filled("preview")).toBe(true);
+    expect(filled("artwork")).toBe(false);
   });
 
-  it("shows the final artwork alone", () => {
+  it("fills the final artwork slot alone", () => {
     composer({ artworkUrl: "https://example.com/final.ai" });
-    expect(screen.getByTestId("asset-link-chip-artwork")).toBeInTheDocument();
-    expect(screen.queryByTestId("asset-link-chip-preview")).not.toBeInTheDocument();
+    expect(filled("artwork")).toBe(true);
+    expect(filled("preview")).toBe(false);
   });
 
-  it("shows both when both are filled in", () => {
+  it("fills both when both are filled in", () => {
     composer({ previewUrl: "https://example.com/proof.pdf", artworkUrl: "https://example.com/final.ai" });
-    expect(screen.getByTestId("asset-link-chip-preview")).toBeInTheDocument();
-    expect(screen.getByTestId("asset-link-chip-artwork")).toBeInTheDocument();
+    expect(filled("preview")).toBe(true);
+    expect(filled("artwork")).toBe(true);
+  });
+
+  it("an empty slot is nothing to click, and nothing to read out", () => {
+    composer();
+    expect(chip("preview").tagName).toBe("SPAN");
+    expect(chip("preview")).toHaveAttribute("aria-hidden");
   });
 
   it("opens the thing itself, in a tab of its own", () => {
     composer({ artworkUrl: "https://example.com/final.ai" });
-    const chip = screen.getByTestId("asset-link-chip-artwork");
-    expect(chip).toHaveAttribute("href", "https://example.com/final.ai");
-    expect(chip).toHaveAttribute("target", "_blank");
+    expect(chip("artwork")).toHaveAttribute("href", "https://example.com/final.ai");
+    expect(chip("artwork")).toHaveAttribute("target", "_blank");
     // rel matters: the opened page must not be handed a reference back.
-    expect(chip.getAttribute("rel")).toContain("noopener");
+    expect(chip("artwork").getAttribute("rel")).toContain("noopener");
   });
 });
 
@@ -76,25 +86,16 @@ describe("a deliverable's links, in the open row", () => {
     expect(screen.queryByText(/^Spec$/)).not.toBeInTheDocument();
   });
 
-  it("opens on the preview by default", async () => {
+  it("gives each link a line of its own", async () => {
     composer();
     await open();
-    expect(screen.getByTestId("asset-link-switch-preview")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText(/Preview link/)).toBeInTheDocument();
-  });
-
-  it("opens on the artwork when that is the only link there is", async () => {
-    // A finished deliverable should not open on an empty preview box.
-    composer({ artworkUrl: "https://example.com/final.ai" });
-    await open();
-    expect(screen.getByTestId("asset-link-switch-artwork")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText(/Final artwork link/)).toBeInTheDocument();
   });
 
-  it("writes to the field the switch is on", async () => {
+  it("writes to the line that was typed in", async () => {
     const onPatch = composer();
     await open();
-    await userEvent.click(screen.getByTestId("asset-link-switch-artwork"));
     await userEvent.type(screen.getByLabelText(/Final artwork link/), "https://example.com/final.ai");
     await userEvent.click(screen.getByTestId("asset-update"));
 
@@ -106,7 +107,6 @@ describe("a deliverable's links, in the open row", () => {
   it("keeps the link it was not editing", async () => {
     const onPatch = composer({ previewUrl: "https://example.com/proof.pdf" });
     await open();
-    await userEvent.click(screen.getByTestId("asset-link-switch-artwork"));
     await userEvent.type(screen.getByLabelText(/Final artwork link/), "https://example.com/final.ai");
     await userEvent.click(screen.getByTestId("asset-update"));
 
@@ -115,11 +115,34 @@ describe("a deliverable's links, in the open row", () => {
     expect(onPatch.mock.calls[0]![1]).not.toHaveProperty("previewUrl");
   });
 
-  it("marks the side that already has a link, so both are visible without toggling", async () => {
+  it("the tick takes the typed link without leaving the box", async () => {
+    const onPatch = composer();
+    await open();
+    await userEvent.type(screen.getByLabelText(/Preview link/), "https://example.com/proof.pdf");
+    await userEvent.click(screen.getByTestId("asset-link-commit-preview"));
+    // Taken into the draft, and the tick has nothing left to do.
+    expect(screen.getByTestId("asset-link-commit-preview")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("asset-update"));
+    expect(onPatch).toHaveBeenCalledWith("a1", expect.objectContaining({ previewUrl: "https://example.com/proof.pdf" }));
+  });
+
+  it("the cross puts the stored link back", async () => {
+    const onPatch = composer({ previewUrl: "https://example.com/proof.pdf" });
+    await open();
+    await userEvent.clear(screen.getByLabelText(/Preview link/));
+    await userEvent.type(screen.getByLabelText(/Preview link/), "https://example.com/other.pdf");
+    await userEvent.click(screen.getByTestId("asset-link-cancel-preview"));
+    expect(screen.getByLabelText(/Preview link/)).toHaveValue("https://example.com/proof.pdf");
+    // Nothing was changed, so Update has nothing to write.
+    await userEvent.click(screen.getByTestId("asset-update"));
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it("a line with a link opens it, a line without one is quiet", async () => {
     composer({ artworkUrl: "https://example.com/final.ai" });
     await open();
-    // The preview side is empty and the artwork side is not.
-    expect(screen.getByTestId("asset-link-switch-artwork").querySelector("svg.lucide-check")).not.toBeNull();
+    expect(screen.getByTestId("asset-link-open-artwork")).toHaveAttribute("href", "https://example.com/final.ai");
+    expect(screen.queryByTestId("asset-link-open-preview")).not.toBeInTheDocument();
   });
 
   it("clears a link when the box is emptied", async () => {

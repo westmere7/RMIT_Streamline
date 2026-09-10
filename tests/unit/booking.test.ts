@@ -205,7 +205,7 @@ describe("booking a task", () => {
     expect(form.teams.length).toBeGreaterThan(3);
     expect(form.teams.every((t) => t.boardName === null && t.fields.length === 0)).toBe(true);
     expect(form.priorities.map((p) => p.name)).toEqual(["Critical", "High", "Medium", "Low"]);
-    expect(form.assetTypes.map((a) => a.name)).toContain("Print");
+    expect(form.assetTypes.map((a) => a.name)).toContain("Print assets");
 
     const digital = form.teams.find((t) => t.name === "Digital")!;
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: form.workspaceId && (await services.repos.workspaces.getById(form.workspaceId))!.bookingKey!, request: request({ teamId: digital.id }) });

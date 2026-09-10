@@ -10,12 +10,10 @@ import { queryKeys } from "@/lib/query/keys";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { DashboardShareSettings } from "@/services";
 
-/** How long a snapshot is trusted before a mount refetches it; realtime shortens this to nothing. */
-const SNAPSHOT_STALE_MS = 15_000;
 /** A safety net under realtime: even a silent channel refreshes the figures this often. */
-const SNAPSHOT_REFRESH_MS = 60_000;
-/** One write often produces several row events; refetch once for the burst. */
-const COALESCE_MS = 500;
+const SNAPSHOT_REFRESH_MS = 15_000;
+/** One write often produces several row events; refetch once for the burst — long enough to catch a burst, short enough that the page follows the work. */
+const COALESCE_MS = 200;
 
 /** Everything the dashboard is drawn from, for the boards the reader can see. */
 export function useDashboardSnapshot(workspaceId: string, boards: Board[]) {
@@ -23,8 +21,11 @@ export function useDashboardSnapshot(workspaceId: string, boards: Board[]) {
   return useQuery({
     queryKey: queryKeys.dashboard(workspaceId),
     queryFn: () => services.dashboard.loadSnapshot(workspaceId, boards),
-    staleTime: SNAPSHOT_STALE_MS,
+    // Nothing is trusted for any length of time: the figures are a live read of
+    // the boards, and every invalidation realtime sends is meant to be acted on.
+    staleTime: 0,
     refetchInterval: SNAPSHOT_REFRESH_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -58,7 +59,7 @@ export function useDashboardRealtime(workspaceId: string | null): void {
     // live on the workspace, and the asset types the effort figure is keyed by
     // live in the list — so renaming a type or correcting a rate changes what
     // the page says without touching a single item. Left out, those two edits
-    // showed up only when the sixty-second safety refresh came round.
+    // waited for the safety refresh to come round.
     for (const table of ["items", "item_column_values", "item_assets", "board_groups", "board_columns", "boards", "teams", "item_links", "workspaces", "workspace_lists"]) {
       channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule);
     }
@@ -129,18 +130,3 @@ function localISODate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** "just now", "12s ago", "3m ago" — re-rendered every few seconds. */
-export function useAgo(timestamp: number | null): string {
-  const [now, setNow] = React.useState(() => Date.now());
-  React.useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 5_000);
-    return () => window.clearInterval(id);
-  }, []);
-  if (!timestamp) return "";
-  const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
-  if (seconds < 8) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  return `${Math.round(minutes / 60)}h ago`;
-}

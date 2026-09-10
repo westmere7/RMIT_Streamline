@@ -1,10 +1,12 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, Eye, FileCheck2, Hash, Minus, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, Eye, FileCheck2, Hash, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
 import * as React from "react";
+import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TagOption, User } from "@/domain";
 import { ASSET_LINK_KINDS, ASSET_LINK_LABELS, ASSET_TYPE_OPTIONS, assetCount, type AssetLinkKind } from "@/domain";
@@ -143,7 +145,7 @@ export function AssetComposer({
             data-testid="asset-add-input"
             className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
           />
-          <Button type="button" onClick={add} size="sm" variant="secondary" className="h-7 shrink-0" disabled={disabled || !newName.trim()} data-testid="asset-add-submit">
+          <Button type="button" onClick={add} size="sm" className="h-7 shrink-0" disabled={disabled || !newName.trim()} data-testid="asset-add-submit">
             Add
           </Button>
         </div>
@@ -207,18 +209,11 @@ function draftPatch(row: AssetComposerRow, draft: AssetDraft): AssetComposerPatc
   return patch;
 }
 
-/** The quiet icon buttons at the end of a closed row. Revealed by the rail they sit in, not by themselves. */
+/** The quiet icon buttons at the end of a closed row. Always there: a control that only appears under a pointer is a control no finger ever finds. */
 const rowActionClass = "shrink-0 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground";
 
-/**
- * The rail every icon on a closed row lives in: the links it holds, then rename
- * and duplicate. Collapsed it takes no width at all — an invisible-but-present
- * button would leave a hole between the summary and the chevron on every row
- * anyone is not pointing at — and it opens on hover, or on focus reaching a
- * button inside it, so the keyboard finds them too.
- */
-const rowActionsRailClass =
-  "flex max-w-0 items-center gap-0.5 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-hover/line:max-w-32 group-hover/line:opacity-100 group-focus-within/line:max-w-32 group-focus-within/line:opacity-100";
+/** Splits what the row says — who it is on, when it is due — from the links and the menu it carries. */
+const rowDividerClass = "h-4 w-px shrink-0 bg-border/70";
 
 /** A control in an open row's little form. Full width, so the fields line up in columns. */
 const fieldClass =
@@ -282,7 +277,16 @@ function AssetRowCard({
   const typeLabel = assetTypeLabel(shown.assetType, assetTypes);
   const count = assetCount(shown);
   const inCharge = assignees.length === 0 ? "Not set" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
+  // What the closed row shows on its right: who it is on, when it is due, and
+  // the links it holds. Each is asked for on its own, because the divider
+  // between them only earns its pixel when there is something either side.
+  const showPeople = fields.people && assignees.length > 0;
+  const showDue = fields.due && !!shown.dueDate;
+  const showLinks = !open;
   const [renaming, setRenaming] = React.useState(false);
+  // Rename opens a field, so it waits for the menu to finish closing rather than
+  // mounting inside a focus trap on its way out.
+  const menuFocus = useMenuFocusGuard();
   // The first click of a double click has to be held back, or a rename would
   // open (or close) the row on its way through.
   const pending = React.useRef<number | null>(null);
@@ -320,13 +324,23 @@ function AssetRowCard({
     setRenaming(true);
   };
 
+  // Everything that changes the row rather than says something about it. Off the
+  // line, where it is not competing with the type or the date, but always one
+  // tap away rather than one hover.
+  const menuActions: MenuAction[] = [
+    { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)), testId: "asset-rename" },
+    { type: "item", label: "Duplicate", icon: <Copy />, onSelect: onDuplicate, testId: "asset-duplicate" },
+    { type: "separator" },
+    { type: "item", label: "Remove", icon: <Trash2 />, destructive: true, onSelect: onRemove, testId: "asset-menu-remove" },
+  ];
+
   return (
     <li
       className={cn(
         // A thicker left edge carries the row's standing — done, late, or
         // neither — so the shape of a long list reads down the margin before
         // anyone reads a date.
-        "group/line rounded-xl border border-l-2 border-border/70 bg-card shadow-xs transition-colors",
+        "rounded-xl border border-l-2 border-border/70 bg-card shadow-xs transition-colors",
         !open && "hover:bg-accent/40",
         open && "border-border ring-1 ring-border/60",
         done && "border-l-emerald-500/60 bg-card/60",
@@ -380,69 +394,72 @@ function AssetRowCard({
               type="button"
               aria-expanded={open}
               title={canEdit ? "Click to open, double click to rename" : undefined}
-              className="min-w-0 flex-1 truncate rounded-md py-1 text-left text-[13px] font-medium"
+              className="min-w-[3.5rem] flex-1 truncate rounded-md py-1 text-left text-[13px] font-medium"
               data-testid="asset-name"
             >
               <span className={cn(done && "text-muted-foreground line-through")}>{row.name}</span>
             </button>
           )}
 
-          {/* The details, in passing, while the row is closed. */}
+          {/* What the deliverable is, against its name: how many, and of what. */}
           {!open && !renaming && (
-            <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
-              {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" />}
+            <span className="flex min-w-0 shrink items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
               {/* A count only when there is more than one: "×1" down every row
                   of the list is a column of noise. */}
               {count > 1 && <span className="rounded bg-muted/70 px-1.5 py-px text-2xs font-medium tabular text-muted-foreground">×{count}</span>}
-              {fields.people && assignees.length > 0 && (
-                <span className="flex -space-x-1">
-                  {assignees.slice(0, 3).map((u) => (
-                    <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
-                  ))}
-                </span>
-              )}
-              {fields.due && shown.dueDate && (
-                <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-                  {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
-                  {formatShortDate(shown.dueDate)}
-                </span>
-              )}
+              {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="max-w-28" />}
             </span>
           )}
         </div>
 
-        {/* Every icon the row offers, then the chevron: one rail, so the
-            chevron stays against the edge and the icons that come and go cost
-            no width while they are away. Nothing but the chevron is on a row at
-            rest, so the list reads as words and dates. */}
+        {/* Who it is on and when it is due: the two things worth knowing about
+            a deliverable nobody has opened. No calendar icon against the date —
+            a date already looks like one — and a warning only once it has gone
+            by. */}
+        {!open && !renaming && (showPeople || showDue) && (
+          <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground" data-testid="asset-meta">
+            {showPeople && (
+              <span className="flex -space-x-1">
+                {assignees.slice(0, 3).map((u) => (
+                  <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
+                ))}
+              </span>
+            )}
+            {showDue && (
+              <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+                {overdue && <TriangleAlert className="size-3 shrink-0" />}
+                {formatShortDate(shown.dueDate)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* The links this deliverable holds, then everything else behind a "…".
+            All of it sits on the row at rest: a control that only exists under a
+            pointer is a control a touchscreen never offers, and a rail that
+            opens on hover shifts the row out from under the finger aiming at
+            it. */}
         <div className="flex shrink-0 items-center gap-0.5">
-          {!renaming && (
-            <div className={rowActionsRailClass}>
-              {/* The links this deliverable holds: the preview, the final
-                  artwork, or both. */}
-              {!open && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
-              {canEdit && (
-                <>
-                  <button type="button" onClick={rename} aria-label={`Rename ${row.name}`} title="Rename" data-testid="asset-rename" className={rowActionClass}>
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button type="button" onClick={onDuplicate} aria-label={`Duplicate ${row.name}`} title="Duplicate" data-testid="asset-duplicate" className={rowActionClass}>
-                    <Copy className="size-3.5" />
-                  </button>
-                </>
-              )}
-            </div>
+          {(showPeople || showDue) && showLinks && !renaming && <span className={cn(rowDividerClass, "mr-1 ml-0.5")} aria-hidden />}
+          {showLinks && !renaming && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
+
+          {canEdit && !renaming && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label={`Options for ${row.name}`} title="More" data-testid="asset-menu" className={rowActionClass}>
+                  <MoreVertical className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
+                {renderDropdown(menuActions)}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-label={open ? `Close ${row.name}` : `Open ${row.name}`}
-            data-testid="asset-toggle"
-            className="shrink-0 rounded-md p-1 text-muted-foreground/60 transition-colors group-hover/line:text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+          {/* The chevron stays out of the menu: it is not an action but the
+              row's state, and it has to be readable without opening anything. */}
+          <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? `Close ${row.name}` : `Open ${row.name}`} data-testid="asset-toggle" className={rowActionClass}>
+            <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
           </button>
         </div>
       </div>
@@ -575,7 +592,7 @@ function AssetRowCard({
               The switch says which one the box is holding, and each side shows
               a tick once it has a link, so both are visible without toggling. */}
           <Detail label="Link" className={cn("col-span-2", !canEdit && !draft.previewUrl && !draft.artworkUrl && "hidden")}>
-            <LinkField draft={draft} canEdit={canEdit} onChange={edit} />
+            <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
           </Detail>
 
           {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
@@ -611,35 +628,43 @@ function AssetRowCard({
 const LINK_ICON: Record<AssetLinkKind, typeof Eye> = { preview: Eye, artwork: FileCheck2 };
 
 /**
- * The links a closed row has, as icons in its action rail.
+ * The two links a deliverable can carry, as a fixed pair of icons on the closed
+ * row: something to review while it is being made, and the artwork that was
+ * signed off.
  *
- * One icon per link that exists: the preview alone, the artwork alone, or both.
- * Nothing at all when there is neither, rather than a pair of empty slots.
- * Anchors rather than buttons, so a click opens the thing itself — and the click
- * is stopped from reaching the row, which would open the editor.
+ * Both slots are always there. An icon that turns up only once the link does
+ * moves everything beside it and leaves nowhere to look for what is still owed;
+ * a faint mark says the same thing without shifting the row. The one that exists
+ * is green and is an anchor rather than a button, so a click opens the
+ * thing itself — and is stopped from reaching the row, which would open the
+ * editor.
  */
 function LinkChips({ preview, artwork, name }: { preview: string | null; artwork: string | null; name: string }) {
-  const held = ASSET_LINK_KINDS.filter((kind) => (kind === "preview" ? preview : artwork));
-  if (held.length === 0) return null;
   return (
     <span className="flex shrink-0 items-center gap-0.5" data-testid="asset-link-chips">
-      {held.map((kind) => {
+      {ASSET_LINK_KINDS.map((kind) => {
         const Icon = LINK_ICON[kind];
-        const href = (kind === "preview" ? preview : artwork)!;
-        return (
+        const href = kind === "preview" ? preview : artwork;
+        const label = ASSET_LINK_LABELS[kind].long;
+        return href ? (
           <a
             key={kind}
             href={href}
             target="_blank"
             rel="noreferrer noopener"
             onClick={(event) => event.stopPropagation()}
-            title={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
-            aria-label={`${ASSET_LINK_LABELS[kind].long} for ${name}`}
-            className={rowActionClass}
+            title={`${label} for ${name}`}
+            aria-label={`${label} for ${name}`}
+            className={cn(rowActionClass, "text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400")}
             data-testid={`asset-link-chip-${kind}`}
+            data-filled="true"
           >
             <Icon className="size-3.5" />
           </a>
+        ) : (
+          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-1 text-muted-foreground/30" data-testid={`asset-link-chip-${kind}`} data-filled="false">
+            <Icon className="size-3.5" />
+          </span>
         );
       })}
     </span>
@@ -647,68 +672,139 @@ function LinkChips({ preview, artwork, name }: { preview: string | null; artwork
 }
 
 /**
- * One box for two links, with a switch for which one it is holding.
- *
- * It opens on whichever kind is worth showing: the artwork when that is the only
- * one filled in, and the preview otherwise — so a deliverable that is finished
- * does not open on an empty preview box.
+ * The two links, a line each: something to review while the deliverable is being
+ * made, and the artwork that was signed off. Two lines rather than one box with a
+ * switch, because the pair is the point — what a deliverable is missing should be
+ * readable without toggling anything.
  */
-function LinkField({ draft, canEdit, onChange }: { draft: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">; canEdit: boolean; onChange: (patch: AssetComposerPatch) => void }) {
-  const [kind, setKind] = React.useState<AssetLinkKind>(!draft.previewUrl && draft.artworkUrl ? "artwork" : "preview");
-  const value = kind === "preview" ? draft.previewUrl : draft.artworkUrl;
+function LinkField({
+  draft,
+  saved,
+  canEdit,
+  onChange,
+}: {
+  draft: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">;
+  /** What is stored, which is where the cross puts the line back to. */
+  saved: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">;
+  canEdit: boolean;
+  onChange: (patch: AssetComposerPatch) => void;
+}) {
+  return (
+    <div className="grid gap-1.5" data-testid="asset-link-rows">
+      {ASSET_LINK_KINDS.map((kind) => {
+        const key = kind === "preview" ? "previewUrl" : "artworkUrl";
+        return <LinkRow key={kind} kind={kind} value={draft[key]} saved={saved[key]} canEdit={canEdit} onChange={(next) => onChange({ [key]: next })} />;
+      })}
+    </div>
+  );
+}
+
+/**
+ * One link. The label is the link itself once there is one — in green,
+ * opening in its own tab — and the box beside it is committed with the tick (or
+ * Enter, or by leaving it) and put back to what is stored with the cross.
+ *
+ * Both buttons hold the focus where it is on the way down, so the blur they would
+ * otherwise cause does not commit the very edit the cross is there to undo.
+ */
+function LinkRow({
+  kind,
+  value,
+  saved,
+  canEdit,
+  onChange,
+}: {
+  kind: AssetLinkKind;
+  value: string | null;
+  saved: string | null;
+  canEdit: boolean;
+  onChange: (next: string | null) => void;
+}) {
+  const [text, setText] = React.useState(value ?? "");
+  // A change from outside — Discard, or a save elsewhere — replaces what is typed.
+  const [seen, setSeen] = React.useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    setText(value ?? "");
+  }
   const Icon = LINK_ICON[kind];
+  const label = ASSET_LINK_LABELS[kind].long;
+  const commit = () => onChange(text.trim() || null);
+  const revert = () => {
+    setText(saved ?? "");
+    onChange(saved);
+  };
+  const uncommitted = text.trim() !== (value ?? "");
+  const changed = text.trim() !== (saved ?? "") || value !== saved;
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <span className="inline-flex shrink-0 rounded-lg border border-border/70 p-0.5" role="group" aria-label="Which link">
-        {ASSET_LINK_KINDS.map((option) => {
-          const OptionIcon = LINK_ICON[option];
-          const on = kind === option;
-          const filled = !!(option === "preview" ? draft.previewUrl : draft.artworkUrl);
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setKind(option)}
-              aria-pressed={on}
-              title={ASSET_LINK_LABELS[option].long}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs font-medium transition-colors",
-                on ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-              )}
-              data-testid={`asset-link-switch-${option}`}
-            >
-              <OptionIcon className="size-3" />
-              {ASSET_LINK_LABELS[option].short}
-              {/* Already has one, so the other side is not a blank slate. */}
-              {filled && <Check className={cn("size-2.5", on ? "opacity-80" : "text-emerald-500")} />}
-            </button>
-          );
-        })}
-      </span>
-
-      <TextField
-        value={value ?? ""}
-        placeholder={canEdit ? `Paste the ${ASSET_LINK_LABELS[kind].long.toLowerCase()} link…` : ""}
-        ariaLabel={`${ASSET_LINK_LABELS[kind].long} link: ${value ?? "none"}`}
-        canEdit={canEdit}
-        onCommit={(next) => onChange({ [kind === "preview" ? "previewUrl" : "artworkUrl"]: next.trim() || null })}
-        testId={`asset-link-${kind}`}
-        className="h-8 w-full min-w-0 rounded-lg border border-border/70 px-2 text-xs"
-      />
-
-      {value && (
+    <div className="flex min-w-0 items-center gap-1.5" data-testid={`asset-link-row-${kind}`}>
+      {value ? (
         <a
           href={value}
           target="_blank"
           rel="noreferrer noopener"
-          title={`Open the ${ASSET_LINK_LABELS[kind].long.toLowerCase()}`}
-          aria-label={`Open the ${ASSET_LINK_LABELS[kind].long.toLowerCase()}`}
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          data-testid="asset-link-open"
+          title={`Open the ${label.toLowerCase()}`}
+          className="flex w-[4.5rem] shrink-0 items-center gap-1 rounded-md px-1 py-1 text-2xs font-medium text-emerald-600 hover:bg-accent dark:text-emerald-400"
+          data-testid={`asset-link-open-${kind}`}
         >
-          <Icon className="size-3.5" />
+          <Icon className="size-3.5 shrink-0" />
+          {ASSET_LINK_LABELS[kind].short}
         </a>
+      ) : (
+        <span className="flex w-[4.5rem] shrink-0 items-center gap-1 px-1 py-1 text-2xs font-medium text-muted-foreground/60">
+          <Icon className="size-3.5 shrink-0" />
+          {ASSET_LINK_LABELS[kind].short}
+        </span>
+      )}
+
+      {canEdit ? (
+        <>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") {
+                revert();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder={`Paste the ${label.toLowerCase()} link…`}
+            aria-label={`${label} link: ${value ?? "none"}`}
+            data-testid={`asset-link-${kind}`}
+            className="h-8 w-full min-w-0 rounded-lg border border-border/70 bg-background px-2 text-xs outline-none placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={commit}
+            disabled={!uncommitted}
+            aria-label={`Set the ${label.toLowerCase()} link`}
+            title="Set"
+            data-testid={`asset-link-commit-${kind}`}
+            className={cn(rowActionClass, "disabled:pointer-events-none disabled:opacity-30", uncommitted && "text-emerald-600 dark:text-emerald-400")}
+          >
+            <Check className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={revert}
+            disabled={!changed}
+            aria-label={`Put the ${label.toLowerCase()} link back`}
+            title="Cancel"
+            data-testid={`asset-link-cancel-${kind}`}
+            className={cn(rowActionClass, "disabled:pointer-events-none disabled:opacity-30")}
+          >
+            <X className="size-3.5" />
+          </button>
+        </>
+      ) : (
+        <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid={`asset-link-${kind}`}>
+          {value || <span className="text-muted-foreground/70">—</span>}
+        </span>
       )}
     </div>
   );

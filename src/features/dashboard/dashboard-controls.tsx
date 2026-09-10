@@ -260,7 +260,7 @@ export function ViewTabs<T extends string>({ views, current, onChange, meta }: {
  * green: reading, live, stale (a refresh failed but the last good snapshot is
  * still on screen), and failed with nothing to show.
  */
-export function Freshness({ ago, refreshing, failed, className }: { ago: string; refreshing?: boolean; failed?: boolean; className?: string }) {
+export function Freshness({ refreshing, failed, className }: { refreshing?: boolean; failed?: boolean; className?: string }) {
   const state = failed ? "stale" : refreshing ? "reading" : "live";
   return (
     <span
@@ -271,7 +271,6 @@ export function Freshness({ ago, refreshing, failed, className }: { ago: string;
     >
       <span aria-hidden className={cn("size-2 rounded-full", failed ? "bg-amber-500" : refreshing ? "bg-amber-400" : "bg-green-500")} />
       <span className="text-foreground">{failed ? "Not updating" : refreshing ? "Reading" : "Live"}</span>
-      {ago && <span className="text-muted-foreground">· {ago}</span>}
     </span>
   );
 }
