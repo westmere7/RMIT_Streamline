@@ -1,22 +1,83 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useServices } from "@/features/data/data-context";
+import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import type { LinkOptions } from "@/services";
 
+/** One write often produces several row events; refetch once for the burst. */
+const COALESCE_MS = 200;
+
+/**
+ * The items this one is linked to, as the panel previews them: name, status,
+ * date, who is on it, and how many fields the two boards keep in step.
+ *
+ * Every one of those lives on the *other* board, which is the board this reader
+ * is not looking at — so nothing about it arrives through the board's own
+ * realtime, and the preview would sit at whatever it said when the panel opened.
+ * It listens for itself instead.
+ */
 export function useItemLinks(itemId: string | null) {
   const services = useServices();
+  useItemLinksRealtime(itemId);
   return useQuery({
     queryKey: queryKeys.itemLinks(itemId ?? ""),
     queryFn: () => services.links.listForItem(itemId!),
     enabled: !!itemId,
-    staleTime: 5_000,
+    // A preview of somebody else's row is worth nothing stale: it is on screen
+    // precisely to say what that row says now.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Re-reads the previews when the rows behind them move.
+ *
+ * Unfiltered, because the item on the other end is on a board this subscription
+ * has no id for — the refetch that follows is what narrows it. RLS applies to
+ * Realtime, so a reader only hears about rows they could select anyway. Column
+ * changes go to the mapping too: "syncs 8 fields · 2 not on that board" is
+ * counted from the two boards' columns, so adding one on either side changes it.
+ */
+function useItemLinksRealtime(itemId: string | null): void {
+  const { providerKind } = useDataContext();
+  const queryClient = useQueryClient();
+  React.useEffect(() => {
+    if (!itemId || providerKind !== "supabase") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // Remembered across the burst rather than read off the last event in it: a
+    // column added and a value written together must still re-count the mapping.
+    let remapped = false;
+    const supabase = getSupabaseClient();
+    const schedule = (mapping: boolean) => () => {
+      remapped ||= mapping;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        const mappingToo = remapped;
+        remapped = false;
+        void queryClient.invalidateQueries({ queryKey: queryKeys.itemLinks(itemId) });
+        if (mappingToo) void queryClient.invalidateQueries({ queryKey: ["link-mapping"] });
+      }, COALESCE_MS);
+    };
+    const channel = supabase.channel(`item-links:${itemId}`);
+    for (const table of ["item_column_values", "items", "item_links", "item_assets"]) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule(false));
+    }
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "board_columns" }, schedule(true));
+    channel.subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [itemId, providerKind, queryClient]);
 }
 
 /** Items on other boards matching `query`; an empty query lists recent items so the dialog is never blank. */
