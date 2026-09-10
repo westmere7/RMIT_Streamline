@@ -3,7 +3,7 @@
 import { CalendarDays, Check, ChevronRight, Copy, Eye, FileCheck2, Hash, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
-import { LabelPill } from "@/components/shared/label-pill";
+import { ColorDot, LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,7 +13,6 @@ import { ASSET_LINK_KINDS, ASSET_LINK_LABELS, ASSET_TYPE_OPTIONS, assetCount, ty
 import { DatePicker } from "@/features/boards/components/pickers/date-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
-import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue } from "@/lib/dates/dates";
 import { nowIso } from "@/lib/ids";
 import { cn } from "@/lib/utils";
@@ -212,9 +211,6 @@ function draftPatch(row: AssetComposerRow, draft: AssetDraft): AssetComposerPatc
 /** The quiet icon buttons at the end of a closed row. Always there: a control that only appears under a pointer is a control no finger ever finds. */
 const rowActionClass = "shrink-0 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground";
 
-/** Splits what the row says — who it is on, when it is due — from the links and the menu it carries. */
-const rowDividerClass = "h-4 w-px shrink-0 bg-border/70";
-
 /** A control in an open row's little form. Full width, so the fields line up in columns. */
 const fieldClass =
   "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 text-xs transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent";
@@ -229,7 +225,7 @@ const DOUBLE_CLICK_MS = 220;
  * with each other and down the list.
  *
  * Clicking the row opens and closes it, whether it is open or not; renaming is a
- * double click (or the pencil, which is also where the keyboard finds it), so
+ * double click (or the menu, which is also where the keyboard finds it), so
  * reading a row and editing its name never fight over the same click.
  */
 function AssetRowCard({
@@ -284,6 +280,7 @@ function AssetRowCard({
   const showDue = fields.due && !!shown.dueDate;
   const showLinks = !open;
   const [renaming, setRenaming] = React.useState(false);
+  const [dueOpen, setDueOpen] = React.useState(false);
   // Rename opens a field, so it waits for the menu to finish closing rather than
   // mounting inside a focus trap on its way out.
   const menuFocus = useMenuFocusGuard();
@@ -335,292 +332,300 @@ function AssetRowCard({
   ];
 
   return (
-    <li
-      className={cn(
-        // A thicker left edge carries the row's standing — done, late, or
-        // neither — so the shape of a long list reads down the margin before
-        // anyone reads a date.
-        "rounded-xl border border-l-2 border-border/70 bg-card shadow-xs transition-colors",
-        !open && "hover:bg-accent/40",
-        open && "border-border ring-1 ring-border/60",
-        done && "border-l-emerald-500/60 bg-card/60",
-        overdue && "border-l-red-500/60",
-      )}
-      data-testid="asset-line"
-      data-asset-name={row.name}
-      data-asset-done={done ? "true" : "false"}
-    >
-      {/* ---- The row you read ---------------------------------------------- */}
-      <div className="flex items-center gap-2 px-2.5 py-2">
-        {fields.done && (
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={done}
-            aria-label={done ? `Mark ${row.name} as not done` : `Mark ${row.name} as done`}
-            disabled={!canEdit}
-            onClick={() => onChange({ completedAt: done ? null : nowIso() })}
-            data-testid="asset-done"
-            className={cn(
-              "flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
-              done ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80 hover:border-ring",
-              !canEdit && "cursor-default opacity-70",
-            )}
-          >
-            {done && <Check className="size-3" strokeWidth={3} />}
-          </button>
+    <li className="flex items-stretch gap-1.5" data-testid="asset-line" data-asset-name={row.name} data-asset-done={done ? "true" : "false"}>
+      {/* The count is about the list, not about the deliverable, so it is kept
+          out of the card and set in the margin the list reads down. */}
+      <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60" aria-hidden data-testid="asset-number">
+        {number}
+      </span>
+
+      {/* The row's standing as a straight line the height of the card, so the
+          shape of a long list reads down the margin before anyone reads a date:
+          green for done, red for late, and a neutral rail for the rest — which
+          is a rail rather than nothing, so the column is unbroken. */}
+      <span aria-hidden className={cn("w-1 shrink-0 transition-colors", done ? "bg-emerald-500" : overdue ? "bg-red-500" : "bg-muted-foreground/30")} data-testid="asset-standing" />
+
+      <div
+        className={cn(
+          "min-w-0 flex-1 rounded-xl border border-border/70 bg-card shadow-xs transition-colors",
+          !open && "hover:bg-accent/40",
+          done && "bg-card/60",
+          open && "border-border ring-1 ring-border/60",
         )}
-
-        <span className="min-w-5 shrink-0 rounded bg-muted/60 px-1 py-px text-center text-2xs font-medium tabular text-muted-foreground/70" aria-hidden data-testid="asset-number">
-          {number}
-        </span>
-
-        {/* Name and summary together: one target, so a click anywhere along the row opens it. */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 select-none" onClick={click} onDoubleClick={rename}>
-          {renaming && canEdit ? (
-            <TextField
-              value={row.name}
-              placeholder="Asset"
-              ariaLabel={`Asset name: ${row.name}`}
-              canEdit
-              autoFocus
-              onCommit={(name) => name.trim() && name !== row.name && onChange({ name: name.trim() })}
-              onDone={() => setRenaming(false)}
-              testId="asset-name"
-              className="min-w-0 flex-1 font-medium"
-            />
-          ) : (
+      >
+        {/* ---- The row you read -------------------------------------------- */}
+        <div className="flex items-center gap-2 px-2.5 py-2">
+          {fields.done && (
             <button
               type="button"
-              aria-expanded={open}
-              title={canEdit ? "Click to open, double click to rename" : undefined}
-              className="min-w-[3.5rem] flex-1 truncate rounded-md py-1 text-left text-[13px] font-medium"
-              data-testid="asset-name"
+              role="checkbox"
+              aria-checked={done}
+              aria-label={done ? `Mark ${row.name} as not done` : `Mark ${row.name} as done`}
+              disabled={!canEdit}
+              onClick={() => onChange({ completedAt: done ? null : nowIso() })}
+              data-testid="asset-done"
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
+                done ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80 hover:border-ring",
+                !canEdit && "cursor-default opacity-70",
+              )}
             >
-              <span className={cn(done && "text-muted-foreground line-through")}>{row.name}</span>
+              {done && <Check className="size-3" strokeWidth={3} />}
             </button>
           )}
 
-          {/* What the deliverable is, against its name: how many, and of what. */}
-          {!open && !renaming && (
-            <span className="flex min-w-0 shrink items-center gap-1.5 text-xs text-muted-foreground" data-testid="asset-summary">
-              {/* A count only when there is more than one: "×1" down every row
-                  of the list is a column of noise. */}
-              {count > 1 && <span className="rounded bg-muted/70 px-1.5 py-px text-2xs font-medium tabular text-muted-foreground">×{count}</span>}
-              {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="max-w-28" />}
-            </span>
-          )}
-        </div>
-
-        {/* Who it is on and when it is due: the two things worth knowing about
-            a deliverable nobody has opened. No calendar icon against the date —
-            a date already looks like one — and a warning only once it has gone
-            by. */}
-        {!open && !renaming && (showPeople || showDue) && (
-          <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground" data-testid="asset-meta">
-            {showPeople && (
-              <span className="flex -space-x-1">
-                {assignees.slice(0, 3).map((u) => (
-                  <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
-                ))}
-              </span>
+          {/* Name and summary together: one target, so a click anywhere along the row opens it. */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 select-none" onClick={click} onDoubleClick={rename}>
+            {renaming && canEdit ? (
+              <TextField
+                value={row.name}
+                placeholder="Asset"
+                ariaLabel={`Asset name: ${row.name}`}
+                canEdit
+                autoFocus
+                onCommit={(name) => name.trim() && name !== row.name && onChange({ name: name.trim() })}
+                onDone={() => setRenaming(false)}
+                testId="asset-name"
+                className="min-w-0 flex-1 font-medium"
+              />
+            ) : (
+              <button
+                type="button"
+                aria-expanded={open}
+                title={canEdit ? "Click to open, double click to rename" : undefined}
+                className="min-w-[3.5rem] flex-1 truncate rounded-md py-1 text-left text-[13px] font-medium"
+                data-testid="asset-name"
+              >
+                <span className={cn(done && "text-muted-foreground line-through")}>{row.name}</span>
+              </button>
             )}
-            {showDue && (
-              <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-                {overdue && <TriangleAlert className="size-3 shrink-0" />}
-                {formatShortDate(shown.dueDate)}
+
+            {/* What the deliverable is, against its name: how many, and of what. */}
+            {!open && !renaming && (
+              <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground" data-testid="asset-summary">
+                {/* A count only when there is more than one: "×1" down every row
+                    of the list is a column of noise. */}
+                {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular text-muted-foreground">×{count}</span>}
+                {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-28 px-1.5 text-[10px]" />}
               </span>
             )}
           </div>
-        )}
 
-        {/* The links this deliverable holds, then everything else behind a "…".
-            All of it sits on the row at rest: a control that only exists under a
-            pointer is a control a touchscreen never offers, and a rail that
-            opens on hover shifts the row out from under the finger aiming at
-            it. */}
-        <div className="flex shrink-0 items-center gap-0.5">
-          {(showPeople || showDue) && showLinks && !renaming && <span className={cn(rowDividerClass, "mr-1 ml-0.5")} aria-hidden />}
-          {showLinks && !renaming && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
-
-          {canEdit && !renaming && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`Options for ${row.name}`} title="More" data-testid="asset-menu" className={rowActionClass}>
-                  <MoreVertical className="size-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
-                {renderDropdown(menuActions)}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* The chevron stays out of the menu: it is not an action but the
-              row's state, and it has to be readable without opening anything. */}
-          <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? `Close ${row.name}` : `Open ${row.name}`} data-testid="asset-toggle" className={rowActionClass}>
-            <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
-          </button>
-        </div>
-      </div>
-
-      {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
-      {open && (
-        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5" data-testid="asset-details">
-          {fields.type && (
-            <Detail label="Type">
-              <Popover>
-                <PopoverTrigger asChild disabled={!canEdit}>
-                  <button type="button" className={fieldClass} aria-label={`Asset type: ${draft.assetType ?? "not set"}`} data-testid="asset-type">
-                    {typeLabel ? (
-                      <LabelPill label={typeLabel} appearance="soft" size="sm" />
-                    ) : (
-                      <>
-                        <Tag className="size-3 shrink-0 opacity-60" />
-                        <span className="truncate text-muted-foreground/80">Not set</span>
-                      </>
-                    )}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-60 p-2">
-                  <p className="mb-1.5 label-quiet">Asset type</p>
-                  <div className="flex flex-wrap gap-1">
-                    {assetTypes.map((option) => {
-                      const active = draft.assetType?.toLowerCase() === option.name.toLowerCase();
-                      return (
-                        <button
-                          key={option.name}
-                          type="button"
-                          onClick={() => edit({ assetType: active ? null : option.name })}
-                          className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs", colorClasses(option.color).soft, active && "ring-2 ring-ring")}
-                          aria-pressed={active}
-                          data-testid={`asset-type-option-${option.name}`}
-                        >
-                          {active && <Check className="size-3" />}
-                          {option.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <input
-                    defaultValue={draft.assetType && !assetTypes.some((o) => o.name.toLowerCase() === draft.assetType!.toLowerCase()) ? draft.assetType : ""}
-                    placeholder="Or type another and press Enter"
-                    aria-label="Custom asset type"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        edit({ assetType: (e.target as HTMLInputElement).value.trim() || null });
-                      }
-                    }}
-                    className="mt-2 h-7 w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </PopoverContent>
-              </Popover>
-            </Detail>
-          )}
-
-          {/* Who is in charge. A row can take more than one person. */}
-          {fields.people && (
-            <Detail label="In charge">
-              <Popover>
-                <PopoverTrigger asChild disabled={!canEdit}>
-                  <button
-                    type="button"
-                    className={fieldClass}
-                    aria-label={`In charge: ${assignees.length > 0 ? assignees.map((u) => u.displayName).join(", ") : "nobody"}`}
-                    data-testid="asset-assignee"
-                  >
-                    {assignees.length > 0 ? (
-                      <span className="flex shrink-0 -space-x-1">
-                        {assignees.slice(0, 3).map((u) => (
-                          <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
-                        ))}
-                      </span>
-                    ) : (
-                      <UserRound className="size-3 shrink-0 opacity-60" />
-                    )}
-                    <span className={cn("truncate", assignees.length === 0 && "text-muted-foreground/80")}>{inCharge}</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-64 p-0">
-                  <PersonPicker users={users} value={draft.assigneeIds} onChange={(ids) => edit({ assigneeIds: ids })} />
-                </PopoverContent>
-              </Popover>
-            </Detail>
-          )}
-
-          {/* Quantity: a stepper, because most edits are ±1 */}
-          <Detail label="Quantity">
-            <QuantityChip value={draft.quantity} canEdit={canEdit} onChange={(quantity) => edit({ quantity })} />
-          </Detail>
-
-          {fields.due && (
-            <Detail label="Due">
-              <Popover>
-                <PopoverTrigger asChild disabled={!canEdit}>
-                  <button
-                    type="button"
-                    className={cn(fieldClass, "tabular", overdue && "border-red-300 text-red-700 dark:border-red-500/50 dark:text-red-300")}
-                    aria-label={`Due: ${draft.dueDate ? formatShortDate(draft.dueDate) : "not set"}`}
-                    data-testid="asset-due"
-                  >
-                    {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
-                    <span className={cn("truncate", !draft.dueDate && "text-muted-foreground/80")}>{draft.dueDate ? formatShortDate(draft.dueDate) : "Not set"}</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-auto p-0">
-                  <DatePicker value={draft.dueDate} onChange={(dueDate) => edit({ dueDate })} />
-                </PopoverContent>
-              </Popover>
-            </Detail>
-          )}
-
-          <Detail label="Specs / notes" className={cn("col-span-2", !canEdit && !draft.notes && "hidden")}>
-            <TextField
-              value={draft.notes ?? ""}
-              placeholder={canEdit ? "Size, format, finish…" : ""}
-              ariaLabel={`Notes: ${draft.notes ?? "none"}`}
-              canEdit={canEdit}
-              onCommit={(notes) => edit({ notes: notes.trim() || null })}
-              testId="asset-notes"
-              className="h-8 w-full min-w-0 rounded-lg border border-border/70 px-2 text-xs"
-            />
-          </Detail>
-
-          {/* One line for two links, because a deliverable acquires them in
-              order: something to review, then the artwork that was signed off.
-              The switch says which one the box is holding, and each side shows
-              a tick once it has a link, so both are visible without toggling. */}
-          <Detail label="Link" className={cn("col-span-2", !canEdit && !draft.previewUrl && !draft.artworkUrl && "hidden")}>
-            <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
-          </Detail>
-
-          {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
-          {canEdit && (
-            <div className="col-span-2 flex items-center gap-1.5 pt-0.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={`Remove ${row.name}`}
-                onClick={onRemove}
-                className="mr-auto h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                data-testid="asset-remove"
-              >
-                <Trash2 className="size-3.5" /> Remove
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={discard} className="h-7 px-2.5 text-xs" data-testid="asset-discard">
-                Discard
-              </Button>
-              {/* Never disabled: clicking it is what blurs the field being typed in,
-                  and a disabled button would swallow that click along with the edit. */}
-              <Button type="button" size="sm" onClick={save} className="h-7 px-3 text-xs" data-testid="asset-update">
-                Update
-              </Button>
+          {/* Who it is on and when it is due: the two things worth knowing about
+              a deliverable nobody has opened. No calendar icon against the date —
+              a date already looks like one — and a warning only once it has gone
+              by. */}
+          {!open && !renaming && (showPeople || showDue) && (
+            <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground" data-testid="asset-meta">
+              {showPeople && (
+                <span className="flex -space-x-1">
+                  {assignees.slice(0, 3).map((u) => (
+                    <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                  ))}
+                </span>
+              )}
+              {showDue && (
+                <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+                  {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                  {formatShortDate(shown.dueDate)}
+                </span>
+              )}
             </div>
           )}
+
+          {/* The links this deliverable holds, then everything else behind a "…".
+              All of it sits on the row at rest: a control that only exists under a
+              pointer is a control a touchscreen never offers, and a rail that
+              opens on hover shifts the row out from under the finger aiming at
+              it. */}
+          <div className="flex shrink-0 items-center gap-0.5 pl-1.5">
+            {showLinks && !renaming && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
+
+            {canEdit && !renaming && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" aria-label={`Options for ${row.name}`} title="More" data-testid="asset-menu" className={rowActionClass}>
+                    <MoreVertical className="size-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
+                  {renderDropdown(menuActions)}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* The chevron stays out of the menu: it is not an action but the
+                row's state, and it has to be readable without opening anything. */}
+            <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? `Close ${row.name}` : `Open ${row.name}`} data-testid="asset-toggle" className={rowActionClass}>
+              <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
+        {open && (
+          <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5" data-testid="asset-details">
+            {fields.type && (
+              <Detail label="Type">
+                <Popover>
+                  <PopoverTrigger asChild disabled={!canEdit}>
+                    <button type="button" className={fieldClass} aria-label={`Asset type: ${draft.assetType ?? "not set"}`} data-testid="asset-type">
+                      {typeLabel ? (
+                        <LabelPill label={typeLabel} appearance="soft" size="sm" />
+                      ) : (
+                        <>
+                          <Tag className="size-3 shrink-0 opacity-60" />
+                          <span className="truncate text-muted-foreground/80">Not set</span>
+                        </>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-2">
+                    <p className="mb-1.5 label-quiet">Asset type</p>
+                    {/* A column that scrolls rather than a block that wraps: a
+                        workspace with twenty-odd types wrapped into pills is a
+                        wall to search, and it grows the popover until it runs
+                        off the screen. Capped, one a line, in the list's own
+                        order — which is the order people know them in. */}
+                    <div className="scrollbar-thin -mr-1 grid max-h-64 gap-0.5 overflow-y-auto pr-1">
+                      {assetTypes.map((option) => {
+                        const active = draft.assetType?.toLowerCase() === option.name.toLowerCase();
+                        return (
+                          <button
+                            key={option.name}
+                            type="button"
+                            onClick={() => edit({ assetType: active ? null : option.name })}
+                            className={cn("flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-accent", active && "bg-accent font-medium")}
+                            aria-pressed={active}
+                            data-testid={`asset-type-option-${option.name}`}
+                          >
+                            <ColorDot color={option.color} className="size-2" />
+                            <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                            {active && <Check className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      defaultValue={draft.assetType && !assetTypes.some((o) => o.name.toLowerCase() === draft.assetType!.toLowerCase()) ? draft.assetType : ""}
+                      placeholder="Or type another and press Enter"
+                      aria-label="Custom asset type"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          edit({ assetType: (e.target as HTMLInputElement).value.trim() || null });
+                        }
+                      }}
+                      className="mt-2 h-7 w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </Detail>
+            )}
+
+            {/* Who is in charge. A row can take more than one person. */}
+            {fields.people && (
+              <Detail label="In charge">
+                <Popover>
+                  <PopoverTrigger asChild disabled={!canEdit}>
+                    <button
+                      type="button"
+                      className={fieldClass}
+                      aria-label={`In charge: ${assignees.length > 0 ? assignees.map((u) => u.displayName).join(", ") : "nobody"}`}
+                      data-testid="asset-assignee"
+                    >
+                      {assignees.length > 0 ? (
+                        <span className="flex shrink-0 -space-x-1">
+                          {assignees.slice(0, 3).map((u) => (
+                            <UserAvatar key={u.id} user={u} size="xs" tooltip={false} />
+                          ))}
+                        </span>
+                      ) : (
+                        <UserRound className="size-3 shrink-0 opacity-60" />
+                      )}
+                      <span className={cn("truncate", assignees.length === 0 && "text-muted-foreground/80")}>{inCharge}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-0">
+                    <PersonPicker users={users} value={draft.assigneeIds} onChange={(ids) => edit({ assigneeIds: ids })} />
+                  </PopoverContent>
+                </Popover>
+              </Detail>
+            )}
+
+            {/* Quantity: a stepper, because most edits are ±1 */}
+            <Detail label="Quantity">
+              <QuantityChip value={draft.quantity} canEdit={canEdit} onChange={(quantity) => edit({ quantity })} />
+            </Detail>
+
+            {fields.due && (
+              <Detail label="Due">
+                <Popover open={dueOpen} onOpenChange={setDueOpen}>
+                  <PopoverTrigger asChild disabled={!canEdit}>
+                    <button
+                      type="button"
+                      className={cn(fieldClass, "tabular", overdue && "border-red-300 text-red-700 dark:border-red-500/50 dark:text-red-300")}
+                      aria-label={`Due: ${draft.dueDate ? formatShortDate(draft.dueDate) : "not set"}`}
+                      data-testid="asset-due"
+                    >
+                      {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
+                      <span className={cn("truncate", !draft.dueDate && "text-muted-foreground/80")}>{draft.dueDate ? formatShortDate(draft.dueDate) : "Not set"}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    <DatePicker value={draft.dueDate} onChange={(dueDate) => edit({ dueDate })} onDone={() => setDueOpen(false)} />
+                  </PopoverContent>
+                </Popover>
+              </Detail>
+            )}
+
+            <Detail label="Specs / notes" className={cn("col-span-2", !canEdit && !draft.notes && "hidden")}>
+              <TextField
+                value={draft.notes ?? ""}
+                placeholder={canEdit ? "Size, format, finish…" : ""}
+                ariaLabel={`Notes: ${draft.notes ?? "none"}`}
+                canEdit={canEdit}
+                onCommit={(notes) => edit({ notes: notes.trim() || null })}
+                testId="asset-notes"
+                className="h-8 w-full min-w-0 rounded-lg border border-border/70 px-2 text-xs"
+              />
+            </Detail>
+
+            {/* One line for two links, because a deliverable acquires them in
+                order: something to review, then the artwork that was signed off.
+                The switch says which one the box is holding, and each side shows
+                a tick once it has a link, so both are visible without toggling. */}
+            <Detail label="Link" className={cn("col-span-2", !canEdit && !draft.previewUrl && !draft.artworkUrl && "hidden")}>
+              <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
+            </Detail>
+
+            {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
+            {canEdit && (
+              <div className="col-span-2 flex items-center gap-1.5 pt-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove ${row.name}`}
+                  onClick={onRemove}
+                  className="mr-auto h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                  data-testid="asset-remove"
+                >
+                  <Trash2 className="size-3.5" /> Remove
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={discard} className="h-7 px-2.5 text-xs" data-testid="asset-discard">
+                  Discard
+                </Button>
+                {/* Never disabled: clicking it is what blurs the field being typed in,
+                    and a disabled button would swallow that click along with the edit. */}
+                <Button type="button" size="sm" onClick={save} className="h-7 px-3 text-xs" data-testid="asset-update">
+                  Update
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </li>
   );
 }
@@ -655,15 +660,15 @@ function LinkChips({ preview, artwork, name }: { preview: string | null; artwork
             onClick={(event) => event.stopPropagation()}
             title={`${label} for ${name}`}
             aria-label={`${label} for ${name}`}
-            className={cn(rowActionClass, "text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400")}
+            className={cn(rowActionClass, "p-0.5 text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400")}
             data-testid={`asset-link-chip-${kind}`}
             data-filled="true"
           >
-            <Icon className="size-3.5" />
+            <Icon className="size-3" />
           </a>
         ) : (
-          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-1 text-muted-foreground/30" data-testid={`asset-link-chip-${kind}`} data-filled="false">
-            <Icon className="size-3.5" />
+          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-0.5 text-muted-foreground/30" data-testid={`asset-link-chip-${kind}`} data-filled="false">
+            <Icon className="size-3" />
           </span>
         );
       })}

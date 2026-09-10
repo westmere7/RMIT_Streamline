@@ -64,14 +64,18 @@ export function ListsSection() {
           {WORKSPACE_LIST_KEYS.map((key) => (
             <UnderlineTabsTrigger key={key} value={key} data-testid={`lists-tab-${key}`}>
               {WORKSPACE_LIST_META[key].label}
-              <span className="text-2xs font-normal text-muted-foreground tabular">{(lists.data?.[key] ?? WORKSPACE_LIST_META[key].defaults).length}</span>
+              <span className="text-2xs font-normal text-muted-foreground tabular">{lists.data ? lists.data[key].length : ""}</span>
             </UnderlineTabsTrigger>
           ))}
         </UnderlineTabsList>
 
         {WORKSPACE_LIST_KEYS.map((key) => (
           <TabsContent key={key} value={key}>
-            <ListEditor key={key} listKey={key} options={lists.data?.[key] ?? WORKSPACE_LIST_META[key].defaults.map((o) => ({ ...o }))} canEdit={manage} />
+            {lists.data ? (
+              <ListEditor key={key} listKey={key} options={lists.data[key].map((o) => ({ ...o }))} canEdit={manage} />
+            ) : (
+              <div className="h-48 animate-pulse rounded-xl border border-border/70 bg-card" aria-hidden />
+            )}
           </TabsContent>
         ))}
       </Tabs>
@@ -215,10 +219,10 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         {carriesRates && (
-          <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-2.5 py-1.5 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground">
             <span className="min-w-0 flex-1">Type</span>
-            <span className="w-[15.5rem] shrink-0">Output rate — how many the team finishes</span>
-            <span className="w-[12rem] shrink-0">Time for one</span>
+            <span className="w-[19.5rem] shrink-0">Output rate — how many the team finishes</span>
+            <span className="w-[10rem] shrink-0">Time for one</span>
             <span className="w-7 shrink-0" />
           </div>
         )}
@@ -243,7 +247,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
         </ul>
 
         {canEdit && (
-          <div className="flex items-center gap-2 border-t border-border/60 px-2.5 py-1.5">
+          <div className="flex items-center gap-2 border-t border-border/60 px-3 py-2">
             <Plus className="size-3.5 shrink-0 text-muted-foreground/60" />
             <input
               value={adding}
@@ -256,10 +260,10 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
               maxLength={MAX_LIST_OPTION_NAME}
               placeholder={`Add to ${meta.label.toLowerCase()}`}
               aria-label={`Add to ${meta.label}`}
-              className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+              className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
               data-testid="list-add-input"
             />
-            <Button type="button" size="sm" variant="secondary" className="h-7 shrink-0" disabled={!adding.trim()} onClick={add} data-testid="list-add-submit">
+            <Button type="button" size="sm" variant="secondary" className="h-8 shrink-0" disabled={!adding.trim()} onClick={add} data-testid="list-add-submit">
               Add
             </Button>
           </div>
@@ -322,7 +326,7 @@ function ListRow({
   const hours = hoursPerUnit(rate);
 
   return (
-    <li className={cn("group flex items-center gap-2 px-2.5 py-1.5", removed && "bg-destructive/[0.04]")} data-testid="list-option">
+    <li className={cn("group flex items-center gap-2 px-3 py-2", removed && "bg-destructive/[0.04]")} data-testid="list-option">
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <Popover>
           <PopoverTrigger asChild disabled={!canEdit || removed}>
@@ -352,7 +356,7 @@ function ListRow({
                 e.currentTarget.blur();
               }
             }}
-            className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1.5 text-[13px] outline-none hover:bg-accent focus:bg-background focus:ring-2 focus:ring-ring"
+            className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 text-[13px] outline-none hover:bg-accent focus:bg-background focus:ring-2 focus:ring-ring"
             data-testid="list-option-name"
           />
         ) : (
@@ -364,19 +368,19 @@ function ListRow({
 
       {carriesRates &&
         (removed ? (
-          <span className="w-[27.5rem] shrink-0 text-2xs text-muted-foreground">
+          <span className="w-[29.5rem] shrink-0 text-2xs text-muted-foreground">
             {row.removal?.replaceWith === undefined ? "will leave the list" : row.removal.replaceWith === null ? "will be cleared from its deliverables" : `will move to ${row.removal.replaceWith}`}
           </span>
         ) : (
           <>
-            <span className="flex w-[15.5rem] shrink-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+            <span className="flex w-[19.5rem] shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
               <Input
                 type="number"
                 min={1}
                 step="any"
                 inputMode="decimal"
                 aria-label={`${row.name}: how many`}
-                className="h-7 w-16 tabular"
+                className="h-8 w-[4.25rem] tabular"
                 disabled={!canEdit}
                 value={rate ? String(rate.qty) : ""}
                 placeholder="—"
@@ -394,7 +398,7 @@ function ListRow({
                 step="any"
                 inputMode="decimal"
                 aria-label={`${row.name}: every how many`}
-                className="h-7 w-14 tabular"
+                className="h-8 w-16 tabular"
                 disabled={!canEdit || !rate}
                 value={rate ? String(rate.every) : ""}
                 placeholder="1"
@@ -405,7 +409,7 @@ function ListRow({
                 data-testid={`rate-every-${row.name}`}
               />
               <Select value={rate?.per ?? "day"} disabled={!canEdit || !rate} onValueChange={(per) => onRate({ per: per as RatePer })}>
-                <SelectTrigger className="h-7 w-[5.5rem]" aria-label={`${row.name}: per`} data-testid={`rate-per-${row.name}`}>
+                <SelectTrigger className="h-8 w-[7rem]" aria-label={`${row.name}: per`} data-testid={`rate-per-${row.name}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -420,7 +424,7 @@ function ListRow({
 
             {/* The sanity check: a rate reading "2 min each" for a campaign film
                 is wrong in a way the three numbers alone do not show. */}
-            <span className="flex w-[12rem] shrink-0 items-center gap-2">
+            <span className="flex w-[10rem] shrink-0 items-center gap-2">
               {hint ? (
                 <>
                   <span className="h-1.5 min-w-1 flex-1 overflow-hidden rounded-full bg-surface-strong/80">

@@ -79,7 +79,9 @@ export function SettingsPage() {
           </ul>
         </nav>
         <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
-          <div className="max-w-2xl">
+          {/* Lists carries a table of rates rather than a column of fields, so it
+              is given the room the rest of the sections do not need. */}
+          <div className={cn("max-w-2xl", section === "lists" && "max-w-4xl")}>
             {section === "general" && <GeneralSection />}
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
