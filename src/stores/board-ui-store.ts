@@ -43,6 +43,13 @@ export interface BoardUiState {
   filters: BoardFilters;
   sort: BoardSort | null;
   selectedItemIds: string[];
+  /**
+   * The row a range is measured from: the last one ticked by hand. A shift-click
+   * selects everything between it and the row clicked, and it stays put after
+   * one, so a second shift-click re-measures from the same end rather than
+   * walking the range along.
+   */
+  selectionAnchorId: string | null;
   /** Item ids with subitems expanded. */
   expandedItemIds: string[];
   /**
@@ -85,6 +92,15 @@ interface BoardUiStore {
   setSort: (boardId: string, sort: BoardSort | null) => void;
   setSelected: (boardId: string, ids: string[]) => void;
   toggleSelected: (boardId: string, id: string, selected?: boolean) => void;
+  /**
+   * Adds everything between the anchor and `toId` to the selection.
+   *
+   * `orderedIds` is the rows as they are on screen — filtered, sorted, group by
+   * group — because "between" means what the eye can see between them, not what
+   * the data happens to hold. With no anchor yet (or one that a filter has taken
+   * away) this is an ordinary tick.
+   */
+  selectRange: (boardId: string, orderedIds: string[], toId: string) => void;
   clearSelection: (boardId: string) => void;
   toggleExpanded: (boardId: string, itemId: string) => void;
   /** Folds or unfolds a group without touching the board. */
@@ -97,6 +113,7 @@ export const EMPTY_BOARD_UI: BoardUiState = {
   filters: EMPTY_FILTERS,
   sort: null,
   selectedItemIds: [],
+  selectionAnchorId: null,
   expandedItemIds: [],
   collapsedGroupOverrides: [],
   kanbanColumnId: null,
@@ -123,16 +140,29 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
     set((s) => update(s, boardId, { filters: { ...(s.boards[boardId]?.filters ?? EMPTY_FILTERS), ...filters } })),
   clearFilters: (boardId) => set((s) => update(s, boardId, { filters: EMPTY_FILTERS })),
   setSort: (boardId, sort) => set((s) => update(s, boardId, { sort })),
-  setSelected: (boardId, ids) => set((s) => update(s, boardId, { selectedItemIds: ids })),
+  setSelected: (boardId, ids) => set((s) => update(s, boardId, { selectedItemIds: ids, selectionAnchorId: ids.at(-1) ?? null })),
   toggleSelected: (boardId, id, selected) =>
     set((s) => {
       const current = s.boards[boardId]?.selectedItemIds ?? [];
       const has = current.includes(id);
       const next = selected ?? !has;
       if (next === has) return {};
-      return update(s, boardId, { selectedItemIds: next ? [...current, id] : current.filter((x) => x !== id) });
+      // Ticked or unticked, this row is where the next range is measured from.
+      return update(s, boardId, { selectedItemIds: next ? [...current, id] : current.filter((x) => x !== id), selectionAnchorId: id });
     }),
-  clearSelection: (boardId) => set((s) => update(s, boardId, { selectedItemIds: [] })),
+  selectRange: (boardId, orderedIds, toId) =>
+    set((s) => {
+      const ui = s.boards[boardId] ?? EMPTY_BOARD_UI;
+      const to = orderedIds.indexOf(toId);
+      if (to < 0) return {};
+      const from = ui.selectionAnchorId ? orderedIds.indexOf(ui.selectionAnchorId) : -1;
+      if (from < 0) return update(s, boardId, { selectedItemIds: [...new Set([...ui.selectedItemIds, toId])], selectionAnchorId: toId });
+      const span = orderedIds.slice(Math.min(from, to), Math.max(from, to) + 1);
+      // Added to the selection rather than replacing it: shift extends what is
+      // already ticked, which is what every list that does this does.
+      return update(s, boardId, { selectedItemIds: [...new Set([...ui.selectedItemIds, ...span])] });
+    }),
+  clearSelection: (boardId) => set((s) => update(s, boardId, { selectedItemIds: [], selectionAnchorId: null })),
   toggleExpanded: (boardId, itemId) =>
     set((s) => {
       const current = s.boards[boardId]?.expandedItemIds ?? [];

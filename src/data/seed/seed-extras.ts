@@ -22,7 +22,7 @@ import type {
   TrackerColumn,
   TrackerSheet,
 } from "@/domain";
-import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultSettingsFor, formatAssetLine, normaliseLinkPair, recapAssets, recapColumnValue } from "@/domain";
+import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultSettingsFor, normaliseLinkPair, recapAssets, recapColumnValue } from "@/domain";
 import { buildRows, type DemoRowSpec } from "@/features/trackers/tracker-template";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
@@ -557,26 +557,8 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     for (const v of placement.values) pushValue(item.id, allocationColumns.find((c) => c.id === v.columnId), v.value, booked);
     pushValue(item.id, allocationStatus, { type: "STATUS", labelId: spec.status }, booked);
 
-    spec.assets.forEach((asset, index) => {
-      const sub: Item = {
-        id: sid("extraItem"),
-        boardId: allocationBoardId,
-        groupId: group.id,
-        parentItemId: item.id,
-        name: formatAssetLine({ ...asset, spec: null }),
-        description: asset.spec?.trim() || null,
-        position: index,
-        createdBy: users.danh,
-        archivedAt: null,
-        createdAt: iso(booked),
-        updatedAt: iso(booked),
-      };
-      items.push(sub);
-      pushValue(sub.id, allocationStatus, { type: "STATUS", labelId: spec.status === "done" ? "done" : "not_started" }, booked);
-    });
-
-    // The same deliverables as lines on the item's Assets tab — type, quantity,
-    // who is on it once allocated, due date — and the recap the board shows.
+    // The deliverables, as lines on the item's Assets tab — type, quantity, who
+    // is on it once allocated, due date — and the recap the board shows.
     const lineType = spec.assetTypes.length === 1 ? spec.assetTypes[0]! : null;
     const bookingLines: ItemAsset[] = spec.assets.map((asset, index) => ({
       id: sid("extraAsset"),
@@ -642,23 +624,6 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       for (const v of mirrored.values) pushValue(mirror.id, targetColumns.find((c) => c.id === v.columnId), v.value, allocatedAt);
       pushValue(mirror.id, lookups.column(targetKey, "status"), { type: "STATUS", labelId: spec.status }, allocatedAt);
       pushValue(mirror.id, lookups.column(targetKey, "owner"), { type: "PERSON", userIds: [users[targetOwner]] }, allocatedAt);
-      spec.assets.forEach((asset, index) => {
-        const copy: Item = {
-          id: sid("extraItem"),
-          boardId: targetBoardId,
-          groupId: targetGroup.id,
-          parentItemId: mirror.id,
-          name: formatAssetLine({ ...asset, spec: null }),
-          description: asset.spec?.trim() || null,
-          position: index,
-          createdBy: users.danh,
-          archivedAt: null,
-          createdAt: iso(allocatedAt),
-          updatedAt: iso(allocatedAt),
-        };
-        items.push(copy);
-        pushValue(copy.id, lookups.column(targetKey, "status"), { type: "STATUS", labelId: "not_started" }, allocatedAt);
-      });
       pushValue(item.id, allocatedTo, { type: "TEXT", text: targetName }, allocatedAt);
       const mirrorLines = bookingLines.map((line, index) => ({ ...line, id: sid("extraAsset"), itemId: mirror.id, boardId: targetBoardId, assigneeIds: [users[targetOwner]!], position: index, createdAt: iso(allocatedAt), updatedAt: iso(allocatedAt) }));
       itemAssets.push(...mirrorLines);

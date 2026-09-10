@@ -116,10 +116,13 @@ test.describe("task booking", () => {
     await expect(request).toContainText("Priya Nair");
     await expect(request).toContainText("Digital");
     await expect(request).toContainText("High");
-    // The asset lines are its subitems.
-    await request.getByRole("button", { name: /subitems/i }).click();
-    await expect(page.getByRole("button", { name: "A1 poster ×6", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Instagram tile", exact: true })).toBeVisible();
+    // The asset lines are deliverables on the Assets tab, not subitems on the board.
+    await expect(request.getByRole("button", { name: /subitems/i })).toHaveCount(0);
+    await request.getByRole("button", { name: "Open Open Day wayfinding posters" }).click();
+    await page.getByTestId("item-panel").getByTestId("tab-assets").click();
+    await expect(page.getByTestId("item-panel").getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
+    await expect(page.getByTestId("item-panel").locator('[data-testid="asset-line"][data-asset-name="A1 poster"]')).toBeVisible();
+    await expect(page.getByTestId("item-panel").locator('[data-testid="asset-line"][data-asset-name="Instagram tile"]')).toBeVisible();
   });
 
   test("a validation error brings the request tab back into view", async ({ page }) => {

@@ -16,7 +16,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, formatAssetLine, isEmptyValue, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, isEmptyValue, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -133,9 +133,10 @@ export class BookingService {
   /**
    * Writes a booking onto its board: the chosen team's receiving board when it
    * has one, otherwise Task Allocation with the requested team noted. Each asset
-   * line becomes a subitem. The item is recorded as the signed-in member when
-   * one booked it, else as the workspace owner (a public booking has no account
-   * behind it); the requester is in the columns and the description regardless.
+   * line lands on the item's Assets tab and nowhere else. The item is recorded as
+   * the signed-in member when one booked it, else as the workspace owner (a
+   * public booking has no account behind it); the requester is in the columns and
+   * the description regardless.
    */
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
@@ -180,36 +181,16 @@ export class BookingService {
       },
       actorId,
     );
-    // The asset lines are the only children of a brand-new item, so their
-    // positions are known and they can be written together rather than one
-    // round trip after another — a stakeholder is waiting on this response.
-    // Each asset line is a subitem the team can tick off, and a line on the
-    // item's Assets tab, where type, quantity, person in charge and due date live.
+    // The asset lines land on the item's Assets tab, where type, quantity, person
+    // in charge and due date live — and nowhere else. They used to be written a
+    // second time as subitems, which made every booking arrive as a task with a
+    // fold-out of rows saying the same thing the Assets tab already said, and
+    // doubled what a board counted. A deliverable is not a task.
     const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
-    await Promise.all([
-      ...request.assets.map((asset, index) => {
-        // Each asset carries a code of its own, so a subitem can be quoted the
-        // same way the task can.
-        const assetItemId = newId();
-        return this.items.createItem(
-          {
-            id: assetItemId,
-            boardId: board.id,
-            groupId: group.id,
-            name: formatAssetLine({ ...asset, spec: null }),
-            parentItemId: item.id,
-            position: index,
-            description: asset.spec?.trim() || null,
-            reference: bookingReference(assetItemId),
-          },
-          actorId,
-        );
-      }),
-      this.assets.addMany(
-        request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
-        actorId,
-      ),
-    ]);
+    await this.assets.addMany(
+      request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
+      actorId,
+    );
 
     await this.notifyAdmins(members, board, item, request, team, actorId);
     return {

@@ -16,6 +16,24 @@ export function BulkActionsBar() {
   const clearSelection = useBoardUiStore((s) => s.clearSelection);
   const [confirm, setConfirm] = React.useState<"archive" | "delete" | null>(null);
   const ids = ui.selectedItemIds.filter((id) => model.itemById.has(id));
+
+  // Escape drops the selection — the way out of a selection is the way out of
+  // everything else. Only when there is nothing else for it to close first: a
+  // menu, a dialog or a field being typed in all answer Escape before the
+  // board does, and this bar is only mounted while something is selected.
+  React.useEffect(() => {
+    if (ids.length === 0) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]')) return;
+      clearSelection(board.id);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [ids.length, board.id, clearSelection]);
+
   if (ids.length === 0) return null;
 
   const clear = () => clearSelection(board.id);

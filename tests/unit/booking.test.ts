@@ -219,10 +219,14 @@ describe("booking a task", () => {
     expect(items.filter((i) => i.parentItemId === null).map((i) => i.name)).toContain("Open Day wayfinding posters");
     const item = items.find((i) => i.parentItemId === null && i.name === "Open Day wayfinding posters")!;
     expect(item.createdBy).toBe(owner);
-    // Each asset line is a subitem, carrying its spec.
-    const subitems = items.filter((i) => i.parentItemId === item.id).sort((a, b) => a.position - b.position);
-    expect(subitems.map((i) => i.name)).toEqual(["A1 poster ×6", "Instagram tile"]);
-    expect(subitems[0]!.description).toBe("594×841 mm, CMYK, print ready");
+    // The asset lines are deliverables on the Assets tab, and nothing on the
+    // board: a booking arrives as one task, not a task with a fold-out of rows
+    // saying the same thing.
+    expect(items.filter((i) => i.parentItemId === item.id)).toHaveLength(0);
+    const lines = await services.repos.itemAssets.listByItem(item.id);
+    expect(lines.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
+    expect(lines[0]!.quantity).toBe(6);
+    expect(lines[0]!.notes).toBe("594×841 mm, CMYK, print ready");
     expect(receipt.assetCount).toBe(2);
     expect(item.description).toBe(request().brief);
     const columns = await services.repos.boards.listColumns(board.id);
@@ -307,13 +311,10 @@ describe("booking a task", () => {
     const onTarget = await services.repos.items.listByBoard(target.id);
     expect(onTarget.filter((i) => i.name === "Open Day wayfinding posters")).toHaveLength(1);
 
-    // The request has left the queue, with its asset subitems.
+    // The request has left the queue, and it never had subitems to leave behind.
     const onAllocation = await services.repos.items.listByBoard(allocation.id);
     expect(onAllocation.some((i) => i.id === receipt.itemId)).toBe(false);
-    expect(onAllocation.some((i) => i.parentItemId === receipt.itemId)).toBe(false);
-    const subitems = onTarget.filter((i) => i.parentItemId === item.id);
-    expect(subitems.map((i) => i.name).sort()).toEqual(["A1 poster ×6", "Instagram tile"]);
-    expect(subitems.every((s) => s.boardId === target.id && s.groupId === item.groupId)).toBe(true);
+    expect(onTarget.some((i) => i.parentItemId === item.id)).toBe(false);
 
     // The deliverables came too, and answer to the board they landed on.
     const assets = await services.repos.itemAssets.listByItem(item.id);

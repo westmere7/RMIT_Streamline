@@ -37,6 +37,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
+  const selectRange = useBoardUiStore((s) => s.selectRange);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
   const [renaming, setRenaming] = React.useState(false);
@@ -152,7 +153,22 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             >
               <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", colors.dot)} />
               <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
-                <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)} disabled={!canEdit} />
+                <Checkbox
+                  aria-label={`Select ${item.name}`}
+                  checked={selected}
+                  // Shift ticks everything between the last row ticked by hand
+                  // and this one. The rows are read off the model at the moment
+                  // of the click — in the order they are on screen — and
+                  // preventing the default is what stops the plain tick from
+                  // also running.
+                  onClick={(event) => {
+                    if (!event.shiftKey) return;
+                    event.preventDefault();
+                    selectRange(board.id, model.visibleGroups.flatMap((g) => (model.itemsByGroup.get(g.id) ?? []).map((i) => i.id)), item.id);
+                  }}
+                  onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)}
+                  disabled={!canEdit}
+                />
               </div>
               <ReferenceCell code={item.reference} />
               {/* The empty run of the name cell opens the item too, like the name itself. */}

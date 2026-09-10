@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Moon, Sun } from "lucide-react";
+import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Maximize2, Minimize2, Moon, Sun } from "lucide-react";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Button } from "@/components/ui/button";
@@ -62,8 +62,22 @@ export function PublicDashboardPage({ token }: { token: string }) {
 
 function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboardPayload; refreshing: boolean }) {
   useLinksStayHere();
+  // Most of these end up on a wall or a spare monitor, where the browser's own
+  // chrome is the only thing on the screen not reporting anything.
+  const root = React.useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = React.useState(false);
+  React.useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === root.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void root.current?.requestFullscreen?.();
+  };
+
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard">
+    <div ref={root} className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard">
       <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-4 py-3 sm:px-6">
         <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary opacity-[0.06]" style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
         <BrandMark className="relative size-9 rounded-xl" />
@@ -87,7 +101,28 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
       {/* A visitor has no account, so their preferences belong to the link
           rather than to a person; one key per token keeps two open dashboards
           on one machine from fighting over the period. */}
-      <DashboardScreen snapshot={payload.snapshot} viewerId="public" publicLink toolbarExtras={<ThemeButton />} />
+      <DashboardScreen
+        snapshot={payload.snapshot}
+        viewerId="public"
+        publicLink
+        toolbarExtras={
+          <>
+            <SimpleTooltip label={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full"
+                onClick={toggleFullscreen}
+                aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+                data-testid="public-dashboard-fullscreen"
+              >
+                {fullscreen ? <Minimize2 /> : <Maximize2 />}
+              </Button>
+            </SimpleTooltip>
+            <ThemeButton />
+          </>
+        }
+      />
     </div>
   );
 }

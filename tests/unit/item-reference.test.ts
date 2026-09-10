@@ -62,11 +62,11 @@ describe("booking a task", () => {
     expect(item.reference).toBe(receipt.reference);
     expect(item.reference).toMatch(/^TA-[0-9A-F]{4}$/);
 
-    const subitems = (await services.repos.items.listByBoard(item.boardId)).filter((i) => i.parentItemId === item.id);
-    expect(subitems).toHaveLength(2);
-    for (const sub of subitems) expect(sub.reference).toMatch(/^TA-[0-9A-F]{4}$/);
-    // Each line answers to its own code, not the parent's.
-    expect(new Set([item.reference, ...subitems.map((s) => s.reference)]).size).toBe(3);
+    // The asset lines are deliverables on the item, not items of their own, so
+    // the booking leaves one code behind rather than three.
+    expect((await services.repos.items.listByBoard(item.boardId)).filter((i) => i.parentItemId === item.id)).toHaveLength(0);
+    const lines = await services.repos.itemAssets.listByItem(item.id);
+    expect(lines.map((l) => l.name)).toEqual(["Banner A", "Banner B"]);
   });
 });
 

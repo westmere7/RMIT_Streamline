@@ -121,7 +121,9 @@ describe("the demo seed", () => {
     expect(requests.filter((i) => i.groupId === groupsByName.get("Allocated"))).toHaveLength(2);
     expect(requests.filter((i) => i.groupId === groupsByName.get("Closed"))).toHaveLength(1);
     for (const request of requests) {
-      expect(seed.items.some((i) => i.parentItemId === request.id), `${request.name} has subitems`).toBe(true);
+      // Deliverables, not subitems: a booking arrives as one task with lines on its Assets tab.
+      expect(seed.items.some((i) => i.parentItemId === request.id), `${request.name} has no subitems`).toBe(false);
+      expect(seed.itemAssets.some((a) => a.itemId === request.id), `${request.name} has deliverables`).toBe(true);
       expect(seed.activities.some((a) => a.itemId === request.id && a.eventType === "ITEM_CREATED")).toBe(true);
       const booked = seed.notifications.filter((n) => n.type === "TASK_BOOKED" && n.entityId === request.id);
       expect(new Set(booked.map((n) => n.userId))).toEqual(admins);
