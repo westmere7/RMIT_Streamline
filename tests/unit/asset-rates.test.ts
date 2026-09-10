@@ -133,6 +133,14 @@ describe("formatHours", () => {
     expect(formatHours(100)).toBe("100 h");
   });
 
+  it("never reads real work as none", () => {
+    // A printed copy at 240 a day is 0.033 h. "0 h" would say the team does it
+    // for free, which is the lie the whole measure exists to avoid.
+    expect(formatHours(8 / 240)).toBe("<0.1 h");
+    expect(formatHours(0.049)).toBe("<0.1 h");
+    expect(formatHours(0.05)).toBe("0.1 h");
+  });
+
   it("has one way of saying nothing", () => {
     expect(formatHours(0)).toBe("0 h");
     expect(formatHours(-5)).toBe("0 h");

@@ -123,11 +123,27 @@ export function describeDraft(commit: DraftCommit, stored: readonly TagOption[],
   return parts.length ? `Unsaved: ${parts.join(", ")}.` : "Unsaved changes.";
 }
 
+/**
+ * True when the *list* has changed — a word added, renamed, recoloured or on its
+ * way out.
+ *
+ * Asked separately from the rates because writing the list is expensive and
+ * writing a rate is not: a list save rewrites every row of the list and tells
+ * every board its vocabulary moved, which means re-reading the workspace's
+ * items and deliverables. Filling in a rate must not pay for any of that.
+ */
+export function listChanged(commit: DraftCommit, stored: readonly TagOption[]): boolean {
+  if (commit.removals.length > 0) return true;
+  if (Object.keys(commit.renames).length > 0) return true;
+  return JSON.stringify(commit.options.map((option) => [option.name, option.color])) !== JSON.stringify(stored.map((option) => [option.name, option.color]));
+}
+
+/** True when the rates differ from what is stored. */
+export function ratesChangedFrom(commit: DraftCommit, storedRates: AssetRates): boolean {
+  return JSON.stringify(commit.rates) !== JSON.stringify(normaliseAssetRates(storedRates));
+}
+
 /** True when the draft says something the stored list does not. */
 export function draftDirty(commit: DraftCommit, stored: readonly TagOption[], storedRates: AssetRates, carriesRates: boolean): boolean {
-  const sameList =
-    commit.removals.length === 0 &&
-    JSON.stringify(commit.options.map((option) => [option.name, option.color])) === JSON.stringify(stored.map((option) => [option.name, option.color]));
-  const sameRates = !carriesRates || JSON.stringify(commit.rates) === JSON.stringify(normaliseAssetRates(storedRates));
-  return !(sameList && sameRates);
+  return listChanged(commit, stored) || (carriesRates && ratesChangedFrom(commit, storedRates));
 }

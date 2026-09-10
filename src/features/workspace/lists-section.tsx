@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Plus, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -15,11 +15,12 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import type { AssetRate, AssetRates, ColorToken, RatePer, TagOption, WorkspaceListKey } from "@/domain";
 import { hoursPerUnit, MAX_LIST_OPTION_NAME, normaliseAssetRates, perUnitHint, RATE_UNITS, rateUnitLabel, WORKSPACE_LIST_KEYS, WORKSPACE_LIST_META } from "@/domain";
 import { useServices } from "@/features/data/data-context";
-import { addRow, describeDraft, draftCommit, draftDirty, liveRows, removeRow, renameRow, rowsFromOptions, type DraftRow } from "@/features/workspace/list-draft";
+import { addRow, describeDraft, draftCommit, listChanged, liveRows, ratesChangedFrom, removeRow, renameRow, rowsFromOptions, type DraftRow } from "@/features/workspace/list-draft";
 import { useListOptionUsage, useWorkspaceLists, useWorkspaceListMutations } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
+import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
 
 /** Nothing means "leave the word where it is" in the replace picker. */
@@ -83,6 +84,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   const services = useServices();
   const meta = WORKSPACE_LIST_META[listKey];
   const { save, remove } = useWorkspaceListMutations(ws.workspace.id);
+  const queryClient = useQueryClient();
 
   // Asset types are the list that carries a value today. The rates live on the
   // workspace, not on the list rows, so they are drafted alongside them.
@@ -96,8 +98,10 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
 
   const live = liveRows(rows);
   const pending = draftCommit(rows, rates);
-  const ratesChanged = carriesRates && JSON.stringify(pending.rates) !== JSON.stringify(storedRates);
-  const dirty = draftDirty(pending, options, storedRates, carriesRates);
+  // Asked apart, because they cost wildly different amounts to write.
+  const wordsChanged = listChanged(pending, options);
+  const ratesChanged = carriesRates && ratesChangedFrom(pending, storedRates);
+  const dirty = wordsChanged || ratesChanged;
 
   // Reseed the draft when the stored list moves under us — a save landing, or a
   // background refetch — but only while there is nothing unsaved to lose. The
@@ -117,24 +121,30 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
 
   const commit = useMutation({
     mutationFn: async () => {
-      // Through the shared mutations rather than the services directly: they are
-      // what settle the lists query and tell the boards their vocabulary moved.
-      //
-      // Removals first — each rewrites the work that carries the word — and the
-      // save that follows is what settles the list itself.
-      for (const { name, removal } of pending.removals) {
-        await remove.mutateAsync({ listKey, name, options: removal.replaceWith === undefined ? {} : { replaceWith: removal.replaceWith } });
+      // Only what actually changed. Writing the list is the expensive half — it
+      // rewrites every row and then tells every board its vocabulary moved,
+      // which re-reads the workspace's items and deliverables — so filling in a
+      // rate must not trigger any of it.
+      if (wordsChanged) {
+        // Through the shared mutations rather than the services directly: they
+        // are what settle the lists query and notify the boards.
+        //
+        // Removals first, each rewriting the work that carries the word, and
+        // the save that follows is what settles the list itself.
+        for (const { name, removal } of pending.removals) {
+          await remove.mutateAsync({ listKey, name, options: removal.replaceWith === undefined ? {} : { replaceWith: removal.replaceWith } });
+        }
+        await save.mutateAsync({ listKey, options: pending.options, renames: pending.renames });
       }
-      await save.mutateAsync({ listKey, options: pending.options, renames: pending.renames });
-      // The rates last, and only once the names they key by are settled.
-      if (carriesRates) await services.repos.workspaces.update(ws.workspace.id, { assetRates: pending.rates });
+      // The rates last, once the names they key by are settled. One row on the
+      // workspace, and nothing that reads a board depends on it — so only the
+      // workspace context is refetched, not the boards and their members too.
+      if (ratesChanged) {
+        await services.repos.workspaces.update(ws.workspace.id, { assetRates: pending.rates });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+      }
     },
-    onSuccess: async () => {
-      // The workspace carries the rates, and the editor is keyed on the lists
-      // query, so both have to come round before the draft is reseeded.
-      if (carriesRates) await ws.refresh();
-      toast.success(`${meta.label} saved`);
-    },
+    onSuccess: () => toast.success(`${meta.label} saved`),
     // The shared mutations already report their own failures; this covers the
     // rates write and says the save did not land.
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the list"),
@@ -253,7 +263,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
             <RotateCcw /> Discard
           </Button>
           <p className="text-2xs text-muted-foreground" data-testid="lists-dirty-note">
-            {dirty ? describeDraft(pending, options, ratesChanged) : "No unsaved changes."}
+            {commit.isPending ? "Saving…" : dirty ? describeDraft(pending, options, ratesChanged) : "No unsaved changes."}
           </p>
         </div>
       )}

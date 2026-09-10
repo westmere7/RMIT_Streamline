@@ -166,6 +166,11 @@ function ratesByLowerName(rates: AssetRates): Map<string, AssetRate> {
  */
 export function formatHours(hours: number): string {
   if (!Number.isFinite(hours) || hours <= 0) return "0 h";
+  // Real work never reads as none. A per-unit rate can be a couple of minutes
+  // (a printed copy at 240 a day is 0.03 h), and rounding that to "0 h" is the
+  // same lie the effort figure exists to avoid — so "0 h" is reserved for
+  // genuinely nothing.
+  if (hours < 0.05) return "<0.1 h";
   const value = hours >= 100 ? Math.round(hours) : Math.round(hours * 10) / 10;
   return `${value.toLocaleString()} h`;
 }

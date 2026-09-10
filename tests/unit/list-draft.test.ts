@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssetRates, TagOption } from "@/domain";
-import { addRow, describeDraft, draftCommit, draftDirty, liveRows, removeRow, renameRow, rowsFromOptions } from "@/features/workspace/list-draft";
+import { addRow, describeDraft, draftCommit, draftDirty, listChanged, liveRows, ratesChangedFrom, removeRow, renameRow, rowsFromOptions } from "@/features/workspace/list-draft";
 
 const OPTIONS: TagOption[] = [
   { name: "Print", color: "orange" },
@@ -171,5 +171,52 @@ describe("dirty and what Save will do", () => {
     const marked = removeRow(added, idOf("Video"), {});
     expect(describeDraft(draftCommit(marked, RATES), OPTIONS, false)).toBe("Unsaved: 1 added, 1 to remove.");
     expect(describeDraft(draftCommit(rows(), RATES), OPTIONS, true)).toBe("Unsaved: rates changed.");
+  });
+});
+
+/**
+ * Writing the list and writing a rate cost wildly different amounts — a list
+ * save rewrites every row and then makes every board re-read its items and
+ * deliverables. So the editor asks the two questions separately and writes only
+ * the half that changed; filling in a rate used to pay for all of it.
+ */
+describe("what a save actually has to write", () => {
+  it("says the list is untouched when only a rate moved", () => {
+    const changed: AssetRates = { ...RATES, Video: { qty: 1, every: 2, per: "week" } };
+    const commit = draftCommit(rows(), changed);
+    expect(listChanged(commit, OPTIONS)).toBe(false);
+    expect(ratesChangedFrom(commit, RATES)).toBe(true);
+  });
+
+  it("says the rates are untouched when only a word moved", () => {
+    const recoloured = rows().map((row) => (row.name === "Print" ? { ...row, color: "red" as const } : row));
+    const commit = draftCommit(recoloured, RATES);
+    expect(listChanged(commit, OPTIONS)).toBe(true);
+    expect(ratesChangedFrom(commit, RATES)).toBe(false);
+  });
+
+  it("counts a rename as both, because the rate travels with the word", () => {
+    const renamed = renameRow(rows(), RATES, idOf("Print"), "Large format");
+    if ("refused" in renamed) throw new Error("refused");
+    const commit = draftCommit(renamed.rows, renamed.rates);
+    expect(listChanged(commit, OPTIONS)).toBe(true);
+    expect(ratesChangedFrom(commit, RATES)).toBe(true);
+  });
+
+  it("counts a removal as both when the removed word had a rate", () => {
+    const withRate = draftCommit(removeRow(rows(), idOf("Print"), {}), RATES);
+    expect(listChanged(withRate, OPTIONS)).toBe(true);
+    expect(ratesChangedFrom(withRate, RATES)).toBe(true);
+
+    // Video has no rate, so its removal changes the list and nothing else.
+    const withoutRate = draftCommit(removeRow(rows(), idOf("Video"), {}), RATES);
+    expect(listChanged(withoutRate, OPTIONS)).toBe(true);
+    expect(ratesChangedFrom(withoutRate, RATES)).toBe(false);
+  });
+
+  it("writes nothing at all when nothing changed", () => {
+    const commit = draftCommit(rows(), RATES);
+    expect(listChanged(commit, OPTIONS)).toBe(false);
+    expect(ratesChangedFrom(commit, RATES)).toBe(false);
   });
 });
