@@ -155,7 +155,7 @@ describe("the built-in Admin team and Task Allocation board", () => {
     expect(teams.filter((t) => t.system).length).toBe(1);
 
     const columns = await services.repos.boards.listColumns(first.board.id);
-    expect(columns.map((c) => c.name)).toEqual(["Requester", "Email", "Department", "Asset type", "Assets & specs", "Requested team", "Status", "Priority", "Due Date", "Reference", "Assets recap", "Allocated to"]);
+    expect(columns.map((c) => c.name)).toEqual(["Requester", "Email", "Department", "Stakeholder", "Asset type", "Assets & specs", "Requested team", "Status", "Priority", "Due Date", "Reference", "Assets recap", "Allocated to"]);
     const teamTags = columns.find((c) => c.name === "Requested team")!.settings as TagsColumnSettings;
     expect(teamTags.options.map((o) => o.name)).toContain("Digital");
     expect(teamTags.options.map((o) => o.name)).not.toContain("Admin");

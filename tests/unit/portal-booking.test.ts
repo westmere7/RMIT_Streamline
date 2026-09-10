@@ -66,23 +66,43 @@ describe("booking through a portal", () => {
     expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
   });
 
+  /** The stakeholder group stored on an item, or null when nothing was written. */
+  const groupOn = async (itemId: string, boardId: string): Promise<string | null> => {
+    const stakeholder = (await services.repos.boards.listColumns(boardId)).find((c) => c.type === "STAKEHOLDER");
+    expect(stakeholder, "Task Allocation should carry a stakeholder column").toBeDefined();
+    const values = await services.repos.items.listValuesByBoard(boardId);
+    const value = values.find((v) => v.itemId === itemId && v.columnId === stakeholder!.id)?.value;
+    return value && value.type === "STAKEHOLDER" ? value.group : null;
+  };
+
   it("cannot be pointed at another department through a stakeholder extra", async () => {
-    // A STAKEHOLDER column exists on some boards; a booking must not be able to
-    // set one, and the mapping's field types are what stop it.
-    const boards = await services.repos.boards.listByWorkspace(WS);
-    let stakeholderColumn: string | null = null;
-    for (const board of boards) {
-      const found = (await services.repos.boards.listColumns(board.id)).find((c) => c.type === "STAKEHOLDER");
-      if (found) {
-        stakeholderColumn = found.id;
-        break;
-      }
-    }
-    const receipt = await book("key-000000003", {
-      extra: stakeholderColumn ? { [stakeholderColumn]: { type: "STAKEHOLDER", group: other.name } } : {},
-    });
-    const provenance = await services.repos.stakeholderPortals.getRequestByItem(WS, receipt.itemId);
-    expect(provenance?.departmentId).toBe(department.id);
+    // Task Allocation carries a STAKEHOLDER column, and a booking must not be
+    // able to set it. `extra` accepts only BOOKING_FIELD_TYPES, which excludes
+    // STAKEHOLDER, so a spoofed value is refused before anything is written.
+    const board = (await services.repos.boards.listByWorkspace(WS)).find((b) => b.system === "TASK_ALLOCATION")!;
+    const stakeholderColumn = (await services.repos.boards.listColumns(board.id)).find((c) => c.type === "STAKEHOLDER")!;
+    await expect(book("key-000000003", { extra: { [stakeholderColumn.id]: { type: "STAKEHOLDER", group: other.name } } })).rejects.toThrow();
+    expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
+  });
+
+  it("writes its own department to the board, so Task Allocation shows who booked it", async () => {
+    const receipt = await book("key-000000006");
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(await groupOn(item.id, item.boardId)).toBe(department.name);
+  });
+
+  it("leaves the stakeholder column empty for a public booking that names a department", async () => {
+    // The public form's "department" is free text a requester types about
+    // themselves. Writing it to the STAKEHOLDER column would let anyone file
+    // into another department's portal by typing its name, so only the token
+    // sets it — the whole point of keeping the two fields apart.
+    const receipt = await services.booking.book(WS, request({ department: other.name }));
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(await groupOn(item.id, item.boardId)).toBeNull();
+
+    const otherPortal = await services.portals.setEnabled(WS, other.id, true);
+    const otherResolved = await services.portals.resolve({ token: otherPortal.token, password: null });
+    expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
   });
 
   it("publishes the brief the requester typed, and keeps their contact details internal", async () => {

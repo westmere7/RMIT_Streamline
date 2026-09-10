@@ -225,7 +225,7 @@ export class StakeholderPortalService {
     return this.buildForm(resolved.workspaceId);
   }
 
-  async publicBook(grant: PortalGrant, submissionKey: string, request: BookingRequest, booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null): Promise<BookingReceipt> }): Promise<BookingReceipt> {
+  async publicBook(grant: PortalGrant, submissionKey: string, request: BookingRequest, booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> }): Promise<BookingReceipt> {
     if (this.transport) return this.transport.book(grant, submissionKey, request);
     const resolved = await this.resolve(grant);
     return this.book(resolved, { submissionKey, request, booking, memberId: grant.viewer?.userId ?? null });
@@ -656,7 +656,10 @@ export class StakeholderPortalService {
    * overwritten before the request is validated. There is no path from the body
    * to another department: `extra` and `answers` can only address columns whose
    * type is in BOOKING_FIELD_TYPES, and STAKEHOLDER is not one of them, so a
-   * spoofed stakeholder value cannot even reach a column.
+   * spoofed stakeholder value cannot even reach a column. The receiving board's
+   * STAKEHOLDER column is written here instead, from `resolved.department.name`
+   * — the token's own answer to who is asking — so Task Allocation shows which
+   * portal a task arrived through, and the team can group and filter by it.
    *
    * The submission key makes a retry safe. It is claimed in the database before
    * anything is written, and the unique constraint on (portal, key) is what
@@ -673,7 +676,7 @@ export class StakeholderPortalService {
    */
   async book(
     resolved: ResolvedPortal,
-    input: { submissionKey: string; request: BookingRequest; booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null): Promise<BookingReceipt> }; memberId?: EntityId | null },
+    input: { submissionKey: string; request: BookingRequest; booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> }; memberId?: EntityId | null },
   ): Promise<BookingReceipt> {
     // A link the team has set to reading only takes no requests. Checked here,
     // where every path to a booking passes, rather than by hiding a button.
@@ -704,7 +707,7 @@ export class StakeholderPortalService {
     }
 
     try {
-      const receipt = await input.booking.book(resolved.workspaceId, request, input.memberId ?? null);
+      const receipt = await input.booking.book(resolved.workspaceId, request, input.memberId ?? null, resolved.department.name);
       await this.associate({
         workspaceId: resolved.workspaceId,
         departmentId: resolved.department.id,

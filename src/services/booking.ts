@@ -331,6 +331,16 @@ export interface PlacementContext {
   team: Pick<Team, "id" | "name"> | null;
   /** The form the request answered; its custom questions say where each answer goes. Absent means the built-in form, which has none. */
   template?: BookingFormTemplate | null;
+  /**
+   * The department this booking belongs to, proven by a portal token.
+   *
+   * Deliberately not `request.department`: that is free text a public requester
+   * types about themselves, and writing it to a STAKEHOLDER column would let
+   * anyone file work into another department's portal by typing its name. This
+   * value only ever comes from the token that admitted the caller, so the board
+   * can show who booked a task and the portal can recognise its own work.
+   */
+  stakeholder?: string | null;
 }
 
 /** Works out what to write into which column of the receiving board. */
@@ -390,6 +400,20 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
       spokenFor.add(column.id);
     } else {
       leftover.push({ field: "custom", label: field.label, text: formatAnswer(value) });
+    }
+  }
+
+  // The department that booked it, from its portal link. Found by column type
+  // and never by name — `labelledItemIds()` in the stakeholder portal service
+  // reads these columns the same way, so a board that renames "Stakeholder" to
+  // "Requested by" still lines up. No leftover when the board has no such
+  // column: this is a label the team filters on, not an answer to a question,
+  // and the provenance row already puts the task in the portal either way.
+  if (ctx.stakeholder) {
+    const column = columns.find((c) => c.type === "STAKEHOLDER" && !spokenFor.has(c.id));
+    if (column) {
+      values.push({ columnId: column.id, value: { type: "STAKEHOLDER", group: ctx.stakeholder } });
+      spokenFor.add(column.id);
     }
   }
   return { values, leftover };

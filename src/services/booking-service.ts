@@ -137,7 +137,7 @@ export class BookingService {
    * one booked it, else as the workspace owner (a public booking has no account
    * behind it); the requester is in the columns and the description regardless.
    */
-  async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null): Promise<BookingReceipt> {
+  async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
     const team = request.teamId ? (teams.find((t) => t.id === request.teamId) ?? null) : null;
@@ -159,7 +159,7 @@ export class BookingService {
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
-    const placement = mapBookingToColumns(request, columns, { team, template });
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder });
     const description = describeBooking(request, placement);
     // The form works out the reference before anything is written by naming the
     // id the item will have. Honoured only if it is still free: an id already in
@@ -396,6 +396,10 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Requester", type: "TEXT" },
     { name: "Email", type: "TEXT" },
     { name: "Department", type: "TEXT" },
+    // Who the work is for, as the portal knows it. "Department" above is free
+    // text a public requester types about themselves; this one is only ever
+    // written from a portal token, so it can be trusted and filtered on.
+    { name: "Stakeholder", type: "STAKEHOLDER" },
     { name: "Asset type", type: "TAGS", settings: { kind: "tags", options: BOOKING_ASSET_TYPES.map((o) => ({ ...o })) } },
     { name: "Assets & specs", type: "LONG_TEXT" },
     { name: "Requested team", type: "TAGS", settings: { kind: "tags", options: teamNames.map((name, i) => ({ name, color: TEAM_TAG_COLORS[i % TEAM_TAG_COLORS.length]! })) } },
