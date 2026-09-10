@@ -1,0 +1,133 @@
+import type { AssetRates, ColorToken, TagOption } from "@/domain";
+import { normaliseAssetRates } from "@/domain";
+
+/**
+ * A list being edited, before any of it is written.
+ *
+ * The Lists editor holds every change as a draft — names, colours, rates,
+ * additions, removals — and commits them in one go. The arithmetic of that is
+ * here rather than in the component because one part of it is genuinely easy to
+ * get wrong: a rate is keyed by its type's *name*, so renaming a type has to
+ * carry its rate along, and removing one has to take its rate away. Miss either
+ * and the dashboard quietly loses hours it should be counting, which is the one
+ * failure the effort figure was built to avoid.
+ */
+export interface DraftRow {
+  /** Stable across renames, so React and the removal dialog can hold onto a row. */
+  id: string;
+  /**
+   * The name this row is stored under; null for one that exists only in the
+   * draft. A rename is reported against it and a removal names it on the
+   * server — the current name is a word the server has never heard.
+   */
+  origin: string | null;
+  name: string;
+  color: ColorToken;
+  /** Set when marked for removal, carrying what happens to work using the word. */
+  removal?: { replaceWith?: string | null };
+}
+
+export const rowsFromOptions = (options: readonly TagOption[]): DraftRow[] =>
+  options.map((option) => ({ id: option.name, origin: option.name, name: option.name, color: option.color }));
+
+/** The rows that will still be in the list after a commit. */
+export const liveRows = (rows: readonly DraftRow[]): DraftRow[] => rows.filter((row) => !row.removal);
+
+/** Why a rename was refused, or null when it is fine. */
+export type RenameRefusal = "empty" | "duplicate" | "unchanged";
+
+/**
+ * Renames a row and moves its rate with it.
+ *
+ * Returns the refusal instead of throwing, so the caller can say why: a blank
+ * name, a word the list already has, or no change at all.
+ */
+export function renameRow(
+  rows: readonly DraftRow[],
+  rates: AssetRates,
+  id: string,
+  raw: string,
+): { rows: DraftRow[]; rates: AssetRates } | { refused: RenameRefusal } {
+  const row = rows.find((candidate) => candidate.id === id);
+  if (!row) return { refused: "unchanged" };
+  const name = raw.trim();
+  if (!name) return { refused: "empty" };
+  if (name === row.name) return { refused: "unchanged" };
+  if (rows.some((other) => other.id !== id && !other.removal && other.name.toLowerCase() === name.toLowerCase())) return { refused: "duplicate" };
+
+  const next = { ...rates };
+  const rate = next[row.name];
+  if (rate) {
+    delete next[row.name];
+    next[name] = rate;
+  }
+  return { rows: rows.map((other) => (other.id === id ? { ...other, name } : other)), rates: next };
+}
+
+/** Adds a word, or refuses one the list already has. */
+export function addRow(rows: readonly DraftRow[], raw: string, color: ColorToken): DraftRow[] | { refused: RenameRefusal } {
+  const name = raw.trim();
+  if (!name) return { refused: "empty" };
+  if (rows.some((row) => !row.removal && row.name.toLowerCase() === name.toLowerCase())) return { refused: "duplicate" };
+  return [...rows, { id: `new:${name}:${rows.length}`, origin: null, name, color }];
+}
+
+/**
+ * Marks a row for removal, or drops it outright.
+ *
+ * A row that was never saved has nothing on the server to remove and nothing
+ * carrying its word, so it simply leaves the draft. A stored one is kept
+ * visible with what is about to become of it, so Discard can bring it back.
+ */
+export function removeRow(rows: readonly DraftRow[], id: string, removal: { replaceWith?: string | null }): DraftRow[] {
+  const row = rows.find((candidate) => candidate.id === id);
+  if (!row) return [...rows];
+  if (!row.origin) return rows.filter((other) => other.id !== id);
+  return rows.map((other) => (other.id === id ? { ...other, removal } : other));
+}
+
+/** Everything one commit has to write, worked out while the draft still explains itself. */
+export interface DraftCommit {
+  options: TagOption[];
+  /** Stored name → new name, which is how the rename reaches the work carrying it. */
+  renames: Record<string, string>;
+  removals: Array<{ name: string; removal: { replaceWith?: string | null } }>;
+  /** Pruned to the surviving names, so a removed type takes its rate with it. */
+  rates: AssetRates;
+}
+
+export function draftCommit(rows: readonly DraftRow[], rates: AssetRates): DraftCommit {
+  const live = liveRows(rows);
+  const surviving = new Set(live.map((row) => row.name.trim().toLowerCase()));
+  return {
+    options: live.map((row) => ({ name: row.name, color: row.color })),
+    renames: Object.fromEntries(live.filter((row) => row.origin && row.origin !== row.name).map((row) => [row.origin!, row.name])),
+    removals: rows.filter((row) => row.removal && row.origin).map((row) => ({ name: row.origin!, removal: row.removal! })),
+    rates: normaliseAssetRates(Object.fromEntries(Object.entries(rates).filter(([name]) => surviving.has(name.trim().toLowerCase())))),
+  };
+}
+
+/** What Save is about to do, so the button is never a mystery. */
+export function describeDraft(commit: DraftCommit, stored: readonly TagOption[], ratesChanged: boolean): string {
+  const colours = new Map(stored.map((option) => [option.name, option.color]));
+  const added = commit.options.filter((option) => !colours.has(option.name) && !Object.values(commit.renames).includes(option.name)).length;
+  const recoloured = Object.entries(commit.renames).length === 0 ? commit.options.filter((option) => colours.has(option.name) && colours.get(option.name) !== option.color).length : 0;
+
+  const parts: string[] = [];
+  if (added) parts.push(`${added} added`);
+  const renamed = Object.keys(commit.renames).length;
+  if (renamed) parts.push(`${renamed} renamed`);
+  if (commit.removals.length) parts.push(`${commit.removals.length} to remove`);
+  if (recoloured) parts.push(`${recoloured} recoloured`);
+  if (ratesChanged) parts.push("rates changed");
+  return parts.length ? `Unsaved: ${parts.join(", ")}.` : "Unsaved changes.";
+}
+
+/** True when the draft says something the stored list does not. */
+export function draftDirty(commit: DraftCommit, stored: readonly TagOption[], storedRates: AssetRates, carriesRates: boolean): boolean {
+  const sameList =
+    commit.removals.length === 0 &&
+    JSON.stringify(commit.options.map((option) => [option.name, option.color])) === JSON.stringify(stored.map((option) => [option.name, option.color]));
+  const sameRates = !carriesRates || JSON.stringify(commit.rates) === JSON.stringify(normaliseAssetRates(storedRates));
+  return !(sameList && sameRates);
+}

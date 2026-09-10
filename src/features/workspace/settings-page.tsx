@@ -20,7 +20,6 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListsSection } from "@/features/workspace/lists-section";
-import { RatesSection } from "@/features/workspace/rates-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
@@ -29,16 +28,19 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "teams", "permissions", "lists", "rates", "view", "data"] as const;
+const SECTIONS = ["general", "teams", "permissions", "lists", "view", "data"] as const;
 type Section = (typeof SECTIONS)[number];
-const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", lists: "Lists", rates: "Output rates", view: "View", data: "Data" };
+const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", lists: "Lists", view: "View", data: "Data" };
 
 export function SettingsPage() {
   const ws = useWorkspace();
   const searchParams = useSearchParams();
   const router = useRouter();
   const raw = searchParams.get("section");
-  const section: Section = SECTIONS.includes(raw as Section) ? (raw as Section) : "general";
+  // "rates" was a section of its own before the output rates moved onto the
+  // asset-type rows they belong to. Links to it still land where they meant.
+  const asked = raw === "rates" ? "lists" : raw;
+  const section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
   const [aboutOpen, setAboutOpen] = React.useState(false);
 
   return (
@@ -82,7 +84,6 @@ export function SettingsPage() {
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "lists" && <ListsSection />}
-            {section === "rates" && <RatesSection />}
             {section === "view" && <ViewSection />}
             {section === "data" && <DataSection />}
           </div>

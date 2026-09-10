@@ -77,7 +77,7 @@ export function OverviewView({ facts, report, monthly, monthlyTasks, monthlyAsse
   if (prefs.basis === "due" && report.current.undatedTasks > 0) coverageLines.push(`${report.current.undatedTasks} tasks have no due date and are not counted here`);
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
   if (gaps.withoutStatus > 0) coverageLines.push(`${gaps.withoutStatus} have no status`);
-  if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Output rates");
+  if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Lists → Asset types");
 
   return (
     <div className="flex flex-col gap-3">
