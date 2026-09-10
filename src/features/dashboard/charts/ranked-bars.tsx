@@ -68,13 +68,15 @@ export function RankedBars({
               {leading?.(row)}
               <span className="truncate">{row.name}</span>
             </span>
-            {/* Capped, because a bar is a comparison and not a progress
-                meter. Given a whole wide panel the track ran to nearly 900px,
+            {/* Capped, because a bar is a comparison and not a progress meter:
+                given the full width of the page the track ran to nearly 900px,
                 and with one row at 10,148 against another at 39 that is a 3px
-                fill in a 900px tube — nine tenths of every row empty. The cap
-                never binds in the narrow composition column, where the track is
+                fill in a 900px tube. The cap is set to clear a half-row panel —
+                there it does not bind and the bar fills its panel — so it only
+                takes effect on a track that would otherwise be absurd. It never
+                binds in the narrow composition column either, where the track is
                 a couple of hundred pixels wide anyway. */}
-            <div className="h-2 max-w-[26rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80">
+            <div className="h-2 max-w-[34rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80">
               <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${width}%`, background: row.color }} />
             </div>
             <span className={cn("flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem] justify-start" : "w-[4.25rem] justify-end")}>

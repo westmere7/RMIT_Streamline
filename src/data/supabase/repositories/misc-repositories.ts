@@ -202,6 +202,15 @@ export class SupabaseNotificationRepository implements NotificationRepository {
     if (delivery) query = query.eq("delivery", delivery);
     assertOk(await query, "notifications.markAllRead");
   }
+
+  async deleteAll(userId: string, delivery?: StoredDelivery): Promise<void> {
+    // Held to the caller's own rows by notifications_delete in
+    // policies/0001_rls_policies.sql; the filter here narrows it to one tab,
+    // and is not what makes it safe.
+    let query = db().from("notifications").delete().eq("user_id", userId);
+    if (delivery) query = query.eq("delivery", delivery);
+    assertOk(await query, "notifications.deleteAll");
+  }
 }
 
 /**

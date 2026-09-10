@@ -5,7 +5,6 @@ import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import * as React from "react";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { assetTypeHex, teamHex, type TeamRef } from "@/features/dashboard/analytics";
-import { ComparisonTable } from "@/features/dashboard/components/year-comparison";
 import { departmentHex, dimensionComparison, type ComparisonDimension } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
@@ -26,10 +25,10 @@ const DIMENSIONS: Array<{ key: ComparisonDimension; label: string; column: strin
  * as opposed to tasks, and the same period broken down by team, department or
  * asset type — and drops the duplication.
  *
- * Ranked bars lead and the exact figures sit behind a disclosure. A bar is
- * quick and a number is exact, and a manager reporting upwards needs the exact
- * one; putting it one click away rather than side by side keeps the page a
- * picture without throwing the numbers out.
+ * Ranked bars, and the figure printed beside each one. It carried the whole
+ * period-against-period table under a disclosure for a while: the numbers were
+ * already on the bars, the change was already on the year chart above, and it
+ * left the panel taller than the one beside it for a table nobody opened.
  */
 export function DemandSection({ facts, report, ops, prefs, set, publicLink }: DashboardViewProps) {
   const [dimension, setDimension] = React.useState<ComparisonDimension>("team");
@@ -55,12 +54,14 @@ export function DemandSection({ facts, report, ops, prefs, set, publicLink }: Da
   const openNow = ops.unallocated.length;
   const peak = Math.max(requestsNow.length, requestsThen?.length ?? 0, openNow, 1);
 
+  // Two panels of one width. Given a third of the row the bars had a 26rem cap
+  // and several inches of nothing to the right of them; on half the row the cap
+  // never binds and the bars fill the panel they are in.
   return (
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-      {/* `h-auto` undoes Panel's own `h-full`: without it the panel resolves to
-          100% of the grid row and stretches to match the panel beside it, which
-          leaves a column of dead space whenever that one's figures are open.
-          `self-start` alone cannot win against a height of 100%. */}
+    <div className="grid gap-3 xl:grid-cols-2">
+      {/* `h-auto` undoes Panel's own `h-full`, which resolves to 100% of the
+          grid row and would stretch this panel to match whichever of the two is
+          taller. `self-start` alone cannot win against a height of 100%. */}
       <Panel title="Requests in" subtitle="By the day they arrived" className="h-auto self-start p-4" testId="dashboard-demand-requests">
         {/* Three bordered cards with a 2xl figure each was a lot of furniture
             for three numbers in a narrow column. One row apiece: the figure, its
@@ -110,19 +111,11 @@ export function DemandSection({ facts, report, ops, prefs, set, publicLink }: Da
           valueLabel={measured}
           emptyMessage="Nothing in this period."
         />
-        <Numbers label={`${active.column} figures`}>
-          <ComparisonTable
-            rows={rows}
-            currentLabel={report.period.label}
-            comparisonLabel={report.period.comparisonLabel}
-            firstColumn={active.column}
-            caption={
-              dimension === "assetType"
-                ? "Asset types are measured in units. One task can hold several types, so these rows are not unique task counts and do not sum to the task total."
-                : undefined
-            }
-          />
-        </Numbers>
+        {dimension === "assetType" && (
+          <p className="mt-2 text-2xs leading-relaxed text-muted-foreground">
+            Asset types are measured in units, and one task can hold several — so these rows are not unique task counts and do not sum to the task total.
+          </p>
+        )}
         {prefs.teamIds && (
           <p className="mt-2 text-2xs text-muted-foreground">
             <button type="button" onClick={() => set({ teamIds: null })} className="font-medium text-foreground/80 underline-offset-4 hover:underline">

@@ -7,6 +7,7 @@ import { ViewingAsBanner } from "@/features/workspace/components/viewing-as-bann
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { ConfettiCanvas } from "@/components/shared/confetti";
 import { useOsNotifications } from "@/features/notifications/use-os-notifications";
+import { tabCountPrefix, useTabBadge } from "@/features/notifications/use-tab-badge";
 import { CommandPalette } from "@/features/search/command-palette";
 import { VersionWatcher } from "@/features/version/version-watcher";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -33,6 +34,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // the app is open in a tab the reader is not looking at.
   useOsNotifications();
 
+  // …and marks the tab itself, so a count is visible without switching to it.
+  // The icon is this hook's; the count goes into the title the watcher below
+  // enforces, because two writers of document.title would fight each other.
+  const waiting = useTabBadge();
+
   // Rehydrate persisted UI preferences after mount to avoid SSR mismatches.
   React.useEffect(() => {
     void useUiStore.persist.rehydrate();
@@ -44,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // navigation (search-param changes included), so the title is watched and
   // corrected rather than set once.
   React.useEffect(() => {
-    const wanted = `Streamline · ${ws.workspace.name}`;
+    const wanted = `${tabCountPrefix(waiting)}Streamline · ${ws.workspace.name}`;
     const apply = () => {
       if (document.title !== wanted) document.title = wanted;
     };
@@ -52,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const observer = new MutationObserver(apply);
     observer.observe(document.head, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, [ws.workspace.name]);
+  }, [ws.workspace.name, waiting]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

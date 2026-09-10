@@ -61,6 +61,14 @@ export class LocalNotificationRepository implements NotificationRepository {
     );
     await tx.done;
   }
+
+  async deleteAll(userId: string, delivery?: StoredDelivery): Promise<void> {
+    const db = await this.conn.getDb();
+    for (const notification of await db.getAllFromIndex("notifications", "byUser", userId)) {
+      if (delivery && notification.delivery !== delivery) continue;
+      await db.delete("notifications", notification.id);
+    }
+  }
 }
 
 export class LocalNotificationPreferencesRepository implements NotificationPreferencesRepository {

@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input";
 import type { User } from "@/domain";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { assignedWorkload } from "@/features/dashboard/metrics";
-import { Panel } from "@/features/dashboard/panels";
+import { Numbers, Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
-import { Numbers } from "./demand-section";
 import type { DashboardViewProps } from "./types";
 
 const WINDOWS = [2, 4, 8] as const;

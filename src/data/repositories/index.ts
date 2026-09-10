@@ -388,6 +388,15 @@ export interface NotificationRepository {
   markRead(id: EntityId, read: boolean): Promise<Notification>;
   /** Marks read; `delivery` narrows it to one badge (used by "mark all read"). */
   markAllRead(userId: EntityId, delivery?: StoredDelivery): Promise<void>;
+  /**
+   * Throws the notifications away, rather than marking them read.
+   *
+   * `delivery` narrows it to one tab, so clearing the loud list does not take
+   * the quiet updates with it. A notification is a record that somebody was
+   * told, not the thing they were told about — the task, comment or mention it
+   * points at is untouched — which is why this is a delete and not an archive.
+   */
+  deleteAll(userId: EntityId, delivery?: StoredDelivery): Promise<void>;
 }
 
 /**

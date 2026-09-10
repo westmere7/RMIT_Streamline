@@ -127,5 +127,27 @@ export function useNotificationMutations(userId: string) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 
-  return { markRead, markAllRead };
+  /**
+   * Throws them away rather than marking them read.
+   *
+   * A notification is a record that somebody was told, not the thing they were
+   * told about: the task, comment or mention it points at is untouched, which
+   * is why clearing is a delete and not an archive. Narrowed to one tab, so
+   * clearing the loud list leaves the quiet updates alone.
+   */
+  const clearAll = useMutation({
+    mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.deleteAll(userId, delivery),
+    onMutate: async (delivery) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Notification[]>(key);
+      queryClient.setQueryData<Notification[]>(key, (old) => old?.filter((n) => (delivery ? n.delivery !== delivery : false)) ?? []);
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+
+  return { markRead, markAllRead, clearAll };
 }

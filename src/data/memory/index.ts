@@ -239,7 +239,10 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       create: readOnly("notifying someone"),
       createMany: readOnly("notifying someone"),
       markRead: readOnly("reading a notification"),
+      // A guest behind a share link has no notifications, so both of these are
+      // trivially already done rather than refusals.
       markAllRead: async () => undefined,
+      deleteAll: async () => undefined,
     },
     notificationPreferences: {
       get: async () => null,

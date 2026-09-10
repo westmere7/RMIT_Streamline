@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, ClipboardList, Inbox, Link2, MessageSquare, Settings2, UserPlus } from "lucide-react";
+import { AtSign, Bell, CalendarDays, CheckCheck, CircleDot, ClipboardList, Inbox, Link2, MessageSquare, Settings2, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Notification, NotificationType, StoredDelivery } from "@/domain";
 import { countUnread } from "@/domain";
@@ -41,10 +42,11 @@ export function InboxPage() {
   const ws = useWorkspace();
   const router = useRouter();
   const notifications = useNotifications(ws.currentUser.id);
-  const { markRead, markAllRead } = useNotificationMutations(ws.currentUser.id);
+  const { markRead, markAllRead, clearAll } = useNotificationMutations(ws.currentUser.id);
   const [tab, setTab] = React.useState<Tab>("all");
   const [unreadOnly, setUnreadOnly] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [confirmClear, setConfirmClear] = React.useState(false);
 
   const all = React.useMemo(() => notifications.data ?? [], [notifications.data]);
   const current = TABS.find((t) => t.id === tab)!;
@@ -53,6 +55,9 @@ export function InboxPage() {
     .filter((n) => !unreadOnly || n.readAt === null);
   const counts = countUnread(all);
   const unreadHere = list.filter((n) => n.readAt === null).length;
+  // What Clear would actually remove: the whole tab, not the filtered view —
+  // "unread only" hides rows, and clearing would take those with it.
+  const clearable = all.filter((n) => !current.delivery || n.delivery === current.delivery).length;
 
   const open = (n: Notification) => {
     if (n.readAt === null) markRead.mutate({ id: n.id, read: true });
@@ -125,6 +130,15 @@ export function InboxPage() {
                 data-testid="mark-all-read"
               >
                 <CheckCheck /> Mark all read
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={clearable === 0 || clearAll.isPending}
+                onClick={() => setConfirmClear(true)}
+                data-testid="clear-all"
+              >
+                <Trash2 /> Clear
               </Button>
               <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} data-testid="notification-settings-button">
                 <Settings2 /> Settings
@@ -209,6 +223,33 @@ export function InboxPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent size="sm" data-testid="clear-all-dialog">
+          <DialogHeader>
+            <DialogTitle>Clear {current.label.toLowerCase()}?</DialogTitle>
+            <DialogDescription>
+              {clearable === 1 ? "One notification" : `${clearable} notifications`} will be removed from your inbox, read or not. Nothing they point at is touched — the tasks,
+              comments and mentions stay exactly as they are.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmClear(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                clearAll.mutate(current.delivery);
+                setConfirmClear(false);
+              }}
+              data-testid="clear-all-confirm"
+            >
+              <Trash2 /> Clear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <NotificationSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
