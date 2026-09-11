@@ -40,6 +40,7 @@ export function BoardToolbar({
   view,
   onViewChange,
   searchAlways = false,
+  leading,
   actions,
 }: {
   view: BoardViewKind;
@@ -51,7 +52,13 @@ export function BoardToolbar({
    * is the first thing anyone does, whichever view they are looking at.
    */
   searchAlways?: boolean;
-  /** Rendered at the end of the row. The portal puts "Book a task" here. */
+  /**
+   * Rendered at the *start* of the row, before the view switcher: the one
+   * thing a visitor came to do, where the eye lands first. The portal puts
+   * "Book a task" here.
+   */
+  leading?: React.ReactNode;
+  /** Rendered at the end of the row. */
   actions?: React.ReactNode;
 }) {
   const { board, model, canEdit, mutations, showReference, setShowReference } = useBoardContext();
@@ -68,6 +75,8 @@ export function BoardToolbar({
 
   return (
     <div className={boardBarClasses} role="toolbar" aria-label="Board tools">
+      {leading}
+      {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
       <BoardViewSwitcher view={view} onChange={onViewChange} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}

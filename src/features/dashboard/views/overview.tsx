@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { formatHours, hasAnyRate, unratedTypes } from "@/domain";
-import { assetEffortMix, assetMix, priorityMix, teamHex, UNTYPED } from "@/features/dashboard/analytics";
+import { formatHours, hasAnyRate } from "@/domain";
+import { assetEffortMix, assetMix, priorityMix, teamHex } from "@/features/dashboard/analytics";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { TreemapChart } from "@/features/dashboard/charts/treemap";
@@ -87,15 +87,6 @@ export function DashboardBody(props: DashboardViewProps) {
   // toggle would switch to an empty map.
   const byEffort = ratesOn && assetMeasure === "effort";
   const effortTotal = React.useMemo(() => mixEffort.reduce((sum, row) => sum + row.value, 0), [mixEffort]);
-  // Types carrying volume with no rate: exactly what the total leaves out.
-  //
-  // "Untyped" is not one of them. It is the placeholder for a deliverable that
-  // was never given a type, so there is no type to rate and nothing anybody
-  // could do about being told — a permanent warning is worse than none. Those
-  // units still count as nought hours, exactly as before; what the note names
-  // is the types a rate is actually missing from.
-  const unrated = React.useMemo(() => unratedTypes(scopedAssets, rates).filter((name) => name !== UNTYPED), [scopedAssets, rates]);
-
   const coverageLines: string[] = [];
   if (prefs.basis === "due" && report.current.undatedTasks > 0) coverageLines.push(`${report.current.undatedTasks} tasks have no due date and are not counted here`);
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
@@ -123,14 +114,6 @@ export function DashboardBody(props: DashboardViewProps) {
             basisLine={basisLine}
             trend={monthlyEffort.map((row) => row.current)}
             trendLabels={monthlyEffort.map((row) => row.label)}
-            footnote={
-              unrated.length > 0 ? (
-                <>
-                  No rate yet for {unrated.slice(0, 3).join(", ")}
-                  {unrated.length > 3 ? ` and ${unrated.length - 3} more` : ""} — their deliverables count as nought hours.
-                </>
-              ) : undefined
-            }
             accent
             testId="dashboard-headline-effort"
           />

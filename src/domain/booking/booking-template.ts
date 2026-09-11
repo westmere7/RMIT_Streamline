@@ -183,7 +183,7 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
       enabled: true,
       tabLabel: "Assets & specs",
       title: "Assets and specs",
-      hint: "Optional. List each deliverable with its size, format or other requirements and the team tracks them one by one. If you already have an asset list in a spreadsheet, skip this and mention it in the brief.",
+      hint: "Optional. List each deliverable with its size, format or other requirements and the team tracks them one by one — or paste a link to a list you already have.",
     },
     submitLabel: "Book this task",
     submitNote: "You'll get a reference to quote when following up.",

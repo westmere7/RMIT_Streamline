@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
-import type { BookingExtraField, BookingFieldType, BookingForm as BookingFormData, BookingRequest, BookingStandardField, BookingTeamOption, ColumnValue, TagOption } from "@/domain";
+import type { BookingExtraField, BookingFieldType, BookingForm as BookingFormData, BookingStandardField, BookingTeamOption, ColumnValue, TagOption } from "@/domain";
 import { T_SHIRT_SIZES, emptyValueFor } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
@@ -42,21 +42,39 @@ export interface BookingDraft {
   extra: Record<string, ColumnValue>;
 }
 
-export function emptyDraft(defaults?: Partial<Pick<BookingRequest, "requesterName" | "requesterEmail" | "department">>): BookingDraft {
+/**
+ * What a caller may fill in before anyone types.
+ *
+ * Was the three "about you" answers; it is the whole draft now, because a
+ * booking started from a past request arrives with a title, a brief and a list
+ * of asset types as well. Custom and team answers stay out: they belong to a
+ * template and a board this caller cannot know.
+ */
+export type BookingDefaults = Partial<Omit<BookingDraft, "answers" | "extra">>;
+
+export function emptyDraft(defaults?: BookingDefaults): BookingDraft {
   return {
     requesterName: defaults?.requesterName ?? "",
     requesterEmail: defaults?.requesterEmail ?? "",
     department: defaults?.department ?? "",
-    title: "",
-    brief: "",
-    dueDate: "",
-    referenceUrl: "",
-    assetTypes: [],
-    priority: null,
-    teamId: null,
+    title: defaults?.title ?? "",
+    brief: defaults?.brief ?? "",
+    dueDate: defaults?.dueDate ?? "",
+    referenceUrl: defaults?.referenceUrl ?? "",
+    assetTypes: defaults?.assetTypes ?? [],
+    priority: defaults?.priority ?? null,
+    teamId: defaults?.teamId ?? null,
     answers: {},
     extra: {},
   };
+}
+
+/** Whether a draft field holds something worth not hiding behind a disclosure. */
+export function draftHasValue(draft: BookingDraft, key: keyof BookingDraft): boolean {
+  const value = draft[key];
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return value !== null && value !== undefined;
 }
 
 export interface StandardFieldProps {

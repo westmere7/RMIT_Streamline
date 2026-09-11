@@ -62,6 +62,9 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
               key={signedIn ? user.id : "guest"}
               form={form.data}
               defaults={signedIn ? { requesterName: user.displayName, requesterEmail: user.email, department: user.department ?? "" } : undefined}
+              // A member is already known to the app; a visitor on the public
+              // link is remembered by their own browser, per workspace.
+              remember={signedIn ? null : `book:${workspaceSlug}`}
               onSubmit={(request) => services.booking.submit({ workspaceSlug, key: bookingKey, request, actorId: signedIn ? user.id : null })}
             />
           </div>

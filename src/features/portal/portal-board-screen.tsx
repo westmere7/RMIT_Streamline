@@ -201,12 +201,8 @@ function PortalBoard({
             view={view}
             onViewChange={(next) => replaceParams({ view: next })}
             searchAlways
-            actions={
-              <>
-                <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
-                {onBook && <BookButton onBook={onBook} />}
-              </>
-            }
+            leading={onBook ? <BookButton onBook={onBook} /> : undefined}
+            actions={<GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />}
           />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
@@ -255,15 +251,19 @@ function GroupByControl({ grouping, onChange }: { grouping: PortalGrouping; onCh
 }
 
 /**
- * What a stakeholder came here to do, in the row they are already looking at.
+ * What a stakeholder came here to do, first on the row they are already
+ * looking at.
  *
- * Beside the search rather than in a bar of its own: the two things a visitor
- * uses are then in one place, and the board keeps the whole window below them.
+ * At the head of the toolbar rather than the far end of it: everything else on
+ * this row — views, search, grouping — is for reading the requests they have
+ * already made, and the one thing a visitor came here to do was sitting last
+ * in the line, the same size as a filter. It leads, and it is the only button
+ * on the page wearing the brand red.
  */
 function BookButton({ onBook }: { onBook: () => void }) {
   return (
-    <Button onClick={onBook} size="sm" data-testid="portal-book-button">
-      <ClipboardPen /> Book a task
+    <Button onClick={onBook} className="shrink-0 gap-2 px-4 text-[13px] font-semibold shadow-sm shadow-primary/25" data-testid="portal-book-button">
+      <ClipboardPen className="size-4" /> Book a task
     </Button>
   );
 }

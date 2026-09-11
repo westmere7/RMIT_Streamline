@@ -80,6 +80,10 @@ export function PortalBooking({
         // somewhere other than a question has the right value to show.
         defaults={{ department: departmentName }}
         omit={["department"]}
+        // Scoped to the link, not to the browser: one machine may be used to
+        // book for two departments, and the person doing it is not always the
+        // same one. Nothing of this leaves the machine.
+        remember={`portal:${credentials.token}`}
         onSubmit={(request) => services.portals.publicBook(credentials, submissionKey, request, services.booking)}
         // Nothing here links into the application: a stakeholder has no account
         // and the board is not theirs to open.
