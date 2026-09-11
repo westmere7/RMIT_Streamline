@@ -525,3 +525,13 @@
     animation: dashboard-live 1.8s ease-in-out infinite;
   }
 }
+
+/* ---- The sheet behind the booking form --------------------------------------
+ *
+ * Booking is the one thing a stakeholder came to do, and the board behind it is
+ * a distraction dressed as context. A light blur and the faintest tint: enough
+ * that the page is plainly still there and plainly not what is being read.
+ */
+.booking-ground {
+  background-color: rgb(0 0 0 / 0.28);
+}

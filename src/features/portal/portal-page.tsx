@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { PortalCredentials } from "@/features/portal/portal-client";
-import { PortalBooking } from "@/features/portal/portal-booking";
+import { PortalBookingDialog } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
@@ -49,7 +49,7 @@ const PORTAL_REFRESH_MS = 4_000;
  * it can reach is a route handler that re-checks a board seat, and a visitor
  * has none.
  */
-export function PortalPage({ token }: { token: string }) {
+export function PortalPage({ token, startOnBooking = false }: { token: string; startOnBooking?: boolean }) {
   const services = useServices();
   const auth = useAuth();
   const router = useRouter();
@@ -122,7 +122,11 @@ export function PortalPage({ token }: { token: string }) {
 
   // Booking replaces the board rather than sitting beside it in a tab strip:
   // it is the one thing a stakeholder comes here to *do*, and it gets a button.
-  const [booking, setBooking] = React.useState(false);
+  // `startOnBooking` is the dedicated booking link (/portal/<token>/book), which
+  // opens straight onto the form: somebody sent that link to have a request
+  // made, and making them find the button on a board of other people's work
+  // first is a step with nothing in it for them.
+  const [booking, setBooking] = React.useState(startOnBooking);
 
   if (gate.isPending) {
     return (
@@ -207,37 +211,25 @@ export function PortalPage({ token }: { token: string }) {
           rangeOverridden={searching}
         />
 
-        {booking ? (
-          // The column owns the window's height and hands it to the card, so
-          // the form scrolls inside itself and the page behind it does not.
-          <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 pt-4 pb-4 sm:px-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-2 mb-3 text-muted-foreground"
-              onClick={() => {
-                setBooking(false);
-                void page.refetch();
-              }}
-              data-testid="portal-our-tasks"
-            >
-              <ArrowLeft /> Our tasks
-            </Button>
-            <PortalBooking
-              credentials={credentials}
-              stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
-              onView={(itemId) => {
-                void page.refetch();
-                setBooking(false);
-                setOpenTask(itemId);
-              }}
-              onBackToTasks={() => {
-                setBooking(false);
-                void page.refetch();
-              }}
-            />
-          </div>
-        ) : page.data ? (
+        <PortalBookingDialog
+          open={booking}
+          onOpenChange={(next) => {
+            setBooking(next);
+            if (!next) void page.refetch();
+          }}
+          credentials={credentials}
+          stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
+          // Chosen inside step one, so the dedicated booking link needs nothing
+          // of the board behind it.
+          stakeholders={context?.stakeholders ?? []}
+          onView={(itemId) => {
+            void page.refetch();
+            setOpenTask(itemId);
+          }}
+        />
+
+        {page.data ? (
+
           // The department's work, rendered by the board the workspace uses:
           // the same views, the same cells, the same item panel.
           <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">

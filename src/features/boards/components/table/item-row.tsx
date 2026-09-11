@@ -187,11 +187,16 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             <div
               ref={setActivatorNodeRef}
               role="gridcell"
+              // Pinned, so the rest of the row scrolls underneath it: every
+              // colour here is opaque. The tints are written as the mix they
+              // used to composite to over the page, because a translucent one
+              // replaces the base rather than sitting on it, and the row shows
+              // straight through.
               className={cn(
-                "sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors group-hover/row:bg-accent/45",
+                "sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-background))]",
                 dndEnabled && "active:cursor-grabbing",
-                selected && "bg-accent-soft/60 group-hover/row:bg-accent-soft/80",
-                viewing && "bg-accent/80 group-hover/row:bg-accent/80",
+                selected && "bg-[color-mix(in_srgb,var(--color-accent-soft)_60%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-background))]",
+                viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]",
               )}
               style={leadingCellStyle(showReference)}
               data-testid="item-drag-area"
@@ -422,7 +427,7 @@ function SubitemRows({
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-surface/60" style={leadingCellStyle(showReference)}>
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-[color-mix(in_srgb,var(--color-surface)_60%,var(--color-background))]" style={leadingCellStyle(showReference)}>
             <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
             <ReferenceSpacer />
             <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
@@ -487,7 +492,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
           style={{ height: 32 }}
         >
           <div
-            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-surface/50 transition-colors group-hover/row:bg-accent/40", viewing && "bg-accent/80 group-hover/row:bg-accent/80")}
+            className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))] transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]", viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]")}
             style={leadingCellStyle(showReference)}
           >
             <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />

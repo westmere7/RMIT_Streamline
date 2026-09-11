@@ -182,10 +182,13 @@ test.describe("the stakeholder portal", () => {
 
     // Showing the full creative team, there is no stakeholder to raise the
     // request for, so the gate explains rather than booking against nobody.
+    // The form opens over the board either way; who it is for is its first
+    // question, and step one will not let anybody past without an answer.
     await page.getByTestId("portal-book-button").click();
-    await expect(page.getByTestId("portal-book-gate")).toBeVisible();
-    await expect(page.getByTestId("portal-book-needs-stakeholder")).toBeVisible();
-    await expect(page.getByTestId("booking-wizard")).toHaveCount(0);
+    await expect(page.getByTestId("portal-book")).toBeVisible();
+    await expect(page.getByTestId("booking-stakeholder")).toBeVisible();
+    await page.getByTestId("booking-next").click();
+    await expect(page.getByText("Say who this request is for")).toBeVisible();
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {

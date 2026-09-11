@@ -61,6 +61,11 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
             <BookingWizard
               key={signedIn ? user.id : "guest"}
               form={form.data}
+              // Signed in: the three questions about them are filled from the
+              // account and still theirs to change. Not signed in: the offer to
+              // sign in is made, and typing them is the other way.
+              account={signedIn ? { name: user.displayName, email: user.email } : null}
+              signInHref={signedIn ? null : `/login?next=${encodeURIComponent(routes.publicBooking(workspaceSlug, bookingKey))}`}
               defaults={signedIn ? { requesterName: user.displayName, requesterEmail: user.email, department: user.department ?? "" } : undefined}
               // A member is already known to the app; a visitor on the public
               // link is remembered by their own browser, per workspace.

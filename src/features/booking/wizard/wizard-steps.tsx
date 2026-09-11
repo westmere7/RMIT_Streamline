@@ -1,17 +1,18 @@
 "use client";
 
-import { ArrowRight, Boxes, CircleCheck, Info, Link2, SkipForward } from "lucide-react";
+import { ArrowRight, Boxes, Info, Link2, SkipForward } from "lucide-react";
 import * as React from "react";
-import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
+import { ColorDot } from "@/components/shared/label-pill";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey, ColorToken } from "@/domain";
 import { isQuestionBlock, numberedQuestions, serviceById } from "@/domain";
+import { SPAN } from "../booking-fields";
 import { formatShortDate } from "@/lib/dates/dates";
-import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { SERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
-import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, NumberBadge, SeparatorBlockView, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
+import { SERVICE_ERROR_KEY, STAKEHOLDER_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
+import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, NumberBadge, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
 
 /**
  * The four steps of the booking wizard, each one a plain function of the
@@ -32,18 +33,80 @@ export interface StepProps {
 
 // ---- 1. who is asking, and what kind of work this is --------------------------
 
-export function StepBasics({ form, template, request, patch, errors, omit, identity }: StepProps & { identity?: React.ReactNode }) {
+export function StepBasics({
+  form,
+  template,
+  request,
+  patch,
+  errors,
+  omit,
+  identity,
+  stakeholders,
+  stakeholderId,
+  onStakeholder,
+  stakeholderLabel,
+  lockedKeys,
+}: StepProps & {
+  identity?: React.ReactNode;
+  /** Questions the app has answered from an account, shown but not typed over. */
+  lockedKeys?: readonly BookingStandardKey[];
+  stakeholders?: readonly { id: string; name: string; color: ColorToken }[];
+  stakeholderId?: string | null;
+  onStakeholder?: (id: string) => void;
+  stakeholderLabel?: string;
+}) {
   const omitted = new Set<BookingStandardKey>(omit ?? []);
   const fields = template.basics.fields.filter((field) => !omitted.has(field.key));
   const service = serviceById(template, request.serviceTypeId);
+  const chosen = stakeholders?.find((s) => s.id === stakeholderId) ?? null;
   return (
     <div className="space-y-7" data-testid="booking-step-basics">
+      {/* The step's own heading, in the workspace's words. Shown only when
+          there is one: emptying both boxes in the editor takes it off, the way
+          it does on every other step. */}
+      {(template.basics.title || template.basics.hint) && (
+        <div>
+          {template.basics.title && <h2 className="text-[15px] font-semibold tracking-tight">{template.basics.title}</h2>}
+          {template.basics.hint && <p className="text-[13px] text-muted-foreground">{template.basics.hint}</p>}
+        </div>
+      )}
       {identity}
+
+      {/* Who the request is for. First, because everything after it is filed
+          under the answer — and a dropdown rather than a wall of cards, because
+          on a portal this is one fact about the requester and not the shape of
+          the work. */}
+      {stakeholders && stakeholders.length > 0 && (
+        <Field label={stakeholderLabel ?? "Who is this request for?"} required description="One link serves everybody the team works with." hintMode="below" error={errors[STAKEHOLDER_ERROR_KEY]}>
+          <Select value={stakeholderId ?? ""} onValueChange={(id) => onStakeholder?.(id)}>
+            <SelectTrigger className="h-10" aria-label={stakeholderLabel ?? "Who is this request for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
+              <SelectValue placeholder="Pick a group">
+                {chosen && (
+                  <span className="flex items-center gap-2">
+                    <ColorDot color={chosen.color} />
+                    {chosen.name}
+                  </span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {stakeholders.map((option) => (
+                <SelectItem key={option.id} value={option.id} data-testid={`booking-stakeholder-${option.id}`}>
+                  <span className="flex items-center gap-2">
+                    <ColorDot color={option.color} />
+                    {option.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
       {fields.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-6">
           {fields.map((field) => (
-            <div key={field.id} className={cn("min-w-0", field.width === "full" && "sm:col-span-2")}>
-              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} />
+            <div key={field.id} className={cn("col-span-6 min-w-0", SPAN[field.width])}>
+              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} readOnly={lockedKeys?.includes(field.key)} />
             </div>
           ))}
         </div>
@@ -73,7 +136,7 @@ export function StepBasics({ form, template, request, patch, errors, omit, ident
         </Field>
 
         {service && service.subServices.length > 0 && (
-          <Field label={service.subServiceLabel} description={service.subServiceHint} hintMode="below">
+          <Field label={service.subServiceLabel} required description={service.subServiceHint} hintMode="below" error={errors[SUBSERVICE_ERROR_KEY]}>
             <ChipGroup ariaLabel={service.subServiceLabel}>
               {service.subServices.map((option) => (
                 <Chip key={option.name} color={option.color} active={request.subServices.includes(option.name)} onClick={() => patch((prev) => ({ subServices: toggle(prev.subServices, option.name) }))} testId={`booking-sub-${slug(option.name)}`}>
@@ -91,28 +154,16 @@ export function StepBasics({ form, template, request, patch, errors, omit, ident
 }
 
 function ServiceCard({ service, selected, onSelect }: { service: BookingServiceType; selected: boolean; onSelect: () => void }) {
-  const colors = colorClasses(service.color);
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      data-testid={`booking-service-${slug(service.name)}`}
-      className={cn(
-        "group relative flex min-w-0 flex-col gap-1 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-        selected ? "border-foreground/70 bg-accent/60 shadow-xs" : "border-border bg-card hover:border-foreground/30 hover:bg-accent/40",
-      )}
-    >
-      <span className="flex items-center gap-2">
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", colors.soft)}>
-          <DynamicIcon name={service.icon} className={cn("size-4", colors.text)} />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">{service.name}</span>
-        {selected && <CircleCheck className="size-4 shrink-0" aria-hidden />}
-      </span>
-      {service.description && <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span>}
-    </button>
+    <ServiceCardShell
+      color={service.color}
+      icon={service.icon}
+      selected={selected}
+      onSelect={onSelect}
+      name={<span className="block truncate">{service.name}</span>}
+      description={service.description ? <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
+      testId={`booking-service-${slug(service.name)}`}
+    />
   );
 }
 
@@ -146,10 +197,12 @@ export function StepBrief({ template, request, patch, errors }: StepProps) {
   const numbers = new Map(numberedQuestions(service.blocks).map((q) => [q.block.id, q.number]));
   return (
     <div className="space-y-5" data-testid="booking-step-brief">
-      <div>
-        <h2 className="text-[15px] font-semibold tracking-tight">{service.briefTitle}</h2>
-        {service.briefHint && <p className="text-[13px] text-muted-foreground">{service.briefHint}</p>}
-      </div>
+      {(service.briefTitle || service.briefHint) && (
+        <div>
+          {service.briefTitle && <h2 className="text-[15px] font-semibold tracking-tight">{service.briefTitle}</h2>}
+          {service.briefHint && <p className="text-[13px] text-muted-foreground">{service.briefHint}</p>}
+        </div>
+      )}
       {service.blocks.length === 0 && <p className="text-[13px] text-muted-foreground">Nothing else to ask — carry on.</p>}
       <div className="space-y-5">
         {service.blocks.map((block) => {
@@ -239,10 +292,12 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
 
   return (
     <div className="space-y-5" data-testid="booking-step-review">
-      <div>
-        <h2 className="text-[15px] font-semibold tracking-tight">{template.review.title}</h2>
-        {template.review.hint && <p className="text-[13px] text-muted-foreground">{template.review.hint}</p>}
-      </div>
+      {(template.review.title || template.review.hint) && (
+        <div>
+          {template.review.title && <h2 className="text-[15px] font-semibold tracking-tight">{template.review.title}</h2>}
+          {template.review.hint && <p className="text-[13px] text-muted-foreground">{template.review.hint}</p>}
+        </div>
+      )}
 
       <RecapCard title="The request" onEdit={() => onEditStep(0)}>
         <dl className="grid gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-[7.5rem_minmax(0,1fr)]">

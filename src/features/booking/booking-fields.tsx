@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, ChevronDown, CircleQuestionMark, Plus, X } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, CircleQuestionMark, Plus, X } from "lucide-react";
 import * as React from "react";
+import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
-import type { BookingAnswer, BookingForm as BookingFormData, BookingHintMode, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, TagOption } from "@/domain";
+import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingHintMode, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
 import { emptyAnswerFor, priorityStrength } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
@@ -26,6 +27,14 @@ import { cn } from "@/lib/utils";
  */
 
 export const NO_PRIORITY = "__normal__";
+
+/**
+ * What each width spans on step one's six-column row.
+ *
+ * Written out rather than computed, because Tailwind reads the class names out
+ * of the source: a span built from a variable would never reach the stylesheet.
+ */
+export const SPAN: Record<BookingFieldWidth, string> = { full: "sm:col-span-6", half: "sm:col-span-3", third: "sm:col-span-2" };
 
 /** What the wizard is holding: the request being built, and the deliverable rows. */
 export type BookingDraft = BookingRequest;
@@ -133,26 +142,34 @@ export interface StandardFieldProps {
   error?: string;
   /** The editor's preview: disabled, with ids kept apart from the live form's and no test ids. */
   preview?: boolean;
+  /**
+   * Filled in by the app and not to be typed over.
+   *
+   * Read-only rather than disabled: the words are still worth selecting and
+   * copying, and the field stays in the tab order so nobody lands on a gap.
+   */
+  readOnly?: boolean;
   hideLabel?: boolean;
 }
 
 /** One of the fixed questions, worded by the template, with the control it calls for. */
-export function StandardField({ field, form, draft, onChange, error, preview, hideLabel }: StandardFieldProps) {
+export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel }: StandardFieldProps) {
   const id = (base: string) => (preview ? `preview-${base}` : base);
   const tid = (base: string) => (preview ? undefined : base);
   const shell = { label: field.label, required: field.required, description: field.description, hintMode: field.hintMode, error, hideLabel };
   const placeholder = placeholderOf(field.description, field.hintMode);
+  const locked = readOnly ? { readOnly: true as const, className: "text-muted-foreground" } : {};
   switch (field.key) {
     case "requesterName":
       return (
         <Field id={id("booking-name")} {...shell}>
-          <Input id={id("booking-name")} autoComplete="name" placeholder={placeholder} value={draft.requesterName} onChange={(e) => onChange({ requesterName: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-name")} />
+          <Input id={id("booking-name")} autoComplete="name" placeholder={placeholder} value={draft.requesterName} onChange={(e) => onChange({ requesterName: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-name")} />
         </Field>
       );
     case "requesterEmail":
       return (
         <Field id={id("booking-email")} {...shell}>
-          <Input id={id("booking-email")} type="email" autoComplete="email" placeholder={placeholder} value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-email")} />
+          <Input id={id("booking-email")} type="email" autoComplete="email" placeholder={placeholder} value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-email")} />
         </Field>
       );
     case "department":
@@ -166,6 +183,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, hi
             onChange={(e) => onChange({ department: e.target.value })}
             aria-invalid={!!error}
             disabled={preview}
+            {...locked}
             data-testid={tid("booking-department")}
           />
         </Field>
@@ -331,6 +349,74 @@ export function TextBlockView({ block }: { block: BookingTextBlock }) {
 /** The rule between two groups of questions. */
 export function SeparatorBlockView() {
   return <hr className="my-1 border-border/70" />;
+}
+
+/**
+ * One service on the chooser of step one.
+ *
+ * The shell is shared with the form editor, which renders the same card with
+ * its name and its line turned into boxes. Keeping one component is what makes
+ * the editor a picture of the form rather than an approximation of it: a change
+ * to the card shows up in both, and neither can drift.
+ */
+export function ServiceCardShell({
+  color,
+  icon,
+  selected,
+  onSelect,
+  name,
+  description,
+  chrome,
+  testId,
+  className,
+}: {
+  color: ColorToken;
+  icon: string;
+  selected?: boolean;
+  onSelect?: () => void;
+  /** The service's name: text in the form, an editable box in the editor. */
+  name: React.ReactNode;
+  description?: React.ReactNode;
+  /** Handles the form has no room for; the editor passes its strip here. */
+  chrome?: React.ReactNode;
+  testId?: string;
+  className?: string;
+}) {
+  const colors = colorClasses(color);
+  const interactive = !!onSelect;
+  return (
+    <div
+      role={interactive ? "radio" : undefined}
+      aria-checked={interactive ? !!selected : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (!interactive) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect?.();
+        }
+      }}
+      data-testid={testId}
+      className={cn(
+        "group/service relative flex min-w-0 flex-col gap-1 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+        interactive && "cursor-pointer",
+        selected ? "border-foreground/70 bg-accent/60 shadow-xs" : "border-border bg-card",
+        interactive && !selected && "hover:border-foreground/30 hover:bg-accent/40",
+        className,
+      )}
+    >
+      {chrome}
+      <span className="flex items-center gap-2">
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", colors.soft)}>
+          <DynamicIcon name={icon} className={cn("size-4", colors.text)} />
+        </span>
+        <span className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{name}</span>
+        {selected && <CircleCheck className="size-4 shrink-0" aria-hidden />}
+      </span>
+      {description}
+    </div>
+  );
 }
 
 // ---- the asset list ------------------------------------------------------------------

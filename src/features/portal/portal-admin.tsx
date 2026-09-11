@@ -191,6 +191,7 @@ function PortalCard({ portal }: { portal: StakeholderPortal }) {
   const [password, setPasswordValue] = React.useState("");
   const open = portal.enabled;
   const url = portalUrl(portal.token);
+  const bookingUrl = `${url}/book`;
 
   return (
     <section className="rounded-xl border border-border/70 bg-card" data-testid="portal-card">
@@ -235,9 +236,13 @@ function PortalCard({ portal }: { portal: StakeholderPortal }) {
       </div>
 
       <div className="space-y-4 p-3">
-        <code className="block min-w-0 truncate rounded-md bg-surface px-2 py-1.5 font-mono text-2xs text-muted-foreground" data-testid="portal-link">
-          {url}
-        </code>
+        {/* Two links, one credential. The portal is where somebody looks at
+            their work; the booking link is the same portal opened on the form,
+            for when what you want from them is a request and not a visit. */}
+        <div className="grid gap-1.5">
+          <LinkRow label="Portal" url={url} testId="portal-link" onCopy={() => void copyToClipboard(url, "Link copied")} />
+          <LinkRow label="Booking form" url={bookingUrl} testId="portal-booking-link" onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")} />
+        </div>
 
         <Field label="Description" hint={open ? "Shown under the team's name on the portal." : "Shown under the team's name once the link is open."}>
           <DescriptionEditor key={portal.id} value={portal.description ?? ""} busy={setPresentation.isPending} onSave={(description) => setPresentation.mutate({ description })} />
@@ -418,5 +423,20 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** One of the portal's links: what it opens, the address, and a copy button. */
+function LinkRow({ label, url, testId, onCopy }: { label: string; url: string; testId: string; onCopy: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-24 shrink-0 text-2xs text-muted-foreground">{label}</span>
+      <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-2 py-1.5 font-mono text-2xs text-muted-foreground" data-testid={testId}>
+        {url}
+      </code>
+      <Button variant="ghost" size="icon-sm" aria-label={`Copy the ${label.toLowerCase()} link`} onClick={onCopy} data-testid={`${testId}-copy`}>
+        <Copy />
+      </Button>
+    </div>
   );
 }

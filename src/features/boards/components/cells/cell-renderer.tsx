@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Link2, TriangleAlert } from "lucide-react";
+import { Check, ExternalLink, Link2, Pencil, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
@@ -451,8 +451,19 @@ export function TextCell({ item, column, value, onChange, readOnly, width }: Cel
   );
 }
 
+/**
+ * A long answer: shown to be read, and edited only when somebody asks.
+ *
+ * The popup used to open straight onto a textarea the width of a tooltip, which
+ * is the wrong shape for the two things these columns actually hold — a booking
+ * brief and a list of deliverables. Both are read far more often than they are
+ * changed, and both carry links somebody wants to follow. So it opens as a page
+ * of text at a readable width with its links live, and "Edit" turns it into the
+ * box it used to be.
+ */
 export function LongTextCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const v = valueOf("LONG_TEXT", value);
+  const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(v.text);
   return (
     <PopoverCell
@@ -460,38 +471,107 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
       disabled={readOnly}
       align={columnAlign(column.type)}
       ariaLabel={`${column.name} for ${item.name}`}
-      contentClassName="w-80 p-2"
+      contentClassName="w-[min(34rem,calc(100vw-2rem))] p-0"
       trigger={<span className="truncate px-1 text-muted-foreground">{v.text}</span>}
     >
       {(close) => (
-        <div className="space-y-2">
-          <textarea
-            autoFocus
-            aria-label={column.name}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onFocus={() => setDraft(v.text)}
-            rows={5}
-            className="w-full resize-y rounded-lg border border-border p-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={close} className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onChange({ type: "LONG_TEXT", text: draft });
-                close();
-              }}
-              className="h-7 rounded-md bg-foreground px-2.5 text-xs font-medium text-background"
-            >
-              Save
-            </button>
+        <div className="flex max-h-[min(30rem,70vh)] flex-col">
+          <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
+            <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{column.name}</p>
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(v.text);
+                  setEditing(true);
+                }}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                data-testid="long-text-edit"
+              >
+                <Pencil className="size-3.5" /> Edit
+              </button>
+            )}
           </div>
+          {editing ? (
+            <div className="space-y-2 p-3">
+              <textarea
+                autoFocus
+                aria-label={column.name}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={12}
+                className="w-full resize-y rounded-lg border border-border p-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+                data-testid="long-text-input"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setEditing(false)} className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange({ type: "LONG_TEXT", text: draft });
+                    setEditing(false);
+                    close();
+                  }}
+                  className="h-7 rounded-md bg-foreground px-2.5 text-xs font-medium text-background"
+                  data-testid="long-text-save"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : v.text.trim() ? (
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap" data-testid="long-text-view">
+              <Linked text={v.text} />
+            </div>
+          ) : (
+            <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">Nothing here yet.</p>
+          )}
         </div>
       )}
     </PopoverCell>
+  );
+}
+
+/**
+ * Plain text with its web addresses turned into links.
+ *
+ * These columns are written by the booking form and by people typing into the
+ * box above, so there is no markup to trust and nothing to sanitise — the text
+ * is rendered as text, and only runs that look like an http address become
+ * anchors. A trailing full stop or bracket is left out of the link, because it
+ * is almost always the sentence's and not the address's.
+ */
+function Linked({ text }: { text: string }) {
+  const parts = React.useMemo(() => {
+    const out: Array<{ text: string; href: string | null }> = [];
+    const pattern = /https?:\/\/[^\s<>"']+/gi;
+    let at = 0;
+    for (const match of text.matchAll(pattern)) {
+      const index = match.index ?? 0;
+      let url = match[0];
+      const trailing = /[.,;:!?)\]]+$/.exec(url);
+      if (trailing) url = url.slice(0, url.length - trailing[0].length);
+      if (index > at) out.push({ text: text.slice(at, index), href: null });
+      out.push({ text: url, href: url });
+      at = index + url.length;
+    }
+    if (at < text.length) out.push({ text: text.slice(at), href: null });
+    return out;
+  }, [text]);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.href ? (
+          <a key={i} href={part.href} target="_blank" rel="noopener noreferrer nofollow" className="text-primary underline underline-offset-2 hover:no-underline" onClick={(e) => e.stopPropagation()}>
+            {part.text}
+          </a>
+        ) : (
+          <React.Fragment key={i}>{part.text}</React.Fragment>
+        ),
+      )}
+    </>
   );
 }
 

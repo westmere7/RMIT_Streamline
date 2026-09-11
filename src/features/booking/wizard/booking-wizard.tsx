@@ -5,12 +5,12 @@ import { ArrowLeft, ArrowRight, CheckCircle2, History, LoaderCircle, LogIn, Mess
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, ColorToken } from "@/domain";
 import { bookingReference, serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
-import { bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
+import { STAKEHOLDER_ERROR_KEY, bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
 import { newAssetRow, type AssetRow } from "../booking-fields";
 import { useBookingMemory, useMountedInBrowser, type PastBooking } from "../booking-remember";
 import { StepAssets, StepBasics, StepBrief, StepReview } from "./wizard-steps";
@@ -59,14 +59,36 @@ export interface BookingWizardProps {
    * Null for a signed-in member, whose details the app already knows.
    */
   remember?: string | null;
+  /**
+   * Who the request is for, when the caller is a portal serving several of
+   * them.
+   *
+   * Not part of the template, because it is not the workspace's question: the
+   * portal decides whether it needs asking at all. It rides in step one as an
+   * ordinary question so that whoever is booking answers it where they answer
+   * everything else, rather than being sent back to a filter on the page
+   * behind the form.
+   */
+  stakeholders?: readonly { id: string; name: string; color: ColorToken }[];
+  stakeholderId?: string | null;
+  onStakeholder?: (id: string) => void;
+  stakeholderLabel?: string;
+  /**
+   * A run of the form for somebody shaping it, not filling it in.
+   *
+   * Every step is reachable at once and nothing is required, because the point
+   * is to read the form rather than to answer it; and the last step hands back
+   * a made-up ticket instead of booking anything.
+   */
+  preview?: boolean;
   onSubmit: (request: BookingRequest) => Promise<BookingReceipt>;
   /** Where the booked item can be opened, for people who may see its board. Null hides the link. */
   itemHref?: (receipt: BookingReceipt) => string | null;
   onBooked?: (receipt: BookingReceipt) => void;
 }
 
-/** The two questions the remembered-requester banner answers on the reader's behalf. */
-const REQUESTER_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail"];
+/** The questions an account answers on the reader's behalf. */
+const REQUESTER_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail", "department"];
 
 export function BookingWizard(props: BookingWizardProps) {
   // One commit behind on purpose. The first draft is built from what this
@@ -94,7 +116,7 @@ interface StepDef {
   label: string;
 }
 
-function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit, itemHref, onBooked }: BookingWizardProps) {
+function Wizard({ form, defaults, account, signInHref, omit, remember, stakeholders, stakeholderId, onStakeholder, stakeholderLabel, preview, onSubmit, itemHref, onBooked }: BookingWizardProps) {
   const template = form.template;
   const memory = useBookingMemory(remember ?? null);
 
@@ -188,11 +210,22 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
     bodyRef.current?.scrollIntoView({ block: "nearest" });
   };
 
+  /**
+   * The caller's own question, checked beside the template's.
+   *
+   * Nothing may be booked against nobody: a request raised for no stakeholder
+   * would show up in nobody's list, which is worse than being asked.
+   */
+  const stakeholderProblem = (key: BookingStep): Record<string, string> =>
+    key === "basics" && stakeholders && stakeholders.length > 0 && !stakeholderId ? { [STAKEHOLDER_ERROR_KEY]: "Say who this request is for" } : {};
+
   const advance = () => {
-    const found = validateBookingStep(step.key, buildRequest(), template);
-    setErrors(found);
-    if (Object.keys(found).length) return;
-    keep();
+    if (!preview) {
+      const found = { ...validateBookingStep(step.key, buildRequest(), template, omit), ...stakeholderProblem(step.key) };
+      setErrors(found);
+      if (Object.keys(found).length) return;
+      keep();
+    }
     goTo(Math.min(index + 1, steps.length - 1));
   };
 
@@ -208,11 +241,17 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
    * right before the recap is reachable again.
    */
   const jumpTo = (target: number) => {
+    // Nothing is earned in a preview: every step is one click away.
+    if (preview) {
+      setErrors({});
+      goTo(target);
+      return;
+    }
     if (target > furthest) return;
     if (target > index) {
       const value = buildRequest();
       for (let at = index; at < target; at++) {
-        const found = validateBookingStep(steps[at]!.key, value, template);
+        const found = { ...validateBookingStep(steps[at]!.key, value, template, omit), ...stakeholderProblem(steps[at]!.key) };
         if (Object.keys(found).length) {
           setErrors(found);
           goTo(at);
@@ -230,7 +269,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
       return onSubmit(value);
     },
     onSuccess: (result, value) => {
-      memory.remember(value, result.reference, result.submittedAt);
+      if (!preview) memory.remember(value, result.reference, result.submittedAt);
       setRestored(false);
       setReceipt(result);
       onBooked?.(result);
@@ -241,8 +280,14 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
   /** Every step's rules, in step order, so a problem sends the reader to the step that owns it. */
   const confirm = () => {
     const value = buildRequest();
+    // A preview books nothing. The ticket is shown so the last step can be read
+    // like the rest, and `onSubmit` is the caller's stand-in for one.
+    if (preview) {
+      submit.mutate(value);
+      return;
+    }
     for (const [at, candidate] of steps.entries()) {
-      const found = validateBookingStep(candidate.key, value, template);
+      const found = { ...validateBookingStep(candidate.key, value, template, omit), ...stakeholderProblem(candidate.key) };
       if (Object.keys(found).length) {
         setErrors(found);
         goTo(at);
@@ -308,21 +353,26 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
     startBlank();
   }} />;
 
-  // The banner above step one answers the two questions about who is asking, so
-  // the questions themselves come off the form until it is overruled.
-  const omitted: BookingStandardKey[] = [...(omit ?? []), ...(knownRequester ? REQUESTER_KEYS : [])];
-  const stepProps = { form, template, request, patch, errors, omit: omitted };
+  const stepProps = { form, template, request, patch, errors, omit };
   const busy = submit.isPending;
   const last = index === steps.length - 1;
 
   return (
     <div className="flex min-h-0 flex-col gap-6" data-testid="booking-wizard">
-      <ProgressBar steps={steps} index={index} furthest={furthest} onJump={jumpTo} />
+      <ProgressBar steps={steps} index={index} furthest={preview ? steps.length - 1 : furthest} onJump={jumpTo} preview={preview} />
 
       <div ref={bodyRef} className="min-w-0">
         {index === 0 && (
           <StepBasics
             {...stepProps}
+            stakeholders={stakeholders}
+            stakeholderId={stakeholderId ?? null}
+            onStakeholder={onStakeholder}
+            stakeholderLabel={stakeholderLabel}
+            // Signed in and booking as themselves: their details are the
+            // account's, and there is nothing to correct. "Booking for someone
+            // else?" is what hands the boxes back.
+            lockedKeys={account && knownRequester ? REQUESTER_KEYS : undefined}
             identity={
               <Identity
                 account={account ?? null}
@@ -402,9 +452,11 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, onSubmit,
  * that at a glance. A step already passed is a button back to itself; one not
  * yet reached is not, because the answers it needs are not in yet.
  */
-function ProgressBar({ steps, index, furthest, onJump }: { steps: StepDef[]; index: number; furthest: number; onJump: (index: number) => void }) {
+function ProgressBar({ steps, index, furthest, onJump, preview }: { steps: StepDef[]; index: number; furthest: number; onJump: (index: number) => void; preview?: boolean }) {
   return (
-    <ol className="flex gap-1.5" data-testid="booking-progress" aria-label={`Step ${index + 1} of ${steps.length}: ${steps[index]?.label}`}>
+    // Pinned: on a long brief the bar is the only thing saying how much is
+    // left, and it was the first thing to leave the screen.
+    <ol className="sticky top-0 z-10 flex gap-1.5 pb-2 before:absolute before:inset-y-0 before:-inset-x-10 before:-z-10 before:bg-card" data-testid="booking-progress" aria-label={`Step ${index + 1} of ${steps.length}: ${steps[index]?.label}`}>
       {steps.map((step, i) => {
         const done = i < index;
         const here = i === index;
@@ -413,9 +465,9 @@ function ProgressBar({ steps, index, furthest, onJump }: { steps: StepDef[]; ind
             <button
               type="button"
               onClick={() => onJump(i)}
-              disabled={i > furthest}
+              disabled={!preview && i > furthest}
               aria-current={here ? "step" : undefined}
-              className={cn("group block w-full text-left focus-visible:outline-2 focus-visible:outline-ring", i > furthest ? "cursor-default" : "cursor-pointer")}
+              className={cn("group block w-full text-left focus-visible:outline-2 focus-visible:outline-ring", !preview && i > furthest ? "cursor-default" : "cursor-pointer")}
               data-testid={`booking-progress-${step.key}`}
             >
               <span className={cn("block h-1.5 rounded-full transition-colors", here ? "bg-primary" : done ? "bg-primary/45 group-hover:bg-primary/70" : "bg-border")} />
@@ -431,7 +483,17 @@ function ProgressBar({ steps, index, furthest, onJump }: { steps: StepDef[]; ind
   );
 }
 
-/** Who this is going in under, what this browser remembers, and the ways out of both. */
+/**
+ * Who this is going in under, what this browser remembers, and the ways out of
+ * both.
+ *
+ * The three questions about the requester stay on the form whether or not the
+ * app can answer them: filled in from an account, they are still the answers
+ * being sent, and a form that hid them left somebody booking on behalf of a
+ * colleague with nothing to change. So both ways are always open — sign in and
+ * have them filled, or type them yourself — and the line here says which is in
+ * force.
+ */
 function Identity({
   account,
   known,
@@ -511,11 +573,10 @@ function Identity({
       )}
 
       {asksRequester && knownRequester && known && (
-        <p className="flex flex-wrap items-center gap-x-2 text-[13px]" data-testid="booking-known-requester">
-          <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <p className="flex flex-wrap items-center gap-x-2 text-2xs text-muted-foreground" data-testid="booking-known-requester">
+          <UserRound className="size-3.5 shrink-0" aria-hidden />
           <span>
-            Booking as <strong className="font-semibold">{known.name}</strong> · {known.email}
-            {account && " · signed in"}
+            Filled in {account ? "from your account" : "from what this browser remembers"} — <strong className="font-semibold text-foreground">{known.name}</strong>.
           </span>
           <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onForget} data-testid="booking-not-you">
             {account ? "Booking for someone else?" : "Not you?"}
@@ -523,6 +584,9 @@ function Identity({
         </p>
       )}
 
+      {/* Signing in is offered to anybody who has not, whether or not they have
+          started typing; using the account is offered to anybody signed in who
+          has typed over it. Neither takes the questions off the form. */}
       {asksRequester && !knownRequester && (account || signInHref) && (
         <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-identity-offer">
           {account && onUseAccount ? (
@@ -530,7 +594,7 @@ function Identity({
               <UserRound className="size-3.5 shrink-0" aria-hidden />
               Signed in as {account.name}.
               <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onUseAccount} data-testid="booking-book-as-me">
-                Book under this account
+                Fill these in from my account
               </button>
             </>
           ) : signInHref ? (
@@ -540,7 +604,7 @@ function Identity({
               <a href={signInHref} className="font-medium text-foreground/80 underline-offset-4 hover:underline" data-testid="booking-sign-in">
                 Sign in
               </a>
-              and these two are filled in for you.
+              and these are filled in for you — or just type them.
             </>
           ) : null}
         </p>

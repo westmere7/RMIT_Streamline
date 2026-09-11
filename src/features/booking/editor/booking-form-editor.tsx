@@ -1,26 +1,27 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Boxes, ClipboardList, Columns2, Copy, FileCheck2, Info, ListPlus, LoaderCircle, Lock, MessageSquareQuote, Plus, RectangleHorizontal, Rocket, Save, Shapes, Trash2, Undo2 } from "lucide-react";
+import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Info, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { IconPicker } from "@/components/shared/icon-picker";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingHintMode, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
 import {
-  BOOKING_HINT_MODES,
-  BOOKING_HINT_MODE_LABELS,
   BOOKING_STANDARD_KEY_LABELS,
   defaultBookingFormTemplate,
-  isLockedStandardKey,
-  missingStandardKeys,
+  isRequesterKey,
   newServiceType,
   newStandardField,
   templateQuestionCount,
@@ -28,11 +29,12 @@ import {
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema } from "@/services/booking";
-import { StandardField, slug } from "../booking-fields";
+import { AssetList, AssetTypePicker, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
-import { Handle, TextBox } from "./editor-controls";
-import { optionsToText, parseOptions } from "./options";
+import { ChoiceChips } from "./choice-chips";
+import { PreviewDialog } from "./preview-dialog";
+import { DragHandle, EditorFrame, TextBox } from "./editor-controls";
 import { TemplatesMenu } from "./templates-menu";
 
 /**
@@ -89,6 +91,7 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
   const [tab, setTab] = React.useState<StepTab>("basics");
   const [editingService, setEditingService] = React.useState<string | null>(() => initial.services[0]?.id ?? null);
   const [confirmDrop, setConfirmDrop] = React.useState(false);
+  const [previewing, setPreviewing] = React.useState(false);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
 
   const check = bookingFormTemplateSchema.safeParse(draft);
@@ -144,6 +147,10 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
         <Button type="button" onClick={() => setConfirmPublish(true)} disabled={publishing || savingDraft || !check.success || matchesLive} title={problem ?? undefined} data-testid="booking-editor-publish">
           {publishing ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish the form
         </Button>
+        {/* The draft, run as the real thing. Nothing it does is sent or kept. */}
+        <Button type="button" variant="outline" onClick={() => setPreviewing(true)} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
+          <Eye /> Preview the form
+        </Button>
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || savingDraft || publishing} data-testid="booking-editor-revert">
             <Undo2 /> Undo changes
@@ -190,7 +197,9 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
     <div className="space-y-5" data-testid="booking-editor">
       {panelContainer ? createPortal(panel, panelContainer) : panel}
 
-      <div role="tablist" aria-label="The steps of the form" className="flex flex-wrap items-end gap-0.5 border-b border-border/60">
+      {/* Pinned, like the bar it stands for: a form long enough to scroll is
+          exactly when knowing which step is open matters. */}
+      <div role="tablist" aria-label="The steps of the form" className="sticky top-0 z-10 flex flex-wrap items-end gap-0.5 border-b border-border/60 pt-1 before:absolute before:inset-y-0 before:-inset-x-10 before:-z-10 before:bg-card">
         {STEP_TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -248,10 +257,6 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
             <Info className="mt-px size-3 shrink-0" aria-hidden />
             Only people who picked {service?.name || "this service"} in step one see these questions.
           </p>
-          <div className="space-y-1 rounded-xl border border-dashed border-border p-4">
-            <TextBox value={draft.brief.title} onChange={(v) => update((t) => (t.brief.title = v))} ariaLabel="Step two title" placeholder="What this step is called" className="text-[15px] font-semibold tracking-tight" testId="editor-step-brief-title" />
-            <TextBox value={draft.brief.hint ?? ""} onChange={(v) => update((t) => (t.brief.hint = v || null))} ariaLabel="Step two hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" />
-          </div>
           {service ? (
             <BriefBuilder service={service} onPatch={(patch) => update((t) => Object.assign(t.services.find((s) => s.id === service.id)!, patch))} />
           ) : (
@@ -260,9 +265,10 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
         </div>
       )}
 
-      {tab === "assets" && <AssetsPane draft={draft} update={update} />}
+      {tab === "assets" && <AssetsPane form={form} draft={draft} update={update} />}
       {tab === "review" && <ReviewPane draft={draft} update={update} />}
 
+      <PreviewDialog open={previewing} onOpenChange={setPreviewing} form={form} template={draft} />
       <ConfirmDialog
         open={confirmDrop}
         onOpenChange={setConfirmDrop}
@@ -293,316 +299,398 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
 
 function BasicsPane({ form, draft, update, onEditBrief }: { form: BookingFormData; draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void; onEditBrief: (serviceId: string) => void }) {
   const previewRequest = React.useMemo(() => emptyBookingRequest(), []);
-  const missing = missingStandardKeys(draft);
+  // The three about the requester are one block; everything else on this step
+  // is a question in its own right, orderable and removable like any other.
+  const requester = draft.basics.fields.filter((f) => isRequesterKey(f.key));
+  const rest = draft.basics.fields.filter((f) => !isRequesterKey(f.key));
+  const patchField = (id: string, patch: Partial<BookingStandardField>) => update((t) => Object.assign(t.basics.fields.find((f) => f.id === id)!, patch));
+  /** Which service's chips are on show, exactly as picking one in the form shows them. */
+  const [showing, setShowing] = React.useState<string | null>(() => draft.services[0]?.id ?? null);
+  const shown = draft.services.find((s) => s.id === showing) ?? draft.services[0] ?? null;
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const onServiceDrag = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    update((t) => {
+      const from = t.services.findIndex((x) => x.id === active.id);
+      const to = t.services.findIndex((x) => x.id === over.id);
+      if (from >= 0 && to >= 0) t.services = arrayMove(t.services, from, to);
+    });
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-1 rounded-xl border border-dashed border-border p-4">
-        <TextBox value={draft.basics.title} onChange={(v) => update((t) => (t.basics.title = v))} ariaLabel="Step one title" placeholder="What this step is called" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
-        <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" />
-      </div>
+    <div className="space-y-6">
+      <EditorFrame testId="editor-basics-heading">
+        <TextBox value={draft.basics.title ?? ""} onChange={(v) => update((t) => (t.basics.title = v || null))} ariaLabel="Step one title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
+        <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" quiet={!draft.basics.hint} className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
+      </EditorFrame>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {draft.basics.fields.map((field, i) => (
+      {/* Who is asking: one block, three boxes, nothing to explain and nothing
+          to turn off. Only its wording is anybody's to change. */}
+      {requester.length > 0 && (
+        <EditorFrame testId="editor-requester-block">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {requester.map((field) => (
+              <div key={field.id} className="min-w-0 grid gap-1.5">
+                <span className="flex items-center gap-1">
+                  <TextBox value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
+                  <span aria-hidden className="text-primary">
+                    *
+                  </span>
+                </span>
+                <div className="pointer-events-none" aria-hidden>
+                  <StandardField field={field} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 flex items-start gap-1.5 text-2xs text-muted-foreground opacity-0 transition-opacity group-hover/frame:opacity-100">
+            <Info className="mt-px size-3 shrink-0" aria-hidden />
+            Always asked and always required. Filled in from the account of anyone signed in, and still theirs to change.
+          </p>
+        </EditorFrame>
+      )}
+
+      {/* The rest of the step, as it lays them out: same six columns, same
+          widths. Not reorderable: there are a handful of them, they are the
+          same handful on every workspace's form, and the order they are asked
+          in is the order they make sense in. Their words are another matter. */}
+      <div className="grid gap-2 sm:grid-cols-6">
+        {rest.map((field) => (
           <StandardFieldEditor
             key={field.id}
             field={field}
             form={form}
             previewRequest={previewRequest}
-            first={i === 0}
-            last={i === draft.basics.fields.length - 1}
-            onPatch={(patch) => update((t) => Object.assign(t.basics.fields.find((f) => f.id === field.id)!, patch))}
-            onMove={(by) => update((t) => move(t.basics.fields, i, by))}
-            onRemove={() => update((t) => (t.basics.fields = t.basics.fields.filter((f) => f.id !== field.id)))}
+            onPatch={(patch) => patchField(field.id, patch)}
           />
         ))}
       </div>
-      {missing.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-2xs text-muted-foreground">Also ask for:</span>
-          {missing.map((key) => (
-            <Button key={key} type="button" variant="outline" size="sm" onClick={() => update((t) => t.basics.fields.push(newStandardField(key)))} data-testid={`editor-add-standard-${key}`}>
-              <Plus /> {BOOKING_STANDARD_KEY_LABELS[key]}
-            </Button>
-          ))}
-        </div>
-      )}
+      {/* Which of the optional questions this step asks. Switches rather than a
+          handle on each card: it is one decision about the step, and it should
+          be visible without hovering anything. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs text-muted-foreground">
+        <span>Also ask</span>
+        {OPTIONAL_KEYS.map((key) => {
+          const on = draft.basics.fields.some((f) => f.key === key);
+          return (
+            <label key={key} className="flex items-center gap-1.5">
+              <Switch
+                size="sm"
+                checked={on}
+                onCheckedChange={(next) =>
+                  update((t) => {
+                    if (next) t.basics.fields.push(newStandardField(key));
+                    else t.basics.fields = t.basics.fields.filter((f) => f.key !== key);
+                  })
+                }
+                data-testid={`editor-ask-${key}`}
+              />
+              {BOOKING_STANDARD_KEY_LABELS[key]}
+            </label>
+          );
+        })}
+      </div>
 
-      <div className="space-y-3 rounded-xl border border-dashed border-border p-4">
-        <div className="space-y-1">
+      <div className="space-y-3">
+        <EditorFrame testId="editor-service-question">
           <TextBox value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
-          <TextBox value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
-        </div>
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <Info className="mt-px size-3 shrink-0" aria-hidden />
-          Each service opens its own second step. Removing one does not touch the bookings already made under it.
-        </p>
-        <div className="space-y-3">
-          {draft.services.map((service, i) => (
-            <ServiceEditor
-              key={service.id}
-              service={service}
-              form={form}
-              first={i === 0}
-              last={i === draft.services.length - 1}
-              only={draft.services.length === 1}
-              onPatch={(patch) => update((t) => Object.assign(t.services.find((s) => s.id === service.id)!, patch))}
-              onMove={(by) => update((t) => move(t.services, i, by))}
-              onDuplicate={() =>
-                update((t) => {
-                  const copy = { ...clone(service), id: newServiceType(service.name).id, name: `${service.name} copy` };
-                  t.services.splice(i + 1, 0, copy);
-                })
-              }
-              onRemove={() => update((t) => (t.services = t.services.filter((s) => s.id !== service.id)))}
-              onEditBrief={() => onEditBrief(service.id)}
-            />
-          ))}
-        </div>
+          <TextBox value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" quiet={!draft.basics.serviceHint} className="text-2xs text-muted-foreground" testId="editor-service-hint" />
+        </EditorFrame>
+
+        {/* The chooser itself. Clicking a card shows its sub-services underneath,
+            which is what clicking one does in the form. */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onServiceDrag}>
+          <SortableContext items={draft.services.map((x) => x.id)} strategy={rectSortingStrategy}>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="editor-services">
+              {draft.services.map((service) => (
+                <ServiceEditor
+                  key={service.id}
+                  service={service}
+                  form={form}
+                  selected={service.id === shown?.id}
+                  only={draft.services.length === 1}
+                  onSelect={() => setShowing(service.id)}
+                  onPatch={(patch) => update((t) => Object.assign(t.services.find((x) => x.id === service.id)!, patch))}
+                  onDuplicate={() =>
+                    update((t) => {
+                      const at = t.services.findIndex((x) => x.id === service.id);
+                      t.services.splice(at + 1, 0, { ...clone(service), id: newServiceType(service.name).id, name: `${service.name} copy` });
+                    })
+                  }
+                  onRemove={() => update((t) => (t.services = t.services.filter((x) => x.id !== service.id)))}
+                  onEditBrief={() => onEditBrief(service.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
         <Button type="button" variant="outline" size="sm" onClick={() => update((t) => t.services.push(newServiceType("New service")))} data-testid="editor-add-service">
           <Plus /> Add a service
         </Button>
+
+        {/* Exactly where the form shows them: under the chooser, once one is picked. */}
+        {shown && (
+          <EditorFrame className="mt-1" testId={`editor-service-subs-frame-${slug(shown.name)}`}>
+            <div className="grid gap-1.5">
+              <TextBox value={shown.subServiceLabel} onChange={(v) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServiceLabel = v))} ariaLabel="Sub-service question" placeholder="What does it involve?" className="text-[13px] font-medium" testId={`editor-service-sublabel-${slug(shown.name)}`} />
+              <TextBox
+                value={shown.subServiceHint ?? ""}
+                onChange={(v) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServiceHint = v || null))}
+                ariaLabel="Sub-service hint"
+                placeholder="A line under it (optional)"
+                className="-mt-0.5 text-2xs text-muted-foreground"
+              />
+              <ChoiceChips
+                options={shown.subServices}
+                onChange={(subServices) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServices = subServices))}
+                addLabel="Add a sub-service"
+                testIdPrefix={`editor-service-subs-${slug(shown.name)}`}
+              />
+            </div>
+          </EditorFrame>
+        )}
       </div>
     </div>
   );
 }
 
-function StandardFieldEditor({
-  field,
-  form,
-  previewRequest,
-  first,
-  last,
-  onPatch,
-  onMove,
-  onRemove,
-}: {
-  field: BookingStandardField;
-  form: BookingFormData;
-  previewRequest: ReturnType<typeof emptyBookingRequest>;
-  first: boolean;
-  last: boolean;
-  onPatch: (patch: Partial<BookingStandardField>) => void;
-  onMove: (by: -1 | 1) => void;
-  onRemove: () => void;
-}) {
-  const locked = isLockedStandardKey(field.key);
+/**
+ * One of step one's fixed questions.
+ *
+ * Only its wording is anybody's business. There is no strip of handles over it
+ * and no description to place: the questions are the same handful on every
+ * workspace's form, their order is the order they make sense in, and which of
+ * the optional two are asked is a pair of switches under the grid rather than
+ * something hidden behind a hover.
+ */
+function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: BookingStandardField; form: BookingFormData; previewRequest: ReturnType<typeof emptyBookingRequest>; onPatch: (patch: Partial<BookingStandardField>) => void }) {
   return (
-    <div className={cn("space-y-2.5 rounded-lg border border-border/70 bg-surface/40 p-3", field.width === "full" && "sm:col-span-2")} data-testid={`editor-field-${field.id}`}>
-      <div className="flex items-center gap-2">
-        <TextBox value={field.label} onChange={(v) => onPatch({ label: v })} ariaLabel="Question label" placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Handle label={field.width === "full" ? "Make it half width" : "Make it full width"} onClick={() => onPatch({ width: field.width === "full" ? "half" : "full" })} testId={`editor-field-width-${field.id}`}>
-            {field.width === "full" ? <Columns2 /> : <RectangleHorizontal />}
-          </Handle>
-          <Handle label="Move up" onClick={() => onMove(-1)} disabled={first}>
-            <ArrowUp />
-          </Handle>
-          <Handle label="Move down" onClick={() => onMove(1)} disabled={last}>
-            <ArrowDown />
-          </Handle>
-          <Handle label={locked ? "The form cannot do without this question" : "Remove question"} onClick={onRemove} disabled={locked} testId={`editor-remove-field-${field.id}`}>
-            <Trash2 />
-          </Handle>
-        </div>
-      </div>
-
-      <div className="pointer-events-none opacity-70" aria-hidden>
+    <div className={cn("col-span-6 grid min-w-0 gap-1.5", SPAN[field.width])} data-testid={`editor-field-${field.id}`}>
+      <span className="flex items-center gap-1">
+        <TextBox value={field.label} onChange={(v) => onPatch({ label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
+        {field.required && (
+          <span aria-hidden className="text-primary">
+            *
+          </span>
+        )}
+      </span>
+      {/* The control itself, inert: it belongs to whoever fills the form in. */}
+      <div className="pointer-events-none" aria-hidden>
         <StandardField field={field} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
       </div>
-
-      {(field.key === "requesterName" || field.key === "requesterEmail") && (
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <Info className="mt-px size-3 shrink-0" aria-hidden />
-          Skipped for anyone signed in, or whose browser remembers them — the booking still carries their name.
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-2xs text-muted-foreground">
-        <Badge variant="muted" className="shrink-0" title={locked ? "The form cannot do without this question" : undefined}>
-          {locked && <Lock className="size-2.5" />}
-          {BOOKING_STANDARD_KEY_LABELS[field.key]}
-        </Badge>
-        <label className="flex items-center gap-1.5">
-          <Switch size="sm" checked={field.required} disabled={locked} onCheckedChange={(on) => onPatch({ required: on })} data-testid={`editor-field-required-${field.id}`} />
-          Required
-        </label>
-        <label className="flex items-center gap-1.5">
-          Shown
-          <Select value={field.hintMode} onValueChange={(v) => onPatch({ hintMode: v as BookingHintMode })} disabled={!field.description?.trim()}>
-            <SelectTrigger className="h-7 w-auto gap-1 px-2 text-2xs" aria-label="Where the description is shown" data-testid={`editor-field-hintmode-${field.id}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {BOOKING_HINT_MODES.map((mode) => (
-                <SelectItem key={mode} value={mode} disabled={mode === "placeholder" && !FIELD_HAS_PLACEHOLDER.includes(field.key)}>
-                  {BOOKING_HINT_MODE_LABELS[mode]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-      </div>
-      <TextBox
-        value={field.description ?? ""}
-        onChange={(v) => onPatch({ description: v || null })}
-        ariaLabel="Description"
-        placeholder="Explain it, give an example (optional)"
-        className="text-2xs text-muted-foreground"
-        testId={`editor-field-description-${field.id}`}
-      />
     </div>
   );
 }
 
-/** Standard questions with a box a placeholder could sit in. */
-const FIELD_HAS_PLACEHOLDER: BookingStandardKey[] = ["requesterName", "requesterEmail", "department", "title", "priority"];
+/** The two step one may or may not ask. Everything else on it is fixed. */
+const OPTIONAL_KEYS: BookingStandardKey[] = ["priority", "dueDate"];
 
 function ServiceEditor({
   service,
   form,
-  first,
-  last,
+  selected,
   only,
+  onSelect,
   onPatch,
-  onMove,
   onDuplicate,
   onRemove,
   onEditBrief,
 }: {
   service: BookingServiceType;
   form: BookingFormData;
-  first: boolean;
-  last: boolean;
+  selected: boolean;
   only: boolean;
+  onSelect: () => void;
   onPatch: (patch: Partial<BookingServiceType>) => void;
-  onMove: (by: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onEditBrief: () => void;
 }) {
-  const [subText, setSubText] = React.useState(() => optionsToText(service.subServices));
-  const colors = colorClasses(service.color);
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: service.id });
   const questions = service.blocks.filter((b) => b.kind !== "separator" && b.kind !== "text").length;
+
   return (
-    <div className="space-y-2.5 rounded-lg border border-border/70 bg-card p-3 shadow-xs" data-testid={`editor-service-${slug(service.name)}`}>
-      <div className="flex items-start gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <button type="button" aria-label={`Look of ${service.name}`} className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg transition-transform hover:scale-105", colors.soft)} data-testid={`editor-service-look-${slug(service.name)}`}>
-              <DynamicIcon name={service.icon} className={cn("size-4", colors.text)} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-72 space-y-3 p-3">
-            <ColorPicker value={service.color} onChange={(color) => onPatch({ color: color as ColorToken })} />
-            <div className="scrollbar-thin max-h-52 overflow-y-auto">
-              <IconPicker value={service.icon} onChange={(icon) => onPatch({ icon })} />
-            </div>
-          </PopoverContent>
-        </Popover>
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${slug(service.name)}`} />
-          <TextBox value={service.description ?? ""} onChange={(v) => onPatch({ description: v || null })} ariaLabel="Service description" placeholder="A line describing it (optional)" className="text-2xs text-muted-foreground" />
+    // The top band is empty on purpose: it is where the handles of the card
+    // being edited sit, so they never cover the name they belong to.
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("group/frame relative min-w-0 pt-6", isDragging && "z-10 opacity-90")}>
+      <DragHandle label={`Reorder ${service.name}`} testId={`editor-service-drag-${slug(service.name)}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} />
+      {selected && (
+        <div className="absolute top-0 right-1 z-[2] flex items-center gap-1 rounded-lg border border-border bg-card px-1.5 py-0.5 shadow-xs">
+          <ServiceChrome service={service} form={form} only={only} onPatch={onPatch} onDuplicate={onDuplicate} onRemove={onRemove} />
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Handle label="Move up" onClick={() => onMove(-1)} disabled={first}>
-            <ArrowUp />
-          </Handle>
-          <Handle label="Move down" onClick={() => onMove(1)} disabled={last}>
-            <ArrowDown />
-          </Handle>
-          <Handle label="Duplicate this service" onClick={onDuplicate} testId={`editor-service-copy-${slug(service.name)}`}>
-            <Copy />
-          </Handle>
-          <Handle label={only ? "The form needs at least one service" : "Remove this service"} onClick={onRemove} disabled={only} testId={`editor-service-remove-${slug(service.name)}`}>
-            <Trash2 />
-          </Handle>
-        </div>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="grid gap-1 text-2xs text-muted-foreground">
-          Sub-services (chips, multi-select)
+      )}
+      <ServiceCardShell
+        color={service.color}
+        icon={service.icon}
+        selected={selected}
+        onSelect={onSelect}
+        testId={`editor-service-${slug(service.name)}`}
+        name={<TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${slug(service.name)}`} />}
+        description={
           <TextBox
-            value={subText}
-            onChange={(v) => {
-              setSubText(v);
-              onPatch({ subServices: parseOptions(v, service.subServices) });
-            }}
-            ariaLabel={`Sub-services of ${service.name}`}
-            placeholder="Approval, Print, Digital / Social"
-            className="text-2xs text-foreground"
-            testId={`editor-service-subs-${slug(service.name)}`}
+            value={service.description ?? ""}
+            onChange={(v) => onPatch({ description: v || null })}
+            ariaLabel="Service description"
+            placeholder="A line describing it (optional)"
+            className="text-2xs leading-relaxed text-muted-foreground"
           />
-        </label>
-        <label className="grid gap-1 text-2xs text-muted-foreground">
-          Bookings go to
-          <Select value={service.teamId ?? ALLOCATION_TEAM} onValueChange={(v) => onPatch({ teamId: v === ALLOCATION_TEAM ? null : v })}>
-            <SelectTrigger className="h-8 text-2xs" aria-label={`Which team takes ${service.name}`} data-testid={`editor-service-team-${slug(service.name)}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALLOCATION_TEAM}>Task Allocation (a manager places them)</SelectItem>
-              {form.teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  <span className="flex items-center gap-2">
-                    <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} />
-                    {team.name}
-                    {team.boardName && <span className="text-muted-foreground">· {team.boardName}</span>}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onEditBrief} data-testid={`editor-service-brief-${slug(service.name)}`}>
-          <Shapes /> {questions === 0 ? "Build its questions" : questions === 1 ? "Edit its 1 question" : `Edit its ${questions} questions`}
-        </Button>
-      </div>
+        }
+      />
+      <button
+        type="button"
+        onClick={onEditBrief}
+        className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        data-testid={`editor-service-brief-${slug(service.name)}`}
+      >
+        <Shapes className="size-3" /> {questions === 0 ? "Build its questions" : questions === 1 ? "1 question in step two" : `${questions} questions in step two`}
+      </button>
     </div>
+  );
+}
+
+/** The handles for the service being edited: its look, its routing, and its fate. */
+function ServiceChrome({
+  service,
+  form,
+  only,
+  onPatch,
+  onDuplicate,
+  onRemove,
+}: {
+  service: BookingServiceType;
+  form: BookingFormData;
+  only: boolean;
+  onPatch: (patch: Partial<BookingServiceType>) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Look of ${service.name}`} className="text-muted-foreground" data-testid={`editor-service-look-${slug(service.name)}`}>
+            <Palette />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 space-y-3 p-3">
+          <ColorPicker value={service.color} onChange={(color) => onPatch({ color: color as ColorToken })} />
+          <div className="scrollbar-thin max-h-52 overflow-y-auto">
+            <IconPicker value={service.icon} onChange={(icon) => onPatch({ icon })} />
+          </div>
+        </PopoverContent>
+      </Popover>
+      <Select value={service.teamId ?? ALLOCATION_TEAM} onValueChange={(v) => onPatch({ teamId: v === ALLOCATION_TEAM ? null : v })}>
+        <SelectTrigger className="h-6 w-auto gap-1 px-1.5 text-2xs" aria-label={`Which team takes ${service.name}`} data-testid={`editor-service-team-${slug(service.name)}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALLOCATION_TEAM}>Task Allocation</SelectItem>
+          {form.teams.map((team) => (
+            <SelectItem key={team.id} value={team.id}>
+              <span className="flex items-center gap-2">
+                <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} />
+                {team.name}
+                {team.boardName && <span className="text-muted-foreground">· {team.boardName}</span>}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="button" variant="ghost" size="icon-xs" aria-label="Duplicate this service" title="Duplicate this service" onClick={onDuplicate} className="text-muted-foreground" data-testid={`editor-service-copy-${slug(service.name)}`}>
+        <Copy />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label={only ? "The form needs at least one service" : "Remove this service"}
+        title={only ? "The form needs at least one service" : "Remove this service"}
+        onClick={onRemove}
+        disabled={only}
+        className="text-muted-foreground hover:text-destructive"
+        data-testid={`editor-service-remove-${slug(service.name)}`}
+      >
+        <Trash2 />
+      </Button>
+    </>
   );
 }
 
 // ---- steps three and four ---------------------------------------------------
 
-function AssetsPane({ draft, update }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
+function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
+  const step = draft.assets;
   return (
     <div className="space-y-4">
       <label className="flex items-center gap-2 text-[13px]">
-        <Switch size="sm" checked={draft.assets.enabled} onCheckedChange={(on) => update((t) => (t.assets.enabled = on))} data-testid="editor-assets-toggle" />
-        <Boxes className={cn("size-3.5 shrink-0 text-muted-foreground", !draft.assets.enabled && "opacity-50")} aria-hidden />
-        {draft.assets.enabled ? "This step is shown" : "This step is skipped altogether"}
+        <Switch size="sm" checked={step.enabled} onCheckedChange={(on) => update((t) => (t.assets.enabled = on))} data-testid="editor-assets-toggle" />
+        <Boxes className={cn("size-3.5 shrink-0 text-muted-foreground", !step.enabled && "opacity-50")} aria-hidden />
+        {step.enabled ? "This step is shown" : "This step is skipped altogether"}
       </label>
 
-      <div className={cn("space-y-3 rounded-xl border border-dashed border-border p-4", !draft.assets.enabled && "pointer-events-none opacity-50")}>
-        <TextBox value={draft.assets.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Deliverables title" placeholder="What this step is called" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
-        <TextBox value={draft.assets.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Deliverables hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline />
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <Info className="mt-px size-3 shrink-0" aria-hidden />
-          Nothing on this step is ever required — a stakeholder can always skip it.
-        </p>
-
-        <label className="flex items-center gap-2 text-[13px]">
-          <Switch size="sm" checked={draft.assets.askAssetTypes} onCheckedChange={(on) => update((t) => (t.assets.askAssetTypes = on))} data-testid="editor-assets-types-toggle" />
-          Ask what kinds of asset these are
-        </label>
-        {draft.assets.askAssetTypes && (
-          <TextBox value={draft.assets.assetTypesLabel} onChange={(v) => update((t) => (t.assets.assetTypesLabel = v))} ariaLabel="Asset types label" placeholder="Asset type" className="text-[13px] font-medium" testId="editor-assets-types-label" />
-        )}
-
-        <label className="flex items-center gap-2 text-[13px]">
-          <Switch size="sm" checked={draft.assets.askLink} onCheckedChange={(on) => update((t) => (t.assets.askLink = on))} data-testid="editor-assets-link-toggle" />
-          Offer a link instead of a list
-        </label>
-        {draft.assets.askLink && (
-          <div className="space-y-1">
-            <TextBox value={draft.assets.linkLabel} onChange={(v) => update((t) => (t.assets.linkLabel = v))} ariaLabel="Link label" placeholder="Already have the list somewhere?" className="text-[13px] font-medium" testId="editor-assets-link-label" />
-            <TextBox value={draft.assets.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+      <div className={cn("space-y-5", !step.enabled && "pointer-events-none opacity-50")}>
+        {/* The step as it is met: heading, the way out of it, the rows, the two
+            questions beside them. */}
+        <EditorFrame testId="editor-assets-heading">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <Boxes className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Deliverables title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
+              </span>
+              <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Deliverables hint" placeholder="Explain what to list here (optional)" className="max-w-prose text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+              <SkipForward className="size-3.5" aria-hidden /> Skip this step
+            </span>
           </div>
-        )}
+          <p className="mt-2 flex items-start gap-1.5 text-2xs text-muted-foreground">
+            <Info className="mt-px size-3 shrink-0" aria-hidden />
+            Nothing here is ever required — the way out is always offered.
+          </p>
+        </EditorFrame>
+
+        <div className="pointer-events-none px-3" aria-hidden>
+          <AssetList rows={[]} onChange={() => {}} preview />
+        </div>
+
+        <EditorFrame
+          testId="editor-assets-types"
+          chrome={
+            <label className="flex items-center gap-1 text-2xs text-muted-foreground">
+              <Switch size="sm" checked={step.askAssetTypes} onCheckedChange={(on) => update((t) => (t.assets.askAssetTypes = on))} data-testid="editor-assets-types-toggle" />
+              Asked
+            </label>
+          }
+          className={cn(!step.askAssetTypes && "opacity-40")}
+        >
+          <TextBox value={step.assetTypesLabel} onChange={(v) => update((t) => (t.assets.assetTypesLabel = v))} ariaLabel="Asset types label" placeholder="Asset type" className="text-[13px] font-medium" testId="editor-assets-types-label" />
+          <div className="pointer-events-none mt-1.5" aria-hidden>
+            <AssetTypePicker options={form.assetTypes} value={[]} onChange={() => {}} disabled />
+          </div>
+        </EditorFrame>
+
+        <EditorFrame
+          testId="editor-assets-link"
+          chrome={
+            <label className="flex items-center gap-1 text-2xs text-muted-foreground">
+              <Switch size="sm" checked={step.askLink} onCheckedChange={(on) => update((t) => (t.assets.askLink = on))} data-testid="editor-assets-link-toggle" />
+              Offered
+            </label>
+          }
+          className={cn(!step.askLink && "opacity-40")}
+        >
+          <div className="rounded-xl border border-border/60 bg-surface/50 p-3.5">
+            <span className="flex items-center gap-1.5">
+              <Link2 className="size-3.5 text-muted-foreground" aria-hidden />
+              <TextBox value={step.linkLabel} onChange={(v) => update((t) => (t.assets.linkLabel = v))} ariaLabel="Link label" placeholder="Already have the list somewhere?" className="text-[13px] font-medium" testId="editor-assets-link-label" />
+            </span>
+            <TextBox value={step.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+            <Input readOnly placeholder="https://" className="pointer-events-none mt-2 text-muted-foreground/60" tabIndex={-1} aria-hidden />
+          </div>
+        </EditorFrame>
       </div>
     </div>
   );
@@ -611,45 +699,47 @@ function AssetsPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
 function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
   return (
     <div className="space-y-4">
-      <div className="space-y-1 rounded-xl border border-dashed border-border p-4">
-        <TextBox value={draft.review.title} onChange={(v) => update((t) => (t.review.title = v))} ariaLabel="Recap title" placeholder="What this step is called" className="text-[15px] font-semibold tracking-tight" testId="editor-review-title" />
-        <TextBox value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" />
+      <EditorFrame testId="editor-review-heading">
+        <TextBox value={draft.review.title ?? ""} onChange={(v) => update((t) => (t.review.title = v || null))} ariaLabel="Recap title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-review-title" />
+        <TextBox value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-review-hint" />
+      </EditorFrame>
+
+      {/* What the recap looks like. The cards are the step's own, filled with a
+          booking that could have been made, so the heading above is read in
+          the place it will be read. */}
+      <div className="pointer-events-none space-y-3 px-3 opacity-70" aria-hidden>
+        {["The request", "The brief", "Deliverables"].map((title) => (
+          <section key={title} className="rounded-xl border border-border/60 bg-surface/40 p-4">
+            <div className="mb-2.5 flex items-center gap-2">
+              <h3 className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{title}</h3>
+              <span className="text-2xs text-muted-foreground">Change</span>
+            </div>
+            <p className="text-[13px] text-muted-foreground">What they answered, laid out to be read over.</p>
+          </section>
+        ))}
       </div>
 
-      <div className="space-y-2 rounded-xl border border-dashed border-border p-4">
-        <p className="flex items-center gap-1.5 text-[13px] font-medium">
-          <MessageSquareQuote className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> The reply on the ticket
-        </p>
-        <p className="text-2xs text-muted-foreground">Shown with the reference once a booking is in. Say what happens next and how long it usually takes.</p>
-        <TextBox
-          value={draft.review.autoReply}
-          onChange={(v) => update((t) => (t.review.autoReply = v))}
-          ariaLabel="Automatic reply"
-          placeholder="Thanks — we have your request…"
-          className="text-[13px]"
-          multiline
-          rows={4}
-          testId="editor-auto-reply"
-        />
-      </div>
+      {/* The bar at the foot of the wizard, as they meet it. */}
+      <EditorFrame testId="editor-review-bar">
+        <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <TextBox value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
+          <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:min-w-44" testId="editor-submit-label" />
+        </div>
+      </EditorFrame>
 
-      {/* The bar as a stakeholder meets it. Only the two words are yours to set;
-          the rest is here so the row is not a surprise. */}
-      <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <TextBox value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
-        <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:min-w-44" testId="editor-submit-label" />
-      </div>
+      {/* And the ticket, which is the last thing anybody sees. */}
+      <EditorFrame testId="editor-review-reply">
+        <p className="mb-1.5 text-2xs tracking-wide text-muted-foreground uppercase">On the ticket</p>
+        <div className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-card p-4 text-[13px]">
+          <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="min-w-0 flex-1 text-[13px]" multiline rows={3} testId="editor-auto-reply" />
+        </div>
+        <p className="mt-1.5 text-2xs text-muted-foreground">Shown with the reference once a booking is in. Say what happens next and how long it usually takes.</p>
+      </EditorFrame>
     </div>
   );
 }
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function move<T>(list: T[], index: number, by: -1 | 1): void {
-  const target = index + by;
-  if (index < 0 || target < 0 || target >= list.length) return;
-  const [item] = list.splice(index, 1);
-  list.splice(target, 0, item!);
 }

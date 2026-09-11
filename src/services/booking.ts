@@ -19,6 +19,7 @@ import type {
 } from "@/domain";
 import {
   BOOKING_BLOCK_KINDS,
+  BOOKING_FIELD_WIDTHS,
   BOOKING_HINT_MODES,
   BOOKING_LOCKED_KEYS,
   BOOKING_STANDARD_KEYS,
@@ -31,6 +32,7 @@ import {
   isAnswerEmpty,
   isEmptyValue,
   isQuestionBlock,
+  isRequesterKey,
   numberedQuestions,
   serviceById,
 } from "@/domain";
@@ -150,7 +152,7 @@ const standardFieldSchema = z.object({
   description: z.string().trim().max(400).nullable().default(null),
   hintMode: z.enum(BOOKING_HINT_MODES).default("below"),
   required: z.boolean().default(false),
-  width: z.enum(["full", "half"]).default("full"),
+  width: z.enum(BOOKING_FIELD_WIDTHS).default("full"),
 });
 
 const serviceSchema = z.object({
@@ -162,7 +164,7 @@ const serviceSchema = z.object({
   subServices: z.array(tagOptionSchema).max(40).default([]),
   subServiceLabel: z.string().trim().min(1).max(160),
   subServiceHint: z.string().trim().max(400).nullable().default(null),
-  briefTitle: z.string().trim().min(1).max(160),
+  briefTitle: z.string().trim().max(160).nullable().default(null),
   briefHint: z.string().trim().max(400).nullable().default(null),
   blocks: z.array(blockSchema).max(60),
   teamId: z.uuid().nullable().default(null),
@@ -180,14 +182,13 @@ export const bookingFormTemplateSchema = z
   .object({
     version: z.literal(2),
     basics: z.object({
-      title: z.string().trim().min(1, "Step one needs a title").max(160),
+      title: z.string().trim().max(160).nullable().default(null),
       hint: z.string().trim().max(400).nullable().default(null),
       fields: z.array(standardFieldSchema).max(20),
       serviceLabel: z.string().trim().min(1).max(160),
       serviceHint: z.string().trim().max(400).nullable().default(null),
     }),
     services: z.array(serviceSchema).min(1, "The form needs at least one type of service").max(20),
-    brief: z.object({ title: z.string().trim().min(1).max(160), hint: z.string().trim().max(400).nullable().default(null) }),
     assets: z.object({
       enabled: z.boolean(),
       title: z.string().trim().min(1).max(160),
@@ -199,7 +200,7 @@ export const bookingFormTemplateSchema = z
       linkHint: z.string().trim().max(400).nullable().default(null),
     }),
     review: z.object({
-      title: z.string().trim().min(1).max(160),
+      title: z.string().trim().max(160).nullable().default(null),
       hint: z.string().trim().max(400).nullable().default(null),
       submitLabel: z.string().trim().min(1).max(60),
       submitNote: z.string().trim().max(200),
@@ -226,12 +227,20 @@ export const bookingFormTemplateSchema = z
     }
   });
 
-const LOCKED_KEY_NAMES: Record<string, string> = { requesterName: "requester's name", requesterEmail: "requester's email", title: "task name" };
+const LOCKED_KEY_NAMES: Record<string, string> = { requesterName: "requester's name", requesterEmail: "requester's email", department: "requester's school or department", title: "task name" };
 
 /** The form ready to store: parsed, with the questions that cannot be skipped marked required whatever the editor said. */
 export function normaliseBookingTemplate(input: unknown): BookingFormTemplate {
   const template = bookingFormTemplateSchema.parse(input) as BookingFormTemplate;
-  for (const field of template.basics.fields) if (BOOKING_LOCKED_KEYS.includes(field.key)) field.required = true;
+  for (const field of template.basics.fields) {
+    if (BOOKING_LOCKED_KEYS.includes(field.key)) field.required = true;
+    // The three about the requester are one block: nothing to explain, and a
+    // third of a row each, whatever an older form or a hand-edited one says.
+    if (isRequesterKey(field.key)) {
+      field.description = null;
+      field.width = "third";
+    }
+  }
   return template;
 }
 
@@ -322,7 +331,7 @@ export function migrateLegacyTemplate(input: unknown): BookingFormTemplate | nul
   });
 
   // One service, carrying every question the old form asked of everybody.
-  next.services = [{ ...next.services[0]!, id: "svc-general", name: "General", description: "Everything the form used to ask, carried over from the previous version.", color: "blue", icon: "Shapes", subServices: [], blocks, briefTitle: legacy.sections[1]?.title || "Tell us about it", briefHint: legacy.sections[1]?.hint ?? null }];
+  next.services = [{ ...next.services[0]!, id: "svc-general", name: "General", description: "Everything the form used to ask, carried over from the previous version.", color: "blue", icon: "Shapes", subServices: [], blocks, briefTitle: legacy.sections[1]?.title || null, briefHint: legacy.sections[1]?.hint ?? null }];
   if (legacy.assets) {
     next.assets.enabled = legacy.assets.enabled ?? next.assets.enabled;
     if (legacy.assets.title) next.assets.title = legacy.assets.title;
@@ -389,6 +398,15 @@ export function isStandardAnswerEmpty(request: BookingRequest, key: BookingStand
 export const SERVICE_ERROR_KEY = "service";
 
 /**
+ * And the stakeholder chooser's, which the template does not know about at all:
+ * whether it is asked is the portal's business, not the workspace's.
+ */
+export const STAKEHOLDER_ERROR_KEY = "stakeholder";
+
+/** And the sub-service chips', which belong to the service rather than to the form. */
+export const SUBSERVICE_ERROR_KEY = "subServices";
+
+/**
  * What is still wrong with one step, keyed by the thing that is wrong.
  *
  * Per step rather than all at once, because the wizard will not let anybody
@@ -396,14 +414,20 @@ export const SERVICE_ERROR_KEY = "service";
  * is. The keys are field ids and block ids, so each message lands under the
  * question it belongs to.
  */
-export function validateBookingStep(step: BookingStep, request: BookingRequest, template: BookingFormTemplate): Record<string, string> {
+export function validateBookingStep(step: BookingStep, request: BookingRequest, template: BookingFormTemplate, omit: readonly BookingStandardKey[] = []): Record<string, string> {
   const errors: Record<string, string> = {};
   const service = serviceById(template, request.serviceTypeId);
   if (step === "basics") {
     for (const field of template.basics.fields) {
+      // A question the caller does not ask cannot be required of anybody: the
+      // portal takes the department from the link, so there is no box to fill.
+      if (omit.includes(field.key)) continue;
       if (field.required && isStandardAnswerEmpty(request, field.key)) errors[field.id] = `${field.label} is required`;
     }
     if (!service) errors[SERVICE_ERROR_KEY] = "Pick the kind of work this is";
+    // A service that offers sub-services is asking a question, and "none of
+    // them" is not one of the answers it offers.
+    else if (service.subServices.length > 0 && request.subServices.length === 0) errors[SUBSERVICE_ERROR_KEY] = `${service.subServiceLabel} — pick at least one`;
     return errors;
   }
   if (step === "brief") {

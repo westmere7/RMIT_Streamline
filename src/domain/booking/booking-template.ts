@@ -201,8 +201,15 @@ export interface BookingServiceType {
   subServices: TagOption[];
   subServiceLabel: string;
   subServiceHint: string | null;
-  /** The heading of this service's brief, and the blocks it is built from. */
-  briefTitle: string;
+  /**
+   * The heading over this service's brief, and the blocks it is built from.
+   *
+   * Nullable because a heading is the team's own words, not a fixture: a brief
+   * that opens straight on its first question is a legitimate thing to want,
+   * and anything more elaborate is a text block, which can be moved and removed
+   * like the rest.
+   */
+  briefTitle: string | null;
   briefHint: string | null;
   blocks: BookingBlock[];
   /** The team whose board takes these bookings, or null for the allocation queue. */
@@ -214,15 +221,46 @@ export interface BookingServiceType {
 export const BOOKING_STANDARD_KEYS = ["requesterName", "requesterEmail", "department", "title", "dueDate", "priority"] as const;
 export type BookingStandardKey = (typeof BOOKING_STANDARD_KEYS)[number];
 
+/**
+ * Who is asking: three questions that are really one.
+ *
+ * A name, an address to reply to and the part of the university it is coming
+ * from are a single fact about a single person, so they are one block on one
+ * line — always asked, always required, and with nothing to explain. A hint
+ * under "Your name" is noise, and a form that let one of the three be dropped
+ * would produce requests nobody could answer.
+ */
+export const BOOKING_REQUESTER_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail", "department"];
+
+export function isRequesterKey(key: BookingStandardKey): boolean {
+  return BOOKING_REQUESTER_KEYS.includes(key);
+}
+
 /** Questions step one cannot lose: without them there is no requester to answer and no task to name. */
-export const BOOKING_LOCKED_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail", "title"];
+export const BOOKING_LOCKED_KEYS: readonly BookingStandardKey[] = [...BOOKING_REQUESTER_KEYS, "title"];
 
 export function isLockedStandardKey(key: BookingStandardKey): boolean {
   return BOOKING_LOCKED_KEYS.includes(key);
 }
 
-/** How wide a question sits in step one's two-column layout. */
-export type BookingFieldWidth = "full" | "half";
+/**
+ * How wide a question sits in step one.
+ *
+ * The row is six columns, so a question takes all of it, half of it, or a
+ * third. Thirds exist for the three that belong together — who is asking, how
+ * to reach them, and where they are from — which read as one question about one
+ * person and should sit on one line.
+ */
+export const BOOKING_FIELD_WIDTHS = ["full", "half", "third"] as const;
+export type BookingFieldWidth = (typeof BOOKING_FIELD_WIDTHS)[number];
+
+/** Columns of the six-column row this width spans. */
+export const BOOKING_WIDTH_SPAN: Record<BookingFieldWidth, number> = { full: 6, half: 3, third: 2 };
+
+/** The next width the editor's toggle offers: all of it, half, a third, round again. */
+export function nextFieldWidth(width: BookingFieldWidth): BookingFieldWidth {
+  return width === "full" ? "half" : width === "half" ? "third" : "full";
+}
 
 /** One of the fixed questions of a `BookingRequest`, worded the workspace's way. */
 export interface BookingStandardField {
@@ -251,17 +289,13 @@ export const BOOKING_STEPS = ["basics", "brief", "assets", "review"] as const;
 export type BookingStep = (typeof BOOKING_STEPS)[number];
 
 export interface BookingBasicsStep {
-  title: string;
+  /** Null when the step should open straight on its questions. */
+  title: string | null;
   hint: string | null;
   fields: BookingStandardField[];
   /** Wording of the service chooser, which is not a field because nothing about it is optional. */
   serviceLabel: string;
   serviceHint: string | null;
-}
-
-export interface BookingBriefStep {
-  title: string;
-  hint: string | null;
 }
 
 /**
@@ -285,7 +319,8 @@ export interface BookingAssetsStep {
 }
 
 export interface BookingReviewStep {
-  title: string;
+  /** Null when the recap should open straight on the summary. */
+  title: string | null;
   hint: string | null;
   submitLabel: string;
   /** The small print beside the submit button. */
@@ -304,7 +339,6 @@ export interface BookingFormTemplate {
   version: 2;
   basics: BookingBasicsStep;
   services: BookingServiceType[];
-  brief: BookingBriefStep;
   assets: BookingAssetsStep;
   review: BookingReviewStep;
 }
@@ -490,18 +524,18 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
       title: "About you and your request",
       hint: "So we know who to come back to, and which of our teams picks this up.",
       fields: [
-        std("requesterName", "Your name", { width: "half" }),
-        std("requesterEmail", "Email", { description: "you@rmit.edu.au", hintMode: "placeholder", width: "half" }),
-        std("department", "School, department or portfolio", { description: "e.g. School of Design", hintMode: "placeholder" }),
+        // The three that are all one question about one person, on one line.
+        std("requesterName", "Your name", { width: "third" }),
+        std("requesterEmail", "Email", { width: "third" }),
+        std("department", "School or department", { width: "third" }),
         std("title", "What should we call this?", { description: "e.g. Open Day 2026 wayfinding posters", hintMode: "placeholder" }),
-        std("priority", "How urgent?", { width: "half" }),
-        std("dueDate", "Needed by", { width: "half" }),
+        std("priority", "How urgent?", { required: true, width: "half" }),
+        std("dueDate", "Needed by", { required: true, width: "half" }),
       ],
       serviceLabel: "What kind of work is this?",
       serviceHint: "This decides what we ask you next.",
     },
     services: defaultServices(),
-    brief: { title: "Tell us about it", hint: null },
     assets: {
       enabled: true,
       title: "What are the deliverables?",

@@ -50,10 +50,19 @@ const renderWizard = (props: Partial<React.ComponentProps<typeof BookingWizard>>
 
 /** Fill in step one to the point where it will let somebody through. */
 async function fillBasics(user: ReturnType<typeof userEvent.setup>, service = "design") {
+  // The three about the requester are one block, and all three are required.
   await user.type(screen.getByTestId("booking-name"), "Priya Nair");
   await user.type(screen.getByTestId("booking-email"), "priya.nair@rmit.edu.au");
+  await user.type(screen.getByTestId("booking-department"), "School of Design");
   await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
+  // Both of the "when" questions are required now.
+  await user.click(screen.getByTestId("booking-priority"));
+  await user.click(await screen.findByTestId("booking-priority-high"));
+  fireEvent.change(screen.getByTestId("booking-due"), { target: { value: "2026-12-01" } });
   await user.click(screen.getByTestId(`booking-service-${service}`));
+  // A service that offers sub-services wants at least one of them.
+  const sub = document.querySelector('[data-testid^="booking-sub-"]');
+  if (sub) await user.click(sub);
 }
 
 /**
@@ -97,6 +106,8 @@ describe("the booking wizard", () => {
     // Back a step, a different service, and the second step is a different form.
     await user.click(screen.getByTestId("booking-back"));
     await user.click(screen.getByTestId("booking-service-brand"));
+    // Brand offers its own sub-services, and wants one of them.
+    await user.click(screen.getByTestId("booking-sub-approval"));
     await user.click(screen.getByTestId("booking-next"));
     expect(await screen.findByTestId("booking-answer-brand-audience")).toBeInTheDocument();
     expect(screen.queryByTestId("booking-answer-prod-where")).not.toBeInTheDocument();
@@ -232,7 +243,7 @@ describe("the booking wizard", () => {
 
     const review = await screen.findByTestId("booking-step-review");
     expect(within(review).getByText("Open Day wayfinding posters")).toBeInTheDocument();
-    expect(within(review).getByText("Design — Print")).toBeInTheDocument();
+    expect(within(review).getByText(/^Design — /)).toHaveTextContent("Print");
     expect(within(review).getByText("Six A1 posters for Brunswick.")).toBeInTheDocument();
 
     // Every card on the recap goes back to the step it came from.
@@ -245,10 +256,10 @@ describe("the booking wizard", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const sent = (onSubmit.mock.calls as unknown as BookingRequest[][])[0]![0]!;
     expect(sent.serviceTypeId).toBe("svc-design");
-    expect(sent.subServices).toEqual(["Print"]);
+    expect(sent.subServices).toEqual(["Digital / Social", "Print"]);
     expect(sent.answers["design-copy"]).toEqual({ kind: "choice", values: ["Yes, final and approved"] });
     expect(sent.brief).toContain("Service: Design");
-    expect(sent.brief).toContain("Involves: Print");
+    expect(sent.brief).toContain("Involves: Digital / Social, Print");
     expect(sent.brief).toContain("1. What are you asking for?");
     expect(sent.brief).toContain("Six A1 posters for Brunswick.");
   });
@@ -274,19 +285,62 @@ describe("the booking wizard", () => {
     expect(screen.getByTestId("booking-auto-reply")).toHaveTextContent("Thanks — a producer reads every booking.");
   });
 
-  it("answers the two questions about the requester for a signed-in member, and hands them back on request", async () => {
+  it("fills the requester in from the account without taking the questions off the form", async () => {
     const { user } = renderWizard({ account: { name: "Danh Nguyen", email: "danh@rmit.edu.au" } });
+    // Filled in, and still there to be changed: somebody booking for a
+    // colleague needs the boxes, not a banner telling them whose name it is.
+    expect(screen.getByTestId("booking-name")).toHaveValue("Danh Nguyen");
+    expect(screen.getByTestId("booking-email")).toHaveValue("danh@rmit.edu.au");
     expect(screen.getByTestId("booking-known-requester")).toHaveTextContent("Danh Nguyen");
-    expect(screen.queryByTestId("booking-name")).not.toBeInTheDocument();
+
     await user.click(screen.getByTestId("booking-not-you"));
     expect(screen.getByTestId("booking-name")).toHaveValue("");
-    expect(screen.getByTestId("booking-book-as-me")).toBeInTheDocument();
+    // And the way back to the account is offered as soon as it is not in use.
+    await user.click(screen.getByTestId("booking-book-as-me"));
+    expect(screen.getByTestId("booking-name")).toHaveValue("Danh Nguyen");
   });
 
-  it("does not ask a question the caller has already answered for itself", () => {
-    renderWizard({ omit: ["department"], defaults: { department: "Comm." } });
+  it("offers signing in to anybody who has not, without insisting on it", () => {
+    renderWizard({ signInHref: "/login?next=%2Fbook" });
+    expect(screen.getByTestId("booking-sign-in")).toHaveAttribute("href", "/login?next=%2Fbook");
+    // The questions are on the form either way.
+    expect(screen.getByTestId("booking-name")).toBeInTheDocument();
+    expect(screen.getByTestId("booking-department")).toBeInTheDocument();
+  });
+
+  it("does not ask — or insist on — a question the caller has already answered for itself", async () => {
+    const { user } = renderWizard({ omit: ["department"], defaults: { department: "Comm." } });
     expect(screen.queryByTestId("booking-department")).not.toBeInTheDocument();
     expect(screen.getByTestId("booking-title")).toBeInTheDocument();
+    // Required, but not of anybody who is never shown the box.
+    await user.type(screen.getByTestId("booking-name"), "Priya Nair");
+    await user.type(screen.getByTestId("booking-email"), "priya.nair@rmit.edu.au");
+    await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
+    await user.click(screen.getByTestId("booking-priority"));
+    await user.click(await screen.findByTestId("booking-priority-high"));
+    fireEvent.change(screen.getByTestId("booking-due"), { target: { value: "2026-12-01" } });
+    await user.click(screen.getByTestId("booking-service-design"));
+    await user.click(screen.getByTestId("booking-sub-print"));
+    await user.click(screen.getByTestId("booking-next"));
+    expect(await screen.findByTestId("booking-step-brief")).toBeInTheDocument();
+  });
+
+  it("asks who the request is for when the caller serves several, and will not move on without it", async () => {
+    const stakeholders = [
+      { id: "d1", name: "Comm.", color: "blue" as const },
+      { id: "d2", name: "Events", color: "orange" as const },
+    ];
+    let chosen: string | null = null;
+    const { user } = renderWizard({ omit: ["department"], stakeholders, stakeholderId: null, onStakeholder: (id) => (chosen = id) });
+    await user.type(screen.getByTestId("booking-name"), "Priya Nair");
+    await user.type(screen.getByTestId("booking-email"), "priya.nair@rmit.edu.au");
+    await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
+    await user.click(screen.getByTestId("booking-service-design"));
+    await user.click(screen.getByTestId("booking-next"));
+    expect(screen.getByText("Say who this request is for")).toBeInTheDocument();
+    expect(screen.getByTestId("booking-step-basics")).toBeInTheDocument();
+    // It is a question of step one, not a gate in front of the form.
+    expect(screen.getByTestId("booking-stakeholder")).toBeInTheDocument();
   });
 
   it("drops the deliverables step altogether when the form turns it off", () => {

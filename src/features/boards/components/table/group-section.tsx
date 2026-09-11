@@ -115,7 +115,8 @@ export function GroupSection({
     >
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={!canEdit}>
-          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 pr-4" style={{ minWidth: leadingWidth(showReference) }}>
+          {/* Opaque: this is pinned to the left, so the row scrolls underneath it. */}
+          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 bg-background pr-4" style={{ minWidth: leadingWidth(showReference) }}>
             <div className="flex w-9 items-center justify-center">
               <button
                 type="button"
@@ -239,7 +240,7 @@ export function GroupSection({
             <GroupRows group={group} items={items} dndEnabled={dndEnabled} widthOverrides={widthOverrides} dropIndex={dropIndex} dragging={draggingItem} />
           </SortableContext>
           {items.length === 0 && !canEdit && dropIndex === null && (
-            <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showReference) }}>
+            <div className="sticky left-0 flex h-10 items-center bg-background px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showReference) }}>
               This group is empty.
             </div>
           )}

@@ -212,8 +212,16 @@ describe("what a step will not let a stakeholder past", () => {
     expect(validateBookingStep("basics", request(), template)).toEqual({});
     expect(validateBookingStep("basics", request({ requesterName: "  " }), template)).toEqual({ "std-requesterName": "Your name is required" });
     expect(validateBookingStep("basics", request({ serviceTypeId: null }), template)).toEqual({ service: "Pick the kind of work this is" });
-    // The two the built-in form leaves optional stay optional.
-    expect(validateBookingStep("basics", request({ dueDate: null, priority: null }), template)).toEqual({});
+    // The three about the requester, the task name and both "when" questions
+    // are all required; nothing on step one is optional.
+    expect(validateBookingStep("basics", request({ dueDate: null, priority: null }), template)).toEqual({
+      "std-dueDate": "Needed by is required",
+      "std-priority": "How urgent? is required",
+    });
+    // A service offering sub-services wants one of them.
+    expect(validateBookingStep("basics", request({ subServices: [] }), template)).toEqual({ subServices: "What does it involve? — pick at least one" });
+    // A question the caller never shows cannot be required of anybody.
+    expect(validateBookingStep("basics", request({ department: null }), template, ["department"])).toEqual({});
   });
 
   it("insists on the required questions of the service that was picked, and on answers of the right shape", () => {
@@ -497,6 +505,10 @@ describe("shaping the booking form", () => {
     noEmail.basics.fields = noEmail.basics.fields.filter((f) => f.key !== "requesterEmail");
     await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noEmail)).rejects.toThrow(/requester's email/);
 
+    const noDepartment = defaultBookingFormTemplate();
+    noDepartment.basics.fields = noDepartment.basics.fields.filter((f) => f.key !== "department");
+    await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noDepartment)).rejects.toThrow(/school or department/);
+
     const noServices = defaultBookingFormTemplate();
     noServices.services = [];
     await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noServices)).rejects.toThrow(/at least one type of service/);
@@ -549,12 +561,14 @@ describe("shaping the booking form", () => {
         ],
       },
     ];
-    template.basics.fields = template.basics.fields.filter((f) => f.key !== "department");
+    template.basics.fields = template.basics.fields.filter((f) => f.key !== "dueDate");
     await services.booking.publishForm(SEED_WORKSPACE_ID, template);
 
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
     expect(form.template.services.map((s) => s.name)).toEqual(["Web"]);
-    expect(standardFieldFor(form.template, "department")).toBeNull();
+    expect(standardFieldFor(form.template, "dueDate")).toBeNull();
+    // The three about the requester cannot be dropped, whatever is saved.
+    expect(standardFieldFor(form.template, "department")).not.toBeNull();
 
     const key = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
     const bare = request({ serviceTypeId: "svc-web", subServices: ["Landing page"], answers: {} });

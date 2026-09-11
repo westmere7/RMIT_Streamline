@@ -17,9 +17,18 @@ const TASK_ALLOCATION_URL = "/workspace/rmit/boards/task-allocation";
 async function openBookPage(page: Page) {
   await page.getByTestId("sidebar-book-task").click();
   await expect(page).toHaveURL(/\/workspace\/rmit\/book$/);
+  await openEditorTab(page);
+  // A manager lands in the editor, because shaping the form is what the tab is
+  // for them; the form itself is one click away.
+  const done = page.getByTestId("booking-editor-close");
+  if (await done.isVisible().catch(() => false)) await done.click();
+  await expect(page.getByTestId("booking-wizard")).toBeVisible();
+}
+
+/** The Booking Form tab, which opens the editor for anyone who may shape it. */
+async function openEditorTab(page: Page) {
   const bookTab = page.getByTestId("portal-tab-book");
   if (await bookTab.isVisible().catch(() => false)) await bookTab.click();
-  await expect(page.getByTestId("booking-wizard")).toBeVisible();
 }
 
 test.describe("task booking", () => {
@@ -239,11 +248,9 @@ test.describe("task booking", () => {
 
     // Published, and now everybody has it.
     await page.goto("/workspace/rmit/book");
-    const bookTab = page.getByTestId("portal-tab-book");
-    await expect(bookTab).toBeVisible({ timeout: 15_000 });
-    await bookTab.click();
-    await expect(page.getByTestId("booking-edit")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("booking-edit").click();
+    await expect(page.getByTestId("portal-tab-book")).toBeVisible({ timeout: 15_000 });
+    await openEditorTab(page);
+    await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("booking-editor-publish").click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });

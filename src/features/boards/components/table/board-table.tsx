@@ -282,7 +282,7 @@ export const BoardTable = React.memo(function BoardTable() {
             )}
 
             {canEdit && (
-              <div className="sticky left-0 w-fit px-4 pt-2">
+              <div className="sticky left-0 w-fit bg-background px-4 pt-2">
                 <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="add-group">
                   <Plus /> Add new group
                 </Button>

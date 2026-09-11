@@ -25,6 +25,8 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 interface DialogContentProps extends React.ComponentProps<typeof DialogPrimitive.Content> {
   size?: "sm" | "md" | "lg" | "xl";
   hideClose?: boolean;
+  /** Extra classes for the sheet behind the dialog, for one that wants a ground of its own. */
+  overlayClassName?: string;
 }
 
 const sizeClasses: Record<NonNullable<DialogContentProps["size"]>, string> = {
@@ -34,10 +36,10 @@ const sizeClasses: Record<NonNullable<DialogContentProps["size"]>, string> = {
   xl: "max-w-4xl",
 };
 
-function DialogContent({ className, children, size = "md", hideClose, ...props }: DialogContentProps) {
+function DialogContent({ className, children, size = "md", hideClose, overlayClassName, ...props }: DialogContentProps) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border border-border/70 bg-popover p-6 shadow-2xl duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

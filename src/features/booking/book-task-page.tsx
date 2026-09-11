@@ -137,7 +137,7 @@ export function BookTaskPage() {
             {(
               [
                 ["portals", "Portal"],
-                ["book", "Book a task"],
+                ["book", "Booking Form"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -145,7 +145,13 @@ export function BookTaskPage() {
                 type="button"
                 role="tab"
                 aria-selected={tab === id}
-                onClick={() => setTab(id)}
+                // A manager opening the form tab has come to shape the form:
+                // that is what the tab is for them, and the editor's own Done
+                // hands them the form itself when they want to use it.
+                onClick={() => {
+                  setTab(id);
+                  if (id === "book" && manager) setEditing(true);
+                }}
                 className={cn(
                   "relative -mb-px inline-flex h-10 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12",
                   tab === id ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
