@@ -29,6 +29,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useArchiveCount } from "@/features/boards/archive/use-archive";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
 import { MobileBoardHeader, MobileBoardToolsRow } from "@/features/boards/components/mobile/mobile-board-screen";
 import { MobileKanbanView } from "@/features/boards/components/mobile/mobile-kanban-view";
@@ -93,6 +94,14 @@ function BoardScreen({ boardId }: { boardId: string }) {
   // choice, and the board's view settings follow the person to another device.
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${boardId}`, "cards");
   const setShowReference = React.useCallback((showReference: boolean) => updateTableSettings({ showReference }), [updateTableSettings]);
+  // The archive, offered under the views as well as in the board's menu, with
+  // how much is in it. One count for the board being looked at, not one per
+  // board in the sidebar.
+  const archivedCount = useArchiveCount(boardId);
+  const archiveEntry = React.useMemo(
+    () => ({ href: routes.boardArchive(ws.slug, board.slug), count: archivedCount.data ?? null }),
+    [ws.slug, board.slug, archivedCount.data],
+  );
   useBoardRealtime(boardId);
 
   // Remember recently visited boards for the home page.
@@ -242,7 +251,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
       )}
       {!contextValue && (
         <div className={boardBarClasses}>
-          <BoardViewSwitcher view={view} onChange={setView} />
+          <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} />
         </div>
       )}
       {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
@@ -258,7 +267,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
       )}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
-          <BoardToolbar view={view} onViewChange={setView} />
+          <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               {view === "table" && <BoardTable />}

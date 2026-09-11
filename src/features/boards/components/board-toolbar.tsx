@@ -21,7 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { columnLabels, type BoardViewKind } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
+import { boardBarClasses, BoardViewSwitcher, type ArchiveEntry } from "@/features/boards/components/board-view-switcher";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ export function BoardToolbar({
   view,
   onViewChange,
   searchAlways = false,
+  archive,
   leading,
   actions,
 }: {
@@ -52,6 +53,8 @@ export function BoardToolbar({
    * is the first thing anyone does, whichever view they are looking at.
    */
   searchAlways?: boolean;
+  /** The board's archive, for the people who have one. Never on a public link or a portal. */
+  archive?: ArchiveEntry | null;
   /**
    * Rendered at the *start* of the row, before the view switcher: the one
    * thing a visitor came to do, where the eye lands first. The portal puts
@@ -77,7 +80,7 @@ export function BoardToolbar({
     <div className={boardBarClasses} role="toolbar" aria-label="Board tools">
       {leading}
       {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
-      <BoardViewSwitcher view={view} onChange={onViewChange} />
+      <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}
       {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
