@@ -93,18 +93,27 @@ export class WorkspaceListService {
     return this.lists(workspaceId);
   }
 
-  /** Moves every row carrying `from` onto `to` (or clears it when `to` is null). */
+  /**
+   * Moves every row carrying `from` onto `to` (or clears it when `to` is null).
+   *
+   * In one write, not one per row. Renaming "Contents" touches 393 cells in
+   * this workspace, and a loop of single writes made that 393 round trips to
+   * the database — the better part of a minute with a spinner on it, for an
+   * edit that adding a group did instantly. The bulk write already existed on
+   * the repository; this asked for it a row at a time.
+   */
   private async rewrite(workspaceId: EntityId, listKey: WorkspaceListKey, from: string, to: string | null): Promise<void> {
     if (listKey === "STAKEHOLDER_GROUPS") {
       // The cells store the word, so a rename has to carry them along or every
       // task ends up labelled with a group the list no longer offers.
-      for (const cell of await this.stakeholderCells(workspaceId, from)) {
-        await this.repos.items.setValue(cell.itemId, cell.columnId, { type: "STAKEHOLDER", group: to });
-      }
+      const cells = await this.stakeholderCells(workspaceId, from);
+      if (cells.length > 0) await this.repos.items.setValues(cells.map((cell) => ({ itemId: cell.itemId, columnId: cell.columnId, value: { type: "STAKEHOLDER", group: to } })));
       return;
     }
     const assets = await this.assetsWithType(workspaceId, from);
-    for (const asset of assets) await this.repos.itemAssets.update(asset.id, { assetType: to });
+    // No bulk patch for deliverables, so they go together rather than in a
+    // queue: the round trips overlap instead of adding up.
+    await Promise.all(assets.map((asset) => this.repos.itemAssets.update(asset.id, { assetType: to })));
   }
 
   /**
@@ -117,17 +126,18 @@ export class WorkspaceListService {
    */
   private async stakeholderCells(workspaceId: EntityId, name: string) {
     const boards = await this.repos.boards.listByWorkspace(workspaceId);
+    // Every board's columns at once, then the values of the stakeholder
+    // columns among them — two rounds of requests rather than two per board,
+    // and it reads the one kind of column it is about instead of every value
+    // in the workspace.
+    const columns = (await Promise.all(boards.map((board) => this.repos.boards.listColumns(board.id)))).flat();
+    const stakeholder = columns.filter((column) => column.type === "STAKEHOLDER").map((column) => column.id);
+    if (stakeholder.length === 0) return [];
     const wanted = name.trim().toLowerCase();
     const found: Array<{ itemId: EntityId; columnId: EntityId }> = [];
-    for (const board of boards) {
-      const columns = await this.repos.boards.listColumns(board.id);
-      const stakeholder = columns.filter((column) => column.type === "STAKEHOLDER");
-      if (stakeholder.length === 0) continue;
-      const ids = new Set(stakeholder.map((column) => column.id));
-      for (const value of await this.repos.items.listValuesByBoard(board.id)) {
-        if (!ids.has(value.columnId) || value.value.type !== "STAKEHOLDER") continue;
-        if ((value.value.group ?? "").trim().toLowerCase() === wanted) found.push({ itemId: value.itemId, columnId: value.columnId });
-      }
+    for (const value of await this.repos.items.listValuesByColumns(stakeholder)) {
+      if (value.value.type !== "STAKEHOLDER") continue;
+      if ((value.value.group ?? "").trim().toLowerCase() === wanted) found.push({ itemId: value.itemId, columnId: value.columnId });
     }
     return found;
   }
