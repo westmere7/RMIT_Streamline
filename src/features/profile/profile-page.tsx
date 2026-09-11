@@ -17,6 +17,7 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useProfile } from "@/features/profile/hooks";
+import { StakeholderLoad } from "@/features/profile/stakeholder-load";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -167,6 +168,13 @@ export function ProfilePage({ userId }: { userId: string }) {
             )}
           </Panel>
 
+          {/* Who the work is for, not which group this person belongs to: the
+              split comes off the tasks' own stakeholder cells, which is the
+              same thing the dashboard's resourcing filter counts. */}
+          <Panel icon={Building2} title="Work by stakeholder group">
+            <StakeholderLoad userId={userId} />
+          </Panel>
+
           <Panel icon={ListChecks} title="Assigned tasks" count={tasks.length}>
             {tasks.length === 0 ? (
               <Muted>Nothing assigned right now.</Muted>
@@ -273,7 +281,8 @@ function Panel({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  count: number;
+  /** Left off where the panel's own contents are the count. */
+  count?: number;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -282,7 +291,7 @@ function Panel({
       <h3 className="mb-2 flex items-center gap-2 text-[13px] font-medium">
         <Icon className="size-4 text-muted-foreground" />
         {title}
-        <span className="text-2xs text-muted-foreground">{count}</span>
+        {count !== undefined && <span className="text-2xs text-muted-foreground">{count}</span>}
       </h3>
       {children}
     </section>

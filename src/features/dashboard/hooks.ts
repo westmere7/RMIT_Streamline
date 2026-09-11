@@ -12,21 +12,29 @@ import type { DashboardShareSettings } from "@/services";
 
 /** A safety net under realtime: even a silent channel refreshes the figures this often. */
 const SNAPSHOT_REFRESH_MS = 15_000;
+/** How long a page that only borrows a panel off the snapshot keeps it. */
+const BORROWED_STALE_MS = 60_000;
 /** One write often produces several row events; refetch once for the burst — long enough to catch a burst, short enough that the page follows the work. */
 const COALESCE_MS = 200;
 
-/** Everything the dashboard is drawn from, for the boards the reader can see. */
-export function useDashboardSnapshot(workspaceId: string, boards: Board[]) {
+/**
+ * Everything the dashboard is drawn from, for the boards the reader can see.
+ *
+ * `live` is what the dashboard itself wants: nothing trusted for any length of
+ * time, because the figures are a live read of the boards and every
+ * invalidation realtime sends is meant to be acted on. A page that borrows one
+ * panel off this snapshot — a profile's stakeholder split — passes `false`, so
+ * one panel does not put a whole workspace read on a fifteen-second loop.
+ */
+export function useDashboardSnapshot(workspaceId: string, boards: Board[], { live = true }: { live?: boolean } = {}) {
   const services = useServices();
   return useQuery({
     queryKey: queryKeys.dashboard(workspaceId),
     queryFn: () => services.dashboard.loadSnapshot(workspaceId, boards),
-    // Nothing is trusted for any length of time: the figures are a live read of
-    // the boards, and every invalidation realtime sends is meant to be acted on.
-    staleTime: 0,
-    refetchInterval: SNAPSHOT_REFRESH_MS,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    staleTime: live ? 0 : BORROWED_STALE_MS,
+    refetchInterval: live ? SNAPSHOT_REFRESH_MS : false,
+    refetchIntervalInBackground: live,
+    refetchOnWindowFocus: live,
   });
 }
 

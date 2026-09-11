@@ -25,7 +25,7 @@ const user = (id: string, displayName: string) => ({
   updatedAt: TODAY,
 });
 
-const task = (id: string, owners: string[], dueDate: string | null, status: TaskFact["status"] = "progress"): TaskFact =>
+const task = (id: string, owners: string[], dueDate: string | null, status: TaskFact["status"] = "progress", department: TaskFact["department"] = null): TaskFact =>
   ({
     id,
     name: id,
@@ -41,7 +41,7 @@ const task = (id: string, owners: string[], dueDate: string | null, status: Task
     assetUnits: 2,
     isIntake: false,
     request: null,
-    department: null,
+    department,
     linkedTo: null,
   }) as unknown as TaskFact;
 
@@ -69,10 +69,27 @@ const inProvider = (node: React.ReactElement) => render(<RadixTooltip.Provider>{
 
 const props = {
   facts,
-  prefs: { weeks: 4, teamIds: null, unit: "tasks" },
+  prefs: { weeks: 4, teamIds: null, unit: "tasks", stakeholderGroup: null },
   set: vi.fn(),
   today: TODAY,
 } as unknown as DashboardViewProps;
+
+const COMM = { id: "d-comm", name: "Comm.", inferred: false };
+const EVENTS = { id: "d-events", name: "Events", inferred: false };
+
+/** The same two people, with their work spread over two stakeholder groups. */
+const grouped: DashboardFacts = {
+  ...facts,
+  tasks: [
+    task("comm-late", ["u-danh"], "2026-08-01", "progress", COMM),
+    task("comm-soon", ["u-danh"], "2026-09-14", "progress", COMM),
+    task("events-one", ["u-danh"], "2026-09-16", "progress", EVENTS),
+    task("comm-emily", ["u-emily"], "2026-09-20", "progress", COMM),
+  ],
+};
+
+const groupedProps = (stakeholderGroup: string | null = null) =>
+  ({ ...props, facts: grouped, prefs: { ...(props.prefs as object), stakeholderGroup } }) as unknown as DashboardViewProps;
 
 /**
  * Who is carrying what.
@@ -129,6 +146,57 @@ describe("the workload section", () => {
   it("says these are association counts, because a task with two owners is counted twice", () => {
     inProvider(<WorkloadSection {...props} />);
     expect(screen.getByText(/association counts/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * How much a person is doing for one stakeholder group.
+ *
+ * The question a manager arrives with is "how much of Danh's week is for
+ * Communications", and the answer has to be the same number the unfiltered
+ * panel is made of — so the filter narrows what is already counted rather than
+ * counting again.
+ */
+describe("the stakeholder group filter", () => {
+  it("offers every group with work in the window, and how much each has", async () => {
+    inProvider(<WorkloadSection {...groupedProps()} />);
+    await userEvent.click(screen.getByTestId("dashboard-stakeholder-filter"));
+    expect(screen.getByTestId("dashboard-stakeholder-comm.")).toHaveTextContent("Comm.");
+    expect(screen.getByTestId("dashboard-stakeholder-comm.")).toHaveTextContent("3");
+    expect(screen.getByTestId("dashboard-stakeholder-events")).toHaveTextContent("Events");
+  });
+
+  it("remembers the choice as a preference rather than as component state", async () => {
+    const set = vi.fn();
+    inProvider(<WorkloadSection {...groupedProps()} set={set} />);
+    await userEvent.click(screen.getByTestId("dashboard-stakeholder-filter"));
+    await userEvent.click(screen.getByTestId("dashboard-stakeholder-comm."));
+    expect(set).toHaveBeenCalledWith({ stakeholderGroup: "comm." });
+  });
+
+  it("counts only that group's work once one is chosen", () => {
+    const { container } = inProvider(<WorkloadSection {...groupedProps("events")} />);
+    const rows = [...container.querySelectorAll('[data-testid="dashboard-workload-row"]')].map((r) => r.textContent ?? "");
+    // Emily has nothing for Events, so she is not a row of noughts.
+    expect(rows.some((t) => t.includes("Danh"))).toBe(true);
+    expect(rows.some((t) => t.includes("Emily"))).toBe(false);
+    expect(screen.getByText(/Work for Events/)).toBeInTheDocument();
+  });
+
+  it("says which group is showing, and offers the way back", () => {
+    inProvider(<WorkloadSection {...groupedProps("comm.")} />);
+    expect(screen.getByText("Show every stakeholder group")).toBeInTheDocument();
+  });
+
+  it("gives the whole grid when no group is chosen, so one click is not needed per group", async () => {
+    inProvider(<WorkloadSection {...groupedProps()} />);
+    await userEvent.click(screen.getByText("Per person, per stakeholder group"));
+    const table = screen.getByText("Per person, per stakeholder group").closest("details")!.querySelector("table")!;
+    expect(table.textContent).toContain("Comm.");
+    expect(table.textContent).toContain("Events");
+    const danh = [...table.querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("Danh"))!;
+    // Two for Communications, one for Events, three in all.
+    expect([...danh.querySelectorAll("td")].map((c) => c.textContent)).toEqual(["2", "1", "3"]);
   });
 });
 

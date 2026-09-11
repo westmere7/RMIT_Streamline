@@ -10,9 +10,12 @@ import {
   dimensionComparison,
   monthlyComparison,
   operations,
+  NO_DEPARTMENT_KEY,
   reportingDate,
   resolvePeriod,
   UNKNOWN_DEPARTMENT,
+  workloadDepartments,
+  workloadForDepartment,
   upcoming,
   volumeReport,
   type ReportingPeriod,
@@ -372,6 +375,92 @@ describe("assigned workload", () => {
       4,
     );
     expect(rows.find((r) => r.name === "Jane")).toMatchObject({ overdue: 1, scheduled: 1, inProgress: 1, undated: 1, tasks: 4 });
+  });
+});
+
+/**
+ * How much of a person's load is for which stakeholder group.
+ *
+ * The figures a manager asks the awkward question with — "how much is Jane
+ * actually doing for Communications" — so what matters is that the split is the
+ * person's own row broken up and not a second, separate count: the group cells
+ * add up to the row, and narrowing to one group gives back exactly that cell.
+ */
+describe("workload by stakeholder group", () => {
+  const people = [person("u1", "Jane"), person("u2", "Minh")];
+  const comm = { id: "d-comm", name: "Comm.", inferred: false };
+  const events = { id: "d-events", name: "Events", inferred: false };
+
+  const window = () =>
+    assignedWorkload(
+      facts(
+        [
+          task({ owners: ["u1"], dueDate: "2026-09-12", department: comm }),
+          task({ owners: ["u1"], dueDate: "2026-09-01", department: comm }),
+          task({ owners: ["u1"], dueDate: "2026-09-13", department: events }),
+          task({ owners: ["u2"], dueDate: "2026-09-14", department: comm }),
+          task({ owners: ["u1"], dueDate: "2026-09-15", department: null }),
+        ],
+        [],
+        people,
+      ),
+      TODAY,
+      null,
+      4,
+    );
+
+  it("splits a person's row by the group each task is for, and the parts add up to the whole", () => {
+    const jane = window().find((r) => r.name === "Jane")!;
+    expect(jane.tasks).toBe(4);
+    expect(jane.byDepartment.reduce((sum, cell) => sum + cell.tasks, 0)).toBe(jane.tasks);
+    expect(jane.byDepartment.find((c) => c.key === "comm.")).toMatchObject({ name: "Comm.", tasks: 2, overdue: 1, scheduled: 1 });
+  });
+
+  it("counts a group under one key whether the task named it or the requester's profile implied it", () => {
+    // The registry resolves a STAKEHOLDER cell and hands back an id; a
+    // department inferred from who asked never has one. Keyed by id they were
+    // two "Comm." rows, and this panel disagreed with By department beside it.
+    const rows = assignedWorkload(
+      facts(
+        [
+          task({ owners: ["u1"], dueDate: "2026-09-12", department: comm }),
+          task({ owners: ["u1"], dueDate: "2026-09-13", department: { id: null, name: "Comm.", inferred: true } }),
+        ],
+        [],
+        people,
+      ),
+      TODAY,
+      null,
+      4,
+    );
+    expect(rows.find((r) => r.name === "Jane")!.byDepartment).toHaveLength(1);
+    expect(rows.find((r) => r.name === "Jane")!.byDepartment[0]).toMatchObject({ name: "Comm.", tasks: 2 });
+  });
+
+  it("keeps work with no stakeholder group as its own cell rather than dropping it", () => {
+    const jane = window().find((r) => r.name === "Jane")!;
+    expect(jane.byDepartment.find((c) => c.key === NO_DEPARTMENT_KEY)).toMatchObject({ name: UNKNOWN_DEPARTMENT, tasks: 1 });
+  });
+
+  it("offers only the groups the window actually holds work for, busiest first", () => {
+    const options = workloadDepartments(window());
+    expect(options.map((o) => o.name)).toEqual(["Comm.", "Events", UNKNOWN_DEPARTMENT]);
+    // Three tasks for Communications, across two of the people.
+    expect(options[0]).toMatchObject({ tasks: 3, people: 2 });
+  });
+
+  it("narrows every row to one group, and gives back exactly that group's cell", () => {
+    const rows = workloadForDepartment(window(), "comm.");
+    expect(rows.map((r) => r.name)).toEqual(["Jane", "Minh"]);
+    expect(rows.find((r) => r.name === "Jane")).toMatchObject({ tasks: 2, overdue: 1, scheduled: 1, inProgress: 0, undated: 0 });
+    // Somebody with nothing for this group is not a row of noughts.
+    expect(rows.some((r) => r.tasks === 0)).toBe(false);
+  });
+
+  it("drops nobody's work from a group filter when nobody's work is for that group", () => {
+    const rows = workloadForDepartment(window(), "events");
+    expect(rows.map((r) => r.name)).toEqual(["Jane"]);
+    expect(rows[0]!.byDepartment).toHaveLength(1);
   });
 });
 

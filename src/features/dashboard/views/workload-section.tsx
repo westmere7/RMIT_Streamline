@@ -1,12 +1,14 @@
 "use client";
 
-import { CalendarOff, Clock, Ruler, Search, Timer } from "lucide-react";
+import { Building2, CalendarOff, Check, ChevronDown, Clock, Ruler, Search, Timer } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { User } from "@/domain";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
-import { assignedWorkload } from "@/features/dashboard/metrics";
+import { assignedWorkload, workloadDepartments, workloadForDepartment, type DepartmentLoadOption, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Numbers, Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
@@ -39,7 +41,12 @@ const BANDS = [
  */
 export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps) {
   const [query, setQuery] = React.useState("");
-  const rows = React.useMemo(() => assignedWorkload(facts, today, prefs.teamIds, prefs.weeks), [facts, today, prefs.teamIds, prefs.weeks]);
+  const all = React.useMemo(() => assignedWorkload(facts, today, prefs.teamIds, prefs.weeks), [facts, today, prefs.teamIds, prefs.weeks]);
+  const groups = React.useMemo(() => workloadDepartments(all), [all]);
+  // A group that has dropped out of the window — the weeks changed, the work
+  // was finished — reads as "every group" rather than as an empty panel.
+  const group = groups.find((g) => g.key === prefs.stakeholderGroup) ?? null;
+  const rows = React.useMemo(() => (group ? workloadForDepartment(all, group.key) : all), [all, group]);
   const filtered = query.trim() ? rows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : rows;
   const totals = rows.reduce((acc, r) => ({ tasks: acc.tasks + r.tasks, units: acc.units + r.assetUnits }), { tasks: 0, units: 0 });
   const unowned = rows.find((r) => r.userId === null);
@@ -49,10 +56,15 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
   return (
     <Panel
       title="Who is carrying what"
-      subtitle={`Open work due in the next ${prefs.weeks} weeks, plus everything overdue or undated`}
+      subtitle={
+        group
+          ? `Work for ${group.name} · due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
+          : `Open work due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
+      }
       className="p-4"
       action={
         <div className="flex flex-wrap items-center gap-2">
+          <StakeholderFilter groups={groups} selected={group?.key ?? null} onChange={(stakeholderGroup) => set({ stakeholderGroup })} />
           <div role="radiogroup" aria-label="How far ahead" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
             {WINDOWS.map((weeks) => (
               <button
@@ -140,7 +152,11 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
             </div>
           );
         })}
-        {filtered.length === 0 && <p className="py-4 text-center text-muted-foreground">Nobody matches “{query}”.</p>}
+        {filtered.length === 0 && (
+          <p className="py-4 text-center text-muted-foreground">
+            {query.trim() ? <>Nobody matches “{query}”.</> : <>Nobody is carrying work for {group?.name ?? "this group"} in this window.</>}
+          </p>
+        )}
       </div>
 
       <Numbers label="Per-person figures">
@@ -182,6 +198,8 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
         </div>
       </Numbers>
 
+      {!group && groups.length > 1 && <DepartmentMatrix rows={filtered} groups={groups} />}
+
       <div className="mt-3 space-y-1.5 border-t border-border/50 pt-2.5 text-2xs leading-relaxed text-muted-foreground">
         <p>
           These are <strong className="font-medium text-foreground/80">association counts</strong>: a task with two owners is counted under both, so the bars add up to{" "}
@@ -192,8 +210,118 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
             <strong className="font-medium text-foreground/80">{formatCount(unowned.tasks)}</strong> tasks in this window have no owner at all.
           </p>
         )}
+        {group && (
+          <p>
+            Showing {group.name} only.{" "}
+            <button type="button" onClick={() => set({ stakeholderGroup: null })} className="font-medium text-foreground/80 underline-offset-4 hover:underline">
+              Show every stakeholder group
+            </button>
+          </p>
+        )}
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Which stakeholder group the per-person figures are about.
+ *
+ * One group at a time, not a multi-select: the question it answers is "how much
+ * is this person doing for Communications", and a set of four groups answers a
+ * different one that the matrix below already covers. Only groups with work in
+ * the window are offered, so the filter can never empty the panel by itself.
+ */
+function StakeholderFilter({ groups, selected, onChange }: { groups: DepartmentLoadOption[]; selected: string | null; onChange: (key: string | null) => void }) {
+  const current = groups.find((g) => g.key === selected);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant={current ? "secondary" : "outline"} size="sm" className="h-8" disabled={groups.length === 0} data-testid="dashboard-stakeholder-filter">
+          <Building2 /> {current ? current.name : "All stakeholder groups"} <ChevronDown />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
+        <DropdownMenuLabel>Stakeholder group</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => onChange(null)} data-testid="dashboard-stakeholder-all">
+          <span className="flex-1">All stakeholder groups</span>
+          {selected === null && <Check className="size-3.5" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {groups.map((option) => (
+          <DropdownMenuItem key={option.key} onSelect={() => onChange(option.key)} data-testid={`dashboard-stakeholder-${option.key}`}>
+            <span className="min-w-0 flex-1 truncate">{option.name}</span>
+            <span className="shrink-0 text-2xs text-muted-foreground tabular">{formatCount(option.tasks)}</span>
+            {selected === option.key && <Check className="size-3.5" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** How many groups get a column of their own before the rest are folded together. */
+const MATRIX_COLUMNS = 8;
+
+/**
+ * Every person against every stakeholder group, in one grid.
+ *
+ * The filter above answers "how much is A doing for Communications" one group
+ * at a time; this answers "and who else is" without clicking through the list.
+ * It is the same projection the filter uses, read across instead of down, so
+ * a row's total is that person's total and nothing here is counted twice.
+ */
+function DepartmentMatrix({ rows, groups }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[] }) {
+  const columns = groups.slice(0, MATRIX_COLUMNS);
+  const rest = groups.slice(MATRIX_COLUMNS);
+  const restKeys = new Set(rest.map((g) => g.key));
+  const people = rows.filter((row) => row.tasks > 0);
+  if (people.length === 0) return null;
+
+  return (
+    <Numbers label="Per person, per stakeholder group">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left text-xs">
+          <thead>
+            <tr className="border-b border-border/60 text-2xs text-muted-foreground">
+              <th scope="col" className="py-1.5 pr-3 font-medium">
+                Person
+              </th>
+              {columns.map((group) => (
+                <th key={group.key} scope="col" className="max-w-[8rem] truncate py-1.5 pr-3 text-right font-medium" title={group.name}>
+                  {group.name}
+                </th>
+              ))}
+              {rest.length > 0 && (
+                <th scope="col" className="py-1.5 pr-3 text-right font-medium" title={rest.map((g) => g.name).join(", ")}>
+                  {rest.length} more
+                </th>
+              )}
+              <th scope="col" className="py-1.5 text-right font-medium">
+                Tasks
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {people.map((row) => {
+              const byKey = new Map(row.byDepartment.map((cell) => [cell.key, cell.tasks]));
+              const other = row.byDepartment.filter((cell) => restKeys.has(cell.key)).reduce((sum, cell) => sum + cell.tasks, 0);
+              return (
+                <tr key={row.userId ?? "unassigned"} className={cn(row.userId === null && "bg-surface/60")}>
+                  <th scope="row" className="max-w-[12rem] truncate py-1.5 pr-3 font-normal" title={row.name}>
+                    {row.name}
+                  </th>
+                  {columns.map((group) => (
+                    <Cell key={group.key} value={byKey.get(group.key) ?? 0} />
+                  ))}
+                  {rest.length > 0 && <Cell value={other} />}
+                  <Cell value={row.tasks} strong last />
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Numbers>
   );
 }
 

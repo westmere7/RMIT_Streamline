@@ -32,6 +32,12 @@ export interface DashboardPrefs {
   teamIds: string[] | null;
   /** How far ahead the resourcing view looks. */
   weeks: 2 | 4 | 8;
+  /**
+   * The stakeholder group the per-person figures are narrowed to, by the key
+   * `workloadDepartments` hands out, or null for every group. A key the window
+   * no longer holds work for is ignored rather than emptying the panel.
+   */
+  stakeholderGroup: string | null;
 }
 
 export const DEFAULT_PREFS: DashboardPrefs = {
@@ -51,6 +57,7 @@ export const DEFAULT_PREFS: DashboardPrefs = {
   to: null,
   teamIds: null,
   weeks: 4,
+  stakeholderGroup: null,
 };
 
 interface PrefsStore {

@@ -587,19 +587,69 @@ export function upcoming(facts: DashboardFacts, today: ISODate, teamIds: string[
  * There is no capacity here and there cannot be: the workspace holds no effort
  * estimates, no contracted hours and no leave. A percentage computed from task
  * counts would be a number about nothing.
+ *
+ * Every row is also split by the stakeholder group the work is for, so the same
+ * counts answer "who is carrying what" and "how much of it is for
+ * Communications" without being counted twice.
  */
-export interface WorkloadRow {
-  userId: string | null;
-  name: string;
-  teamNames: string[];
+
+/** The four states a person's open work can be in, and the two totals over them. */
+export interface WorkloadBands {
   inProgress: number;
   scheduled: number;
   overdue: number;
   undated: number;
   tasks: number;
   assetUnits: number;
+}
+
+/**
+ * One person's share of one stakeholder group's work.
+ *
+ * `key` is the folded name, and work with no group at all collects under
+ * NO_DEPARTMENT_KEY. By name and not by registry id, for the same reason
+ * `dimensionComparison` groups by name: a group reaches a task two ways — its
+ * own STAKEHOLDER cell, which the registry resolves, and the requester's
+ * profile, which is inferred and carries no id — and keying by id splits one
+ * "Digital" into two, so this panel would disagree with By department beside
+ * it. Resolution has already happened by the time the name is read, so a
+ * renamed group still arrives under one name rather than two.
+ */
+export interface DepartmentLoad extends WorkloadBands {
+  key: string;
+  name: string;
+}
+
+export interface WorkloadRow extends WorkloadBands {
+  userId: string | null;
+  name: string;
+  teamNames: string[];
+  /** The same figures split by which stakeholder group the work is for, biggest first. */
+  byDepartment: DepartmentLoad[];
   /** True for somebody who is no longer an active member but still holds work. */
   former: boolean;
+}
+
+/** Work whose task names no stakeholder group. Not a group: the absence of one. */
+export const NO_DEPARTMENT_KEY = "__no_department__";
+
+/** How two cells are decided to name the same group. */
+export function departmentKeyOf(task: TaskFact): string {
+  if (!task.department) return NO_DEPARTMENT_KEY;
+  return task.department.name.trim().toLowerCase();
+}
+
+export function departmentNameOf(task: TaskFact): string {
+  return task.department?.name ?? UNKNOWN_DEPARTMENT;
+}
+
+const blankBands = (): WorkloadBands => ({ inProgress: 0, scheduled: 0, overdue: 0, undated: 0, tasks: 0, assetUnits: 0 });
+type BandKey = "inProgress" | "scheduled" | "overdue" | "undated";
+
+function countInto(target: WorkloadBands, task: TaskFact, band: BandKey): void {
+  target.tasks += 1;
+  target.assetUnits += task.assetUnits;
+  target[band] += 1;
 }
 
 export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds: string[] | null, weeks: 2 | 4 | 8): WorkloadRow[] {
@@ -609,12 +659,8 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
     userId,
     name,
     teamNames: [],
-    inProgress: 0,
-    scheduled: 0,
-    overdue: 0,
-    undated: 0,
-    tasks: 0,
-    assetUnits: 0,
+    byDepartment: [],
+    ...blankBands(),
     former,
   });
 
@@ -632,6 +678,9 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
     const late = task.dueDate !== null && task.dueDate < today;
     const undated = task.dueDate === null;
     if (!within && !late && !undated) continue;
+    const band: BandKey = late ? "overdue" : undated ? "undated" : task.status === "progress" ? "inProgress" : "scheduled";
+    const key = departmentKeyOf(task);
+    const name = departmentNameOf(task);
 
     const owners: Array<string | null> = task.owners.length > 0 ? task.owners : [null];
     for (const owner of owners) {
@@ -641,22 +690,81 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
         row = blank(owner, user?.displayName ?? "Someone who has left", true);
         rows.set(owner, row);
       }
-      row.tasks += 1;
-      row.assetUnits += task.assetUnits;
-      if (late) row.overdue += 1;
-      else if (undated) row.undated += 1;
-      else if (task.status === "progress") row.inProgress += 1;
-      else row.scheduled += 1;
+      countInto(row, task, band);
+      // The same task counted a second time against the group it is for, so
+      // the split is the row broken up rather than a second, separate count.
+      let cell = row.byDepartment.find((d) => d.key === key);
+      if (!cell) {
+        cell = { key, name, ...blankBands() };
+        row.byDepartment.push(cell);
+      }
+      countInto(cell, task, band);
       if (task.team.id !== NO_TEAM && !row.teamNames.includes(task.team.name)) row.teamNames.push(task.team.name);
     }
   }
 
-  return [...rows.values()].sort((a, b) => {
+  for (const row of rows.values()) row.byDepartment.sort(byTasksThenName);
+  return sortWorkload([...rows.values()]);
+}
+
+const byTasksThenName = (a: { tasks: number; name: string }, b: { tasks: number; name: string }) => b.tasks - a.tasks || a.name.localeCompare(b.name);
+
+function sortWorkload(rows: WorkloadRow[]): WorkloadRow[] {
+  return rows.sort((a, b) => {
     // Unassigned work leads: it is the only row nobody has picked up.
     if (a.userId === null) return -1;
     if (b.userId === null) return 1;
-    return b.tasks - a.tasks || a.name.localeCompare(b.name);
+    return byTasksThenName(a, b);
   });
+}
+
+/** A stakeholder group with work in the window, for the filter to offer. */
+export interface DepartmentLoadOption {
+  key: string;
+  name: string;
+  tasks: number;
+  /** How many named people hold some of it; the unassigned row is not a person. */
+  people: number;
+}
+
+/**
+ * Every stakeholder group the window holds work for, busiest first.
+ *
+ * Read off the rows rather than the tasks, so the filter can only ever offer a
+ * group the panel below it would actually show something for.
+ */
+export function workloadDepartments(rows: WorkloadRow[]): DepartmentLoadOption[] {
+  const out = new Map<string, DepartmentLoadOption>();
+  for (const row of rows) {
+    for (const cell of row.byDepartment) {
+      if (cell.tasks === 0) continue;
+      const entry = out.get(cell.key) ?? { key: cell.key, name: cell.name, tasks: 0, people: 0 };
+      entry.tasks += cell.tasks;
+      if (row.userId !== null) entry.people += 1;
+      out.set(cell.key, entry);
+    }
+  }
+  return [...out.values()].sort(byTasksThenName);
+}
+
+/**
+ * The same rows, counting only the work for one stakeholder group.
+ *
+ * A projection of what `assignedWorkload` already counted, never a second pass
+ * over the tasks: "how much is Danh doing for Communications" and "how much is
+ * Danh doing" are then the same numbers read at two depths, and cannot drift.
+ * People holding nothing for the group drop out — a page of empty bars answers
+ * a question nobody asked.
+ */
+export function workloadForDepartment(rows: WorkloadRow[], key: string): WorkloadRow[] {
+  const projected: WorkloadRow[] = [];
+  for (const row of rows) {
+    const cell = row.byDepartment.find((d) => d.key === key);
+    if (!cell || cell.tasks === 0) continue;
+    const { key: _key, name: _name, ...bands } = cell;
+    projected.push({ ...row, ...bands, byDepartment: [cell] });
+  }
+  return sortWorkload(projected);
 }
 
 // ---------------------------------------------------------------------------
