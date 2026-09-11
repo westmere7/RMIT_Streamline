@@ -1,6 +1,6 @@
 import type {
-  DepartmentPortal,
-  DepartmentPortalInput,
+  StakeholderPortal,
+  StakeholderPortalInput,
   DepartmentStatus,
   PortalRequest,
   PortalRequestInput,
@@ -84,7 +84,7 @@ function toDepartment(row: DepartmentRow): StakeholderDepartment {
   };
 }
 
-function toPortal(row: PortalRow): DepartmentPortal {
+function toPortal(row: PortalRow): StakeholderPortal {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -174,24 +174,30 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
 
   // ---- portals -------------------------------------------------------------
 
-  async listPortals(workspaceId: string): Promise<DepartmentPortal[]> {
+  async listPortals(workspaceId: string): Promise<StakeholderPortal[]> {
     const result = await db().from("department_portals").select(PORTAL).eq("workspace_id", workspaceId);
     return unwrapList<PortalRow>(result, "department_portals.listByWorkspace").map(toPortal);
   }
 
-  async getPortalByDepartment(departmentId: string): Promise<DepartmentPortal | null> {
+  async getUnifiedPortal(workspaceId: string): Promise<StakeholderPortal | null> {
+    const result = await db().from("department_portals").select(PORTAL).eq("workspace_id", workspaceId).is("department_id", null).maybeSingle();
+    const row = unwrapMaybe<PortalRow>(result, "department_portals.getUnified");
+    return row ? toPortal(row) : null;
+  }
+
+  async getPortalByDepartment(departmentId: string): Promise<StakeholderPortal | null> {
     const result = await db().from("department_portals").select(PORTAL).eq("department_id", departmentId).maybeSingle();
     const row = unwrapMaybe<PortalRow>(result, "department_portals.byDepartment");
     return row ? toPortal(row) : null;
   }
 
-  async getPortalByToken(token: string): Promise<DepartmentPortal | null> {
+  async getPortalByToken(token: string): Promise<StakeholderPortal | null> {
     const result = await db().from("department_portals").select(PORTAL).eq("token", token).maybeSingle();
     const row = unwrapMaybe<PortalRow>(result, "department_portals.byToken");
     return row ? toPortal(row) : null;
   }
 
-  async createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal> {
+  async createPortal(input: StakeholderPortalInput): Promise<StakeholderPortal> {
     const payload = {
       workspace_id: input.workspaceId,
       department_id: input.departmentId,
@@ -204,7 +210,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     return toPortal(unwrap<PortalRow>(result, "department_portals.create"));
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal> {
     const payload: Record<string, unknown> = {};
     if (patch.enabled !== undefined) payload.enabled = patch.enabled;
     if (patch.token !== undefined) payload.token = patch.token;

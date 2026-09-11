@@ -18,7 +18,6 @@ import type {
   PortalSubitem,
   PortalTask,
   PublicBoardPayload,
-  StakeholderDepartment,
   User,
 } from "@/domain";
 import { ASSET_TYPE_OPTIONS, DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH } from "@/domain";
@@ -76,6 +75,15 @@ function assetTypeColor(name: string): ColorToken {
 /** Nobody. Used where a row needs an author and the portal will not name one. */
 const NOBODY = "00000000-0000-0000-0000-000000000000";
 
+/**
+ * The colour the portal's own board and its groups carry.
+ *
+ * It used to be the department's, which was the one colour on the page that
+ * meant something. Now that every stakeholder is on screen at once, their
+ * colours belong to the rows; the frame around them stays out of the way.
+ */
+const PORTAL_GROUP_COLOR: ColorToken = "gray";
+
 /** A task, with the parts of it the detail panel needs. */
 export interface PortalBoardTask {
   task: PortalTask;
@@ -86,13 +94,23 @@ export interface PortalBoardTask {
 }
 
 export interface PortalBoardInput {
-  department: StakeholderDepartment;
+  /** The portal's own id: what the synthetic board and its columns are keyed by. */
+  portalId: EntityId;
+  workspaceId: EntityId;
   /**
-   * Columns this department has been told it does not need.
+   * Whether the stakeholder gets a column of its own.
+   *
+   * Worth a column only while more than one of them is on screen. With one
+   * selected it would say the same word on every row, which is a column that
+   * costs width and says nothing.
+   */
+  showStakeholder?: boolean;
+  /**
+   * Columns the team has said the portal does not need.
    *
    * Presentation, not authorisation. The values behind a hidden column were
-   * already published to this department; leaving the column out is about
-   * clutter on the page, and nothing downstream may treat it as a boundary.
+   * already published; leaving the column out is about clutter on the page, and
+   * nothing downstream may treat it as a boundary.
    */
   hiddenColumns?: readonly PortalColumnKey[];
   tasks: readonly PortalBoardTask[];
@@ -111,9 +129,9 @@ export interface PortalBoardInput {
   now: string;
 }
 
-/** Column ids are derived from the department, so a visitor's widths and view settings persist. */
-export function portalColumnId(departmentId: EntityId, key: string): EntityId {
-  return `${departmentId}:${key}`;
+/** Column ids are derived from the portal, so a visitor's widths and view settings persist. */
+export function portalColumnId(portalId: EntityId, key: string): EntityId {
+  return `${portalId}:${key}`;
 }
 
 /**
@@ -143,11 +161,21 @@ function priorityLabelId(priority: PortalPriority | null): string | null {
 }
 
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
-  const { department, tasks, links, comments, commentAuthors, workspaceName, now } = input;
+  const { portalId, workspaceId, tasks, links, comments, commentAuthors, workspaceName, now } = input;
   const hidden = new Set<string>(input.hiddenColumns ?? []);
-  const boardId = department.id;
+  const boardId = portalId;
 
-  // ---- the labels the department's boards between them use --------------------
+  // The stakeholders actually on screen, in the colours the team gave them.
+  const stakeholders = new Map<string, { name: string; color: ColorToken }>();
+  for (const { task } of tasks) {
+    if (task.stakeholder && !stakeholders.has(task.stakeholder.name)) stakeholders.set(task.stakeholder.name, { name: task.stakeholder.name, color: task.stakeholder.color });
+  }
+  const stakeholderNames = [...stakeholders.values()].sort((a, b) => a.name.localeCompare(b.name));
+  // One stakeholder on screen says the same word on every row; none at all
+  // means there is nothing to say.
+  const showStakeholder = (input.showStakeholder ?? true) && stakeholderNames.length > 1;
+
+  // ---- the labels the boards between them use ---------------------------------
   const statuses = new Map<string, PortalStatus>();
   for (const { task } of tasks) {
     if (task.status && !statuses.has(task.status.name)) statuses.set(task.status.name, task.status);
@@ -181,6 +209,13 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // red — and every request was made in the past. This is the one place the
   // booking time is shown, so it is shown plainly.
   column("requested", "Requested", "TEXT", { kind: "none" }, 120);
+  // Who the work is for, first among the fields, because on a portal showing
+  // every stakeholder at once it is the column that makes the list readable.
+  // Tags rather than a stakeholder column: the portal has no workspace lists
+  // behind it to resolve one against, and a tag carries its own colour.
+  if (showStakeholder) {
+    column("stakeholder", "For", "TAGS", { kind: "tags", options: stakeholderNames.map(({ name, color }) => ({ name, color })) }, 150);
+  }
   column(
     "status",
     "Status",
@@ -216,7 +251,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     id: `${boardId}:g-${slugify(name) || position}`,
     boardId,
     name,
-    color: department.color,
+    color: PORTAL_GROUP_COLOR,
     position,
     collapsed: false,
     createdAt: now,
@@ -256,6 +291,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     if (shown("people")) value(task.id, "people", { type: "PERSON", userIds: task.people.map((person) => person.id) }, task.updatedAt);
     if (shown("due")) value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
     if (shown("requested")) value(task.id, "requested", { type: "TEXT", text: task.bookedAt ? formatShortDate(task.bookedAt.slice(0, 10)) : "" }, task.updatedAt);
+    if (showStakeholder) value(task.id, "stakeholder", { type: "TAGS", tags: task.stakeholder ? [task.stakeholder.name] : [] }, task.updatedAt);
     if (assetTypes.length > 0 && shown("asset-types")) {
       const kinds = [...new Set([...task.assetTypes, ...deliverables.map((d) => d.assetType)].filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
       value(task.id, "asset-types", { type: "TAGS", tags: kinds }, task.updatedAt);
@@ -345,15 +381,15 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   return {
     board: {
       id: boardId,
-      workspaceId: department.workspaceId,
+      workspaceId,
       teamId: null,
-      name: department.name,
-      slug: slugify(department.name) || "portal",
+      name: workspaceName,
+      slug: slugify(workspaceName) || "portal",
       description: null,
       type: "SHAREABLE",
       visibility: "WORKSPACE",
       ownerId: NOBODY,
-      color: department.color,
+      color: PORTAL_GROUP_COLOR,
       icon: "inbox",
       archivedAt: null,
       createdAt: now,

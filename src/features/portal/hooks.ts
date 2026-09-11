@@ -37,8 +37,8 @@ export function usePortalMutations() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: portalKeys(ws.workspace.id) });
 
   const setEnabled = useMutation({
-    mutationFn: ({ departmentId, enabled }: { departmentId: string; enabled: boolean }) => services.portals.setEnabled(ws.workspace.id, departmentId, enabled),
-    onSuccess: async (_portal, { enabled }) => {
+    mutationFn: (enabled: boolean) => services.portals.setEnabled(ws.workspace.id, enabled),
+    onSuccess: async (_portal, enabled) => {
       await invalidate();
       toast.success(enabled ? "Portal is open" : "Portal is closed");
     },
@@ -47,17 +47,17 @@ export function usePortalMutations() {
   // One mutation for every presentation setting: they are all the same write,
   // and a card that saved each through its own hook would show six spinners.
   const setPresentation = useMutation({
-    mutationFn: ({ departmentId, patch }: { departmentId: string; patch: PortalPresentation }) => services.portals.setPresentation(ws.workspace.id, departmentId, patch),
+    mutationFn: (patch: PortalPresentation) => services.portals.setPresentation(ws.workspace.id, patch),
     onSuccess: invalidate,
   });
 
   const setTheme = useMutation({
-    mutationFn: ({ departmentId, theme }: { departmentId: string; theme: PortalTheme }) => services.portals.setTheme(ws.workspace.id, departmentId, theme),
+    mutationFn: (theme: PortalTheme) => services.portals.setTheme(ws.workspace.id, theme),
     onSuccess: invalidate,
   });
 
   const regenerate = useMutation({
-    mutationFn: (departmentId: string) => services.portals.regenerateLink(ws.workspace.id, departmentId),
+    mutationFn: () => services.portals.regenerateLink(ws.workspace.id),
     onSuccess: async () => {
       await invalidate();
       toast.success("New link issued. The old one has stopped working.");
@@ -65,7 +65,7 @@ export function usePortalMutations() {
   });
 
   const setPassword = useMutation({
-    mutationFn: ({ departmentId, password }: { departmentId: string; password: string | null }) => services.portals.setPassword(ws.workspace.id, departmentId, password),
+    mutationFn: ({ password }: { password: string | null }) => services.portals.setPassword(ws.workspace.id, password),
     onSuccess: async (_portal, { password }) => {
       await invalidate();
       toast.success(password ? "Password set. Anyone already inside will be asked for it." : "Password removed");
@@ -83,7 +83,7 @@ export function usePortalMutations() {
   return { setEnabled, setTheme, setPresentation, regenerate, setPassword, setTeamName };
 }
 
-/** The address to hand a department. Absolute, because it is going into an email. */
+/** The address to hand out. Absolute, because it is going into an email. */
 export function portalUrl(token: string): string {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   return `${origin}${routes.portal(token)}`;

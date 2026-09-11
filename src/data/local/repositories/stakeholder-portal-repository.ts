@@ -1,6 +1,6 @@
 import type {
-  DepartmentPortal,
-  DepartmentPortalInput,
+  StakeholderPortal,
+  StakeholderPortalInput,
   PortalRequest,
   PortalRequestInput,
   PortalSubmission,
@@ -58,27 +58,34 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
 
   // ---- portals -------------------------------------------------------------
 
-  async listPortals(workspaceId: string): Promise<DepartmentPortal[]> {
+  async listPortals(workspaceId: string): Promise<StakeholderPortal[]> {
     const db = await this.conn.getDb();
     return db.getAllFromIndex("departmentPortals", "byWorkspace", workspaceId);
   }
 
-  async getPortalByDepartment(departmentId: string): Promise<DepartmentPortal | null> {
+  /** The workspace's own portal: the one row with no department against it. */
+  async getUnifiedPortal(workspaceId: string): Promise<StakeholderPortal | null> {
+    const db = await this.conn.getDb();
+    const rows = await db.getAllFromIndex("departmentPortals", "byWorkspace", workspaceId);
+    return rows.find((row) => row.departmentId === null) ?? null;
+  }
+
+  async getPortalByDepartment(departmentId: string): Promise<StakeholderPortal | null> {
     const db = await this.conn.getDb();
     return (await db.getFromIndex("departmentPortals", "byDepartment", departmentId)) ?? null;
   }
 
-  async getPortalByToken(token: string): Promise<DepartmentPortal | null> {
+  async getPortalByToken(token: string): Promise<StakeholderPortal | null> {
     const db = await this.conn.getDb();
     return (await db.getFromIndex("departmentPortals", "byToken", token)) ?? null;
   }
 
-  async createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal> {
+  async createPortal(input: StakeholderPortalInput): Promise<StakeholderPortal> {
     const db = await this.conn.getDb();
     const now = nowIso();
     // The presentation defaults are the behaviour a portal had before it could
             // be configured, so an existing link is unchanged by the settings arriving.
-    const row: DepartmentPortal = {
+    const row: StakeholderPortal = {
       id: newId(),
       credentialVersion: 1,
       description: null,
@@ -94,11 +101,11 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
     return row;
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal> {
     const db = await this.conn.getDb();
     const existing = await db.get("departmentPortals", id);
     if (!existing) throw new NotFoundError("Portal", id);
-    const row: DepartmentPortal = { ...existing, ...patch, updatedAt: nowIso() };
+    const row: StakeholderPortal = { ...existing, ...patch, updatedAt: nowIso() };
     await db.put("departmentPortals", row);
     return row;
   }

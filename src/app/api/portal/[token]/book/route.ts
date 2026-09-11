@@ -6,10 +6,12 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ token: string }> };
 
 /**
- * A booking made from a department's portal.
+ * A booking made from the portal.
  *
- * The department comes from the token and is written over whatever the body
- * said. The submission key makes a retry safe: the same key replays the first
+ * The stakeholder is named in the body now that one portal serves all of them,
+ * and it is checked against this workspace's own departments before a word of
+ * it reaches the booking — the name written on the request is the one belonging
+ * to that id, never a word the caller supplied. The submission key makes a retry safe: the same key replays the first
  * receipt, and the same key with different content is refused.
  */
 export const POST = handleRoute(async (request: Request, { params }: Context) => {
@@ -24,6 +26,7 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
     const receipt = await services.portals.book(resolved, {
       submissionKey: body.submissionKey,
       request: body.request,
+      departmentId: body.departmentId,
       booking: services.booking,
       memberId: viewer?.isWorkspaceMember ? viewer.userId : null,
     });

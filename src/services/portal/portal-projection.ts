@@ -1,4 +1,5 @@
 import type {
+  PortalStakeholderRef,
   Board,
   BoardColumn,
   ColumnValue,
@@ -163,8 +164,14 @@ export function projectSubitem(item: Item, ctx: ProjectionContext): PortalSubite
   return { id: item.id, name: item.name, done: status?.role === "done" };
 }
 
-/** One request, as its list row. */
-export function projectTask(item: Item, ctx: ProjectionContext): PortalTask {
+/**
+ * One request, as its list row.
+ *
+ * `stakeholder` is passed in rather than read off the item: which stakeholder a
+ * request belongs to is settled by the scope, which weighs the label against
+ * the provenance, and reading the cell again here could disagree with it.
+ */
+export function projectTask(item: Item, ctx: ProjectionContext, stakeholder: PortalStakeholderRef | null = null): PortalTask {
   const board = ctx.boards.get(item.boardId);
   const columns = board?.columns ?? [];
   const values = board?.values.get(item.id);
@@ -176,6 +183,7 @@ export function projectTask(item: Item, ctx: ProjectionContext): PortalTask {
     id: item.id,
     reference: item.reference ?? null,
     name: item.name,
+    stakeholder,
     status: projectStatus(columns, values),
     priority: projectPriority(columns, values),
     dueDate,

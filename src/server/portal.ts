@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_PORTAL_RANGE, parsePortalRange, type PortalScope } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -28,15 +29,38 @@ export const portalGrantSchema = z.object({
   credentialVersion: z.number().int().positive().optional(),
 });
 
+/**
+ * How much of the portal to put on screen.
+ *
+ * Neither field is authorisation — the token settled that — so both are simply
+ * validated and passed on. An unknown stakeholder id narrows to nothing rather
+ * than widening anything, which is the safe direction for a value that came
+ * from a request body.
+ */
+export const portalScopeSchema = z.object({
+  stakeholderId: z.string().uuid().nullable().optional(),
+  /** "3m", "2026", "all". Parsed rather than trusted; anything else falls back. */
+  range: z.string().max(8).optional(),
+});
+
+/** The scope a request asked for, as the service takes it. */
+export function portalScopeOf(body: { stakeholderId?: string | null; range?: string }): PortalScope {
+  return { stakeholderId: body.stakeholderId ?? null, range: parsePortalRange(body.range) ?? DEFAULT_PORTAL_RANGE };
+}
+
 export const portalTasksSchema = portalGrantSchema.extend({
   cursor: z.string().max(200).nullable().optional(),
   limit: z.number().int().min(1).max(200).optional(),
   search: z.string().max(200).optional(),
-});
+}).merge(portalScopeSchema);
+
+export const portalBoardSchema = portalGrantSchema.merge(portalScopeSchema);
 
 export const portalBookSchema = portalGrantSchema.extend({
   submissionKey: z.string().min(8).max(100),
   request: bookingRequestSchema,
+  /** Which stakeholder the request is for. Checked against the workspace before use. */
+  departmentId: z.string().uuid(),
 });
 
 export const portalCommentSchema = portalGrantSchema.extend({

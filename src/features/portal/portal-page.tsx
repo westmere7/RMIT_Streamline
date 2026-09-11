@@ -2,14 +2,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Lock } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BoardViewKind, PortalGate } from "@/domain";
+import { DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBooking } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
@@ -28,12 +30,20 @@ import { PortalAccessError } from "@/services/stakeholder-portal-service";
 const PORTAL_REFRESH_MS = 4_000;
 
 /**
- * A department's portal.
+ * The workspace's portal.
  *
  * Four steps in order, the same shape the share links use: ask what the link
- * is, take a password if it wants one, then read the department's requests and
- * render them. Nothing about the department is fetched until the link has
- * answered for itself.
+ * is, take a password if it wants one, then read the team's requests and render
+ * them. Nothing is fetched until the link has answered for itself.
+ *
+ * One portal carries every stakeholder's work, so two of the visitor's own
+ * choices decide how much of it is on screen: whose work, and from which year.
+ * Both live in the URL, so a link somebody passes on opens on the same view,
+ * and both narrow a set the token has already settled — neither is
+ * authorisation. A search sets the year aside and looks across all of them:
+ * somebody hunting for a task by name is not asking about a year, and finding
+ * nothing because it was booked in December would be a fault they could not
+ * see.
  *
  * The whole page is read-only for a stakeholder by construction — every write
  * it can reach is a route handler that re-checks a board seat, and a visitor
@@ -44,6 +54,18 @@ export function PortalPage({ token }: { token: string }) {
   const auth = useAuth();
   const router = useRouter();
   const [password, setPassword] = React.useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // The two scope choices, in the URL so a link keeps them. An unreadable
+  // range falls back to the default rather than to everything: the fallback for
+  // a bad address must be the cheap read, not the expensive one.
+  const stakeholderId = searchParams.get("for");
+  const chosenRange = parsePortalRange(searchParams.get("range")) ?? DEFAULT_PORTAL_RANGE;
+
+  // What the board's own search box holds, lifted so the request can widen to
+  // every year while it is set.
+  const [search, setSearch] = React.useState("");
+  const searching = useDebouncedValue(search.trim(), 250).length > 0;
 
   const gate = useQuery({
     queryKey: ["portal-gate", token],
@@ -59,9 +81,13 @@ export function PortalPage({ token }: { token: string }) {
   const viewer = auth.user ? { userId: auth.user.id, displayName: auth.user.displayName, isWorkspaceMember: true } : null;
   const credentials: PortalCredentials = { token, password, credentialVersion: gate.data?.credentialVersion, viewer };
 
+  // A search reads everything; otherwise the visitor's own window applies.
+  const range = searching ? EVERY_PORTAL_RANGE : chosenRange;
+  const scope = React.useMemo(() => ({ stakeholderId, range }), [stakeholderId, range]);
+
   const page = useQuery({
-    queryKey: ["portal-board", token, gate.data?.credentialVersion, password],
-    queryFn: () => services.portals.publicBoard(credentials),
+    queryKey: ["portal-board", token, gate.data?.credentialVersion, password, stakeholderId, formatPortalRange(range)],
+    queryFn: () => services.portals.publicBoard(credentials, scope),
     enabled: !!gate.data?.open && (!needsPassword || password !== null),
     retry: false,
     staleTime: PORTAL_REFRESH_MS,
@@ -75,20 +101,24 @@ export function PortalPage({ token }: { token: string }) {
     refetchOnReconnect: true,
   });
 
-  // The open request lives in the URL, so Back, refresh and a pasted link all
-  // behave, and the board keeps its place behind the panel. The board screen
-  // reads the parameter for itself; this is here so booking can open what it
-  // just created.
-  const setOpenTask = React.useCallback(
-    (id: string | null) => {
+  const replaceParams = React.useCallback(
+    (patch: Record<string, string | null>) => {
       const next = new URLSearchParams(window.location.search);
-      if (id) next.set("task", id);
-      else next.delete("task");
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) next.delete(key);
+        else next.set(key, value);
+      }
       const query = next.toString();
       router.replace(`${window.location.pathname}${query ? `?${query}` : ""}`, { scroll: false });
     },
     [router],
   );
+
+  // The open request lives in the URL, so Back, refresh and a pasted link all
+  // behave, and the board keeps its place behind the panel. The board screen
+  // reads the parameter for itself; this is here so booking can open what it
+  // just created.
+  const setOpenTask = React.useCallback((id: string | null) => replaceParams({ task: id }), [replaceParams]);
 
   // Booking replaces the board rather than sitting beside it in a tab strip:
   // it is the one thing a stakeholder comes here to *do*, and it gets a button.
@@ -158,13 +188,23 @@ export function PortalPage({ token }: { token: string }) {
       <PortalShell fill>
         <PortalHeader
           token={token}
-          departmentName={context?.departmentName ?? gate.data.departmentName}
+          portalName={context?.portalName ?? gate.data.portalName}
           creativeTeamName={context?.creativeTeamName ?? gate.data.creativeTeamName}
           viewerName={context?.viewerName ?? null}
           servedAt={page.data?.servedAt ?? null}
           stale={page.isFetching}
           totals={booking || context?.showRecap === false ? null : (page.data?.totals ?? null)}
           description={context?.description ?? null}
+          stakeholders={context?.stakeholders ?? []}
+          stakeholderId={stakeholderId}
+          onStakeholder={(id) => replaceParams({ for: id })}
+          years={context?.years ?? []}
+          range={range}
+          // Stored as it was chosen, so the address says what is on screen.
+          onRange={(next) => replaceParams({ range: formatPortalRange(next) })}
+          // A search has taken the window off; say so rather than leaving the
+          // picker looking as though it were being ignored.
+          rangeOverridden={searching}
         />
 
         {booking ? (
@@ -185,7 +225,7 @@ export function PortalPage({ token }: { token: string }) {
             </Button>
             <PortalBooking
               credentials={credentials}
-              departmentName={gate.data.departmentName}
+              stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
               onView={(itemId) => {
                 void page.refetch();
                 setBooking(false);
@@ -206,6 +246,8 @@ export function PortalPage({ token }: { token: string }) {
                 payload={page.data}
                 onBook={context?.allowBooking === false ? null : () => setBooking(true)}
                 defaultView={(context?.defaultView ?? "table") as BoardViewKind}
+                onSearchChange={setSearch}
+                searchingAllYears={searching}
               />
           </div>
         ) : (
@@ -250,7 +292,7 @@ function PasswordPrompt({ gate, onSubmit, error }: { gate: PortalGate; onSubmit:
       <span className="mb-4 flex size-12 items-center justify-center self-center rounded-full bg-surface-strong/70 text-muted-foreground">
         <Lock className="size-5" aria-hidden />
       </span>
-      <h1 className="text-center text-lg font-semibold tracking-tight">{gate.departmentName} asks for a password</h1>
+      <h1 className="text-center text-lg font-semibold tracking-tight">{gate.portalName} asks for a password</h1>
       <p className="mt-1.5 text-center text-[13px] text-muted-foreground">Whoever sent you this link will have given you one.</p>
       <form
         className="mt-5 flex flex-col gap-2"

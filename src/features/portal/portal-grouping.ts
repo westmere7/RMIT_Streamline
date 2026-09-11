@@ -2,7 +2,7 @@ import type { BoardGroup, Item, PortalGrouping, PublicBoardPayload } from "@/dom
 import { slugify } from "@/lib/slug";
 
 /**
- * Re-dividing a department's board by status, in the browser.
+ * Re-dividing the portal's board by status, in the browser.
  *
  * Grouping is a view setting, like which view the link opens on: the visitor
  * chooses it, it lives in the URL so a link they pass on opens the same way,
@@ -76,7 +76,63 @@ export function groupPortalBoardByStatus<T extends PublicBoardPayload>(payload: 
 /** The heading for requests whose board has no status to report. */
 const NO_STATUS = "No status";
 
+/** The heading for requests nobody has said a stakeholder for. */
+const NO_STAKEHOLDER = "No stakeholder";
+
+/**
+ * Re-dividing the board by the stakeholder each request is for.
+ *
+ * Read off the "For" column the projection writes, for the same reason the
+ * status arrangement is read off the STATUS column: the payload already holds
+ * the answer, reconciled, so there is no second request and no flash of a
+ * loading board between two arrangements of the same rows.
+ *
+ * With one stakeholder selected the projection leaves that column out
+ * altogether — every row would carry the same word — and the payload comes back
+ * exactly as it arrived.
+ */
+export function groupPortalBoardByStakeholder<T extends PublicBoardPayload>(payload: T): T {
+  const column = payload.columns.find((c) => c.type === "TAGS" && c.name === "For");
+  if (!column) return payload;
+
+  const boardId = payload.board.id;
+  const nameByItem = new Map<string, string | null>();
+  for (const value of payload.values) {
+    if (value.columnId !== column.id) continue;
+    nameByItem.set(value.itemId, value.value.type === "TAGS" ? (value.value.tags[0] ?? null) : null);
+  }
+
+  const parents = payload.items.filter((item) => item.parentItemId === null);
+  const nameOf = (id: string) => nameByItem.get(id) ?? null;
+  const used = [...new Set(parents.map((item) => nameOf(item.id)))];
+  const named = used.filter((name): name is string => name !== null).sort((a, b) => a.localeCompare(b));
+  const colours = new Map(
+    (column.settings.kind === "tags" ? (column.settings.options ?? []) : []).map((option) => [option.name, option.color]),
+  );
+
+  const groups: BoardGroup[] = [
+    ...named.map((name) => ({ id: `${boardId}:k-${slugify(name) || name}`, name, color: colours.get(name) ?? payload.board.color })),
+    ...(used.includes(null) ? [{ id: `${boardId}:k-none`, name: NO_STAKEHOLDER, color: payload.board.color }] : []),
+  ].map((group, position) => ({ ...group, boardId, position, collapsed: false, createdAt: payload.board.createdAt }));
+
+  const groupIdByName = new Map<string | null, string>([
+    ...named.map((name, i) => [name, groups[i]!.id] as const),
+    ...(used.includes(null) ? ([[null, groups[groups.length - 1]!.id]] as const) : []),
+  ]);
+
+  // A subitem belongs with its request, wherever that request has gone.
+  const groupIdByParent = new Map(parents.map((item) => [item.id, groupIdByName.get(nameOf(item.id))!]));
+  const items = payload.items.map((item) => {
+    const groupId = groupIdByParent.get(item.parentItemId ?? item.id);
+    return groupId && groupId !== item.groupId ? { ...item, groupId } : item;
+  });
+
+  return { ...payload, groups, items };
+}
+
 /** Applies a visitor's choice. "board" is the payload exactly as it was built. */
 export function applyPortalGrouping<T extends PublicBoardPayload>(payload: T, grouping: PortalGrouping): T {
-  return grouping === "status" ? groupPortalBoardByStatus(payload) : payload;
+  if (grouping === "status") return groupPortalBoardByStatus(payload);
+  if (grouping === "stakeholder") return groupPortalBoardByStakeholder(payload);
+  return payload;
 }

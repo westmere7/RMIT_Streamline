@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, DepartmentPortal, DepartmentPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -266,12 +266,14 @@ export interface StakeholderPortalRepository {
   createDepartment(input: StakeholderDepartmentInput): Promise<StakeholderDepartment>;
   updateDepartment(id: EntityId, patch: Partial<Pick<StakeholderDepartment, "name" | "color" | "position" | "status">>): Promise<StakeholderDepartment>;
 
-  listPortals(workspaceId: EntityId): Promise<DepartmentPortal[]>;
-  getPortalByDepartment(departmentId: EntityId): Promise<DepartmentPortal | null>;
+  listPortals(workspaceId: EntityId): Promise<StakeholderPortal[]>;
+  /** The workspace's own portal: the row with no department. Null before one is made. */
+  getUnifiedPortal(workspaceId: EntityId): Promise<StakeholderPortal | null>;
+  getPortalByDepartment(departmentId: EntityId): Promise<StakeholderPortal | null>;
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
-  getPortalByToken(token: string): Promise<DepartmentPortal | null>;
-  createPortal(input: DepartmentPortalInput): Promise<DepartmentPortal>;
-  updatePortal(id: EntityId, patch: Partial<Pick<DepartmentPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<DepartmentPortal>;
+  getPortalByToken(token: string): Promise<StakeholderPortal | null>;
+  createPortal(input: StakeholderPortalInput): Promise<StakeholderPortal>;
+  updatePortal(id: EntityId, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal>;
 
   /** A department's requests, newest first, bounded and cursored for stable pagination. */
   listRequests(departmentId: EntityId, options?: { limit?: number; cursor?: string | null }): Promise<{ rows: PortalRequest[]; nextCursor: string | null }>;

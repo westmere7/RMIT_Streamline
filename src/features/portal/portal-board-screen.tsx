@@ -50,6 +50,8 @@ export function PortalBoardScreen({
   payload,
   onBook,
   defaultView,
+  onSearchChange,
+  searchingAllYears,
 }: {
   token: string;
   payload: PortalBoardPayload;
@@ -57,6 +59,16 @@ export function PortalBoardScreen({
   onBook: (() => void) | null;
   /** The view a bare link lands on, chosen by the team. */
   defaultView: BoardViewKind;
+  /**
+   * What the board's search box holds, reported upward.
+   *
+   * The box belongs to the board toolbar and filters what is already loaded.
+   * The page needs the term as well, because a search has to reach every year
+   * rather than the one on screen — so it widens the request while this is set.
+   */
+  onSearchChange?: (term: string) => void;
+  /** True while the term above has widened the read to every year. */
+  searchingAllYears?: boolean;
 }) {
   const searchParams = useSearchParams();
   const grouping = isGrouping(searchParams.get("group")) ? (searchParams.get("group") as PortalGrouping) : "board";
@@ -67,7 +79,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} />
+      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
     </ShareGuestProviders>
   );
 }
@@ -85,11 +97,15 @@ function PortalBoard({
   onBook,
   defaultView,
   grouping,
+  onSearchChange,
+  searchingAllYears,
 }: {
   payload: PortalBoardPayload;
   onBook: (() => void) | null;
   defaultView: BoardViewKind;
   grouping: PortalGrouping;
+  onSearchChange?: (term: string) => void;
+  searchingAllYears?: boolean;
 }) {
   const board = payload.board;
   const router = useRouter();
@@ -129,6 +145,11 @@ function PortalBoard({
   }, [openTaskId, setOpenItemId]);
 
   const ui = useBoardUi(board.id);
+  // The board's own box filters what is loaded; the page needs the term too, so
+  // it can widen the read past the year on screen while somebody is searching.
+  React.useEffect(() => {
+    onSearchChange?.(ui.search);
+  }, [ui.search, onSearchChange]);
   const model = React.useMemo(
     () =>
       snapshot.data
@@ -178,6 +199,7 @@ function PortalBoard({
               onViewChange={(next) => replaceParams({ view: next })}
               actions={
                 <>
+                  <AllYearsMark on={searchingAllYears} />
                   <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
                   {onBook && <BookButton onBook={onBook} />}
                 </>
@@ -202,7 +224,12 @@ function PortalBoard({
             onViewChange={(next) => replaceParams({ view: next })}
             searchAlways
             leading={onBook ? <BookButton onBook={onBook} /> : undefined}
-            actions={<GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />}
+            actions={
+              <>
+                <AllYearsMark on={searchingAllYears} />
+                <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
+              </>
+            }
           />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
@@ -226,7 +253,22 @@ function PortalBoard({
  * is the question most visitors arrive with. The choice is in the URL beside
  * the view, so a link a stakeholder forwards opens the same way it looked.
  */
-const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status" };
+const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status", stakeholder: "Stakeholder" };
+
+/**
+ * Says that the search has left the year behind.
+ *
+ * The year selector is still showing a year while this is up, and without a
+ * word here the extra results would look like a fault in it.
+ */
+function AllYearsMark({ on }: { on?: boolean }) {
+  if (!on) return null;
+  return (
+    <span className="shrink-0 rounded-full bg-surface-strong/70 px-2 py-1 text-2xs font-medium text-muted-foreground" data-testid="portal-all-years">
+      Searching every year
+    </span>
+  );
+}
 
 function GroupByControl({ grouping, onChange }: { grouping: PortalGrouping; onChange: (next: PortalGrouping) => void }) {
   return (

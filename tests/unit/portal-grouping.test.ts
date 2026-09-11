@@ -27,6 +27,7 @@ function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
     assetTypes: [],
     deliverables: { total: 0, done: 0 },
     subitems: { total: 0, done: 0 },
+    stakeholder: null,
     linkedCount: 0,
     bookedAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-02T00:00:00.000Z",
@@ -37,7 +38,9 @@ function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
 const entry = (t: PortalTask, extra: Partial<PortalBoardTask> = {}): PortalBoardTask => ({ task: t, brief: null, deliverables: [], subitems: [], ...extra });
 
 const build = (tasks: PortalBoardTask[]) =>
-  buildPortalBoard({ department: DEPARTMENT, tasks, links: [], comments: [], commentAuthors: [], workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+  buildPortalBoard({
+    portalId: DEPARTMENT.id,
+    workspaceId: DEPARTMENT.workspaceId, tasks, links: [], comments: [], commentAuthors: [], workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
 
 /**
  * Grouping a department's board by status, in the browser.

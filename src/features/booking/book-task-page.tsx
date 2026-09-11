@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 /**
  * The Stakeholder Portal destination, at the URL "Book a task" always had.
  *
- * Two things live here now. Departments and their links are an administrator's
+ * Two things live here now. The portal and its link are an administrator's
  * business, and booking from inside the app is everyone's — so an ordinary
  * member sees the form exactly as they always did, with no tabs and nothing
  * taken away, and an admin gets a tab in front of it. The URL is unchanged, so
@@ -96,7 +96,7 @@ export function BookTaskPage() {
           description={
             <span className="block max-w-[44rem]">
               {tab === "portals"
-                ? "Each stakeholder department reads its own requests through its own link, and books new work from the same place."
+                ? "One link for every stakeholder. They pick whose work to look at once they are in, and book new work from the same place."
                 : "Ask the creative team for work. Requests wait on Task Allocation until a manager places them, unless the team you pick takes bookings directly."}
             </span>
           }
@@ -112,7 +112,7 @@ export function BookTaskPage() {
           <div role="tablist" aria-label="Stakeholder Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
             {(
               [
-                ["portals", "Departments"],
+                ["portals", "Portal"],
                 ["book", "Book a task"],
               ] as const
             ).map(([id, label]) => (

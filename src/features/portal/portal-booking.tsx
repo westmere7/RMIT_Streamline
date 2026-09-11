@@ -1,44 +1,53 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { LoaderCircle, LogIn } from "lucide-react";
+import { LoaderCircle, LogIn, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
-import type { BookingForm as BookingFormData } from "@/domain";
+import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/domain";
 import { BookingForm } from "@/features/booking/booking-form";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newSubmissionKey, type PortalCredentials } from "@/features/portal/portal-client";
 
 /**
- * Booking from inside a department's portal.
+ * Booking from inside the portal.
  *
  * The same form the public link and the in-app page use — its questions, its
  * validation, its templates, its deliverable lines — with two differences that
  * matter.
  *
- * The department is not a question. It is settled by the link, shown as context,
- * and resolved again on the server from the credential, so nothing typed here
- * can point a booking at another department.
+ * The stakeholder is not a question. It is the one selected at the top of the
+ * portal, sent as an id and checked again on the server against the workspace's
+ * own departments, so nothing typed here can point a booking at another
+ * stakeholder.
  *
  * The submission key is made once and reused for every attempt of the same
  * booking. That is what makes a double tap or a retry after a dropped
  * connection resolve to one task: the server replays the first receipt rather
  * than booking again. A new key is only minted after one has been accepted.
+ *
+ * The form itself is still the one written for a portal that served a single
+ * department, which is why it is behind a warning: it asks its questions as
+ * though the stakeholder were settled by the link, and it is the next thing to
+ * be rebuilt. The gate is deliberately in the way rather than a banner beside
+ * it — a warning nobody has to act on is a warning nobody reads.
  */
 export function PortalBooking({
   credentials,
-  departmentName,
+  stakeholder,
   onView,
   onBackToTasks,
 }: {
   credentials: PortalCredentials;
-  departmentName: string;
+  /** Who the request will be for. Null while the portal is showing everybody. */
+  stakeholder: PortalStakeholderOption | null;
   /** Opens the request that was just booked. */
   onView: (itemId: string) => void;
   onBackToTasks: () => void;
 }) {
+  const [acknowledged, setAcknowledged] = React.useState(false);
   const services = useServices();
   // Some stakeholders do have an account here. If they are signed in the form
   // takes their name and their email from it and stops asking.
@@ -59,6 +68,43 @@ export function PortalBooking({
     retry: false,
     staleTime: 60_000,
   });
+
+  // Nothing may be booked until it is clear who it is for. One portal serves
+  // every stakeholder, so with none selected there is no answer to write on the
+  // request — and a booking that landed against nobody would show up in nobody's
+  // list, which is worse than being asked to choose.
+  if (!stakeholder || !acknowledged) {
+    return (
+      <section className="rounded-2xl border border-amber-300/70 bg-amber-50 p-5 text-amber-950 sm:p-7 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100" data-testid="portal-book-gate">
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
+          <TriangleAlert className="size-4 shrink-0" aria-hidden />
+          This form is being rebuilt
+        </h2>
+        <p className="mt-2 max-w-prose text-[13px]">
+          The portal now shows every stakeholder&rsquo;s work in one place, and the booking form has not caught up: it still asks its questions as though one link meant one
+          stakeholder. It works, and what you send will reach the team — but expect it to look different shortly.
+        </p>
+        {stakeholder ? (
+          <p className="mt-3 text-[13px]">
+            This request will be booked for <strong className="font-semibold">{stakeholder.name}</strong>.
+          </p>
+        ) : (
+          <p className="mt-3 text-[13px]" data-testid="portal-book-needs-stakeholder">
+            Pick a stakeholder at the top of the page first, so the request is raised for somebody. While the portal is showing the full creative team there is nobody to
+            book it for.
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button disabled={!stakeholder} onClick={() => setAcknowledged(true)} data-testid="portal-book-continue">
+            Continue to the form
+          </Button>
+          <Button variant="outline" onClick={onBackToTasks}>
+            Back to our tasks
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   if (form.isLoading) {
     return (
@@ -81,11 +127,11 @@ export function PortalBooking({
     <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-testid="portal-book">
       <div className="scrollbar-thin flex min-h-0 flex-col overflow-y-auto p-5 sm:p-7">
       <p className="mb-4 text-[13px] text-muted-foreground">
-        {/* A department whose name already ends in a full stop ("Comm.") must
+        {/* A stakeholder whose name already ends in a full stop ("Comm.") must
             not get a second one. The sentence break belongs to the sentence,
             not to the name. */}
-        Booking as <strong className="font-semibold text-foreground">{departmentName}</strong>
-        {departmentName.trim().endsWith(".") ? "" : "."} Your request appears under Our tasks as soon as it is in.
+        Booking for <strong className="font-semibold text-foreground">{stakeholder.name}</strong>
+        {stakeholder.name.trim().endsWith(".") ? "" : "."} Your request appears in the list as soon as it is in.
       </p>
       {/* No account is needed to book. One just saves answering the two
           questions the app can answer for itself. */}
@@ -107,7 +153,7 @@ export function PortalBooking({
         // somewhere other than a question has the right value to show.
         account={account}
         signInHref={account ? null : signInHref}
-        defaults={{ department: departmentName }}
+        defaults={{ department: stakeholder.name }}
         omit={["department"]}
         // Scoped to the link, not to the browser: one machine may be used to
         // book for two departments, and the person doing it is not always the
@@ -115,7 +161,7 @@ export function PortalBooking({
         // A signed-in person is known to the app; nobody else's details are
         // kept anywhere but their own browser.
         remember={account ? null : `portal:${credentials.token}`}
-        onSubmit={(request) => services.portals.publicBook(credentials, submissionKey, request, services.booking)}
+        onSubmit={(request) => services.portals.publicBook(credentials, submissionKey, request, stakeholder.id, services.booking)}
         // Nothing here links into the application: a stakeholder has no account
         // and the board is not theirs to open.
         itemHref={() => null}

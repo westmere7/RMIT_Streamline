@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
+import { EVERY_PORTAL_RANGE } from "@/domain";
 import { SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BookingRequest, StakeholderDepartment } from "@/domain";
 import { createServices, PortalSubmissionError, type Services } from "@/services";
@@ -37,12 +38,12 @@ describe("booking through a portal", () => {
     const departments = await services.portals.ensureDepartments(WS);
     department = departments[0]!;
     other = departments[1]!;
-    const portal = await services.portals.setEnabled(WS, department.id, true);
+    const portal = await services.portals.setEnabled(WS, true);
     resolved = await services.portals.resolve({ token: portal.token, password: null });
   });
 
-  const book = (submissionKey: string, overrides: Partial<BookingRequest> = {}) =>
-    services.portals.book(resolved, { submissionKey, request: request(overrides), booking: services.booking });
+  const book = (submissionKey: string, overrides: Partial<BookingRequest> = {}, departmentId: string = department.id) =>
+    services.portals.book(resolved, { submissionKey, departmentId, request: request(overrides), booking: services.booking });
 
   it("creates the task, its provenance and a receipt the stakeholder can quote", async () => {
     const receipt = await book("key-000000001");
@@ -55,15 +56,17 @@ describe("booking through a portal", () => {
     expect(page.tasks[0]!.reference).toBe(receipt.reference);
   });
 
-  it("takes the department from the link and ignores what the body claims", async () => {
+  it("takes the stakeholder from the id it was given and ignores the word in the body", async () => {
+    // The body names one stakeholder and the id names another. The id wins: it
+    // is checked against the workspace, and the name written on the request is
+    // the one belonging to it.
     const receipt = await book("key-000000002", { department: other.name });
     const provenance = await services.repos.stakeholderPortals.getRequestByItem(WS, receipt.itemId);
     expect(provenance?.departmentId).toBe(department.id);
 
-    // And it is not visible to the department the body named.
-    const otherPortal = await services.portals.setEnabled(WS, other.id, true);
-    const otherResolved = await services.portals.resolve({ token: otherPortal.token, password: null });
-    expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
+    // And filtering to the stakeholder the body named does not find it.
+    const page = await services.portals.tasks(resolved, { scope: { stakeholderId: other.id, range: EVERY_PORTAL_RANGE } });
+    expect(page.tasks).toHaveLength(0);
   });
 
   /** The stakeholder group stored on an item, or null when nothing was written. */
@@ -100,7 +103,7 @@ describe("booking through a portal", () => {
     const item = (await services.repos.items.getById(receipt.itemId))!;
     expect(await groupOn(item.id, item.boardId)).toBeNull();
 
-    const otherPortal = await services.portals.setEnabled(WS, other.id, true);
+    const otherPortal = await services.portals.setEnabled(WS, true);
     const otherResolved = await services.portals.resolve({ token: otherPortal.token, password: null });
     expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
   });
@@ -179,7 +182,7 @@ describe("booking through a portal", () => {
         throw new Error("the board went away");
       },
     };
-    await expect(services.portals.book(resolved, { submissionKey: "key-failed-001", request: request(), booking: exploding })).rejects.toThrow(/went away/);
+    await expect(services.portals.book(resolved, { departmentId: department.id, submissionKey: "key-failed-001", request: request(), booking: exploding })).rejects.toThrow(/went away/);
     // Nothing was published, and the key is free again.
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
     expect(await services.repos.stakeholderPortals.getSubmission(resolved.portal.id, "key-failed-001")).toBeNull();
@@ -189,21 +192,24 @@ describe("booking through a portal", () => {
   });
 
   it("insists on a submission key long enough to be unguessable", async () => {
-    await expect(services.portals.book(resolved, { submissionKey: "short", request: request(), booking: services.booking })).rejects.toThrow(/submission key/i);
+    await expect(services.portals.book(resolved, { departmentId: department.id, submissionKey: "short", request: request(), booking: services.booking })).rejects.toThrow(/submission key/i);
   });
 
-  it("scopes keys to their portal, so two departments cannot collide", async () => {
-    const otherPortal = await services.portals.setEnabled(WS, other.id, true);
-    const otherResolved = await services.portals.resolve({ token: otherPortal.token, password: null });
-    const mine = await book("key-shared-0001");
-    const theirs = await services.portals.book(otherResolved, { submissionKey: "key-shared-0001", request: request({ title: "Theirs" }), booking: services.booking });
-    expect(theirs.itemId).not.toBe(mine.itemId);
+  it("keeps one key space for the whole portal, so a reused key cannot book twice", async () => {
+    // Keys used to be scoped per department, because each had a portal of its
+    // own. One portal means one key space: the same key with different content
+    // is a different booking wearing an old key, and is refused rather than
+    // quietly making a second task.
+    await book("key-shared-0001");
+    await expect(book("key-shared-0001", { title: "Theirs" })).rejects.toBeInstanceOf(PortalSubmissionError);
+    // And it is refused for another stakeholder too: the key belongs to the
+    // link, not to whoever the request is for.
+    await expect(book("key-shared-0001", { title: "Theirs" }, other.id)).rejects.toBeInstanceOf(PortalSubmissionError);
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(1);
-    expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(1);
   });
 
   it("will not book through a portal that has been switched off", async () => {
-    await services.portals.setEnabled(WS, department.id, false);
+    await services.portals.setEnabled(WS, false);
     await expect(services.portals.resolve({ token: resolved.portal.token, password: null })).rejects.toMatchObject({ reason: "off" });
   });
 });

@@ -1,6 +1,6 @@
 import type { PublicBoardPayload } from "@/domain/board/board-share";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
-import type { PortalTheme, PortalView } from "@/domain/portal/stakeholder-portal";
+import type { PortalStakeholderOption, PortalTheme, PortalView } from "@/domain/portal/stakeholder-portal";
 
 /**
  * What a stakeholder is allowed to see.
@@ -86,6 +86,13 @@ export interface PortalLinkedTask {
   boardName: string | null;
 }
 
+/** The stakeholder a request is for, as the portal names them. */
+export interface PortalStakeholderRef {
+  id: EntityId;
+  name: string;
+  color: ColorToken;
+}
+
 /** One request in the portal's list. */
 export interface PortalTask {
   id: EntityId;
@@ -99,6 +106,14 @@ export interface PortalTask {
   people: PortalPerson[];
   /** The board this came from, when that label is approved for publication. */
   sourceName: string | null;
+  /**
+   * Who the work is for.
+   *
+   * On a portal showing every stakeholder at once this is the column that makes
+   * the list readable; with one stakeholder selected it says the same thing on
+   * every row and the projection leaves the column out.
+   */
+  stakeholder: PortalStakeholderRef | null;
   /**
    * The kinds of thing the request asked for, as the requester named them.
    *
@@ -150,15 +165,28 @@ export interface PortalTotals {
 
 /** Everything the portal shell needs once the gate has opened. */
 export interface PortalContext {
-  departmentName: string;
-  departmentColor: ColorToken;
+  /** What the portal calls itself: the creative team's name. */
+  portalName: string;
   creativeTeamName: string;
+  /**
+   * Every stakeholder with work to show, for the selector.
+   *
+   * Named only after the gate has opened. Before that, a list of the team's
+   * stakeholders is not something a URL should be able to enumerate.
+   */
+  stakeholders: PortalStakeholderOption[];
+  /** Which one is selected, or null for all of them. */
+  stakeholderId: EntityId | null;
+  /** The years that have requests in them, newest first, for the range picker. */
+  years: number[];
+  /** How far back is being shown, as it travels: "3m", "2026", "all". */
+  range: string;
   defaultTheme: PortalTheme;
   /** True when this visitor is signed in as somebody the workspace knows. */
   signedIn: boolean;
   /** The display name to show in the account control, when signed in. */
   viewerName: string | null;
-  /** The team's own line about this department, under its name. */
+  /** The team's own line about the portal, under its name. */
   description: string | null;
   /** Which view the link opens on. */
   defaultView: PortalView;
@@ -176,7 +204,7 @@ export interface PortalSearchResult {
 }
 
 /**
- * The department's requests arranged as a board.
+ * The portal's requests arranged as a board.
  *
  * `PublicBoardPayload` is the shape the public board link already produces, so
  * the portal reuses the whole read-only data layer and every view built on it.

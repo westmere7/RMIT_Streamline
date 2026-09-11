@@ -1,11 +1,13 @@
 import type {
+  PortalScope,
+  PortalStakeholderOption,
   Board,
   BoardColumn,
   BookingForm,
   Comment,
   BookingReceipt,
   BookingRequest,
-  DepartmentPortal,
+  StakeholderPortal,
   DepartmentStatus,
   EntityId,
   Item,
@@ -27,6 +29,8 @@ import type {
   User,
 } from "@/domain";
 import {
+  EVERY_PORTAL_RANGE,
+  formatPortalRange,
   generatePortalToken,
   isPlausiblePortalToken,
   isPortalColumnKey,
@@ -36,6 +40,7 @@ import {
   PORTAL_PAGE_SIZE,
   reconcileDepartments,
   toTagOptions,
+  withinPortalRange,
   WORKSPACE_LIST_META,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
@@ -128,8 +133,7 @@ export interface PortalViewer {
 
 /** A portal resolved and admitted: everything scoped work needs, and nothing more. */
 export interface ResolvedPortal {
-  portal: DepartmentPortal;
-  department: StakeholderDepartment;
+  portal: StakeholderPortal;
   workspaceId: EntityId;
 }
 
@@ -156,11 +160,28 @@ export interface PortalScopeEntry {
   publicBrief: string | null;
   /** True when a portal_requests row names this item. */
   booked: boolean;
+  /**
+   * Who the work is for.
+   *
+   * The portal shows every stakeholder's work at once, so which one a request
+   * belongs to is a property of the row rather than of the link. Null is
+   * possible: a task booked before its department was named, or one whose
+   * stakeholder word no longer matches any department, still belongs to the
+   * team and is still shown — under "no stakeholder" rather than dropped.
+   */
+  department: StakeholderDepartment | null;
 }
 
 export interface DepartmentOverview {
   department: StakeholderDepartment;
-  portal: DepartmentPortal | null;
+  /** Requests booked through the portal against this stakeholder. */
+  requests: number;
+}
+
+/** What the management screen shows: one portal, and the stakeholders behind it. */
+export interface PortalOverview {
+  portal: StakeholderPortal;
+  departments: DepartmentOverview[];
 }
 
 /**
@@ -174,10 +195,10 @@ export interface DepartmentOverview {
  */
 export interface PortalTransport {
   gate(token: string): Promise<PortalGate>;
-  board(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }>;
-  tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string }): Promise<PortalTaskPage & { context: PortalContext }>;
+  board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardPayload & { context: PortalContext }>;
+  tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope }): Promise<PortalTaskPage & { context: PortalContext }>;
   task(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail>;
-  book(grant: PortalGrant, submissionKey: string, request: BookingRequest): Promise<BookingReceipt>;
+  book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: EntityId): Promise<BookingReceipt>;
   bookingForm(grant: PortalGrant): Promise<BookingForm>;
   comment(grant: PortalGrant, itemId: EntityId, body: string): Promise<void>;
   setDeliverableDone(grant: PortalGrant, itemId: EntityId, assetId: EntityId, done: boolean): Promise<void>;
@@ -193,6 +214,22 @@ export interface PortalTransport {
  * from `portal_requests`, and every field a visitor receives is written out by
  * name in the projection rather than subtracted from a row.
  */
+/**
+ * The scope that narrows nothing: every stakeholder, every year.
+ *
+ * What a task lookup, a search and the selector's own counts all run against —
+ * anything narrower would make "not found" depend on what the visitor happened
+ * to have on screen.
+ */
+const EVERYTHING: PortalScope = { stakeholderId: null, range: EVERY_PORTAL_RANGE };
+
+/** Rows a caller has already read, handed on rather than read again. */
+interface ScopePreload {
+  labelled?: Map<string, EntityId[]>;
+  items?: Map<EntityId, Item>;
+  departments?: StakeholderDepartment[];
+}
+
 export class StakeholderPortalService {
   constructor(
     private readonly repos: Repositories,
@@ -218,17 +255,17 @@ export class StakeholderPortalService {
     return this.transport ? this.transport.gate(token) : this.gate(token);
   }
 
-  async publicBoard(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }> {
-    if (this.transport) return this.transport.board(grant);
+  async publicBoard(grant: PortalGrant, scope: PortalScope = EVERYTHING): Promise<PortalBoardPayload & { context: PortalContext }> {
+    if (this.transport) return this.transport.board(grant, scope);
     const resolved = await this.resolve(grant);
-    const [payload, context] = await Promise.all([this.board(resolved), this.context(resolved, grant.viewer ?? null)]);
+    const [payload, context] = await Promise.all([this.board(resolved, scope), this.context(resolved, grant.viewer ?? null, scope)]);
     return { ...payload, context };
   }
 
-  async publicTasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string } = {}): Promise<PortalTaskPage & { context: PortalContext }> {
+  async publicTasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope } = {}): Promise<PortalTaskPage & { context: PortalContext }> {
     if (this.transport) return this.transport.tasks(grant, options);
     const resolved = await this.resolve(grant);
-    const [page, context] = await Promise.all([this.tasks(resolved, options), this.context(resolved, grant.viewer ?? null)]);
+    const [page, context] = await Promise.all([this.tasks(resolved, options), this.context(resolved, grant.viewer ?? null, options.scope ?? EVERYTHING)]);
     return { ...page, context };
   }
 
@@ -245,10 +282,16 @@ export class StakeholderPortalService {
     return this.buildForm(resolved.workspaceId);
   }
 
-  async publicBook(grant: PortalGrant, submissionKey: string, request: BookingRequest, booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> }): Promise<BookingReceipt> {
-    if (this.transport) return this.transport.book(grant, submissionKey, request);
+  async publicBook(
+    grant: PortalGrant,
+    submissionKey: string,
+    request: BookingRequest,
+    departmentId: EntityId,
+    booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> },
+  ): Promise<BookingReceipt> {
+    if (this.transport) return this.transport.book(grant, submissionKey, request, departmentId);
     const resolved = await this.resolve(grant);
-    return this.book(resolved, { submissionKey, request, booking, memberId: grant.viewer?.userId ?? null });
+    return this.book(resolved, { submissionKey, request, departmentId, booking, memberId: grant.viewer?.userId ?? null });
   }
 
   // ---- departments ---------------------------------------------------------
@@ -318,10 +361,17 @@ export class StakeholderPortalService {
    * it was what made this screen take seconds to show a list of switches that
    * had not changed. The count is a click away on the portal itself.
    */
-  async overview(workspaceId: EntityId): Promise<DepartmentOverview[]> {
-    const [departments, portals] = await Promise.all([this.ensureDepartments(workspaceId), this.repos.stakeholderPortals.listPortals(workspaceId)]);
-    const byDepartment = new Map(portals.map((portal) => [portal.departmentId, portal]));
-    return departments.map((department) => ({ department, portal: byDepartment.get(department.id) ?? null }));
+  /**
+   * The management screen's picture: the one portal, and the stakeholders it
+   * shows, each with how much work it has.
+   */
+  async overview(workspaceId: EntityId): Promise<PortalOverview> {
+    const [departments, portal] = await Promise.all([this.ensureDepartments(workspaceId), this.ensurePortal(workspaceId)]);
+    const requests = await Promise.all(departments.map((department) => this.repos.stakeholderPortals.countRequests(department.id)));
+    return {
+      portal,
+      departments: departments.map((department, index) => ({ department, requests: requests[index] ?? 0 })),
+    };
   }
 
   /**
@@ -332,8 +382,8 @@ export class StakeholderPortalService {
    * can render it. Nothing extra is read and nothing extra is published; see
    * `buildPortalBoard` for what is deliberately left out.
    */
-  async board(resolved: ResolvedPortal): Promise<PortalBoardPayload> {
-    const { entries, items: loaded } = await this.scopeWithItems(resolved.department);
+  async board(resolved: ResolvedPortal, scope: PortalScope = EVERYTHING): Promise<PortalBoardPayload> {
+    const { entries, items: loaded } = await this.scopeWithItems(resolved, scope);
     const ctx = await this.projectionContext(resolved, entries, loaded);
 
     const tasks: PortalBoardTask[] = [];
@@ -341,7 +391,7 @@ export class StakeholderPortalService {
       const item = ctx.itemsById.get(entry.itemId);
       if (!item) continue;
       tasks.push({
-        task: projectTask(item, ctx.projection),
+        task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null),
         brief: entry.publicBrief,
         deliverables: (ctx.projection.assetsByItem.get(entry.itemId) ?? []).map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
         subitems: (ctx.projection.subitemsByParent.get(entry.itemId) ?? []).map((subitem) => projectSubitem(subitem, ctx.projection)),
@@ -350,7 +400,12 @@ export class StakeholderPortalService {
 
     const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
     const payload = buildPortalBoard({
-      department: resolved.department,
+      portalId: resolved.portal.id,
+      workspaceId: resolved.workspaceId,
+      // The stakeholder column is worth a column only while more than one of
+      // them is on screen; with one selected it would say the same word on
+      // every row.
+      showStakeholder: scope.stakeholderId === null,
       hiddenColumns: resolved.portal.hiddenColumns,
       tasks,
       links: ctx.links,
@@ -374,16 +429,15 @@ export class StakeholderPortalService {
     return { ...payload, totals, servedAt: new Date().toISOString() };
   }
 
-  /** The portal for a department, made on first use. Created switched off. */
-  async ensurePortal(workspaceId: EntityId, departmentId: EntityId): Promise<DepartmentPortal> {
-    const existing = await this.repos.stakeholderPortals.getPortalByDepartment(departmentId);
+  /** The workspace's portal, made on first use. Created switched off. */
+  async ensurePortal(workspaceId: EntityId): Promise<StakeholderPortal> {
+    const existing = await this.repos.stakeholderPortals.getUnifiedPortal(workspaceId);
     if (existing) return existing;
-    const department = await this.requireDepartment(workspaceId, departmentId);
     return this.repos.stakeholderPortals.createPortal({
-      workspaceId: department.workspaceId,
-      departmentId: department.id,
-      // Off until somebody deliberately turns it on: creating a department must
-      // never publish anything by itself.
+      workspaceId,
+      departmentId: null,
+      // Off until somebody deliberately turns it on: opening the management
+      // screen must never publish anything by itself.
       enabled: false,
       token: generatePortalToken(),
       passwordHash: null,
@@ -399,8 +453,8 @@ export class StakeholderPortalService {
    * the authorisation — the value was already published to this department, and
    * a setting that pretended otherwise would be a security claim it cannot keep.
    */
-  async setPresentation(workspaceId: EntityId, departmentId: EntityId, patch: PortalPresentation): Promise<DepartmentPortal> {
-    const portal = await this.ensurePortal(workspaceId, departmentId);
+  async setPresentation(workspaceId: EntityId, patch: PortalPresentation): Promise<StakeholderPortal> {
+    const portal = await this.ensurePortal(workspaceId);
     const cleaned: PortalPresentation = { ...patch };
     if (patch.description !== undefined) {
       const trimmed = patch.description?.trim() ?? "";
@@ -411,13 +465,13 @@ export class StakeholderPortalService {
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
 
-  async setEnabled(workspaceId: EntityId, departmentId: EntityId, enabled: boolean): Promise<DepartmentPortal> {
-    const portal = await this.ensurePortal(workspaceId, departmentId);
+  async setEnabled(workspaceId: EntityId, enabled: boolean): Promise<StakeholderPortal> {
+    const portal = await this.ensurePortal(workspaceId);
     return this.repos.stakeholderPortals.updatePortal(portal.id, { enabled });
   }
 
-  async setTheme(workspaceId: EntityId, departmentId: EntityId, defaultTheme: PortalTheme): Promise<DepartmentPortal> {
-    const portal = await this.ensurePortal(workspaceId, departmentId);
+  async setTheme(workspaceId: EntityId, defaultTheme: PortalTheme): Promise<StakeholderPortal> {
+    const portal = await this.ensurePortal(workspaceId);
     return this.repos.stakeholderPortals.updatePortal(portal.id, { defaultTheme });
   }
 
@@ -426,14 +480,14 @@ export class StakeholderPortalService {
    * issued under it — the version bump is what reaches a tab that is already
    * open.
    */
-  async regenerateLink(workspaceId: EntityId, departmentId: EntityId): Promise<DepartmentPortal> {
-    const portal = await this.ensurePortal(workspaceId, departmentId);
+  async regenerateLink(workspaceId: EntityId): Promise<StakeholderPortal> {
+    const portal = await this.ensurePortal(workspaceId);
     return this.repos.stakeholderPortals.updatePortal(portal.id, { token: generatePortalToken(), credentialVersion: portal.credentialVersion + 1 });
   }
 
   /** Sets or clears the password. Either way, previous grants die with the version. */
-  async setPassword(workspaceId: EntityId, departmentId: EntityId, password: string | null): Promise<DepartmentPortal> {
-    const portal = await this.ensurePortal(workspaceId, departmentId);
+  async setPassword(workspaceId: EntityId, password: string | null): Promise<StakeholderPortal> {
+    const portal = await this.ensurePortal(workspaceId);
     const passwordHash = password && password.length > 0 ? await hashPortalPassword(password) : null;
     return this.repos.stakeholderPortals.updatePortal(portal.id, { passwordHash, credentialVersion: portal.credentialVersion + 1 });
   }
@@ -453,22 +507,27 @@ export class StakeholderPortalService {
       open: false,
       refusal: "unknown",
       needsPassword: false,
-      departmentName: "",
+      portalName: "",
       creativeTeamName: "",
       defaultTheme: "system",
       credentialVersion: 0,
     };
     const portal = isPlausiblePortalToken(token) ? await this.repos.stakeholderPortals.getPortalByToken(token) : null;
     if (!portal) return closed;
-    const department = await this.repos.stakeholderPortals.getDepartment(portal.departmentId);
-    if (!department || department.status !== "ACTIVE" || !portal.enabled) return { ...closed, refusal: "off" };
+    // A token that names a department is one of the per-department links the
+    // unified portal replaced. It is told so, rather than being treated as a
+    // typo: the difference is whether the holder asks for the new link or
+    // checks whether they copied the old one properly.
+    if (portal.departmentId !== null) return { ...closed, refusal: "revoked" };
+    if (!portal.enabled) return { ...closed, refusal: "off" };
     const workspace = await this.repos.workspaces.getById(portal.workspaceId);
+    const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
       open: true,
       refusal: null,
       needsPassword: !!portal.passwordHash,
-      departmentName: department.name,
-      creativeTeamName: workspace?.creativeTeamName?.trim() || workspace?.name || "",
+      portalName: teamName,
+      creativeTeamName: teamName,
       defaultTheme: portal.defaultTheme,
       credentialVersion: portal.credentialVersion,
     };
@@ -485,10 +544,9 @@ export class StakeholderPortalService {
   async resolve(grant: PortalGrant): Promise<ResolvedPortal> {
     const portal = isPlausiblePortalToken(grant.token) ? await this.repos.stakeholderPortals.getPortalByToken(grant.token) : null;
     if (!portal) throw new PortalAccessError("unknown", portalAccessMessage("unknown"));
+    // Superseded per-department links, refused before anything else is read.
+    if (portal.departmentId !== null) throw new PortalAccessError("revoked", portalAccessMessage("revoked"));
     if (!portal.enabled) throw new PortalAccessError("off", portalAccessMessage("off"));
-
-    const department = await this.repos.stakeholderPortals.getDepartment(portal.departmentId);
-    if (!department || department.status !== "ACTIVE") throw new PortalAccessError("off", portalAccessMessage("off"));
 
     // A grant that names an older version was issued before the link or the
     // password changed, and is dead however valid it once was.
@@ -499,15 +557,40 @@ export class StakeholderPortalService {
       const ok = !!grant.password && (await verifyPortalPassword(grant.password, portal.passwordHash));
       if (!ok) throw new PortalAccessError("password", portalAccessMessage("password"));
     }
-    return { portal, department, workspaceId: portal.workspaceId };
+    return { portal, workspaceId: portal.workspaceId };
   }
 
-  async context(resolved: ResolvedPortal, viewer: PortalViewer | null): Promise<PortalContext> {
+  /**
+   * What the shell needs once somebody is through the gate.
+   *
+   * The stakeholder list and the years come from the work itself rather than
+   * from a settings page: a stakeholder with nothing to show is not a filter
+   * worth offering, and a year with nothing in it is not a year this portal
+   * has. Both are computed over the whole authorised set, so the selector does
+   * not change as the visitor narrows what is on screen.
+   */
+  async context(resolved: ResolvedPortal, viewer: PortalViewer | null, scope: PortalScope = EVERYTHING): Promise<PortalContext> {
     const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
+    const { entries } = await this.scopeWithItems(resolved, EVERYTHING);
+
+    const counts = new Map<EntityId, { option: PortalStakeholderOption }>();
+    const years = new Set<number>();
+    for (const entry of entries) {
+      years.add(new Date(entry.bookedAt).getUTCFullYear());
+      if (!entry.department) continue;
+      const found = counts.get(entry.department.id);
+      if (found) found.option.count += 1;
+      else counts.set(entry.department.id, { option: { id: entry.department.id, name: entry.department.name, color: entry.department.color, count: 1 } });
+    }
+
+    const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
-      departmentName: resolved.department.name,
-      departmentColor: resolved.department.color,
-      creativeTeamName: workspace?.creativeTeamName?.trim() || workspace?.name || "",
+      portalName: teamName,
+      creativeTeamName: teamName,
+      stakeholders: [...counts.values()].map((row) => row.option).sort((a, b) => a.name.localeCompare(b.name)),
+      stakeholderId: scope.stakeholderId,
+      years: [...years].sort((a, b) => b - a),
+      range: formatPortalRange(scope.range),
       defaultTheme: resolved.portal.defaultTheme,
       signedIn: !!viewer,
       viewerName: viewer?.displayName ?? null,
@@ -530,16 +613,21 @@ export class StakeholderPortalService {
    * Totals are computed over every authorised request, not the page, because
    * "14 overdue" has to mean the department's fourteen and not this page's.
    */
-  async tasks(resolved: ResolvedPortal, options: { cursor?: string | null; limit?: number; search?: string } = {}): Promise<PortalTaskPage> {
+  async tasks(resolved: ResolvedPortal, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope } = {}): Promise<PortalTaskPage> {
     const limit = Math.max(1, Math.min(options.limit ?? PORTAL_PAGE_SIZE, 200));
-    // Everything this department may see, for the totals and the search. Read
-    // once and in full, because a figure computed over one page would be a lie.
-    const { entries: all, items: loaded } = await this.scopeWithItems(resolved.department);
+    // A search looks everywhere. The year is how much of the archive is put on
+    // screen unasked, not a boundary on what may be found: somebody searching
+    // for a task by name is not asking about a year, and finding nothing
+    // because it was booked in December would be a fault they could not see.
+    const scope = options.search?.trim() ? { ...(options.scope ?? EVERYTHING), range: EVERY_PORTAL_RANGE } : (options.scope ?? EVERYTHING);
+    // Everything in scope, for the totals and the search. Read once and in
+    // full, because a figure computed over one page would be a lie.
+    const { entries: all, items: loaded } = await this.scopeWithItems(resolved, scope);
     const ctx = await this.projectionContext(resolved, all, loaded);
     const projected = all
       .map((entry) => {
         const item = ctx.itemsById.get(entry.itemId);
-        return item ? { entry, task: projectTask(item, ctx.projection) } : null;
+        return item ? { entry, task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null) } : null;
       })
       .filter((row): row is { entry: PortalScopeEntry; task: PortalTask } => !!row);
 
@@ -567,14 +655,16 @@ export class StakeholderPortalService {
    * assets on this concrete task; it is computed, never taken from the request.
    */
   async task(resolved: ResolvedPortal, itemId: EntityId, viewer: PortalViewer | null): Promise<PortalTaskDetail> {
-    const scoped = await this.scopeWithItems(resolved.department);
+    // Everything the link may see, whichever stakeholder or year is on screen:
+    // a task opened from a search or a pasted link is still this portal's.
+    const scoped = await this.scopeWithItems(resolved, EVERYTHING);
     const entry = scoped.entries.find((row) => row.itemId === itemId);
     if (!entry) throw new PortalAccessError("unknown", "That request is not part of this portal.");
     const ctx = await this.projectionContext(resolved, [entry], scoped.items);
     const item = ctx.itemsById.get(itemId);
     if (!item) throw new PortalAccessError("unknown", "That request is no longer available.");
 
-    const base = projectTask(item, ctx.projection);
+    const base = projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null);
     const assets = ctx.projection.assetsByItem.get(itemId) ?? [];
     const subitems = ctx.projection.subitemsByParent.get(itemId) ?? [];
     const linked = await this.linkedSummaries(resolved, item, ctx);
@@ -657,7 +747,7 @@ export class StakeholderPortalService {
   /** The gate, the portal's own scope, and a seat on the board — in that order. */
   private async admitWriter(grant: PortalGrant, itemId: EntityId): Promise<{ resolved: ResolvedPortal; viewer: PortalViewer }> {
     const resolved = await this.resolve(grant);
-    const inScope = (await this.scope(resolved.department)).some((row) => row.itemId === itemId);
+    const inScope = (await this.scope(resolved, EVERYTHING)).some((row) => row.itemId === itemId);
     if (!inScope) throw new PortalAccessError("unknown", "That request is not part of this portal.");
     const viewer = grant.viewer ?? null;
     if (!viewer || !(await this.canAct(resolved, itemId, viewer))) throw new PortalAccessError("unknown", "Only someone on this task's board can do that here.");
@@ -696,7 +786,21 @@ export class StakeholderPortalService {
    */
   async book(
     resolved: ResolvedPortal,
-    input: { submissionKey: string; request: BookingRequest; booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> }; memberId?: EntityId | null },
+    input: {
+      submissionKey: string;
+      request: BookingRequest;
+      /**
+       * Who the request is for.
+       *
+       * The portal serves every stakeholder, so this is no longer implied by
+       * the credential and has to be said. It is still not taken on trust: the
+       * id is checked against this workspace's own departments before a word of
+       * it reaches the booking.
+       */
+      departmentId: EntityId;
+      booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> };
+      memberId?: EntityId | null;
+    },
   ): Promise<BookingReceipt> {
     // A link the team has set to reading only takes no requests. Checked here,
     // where every path to a booking passes, rather than by hiding a button.
@@ -705,10 +809,14 @@ export class StakeholderPortalService {
     const key = input.submissionKey.trim();
     if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
 
-    // The department is decided here, from the credential, and written over
-    // whatever arrived. The brief the requester typed is captured before the
-    // booking writer appends their contact details to the description.
-    const request: BookingRequest = { ...input.request, department: resolved.department.name };
+    const department = await this.requireDepartment(resolved.workspaceId, input.departmentId);
+    if (department.status !== "ACTIVE") throw new Error("That stakeholder is no longer taking requests.");
+
+    // The stakeholder is written over whatever arrived in the body: the name on
+    // the request is the one belonging to the id that was just checked, never a
+    // word the caller supplied. The brief the requester typed is captured before
+    // the booking writer appends their contact details to the description.
+    const request: BookingRequest = { ...input.request, department: department.name };
     const publicBrief = request.brief?.trim() ? request.brief.trim().slice(0, MAX_PUBLIC_BRIEF) : null;
     const requestHash = await hashSubmission(resolved.portal.id, request);
 
@@ -727,10 +835,10 @@ export class StakeholderPortalService {
     }
 
     try {
-      const receipt = await input.booking.book(resolved.workspaceId, request, input.memberId ?? null, resolved.department.name);
+      const receipt = await input.booking.book(resolved.workspaceId, request, input.memberId ?? null, department.name);
       await this.associate({
         workspaceId: resolved.workspaceId,
-        departmentId: resolved.department.id,
+        departmentId: department.id,
         itemId: receipt.itemId,
         source: "PORTAL_BOOKING",
         publicBrief,
@@ -774,14 +882,14 @@ export class StakeholderPortalService {
   }
 
   /**
-   * Everything a department may see, deduplicated and newest first.
+   * Everything the portal may see, deduplicated and newest first.
    *
-   * The union of two sources: tasks booked through this portal (provenance), and
-   * tasks the team has labelled with this department in a STAKEHOLDER column.
-   * The label is how a department sees the work it already had, rather than only
-   * what arrived after its portal existed.
+   * The union of two sources across the whole workspace: tasks booked through
+   * the portal (provenance), and tasks the team has labelled with a stakeholder
+   * in a STAKEHOLDER column. The label is how the portal shows work the team
+   * already had, rather than only what arrived after the portal existed.
    *
-   * Three rules keep the list honest:
+   * Four rules keep the list honest:
    *
    *  · Only top-level, unarchived tasks. A subitem belongs inside its parent,
    *    not beside it, and archived work is gone.
@@ -791,9 +899,17 @@ export class StakeholderPortalService {
    *    and never "whichever changed last".
    *  · A labelled task has no brief. `items.description` is not a brief; it
    *    carries whatever contact details the booking writer appended.
+   *  · The stakeholder label decides who a task belongs to. Provenance keeps a
+   *    *booking* visible — a task booked here and never labelled belongs to the
+   *    stakeholder that booked it — and it is what carries the brief, but it no
+   *    longer pins a task to a stakeholder the board has since moved it out of.
+   *
+   * `scope` narrows what comes back; it never widens it. Both of its fields are
+   * the visitor's own choice about how much to look at, and neither is
+   * authorisation — that was settled by the token before this was called.
    */
-  private async scope(department: StakeholderDepartment, preloaded?: { labelled: Map<string, EntityId[]>; items: Map<EntityId, Item> }): Promise<PortalScopeEntry[]> {
-    return (await this.scopeWithItems(department, preloaded)).entries;
+  private async scope(resolved: ResolvedPortal, scope: PortalScope, preloaded?: ScopePreload): Promise<PortalScopeEntry[]> {
+    return (await this.scopeWithItems(resolved, scope, preloaded)).entries;
   }
 
   /**
@@ -804,25 +920,41 @@ export class StakeholderPortalService {
    * round trip over a few hundred ids on every page and every task detail.
    */
   private async scopeWithItems(
-    department: StakeholderDepartment,
-    preloaded?: { labelled: Map<string, EntityId[]>; items: Map<EntityId, Item> },
+    resolved: ResolvedPortal,
+    scope: PortalScope,
+    preloaded?: ScopePreload,
   ): Promise<{ entries: PortalScopeEntry[]; items: Map<EntityId, Item> }> {
-    const [provenance, labelled] = await Promise.all([
-      this.allRequests(department.id),
-      preloaded?.labelled ? Promise.resolve(preloaded.labelled) : this.labelledItemIds(department.workspaceId),
+    const workspaceId = resolved.workspaceId;
+    const [departments, labelled] = await Promise.all([
+      preloaded?.departments ? Promise.resolve(preloaded.departments) : this.repos.stakeholderPortals.listDepartments(workspaceId, { includeDisabled: true }),
+      preloaded?.labelled ? Promise.resolve(preloaded.labelled) : this.labelledItemIds(workspaceId),
     ]);
-    // The stakeholder label decides. A task relabelled from one department to
-    // another moves: it appears under the new one and stops appearing under the
-    // old, which is what changing the cell plainly means. Provenance is what
-    // keeps a *booking* visible — a task booked here and never labelled belongs
-    // to the department that booked it — and it is what carries the brief, but
-    // it no longer pins a task to a department the board has since moved it out
-    // of.
-    const anyLabel = new Set<EntityId>([...labelled.values()].flat());
-    const candidates = new Set<EntityId>([
-      ...(labelled.get(departmentKey(department.name)) ?? []),
-      ...provenance.filter((row) => !anyLabel.has(row.itemId)).map((row) => row.itemId),
-    ]);
+    const byKey = new Map(departments.filter((row) => row.status === "ACTIVE").map((row) => [departmentKey(row.name), row]));
+
+    // Provenance for every stakeholder, not one of them: the portal is the
+    // workspace's now, and a booking is in it whoever it was for.
+    const provenance = (await Promise.all(departments.map((row) => this.allRequests(row.id)))).flat();
+
+    // Which stakeholder each labelled task belongs to, by the word in its cell.
+    const owner = new Map<EntityId, StakeholderDepartment | null>();
+    for (const [key, ids] of labelled) {
+      const department = byKey.get(key) ?? null;
+      for (const id of ids) owner.set(id, department);
+    }
+    const candidates = new Set<EntityId>([...owner.keys()]);
+    // A booking whose task carries no stakeholder word at all still belongs to
+    // the stakeholder who made it.
+    // Only a stakeholder still on the list may claim a row. One whose group has
+    // left is retired: its provenance stays attached — who asked for what is
+    // not a thing to forget — but it is no longer offered as a filter, and its
+    // work reads as the team's rather than as a name nobody recognises.
+    const active = new Map(departments.filter((row) => row.status === "ACTIVE").map((row) => [row.id, row]));
+    const bookedBy = new Map(provenance.map((row) => [row.itemId, active.get(row.departmentId) ?? null]));
+    for (const row of provenance) {
+      if (owner.has(row.itemId)) continue;
+      candidates.add(row.itemId);
+      owner.set(row.itemId, bookedBy.get(row.itemId) ?? null);
+    }
     if (candidates.size === 0) return { entries: [], items: new Map() };
 
     const loaded = preloaded?.items ?? (await this.itemsByIdFor([...candidates]));
@@ -835,11 +967,18 @@ export class StakeholderPortalService {
     const links = await this.linksForItems([...byId.keys()]);
     const canonical = collapseLinked([...byId.keys()], links, (id) => ({ booked: briefs.has(id), createdAt: byId.get(id)!.createdAt }));
 
+    // One clock for the whole pass, so a rolling window cannot move between the
+    // first row it is applied to and the last.
+    const now = new Date();
     const entries: PortalScopeEntry[] = [];
     for (const id of canonical) {
       const item = byId.get(id)!;
       const row = briefs.get(id);
-      entries.push({ itemId: id, bookedAt: row?.bookedAt ?? item.createdAt, publicBrief: row?.publicBrief ?? null, booked: !!row });
+      const department = owner.get(id) ?? null;
+      if (scope.stakeholderId !== null && department?.id !== scope.stakeholderId) continue;
+      const bookedAt = row?.bookedAt ?? item.createdAt;
+      if (!withinPortalRange(bookedAt, scope.range, now)) continue;
+      entries.push({ itemId: id, bookedAt, publicBrief: row?.publicBrief ?? null, booked: !!row, department });
     }
     entries.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt) || b.itemId.localeCompare(a.itemId));
     return { entries, items: loaded };
@@ -1038,7 +1177,7 @@ export class StakeholderPortalService {
     const otherIds = links.map((link) => (link.itemAId === item.id ? link.itemBId : link.itemAId)).filter((id) => id !== item.id);
     const unique = [...new Set(otherIds)];
 
-    const publishable = new Set((await this.scope(resolved.department)).map((row) => row.itemId));
+    const publishable = new Set((await this.scope(resolved, EVERYTHING)).map((row) => row.itemId));
 
     return Promise.all(
       unique.map(async (id) => {

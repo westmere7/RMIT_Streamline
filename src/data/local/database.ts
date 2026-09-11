@@ -29,7 +29,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceListOption,
   StakeholderDepartment,
-  DepartmentPortal,
+  StakeholderPortal,
   PortalRequest,
   PortalSubmission,
   WorkspaceMember,
@@ -106,7 +106,7 @@ export interface StreamlineDB extends DBSchema {
   dashboardShares: { key: string; value: DashboardShare; indexes: { byWorkspace: string; byToken: string } };
   workspaceLists: { key: string; value: WorkspaceListOption; indexes: { byWorkspace: string } };
   stakeholderDepartments: { key: string; value: StakeholderDepartment; indexes: { byWorkspace: string } };
-  departmentPortals: { key: string; value: DepartmentPortal; indexes: { byWorkspace: string; byDepartment: string; byToken: string } };
+  departmentPortals: { key: string; value: StakeholderPortal; indexes: { byWorkspace: string; byDepartment: string; byToken: string } };
   portalRequests: { key: string; value: PortalRequest; indexes: { byWorkspace: string; byDepartment: string; byItem: string } };
   portalSubmissions: { key: string; value: PortalSubmission; indexes: { byPortal: string; byKey: [string, string] } };
   itemShares: { key: string; value: ItemShare; indexes: { byItem: string; byToken: string } };

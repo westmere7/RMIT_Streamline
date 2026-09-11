@@ -1,9 +1,12 @@
 "use client";
 
-import { Check, LoaderCircle, Moon, Sun, SunMoon } from "lucide-react";
+import { CalendarRange, Check, ChevronDown, LoaderCircle, Moon, Sun, SunMoon, TriangleAlert, Users } from "lucide-react";
 import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
-import type { PortalTheme, PortalTotals } from "@/domain";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
+import { PORTAL_MONTH_RANGES, portalRangeLabel } from "@/domain";
+import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,7 +15,7 @@ import { cn } from "@/lib/utils";
  * Not the application's: a stakeholder has no sidebar, no workspace and no
  * account, and giving them a chrome that implies otherwise would be an
  * invitation to try doors that are locked. What they get is the team's name,
- * their own department's, and the two things they came for.
+ * whose work they are looking at, and the two things they came for.
  */
 export function PortalShell({ children, fill = false }: { children: React.ReactNode; fill?: boolean }) {
   // One window tall, always: the board has a sticky header row, a horizontal
@@ -190,25 +193,44 @@ const THEME_ICONS: Record<PortalTheme, React.ComponentType<{ className?: string 
 
 export function PortalHeader({
   token,
-  departmentName,
+  portalName,
   creativeTeamName,
   viewerName,
   servedAt,
   stale,
   totals,
   description,
+  stakeholders,
+  stakeholderId,
+  onStakeholder,
+  years,
+  range,
+  onRange,
+  rangeOverridden,
 }: {
   token: string;
-  departmentName: string;
+  portalName: string;
   creativeTeamName: string;
   viewerName: string | null;
   servedAt: string | null;
   stale: boolean;
-  /** The figures over the whole department, shown beside its name. */
+  /** The figures over everything on screen, shown beside the selector. */
   totals?: PortalTotals | null;
-  /** The team's own line about this department, in place of the standing subtitle. */
+  /** The team's own line about the portal, in place of the standing subtitle. */
   description?: string | null;
+  /** Every stakeholder with work to show. Empty while the first read is in flight. */
+  stakeholders?: PortalStakeholderOption[];
+  /** The one selected, or null for all of them. */
+  stakeholderId?: EntityId | null;
+  onStakeholder?: (id: EntityId | null) => void;
+  /** The years that have work in them, offered under the rolling windows. */
+  years?: number[];
+  range?: PortalRange;
+  onRange?: (range: PortalRange) => void;
+  /** True when a search has set the range aside and is reading everything. */
+  rangeOverridden?: boolean;
 }) {
+  const selected = stakeholders?.find((row) => row.id === stakeholderId) ?? null;
   const themeContext = React.useContext(PortalThemeContext);
   return (
     <header className="border-b border-border/70 bg-background">
@@ -216,15 +238,117 @@ export function PortalHeader({
           left the name floating in the middle of a full-width page. */}
       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
         <BrandMark className="size-9 shrink-0 rounded-lg" />
-        {/* The department leads. Whoever is reading this works in it, and the
-            page is about their work; the team's name is the answer to "who is
-            doing it", which is context, not the title. */}
+        {/* Whose work is on screen leads, because on a portal that carries every
+            stakeholder's work it is the first thing a reader has to settle — and
+            it is a control rather than a heading, because it is also the first
+            thing they will want to change. */}
         <div className="min-w-0 shrink-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight" data-testid="portal-department-name">
-            {departmentName}
-          </p>
-          <p className="truncate text-2xs text-muted-foreground">{description?.trim() || `${creativeTeamName} · requests and bookings`}</p>
+          {onStakeholder ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="-ml-1.5 flex max-w-[19rem] items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-left transition-colors hover:bg-surface-strong/70"
+                  data-testid="portal-stakeholder-picker"
+                >
+                  {selected && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(selected.color).dot)} />}
+                  <span className="truncate text-[15px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
+                    {selected ? selected.name : `${portalName} · everything`}
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuLabel>Whose work to show</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => onStakeholder(null)} data-testid="portal-stakeholder-all">
+                  <Users />
+                  <span className="flex-1">The full creative team</span>
+                  {stakeholderId === null && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Stakeholders</DropdownMenuLabel>
+                {(stakeholders ?? []).map((option) => (
+                  <DropdownMenuItem key={option.id} onSelect={() => onStakeholder(option.id)} data-testid={`portal-stakeholder-${option.id}`}>
+                    <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(option.color).dot)} />
+                    <span className="flex-1 truncate">{option.name}</span>
+                    <span className="text-2xs tabular text-muted-foreground">{option.count}</span>
+                    {stakeholderId === option.id && <Check className="size-3.5" />}
+                  </DropdownMenuItem>
+                ))}
+                {(stakeholders ?? []).length === 0 && <p className="px-2 py-1.5 text-2xs text-muted-foreground">No stakeholder has work here yet.</p>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <p className="truncate text-[15px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
+              {portalName}
+            </p>
+          )}
+          <p className="truncate pl-0.5 text-2xs text-muted-foreground">{description?.trim() || `${creativeTeamName} · requests and bookings`}</p>
         </div>
+
+        {/* How far back to read. Three months by default: a portal that fetched
+            every request the team has ever taken would be the slowest page in
+            the product, and most visits are about what is happening now. A
+            search ignores this and looks everywhere. */}
+        {onRange && range && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-medium transition-colors hover:bg-surface-strong/70",
+                  range.kind === "all" && !rangeOverridden ? "border-amber-400/70 text-amber-700 dark:text-amber-300" : "border-border/70",
+                )}
+                data-testid="portal-range-picker"
+              >
+                <CalendarRange className="size-3.5 text-muted-foreground" />
+                {rangeOverridden ? "Searching everything" : portalRangeLabel(range)}
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-60">
+              <DropdownMenuLabel>Requested in</DropdownMenuLabel>
+              {PORTAL_MONTH_RANGES.map((months) => (
+                <DropdownMenuItem key={months} onSelect={() => onRange({ kind: "months", months })} data-testid={`portal-range-${months}m`}>
+                  <span className="flex-1">{portalRangeLabel({ kind: "months", months })}</span>
+                  {range.kind === "months" && range.months === months && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+              ))}
+              {(years?.length ?? 0) > 0 && <DropdownMenuSeparator />}
+              {(years ?? []).map((year) => (
+                <DropdownMenuItem key={year} onSelect={() => onRange({ kind: "year", year })} data-testid={`portal-range-${year}`}>
+                  <span className="flex-1 tabular">{year}</span>
+                  {range.kind === "year" && range.year === year && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              {/* The expensive one, and it says so. Everything the team has ever
+                  taken for every stakeholder is a long read on a portal this
+                  size, and somebody reaching for it should know before they
+                  wait rather than afterwards. */}
+              <DropdownMenuItem onSelect={() => onRange({ kind: "all" })} className="items-start" data-testid="portal-range-all">
+                <TriangleAlert className="mt-0.5 size-3.5 text-amber-600 dark:text-amber-400" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span>All time</span>
+                  <span className="text-2xs text-muted-foreground">Loads every request the team has taken. Slow on a busy portal.</span>
+                </span>
+                {range.kind === "all" && <Check className="mt-0.5 size-3.5" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* Up while it is actually loading everything, so the cost is visible
+            where the choice was made. */}
+        {range?.kind === "all" && !rangeOverridden && (
+          <span
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-2xs font-medium text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
+            data-testid="portal-all-time-warning"
+          >
+            <TriangleAlert className="size-3" aria-hidden />
+            Loading every request
+          </span>
+        )}
 
         {totals && <PortalRecap totals={totals} />}
 

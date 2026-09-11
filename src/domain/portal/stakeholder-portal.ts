@@ -43,7 +43,14 @@ export const PORTAL_THEMES = ["light", "dark", "system"] as const;
 export type PortalTheme = (typeof PORTAL_THEMES)[number];
 
 /**
- * One portal per department, and the credentials that open it.
+ * The workspace's portal, and the credentials that open it.
+ *
+ * One per workspace. It used to be one per department, which meant a link, a
+ * password and a set of settings for each of them, and a stakeholder who works
+ * with two departments holding two links. The work was never divided that way:
+ * every task carries the stakeholder it is for, so one portal showing all of it
+ * — with the stakeholder as a filter the visitor chooses — is the same
+ * information without the administration.
  *
  * The token is the whole of the authorisation: unguessable, and worth nothing
  * once regenerated. `credentialVersion` is what makes revocation immediate — a
@@ -51,10 +58,19 @@ export type PortalTheme = (typeof PORTAL_THEMES)[number];
  * every grant already handed out, including the one held by a tab that is open
  * right now. Changing or clearing the password bumps it too.
  */
-export interface DepartmentPortal extends Timestamps {
+export interface StakeholderPortal extends Timestamps {
   id: EntityId;
   workspaceId: EntityId;
-  departmentId: EntityId;
+  /**
+   * Null on the unified portal — the only kind served.
+   *
+   * A row that still names a department is a superseded per-department link.
+   * They are kept rather than deleted so their tokens resolve to "this link has
+   * been replaced" instead of to nothing, which is the difference between a
+   * stakeholder asking for the new link and a stakeholder thinking they
+   * mistyped the address.
+   */
+  departmentId: EntityId | null;
   /** Off keeps the row and the token but serves nothing — neither browsing nor booking. */
   enabled: boolean;
   /** The secret in the link (/portal/<token>). */
@@ -64,9 +80,9 @@ export interface DepartmentPortal extends Timestamps {
   /** Bumped by a link regeneration or any password change; every older grant dies with it. */
   credentialVersion: number;
   defaultTheme: PortalTheme;
-  /** A line of the team's own words, under the department name. */
+  /** A line of the team's own words, under the portal's name. */
   description: string | null;
-  /** Board columns this department does not need. Keys, not ids: see `PORTAL_COLUMNS`. */
+  /** Board columns the portal does not need. Keys, not ids: see `PORTAL_COLUMNS`. */
   hiddenColumns: PortalColumnKey[];
   /** Which view the link opens on. */
   defaultView: PortalView;
@@ -77,10 +93,10 @@ export interface DepartmentPortal extends Timestamps {
 }
 
 /**
- * The columns a department's board can carry.
+ * The columns the portal's board can carry.
  *
- * Keys rather than ids, because the ids are derived per department and a
- * setting has to survive a portal being rebuilt. `status` and `item` are not
+ * Keys rather than ids, because the ids are derived and a setting has to
+ * survive a portal being rebuilt. `status` and `item` are not
  * here: a board with no status is not worth reading, and the name is the row.
  * A column with nothing in it is left out whatever this says — hiding is a
  * choice about clutter, not a way to make an empty column appear.
@@ -102,15 +118,17 @@ export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt",
 export type PortalView = (typeof PORTAL_VIEWS)[number];
 
 /**
- * How a department's board is divided into groups.
+ * How the portal's board is divided into groups.
  *
  * A view setting, like which view the link opens on: the visitor chooses, it
  * lives in the URL so a link they pass on opens the same way, and nothing is
- * stored against the portal. "board" is one group per board the department's
- * work is being run on — "who has this"; "status" groups by status instead —
- * "where is it up to", which is the question most visitors arrive with.
+ * stored against the portal. "board" is one group per board the work is being
+ * run on — "who has this"; "status" groups by status instead — "where is it up
+ * to", which is the question most visitors arrive with; "stakeholder" is one
+ * group per stakeholder, which only says anything while the filter is showing
+ * more than one of them.
  */
-export const PORTAL_GROUPINGS = ["board", "status"] as const;
+export const PORTAL_GROUPINGS = ["board", "status", "stakeholder"] as const;
 export type PortalGrouping = (typeof PORTAL_GROUPINGS)[number];
 
 export function isPortalGrouping(value: unknown): value is PortalGrouping {
@@ -129,9 +147,9 @@ export function isPortalView(value: unknown): value is PortalView {
 }
 
 /** What an administrator may change about how a portal presents itself. */
-export type PortalPresentation = Partial<Pick<DepartmentPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "defaultTheme">>;
+export type PortalPresentation = Partial<Pick<StakeholderPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "defaultTheme">>;
 
-export type DepartmentPortalInput = Pick<DepartmentPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
+export type StakeholderPortalInput = Pick<StakeholderPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
 
 /** Where a request came from. Only these two ever create provenance. */
 export const PORTAL_REQUEST_SOURCES = ["PORTAL_BOOKING", "IMPORT"] as const;
@@ -218,15 +236,17 @@ export type PortalRefusal = (typeof PORTAL_REFUSALS)[number];
  * What a visitor learns before they are let in: whether the link is live and
  * whether it wants a password.
  *
- * Deliberately thin. It names the department and the team, because the person
- * holding the link already knows both, and nothing else — no counts, no task
- * names, no hint that another department exists.
+ * Deliberately thin. It names the team, because the person holding the link
+ * already knows who they asked for it, and nothing else — no counts, no task
+ * names, no stakeholder list. The stakeholders are only named once somebody is
+ * through the gate.
  */
 export interface PortalGate {
   open: boolean;
   refusal: PortalRefusal | null;
   needsPassword: boolean;
-  departmentName: string;
+  /** What the portal calls itself before anyone is let in: the creative team's name. */
+  portalName: string;
   /** The workspace's editable display name, falling back to the workspace's own. */
   creativeTeamName: string;
   defaultTheme: PortalTheme;
@@ -240,6 +260,104 @@ export const MAX_CREATIVE_TEAM_NAME = 60;
 
 /** How many requests one page of the portal's list carries. */
 export const PORTAL_PAGE_SIZE = 50;
+
+/**
+ * What the visitor is looking at: whose work, and from when.
+ *
+ * Both are the visitor's own choice and neither is authorisation — the token
+ * decides what may be read, and these two decide how much of it to put on the
+ * screen at once. A portal that showed every stakeholder's every year by
+ * default would be the slowest page in the product on the day it shipped.
+ */
+export interface PortalScope {
+  /** A department id, or null for every stakeholder at once. */
+  stakeholderId: EntityId | null;
+  /**
+   * How far back to read.
+   *
+   * What keeps the first read bounded. A search replaces it with "all":
+   * somebody looking for a task by name is not asking about a date, and finding
+   * nothing because it was booked last spring would be a fault they could not
+   * see.
+   */
+  range: PortalRange;
+}
+
+/**
+ * How much of the past the portal is showing.
+ *
+ * Two units, because two questions are asked of it. "The last three months" is
+ * what somebody following their own work means — a rolling window, ending
+ * today, that does not empty out every January. A calendar year is what
+ * somebody reviewing means: a fixed period everybody can name. Everything is
+ * the third, for a search or a count.
+ */
+export type PortalRange = { kind: "months"; months: number } | { kind: "year"; year: number } | { kind: "all" };
+
+/** The rolling windows offered, in months. */
+export const PORTAL_MONTH_RANGES = [1, 3, 6] as const;
+
+/**
+ * What a link with nothing to say opens on.
+ *
+ * Three months: long enough to hold a campaign's worth of work, short enough
+ * that the first read stays small on a portal carrying every stakeholder at
+ * once. A visitor who wants more picks it, and their choice lives in the URL.
+ */
+export const DEFAULT_PORTAL_RANGE: PortalRange = { kind: "months", months: 3 };
+
+/** The whole of it: what a search runs against, and what the counts are taken over. */
+export const EVERY_PORTAL_RANGE: PortalRange = { kind: "all" };
+
+/** As it travels: "3m", "2026", "all". Short enough to read in a URL. */
+export function formatPortalRange(range: PortalRange): string {
+  if (range.kind === "months") return `${range.months}m`;
+  if (range.kind === "year") return String(range.year);
+  return "all";
+}
+
+/** The other way. Anything unrecognised is null, so a caller may fall back deliberately. */
+export function parsePortalRange(value: string | null | undefined): PortalRange | null {
+  if (!value) return null;
+  if (value === "all") return EVERY_PORTAL_RANGE;
+  const months = /^(\d{1,2})m$/.exec(value);
+  if (months) {
+    const count = Number(months[1]);
+    return (PORTAL_MONTH_RANGES as readonly number[]).includes(count) ? { kind: "months", months: count } : null;
+  }
+  return /^\d{4}$/.test(value) ? { kind: "year", year: Number(value) } : null;
+}
+
+/** Whether a moment falls inside the range, measured from `now`. */
+export function withinPortalRange(iso: string, range: PortalRange, now: Date = new Date()): boolean {
+  if (range.kind === "all") return true;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return false;
+  if (range.kind === "year") return at.getUTCFullYear() === range.year;
+  // Calendar months back, not thirty-day blocks: "three months" means the same
+  // day three months ago, which is what a person counting back would say.
+  const from = new Date(now);
+  from.setUTCMonth(from.getUTCMonth() - range.months);
+  return at.getTime() >= from.getTime();
+}
+
+/** How a range reads on screen. */
+export function portalRangeLabel(range: PortalRange): string {
+  if (range.kind === "all") return "All time";
+  if (range.kind === "year") return String(range.year);
+  return range.months === 1 ? "Last month" : `Last ${range.months} months`;
+}
+
+export const ALL_STAKEHOLDERS = "all";
+
+/** One stakeholder as the portal's selector offers it. */
+export interface PortalStakeholderOption {
+  id: EntityId;
+  name: string;
+  color: ColorToken;
+  /** How many requests they have, across every year. */
+  count: number;
+}
 
 // ---- reconciling departments with the stakeholder-groups list ---------------
 

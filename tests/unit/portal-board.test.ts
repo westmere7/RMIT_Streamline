@@ -26,6 +26,7 @@ function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
     assetTypes: [],
     deliverables: { total: 0, done: 0 },
     subitems: { total: 0, done: 0 },
+    stakeholder: null,
     linkedCount: 0,
     bookedAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-02T00:00:00.000Z",
@@ -42,7 +43,7 @@ const entry = (t: PortalTask, extra: Partial<PortalBoardTask> = {}): PortalBoard
 });
 
 const build = (tasks: PortalBoardTask[], links: ItemLink[] = [], comments: Comment[] = [], commentAuthors: PortalPerson[] = []) =>
-  buildPortalBoard({ department: DEPARTMENT, tasks, links, comments, commentAuthors, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
+  buildPortalBoard({ portalId: DEPARTMENT.id, workspaceId: DEPARTMENT.workspaceId, tasks, links, comments, commentAuthors, workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z" });
 
 
 const comment = (id: string, itemId: string, authorId: string, body: string): Comment => ({
@@ -235,7 +236,8 @@ describe("a department's requests as a board", () => {
     expect(all.columns.map((c) => c.name)).toContain("Priority");
 
     const trimmed = buildPortalBoard({
-      department: DEPARTMENT,
+      portalId: DEPARTMENT.id,
+      workspaceId: DEPARTMENT.workspaceId,
       tasks: [rich()],
       links: [],
       comments: [],

@@ -11,9 +11,17 @@ import { resetLocalData, signInAs } from "./helpers";
  * limitation is recorded in the portal's documentation.
  */
 
-/** Fills the portal's booking form and sends it. */
+/**
+ * Fills the portal's booking form and sends it.
+ *
+ * The form sits behind a gate while it is being rebuilt for the unified portal:
+ * it warns, and it will not open at all until a stakeholder is selected, since
+ * one link now serves all of them and a request has to be for somebody.
+ */
 async function bookThroughPortal(page: Page, title: string, brief: string): Promise<void> {
   await page.getByTestId("portal-book-button").click();
+  await expect(page.getByTestId("portal-book-gate")).toBeVisible();
+  await page.getByTestId("portal-book-continue").click();
   const form = page.getByTestId("portal-book");
   await expect(form).toBeVisible();
   await form.getByLabel(/Your name/).fill("Priya Nair");
@@ -26,26 +34,18 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   await expect(page.getByTestId("portal-view-request")).toBeVisible();
 }
 
-/**
- * A department's card on the management screen, unfolded.
- *
- * The cards are collapsed by default — a workspace with a dozen departments is
- * otherwise a page of settings — so anything but the name, the state and the
- * two buttons most used has to be opened first.
- */
-async function departmentCard(page: Page, department: string) {
+/** The workspace's one portal, on the management screen. */
+async function portalCard(page: Page) {
   await page.goto("/workspace/rmit/book");
   await expect(page.getByRole("heading", { name: "Stakeholder Portal" })).toBeVisible();
-  const card = page.locator(`[data-testid=portal-department][data-department="${department}"]`);
+  const card = page.getByTestId("portal-card");
   await expect(card).toBeVisible();
-  const expander = card.getByTestId("portal-department-expand");
-  if ((await expander.getAttribute("aria-expanded")) !== "true") await expander.click();
   return card;
 }
 
-/** Opens a department's portal from the management screen and returns its link. */
-async function openPortal(page: Page, department: string): Promise<string> {
-  const card = await departmentCard(page, department);
+/** Opens the portal from the management screen and returns its link. */
+async function openPortal(page: Page): Promise<string> {
+  const card = await portalCard(page);
   if ((await card.getByTestId("portal-state").innerText()) !== "Open") {
     await card.getByTestId("portal-toggle").click();
   }
@@ -53,6 +53,13 @@ async function openPortal(page: Page, department: string): Promise<string> {
   const link = await card.getByTestId("portal-link").innerText();
   expect(link).toContain("/portal/");
   return new URL(link).pathname;
+}
+
+/** Points the portal at one stakeholder, the way the selector does. */
+async function showOnly(page: Page, stakeholder: string): Promise<void> {
+  await page.getByTestId("portal-stakeholder-picker").click();
+  await page.getByRole("menuitem", { name: new RegExp(`^${stakeholder}`) }).click();
+  await expect(page.getByTestId("portal-stakeholder-name")).toContainText(stakeholder);
 }
 
 test.describe("the stakeholder portal", () => {
@@ -74,22 +81,23 @@ test.describe("the stakeholder portal", () => {
     await expect(page.getByTestId("book-task-card")).toBeVisible();
   });
 
-  test("gives each department its own link, closed until somebody opens it", async ({ page }) => {
+  test("gives the team one link, closed until somebody opens it, and names who it shows", async ({ page }) => {
     await page.goto("/workspace/rmit/book");
-    const cards = page.getByTestId("portal-department");
-    await expect(cards.first()).toBeVisible();
-    expect(await cards.count()).toBeGreaterThan(1);
-    // Nothing is published by existing: every portal starts shut.
-    for (const state of await page.getByTestId("portal-state").allInnerTexts()) {
-      expect(state).toBe("Closed");
-    }
+    await expect(page.getByTestId("portal-card")).toBeVisible();
+    // One portal, not one per stakeholder.
+    expect(await page.getByTestId("portal-card").count()).toBe(1);
+    // Nothing is published by existing: the portal starts shut.
+    await expect(page.getByTestId("portal-state")).toHaveText("Closed");
+    // And the stakeholders it carries are listed, for reference only.
+    const rows = page.getByTestId("portal-stakeholder-row");
+    expect(await rows.count()).toBeGreaterThan(1);
   });
 
   test("a stakeholder books, sees the receipt, and finds the request waiting", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
 
     await page.goto(portalPath);
-    await expect(page.getByTestId("portal-department-name")).toContainText("Comm.");
+    await showOnly(page, "Comm.");
     await expect(page.getByTestId("portal-totals")).toContainText("0");
 
     await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.");
@@ -102,27 +110,80 @@ test.describe("the stakeholder portal", () => {
     await expect(page.getByTestId("portal-totals")).toContainText("1");
   });
 
-  test("shows a department only its own work", async ({ page }) => {
-    const commPath = await openPortal(page, "Comm.");
-    const eventPath = await openPortal(page, "Event");
+  test("shows one stakeholder only their own work, and everybody's together", async ({ page }) => {
+    const portalPath = await openPortal(page);
 
-    // Book into Comm.
-    await page.goto(commPath);
+    await page.goto(portalPath);
+    await showOnly(page, "Comm.");
     await bookThroughPortal(page, "Comm only request", "Should never appear under Event.");
+    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
 
-    // Event's portal knows nothing about it.
-    await page.goto(eventPath);
-    await expect(page.getByTestId("portal-department-name")).toContainText("Event");
+    // Switching the selector is what separates them now, not a second link.
+    await showOnly(page, "Event");
     await expect(page.getByTestId("portal-totals")).toContainText("0");
     await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toHaveCount(0);
+
+    // And with nobody selected the same link shows both, each row saying who it
+    // is for.
+    await page.getByTestId("portal-stakeholder-picker").click();
+    await page.getByTestId("portal-stakeholder-all").click();
+    await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "For" })).toBeVisible();
+  });
+
+  test("opens on the last three months, and offers the windows either side of it", async ({ page }) => {
+    const portalPath = await openPortal(page);
+    await page.goto(portalPath);
+
+    // Three months unless somebody says otherwise: the whole archive on the
+    // first read would be the slowest page in the product.
+    await expect(page.getByTestId("portal-range-picker")).toHaveText(/Last 3 months/);
+    await page.getByTestId("portal-range-picker").click();
+    await expect(page.getByTestId("portal-range-1m")).toBeVisible();
+    await expect(page.getByTestId("portal-range-6m")).toBeVisible();
+
+    // All time is offered, and says what it costs before it is chosen.
+    const everything = page.getByTestId("portal-range-all");
+    await expect(everything).toContainText(/Loads every request/i);
+    await everything.click();
+    // Chosen, it keeps saying so, because the cost is being paid.
+    await expect(page.getByTestId("portal-all-time-warning")).toBeVisible();
+    await expect(page).toHaveURL(/range=all/);
+  });
+
+  test("searches past the window it is showing", async ({ page }) => {
+    const portalPath = await openPortal(page);
+    await page.goto(portalPath);
+    await showOnly(page, "Comm.");
+    await bookThroughPortal(page, "Findable by search", "A request to look for.");
+    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
+
+    // A search is not a question about a date, so the window steps aside and
+    // says that it has.
+    await page.getByTestId("search-input").fill("Findable by search");
+    await expect(page.getByTestId("portal-all-years")).toBeVisible();
+    await expect(page.getByTestId("portal-range-picker")).toHaveText(/Searching everything/);
+    await expect(page.getByRole("button", { name: "Findable by search", exact: true })).toBeVisible();
+  });
+
+  test("will not book for nobody", async ({ page }) => {
+    const portalPath = await openPortal(page);
+    await page.goto(portalPath);
+
+    // Showing the full creative team, there is no stakeholder to raise the
+    // request for, so the gate explains rather than booking against nobody.
+    await page.getByTestId("portal-book-button").click();
+    await expect(page.getByTestId("portal-book-gate")).toBeVisible();
+    await expect(page.getByTestId("portal-book-needs-stakeholder")).toBeVisible();
+    await expect(page.getByTestId("portal-book-continue")).toBeDisabled();
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await expect(page.getByTestId("portal-department-name")).toBeVisible();
+    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
 
-    const card = await departmentCard(page, "Comm.");
+    const card = await portalCard(page);
     await card.getByTestId("portal-regenerate").click();
     await page.getByRole("alertdialog").getByRole("button", { name: /issue new link/i }).click();
     await expect(card.getByTestId("portal-link")).not.toHaveText(new RegExp(portalPath.split("/").pop()!));
@@ -130,12 +191,12 @@ test.describe("the stakeholder portal", () => {
     // The old address is dead, and says so without naming the department.
     await page.goto(portalPath);
     await expect(page.getByRole("heading", { name: "This link does not open a portal" })).toBeVisible();
-    await expect(page.getByTestId("portal-department-name")).toHaveCount(0);
+    await expect(page.getByTestId("portal-stakeholder-name")).toHaveCount(0);
   });
 
   test("closing a portal shuts both reading and booking", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
-    const card = await departmentCard(page, "Comm.");
+    const portalPath = await openPortal(page);
+    const card = await portalCard(page);
     await card.getByTestId("portal-toggle").click();
     await expect(card.getByTestId("portal-state")).toHaveText("Closed");
 
@@ -144,8 +205,8 @@ test.describe("the stakeholder portal", () => {
   });
 
   test("asks for a password on the way in, and refuses a wrong one", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
-    const card = await departmentCard(page, "Comm.");
+    const portalPath = await openPortal(page);
+    const card = await portalCard(page);
     await card.getByTestId("portal-password-toggle").click();
     await card.getByTestId("portal-password-input").fill("open sesame");
     await card.getByRole("button", { name: "Set password" }).click();
@@ -165,15 +226,15 @@ test.describe("the stakeholder portal", () => {
 
     await page.getByTestId("portal-password").fill("open sesame");
     await page.getByRole("button", { name: "Open the portal" }).click();
-    await expect(page.getByTestId("portal-department-name")).toContainText("Comm.");
+    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
   });
 
   test("carries the team's settings through to the link", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await bookThroughPortal(page, "Settings ride along", "One request, to see the board with.");
 
-    const card = await departmentCard(page, "Comm.");
+    const card = await portalCard(page);
     await card.getByTestId("portal-description").fill("Everything the Marketing team is making for you.");
     await card.getByTestId("portal-description-save").click();
     // Hiding a column is about clutter on the page, not about access.
@@ -191,7 +252,7 @@ test.describe("the stakeholder portal", () => {
   });
 
   test("keeps its theme to itself", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await page.getByTestId("portal-theme-dark").click();
     await expect(page.locator("div.dark").first()).toBeVisible();
@@ -204,7 +265,7 @@ test.describe("the stakeholder portal", () => {
   });
 
   test("deep-links a request, and Back leaves it", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await bookThroughPortal(page, "Deep link me", "A request to open by URL.");
 
@@ -218,8 +279,8 @@ test.describe("the stakeholder portal", () => {
     await expect(page.getByTestId("item-panel")).toHaveCount(0);
   });
 
-  test("gives the department the board's own views", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+  test("gives the portal the board's own views", async ({ page }) => {
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await bookThroughPortal(page, "Something to look at", "One request, seven ways of looking at it.");
     await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
@@ -241,7 +302,7 @@ test.describe("the stakeholder portal", () => {
   });
 
   test("offers a stakeholder nothing to write with", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await bookThroughPortal(page, "Read only please", "Nothing here should be editable by a visitor.");
     await page.getByTestId("portal-view-request").click();
@@ -267,7 +328,7 @@ test.describe("the stakeholder portal", () => {
   });
 
   test("publishes the brief and never the internal description", async ({ page }) => {
-    const portalPath = await openPortal(page, "Comm.");
+    const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await bookThroughPortal(page, "Brief only", "The words the requester actually typed.");
     await page.getByTestId("portal-view-request").click();

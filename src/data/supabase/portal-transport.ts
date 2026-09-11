@@ -1,4 +1,5 @@
-import type { BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalTaskDetail, PortalTaskPage, PortalBoardPayload } from "@/domain";
+import type { BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalScope, PortalTaskDetail, PortalTaskPage, PortalBoardPayload } from "@/domain";
+import { formatPortalRange } from "@/domain";
 import type { PortalGrant, PortalTransport } from "@/services/stakeholder-portal-service";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -18,12 +19,13 @@ export class HttpPortalTransport implements PortalTransport {
     return call<PortalGate>(`/api/portal/${encodeURIComponent(token)}`, { method: "GET" });
   }
 
-  async board(grant: PortalGrant): Promise<PortalBoardPayload & { context: PortalContext }> {
-    return call(`/api/portal/${encodeURIComponent(grant.token)}/board`, { method: "POST", body: JSON.stringify(body(grant)) });
+  async board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardPayload & { context: PortalContext }> {
+    return call(`/api/portal/${encodeURIComponent(grant.token)}/board`, { method: "POST", body: JSON.stringify({ ...body(grant), ...wire(scope) }) });
   }
 
-  async tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string }): Promise<PortalTaskPage & { context: PortalContext }> {
-    return call(`/api/portal/${encodeURIComponent(grant.token)}/tasks`, { method: "POST", body: JSON.stringify({ ...body(grant), ...options }) });
+  async tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope }): Promise<PortalTaskPage & { context: PortalContext }> {
+    const { scope, ...rest } = options;
+    return call(`/api/portal/${encodeURIComponent(grant.token)}/tasks`, { method: "POST", body: JSON.stringify({ ...body(grant), ...rest, ...(scope ? wire(scope) : {}) }) });
   }
 
   async task(grant: PortalGrant, itemId: string): Promise<PortalTaskDetail> {
@@ -34,10 +36,10 @@ export class HttpPortalTransport implements PortalTransport {
     return call<BookingForm>(`/api/portal/${encodeURIComponent(grant.token)}/book`, { method: "PUT", body: JSON.stringify(body(grant)) });
   }
 
-  async book(grant: PortalGrant, submissionKey: string, request: BookingRequest): Promise<BookingReceipt> {
+  async book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: string): Promise<BookingReceipt> {
     return call<BookingReceipt>(`/api/portal/${encodeURIComponent(grant.token)}/book`, {
       method: "POST",
-      body: JSON.stringify({ ...body(grant), submissionKey, request }),
+      body: JSON.stringify({ ...body(grant), submissionKey, request, departmentId }),
     });
   }
 
@@ -51,6 +53,11 @@ export class HttpPortalTransport implements PortalTransport {
       body: JSON.stringify({ ...body(grant), itemId, assetId, patch: { completedAt: done ? new Date().toISOString() : null } }),
     });
   }
+}
+
+/** The scope as it travels: the range goes as its short string, not as an object. */
+function wire(scope: PortalScope) {
+  return { stakeholderId: scope.stakeholderId, range: formatPortalRange(scope.range) };
 }
 
 /** Only the grant travels; `viewer` is deliberately not sent — the server decides who you are. */
