@@ -10,12 +10,41 @@ import { queryKeys } from "@/lib/query/keys";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { DashboardShareSettings } from "@/services";
 
-/** A safety net under realtime: even a silent channel refreshes the figures this often. */
-const SNAPSHOT_REFRESH_MS = 15_000;
+/**
+ * A safety net under realtime: even a silent channel refreshes the figures this
+ * often.
+ *
+ * A minute, not the fifteen seconds it was. The snapshot is the whole workspace
+ * — every board's items, values and asset lines, four and a half megabytes of
+ * it on this data — and realtime already invalidates within a second of any
+ * change, so the timer is not what keeps the page current. It is only there for
+ * the events realtime cannot deliver: a dropped channel, a row an RLS policy
+ * filtered out, a change made straight against the database. Reading the whole
+ * workspace four times a minute against that was costing tens of gigabytes of
+ * egress a day per open tab.
+ */
+const SNAPSHOT_REFRESH_MS = 60_000;
 /** How long a page that only borrows a panel off the snapshot keeps it. */
 const BORROWED_STALE_MS = 60_000;
-/** One write often produces several row events; refetch once for the burst — long enough to catch a burst, short enough that the page follows the work. */
-const COALESCE_MS = 200;
+/**
+ * One write often produces several row events; refetch once for the burst.
+ *
+ * Two seconds rather than two hundred milliseconds. Dragging a row, pasting a
+ * column or running an import emits events for as long as it takes, and at the
+ * shorter window each lull inside that produced its own full re-read of the
+ * workspace. Two seconds turns a minute of editing into a handful of reads
+ * instead of a few hundred, at the cost of the figures trailing the work by a
+ * second or so — which nobody watching a total can see.
+ */
+const COALESCE_MS = 2_000;
+/**
+ * The least time between two reads of the snapshot, however much is happening.
+ *
+ * Coalescing bounds one burst; this bounds a long run of them. Without it a
+ * board being worked on steadily — an event every few seconds, each one past
+ * the coalesce window — puts the whole workspace on the wire again every time.
+ */
+const MIN_REFETCH_MS = 20_000;
 
 /**
  * Everything the dashboard is drawn from, for the boards the reader can see.
@@ -33,7 +62,10 @@ export function useDashboardSnapshot(workspaceId: string, boards: Board[], { liv
     queryFn: () => services.dashboard.loadSnapshot(workspaceId, boards),
     staleTime: live ? 0 : BORROWED_STALE_MS,
     refetchInterval: live ? SNAPSHOT_REFRESH_MS : false,
-    refetchIntervalInBackground: live,
+    // Not in the background. A tab nobody is looking at has no figures to keep
+    // current, and this read is far too big to make on the off chance. Focus
+    // brings it back up to date, and realtime covers it while it is being read.
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: live,
   });
 }
@@ -53,13 +85,25 @@ export function useDashboardRealtime(workspaceId: string | null): void {
   React.useEffect(() => {
     if (!workspaceId || providerKind !== "supabase") return;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastRead = 0;
     const supabase = getSupabaseClient();
+    const read = () => {
+      lastRead = Date.now();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(workspaceId) });
+    };
     const schedule = () => {
-      if (timer) clearTimeout(timer);
+      // A read already on its way answers this event too, so it rides with it.
+      // Deliberately not restarted per event: an import or a long drag emits
+      // one every second or so, and a timer that began again each time would
+      // never reach the end of the burst and never read at all.
+      if (timer) return;
+      // Whichever is further off: the end of this burst, or the earliest the
+      // snapshot may be read again.
+      const wait = Math.max(COALESCE_MS, lastRead + MIN_REFETCH_MS - Date.now());
       timer = setTimeout(() => {
         timer = null;
-        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(workspaceId) });
-      }, COALESCE_MS);
+        read();
+      }, wait);
     };
     const channel = supabase.channel(`dashboard:${workspaceId}`);
     // `workspaces` and `workspace_lists` are here because the dashboard is not

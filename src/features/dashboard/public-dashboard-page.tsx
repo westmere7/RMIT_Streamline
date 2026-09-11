@@ -17,8 +17,20 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { resolveTheme, useThemePreference } from "@/lib/theme";
 import { ShareAccessError } from "@/services";
 
-/** How often the public dashboard asks for fresh figures. There is no session for realtime to ride on, so it reads on a short cycle instead. */
-const REFRESH_MS = 10_000;
+/**
+ * How often the public dashboard asks for fresh figures.
+ *
+ * There is no session for realtime to ride on, so the timer is the only thing
+ * keeping this page current — which is why it still runs in the background,
+ * where the in-app dashboard's does not. A link left up on a screen in the
+ * corner of an office is the point of it.
+ *
+ * A minute rather than the ten seconds it was. The read behind it is the whole
+ * workspace, so at ten seconds one such screen was on course for tens of
+ * gigabytes of egress a day; at a minute it is a few. Nobody reading a total
+ * off a wall can tell the difference.
+ */
+const REFRESH_MS = 60_000;
 
 /**
  * The page behind a public dashboard link: full screen, read-only, no account.
