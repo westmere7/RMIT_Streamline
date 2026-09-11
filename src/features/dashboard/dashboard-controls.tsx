@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, ChevronDown, Filter, RotateCcw, Users } from "lucide-react";
+import { Boxes, Check, ChevronDown, CircleHelp, Filter, ListChecks, RotateCcw, Timer, Users } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { TeamRef } from "@/features/dashboard/analytics";
 import { BASIS_HINTS, BASIS_LABELS, MEASURE_LABELS, MEASURES, REPORTING_BASES, type MeasureKind, type PeriodMode, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
 import type { DashboardPrefs } from "@/features/dashboard/prefs";
@@ -198,21 +199,135 @@ export function TeamFilter({ teams, selected, onChange }: { teams: TeamRef[]; se
 export function MeasureToggle({ measure, onChange, effortAvailable }: { measure: MeasureKind; onChange: (measure: MeasureKind) => void; effortAvailable: boolean }) {
   const offered = MEASURES.filter((value) => value !== "effort" || effortAvailable);
   return (
-    <div role="radiogroup" aria-label="Measure" className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid="dashboard-measure">
-      {offered.map((value) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={measure === value}
-          onClick={() => onChange(value)}
-          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", measure === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-          data-testid={`dashboard-measure-${value}`}
-        >
-          {MEASURE_LABELS[value]}
-        </button>
-      ))}
+    <div className="inline-flex items-center gap-1">
+      <div role="radiogroup" aria-label="Measure" className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid="dashboard-measure">
+        {offered.map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={measure === value}
+            onClick={() => onChange(value)}
+            className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", measure === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+            data-testid={`dashboard-measure-${value}`}
+          >
+            {MEASURE_LABELS[value]}
+          </button>
+        ))}
+      </div>
+      <MeasureHelp measure={measure} onChange={onChange} effortAvailable={effortAvailable} />
     </div>
+  );
+}
+
+/** What each measure counts, what it is worth knowing for, and what it cannot see. */
+const MEASURE_HELP: Array<{ measure: MeasureKind; icon: React.ComponentType<{ className?: string }>; line: string; counts: string; tells: string; blind: string }> = [
+  {
+    measure: "effort",
+    icon: Timer,
+    line: "How much work it is",
+    counts: "Every deliverable weighed by its output rate — “8 photo edits a day”, “1 film a fortnight” — set in Settings → Lists.",
+    tells: "The closest this page gets to how much work something is, and the only measure you can talk about capacity with.",
+    blind: "A type with no rate counts as nought hours, so the total is a floor rather than the whole.",
+  },
+  {
+    measure: "tasks",
+    icon: ListChecks,
+    line: "How many things are in the air",
+    counts: "Rows on a board. One request that became three tasks counts three; a task mirrored onto two boards still counts once.",
+    tells: "Juggling load — how many separate things a person or a team is holding at once.",
+    blind: "A forty-page course guide and a tweet are both 1.",
+  },
+  {
+    measure: "assets",
+    icon: Boxes,
+    line: "How much came out",
+    counts: "Every deliverable line on those tasks, times its quantity: six posters is six.",
+    tells: "Output volume — what actually left the studio, and how much of it.",
+    blind: "Says nothing about how long any of it took.",
+  },
+];
+
+/**
+ * What the three measures mean, as a dialog rather than a popover.
+ *
+ * It is three explanations, not a tooltip, and in a popover it was a column of
+ * grey paragraphs hanging off a toolbar. In the middle of the screen the three
+ * can sit side by side as cards — one each, the current one lit, each a button
+ * that switches the page — so the thing being explained can be tried on the
+ * spot instead of read and remembered.
+ */
+function MeasureHelp({ measure, onChange, effortAvailable }: { measure: MeasureKind; onChange: (measure: MeasureKind) => void; effortAvailable: boolean }) {
+  const [open, setOpen] = React.useState(false);
+  const shown = MEASURE_HELP.filter((entry) => entry.measure !== "effort" || effortAvailable);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-foreground" aria-label="What these measures mean" data-testid="dashboard-measure-help">
+          <CircleHelp />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl" data-testid="dashboard-measure-help-dialog">
+        <DialogHeader>
+          <DialogTitle>What the page is counting</DialogTitle>
+          <DialogDescription>One choice for every chart below, so no two of them can disagree. Pick one here and the whole page follows.</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {shown.map((entry) => {
+            const active = entry.measure === measure;
+            return (
+              <button
+                key={entry.measure}
+                type="button"
+                onClick={() => {
+                  onChange(entry.measure);
+                  setOpen(false);
+                }}
+                aria-pressed={active}
+                className={cn(
+                  "flex flex-col rounded-2xl border p-4 text-left transition-colors",
+                  active
+                    ? "border-primary/40 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-primary)_10%,var(--color-card)),var(--color-card)_65%)]"
+                    : "border-border/60 bg-card hover:border-border hover:bg-accent/40",
+                )}
+                data-testid={`dashboard-measure-help-${entry.measure}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", active ? "bg-primary/15 text-primary" : "bg-surface-strong/70 text-muted-foreground")}>
+                    <entry.icon className="size-4" />
+                  </span>
+                  <span className="text-[15px] font-semibold tracking-tight">{MEASURE_LABELS[entry.measure]}</span>
+                  {active && <span className="ml-auto text-2xs font-medium text-primary">Showing</span>}
+                </span>
+                <span className="mt-2 text-[13px] font-medium">{entry.line}</span>
+                <span className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{entry.counts}</span>
+                <span className="mt-2.5 border-t border-border/50 pt-2.5 text-2xs leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground/80">Use it for </span>
+                  {entry.tells}
+                </span>
+                <span className="mt-1.5 text-2xs leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground/70">Blind spot </span>
+                  {entry.blind}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {!effortAvailable && (
+          <p className="rounded-xl border border-border/60 bg-surface/60 px-3.5 py-2.5 text-[13px] text-muted-foreground" data-testid="dashboard-measure-help-norates">
+            Effort is not offered yet: no output rates are recorded, so hours would read as nought for everything. Settings → Lists → Asset types.
+          </p>
+        )}
+
+        <p className="text-2xs leading-relaxed text-muted-foreground">
+          Two panels cannot answer in all three, and say so where they sit: <span className="font-medium text-foreground/80">Who is carrying what</span> is always tasks, because its bands are states
+          and a state is a count; <span className="font-medium text-foreground/80">Asset types</span> is always units, because one task holds several types and a count of tasks by type would not add
+          up to the tasks there are.
+        </p>
+      </DialogContent>
+    </Dialog>
   );
 }
 

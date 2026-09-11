@@ -15,10 +15,9 @@ import { cn } from "@/lib/utils";
  * their own department's, and the two things they came for.
  */
 export function PortalShell({ children, fill = false }: { children: React.ReactNode; fill?: boolean }) {
-  // A board owns its own scrolling — it has a sticky header row, a horizontal
-  // scrollport and a panel that has to sit beside them — so on that tab the
-  // shell is a column exactly one window tall. A form is happier scrolling with
-  // the page.
+  // One window tall, always: the board has a sticky header row, a horizontal
+  // scrollport and a panel beside them, and the booking form keeps its action
+  // bar pinned at its own foot — both need the page itself to stay still.
   return <div className={cn("bg-canvas text-foreground", fill ? "flex h-dvh min-h-0 flex-col overflow-hidden" : "min-h-dvh")}>{children}</div>;
 }
 

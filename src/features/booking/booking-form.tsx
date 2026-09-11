@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, History, LoaderCircle, Table2, UserRound } from "lucide-react";
+import { Boxes, CheckCircle2, ClipboardPen, History, LoaderCircle, LogIn, Save, SquarePen, Table2, UserRound, Users } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,17 @@ export interface BookingFormProps {
    * time. Null for a signed-in member, whose details the app already knows.
    */
   remember?: string | null;
+  /**
+   * Who the app knows is signed in.
+   *
+   * Stronger than anything a browser remembers: the two questions about them
+   * are answered by their account, so the form does not ask. They can still
+   * book for somebody else — the banner says whose name it is going in under
+   * and offers the way out — but the default is the person who signed in.
+   */
+  account?: { name: string; email: string } | null;
+  /** Where signing in leads, for a page that has somewhere to send them back to. */
+  signInHref?: string | null;
   /**
    * Standard questions this caller does not ask, whatever the template says.
    *
@@ -83,36 +94,52 @@ function FormSkeleton() {
   );
 }
 
-function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, itemHref, onBooked, memory }: BookingFormProps & { memory: BookingMemory & Omit<ReturnType<typeof useBookingMemory>, "requester" | "bookings"> }) {
+function BookingFormFields({ form, defaults, defaultAssets, account, signInHref, omit, onSubmit, itemHref, onBooked, memory }: BookingFormProps & { memory: BookingMemory & Omit<ReturnType<typeof useBookingMemory>, "requester" | "bookings"> }) {
   const template = form.template;
   // Whoever this browser last booked as, unless the caller named somebody —
   // a signed-in member is always themselves.
   const [draft, setDraft] = React.useState<BookingDraft>(() =>
-    emptyDraft({ requesterName: memory.requester?.name, requesterEmail: memory.requester?.email, ...Object.fromEntries(Object.entries(defaults ?? {}).filter(([, value]) => value !== undefined && value !== "")) }),
+    emptyDraft({
+      requesterName: account?.name ?? memory.requester?.name,
+      requesterEmail: account?.email ?? memory.requester?.email,
+      ...Object.fromEntries(Object.entries(defaults ?? {}).filter(([, value]) => value !== undefined && value !== "")),
+      // Whatever was left half-written last time, put back exactly as it was.
+      ...(memory.draft
+        ? {
+            title: memory.draft.title,
+            brief: memory.draft.brief,
+            dueDate: memory.draft.dueDate,
+            referenceUrl: memory.draft.referenceUrl,
+            assetTypes: memory.draft.assetTypes,
+            priority: memory.draft.priority,
+            teamId: memory.draft.teamId,
+          }
+        : {}),
+    }),
   );
   // The booking's reference, settled before it is sent: the id the item will be
   // created with is made here, so the code on the form is the code on the receipt.
   const [itemId, setItemId] = React.useState(() => newId());
-  const [assets, setAssets] = React.useState<AssetRow[]>(() => (defaultAssets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
+  const [assets, setAssets] = React.useState<AssetRow[]>(() =>
+    (memory.draft?.assets ?? defaultAssets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })),
+  );
+  const [savedDraft, setSavedDraft] = React.useState(!!memory.draft);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [receipt, setReceipt] = React.useState<BookingReceipt | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"request" | "assets">("request");
   // Whether the optional half of the form is showing. Opened by a starter that
   // filled some of it in, and by a problem found in something it hides.
-  // Open from the start when the caller arrived with some of it filled in: a
-  // form quietly holding answers the reader has not seen would be worse than
-  // the wall it replaces.
-  const [showOptional, setShowOptional] = React.useState(() =>
-    Object.entries(defaults ?? {}).some(([key, value]) => !REQUESTER_KEYS.includes(key as BookingStandardKey) && key !== "department" && (Array.isArray(value) ? value.length > 0 : !!value)),
-  );
   /** Which past booking this one was started from, so the strip can say so. */
   const [startedFrom, setStartedFrom] = React.useState<string | null>(null);
   const assetsOn = template.assets.enabled;
   const assetCount = assetsOn ? assets.filter((a) => a.name.trim()).length : 0;
   const patch = (p: Partial<BookingDraft>) => setDraft((prev) => ({ ...prev, ...p }));
 
-  const knownRequester = !!memory.requester && draft.requesterName.trim() === memory.requester.name && draft.requesterEmail.trim() === memory.requester.email;
+  // Who the form is booking as without having to ask: the account first, and
+  // then whatever this browser remembers.
+  const known = account ?? memory.requester;
+  const knownRequester = !!known && draft.requesterName.trim() === known.name && draft.requesterEmail.trim() === known.email;
 
   /**
    * Start this booking from one this browser has already made.
@@ -136,33 +163,27 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
     setAssets(past.assets.map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
     setErrors({});
     setStartedFrom(past.id);
-    setShowOptional(true);
   };
 
   const team = form.teams.find((t) => t.id === draft.teamId) ?? null;
   const omitted = React.useMemo(() => new Set<BookingStandardKey>(omit ?? []), [omit]);
   const asks = (key: BookingStandardKey) => !omitted.has(key) && standardFieldFor(template, key) !== null;
 
-  // The form in two halves.
+  // Every question the template asks, in its own order, on one page.
   //
-  // The template asks ten questions and insists on four, and nothing on the
-  // page said which was which — so it read as ten. The four it insists on stay
-  // in front of the reader; everything else moves behind one disclosure that
-  // says out loud that it is optional. Nothing is taken away: a question a
-  // workspace marked required is in the first half by definition, and the
-  // second half is one click for anyone with more to say.
+  // It was split for a while — the four it insists on in front, the rest
+  // behind "Add more detail" — and that traded one wall for two problems: a
+  // section heading appearing twice, once in each half, and the reader having
+  // to open a box to find out whether anything else was wanted. The required
+  // ones are marked with an asterisk and that is enough.
   //
-  // "About you" joins the optional half once the browser knows who this is.
-  // The banner above it says whose name the booking will carry and offers the
-  // way out, which is less to read than two filled-in boxes.
+  // The two questions about who is asking are dropped where the form already
+  // knows: the banner above answers them, and hands them back the moment it
+  // is overruled.
+  const answeredByIdentity = (field: BookingTemplateField) => knownRequester && field.kind === "standard" && REQUESTER_KEYS.includes(field.key);
   const asked = template.sections
-    .map((section) => ({ section, fields: section.fields.filter((field) => !(field.kind === "standard" && omitted.has(field.key))) }))
+    .map((section) => ({ section, fields: section.fields.filter((field) => !(field.kind === "standard" && omitted.has(field.key)) && !answeredByIdentity(field)) }))
     .filter(({ fields }) => fields.length > 0);
-  const essential = (field: BookingTemplateField) => field.required && !(knownRequester && field.kind === "standard" && REQUESTER_KEYS.includes(field.key));
-  const requiredSections = asked.map(({ section, fields }) => ({ section, fields: fields.filter(essential) })).filter(({ fields }) => fields.length > 0);
-  const optionalSections = asked.map(({ section, fields }) => ({ section, fields: fields.filter((field) => !essential(field)) })).filter(({ fields }) => fields.length > 0);
-  const optionalCount = optionalSections.reduce((sum, { fields }) => sum + fields.length, 0);
-  const optionalIds = new Set(optionalSections.flatMap(({ fields }) => fields.map((field) => field.id)));
 
   /** The draft as a request: only what the form asks travels. */
   const buildRequest = (): BookingRequest => ({
@@ -190,6 +211,7 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
     },
     onSuccess: (result, request) => {
       memory.remember(request, result.reference, result.submittedAt);
+      setSavedDraft(false);
       setReceipt(result);
       onBooked?.(result);
     },
@@ -215,9 +237,6 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
     if (ids.length) {
       // A problem on the request tab wins the view; only an assets-only problem opens that tab.
       setTab(ids.every((id) => id === "assets") ? "assets" : "request");
-      // A message under a question nobody can see is a form that refuses to
-      // submit and will not say why.
-      if (ids.some((id) => optionalIds.has(id))) setShowOptional(true);
       return;
     }
     submit.mutate(parsed.success ? (parsed.data as BookingRequest) : request);
@@ -229,7 +248,6 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
     setErrors({});
     setAssets([]);
     setTab("request");
-    setShowOptional(false);
     setDraft((prev) => ({ ...emptyDraft(), requesterName: prev.requesterName, requesterEmail: prev.requesterEmail, department: prev.department }));
   };
 
@@ -276,6 +294,8 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
   }
 
   const busy = submit.isPending;
+  // Nothing typed yet is nothing to keep.
+  const worthSaving = !!(draft.title.trim() || draft.brief.trim() || draft.assetTypes.length || draft.dueDate || draft.referenceUrl.trim() || assets.some((a) => a.name.trim()));
 
   const renderField = (field: BookingTemplateField) => {
     if (field.kind === "custom") {
@@ -311,8 +331,14 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
 
   // A section left with nothing to ask is not rendered: omitting the only
   // question in "About you" must not leave its heading standing alone.
+  // A small mark per section, so the form reads as three steps rather than
+  // one column of boxes. Keyed by the standard sections the template ships
+  // with; a section somebody added themselves simply goes without.
+  const sectionIcon = (section: BookingTemplateSection) =>
+    section.id === "sec-about" ? UserRound : section.id === "sec-task" ? SquarePen : section.id === "sec-team" ? Users : undefined;
+
   const renderSection = (section: BookingTemplateSection, fields: BookingTemplateField[]) => (
-    <Section key={section.id} title={section.title} hint={section.hint}>
+    <Section key={section.id} title={section.title} hint={section.hint} icon={sectionIcon(section)}>
       <div className="grid gap-4 sm:grid-cols-2">
         {fields.map((field) => (
           <div key={field.id} className={cn("min-w-0", field.width === "full" && "sm:col-span-2")}>
@@ -374,45 +400,64 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
         </div>
       )}
 
-      {knownRequester && memory.requester && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border/60 bg-surface/60 px-3.5 py-2.5 text-[13px]" data-testid="booking-known-requester">
-          <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      {knownRequester && known && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-primary/25 bg-primary/[0.04] px-3.5 py-2.5 text-[13px]" data-testid="booking-known-requester">
+          <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <UserRound className="size-3.5" />
+          </span>
           <span className="min-w-0">
-            Booking as <strong className="font-semibold">{memory.requester.name}</strong>
-            <span className="text-muted-foreground"> · {memory.requester.email}</span>
+            Booking as <strong className="font-semibold">{known.name}</strong>
+            <span className="text-muted-foreground"> · {known.email}</span>
+            {account && <span className="text-muted-foreground"> · signed in</span>}
           </span>
           <button
             type="button"
             className="ml-auto shrink-0 font-medium text-foreground/80 underline-offset-4 hover:underline"
             onClick={() => {
-              memory.forgetRequester();
+              // The two questions come straight back into the half the form
+              // insists on, so there is nothing to open.
+              if (!account) memory.forgetRequester();
               setDraft((prev) => ({ ...prev, requesterName: "", requesterEmail: "" }));
             }}
             data-testid="booking-not-you"
           >
-            Not you?
+            {account ? "Booking for someone else?" : "Not you?"}
           </button>
         </div>
       )}
 
-      {requiredSections.map(({ section, fields }) => renderSection(section, fields))}
-
-      {optionalCount > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface/40" data-testid="booking-optional">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-xl px-3.5 py-3 text-left text-[13px] font-medium transition-colors hover:bg-accent/40"
-            onClick={() => setShowOptional((open) => !open)}
-            aria-expanded={showOptional}
-            data-testid="booking-optional-toggle"
-          >
-            <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", showOptional && "rotate-180")} aria-hidden />
-            Add more detail
-            <span className="min-w-0 truncate font-normal text-muted-foreground">— all optional, and the team can ask later</span>
-          </button>
-          {showOptional && <div className="space-y-7 border-t border-border/60 p-3.5 pt-4 sm:p-5">{optionalSections.map(({ section, fields }) => renderSection(section, fields))}</div>}
-        </div>
+      {/* Typing their own details in: the two ways out of that, depending on
+          whether the app knows them. Signing in is offered to everybody else,
+          because it answers these two questions for good. */}
+      {!knownRequester && (account || signInHref) && (
+        <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-identity-offer">
+          {account ? (
+            <>
+              <UserRound className="size-3.5 shrink-0" aria-hidden />
+              Signed in as {account.name}.
+              <button
+                type="button"
+                className="font-medium text-foreground/80 underline-offset-4 hover:underline"
+                onClick={() => setDraft((prev) => ({ ...prev, requesterName: account.name, requesterEmail: account.email }))}
+                data-testid="booking-book-as-me"
+              >
+                Book under this account
+              </button>
+            </>
+          ) : (
+            <>
+              <LogIn className="size-3.5 shrink-0" aria-hidden />
+              Have an account here?
+              <a href={signInHref!} className="font-medium text-foreground/80 underline-offset-4 hover:underline" data-testid="booking-sign-in">
+                Sign in
+              </a>
+              and these two are filled in for you.
+            </>
+          )}
+        </p>
       )}
+
+      {asked.map(({ section, fields }) => renderSection(section, fields))}
     </>
   );
 
@@ -422,11 +467,11 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
         <Tabs value={tab} onValueChange={(v) => setTab(v as "request" | "assets")}>
           <UnderlineTabsList className="-mx-1 mb-6">
             <UnderlineTabsTrigger value="request" data-testid="booking-tab-request">
-              {template.requestTabLabel}
+              <ClipboardPen className="size-3.5" /> {template.requestTabLabel}
             </UnderlineTabsTrigger>
             <UnderlineTabsTrigger value="assets" data-testid="booking-tab-assets">
-              {template.assets.tabLabel}
-              {assetCount > 0 ? <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assetCount}</span> : <span className="text-2xs font-normal text-muted-foreground">optional</span>}
+              <Boxes className="size-3.5" /> {template.assets.tabLabel}
+              {assetCount > 0 && <span className="rounded-full bg-primary/15 px-1.5 text-2xs font-semibold text-primary tabular">{assetCount}</span>}
             </UnderlineTabsTrigger>
           </UnderlineTabsList>
           <TabsContent value="request" className="space-y-5">
@@ -470,25 +515,73 @@ function BookingFormFields({ form, defaults, defaultAssets, omit, onSubmit, item
         </p>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 space-y-1">
+      {/* Pinned to the foot of the form, not to the end of it: on a long
+          template the one button anybody came for was two screens down, and
+          the page had to be scrolled to the bottom to find out it was there.
+          It floats over the last few rows on a bed of the form's own surface,
+          so nothing is hidden behind it. */}
+      <div className="sticky bottom-0 -mx-1 mt-1 flex flex-col gap-3 border-t border-border/60 bg-gradient-to-t from-card via-card to-card/85 px-1 pt-3 pb-1 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-0.5">
           <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
             Reference
             <span className="rounded-md border border-border/60 bg-surface/70 px-1.5 py-0.5 font-medium text-foreground tabular" title="The reference this booking will carry" data-testid="booking-reference-preview">
               {bookingReference(itemId)}
             </span>
           </p>
-          {template.submitNote && <p className="text-2xs text-muted-foreground">{template.submitNote}</p>}
-        </div>
-        <Button type="submit" size="lg" disabled={busy} className="sm:min-w-44" data-testid="booking-submit">
-          {busy ? (
-            <>
-              <LoaderCircle className="animate-spin" /> Booking…
-            </>
+          {savedDraft ? (
+            <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-draft-note">
+              Saved on this device.
+              <button
+                type="button"
+                className="font-medium text-foreground/80 underline-offset-4 hover:underline"
+                onClick={() => {
+                  memory.saveDraft(null);
+                  setSavedDraft(false);
+                }}
+              >
+                Throw the draft away
+              </button>
+            </p>
           ) : (
-            template.submitLabel
+            template.submitNote && <p className="text-2xs text-muted-foreground">{template.submitNote}</p>
           )}
-        </Button>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Nothing is sent: a draft is kept in this browser, so a form
+              abandoned mid-sentence is still there tomorrow. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={busy || !worthSaving}
+            onClick={() => {
+              memory.saveDraft({
+                savedAt: new Date().toISOString(),
+                title: draft.title,
+                brief: draft.brief,
+                dueDate: draft.dueDate,
+                referenceUrl: draft.referenceUrl,
+                assetTypes: draft.assetTypes,
+                priority: draft.priority,
+                teamId: draft.teamId,
+                assets: assets.filter((a) => a.name.trim()).map((a) => ({ name: a.name.trim(), quantity: a.quantity, spec: a.notes?.trim() || null })),
+              });
+              setSavedDraft(true);
+            }}
+            data-testid="booking-save-draft"
+          >
+            <Save /> Save as draft
+          </Button>
+          <Button type="submit" size="lg" disabled={busy} className="sm:min-w-44" data-testid="booking-submit">
+            {busy ? (
+              <>
+                <LoaderCircle className="animate-spin" /> Booking…
+              </>
+            ) : (
+              template.submitLabel
+            )}
+          </Button>
+        </div>
       </div>
     </form>
   );

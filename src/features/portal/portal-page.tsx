@@ -152,7 +152,10 @@ export function PortalPage({ token }: { token: string }) {
 
   return (
     <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
-      <PortalShell fill={!booking}>
+      {/* Both tabs are one window tall now: the board scrolls its own rows,
+          and the booking form scrolls inside its card so the bar at its foot
+          never leaves the screen. */}
+      <PortalShell fill>
         <PortalHeader
           token={token}
           departmentName={context?.departmentName ?? gate.data.departmentName}
@@ -165,7 +168,9 @@ export function PortalPage({ token }: { token: string }) {
         />
 
         {booking ? (
-          <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-4 sm:px-6">
+          // The column owns the window's height and hands it to the card, so
+          // the form scrolls inside itself and the page behind it does not.
+          <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 pt-4 pb-4 sm:px-6">
             <Button
               variant="ghost"
               size="sm"

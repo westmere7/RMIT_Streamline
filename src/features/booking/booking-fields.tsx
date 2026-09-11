@@ -1,16 +1,20 @@
 "use client";
 
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PrioritySignal } from "@/components/shared/priority-signal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
 import type { BookingExtraField, BookingFieldType, BookingForm as BookingFormData, BookingStandardField, BookingTeamOption, ColumnValue, TagOption } from "@/domain";
-import { T_SHIRT_SIZES, emptyValueFor } from "@/domain";
+import { T_SHIRT_SIZES, emptyValueFor, priorityStrength } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -23,6 +27,7 @@ import { cn } from "@/lib/utils";
  */
 
 export const NO_TEAM = "__none__";
+export const NO_PRIORITY = "__normal__";
 
 /** What a person has typed so far, before it becomes a BookingRequest. */
 export interface BookingDraft {
@@ -131,13 +136,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
     case "assetTypes":
       return (
         <Field {...shell}>
-          <ChipGroup ariaLabel={field.label}>
-            {form.assetTypes.map((option) => (
-              <Chip key={option.name} color={option.color} active={draft.assetTypes.includes(option.name)} disabled={preview} onClick={() => onChange({ assetTypes: toggle(draft.assetTypes, option.name) })} testId={tid(`booking-asset-${slug(option.name)}`)}>
-                {option.name}
-              </Chip>
-            ))}
-          </ChipGroup>
+          <AssetTypePicker options={form.assetTypes} value={draft.assetTypes} onChange={(assetTypes) => onChange({ assetTypes })} disabled={preview} tid={tid} />
         </Field>
       );
     case "dueDate":
@@ -148,14 +147,26 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
       );
     case "priority":
       return (
-        <Field {...shell}>
-          <ChipGroup ariaLabel={field.label}>
-            {form.priorities.map((option) => (
-              <Chip key={option.name} color={option.color} active={draft.priority === option.name} disabled={preview} onClick={() => onChange({ priority: draft.priority === option.name ? null : option.name })} testId={tid(`booking-priority-${slug(option.name)}`)}>
-                {option.name}
-              </Chip>
-            ))}
-          </ChipGroup>
+        <Field id={id("booking-priority")} {...shell}>
+          {/* The same signal bars a priority wears everywhere else in the app:
+              rising bars say "critical" before the eye reaches the word, so a
+              stakeholder choosing one here sees what the team will see. */}
+          <Select value={draft.priority ?? NO_PRIORITY} onValueChange={(v) => onChange({ priority: v === NO_PRIORITY ? null : v })} disabled={preview}>
+            <SelectTrigger id={id("booking-priority")} aria-label={field.label} className="h-10" data-testid={tid("booking-priority")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PRIORITY}>{field.placeholder || "Not sure — normal turnaround"}</SelectItem>
+              {form.priorities.map((option) => (
+                <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-priority-${slug(option.name)}`)}>
+                  <span className="flex items-center gap-2">
+                    <PrioritySignal level={priorityStrength(option.name.toLowerCase())} className={cn("size-4", colorClasses(option.color).text)} />
+                    {option.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       );
     case "referenceUrl":
@@ -368,7 +379,8 @@ export function AssetList({ rows, onChange, title, hint, error, preview }: { row
         rows={shown}
         fields={{ done: false, people: false, type: false, due: false }}
         disabled={preview}
-        emptyText="Nothing listed yet. Add what you need above — a name is enough, and you can open it for the quantity and the spec."
+        // No empty state: the box above says what to do, and a dashed panel
+        // repeating it is a second thing to read before anything has happened.
         onAdd={(name) => onChange([...rows, newAssetRow(name)])}
         onPatch={patch}
         onDuplicate={(row) => onChange([...rows, { ...row, id: newAssetRow(row.name).id }])}
@@ -385,12 +397,19 @@ export function AssetList({ rows, onChange, title, hint, error, preview }: { row
 
 // ---- small building blocks -----------------------------------------------------
 
-export function Section({ title, hint, children, className }: { title: string; hint?: string | null; children: React.ReactNode; className?: string }) {
+export function Section({ title, hint, icon: Icon, children, className }: { title: string; hint?: string | null; icon?: React.ComponentType<{ className?: string }>; children: React.ReactNode; className?: string }) {
   return (
     <fieldset className={cn("space-y-4", className)}>
-      <legend className="mb-3 w-full">
-        <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
-        {hint && <span className="block text-[13px] text-muted-foreground">{hint}</span>}
+      <legend className="mb-3 flex w-full items-start gap-2.5">
+        {Icon && (
+          <span aria-hidden className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="size-4" />
+          </span>
+        )}
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
+          {hint && <span className="block text-[13px] text-muted-foreground">{hint}</span>}
+        </span>
       </legend>
       {children}
     </fieldset>
@@ -437,6 +456,110 @@ export function ChipGroup({ ariaLabel, children }: { ariaLabel: string; children
   return (
     <div role="group" aria-label={ariaLabel} className="flex flex-wrap gap-1.5">
       {children}
+    </div>
+  );
+}
+
+/**
+ * Asset types: a search box over twenty-odd options, answered in chips.
+ *
+ * Twenty chips in a wall is a wall — the eye has to read every one to find
+ * "Flyer", and on a phone it was five rows deep before anything else on the
+ * form could be seen. A picker asks for one line of the form, searches by
+ * typing, and what has been chosen stays visible underneath as chips that can
+ * be taken off one at a time.
+ */
+function AssetTypePicker({
+  options,
+  value,
+  onChange,
+  disabled,
+  tid,
+}: {
+  options: TagOption[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+  tid: (base: string) => string | undefined;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const chosen = value.map((name) => options.find((o) => o.name === name) ?? { name, color: "gray" as const });
+  return (
+    <div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild disabled={disabled}>
+          {/* The chips sit in the control, not under it: what has been chosen
+              is the value of this field, and a box that said "3 types chosen"
+              with the answer somewhere below it is a box you have to read
+              twice. It grows with them and the × on each takes one off. */}
+          <div
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setOpen(true);
+              }
+            }}
+            className={cn(
+              "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
+              disabled ? "cursor-default opacity-70" : "cursor-pointer hover:border-foreground/30",
+              "focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11 max-md:text-[15px]",
+            )}
+            data-testid={tid("booking-asset-picker")}
+          >
+            {chosen.map((option) => (
+              <span
+                key={option.name}
+                className={cn("inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/60 pr-1 pl-2.5 text-xs", colorClasses(option.color).soft)}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="truncate">{option.name}</span>
+                {!disabled && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${option.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onChange(value.filter((name) => name !== option.name));
+                    }}
+                    className="rounded-full p-0.5 transition-colors hover:bg-background/60"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-muted-foreground">
+              <Plus className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{value.length === 0 ? "Choose what you need" : "Add another"}</span>
+            </span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          </div>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+          <Command>
+            <CommandInput placeholder="Search asset types…" />
+            <CommandList className="max-h-64">
+              <CommandEmpty>Nothing matches. Describe it in the brief instead.</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => {
+                  const picked = value.includes(option.name);
+                  return (
+                    <CommandItem key={option.name} value={option.name} onSelect={() => onChange(toggle(value, option.name))} data-testid={tid(`booking-asset-${slug(option.name)}`)}>
+                      <ColorDot color={option.color} />
+                      <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                      <Check className={cn("size-4 shrink-0", picked ? "opacity-100" : "opacity-0")} />
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

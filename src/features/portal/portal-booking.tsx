@@ -1,12 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, LogIn } from "lucide-react";
 import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import type { BookingForm as BookingFormData } from "@/domain";
 import { BookingForm } from "@/features/booking/booking-form";
+import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newSubmissionKey, type PortalCredentials } from "@/features/portal/portal-client";
 
@@ -39,6 +40,13 @@ export function PortalBooking({
   onBackToTasks: () => void;
 }) {
   const services = useServices();
+  // Some stakeholders do have an account here. If they are signed in the form
+  // takes their name and their email from it and stops asking.
+  const auth = useAuth();
+  const account = auth.user ? { name: auth.user.displayName, email: auth.user.email } : null;
+  // Back to this portal once they have signed in; the login page only follows
+  // a path on this site, so the round trip cannot be pointed anywhere else.
+  const signInHref = `/login?next=${encodeURIComponent(typeof window === "undefined" ? "" : window.location.pathname + window.location.search)}`;
   const [submissionKey, setSubmissionKey] = React.useState(() => newSubmissionKey());
   // Kept so the receipt can offer somewhere to go. The form keeps showing its
   // own receipt; navigating away from it the moment a booking lands would take
@@ -64,7 +72,14 @@ export function PortalBooking({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="portal-book">
+    // The card owns the height it is given and scrolls inside itself, so the
+    // page behind it stays put and the bar at the foot of the form is always
+    // on screen — the whole canvas scrolling was what took the button away.
+    // As tall as the form is, and no taller than the window: a card stretched
+    // to the full height left a hand's width of empty card under the last
+    // question, and the bar sitting at the bottom of that looked adrift.
+    <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-testid="portal-book">
+      <div className="scrollbar-thin flex min-h-0 flex-col overflow-y-auto p-5 sm:p-7">
       <p className="mb-4 text-[13px] text-muted-foreground">
         {/* A department whose name already ends in a full stop ("Comm.") must
             not get a second one. The sentence break belongs to the sentence,
@@ -72,18 +87,34 @@ export function PortalBooking({
         Booking as <strong className="font-semibold text-foreground">{departmentName}</strong>
         {departmentName.trim().endsWith(".") ? "" : "."} Your request appears under Our tasks as soon as it is in.
       </p>
+      {/* No account is needed to book. One just saves answering the two
+          questions the app can answer for itself. */}
+      {!account && (
+        <p className="mb-4 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground" data-testid="portal-signin-hint">
+          <LogIn className="size-3.5 shrink-0" aria-hidden />
+          Work here and have a Streamline account?
+          <a href={signInHref} className="font-medium text-foreground underline-offset-4 hover:underline">
+            Sign in
+          </a>
+          and we will fill your details in.
+        </p>
+      )}
       <BookingForm
         form={form.data}
         // The department is context, not an answer: the server takes it from
         // the link either way, and offering a box would imply otherwise. The
         // default is still set, so a template that shows the department
         // somewhere other than a question has the right value to show.
+        account={account}
+        signInHref={account ? null : signInHref}
         defaults={{ department: departmentName }}
         omit={["department"]}
         // Scoped to the link, not to the browser: one machine may be used to
         // book for two departments, and the person doing it is not always the
         // same one. Nothing of this leaves the machine.
-        remember={`portal:${credentials.token}`}
+        // A signed-in person is known to the app; nobody else's details are
+        // kept anywhere but their own browser.
+        remember={account ? null : `portal:${credentials.token}`}
         onSubmit={(request) => services.portals.publicBook(credentials, submissionKey, request, services.booking)}
         // Nothing here links into the application: a stakeholder has no account
         // and the board is not theirs to open.
@@ -104,6 +135,7 @@ export function PortalBooking({
           </Button>
         </div>
       )}
+      </div>
     </section>
   );
 }

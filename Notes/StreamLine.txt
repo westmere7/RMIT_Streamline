@@ -1,7 +1,8 @@
 Globally define the Depts
 Permission rework (board, app, etc)
 Booking form
-
+Teams integration
+Email notification
 --
 
 

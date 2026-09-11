@@ -38,9 +38,24 @@ export interface PastBooking {
   assets: BookingAssetLine[];
 }
 
+/** A booking that was started and not sent, exactly as it was left. */
+export interface BookingDraftMemory {
+  savedAt: string;
+  title: string;
+  brief: string;
+  dueDate: string;
+  referenceUrl: string;
+  assetTypes: string[];
+  priority: string | null;
+  teamId: string | null;
+  assets: BookingAssetLine[];
+}
+
 export interface BookingMemory {
   requester: RememberedRequester | null;
   bookings: PastBooking[];
+  /** What was left half-written, or null once it has been sent or thrown away. */
+  draft: BookingDraftMemory | null;
 }
 
 const KEY = "streamline.booking";
@@ -52,7 +67,7 @@ const KEY = "streamline.booking";
  */
 const KEEP = 5;
 
-export const NO_MEMORY: BookingMemory = { requester: null, bookings: [] };
+export const NO_MEMORY: BookingMemory = { requester: null, bookings: [], draft: null };
 
 /**
  * The parsed store, cached against the text it was parsed from.
@@ -90,6 +105,7 @@ function all(): Record<string, BookingMemory> {
       value[scope] = {
         requester: requester && typeof requester.name === "string" && typeof requester.email === "string" && requester.name.trim() && requester.email.trim() ? requester : null,
         bookings: Array.isArray(entry?.bookings) ? entry.bookings.filter((b): b is PastBooking => !!b && typeof b.id === "string" && typeof b.title === "string").slice(0, KEEP) : [],
+        draft: entry?.draft && typeof entry.draft === "object" && typeof entry.draft.title === "string" ? entry.draft : null,
       };
     }
   } catch {
@@ -154,7 +170,17 @@ export function useBookingMemory(scope: string | null) {
         // Newest first, and re-booking from an old one replaces that entry
         // rather than listing the same request twice.
         bookings: [booking, ...current.bookings.filter((b) => b.id !== booking.id)].slice(0, KEEP),
+        // The booking is in: whatever was saved half-written is that booking.
+        draft: null,
       });
+    },
+    [scope],
+  );
+
+  /** Keep what has been typed so far, or clear it when `null` is passed. */
+  const saveDraft = React.useCallback(
+    (draft: BookingDraftMemory | null) => {
+      if (scope) write(scope, { ...(all()[scope] ?? NO_MEMORY), draft });
     },
     [scope],
   );
@@ -167,7 +193,7 @@ export function useBookingMemory(scope: string | null) {
     if (scope) write(scope, { ...(all()[scope] ?? NO_MEMORY), bookings: [] });
   }, [scope]);
 
-  return { requester: memory.requester, bookings: memory.bookings, remember, forgetRequester, clearHistory };
+  return { requester: memory.requester, bookings: memory.bookings, draft: memory.draft, remember, saveDraft, forgetRequester, clearHistory };
 }
 
 /**

@@ -67,30 +67,19 @@ const asked = () =>
 describe("the booking form", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("asks only what it insists on, and offers the rest behind one disclosure", async () => {
+  it("puts every question on the page, and marks the ones it insists on", async () => {
     renderForm();
     await waitFor(() => expect(screen.getByTestId("booking-form")).toBeInTheDocument());
-    expect(asked()).toEqual(["Your name", "Email", "What is it?", "Tell us more"]);
-    // The rest is there, named as optional, and one click away.
-    const toggle = screen.getByTestId("booking-optional-toggle");
-    expect(toggle).toHaveTextContent("all optional");
-    expect(screen.queryByLabelText(/Needed by/)).not.toBeInTheDocument();
-    await userEvent.click(toggle);
-    expect(screen.getByText("Needed by")).toBeInTheDocument();
-    expect(screen.getByText("School, department or portfolio")).toBeInTheDocument();
-  });
-
-  it("opens the optional half when a message lands on a question it hides", async () => {
-    renderForm();
-    await waitFor(() => expect(screen.getByTestId("booking-form")).toBeInTheDocument());
-    await userEvent.click(screen.getByTestId("booking-optional-toggle"));
-    await userEvent.type(screen.getByLabelText(/Link to a brief/), "not-a-link");
-    // Close it again, so the bad answer is out of sight when it is judged.
-    await userEvent.click(screen.getByTestId("booking-optional-toggle"));
-    await userEvent.click(screen.getByTestId("booking-submit"));
-    // A message under a question nobody can see is a form that refuses to
-    // submit and will not say why.
-    await waitFor(() => expect(screen.getByTestId("booking-optional-toggle")).toHaveAttribute("aria-expanded", "true"));
+    // No disclosure to open: what the form wants is what you can see.
+    expect(screen.queryByTestId("booking-optional-toggle")).not.toBeInTheDocument();
+    // Labelled controls, in the template's own order.
+    expect(asked()).toEqual(["Your name", "Email", "School, department or portfolio", "What is it?", "Tell us more", "How urgent?", "Needed by", "Link to a brief or examples", "Team"]);
+    // Asset type is a picker rather than a labelled input, so it carries its
+    // name as plain text beside the control.
+    expect(screen.getByText("Asset type")).toBeInTheDocument();
+    // The four it insists on carry the asterisk; the rest do not.
+    const required = [...document.querySelectorAll('[data-testid="booking-form"] label')].filter((l) => l.textContent?.includes("*")).map((l) => l.textContent?.replace("*", "").trim());
+    expect(required).toEqual(["Your name", "Email", "What is it?", "Tell us more"]);
   });
 
   it("remembers who booked, and says so rather than asking again", async () => {
@@ -109,7 +98,9 @@ describe("the booking form", () => {
     renderForm();
     await waitFor(() => expect(screen.getByTestId("booking-known-requester")).toBeInTheDocument());
     expect(screen.getByTestId("booking-known-requester")).toHaveTextContent("Priya Nair");
-    expect(asked()).toEqual(["What is it?", "Tell us more"]);
+    // The two questions about them are gone from the form, not tucked away.
+    expect(asked()).not.toContain("Your name");
+    expect(asked()).not.toContain("Email");
   });
 
   it("hands back the form to somebody who is not them", async () => {
@@ -118,7 +109,19 @@ describe("the booking form", () => {
     await waitFor(() => expect(screen.getByTestId("booking-known-requester")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("booking-not-you"));
     expect(screen.queryByTestId("booking-known-requester")).not.toBeInTheDocument();
-    expect(asked()).toEqual(["Your name", "Email", "What is it?", "Tell us more"]);
+    expect(asked().slice(0, 2)).toEqual(["Your name", "Email"]);
+  });
+
+  it("takes a signed-in person's details from their account and stops asking", async () => {
+    renderForm({ account: { name: "Jun Tanaka", email: "jun@rmit.edu.au" }, remember: null });
+    await waitFor(() => expect(screen.getByTestId("booking-known-requester")).toBeInTheDocument());
+    expect(screen.getByTestId("booking-known-requester")).toHaveTextContent("signed in");
+    expect(asked()).not.toContain("Your name");
+    // Still able to book for somebody else: the two questions come back, and
+    // so does the way back to their own account.
+    await userEvent.click(screen.getByTestId("booking-not-you"));
+    expect(asked().slice(0, 2)).toEqual(["Your name", "Email"]);
+    expect(screen.getByTestId("booking-book-as-me")).toHaveTextContent("Book under this account");
   });
 
   it("starts a booking from one this browser already made, minus the deadline", async () => {
@@ -150,9 +153,6 @@ describe("the booking form", () => {
 
     expect(screen.getByLabelText(/What is it/)).toHaveValue("Open Day wayfinding posters");
     expect(screen.getByLabelText(/Tell us more/)).toHaveValue("A1 posters for the Open Day route.");
-    // The optional half is filled in, so it is open: a form holding answers
-    // the reader has not seen is worse than the wall it replaced.
-    expect(screen.getByTestId("booking-optional-toggle")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText(/Link to a brief/)).toHaveValue("https://example.com/brief");
     // A date that has passed is the one answer nobody wants copied forward.
     expect(screen.getByLabelText(/Needed by/)).toHaveValue("");

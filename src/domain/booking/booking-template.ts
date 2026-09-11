@@ -167,9 +167,10 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
           // The two chip questions take the full width: at half they wrap their
           // last chip onto a line of its own, which reads as a mistake.
           std("assetTypes", "Asset type"),
-          std("priority", "How urgent?"),
+          // The two that answer "when": a dropdown and a date, side by side.
+          std("priority", "How urgent?", { width: "half" }),
           std("dueDate", "Needed by", { width: "half" }),
-          std("referenceUrl", "Link to a brief or examples", { placeholder: "https://", width: "half" }),
+          std("referenceUrl", "Link to a brief or examples", { placeholder: "https://" }),
         ],
       },
       {
