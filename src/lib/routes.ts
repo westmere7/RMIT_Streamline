@@ -47,6 +47,17 @@ export const routes = {
   team: (slug: string, teamId: string) => `/workspace/${slug}/teams/${teamId}`,
   trackers: (slug: string) => `/workspace/${slug}/trackers`,
   tracker: (slug: string, trackerId: string, sheetId?: string | null) => `/workspace/${slug}/trackers/${trackerId}${sheetId ? `?sheet=${sheetId}` : ""}`,
+  /**
+   * A board's archive: everything taken off it, a page at a time.
+   *
+   * Its own route rather than a view of the board, because it is not one - it
+   * reads a page at a time, has no groups and nothing to edit, and it should
+   * survive a refresh and go Back like any other screen.
+   */
+  boardArchive: (slug: string, boardSlug: string, options?: { itemId?: string | null }) => {
+    const query = options?.itemId ? `?item=${encodeURIComponent(options.itemId)}` : "";
+    return `/workspace/${slug}/boards/${boardSlug}/archive${query}`;
+  },
   board: (slug: string, boardSlug: string, options?: { view?: BoardViewKind; itemId?: string | null }) => {
     const params = new URLSearchParams();
     if (options?.view && options.view !== "table") params.set("view", options.view);

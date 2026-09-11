@@ -16,7 +16,10 @@ export function BulkActionsBar() {
   const { board, model, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const clearSelection = useBoardUiStore((s) => s.clearSelection);
-  const [confirm, setConfirm] = React.useState<"archive" | "delete" | null>(null);
+  const [confirm, setConfirm] = React.useState<"delete" | null>(null);
+  // Archiving asks its own question (what happens to anything linked), and the
+  // board renders that dialog once for every place it is offered from.
+  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const ids = ui.selectedItemIds.filter((id) => model.itemById.has(id));
   const allocation = useAllocation();
 
@@ -131,7 +134,7 @@ export function BulkActionsBar() {
         >
           <Copy /> Duplicate
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConfirm("archive")}>
+        <Button variant="ghost" size="sm" onClick={() => setArchiveRequest(ids)}>
           <Archive /> Archive
         </Button>
         <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setConfirm("delete")}>
@@ -141,17 +144,6 @@ export function BulkActionsBar() {
           <X />
         </Button>
       </div>
-      <ConfirmDialog
-        open={confirm === "archive"}
-        onOpenChange={(open) => !open && setConfirm(null)}
-        title={`Archive ${pluralize(ids.length, "item")}?`}
-        description="Archived items are hidden from the board. They can be restored from the data layer later."
-        confirmLabel="Archive"
-        onConfirm={async () => {
-          await mutations.archiveItems(ids);
-          clear();
-        }}
-      />
       <ConfirmDialog
         open={confirm === "delete"}
         onOpenChange={(open) => !open && setConfirm(null)}

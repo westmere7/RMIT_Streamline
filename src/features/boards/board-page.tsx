@@ -15,6 +15,7 @@ import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardHeader } from "@/features/boards/components/board-header";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
+import { ArchiveItemsDialog } from "@/features/boards/components/dialogs/archive-items-dialog";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
@@ -219,6 +220,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             {/* Full screen on a phone: the panel already goes fixed inset-0 below 1024. */}
             {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
+            <ArchiveItemsDialog />
           </BoardContextProvider>
         )}
       </div>
@@ -271,6 +273,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
           </div>
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
+            <ArchiveItemsDialog />
         </BoardContextProvider>
       )}
     </div>

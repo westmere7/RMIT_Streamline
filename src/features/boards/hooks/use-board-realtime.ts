@@ -55,11 +55,18 @@ export function useBoardRealtime(boardId: string | null): void {
     const channel = supabase
       .channel(`board:${boardId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "items", filter: `board_id=eq.${boardId}` }, onBoard)
-      // Values and comments are keyed by item, not board, so they arrive unfiltered
-      // and are narrowed by the snapshot refetch that follows.
-      .on("postgres_changes", { event: "*", schema: "public", table: "item_column_values" }, onBoard)
+      // A value is keyed by item and column, neither of which is a board, so the
+      // row carries the board it belongs to purely so this filter can exist
+      // (supabase/migrations/0036_value_board_id.sql). Without it every cell
+      // edit anywhere in the workspace arrived here and cost this board a full
+      // snapshot refetch — someone else's keystroke, on a board nobody here is
+      // looking at, reloading this one.
+      .on("postgres_changes", { event: "*", schema: "public", table: "item_column_values", filter: `board_id=eq.${boardId}` }, onBoard)
       .on("postgres_changes", { event: "*", schema: "public", table: "board_groups", filter: `board_id=eq.${boardId}` }, onBoard)
       .on("postgres_changes", { event: "*", schema: "public", table: "board_columns", filter: `board_id=eq.${boardId}` }, onBoard)
+      // Comments are still unfiltered: they are keyed by item, the badge counts
+      // are a small read, and a board's updates are not a stream anyone edits
+      // at speed.
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => schedule("comments"))
       .on("postgres_changes", { event: "*", schema: "public", table: "item_assets", filter: `board_id=eq.${boardId}` }, () => {
         schedule("item-assets");

@@ -1,4 +1,5 @@
-import type { Item, ItemColumnValue, PublicBoardPayload, User, Workspace } from "@/domain";
+import type { ArchivePage, ArchiveQuery, Item, ItemColumnValue, PublicBoardPayload, User, Workspace } from "@/domain";
+import { compareArchived, matchesArchiveQuery } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
 /**
@@ -104,6 +105,17 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
     },
     items: {
       listByBoard: async (boardId) => items(boardId),
+      // A shared board carries no archive, but the payload behind a dashboard
+      // does; answering from it costs nothing and keeps the interface honest.
+      listArchivedPage: async (query: ArchiveQuery): Promise<ArchivePage<Item>> => {
+        const valuesByItem = new Map(values(query.boardId).map((v) => [`${v.itemId}:${v.columnId}`, v.value]));
+        const matched = items(query.boardId)
+          .filter((i) => i.archivedAt !== null && i.parentItemId === null)
+          .filter((i) => matchesArchiveQuery(i, query, (itemId, columnId) => valuesByItem.get(`${itemId}:${columnId}`)))
+          .sort((a, b) => compareArchived(a, b, query.sort));
+        return { rows: matched.slice(query.offset, query.offset + query.limit), total: matched.length };
+      },
+      countArchived: async (boardId) => items(boardId).filter((i) => i.archivedAt !== null && i.parentItemId === null).length,
       listByIds: async (ids) => payload().items.filter((i) => ids.includes(i.id)),
       getById: async (id) => payload().items.find((i) => i.id === id) ?? null,
       create: readOnly("adding an item"),

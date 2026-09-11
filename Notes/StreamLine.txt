@@ -4,5 +4,87 @@ Booking form
 Teams integration
 Email notification
 --
+Main hub for all stakeholders, including their dept. filters
+One single booking form. Branched Booking form for diff. types of request
+Editable Forms with fixed initial demands: Which Stakeholer and which demand.
+
+--
+
+Stakeholders:
+
+-Comm.
+-Events
+-Marketing
+
+Production team:
+
+-Brand
+-Production
+-Social
+-Design
+
+---
 
 
+Tab1: 
+Name, Dept, email, Due Date
+Type of service (Brand / Design / Production)
+ 
+Tab2: Branched form for custom edit
+
+
+--- Subitems = tags, allow multiple
+
+	Brand
+Approval
+Digital / Social
+Print
+Publication
+Installation
+Other
+
+	Design
+Digital / Social
+Print
+Publication
+Installation
+Key Visual
+Other
+
+	Production
+Photography
+Videography
+ 
+ 
+ ---
+ 
+Main hub: show Incoming + In progress
+
+---
+
+Editable form:
+Short text, long text, multiple choice (chips), radio choice (short).
+Description, 
+
+Asset recap: internal team
+
+Auto reply.
+
+--
+
+Ticket
+
+YY_#
+CP26_9999
+
+---
+
+Mirrored task for allocated task (hide done).
+sort by ticket by default
+Booking date - optional
+Turnaround time
+
+---
+
+
+Archived item 

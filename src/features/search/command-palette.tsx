@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileSpreadsheet, Globe, Home, Inbox, ListTodo, LoaderCircle, Settings, Users } from "lucide-react";
+import { Archive, FileSpreadsheet, Globe, Home, Inbox, ListTodo, LoaderCircle, Settings, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -26,6 +26,10 @@ export function CommandPalette() {
   const pathname = usePathname();
   const [query, setQuery] = React.useState("");
   const debounced = useDebouncedValue(query.trim(), 150);
+  // Off every time search opens. The archive is where finished work goes, so
+  // including it by default would answer a question nobody asked - and it costs
+  // a second read of every board.
+  const [includeArchived, setIncludeArchived] = React.useState(false);
 
   // The board being viewed, if any — the default scope when search opens.
   const viewedBoard = React.useMemo(() => {
@@ -40,8 +44,8 @@ export function CommandPalette() {
   const scopedBoard = scope === "view" ? viewedBoard : null;
 
   const results = useQuery({
-    queryKey: queryKeys.search(ws.workspace.id, debounced),
-    queryFn: () => services.search.search(ws.workspace.id, debounced),
+    queryKey: [...queryKeys.search(ws.workspace.id, debounced), includeArchived],
+    queryFn: () => services.search.search(ws.workspace.id, debounced, { includeArchived }),
     enabled: open && debounced.length > 0,
     staleTime: 5_000,
   });
@@ -64,7 +68,10 @@ export function CommandPalette() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setQuery("");
+        if (!next) {
+          setQuery("");
+          setIncludeArchived(false);
+        }
       }}
     >
       <CommandInput
@@ -82,6 +89,10 @@ export function CommandPalette() {
         )}
         <ScopeChip active={scope === "workspace"} onClick={() => setScope("workspace")}>
           <Globe className="size-3" /> Everywhere
+        </ScopeChip>
+        <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+        <ScopeChip active={includeArchived} onClick={() => setIncludeArchived((v) => !v)} testId="search-include-archived">
+          <Archive className="size-3" /> Archived
         </ScopeChip>
       </div>
       <CommandList>
@@ -129,10 +140,21 @@ export function CommandPalette() {
           <>
             <CommandSeparator />
             <CommandGroup heading="Items">
-              {visibleItems.map(({ item, board }) => (
-                <CommandItem key={item.id} value={`item-${item.id}`} onSelect={() => go(ws.boardPath(board, { itemId: item.id }))}>
-                  <ListTodo />
+              {visibleItems.map(({ item, board, archived }) => (
+                <CommandItem
+                  key={item.id}
+                  value={`item-${item.id}`}
+                  data-archived={archived ? "true" : undefined}
+                  // An archived hit opens where it actually lives: the board's
+                  // archive, with the task open. Sending it to the board would
+                  // land on a row that is not there.
+                  onSelect={() => go(archived ? routes.boardArchive(ws.slug, board.slug, { itemId: item.id }) : ws.boardPath(board, { itemId: item.id }))}
+                >
+                  {archived ? <Archive /> : <ListTodo />}
                   <span className="truncate">{item.name}</span>
+                  {archived && (
+                    <span className="shrink-0 rounded-full bg-surface-strong px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">Archived</span>
+                  )}
                   {/* Searching by booking code should show the code that matched. */}
                   {item.reference && <span className="shrink-0 font-mono text-2xs text-muted-foreground/70 tabular">{item.reference}</span>}
                   <span className="ml-auto truncate text-2xs text-muted-foreground">{board.name}</span>
@@ -174,12 +196,13 @@ export function CommandPalette() {
 }
 
 /** One selectable search scope. */
-function ScopeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function ScopeChip({ active, onClick, children, testId }: { active: boolean; onClick: () => void; children: React.ReactNode; testId?: string }) {
   return (
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
+      data-testid={testId}
       className={cn(
         "flex h-6 items-center gap-1 rounded-full border px-2 text-2xs font-medium transition-colors",
         active ? "border-primary/40 bg-accent text-foreground" : "border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",

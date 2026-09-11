@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
-import type { BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
+import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseItemReference } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -35,6 +35,9 @@ export function useBoardMutations(boardId: string) {
     // A change here may have been mirrored onto linked items on other boards.
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"], predicate: (q) => q.queryKey[1] !== boardId });
     void queryClient.invalidateQueries({ queryKey: ["item-links"] });
+    // Archiving and deleting change what the archive holds, and its count.
+    void queryClient.invalidateQueries({ queryKey: ["board-archive"] });
+    void queryClient.invalidateQueries({ queryKey: ["board-archive-count"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.myWork(ws.workspace.id, user.id) });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -262,15 +265,17 @@ export function useBoardMutations(boardId: string) {
   );
 
   const archiveItems = useCallback(
-    (itemIds: string[]) =>
+    (itemIds: string[], options?: { links?: ArchiveLinkPolicy }) =>
       run(
         (s) => {
           const ids = new Set(itemIds);
           return { ...s, items: s.items.filter((i) => !ids.has(i.id) && !(i.parentItemId && ids.has(i.parentItemId))) };
         },
         async () => {
-          await services.items.archiveItems(boardId, itemIds, user.id);
-          toast.success(itemIds.length === 1 ? "Item archived" : `${itemIds.length} items archived`);
+          await services.items.archiveItems(boardId, itemIds, user.id, options);
+          toast.success(itemIds.length === 1 ? "Item archived" : `${itemIds.length} items archived`, {
+            description: "Find it under Archived items.",
+          });
         },
         "Could not archive items",
       ),

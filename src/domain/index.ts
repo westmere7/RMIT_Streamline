@@ -10,6 +10,7 @@ export * from "./board/column";
 export * from "./board/board-share";
 export * from "./dashboard/dashboard";
 export * from "./item/item";
+export * from "./item/item-archive";
 export * from "./item/item-link";
 export * from "./item/item-asset";
 export * from "./tracker/tracker";

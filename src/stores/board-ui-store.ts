@@ -86,6 +86,16 @@ interface BoardUiStore {
   /** Item whose panel should open the link dialog as soon as it mounts. */
   linkDialogItemId: string | null;
   setLinkDialogItem: (itemId: string | null) => void;
+  /**
+   * Items waiting on the archive confirmation.
+   *
+   * Archiving is offered from a row menu, a card, the bulk bar and the phone;
+   * what it has to ask - what happens to anything linked to these items - is
+   * the same question every time. The ids are put here and the board renders
+   * the one dialog, rather than five copies of it that could drift apart.
+   */
+  archiveRequestIds: string[] | null;
+  setArchiveRequest: (itemIds: string[] | null) => void;
   setSearch: (boardId: string, search: string) => void;
   setFilters: (boardId: string, filters: Partial<BoardFilters>) => void;
   clearFilters: (boardId: string) => void;
@@ -135,6 +145,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   setBoardLoading: (boardLoading) => set({ boardLoading }),
   linkDialogItemId: null,
   setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
+  archiveRequestIds: null,
+  setArchiveRequest: (archiveRequestIds) => set({ archiveRequestIds }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),
   setFilters: (boardId, filters) =>
     set((s) => update(s, boardId, { filters: { ...(s.boards[boardId]?.filters ?? EMPTY_FILTERS), ...filters } })),

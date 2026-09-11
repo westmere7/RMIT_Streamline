@@ -36,6 +36,27 @@ describe("Task Linking", () => {
     return services.items.setValue(itemId, column.id, value, { column, item, board, users }, actor);
   }
 
+  /**
+   * A request in the allocation queue is a question about who should do the
+   * work, not the work. Linking it would mirror it onto a team's board while
+   * it still sat in the queue — the very duplicate that allocating (which
+   * *moves* it) exists to avoid.
+   */
+  it("refuses to link anything still waiting in the allocation queue, either way round", async () => {
+    const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
+    const queue = boards.find((b) => b.system === "TASK_ALLOCATION")!;
+    const [queued] = await services.repos.items.listByBoard(queue.id);
+    const other = await itemNamed(SEED_BOARD_IDS.sem1, "Sem 1 DOOH adaptation");
+
+    expect(await services.links.validate(queued!.id, other.id)).toMatchObject({ ok: false });
+    expect(await services.links.validate(other.id, queued!.id)).toMatchObject({ ok: false });
+    await expect(services.links.link(other.id, queued!.id, SEED_USER_IDS.danh)).rejects.toThrow(/waiting to be allocated/);
+
+    // And it is not offered: a list of choices that all fail is not a list.
+    const { hits } = await services.links.searchCandidates(SEED_WORKSPACE_ID, other.id, "");
+    expect(hits.some((hit) => hit.board.id === queue.id)).toBe(false);
+  });
+
   it("seeds cross-team links and exposes them on the board snapshot", async () => {
     const sem1 = await itemNamed(SEED_BOARD_IDS.sem1, "Sem 1 DOOH adaptation");
     const dooh = await itemNamed(SEED_BOARD_IDS.dooh, "Sem 1 DOOH adaptation");

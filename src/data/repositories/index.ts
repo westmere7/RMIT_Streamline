@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, DepartmentPortal, DepartmentPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, DepartmentPortal, DepartmentPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -155,6 +155,17 @@ export interface BoardRepository {
 
 export interface ItemRepository {
   listByBoard(boardId: EntityId, options?: { includeArchived?: boolean }): Promise<Item[]>;
+  /**
+   * One page of a board's archive, filtered and counted where the rows live.
+   *
+   * The board's own read takes every item it has; an archive only ever grows,
+   * so it is never read whole. Filtering, ordering, counting and slicing all
+   * happen in the database and only the page asked for comes back. Top-level
+   * items only: a subitem is archived with its parent and comes back with it.
+   */
+  listArchivedPage(query: ArchiveQuery): Promise<ArchivePage<Item>>;
+  /** How many items sit in a board's archive, filters aside. For the badge on the board. */
+  countArchived(boardId: EntityId): Promise<number>;
   listByIds(ids: EntityId[]): Promise<Item[]>;
   getById(id: EntityId): Promise<Item | null>;
   create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;

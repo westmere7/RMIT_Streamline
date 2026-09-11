@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Kanban, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -13,6 +13,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
+import { routes } from "@/lib/routes";
 import { canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
 
 /**
@@ -96,6 +97,17 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
       icon: muted ? <Bell /> : <BellOff />,
       onSelect: () => setBoardSubscribed.mutate({ boardId: board.id, subscribed: muted }),
       testId: "toggle-board-subscription",
+    },
+    { type: "separator" },
+    // The board's archive, not the board's own archiving: everything that has
+    // been taken off this board, on a screen of its own. Its own section, above
+    // "Archive board", so the two are never read as the same thing.
+    {
+      type: "item",
+      label: "Archived items",
+      icon: <Inbox />,
+      onSelect: () => router.push(routes.boardArchive(ws.slug, board.slug)),
+      testId: "board-menu-archive",
     },
   ];
 

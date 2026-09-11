@@ -144,6 +144,7 @@ function Owners({ userIds }: { userIds: string[] }) {
 /** The item's actions, from the same declarations the desktop row menu uses. */
 function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
   const { model, mutations, canEdit, openItem } = useBoardContext();
+  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [open, setOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const reference = item.reference;
@@ -163,10 +164,10 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
         items: model.groups.filter((g) => g.id !== group.id).map((g) => ({ type: "item" as const, label: g.name, onSelect: () => void mutations.moveItemsToGroup([item.id], g.id) })),
       },
       { type: "separator" },
-      { type: "item", label: "Archive", onSelect: () => void mutations.archiveItems([item.id]) },
+      { type: "item", label: "Archive", onSelect: () => setArchiveRequest([item.id]) },
       { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
     ];
-  }, [item.id, item.groupId, reference, group.id, canEdit, model.groups, mutations, openItem]);
+  }, [item.id, item.groupId, reference, group.id, canEdit, model.groups, mutations, openItem, setArchiveRequest]);
 
   return (
     <>

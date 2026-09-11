@@ -1,5 +1,9 @@
 import type {
   ActivityInput,
+  ArchiveLinkImpact,
+  ArchiveLinkPolicy,
+  ArchiveQuery,
+  ArchiveRequest,
   Board,
   BoardColumn,
   BoardGroup,
@@ -11,12 +15,33 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { emptyValueFor, normaliseItemReference } from "@/domain";
+import { EMPTY_ARCHIVE_LINK_IMPACT, emptyValueFor, normaliseItemReference, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { displayValue } from "./column-display";
 import type { ItemLinkService } from "./item-link-service";
 import { NotificationService } from "./notification-service";
+
+/**
+ * One page of a board's archive, in the shape the board's own screens read.
+ *
+ * Everything a trimmed-down board needs is here — its groups so a row can say
+ * where it would go back to, its columns so the cells render, and the values and
+ * links of the rows on this page and no others. `total` is the whole filtered
+ * archive, which is what the pager counts; `items` is what came back for the
+ * page asked for.
+ */
+export interface ArchiveSnapshot extends BoardSnapshot {
+  total: number;
+  page: number;
+  pageSize: number;
+  /**
+   * An item asked for by id that the page does not hold — a link followed
+   * straight to an archived task. It travels in `items` so the panel can open
+   * it, and is named here so the table can leave it out of the page.
+   */
+  focusItemId: EntityId | null;
+}
 
 export interface BoardSnapshot {
   board: Board;
@@ -66,6 +91,32 @@ export interface MoveItemInput {
   orderedIdsInTargetGroup: EntityId[];
   /** Ordered item ids in the source group after the move (when different). */
   orderedIdsInSourceGroup?: EntityId[];
+}
+
+/**
+ * Turns the filters as the screen holds them into the filters a row store can
+ * answer: which column each one applies to, and what it has to say.
+ *
+ * A filter whose board has no such column is dropped rather than left to match
+ * nothing - the board cannot answer it either way, and a filter that silently
+ * empties the list is worse than one that is not there. Status and priority
+ * read the board's first column of that type, which is the column its own
+ * filters read.
+ */
+export function resolveArchiveFilters(request: ArchiveRequest, columns: readonly BoardColumn[]): Pick<ArchiveQuery, "search" | "groupIds" | "status" | "priority" | "people" | "tags"> {
+  const { filters } = request;
+  const statusColumn = columns.find((c) => c.type === "STATUS") ?? null;
+  const priorityColumn = columns.find((c) => c.type === "PRIORITY") ?? null;
+  const personColumns = columns.filter((c) => c.type === "PERSON").map((c) => c.id);
+  const tagColumns = columns.filter((c) => c.type === "TAGS").map((c) => c.id);
+  return {
+    search: request.search,
+    groupIds: filters.groupIds,
+    status: statusColumn && filters.statusIds.length > 0 ? { columnId: statusColumn.id, labelIds: filters.statusIds } : null,
+    priority: priorityColumn && filters.priorityIds.length > 0 ? { columnId: priorityColumn.id, labelIds: filters.priorityIds } : null,
+    people: personColumns.length > 0 && filters.personIds.length > 0 ? { columnIds: personColumns, userIds: filters.personIds } : null,
+    tags: tagColumns.length > 0 && filters.tags.length > 0 ? { columnIds: tagColumns, values: filters.tags } : null,
+  };
 }
 
 export class ItemService {
@@ -358,7 +409,114 @@ export class ItemService {
     await this.repos.items.updateMany(orderedIds.map((id, index) => ({ id, patch: { position: index } })));
   }
 
-  async archiveItems(boardId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<void> {
+  /**
+   * One page of a board's archive, with everything the archive screen renders.
+   *
+   * The filters are resolved against the board's columns here - which column
+   * holds the status is a question about this board, not about rows - and the
+   * page itself is cut by the database. Values and links are then read for the
+   * rows that came back and for nothing else, which is what keeps an archive of
+   * any size the same size to open.
+   */
+  async loadArchivePage(boardId: EntityId, request: ArchiveRequest, options: { focusItemId?: EntityId | null } = {}): Promise<ArchiveSnapshot> {
+    const board = await this.repos.boards.getById(boardId);
+    if (!board) throw new NotFoundError("Board", boardId);
+    const [groups, columns] = await Promise.all([this.repos.boards.listGroups(boardId), this.repos.boards.listColumns(boardId)]);
+
+    const pageSize = request.pageSize;
+    const page = Math.max(1, request.page);
+    const { rows, total } = await this.repos.items.listArchivedPage({
+      ...resolveArchiveFilters(request, columns),
+      boardId,
+      sort: request.sort,
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
+    });
+
+    // A task reached by a link may be on any page, or on none of them once a
+    // filter is on. It is what the reader asked for, so it is fetched by id and
+    // travels with the page rather than being lost to the pager.
+    const onPage = new Set(rows.map((i) => i.id));
+    const focus = options.focusItemId && !onPage.has(options.focusItemId) ? await this.repos.items.getById(options.focusItemId) : null;
+    const focusItem = focus && focus.boardId === boardId ? focus : null;
+    const items = focusItem ? [...rows, focusItem] : rows;
+
+    const [values, links] = await Promise.all([
+      this.repos.items.listValuesByItems(items.map((i) => i.id)),
+      this.repos.links.listByItems(items.map((i) => i.id)),
+    ]);
+    return { board, groups, columns, items, values, links, total, page, pageSize, focusItemId: focusItem?.id ?? null };
+  }
+
+  /** How many items a board has in its archive. For the count beside the board's Archive entry. */
+  countArchived(boardId: EntityId): Promise<number> {
+    return this.repos.items.countArchived(boardId);
+  }
+
+  /**
+   * What archiving these items would do to the links they carry.
+   *
+   * A linked task is kept in step with its twin on another board. Archiving one
+   * side and leaving the other is a decision, not a detail, so the screen asks -
+   * and this is what it has to ask about.
+   */
+  async archiveLinkImpact(itemIds: EntityId[]): Promise<ArchiveLinkImpact> {
+    const selected = new Set(itemIds);
+    const linkedItemIds: EntityId[] = [];
+    const connected = new Set<EntityId>();
+    for (const itemId of itemIds) {
+      const links = await this.repos.links.listByItem(itemId);
+      if (links.length === 0) continue;
+      linkedItemIds.push(itemId);
+      for (const link of links) {
+        const other = otherEndOf(link, itemId);
+        if (!selected.has(other)) connected.add(other);
+      }
+    }
+    const others = await this.repos.items.listByIds([...connected]);
+    return {
+      linkedItemIds,
+      connectedItemIds: others.map((i) => i.id),
+      connectedBoardIds: [...new Set(others.map((i) => i.boardId))],
+    };
+  }
+
+  /**
+   * Archives items, and settles what happens to anything linked to them.
+   *
+   * `cascade` puts the tasks on the other boards away too, so a set of mirrored
+   * tasks leaves the boards together. `break` unlinks first, so the twins stay
+   * where they are and stop following a task nobody can see. Without a policy
+   * the links are left alone, which is what archiving did before there was
+   * anywhere to see the result.
+   */
+  async archiveItems(boardId: EntityId, itemIds: EntityId[], actorId: EntityId, options: { links?: ArchiveLinkPolicy } = {}): Promise<void> {
+    // Gathered before anything is archived so a chain is followed through the
+    // items being put away rather than around them.
+    const impact = options.links ? await this.archiveLinkImpact(itemIds) : EMPTY_ARCHIVE_LINK_IMPACT;
+
+    if (options.links === "break") {
+      for (const itemId of itemIds) {
+        for (const link of await this.repos.links.listByItem(itemId)) await this.links.unlink(link.id, actorId);
+      }
+    }
+
+    await this.archiveOnBoard(boardId, itemIds, actorId);
+
+    if (options.links === "cascade") {
+      const connected = await this.repos.items.listByIds(impact.connectedItemIds);
+      const byBoard = new Map<EntityId, EntityId[]>();
+      for (const item of connected) {
+        if (item.archivedAt !== null) continue;
+        byBoard.set(item.boardId, [...(byBoard.get(item.boardId) ?? []), item.id]);
+      }
+      for (const [otherBoardId, ids] of byBoard) await this.archiveOnBoard(otherBoardId, ids, actorId);
+    }
+  }
+
+  /** Marks items archived on one board and writes that board's activity. */
+  private async archiveOnBoard(boardId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<void> {
+    if (itemIds.length === 0) return;
     const now = new Date().toISOString();
     const items = await this.repos.items.listByIds(itemIds);
     await this.repos.items.updateMany(itemIds.map((id) => ({ id, patch: { archivedAt: now } })));
@@ -375,8 +533,31 @@ export class ItemService {
     );
   }
 
-  async restoreItems(itemIds: EntityId[]): Promise<void> {
+  /**
+   * Puts items back where they were.
+   *
+   * Nothing moved while they were away: an archived item keeps its group and
+   * its position, and a group cannot outlive its items, so clearing the date is
+   * the whole restore. Where the board has filled in around it, the position it
+   * kept puts it back among the same neighbours.
+   */
+  async restoreItems(itemIds: EntityId[], actorId?: EntityId): Promise<void> {
+    if (itemIds.length === 0) return;
+    const items = await this.repos.items.listByIds(itemIds);
     await this.repos.items.updateMany(itemIds.map((id) => ({ id, patch: { archivedAt: null } })));
+    if (!actorId) return;
+    const boards = new Map<EntityId, Board | null>();
+    for (const item of items) if (!boards.has(item.boardId)) boards.set(item.boardId, await this.repos.boards.getById(item.boardId));
+    await this.repos.activities.createMany(
+      items.map((item) => ({
+        workspaceId: boards.get(item.boardId)?.workspaceId ?? "",
+        boardId: item.boardId,
+        itemId: item.id,
+        actorId,
+        eventType: "ITEM_RESTORED" as const,
+        metadata: { itemName: item.name },
+      })),
+    );
   }
 
   async deleteItems(boardId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<void> {

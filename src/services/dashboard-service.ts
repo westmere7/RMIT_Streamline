@@ -123,7 +123,10 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
         const [groups, columns, items, values, assets] = await Promise.all([
           repos.boards.listGroups(board.id),
           repos.boards.listColumns(board.id),
-          repos.items.listByBoard(board.id),
+          // Archived work still happened: it is counted, and the archive is
+          // where it is read back from. Values come by column, so they already
+          // include the archived rows.
+          repos.items.listByBoard(board.id, { includeArchived: true }),
           repos.items.listValuesByBoard(board.id),
           repos.itemAssets.listByBoard(board.id),
         ]);

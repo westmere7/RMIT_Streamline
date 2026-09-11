@@ -1,4 +1,5 @@
-import type { ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
+import { compareArchived, matchesArchiveQuery } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -13,6 +14,44 @@ export class LocalItemRepository implements ItemRepository {
     const items = await db.getAllFromIndex("items", "byBoard", boardId);
     const filtered = options?.includeArchived ? items : items.filter((i) => i.archivedAt === null);
     return filtered.sort((a, b) => a.position - b.position);
+  }
+
+  /**
+   * One page of the board's archive.
+   *
+   * Everything is already in the browser here, so the page is cut from the
+   * filtered list rather than asked for: what matters is that the rules and the
+   * order match what the Supabase provider asks the database for, which is why
+   * both go through the same two functions.
+   */
+  async listArchivedPage(query: ArchiveQuery): Promise<ArchivePage<Item>> {
+    const archived = await this.archivedOf(query.boardId);
+    const needsValues = !!(query.status || query.priority || query.people || query.tags);
+    const getValue = needsValues ? await this.valueLookup(archived.map((i) => i.id)) : () => undefined;
+    const matched = archived.filter((item) => matchesArchiveQuery(item, query, getValue));
+    matched.sort((a, b) => compareArchived(a, b, query.sort));
+    return { rows: matched.slice(query.offset, query.offset + query.limit), total: matched.length };
+  }
+
+  async countArchived(boardId: string): Promise<number> {
+    return (await this.archivedOf(boardId)).length;
+  }
+
+  private async archivedOf(boardId: string): Promise<Item[]> {
+    const db = await this.conn.getDb();
+    const items = await db.getAllFromIndex("items", "byBoard", boardId);
+    return items.filter((i) => i.archivedAt !== null && i.parentItemId === null);
+  }
+
+  private async valueLookup(itemIds: string[]): Promise<(itemId: string, columnId: string) => ColumnValue | undefined> {
+    const values = await this.listValuesByItems(itemIds);
+    const byItem = new Map<string, Map<string, ColumnValue>>();
+    for (const value of values) {
+      const bucket = byItem.get(value.itemId) ?? new Map<string, ColumnValue>();
+      bucket.set(value.columnId, value.value);
+      byItem.set(value.itemId, bucket);
+    }
+    return (itemId, columnId) => byItem.get(itemId)?.get(columnId);
   }
 
   async listByIds(ids: string[]): Promise<Item[]> {

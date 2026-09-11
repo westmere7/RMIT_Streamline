@@ -12,8 +12,8 @@ import { colorClasses, tagColorFor } from "@/lib/colors";
  * is a re-render, not a re-read.
  *
  * What counts as what:
- *  - A task is a top-level, unarchived item on a board that is not the Task
- *    Allocation board. A task mirrored on several boards by a link counts once.
+ *  - A task is a top-level item on a board that is not the Task Allocation
+ *    board, archived or not. A task mirrored on several boards by a link counts once.
  *  - A request is an item on the Task Allocation board, or any task whose board
  *    records who asked for it (a "Requester" or "Department" column).
  *  - Assets are the asset lines of tasks, measured in units (quantity, or one
@@ -233,7 +233,10 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   const years = new Set<number>();
   let earliest: ISODate | null = null;
 
-  const items = snapshot.items.filter((i) => i.parentItemId === null && i.archivedAt === null && boards.has(i.boardId));
+  // Archived items count. Work that was delivered and then put away is still
+  // work the year did, and a dashboard that forgot it would fall as boards were
+  // tidied. Archiving is housekeeping, not a retraction.
+  const items = snapshot.items.filter((i) => i.parentItemId === null && boards.has(i.boardId));
   const kept = collapseLinked(items.map((i) => i.id), snapshot.links, new Map(items.map((i) => [i.id, i.createdAt])));
 
   for (const item of items) {

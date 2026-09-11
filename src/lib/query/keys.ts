@@ -34,6 +34,10 @@ export const queryKeys = {
   dashboardShare: (workspaceId: string) => ["dashboard-share", workspaceId] as const,
   /** Groups, columns, items and values of a board in one snapshot. */
   boardSnapshot: (boardId: string) => ["board-snapshot", boardId] as const,
+  /** One page of a board's archive. The request is part of the key: a different page is a different read. */
+  boardArchive: (boardId: string, request: string) => ["board-archive", boardId, request] as const,
+  /** How many items a board has in its archive, for the count beside its Archive entry. */
+  boardArchiveCount: (boardId: string) => ["board-archive-count", boardId] as const,
   boardGroups: (boardId: string) => ["board-groups", boardId] as const,
   boardColumns: (boardId: string) => ["board-columns", boardId] as const,
   boardItems: (boardId: string) => ["board-items", boardId] as const,

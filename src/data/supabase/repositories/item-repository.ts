@@ -1,4 +1,4 @@
-import type { ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, ArchiveSortField, ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
 import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from "../client";
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
@@ -6,6 +6,41 @@ import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type
 const ITEM =
   "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, reference, created_at, updated_at";
 const VALUE = "id, item_id, column_id, value_json, updated_at";
+
+/**
+ * Aliases for the joins a filtered archive read makes onto `item_column_values`.
+ * One per filter kind: the alias is what the filters on that join are addressed
+ * by, so two kinds cannot be mistaken for one another.
+ */
+const STATUS_JOIN = "st";
+const PRIORITY_JOIN = "pr";
+const PEOPLE_JOIN = "pe";
+const TAGS_JOIN = "tg";
+
+const ARCHIVE_SORT_COLUMNS: Record<ArchiveSortField, string> = { archivedAt: "archived_at", name: "name" };
+
+/** Characters that would end a PostgREST filter early or widen an `ilike` match. */
+const UNSAFE_IN_FILTER = /[%_*,()"\\]/g;
+
+/**
+ * A search term safe to drop into an `ilike` pattern inside an `or`.
+ *
+ * `*`, `%` and `_` would widen the match, and a comma, a bracket or a quote
+ * would end the filter early and be read as syntax. None of them belong in a
+ * task name being searched for, so they come out rather than being escaped.
+ */
+function likeTerm(search: string): string {
+  return search.trim().replace(UNSAFE_IN_FILTER, "").trim();
+}
+
+/**
+ * "Any of these values is in that array", as a PostgREST `or` over jsonb
+ * containment: `{"userIds":["…"]}` is contained by the stored value when the
+ * array holds that id, and one term per choice makes the kind an "any of".
+ */
+function jsonArrayAny(field: string, values: readonly string[]): string {
+  return values.map((value) => `value_json.cs.${JSON.stringify({ [field]: [value] })}`).join(",");
+}
 
 export class SupabaseItemRepository implements ItemRepository {
   async listByBoard(boardId: string, options?: { includeArchived?: boolean }): Promise<Item[]> {
@@ -17,6 +52,75 @@ export class SupabaseItemRepository implements ItemRepository {
       return query.order("position", { ascending: true }).order("id", { ascending: true }).range(from, to);
     }, "items.listByBoard");
     return rows.map(toItem);
+  }
+
+  /**
+   * One page of the board's archive.
+   *
+   * Everything that narrows the list is expressed as part of the query, so the
+   * database does the work and the answer is the page: the filters, the order,
+   * the count of what matched, and the slice. Filters that read a column value
+   * become inner joins onto `item_column_values` — one alias per kind, so two
+   * filters mean an item has to satisfy both, while several choices within one
+   * kind mean any of them, which is how the board's own filters read.
+   */
+  async listArchivedPage(query: ArchiveQuery): Promise<ArchivePage<Item>> {
+    const embeds: string[] = [];
+    if (query.status) embeds.push(`${STATUS_JOIN}:item_column_values!inner(item_id)`);
+    if (query.priority) embeds.push(`${PRIORITY_JOIN}:item_column_values!inner(item_id)`);
+    if (query.people) embeds.push(`${PEOPLE_JOIN}:item_column_values!inner(item_id)`);
+    if (query.tags) embeds.push(`${TAGS_JOIN}:item_column_values!inner(item_id)`);
+
+    let request = db()
+      .from("items")
+      .select([ITEM, ...embeds].join(", "), { count: "exact" })
+      .eq("board_id", query.boardId)
+      .not("archived_at", "is", null)
+      // A subitem is archived with its parent and restored with it; the archive
+      // lists the tasks that were put away, not their parts.
+      .is("parent_item_id", null);
+
+    const search = likeTerm(query.search);
+    if (search) request = request.or(`name.ilike.*${search}*,reference.ilike.*${search}*`);
+    if (query.groupIds.length > 0) request = request.in("group_id", query.groupIds);
+
+    if (query.status) {
+      request = request.eq(`${STATUS_JOIN}.column_id`, query.status.columnId).in(`${STATUS_JOIN}.value_json->>labelId`, query.status.labelIds);
+    }
+    if (query.priority) {
+      request = request.eq(`${PRIORITY_JOIN}.column_id`, query.priority.columnId).in(`${PRIORITY_JOIN}.value_json->>labelId`, query.priority.labelIds);
+    }
+    if (query.people) {
+      request = request.in(`${PEOPLE_JOIN}.column_id`, query.people.columnIds).or(jsonArrayAny("userIds", query.people.userIds), { referencedTable: PEOPLE_JOIN });
+    }
+    if (query.tags) {
+      request = request.in(`${TAGS_JOIN}.column_id`, query.tags.columnIds).or(jsonArrayAny("tags", query.tags.values), { referencedTable: TAGS_JOIN });
+    }
+
+    const ascending = query.sort.direction === "asc";
+    const result = await request
+      .order(ARCHIVE_SORT_COLUMNS[query.sort.field], { ascending, nullsFirst: false })
+      // A second key so two rows archived in the same moment keep their order
+      // between one page and the next.
+      .order("id", { ascending })
+      .range(query.offset, query.offset + query.limit - 1);
+
+    // The select is assembled from the filters that are on, so it is a string
+    // the client cannot type-check against the schema. The columns it asks for
+    // are ITEM either way; the joins only narrow which rows come back.
+    const rows = unwrapList<ItemRow>(result as unknown as { data: ItemRow[] | null; error: null }, "items.listArchivedPage");
+    return { rows: rows.map(toItem), total: result.count ?? rows.length };
+  }
+
+  async countArchived(boardId: string): Promise<number> {
+    const result = await db()
+      .from("items")
+      .select("id", { count: "exact", head: true })
+      .eq("board_id", boardId)
+      .not("archived_at", "is", null)
+      .is("parent_item_id", null);
+    assertOk(result, "items.countArchived");
+    return result.count ?? 0;
   }
 
   async listByIds(ids: string[]): Promise<Item[]> {
@@ -105,6 +209,15 @@ export class SupabaseItemRepository implements ItemRepository {
     // them and the old board's stop counting them.
     for (const part of chunk(moving)) {
       assertOk(await db().from("item_assets").update({ board_id: input.boardId }).in("item_id", part), "items.moveToBoard.assets");
+    }
+
+    // Values keep a denormalised board too, for the realtime filter. The trigger
+    // that maintains it fires when a value is written, not when its item moves,
+    // and a value on a column both boards share is not rewritten here — so any
+    // that survived the delete above are corrected explicitly. A stale one would
+    // leave this row shouting at the board it used to be on.
+    for (const part of chunk(moving)) {
+      assertOk(await db().from("item_column_values").update({ board_id: input.boardId }).in("item_id", part), "items.moveToBoard.values.board");
     }
 
     const subitemIds = moving.slice(1);

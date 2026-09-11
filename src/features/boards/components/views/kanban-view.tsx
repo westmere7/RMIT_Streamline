@@ -12,6 +12,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import type { ColumnLabel, Item, User } from "@/domain";
 import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { useBoardUiStore } from "@/stores/board-ui-store";
 import { SizePill } from "@/features/boards/components/pickers/size-picker";
 import { formatTag, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { useBoardAssets } from "@/features/items/asset-hooks";
@@ -338,7 +339,8 @@ function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; l
 }
 
 function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; overlay?: boolean }) {
-  const { model, board, users, openItem, openItemUpdates, mutations, canEdit, updates } = useBoardContext();
+  const { model, board, users, openItem, openItemUpdates, canEdit, updates } = useBoardContext();
+  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);
   const statusColumn = model.statusColumn;
@@ -463,7 +465,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
         {canEdit && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => void mutations.archiveItems([item.id])}>
+            <ContextMenuItem onSelect={() => setArchiveRequest([item.id])}>
               <Archive /> Archive
             </ContextMenuItem>
           </>

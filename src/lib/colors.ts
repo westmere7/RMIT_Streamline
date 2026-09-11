@@ -35,8 +35,17 @@ export const COLOR_CLASSES: Record<ColorToken, ColorClasses> = {
   navy: { solid: "bg-navy-800 text-white", soft: "bg-navy-50 text-navy-800 dark:bg-navy-500/40 dark:text-navy-100", dot: "bg-navy-800", text: "text-navy-700 dark:text-navy-200", border: "border-navy-800", hex: "#000054" },
 };
 
+/**
+ * The classes for a colour token.
+ *
+ * `token` is typed, but it arrives from a text column: a board or a group
+ * coloured before a token was renamed - or by hand - can hold something this
+ * table has never heard of. Falling back is the whole point of the guard: the
+ * lookup used to return undefined and the next property access took the page
+ * down, which is a high price for the wrong shade of grey.
+ */
 export function colorClasses(token: ColorToken | undefined | null): ColorClasses {
-  return COLOR_CLASSES[token ?? "gray"];
+  return COLOR_CLASSES[token as ColorToken] ?? COLOR_CLASSES.gray;
 }
 
 /** Deterministic avatar colour derived from a string (user id). */

@@ -222,7 +222,10 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
   const { board, model, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const [moveOpen, setMoveOpen] = React.useState(false);
-  const [confirm, setConfirm] = React.useState<"archive" | "delete" | null>(null);
+  const [confirm, setConfirm] = React.useState<"delete" | null>(null);
+  // Archiving asks what happens to anything linked; the board renders that one
+  // dialog for every place archiving is offered from.
+  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const ids = ui.selectedItemIds.filter((id) => model.itemById.has(id));
   if (ids.length === 0) return null;
 
@@ -256,22 +259,11 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
           <BulkButton icon={ArrowRight} label="Move" onClick={() => setMoveOpen(true)} testId="mobile-bulk-move" />
           <BulkButton icon={Copy} label="Duplicate" onClick={() => after(() => ids.forEach((id) => void mutations.duplicateItem(id)))} />
           {/* Archive and delete ask first, exactly as the desktop bar does. */}
-          <BulkButton icon={Archive} label="Archive" onClick={() => setConfirm("archive")} />
+          <BulkButton icon={Archive} label="Archive" onClick={() => setArchiveRequest(ids)} />
           <BulkButton icon={Trash2} label="Delete" destructive onClick={() => setConfirm("delete")} testId="mobile-bulk-delete" />
         </div>
       </div>
       <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title="Move to group" actions={moveActions} />
-      <ConfirmDialog
-        open={confirm === "archive"}
-        onOpenChange={(open) => !open && setConfirm(null)}
-        title={`Archive ${pluralize(ids.length, "item")}?`}
-        description="Archived items are hidden from the board. They can be restored from the data layer later."
-        confirmLabel="Archive"
-        onConfirm={async () => {
-          await mutations.archiveItems(ids);
-          onDone();
-        }}
-      />
       <ConfirmDialog
         open={confirm === "delete"}
         onOpenChange={(open) => !open && setConfirm(null)}

@@ -43,6 +43,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const selectRange = useBoardUiStore((s) => s.selectRange);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
+  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [addingSubitem, setAddingSubitem] = React.useState(false);
@@ -158,7 +159,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             })),
         },
         { type: "separator" },
-        { type: "item", label: "Archive", icon: <Archive />, onSelect: () => void mutations.archiveItems([item.id]) },
+        { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
         { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
       ]
     : [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }];

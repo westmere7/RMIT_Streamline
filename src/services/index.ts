@@ -85,7 +85,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   };
 }
 
-export type { BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
+export type { ArchiveSnapshot, BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
+export { resolveArchiveFilters } from "./item-service";
 export type { CreateBoardInput } from "./board-service";
 export type { LinkCandidate, LinkChange, LinkedItemView, LinkOptions, LinkSearch, LinkValidation } from "./item-link-service";
 export type { ColumnMapping, ColumnMappingReport } from "./item-link-sync";
