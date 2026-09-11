@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Columns2, LoaderCircle, Lock, Plus, RectangleHorizontal, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Boxes, ClipboardPen, Columns2, Info, LoaderCircle, Lock, Plus, RectangleHorizontal, Save, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { BOOKING_FIELD_TYPE_LABELS, BOOKING_STANDARD_KEY_LABELS, defaultBookingF
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema } from "@/services/booking";
-import { AnswerField, AssetList, emptyDraft, StandardField } from "../booking-fields";
+import { AnswerField, AssetList, emptyDraft, sectionIcon, StandardField } from "../booking-fields";
 import { AddFieldDialog } from "./add-field-dialog";
 import { optionsToText, parseOptions } from "./options";
 import { TemplatesMenu } from "./templates-menu";
@@ -109,9 +109,13 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
 
       {/* The tab row: the request tab's name, and whether there is an assets tab at all. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border/60 pb-2">
-        <TextBox value={draft.requestTabLabel} onChange={(v) => update((t) => (t.requestTabLabel = v))} ariaLabel="Request tab name" className="w-40 text-[13px] font-medium" testId="editor-request-tab" />
+        <span className="flex items-center gap-1.5">
+          <ClipboardPen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <TextBox value={draft.requestTabLabel} onChange={(v) => update((t) => (t.requestTabLabel = v))} ariaLabel="Request tab name" className="w-40 text-[13px] font-medium" testId="editor-request-tab" />
+        </span>
         <label className="flex items-center gap-2 text-[13px]">
           <Switch size="sm" checked={draft.assets.enabled} onCheckedChange={(on) => update((t) => (t.assets.enabled = on))} data-testid="editor-assets-toggle" />
+          <Boxes className={cn("size-3.5 shrink-0 text-muted-foreground", !draft.assets.enabled && "opacity-50")} aria-hidden />
           <TextBox value={draft.assets.tabLabel} onChange={(v) => update((t) => (t.assets.tabLabel = v))} ariaLabel="Assets tab name" className={cn("w-40 text-[13px] font-medium", !draft.assets.enabled && "opacity-50")} />
           <span className="text-2xs text-muted-foreground">{draft.assets.enabled ? "tab shown" : "tab hidden"}</span>
         </label>
@@ -123,6 +127,16 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
           return (
             <section key={section.id} className="space-y-4 rounded-xl border border-dashed border-border p-4" data-testid={`editor-section-${section.id}`}>
               <div className="flex items-start gap-2">
+                {/* The same tile the form puts beside this heading, so the
+                    editor is a picture of the thing being edited. */}
+                {(() => {
+                  const Icon = sectionIcon(section.id);
+                  return Icon ? (
+                    <span aria-hidden className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Icon className="size-4" />
+                    </span>
+                  ) : null;
+                })()}
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <TextBox value={section.title} onChange={(v) => patchSection(section.id, { title: v })} ariaLabel="Section title" placeholder="Section title" className="text-[15px] font-semibold tracking-tight" testId={`editor-section-title-${section.id}`} />
                   <TextBox value={section.hint ?? ""} onChange={(v) => patchSection(section.id, { hint: v || null })} ariaLabel="Section hint" placeholder="Add a line under the title (optional)" className="text-[13px] text-muted-foreground" />
@@ -177,9 +191,17 @@ export function BookingFormEditor({ form, initial, templates, saving, onSave, on
         </section>
       )}
 
+      {/* The bar as a stakeholder meets it: pinned to the foot of the form,
+          with Save as draft beside the button. Only the two words are yours to
+          set; the rest is here so the row is not a surprise. */}
       <div className="flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <TextBox value={draft.submitNote} onChange={(v) => update((t) => (t.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
-        <TextBox value={draft.submitLabel} onChange={(v) => update((t) => (t.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:min-w-44" testId="editor-submit-label" />
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="pointer-events-none inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-4 text-sm font-medium text-muted-foreground opacity-70">
+            <Save className="size-4" /> Save as draft
+          </span>
+          <TextBox value={draft.submitLabel} onChange={(v) => update((t) => (t.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:min-w-44" testId="editor-submit-label" />
+        </span>
       </div>
 
       <AddFieldDialog open={addingTo !== null} onOpenChange={(open) => !open && setAddingTo(null)} template={draft} onAdd={(field) => addingTo && addField(addingTo, field)} />
@@ -239,6 +261,16 @@ function FieldEditor({
           <AnswerField spec={field} value={undefined} onChange={() => {}} idPrefix="booking-answer" preview hideLabel />
         )}
       </div>
+
+      {/* Two questions the form can answer for itself, and then does not ask.
+          Worth saying here: an admin who never sees them on their own booking
+          page would otherwise think they had lost them. */}
+      {field.kind === "standard" && (field.key === "requesterName" || field.key === "requesterEmail") && (
+        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
+          <Info className="mt-px size-3 shrink-0" aria-hidden />
+          Skipped for anyone signed in, or whose browser remembers them — the booking still carries their name.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs text-muted-foreground">
         <Badge variant="muted" className="shrink-0" title={locked ? "The form cannot do without this question" : undefined}>

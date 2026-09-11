@@ -1,10 +1,12 @@
 "use client";
 
-import { Archive, ArrowRight, Copy, Trash2, X } from "lucide-react";
+import { Archive, ArrowRight, ArrowRightLeft, Copy, LoaderCircle, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { useAllocation } from "@/features/booking/use-allocation";
 import { useBoardContext } from "@/features/boards/board-context";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
@@ -16,6 +18,7 @@ export function BulkActionsBar() {
   const clearSelection = useBoardUiStore((s) => s.clearSelection);
   const [confirm, setConfirm] = React.useState<"archive" | "delete" | null>(null);
   const ids = ui.selectedItemIds.filter((id) => model.itemById.has(id));
+  const allocation = useAllocation();
 
   // Escape drops the selection — the way out of a selection is the way out of
   // everything else. Only when there is nothing else for it to close first: a
@@ -48,6 +51,56 @@ export function BulkActionsBar() {
       >
         <span className="flex h-7 items-center rounded-full bg-primary px-2.5 text-xs font-semibold text-white tabular">{ids.length}</span>
         <span className="mr-2 text-[13px]">{ids.length === 1 ? "item selected" : "items selected"}</span>
+        {/* The allocation queue's whole purpose, on the selection: pick the
+            board and the lot of them go. */}
+        {allocation.available && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" data-testid="bulk-allocate">
+                {allocation.pending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} Allocate to
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="max-h-80 w-52 overflow-y-auto">
+              {allocation.loading && (
+                <DropdownMenuItem disabled>
+                  <LoaderCircle className="animate-spin" /> Finding the team boards…
+                </DropdownMenuItem>
+              )}
+              {/* Team, then board, so every line is one name long. */}
+              {allocation.targets.map(({ team, boards }) => {
+                const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : null;
+                const send = (boardId: string) => {
+                  allocation.allocate.mutate({ itemIds: ids, boardId });
+                  clear();
+                };
+                if (boards.length === 1) {
+                  const only = boards[0]!;
+                  return (
+                    <DropdownMenuItem key={only.id} onSelect={() => send(only.id)} data-testid={`bulk-allocate-${only.slug}`}>
+                      {icon}
+                      <span className="min-w-0 truncate">{team ? team.name : only.name}</span>
+                    </DropdownMenuItem>
+                  );
+                }
+                return (
+                  <DropdownMenuSub key={team?.id ?? "no-team"}>
+                    <DropdownMenuSubTrigger>
+                      {icon}
+                      <span className="min-w-0 truncate">{team ? team.name : "No team"}</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-56">
+                      {boards.map((target) => (
+                        <DropdownMenuItem key={target.id} onSelect={() => send(target.id)} data-testid={`bulk-allocate-${target.slug}`}>
+                          <span className="min-w-0 truncate">{target.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">

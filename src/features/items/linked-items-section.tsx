@@ -27,7 +27,11 @@ import { useBoardUiStore } from "@/stores/board-ui-store";
 
 /** Items on other boards this item is kept in sync with. */
 export function LinkedItemsSection({ item }: { item: Item }) {
-  const { canEdit } = useBoardContext();
+  const { board, canEdit } = useBoardContext();
+  // A request waiting to be allocated is not work yet, and a link would
+  // mirror it onto a team's board while it still sat in the queue. Allocation
+  // moves it; the panel says so where the button used to be.
+  const queued = board.system === "TASK_ALLOCATION";
   const links = useItemLinks(item.id);
   const [opened, setOpened] = React.useState(false);
 
@@ -49,7 +53,7 @@ export function LinkedItemsSection({ item }: { item: Item }) {
         <span className="flex items-center gap-1.5">
           Linked items {views.length > 0 && <span className="tabular">{views.length}</span>}
         </span>
-        {canEdit && (
+        {canEdit && !queued && (
           <Button variant="ghost" size="sm" className="-my-1 h-6 normal-case tracking-normal" onClick={() => setDialogOpen(true)} data-testid="link-item-button">
             <Plus /> Link item
           </Button>
@@ -61,7 +65,11 @@ export function LinkedItemsSection({ item }: { item: Item }) {
         // What linking does is worth explaining to somebody who can do it. To a
         // reader it is a description of a door they cannot open.
         <p className="text-[13px] text-muted-foreground">
-          {canEdit ? "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share." : "Not linked to any other item."}
+          {queued
+            ? "Nothing here can be linked while it is waiting to be allocated. Place it with a team and the request moves there — links come after that."
+            : canEdit
+              ? "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share."
+              : "Not linked to any other item."}
         </p>
       ) : (
         <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">

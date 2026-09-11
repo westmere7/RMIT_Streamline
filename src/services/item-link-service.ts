@@ -147,6 +147,10 @@ export class ItemLinkService {
     const hits: LinkCandidate[] = [];
     for (const board of boards) {
       if (board.archivedAt !== null || blocked.has(board.id)) continue;
+      // The allocation queue is never a link target. What sits there is a
+      // request waiting for a team, and `validate` refuses it either way
+      // round — offering it here would only be a list of errors in waiting.
+      if (board.system === "TASK_ALLOCATION") continue;
       if (options.boardId && board.id !== options.boardId) continue;
       // Names first: a board with nothing matching costs one read, not four.
       const items = await this.repos.items.listByBoard(board.id);
@@ -194,6 +198,13 @@ export class ItemLinkService {
     const [boardA, boardB] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(target.boardId)]);
     if (!boardA || !boardB) return { ok: false, reason: "One of the boards no longer exists." };
     if (boardA.workspaceId !== boardB.workspaceId) return { ok: false, reason: "Items can only be linked within the same space." };
+    // A request waiting in the allocation queue is not work yet — it is a
+    // question about who should do it. Linking it would mirror it onto a
+    // team's board while it still sits here, which is the copy allocation
+    // exists to avoid: allocating *moves* the request, and a link would leave
+    // a second one behind, kept in step for ever. Allocate it first.
+    const queued = boardA.system === "TASK_ALLOCATION" ? item : boardB.system === "TASK_ALLOCATION" ? target : null;
+    if (queued) return { ok: false, reason: `“${queued.name}” is still waiting to be allocated. Place it with a team first, then link it.` };
     const links = await this.repos.links.listByItem(itemId);
     if (links.some((l) => otherEndOf(l, itemId) === targetId)) return { ok: false, reason: "These items are already linked." };
 

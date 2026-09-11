@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Plus, SquarePen, UserRound, Users, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
@@ -27,6 +27,16 @@ import { cn } from "@/lib/utils";
  */
 
 export const NO_TEAM = "__none__";
+
+/**
+ * The mark a section wears, so the form reads as a few groups rather than one
+ * column of boxes. Keyed by the sections the template ships with; a section
+ * somebody added themselves goes without, which is also how it tells them
+ * apart at a glance in the editor.
+ */
+export function sectionIcon(sectionId: string): React.ComponentType<{ className?: string }> | undefined {
+  return sectionId === "sec-about" ? UserRound : sectionId === "sec-task" ? SquarePen : sectionId === "sec-team" ? Users : undefined;
+}
 export const NO_PRIORITY = "__normal__";
 
 /** What a person has typed so far, before it becomes a BookingRequest. */
@@ -397,19 +407,38 @@ export function AssetList({ rows, onChange, title, hint, error, preview }: { row
 
 // ---- small building blocks -----------------------------------------------------
 
-export function Section({ title, hint, icon: Icon, children, className }: { title: string; hint?: string | null; icon?: React.ComponentType<{ className?: string }>; children: React.ReactNode; className?: string }) {
+export function Section({
+  title,
+  hint,
+  icon: Icon,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  hint?: React.ReactNode;
+  icon?: React.ComponentType<{ className?: string }>;
+  /** A control belonging to the group, at the right of its heading. */
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}) {
   return (
     <fieldset className={cn("space-y-4", className)}>
-      <legend className="mb-3 flex w-full items-start gap-2.5">
+      {/* Every group on this form wears this: the same tile, the same heading
+          size, the same left edge. Who is asking is a group like the other
+          two, so it is built from this and not from a card of its own. */}
+      <legend className={cn("flex w-full items-start gap-2.5", children ? "mb-3" : "mb-0")}>
         {Icon && (
           <span aria-hidden className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Icon className="size-4" />
           </span>
         )}
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
           {hint && <span className="block text-[13px] text-muted-foreground">{hint}</span>}
         </span>
+        {action && <span className="shrink-0 pt-0.5">{action}</span>}
       </legend>
       {children}
     </fieldset>

@@ -28,9 +28,13 @@ import { cn } from "@/lib/utils";
 
 /** Declarative menu description rendered as both a right-click menu and a hover "…" dropdown. */
 export type MenuAction =
-  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string; testId?: string }
-  /** A sub-menu of more actions, or — with `content` — a panel such as a colour picker. */
-  | { type: "sub"; label: string; icon?: React.ReactNode; items?: MenuAction[]; content?: React.ReactNode; contentClassName?: string; disabled?: boolean }
+  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string; testId?: string; accent?: boolean }
+  /**
+   * A sub-menu of more actions, or — with `content` — a panel such as a colour
+   * picker. `accent` marks the one entry the menu is really there for, so it
+   * is found without being read: on the allocation queue that is allocating.
+   */
+  | { type: "sub"; label: string; icon?: React.ReactNode; items?: MenuAction[]; content?: React.ReactNode; contentClassName?: string; disabled?: boolean; accent?: boolean }
   | { type: "label"; label: string }
   | { type: "separator" };
 
@@ -66,6 +70,9 @@ export function useMenuFocusGuard() {
   );
 }
 
+/** The one entry a menu exists for: the brand's colour, and a tint behind it. */
+const ACCENT_ITEM = "bg-primary/[0.07] font-medium text-primary focus:bg-primary/15 focus:text-primary data-[state=open]:bg-primary/15 data-[state=open]:text-primary [&_svg]:text-primary";
+
 /** Renders actions as right-click menu entries. */
 export function renderContext(actions: MenuAction[]): React.ReactNode {
   return actions.map((action, index) => {
@@ -77,17 +84,24 @@ export function renderContext(actions: MenuAction[]): React.ReactNode {
       case "sub":
         return (
           <ContextMenuSub key={index}>
-            <ContextMenuSubTrigger disabled={action.disabled}>
-              {action.icon} {action.label}
+            <ContextMenuSubTrigger disabled={action.disabled} className={cn(action.accent && ACCENT_ITEM)} data-testid={action.accent ? "menu-accent" : undefined}>
+              {action.icon} <span className="min-w-0 truncate">{action.label}</span>
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className={action.contentClassName ?? "w-48"}>{action.content ?? renderContext(action.items ?? [])}</ContextMenuSubContent>
           </ContextMenuSub>
         );
       case "item":
         return (
-          <ContextMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"} data-testid={action.testId}>
-            {action.icon} {action.label}
-            {action.hint && <span className="ml-auto text-2xs text-muted-foreground">{action.hint}</span>}
+          <ContextMenuItem
+            key={index}
+            onSelect={action.onSelect}
+            disabled={action.disabled}
+            variant={action.destructive ? "destructive" : "default"}
+            className={cn(action.accent && ACCENT_ITEM)}
+            data-testid={action.testId}
+          >
+            {action.icon} <span className="min-w-0 truncate">{action.label}</span>
+            {action.hint && <span className="ml-auto max-w-24 shrink-0 truncate text-2xs whitespace-nowrap text-muted-foreground">{action.hint}</span>}
           </ContextMenuItem>
         );
     }
@@ -105,17 +119,24 @@ export function renderDropdown(actions: MenuAction[]): React.ReactNode {
       case "sub":
         return (
           <DropdownMenuSub key={index}>
-            <DropdownMenuSubTrigger disabled={action.disabled}>
-              {action.icon} {action.label}
+            <DropdownMenuSubTrigger disabled={action.disabled} className={cn(action.accent && ACCENT_ITEM)} data-testid={action.accent ? "menu-accent" : undefined}>
+              {action.icon} <span className="min-w-0 truncate">{action.label}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={action.contentClassName ?? "w-48"}>{action.content ?? renderDropdown(action.items ?? [])}</DropdownMenuSubContent>
           </DropdownMenuSub>
         );
       case "item":
         return (
-          <DropdownMenuItem key={index} onSelect={action.onSelect} disabled={action.disabled} variant={action.destructive ? "destructive" : "default"} data-testid={action.testId}>
-            {action.icon} {action.label}
-            {action.hint && <span className="ml-auto text-2xs text-muted-foreground">{action.hint}</span>}
+          <DropdownMenuItem
+            key={index}
+            onSelect={action.onSelect}
+            disabled={action.disabled}
+            variant={action.destructive ? "destructive" : "default"}
+            className={cn(action.accent && ACCENT_ITEM)}
+            data-testid={action.testId}
+          >
+            {action.icon} <span className="min-w-0 truncate">{action.label}</span>
+            {action.hint && <span className="ml-auto max-w-24 shrink-0 truncate text-2xs whitespace-nowrap text-muted-foreground">{action.hint}</span>}
           </DropdownMenuItem>
         );
     }

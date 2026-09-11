@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -9,6 +9,8 @@ import { ShareItemDialog } from "@/features/items/share-item-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { useAllocation } from "@/features/booking/use-allocation";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
@@ -34,6 +36,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
   const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
+  const selectedIds = useBoardUiStore((s) => s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds);
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
@@ -67,9 +70,49 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   // closing so the field is not mounted inside a focus trap on its way out.
   const menuFocus = useMenuFocusGuard();
 
+  // On the Task Allocation board: send this request — or the whole selection
+  // it belongs to — straight to a team's board. The same move the detail
+  // panel offers, on the row, because a morning's queue is twenty one-word
+  // decisions and twenty panels is nineteen too many.
+  const allocation = useAllocation();
+  const allocating = selected ? selectedIds : [item.id];
+  const allocateAction: MenuAction | null =
+    allocation.available && item.parentItemId === null
+      ? {
+          type: "sub",
+          label: selected && selectedIds.length > 1 ? `Allocate ${selectedIds.length} requests to` : "Allocate to",
+          icon: <ArrowRightLeft />,
+          accent: true,
+          // Team, then board: one name per line, and no entry long enough to
+          // wrap. A team with a single board skips the second step — two
+          // clicks for one choice is not a menu, it is a maze.
+          items: allocation.loading
+            ? // The menu opens now and fills in when the workspace answers.
+              [{ type: "item" as const, label: "Finding the team boards…", icon: <LoaderCircle className="animate-spin" />, disabled: true, onSelect: () => {} }]
+            : allocation.targets.map(({ team, boards }) => {
+                const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />;
+                const send = (boardId: string) => allocation.allocate.mutate({ itemIds: allocating, boardId });
+                // One board: the team name is the whole choice. Its board
+                // name as a hint beside it squeezed the name to "Br…" and
+                // wrapped the hint over three lines.
+                if (boards.length === 1) {
+                  const only = boards[0]!;
+                  return { type: "item" as const, label: team ? team.name : only.name, icon, onSelect: () => send(only.id) };
+                }
+                return {
+                  type: "sub" as const,
+                  label: team ? team.name : "No team",
+                  icon,
+                  items: boards.map((target) => ({ type: "item" as const, label: target.name, onSelect: () => send(target.id) })),
+                };
+              }),
+        }
+      : null;
+
   // Shared by the hover "…" button and the right-click menu on the row.
   const actions: MenuAction[] = canEdit
     ? [
+        ...(allocateAction ? [allocateAction, { type: "separator" } satisfies MenuAction] : []),
         { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
         { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
         {
@@ -84,15 +127,23 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         },
         { type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) },
         ...(canManage ? [{ type: "item", label: "Share by link…", icon: <Share2 />, onSelect: () => setSharing(true) } satisfies MenuAction] : []),
-        {
-          type: "item",
-          label: "Link to another item…",
-          icon: <Link2 />,
-          onSelect: () => {
-            setLinkDialogItem(item.id);
-            openItem(item.id);
-          },
-        },
+        // Nothing in the allocation queue is linkable: it is a request
+        // waiting for a team, and a link would mirror it onto that team's
+        // board while it still sat here. Allocating moves it; that is the
+        // one way out of this board.
+        ...(allocation.available
+          ? []
+          : [
+              {
+                type: "item",
+                label: "Link to another item…",
+                icon: <Link2 />,
+                onSelect: () => {
+                  setLinkDialogItem(item.id);
+                  openItem(item.id);
+                },
+              } satisfies MenuAction,
+            ]),
         {
           type: "sub",
           label: "Move to group",

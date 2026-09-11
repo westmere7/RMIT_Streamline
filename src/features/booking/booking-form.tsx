@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Boxes, CheckCircle2, ClipboardPen, History, LoaderCircle, LogIn, Save, SquarePen, Table2, UserRound, Users } from "lucide-react";
+import { Boxes, CheckCircle2, ClipboardPen, History, LoaderCircle, LogIn, Save, Table2, UserRound } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingRequestSchema, validateBookingAgainstTemplate } from "@/services/booking";
-import { AnswerField, AssetList, emptyDraft, newAssetRow, routingNote, Section, specForExtraField, StandardField, type AssetRow, type BookingDefaults, type BookingDraft } from "./booking-fields";
+import { AnswerField, AssetList, emptyDraft, newAssetRow, routingNote, Section, sectionIcon, specForExtraField, StandardField, type AssetRow, type BookingDefaults, type BookingDraft } from "./booking-fields";
 import { useBookingMemory, useMountedInBrowser, type BookingMemory, type PastBooking } from "./booking-remember";
 
 /** The two questions the remembered-requester banner answers on the reader's behalf. */
@@ -331,14 +331,8 @@ function BookingFormFields({ form, defaults, defaultAssets, account, signInHref,
 
   // A section left with nothing to ask is not rendered: omitting the only
   // question in "About you" must not leave its heading standing alone.
-  // A small mark per section, so the form reads as three steps rather than
-  // one column of boxes. Keyed by the standard sections the template ships
-  // with; a section somebody added themselves simply goes without.
-  const sectionIcon = (section: BookingTemplateSection) =>
-    section.id === "sec-about" ? UserRound : section.id === "sec-task" ? SquarePen : section.id === "sec-team" ? Users : undefined;
-
   const renderSection = (section: BookingTemplateSection, fields: BookingTemplateField[]) => (
-    <Section key={section.id} title={section.title} hint={section.hint} icon={sectionIcon(section)}>
+    <Section key={section.id} title={section.title} hint={section.hint} icon={sectionIcon(section.id)}>
       <div className="grid gap-4 sm:grid-cols-2">
         {fields.map((field) => (
           <div key={field.id} className={cn("min-w-0", field.width === "full" && "sm:col-span-2")}>
@@ -401,28 +395,32 @@ function BookingFormFields({ form, defaults, defaultAssets, account, signInHref,
       )}
 
       {knownRequester && known && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-primary/25 bg-primary/[0.04] px-3.5 py-2.5 text-[13px]" data-testid="booking-known-requester">
-          <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <UserRound className="size-3.5" />
-          </span>
-          <span className="min-w-0">
-            Booking as <strong className="font-semibold">{known.name}</strong>
-            <span className="text-muted-foreground"> · {known.email}</span>
-            {account && <span className="text-muted-foreground"> · signed in</span>}
-          </span>
-          <button
-            type="button"
-            className="ml-auto shrink-0 font-medium text-foreground/80 underline-offset-4 hover:underline"
-            onClick={() => {
-              // The two questions come straight back into the half the form
-              // insists on, so there is nothing to open.
-              if (!account) memory.forgetRequester();
-              setDraft((prev) => ({ ...prev, requesterName: "", requesterEmail: "" }));
-            }}
-            data-testid="booking-not-you"
-          >
-            {account ? "Booking for someone else?" : "Not you?"}
-          </button>
+        <div data-testid="booking-known-requester">
+          <Section
+            title="Booking as"
+            icon={UserRound}
+            hint={
+              <>
+                <strong className="font-semibold text-foreground">{known.name}</strong> · {known.email}
+                {account && " · signed in"}
+              </>
+            }
+            action={
+              <button
+                type="button"
+                className="text-[13px] font-medium text-foreground/80 underline-offset-4 hover:underline"
+                onClick={() => {
+                  // The two questions come straight back where the template
+                  // puts them, so there is nothing to open.
+                  if (!account) memory.forgetRequester();
+                  setDraft((prev) => ({ ...prev, requesterName: "", requesterEmail: "" }));
+                }}
+                data-testid="booking-not-you"
+              >
+                {account ? "Booking for someone else?" : "Not you?"}
+              </button>
+            }
+          />
         </div>
       )}
 
@@ -430,7 +428,7 @@ function BookingFormFields({ form, defaults, defaultAssets, account, signInHref,
           whether the app knows them. Signing in is offered to everybody else,
           because it answers these two questions for good. */}
       {!knownRequester && (account || signInHref) && (
-        <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-identity-offer">
+        <p className="flex flex-wrap items-center gap-x-1.5 pl-[2.375rem] text-2xs text-muted-foreground" data-testid="booking-identity-offer">
           {account ? (
             <>
               <UserRound className="size-3.5 shrink-0" aria-hidden />
