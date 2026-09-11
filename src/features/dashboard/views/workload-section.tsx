@@ -6,14 +6,40 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { User } from "@/domain";
+import { formatHours, type User } from "@/domain";
 import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
-import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, type DepartmentLoadOption, type WorkloadRow } from "@/features/dashboard/metrics";
+import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
 
 const WINDOWS = [2, 4, 8] as const;
+
+/**
+ * Where the cursor is inside a table, and which row and column it is over.
+ *
+ * The same readout the bars and the treemap use, on the tables: a grid of
+ * figures says what each one *is* and nothing about what it is made of, and
+ * "2,696 h" in a cell is a question — how many tasks, which states, for whom —
+ * that the row it sits in cannot answer without being read across twice.
+ */
+function useTableReadout<T>() {
+  const [over, setOver] = React.useState<T | null>(null);
+  const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
+  const [ref, box] = useSize<HTMLDivElement>();
+  const bind = {
+    ref,
+    onMouseMove: (event: React.MouseEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setAt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+    },
+    onMouseLeave: () => {
+      setOver(null);
+      setAt(null);
+    },
+  };
+  return { over, setOver, at, box, bind };
+}
 
 /** What each band of a person's bar means, and the colour it wears. */
 const BANDS = [
@@ -39,20 +65,27 @@ const BANDS = [
  * is why effort in hours leads the page — but hours of work is not hours
  * available, and the difference is the whole point.
  */
-export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps) {
+export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: DashboardViewProps) {
   const [query, setQuery] = React.useState("");
   // Which row the cursor is over, and where it is inside the list.
   const [hovered, setHovered] = React.useState<string | null>(null);
   const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
   const [listRef, listBox] = useSize<HTMLDivElement>();
+  // The bars are a picture of *states* — in progress, scheduled, overdue,
+  // undated — which only a count of tasks can carry; hours in progress is not
+  // a thing anybody says. So the bars stay tasks whatever the toolbar says,
+  // the panel's own subtitle admits it, and the two tables underneath follow
+  // the measure, where a total in hours means something.
   const all = React.useMemo(() => assignedWorkload(facts, today, prefs.teamIds, prefs.weeks), [facts, today, prefs.teamIds, prefs.weeks]);
+  const measured = React.useMemo(() => assignedWorkload(facts, today, prefs.teamIds, prefs.weeks, valueOf), [facts, today, prefs.teamIds, prefs.weeks, valueOf]);
+  const format = measure === "effort" ? formatHours : formatCount;
   const groups = React.useMemo(() => workloadDepartments(all), [all]);
   // A group that has dropped out of the window — the weeks changed, the work
   // was finished — reads as "every group" rather than as an empty panel.
   const group = groups.find((g) => g.key === prefs.stakeholderGroup) ?? null;
   const rows = React.useMemo(() => (group ? workloadForDepartment(all, group.key) : all), [all, group]);
   const filtered = query.trim() ? rows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : rows;
-  const totals = rows.reduce((acc, r) => ({ tasks: acc.tasks + r.tasks, units: acc.units + r.assetUnits }), { tasks: 0, units: 0 });
+  const totals = rows.reduce((acc, r) => ({ tasks: acc.tasks + r.tasks }), { tasks: 0 });
   const unowned = rows.find((r) => r.userId === null);
 
   // One group chosen already answers "per group", so the grid is only worth a
@@ -63,8 +96,16 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
   // any of this: it is a line in the note under the bars, where it reads as
   // the exception it is rather than as somebody's workload.
   const people = filtered.filter((row) => row.userId !== null);
+  // The same rows in the measure on screen, for the tables. Narrowed and
+  // filtered exactly as the bars are, so the two halves of the panel are
+  // always about the same people.
+  const measuredRows = group ? workloadForDepartment(measured, group.key) : measured;
+  const measuredPeople = (query.trim() ? measuredRows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : measuredRows).filter((row) => row.userId !== null);
+  const measuredGroups = React.useMemo(() => workloadDepartments(measured), [measured]);
+  const figuresReadout = useTableReadout<WorkloadRow>();
   // Every bar against the busiest person, so the lengths mean something.
   const tablePeak = Math.max(1, ...people.map((row) => row.tasks));
+  const measuredPeak = Math.max(1, ...measuredPeople.map((row) => row.total));
   const hoveredRow = hovered === null ? null : (people.find((row) => row.userId === hovered) ?? null);
 
   return (
@@ -73,8 +114,8 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
       title="Who is carrying what"
       subtitle={
         group
-          ? `Work for ${group.name} · due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
-          : `Open work due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
+          ? `Work for ${group.name} · tasks due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
+          : `Tasks due in the next ${prefs.weeks} weeks, plus everything overdue or undated`
       }
       className="p-4"
       action={
@@ -216,7 +257,7 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
             <p className="font-medium text-foreground">{hoveredRow.name}</p>
             <p className="mt-0.5 flex items-baseline gap-1.5 tabular">
               <span className="text-sm font-semibold">{formatCount(hoveredRow.tasks)}</span>
-              <span className="text-2xs text-muted-foreground">tasks · {formatCount(hoveredRow.assetUnits)} asset units</span>
+              <span className="text-2xs text-muted-foreground">tasks in this window</span>
             </p>
             <ul className="mt-1.5 space-y-0.5 border-t border-border/50 pt-1.5">
               {BANDS.filter((band) => hoveredRow[band.key] > 0).map((band) => (
@@ -268,8 +309,13 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
         tables on one line is a wall, and each of these is wide enough to want
         the whole width to itself. */}
     <div className="grid gap-3">
-      <Panel title="Per-person figures" subtitle={group ? `${group.name} · exact counts` : "Exact counts behind the bars"} className="p-4" testId="dashboard-workload-figures">
-        <div className="scrollbar-thin overflow-x-auto">
+      <Panel
+        title="Per-person figures"
+        subtitle={`${group ? `${group.name} · ` : ""}${MEASURE_LABELS[measure]}, by the state the work is in`}
+        className="p-4"
+        testId="dashboard-workload-figures"
+      >
+        <div className="scrollbar-thin relative overflow-x-auto" {...figuresReadout.bind}>
           <table className="w-full min-w-[36rem] text-left text-xs">
             <thead>
               <tr className="border-b border-border/60 text-[10px] tracking-wide text-muted-foreground uppercase">
@@ -284,16 +330,13 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
                     </span>
                   </th>
                 ))}
-                <th scope="col" className="py-2 pr-3 text-right font-medium">
-                  Tasks
-                </th>
                 <th scope="col" className="py-2 text-right font-medium">
-                  Asset units
+                  {MEASURE_UNITS[measure]}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {people.map((row) => {
+              {measuredPeople.map((row) => {
                 const user = row.userId ? users.get(row.userId) : undefined;
                 return (
                   <tr
@@ -302,6 +345,7 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
                       "border-b border-border/40 transition-colors last:border-0 hover:bg-accent/60",
                       row.userId === null ? "bg-surface/60" : "odd:bg-surface/25",
                     )}
+                    onMouseEnter={() => figuresReadout.setOver(row)}
                   >
                     <th scope="row" className="py-1.5 pr-3 font-normal">
                       <span className="flex items-center gap-2">
@@ -316,22 +360,26 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
                       </span>
                     </th>
                     {BANDS.map((band) => (
-                      <Cell key={band.key} value={row[band.key]} tone={band.key === "overdue" ? "urgent" : undefined} />
+                      <Cell key={band.key} value={row[band.key]} format={format} tone={band.key === "overdue" ? "urgent" : undefined} />
                     ))}
                     {/* The busiest person's row fills; everyone else's is a
                         share of it, so the column can be read down as well as
                         across without leaving the table for the bars above. */}
-                    <Cell value={row.tasks} strong share={row.tasks / tablePeak} />
-                    <Cell value={row.assetUnits} strong last />
+                    <Cell value={row.total} format={format} strong last share={row.total / measuredPeak} />
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          {figuresReadout.at && figuresReadout.over && (
+            <ChartTooltip x={figuresReadout.at.x} y={figuresReadout.at.y} width={figuresReadout.box.width || 0} height={figuresReadout.box.height || 0}>
+              <RowReadout row={figuresReadout.over} measure={measure} format={format} />
+            </ChartTooltip>
+          )}
         </div>
       </Panel>
 
-      {showMatrix && <DepartmentMatrix rows={people} groups={groups} users={facts.users} />}
+      {showMatrix && <DepartmentMatrix rows={measuredPeople} groups={measuredGroups} users={facts.users} measure={measure} format={format} />}
     </div>
     </>
   );
@@ -389,8 +437,9 @@ const MATRIX_COLUMNS_FALLBACK = 8;
  * It is the same projection the filter uses, read across instead of down, so
  * a row's total is that person's total and nothing here is counted twice.
  */
-function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[]; users: Map<string, User> }) {
-  const [ref, { width }] = useSize<HTMLDivElement>();
+function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[]; users: Map<string, User>; measure: MeasureKind; format: (value: number) => string }) {
+  const readout = useTableReadout<{ row: WorkloadRow; group: DepartmentLoadOption | null }>();
+  const width = readout.box.width;
   // As many groups as the panel can hold rather than a fixed eight: on a wide
   // screen the rest were folded into "4 more" with room to spare beside them.
   // One slot is given back when there is a remainder to fold, so the "more"
@@ -404,11 +453,16 @@ function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups
   const people = rows.filter((row) => row.tasks > 0);
   if (people.length === 0) return null;
   // The busiest cell in the grid, so the tints are comparable across it.
-  const hottest = Math.max(1, ...people.flatMap((row) => row.byDepartment.map((cell) => cell.tasks)));
+  const hottest = Math.max(1, ...people.flatMap((row) => row.byDepartment.map((cell) => cell.total)));
 
   return (
-    <Panel title="Per person, per stakeholder group" subtitle={`Tasks each person holds for each of ${groups.length} groups`} className="p-4" testId="dashboard-workload-matrix">
-      <div ref={ref} className="scrollbar-thin overflow-x-auto">
+    <Panel
+      title="Per person, per stakeholder group"
+      subtitle={`${MEASURE_LABELS[measure]} each person holds for each of ${groups.length} groups`}
+      className="p-4"
+      testId="dashboard-workload-matrix"
+    >
+      <div className="scrollbar-thin relative overflow-x-auto" {...readout.bind}>
         {/* Fixed layout with the two ends sized: the group columns then divide
             what is left equally, instead of each one sizing itself to its own
             longest heading — which is what left "Marketing VN" three times the
@@ -428,7 +482,7 @@ function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups
                 Person
               </th>
               {columns.map((group) => (
-                <th key={group.key} scope="col" className="py-2 pr-3 font-medium" title={`${group.name} · ${formatCount(group.tasks)} tasks`}>
+                <th key={group.key} scope="col" className="py-2 pr-3 text-right font-medium" title={`${group.name} · ${format(group.total)} ${MEASURE_UNITS[measure]}`}>
                   <span className="flex items-center justify-end gap-1.5">
                     <span aria-hidden className="size-1.5 shrink-0 rounded-sm" style={{ background: departmentHex(group.name) }} />
                     <span className="truncate">{group.name}</span>
@@ -441,21 +495,21 @@ function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups
                 </th>
               )}
               <th scope="col" className="py-2 text-right font-medium">
-                Tasks
+                {MEASURE_UNITS[measure]}
               </th>
             </tr>
           </thead>
           <tbody>
             {people.map((row) => {
-              const byKey = new Map(row.byDepartment.map((cell) => [cell.key, cell.tasks]));
-              const other = row.byDepartment.filter((cell) => restKeys.has(cell.key)).reduce((sum, cell) => sum + cell.tasks, 0);
+              const byKey = new Map(row.byDepartment.map((cell) => [cell.key, cell.total]));
+              const other = row.byDepartment.filter((cell) => restKeys.has(cell.key)).reduce((sum, cell) => sum + cell.total, 0);
               const user = row.userId ? users.get(row.userId) : undefined;
               return (
                 <tr
                   key={row.userId ?? "unassigned"}
                   className={cn("border-b border-border/40 transition-colors last:border-0 hover:bg-accent/60", row.userId === null ? "bg-surface/60" : "odd:bg-surface/25")}
                 >
-                  <th scope="row" className="py-1.5 pr-3 font-normal">
+                  <th scope="row" className="py-1.5 pr-3 font-normal" onMouseEnter={() => readout.setOver({ row, group: null })}>
                     <span className="flex items-center gap-2">
                       {user ? <UserAvatar user={user as User} size="xs" /> : <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />}
                       <span className="max-w-[12rem] truncate" title={row.name}>
@@ -468,17 +522,77 @@ function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups
                       and a wall of plain numerals is read neither way. */}
                   {columns.map((group) => {
                     const value = byKey.get(group.key) ?? 0;
-                    return <Cell key={group.key} value={value} tint={value > 0 ? { color: departmentHex(group.name), share: value / hottest } : undefined} />;
+                    return (
+                      <Cell
+                        key={group.key}
+                        value={value}
+                        format={format}
+                        onHover={() => readout.setOver({ row, group })}
+                        tint={value > 0 ? { color: departmentHex(group.name), share: value / hottest } : undefined}
+                      />
+                    );
                   })}
-                  {rest.length > 0 && <Cell value={other} />}
-                  <Cell value={row.tasks} strong last />
+                  {rest.length > 0 && <Cell value={other} format={format} onHover={() => readout.setOver({ row, group: null })} />}
+                  <Cell value={row.total} format={format} strong last onHover={() => readout.setOver({ row, group: null })} />
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {readout.at && readout.over && (
+          <ChartTooltip x={readout.at.x} y={readout.at.y} width={readout.box.width || 0} height={readout.box.height || 0}>
+            <RowReadout row={readout.over.row} measure={measure} format={format} group={readout.over.group} />
+          </ChartTooltip>
+        )}
       </div>
     </Panel>
+  );
+}
+
+/**
+ * What one row — or one cell of it — is made of.
+ *
+ * Over a name it is the person: their total, the states behind it, and the
+ * groups they are carrying it for. Over a cell it narrows to that group,
+ * because "1,314 h of Tuyet Le's for Content" is the question the cell asks
+ * and the answer is two numbers away in every direction.
+ */
+function RowReadout({ row, measure, format, group }: { row: WorkloadRow; measure: MeasureKind; format: (value: number) => string; group?: DepartmentLoadOption | null }) {
+  const cell = group ? (row.byDepartment.find((d) => d.key === group.key) ?? null) : null;
+  const bands = cell ?? row;
+  return (
+    <>
+      <p className="font-medium text-foreground">
+        {row.name}
+        {group && <span className="text-muted-foreground"> · {group.name}</span>}
+      </p>
+      <p className="mt-0.5 flex items-baseline gap-1.5 tabular">
+        <span className="text-sm font-semibold">{format(bands.total)}</span>
+        <span className="text-2xs text-muted-foreground">
+          {MEASURE_UNITS[measure]} · {formatCount(bands.tasks)} {bands.tasks === 1 ? "task" : "tasks"}
+        </span>
+      </p>
+      <ul className="mt-1.5 space-y-0.5 border-t border-border/50 pt-1.5">
+        {BANDS.filter((band) => bands[band.key] > 0).map((band) => (
+          <li key={band.key} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-sm", band.className)} />
+            <span className="flex-1 text-muted-foreground">{band.label}</span>
+            <span className="font-medium tabular">{format(bands[band.key])}</span>
+          </li>
+        ))}
+        {bands.total === 0 && <li className="text-muted-foreground">Nothing in this window.</li>}
+      </ul>
+      {!group && row.byDepartment.length > 0 && (
+        <p className="mt-1.5 border-t border-border/50 pt-1.5 text-2xs leading-relaxed text-muted-foreground">
+          <span className="text-foreground/80">For </span>
+          {row.byDepartment
+            .slice(0, 3)
+            .map((d) => `${d.name} ${format(d.total)}`)
+            .join(" · ")}
+          {row.byDepartment.length > 3 ? ` · and ${row.byDepartment.length - 3} more` : ""}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -498,6 +612,8 @@ function Cell({
   last,
   share,
   tint,
+  format = formatCount,
+  onHover,
 }: {
   value: number;
   strong?: boolean;
@@ -505,6 +621,8 @@ function Cell({
   last?: boolean;
   share?: number;
   tint?: { color: string; share: number };
+  format?: (value: number) => string;
+  onHover?: () => void;
 }) {
   const background = tint
     ? `color-mix(in oklab, ${tint.color} ${Math.round(12 + Math.min(1, tint.share) * 45)}%, transparent)`
@@ -512,9 +630,12 @@ function Cell({
       ? `linear-gradient(to left, color-mix(in oklab, var(--color-primary) 22%, transparent) ${Math.max(4, Math.min(1, share) * 100)}%, transparent 0)`
       : undefined;
   return (
-    <td className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}>
+    <td
+      className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}
+      onMouseEnter={onHover}
+    >
       {background && <span aria-hidden className="pointer-events-none absolute inset-y-px right-1 left-0 rounded-sm" style={{ background }} />}
-      <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : formatCount(value)}</span>
+      <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : format(value)}</span>
     </td>
   );
 }

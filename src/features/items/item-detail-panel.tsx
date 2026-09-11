@@ -43,6 +43,63 @@ const FIELD_WIDTH = 260;
  * `shared` is the whole page rather than a panel beside a board (a task opened
  * from a link): it fills what holds it and there is nothing to close it back to.
  */
+/**
+ * The shape the panel takes, whether or not there is anything in it yet.
+ *
+ * Opening a link to a task on a board you are not on loads that whole board
+ * first, and until it arrived the page showed a board skeleton and no panel —
+ * so the one thing the reader clicked for was the one thing not on screen.
+ * The frame is the same either way, so it can be put up immediately and
+ * filled in when the board lands.
+ */
+function panelClasses(shared: boolean, narrow: boolean, overlay: boolean): string {
+  return cn(
+    // Reads as a card floating above the board: its own surface and elevation,
+    // with the board beside it left untouched so items stay glanceable.
+    "flex flex-col bg-surface",
+    shared
+      ? "min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 shadow-sm"
+      : narrow
+        ? "fixed inset-0 z-40"
+        : overlay
+          ? "absolute inset-y-2.5 right-2.5 z-30 w-[520px] overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
+          : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
+  );
+}
+
+/**
+ * The panel while the board behind it is still loading.
+ *
+ * Same frame, same place, a working close button and the shape of what is
+ * coming. It goes up the moment a link is followed, so the wait happens
+ * inside the thing that was asked for rather than in front of it.
+ */
+export function ItemPanelSkeleton({ onClose, overlay = false }: { onClose: () => void; overlay?: boolean }) {
+  const narrow = useMediaQuery("(max-width: 1023px)");
+  return (
+    <aside role="dialog" aria-label="Opening task" aria-busy className={panelClasses(false, narrow, overlay)} data-testid="item-panel-skeleton">
+      <div className="flex h-12 items-center justify-between gap-2 border-b px-3">
+        <Skeleton className="h-4 w-40" />
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel">
+          <X />
+        </Button>
+      </div>
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-7 w-3/4" />
+        <div className="flex gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-6 w-20 rounded-full" />
+          ))}
+        </div>
+        <Skeleton className="h-24 w-full" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full" />
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = false }: { itemId: string; onClose: () => void; overlay?: boolean; shared?: boolean }) {
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
@@ -85,18 +142,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
       role="dialog"
       aria-label={item ? item.name : "Item"}
       data-testid="item-panel"
-      className={cn(
-        // Reads as a card floating above the board: its own surface and elevation,
-        // with the board beside it left untouched so items stay glanceable.
-        "flex flex-col bg-surface",
-        shared
-          ? "min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 shadow-sm"
-          : narrow
-            ? "fixed inset-0 z-40"
-            : overlay
-            ? "absolute inset-y-2.5 right-2.5 z-30 w-[520px] overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
-            : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
-      )}
+      className={panelClasses(shared, narrow, overlay)}
     >
       {!item ? (
         <div className="flex h-full flex-col">

@@ -69,7 +69,10 @@ const inProvider = (node: React.ReactElement) => render(<RadixTooltip.Provider>{
 
 const props = {
   facts,
-  prefs: { weeks: 4, teamIds: null, unit: "tasks", stakeholderGroup: null },
+  prefs: { weeks: 4, teamIds: null, measure: "tasks", stakeholderGroup: null },
+  // Read in tasks, which is what the bars count whatever the toolbar says.
+  measure: "tasks",
+  valueOf: () => 1,
   set: vi.fn(),
   today: TODAY,
 } as unknown as DashboardViewProps;

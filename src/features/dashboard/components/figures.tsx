@@ -34,6 +34,7 @@ export function HeadlineFigure({
   trendLabels,
   valueFormat = formatCount,
   accent,
+  onSelect,
   testId,
 }: {
   label: string;
@@ -56,6 +57,8 @@ export function HeadlineFigure({
   valueFormat?: (value: number) => string;
   /** The figure the page leads on: brand-tinted, and the number a size larger. */
   accent?: boolean;
+  /** Makes the whole card a way to switch the page to this measure. */
+  onSelect?: () => void;
   testId?: string;
 }) {
   const { current, comparison: previous, delta, percent } = comparison;
@@ -66,14 +69,32 @@ export function HeadlineFigure({
     // counts beside it.
     <section
       className={cn(
-        "relative flex min-w-0 flex-col rounded-2xl border p-4 shadow-xs",
+        "relative flex min-w-0 flex-col rounded-2xl border p-4 shadow-xs transition-colors",
         accent
           ? // One line, not two: a tinted border and a ring of the same colour
             // read as a double outline, which is what a focus state looks like.
             "border-primary/35 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-primary)_10%,var(--color-card)),var(--color-card)_65%)]"
           : "border-border/60 bg-card",
+        // A card the page can be switched with. The button is the whole card
+        // rather than a control inside it: the card *is* the choice.
+        onSelect && !accent && "cursor-pointer hover:border-border hover:bg-accent/30",
       )}
+      onClick={onSelect && !accent ? onSelect : undefined}
+      role={onSelect && !accent ? "button" : undefined}
+      tabIndex={onSelect && !accent ? 0 : undefined}
+      aria-label={onSelect && !accent ? `Read the dashboard in ${label.toLowerCase()}` : undefined}
+      onKeyDown={
+        onSelect && !accent
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect();
+              }
+            }
+          : undefined
+      }
       data-testid={testId}
+      data-active={accent || undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

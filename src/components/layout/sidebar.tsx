@@ -498,9 +498,15 @@ function NavItem({
         >
           <PrimaryIcon icon={Icon} active={active}>
             {collapsed && anything ? (
-              <span className="absolute -top-1 -right-1 flex items-center gap-px">
-                {loud > 0 && <span className="size-2 rounded-full bg-primary ring-2 ring-sidebar" data-testid="badge-dot-notifications" />}
-                {quiet > 0 && <span className="size-2 rounded-full bg-muted-foreground/70 ring-2 ring-sidebar" data-testid="badge-dot-updates" />}
+              // Off the right edge, level with the middle of the icon: above
+              // it they sat under the item over them and read as that one's.
+              // Stacked, because side by side they run past the rail and the
+              // second one lands under the next icon along.
+              <span className="absolute top-1/2 -right-1 flex -translate-y-1/2 flex-col items-center gap-1">
+                {/* Small, and far enough apart that their rings clear each
+                    other: at 8px with a 2px ring they were two blobs touching. */}
+                {loud > 0 && <span className="size-1.5 rounded-full bg-primary ring-1 ring-sidebar" data-testid="badge-dot-notifications" />}
+                {quiet > 0 && <span className="size-1.5 rounded-full bg-muted-foreground/70 ring-1 ring-sidebar" data-testid="badge-dot-updates" />}
               </span>
             ) : null}
           </PrimaryIcon>

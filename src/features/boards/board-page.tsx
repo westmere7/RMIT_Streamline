@@ -36,7 +36,7 @@ import { useMobileViewPref } from "@/features/boards/components/mobile/mobile-vi
 import { useIsMobile } from "@/hooks/use-mobile";
 import { tagOptionsFor } from "@/features/boards/tag-palette";
 import { useServices } from "@/features/data/data-context";
-import { ItemDetailPanel } from "@/features/items/item-detail-panel";
+import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
@@ -209,6 +209,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
         <MobileBoardHeader board={board} />
         {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
         {!snapshot.isError && !contextValue && <BoardSkeleton />}
+        {/* Followed a link to a task: the panel is what was asked for, so it
+            goes up now and fills in when the board arrives behind it. */}
+        {!snapshot.isError && !contextValue && itemId && <ItemPanelSkeleton onClose={() => openItem(null)} />}
         {contextValue && (
           <BoardContextProvider value={contextValue}>
             <MobileBoardToolsRow view={view} onViewChange={setView} />
@@ -241,7 +244,16 @@ function BoardScreen({ boardId }: { boardId: string }) {
         </div>
       )}
       {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
-      {!snapshot.isError && !contextValue && <BoardSkeleton />}
+      {!snapshot.isError && !contextValue && (
+        <div className="relative flex min-h-0 flex-1">
+          <div className="min-w-0 flex-1">
+            <BoardSkeleton />
+          </div>
+          {/* Followed a link to a task: the panel is what was asked for, so it
+              goes up now and fills in when the board arrives behind it. */}
+          {itemId && <ItemPanelSkeleton onClose={() => openItem(null)} />}
+        </div>
+      )}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
           <BoardToolbar view={view} onViewChange={setView} />

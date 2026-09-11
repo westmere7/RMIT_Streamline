@@ -278,6 +278,49 @@ export function covered(range: DateRange, earliest: ISODate | null): boolean {
  */
 export type MeasureKind = Unit | "effort";
 
+/** The three the page can be read in, in the order the toolbar offers them. */
+export const MEASURES = ["effort", "tasks", "assets"] as const;
+
+export const MEASURE_LABELS: Record<MeasureKind, string> = { effort: "Effort", tasks: "Tasks", assets: "Asset units" };
+/** The word that follows a figure of this measure. */
+export const MEASURE_UNITS: Record<MeasureKind, string> = { effort: "hours", tasks: "tasks", assets: "asset units" };
+
+/**
+ * What one task is worth in the measure the page is being read in.
+ *
+ * Every split on this page — by month, by team, by group, by person — is the
+ * same set of tasks summed a different way, so the measure travels as a
+ * function from a task to a number and nothing downstream has to know which
+ * of the three it is. Effort needs the deliverables behind the task, which is
+ * what `effortByTask` works out once for the whole snapshot.
+ */
+export type TaskValue = (task: TaskFact) => number;
+
+export function taskValuer(measure: MeasureKind, effort: Map<string, number>): TaskValue {
+  if (measure === "tasks") return () => 1;
+  if (measure === "assets") return (task) => task.assetUnits;
+  return (task) => effort.get(task.id) ?? 0;
+}
+
+/**
+ * Hours per task: its deliverables, each weighed by its type's output rate.
+ *
+ * Worked out once over the whole snapshot rather than per panel, because
+ * every measure-aware chart needs the same answer and the alternative is
+ * walking the asset lines again in each of them.
+ */
+export function effortByTask(facts: DashboardFacts, rates: AssetRates): Map<string, number> {
+  const lines = new Map<string, Array<{ type: string; units: number }>>();
+  for (const asset of facts.assets) {
+    const found = lines.get(asset.taskId);
+    if (found) found.push({ type: asset.type, units: asset.units });
+    else lines.set(asset.taskId, [{ type: asset.type, units: asset.units }]);
+  }
+  const hours = new Map<string, number>();
+  for (const [taskId, own] of lines) hours.set(taskId, sumEffortHours(own, rates));
+  return hours;
+}
+
 export interface VolumeReport {
   period: ResolvedPeriod;
   basis: ReportingBasis;
@@ -324,6 +367,18 @@ export interface MonthlyComparisonRow {
   comparison: number | null;
   delta: number | null;
   percent: number | null;
+  /**
+   * The comparison year's figure for a month the current period has not
+   * reached — the rest of last year, in other words.
+   *
+   * Kept apart from `comparison` on purpose. The comparison is elapsed
+   * against elapsed and stops where the current period stops, because that is
+   * the only honest way to subtract two part-years; but the months after
+   * today are the last thing a manager wants hidden, since they are the best
+   * guide there is to what is coming. So they are drawn, in their own lighter
+   * tone, and they are never part of a delta.
+   */
+  outlook: number | null;
 }
 
 /**
@@ -354,12 +409,21 @@ export function monthlyComparison(
     return { from: from < base.from ? base.from : from, to: to > base.to ? base.to : to };
   };
 
+  // The whole of the comparison year, for the months the matched range does
+  // not reach. `period.comparison` ends where the current period ends; this
+  // is the same year read to its December.
+  const comparisonYear = period.comparison ? Number(period.comparison.from.slice(0, 4)) : null;
+
   return MONTHS.map((name, index) => {
     const month = index + 1;
     const currentRange = monthRange(period.current, month);
     const comparisonRange = period.comparison ? monthRange(period.comparison, month) : null;
     const current = currentRange ? measure(currentRange) : null;
     const comparison = comparisonRange && covered(comparisonRange, facts.earliest) ? measure(comparisonRange) : null;
+    const beyond =
+      comparisonYear !== null && comparisonRange === null
+        ? { from: iso(comparisonYear, month, 1), to: iso(comparisonYear, month, daysInMonth(comparisonYear, month)) }
+        : null;
     return {
       month,
       label: name.slice(0, 3),
@@ -367,6 +431,7 @@ export function monthlyComparison(
       comparison,
       delta: current !== null && comparison !== null ? current - comparison : null,
       percent: current !== null && comparison !== null && comparison > 0 ? ((current - comparison) / comparison) * 100 : null,
+      outlook: beyond && covered(beyond, facts.earliest) ? measure(beyond) : null,
     };
   });
 }
@@ -387,8 +452,9 @@ export type ComparisonDimension = "team" | "department" | "assetType";
 export function dimensionComparison(
   report: VolumeReport,
   dimension: ComparisonDimension,
-  unit: Unit,
+  measure: MeasureKind,
   colorOf: (key: string) => string,
+  valueOf: TaskValue = () => 1,
 ): DimensionComparisonRow[] {
   const tally = (slice: VolumeSlice | null): Map<string, { name: string; value: number }> => {
     const out = new Map<string, { name: string; value: number }>();
@@ -405,22 +471,13 @@ export function dimensionComparison(
       return out;
     }
     if (dimension === "team") {
-      if (unit === "assets") for (const asset of slice.assets) add(asset.team.id, asset.team.name, asset.units);
-      else for (const task of slice.tasks) add(task.team.id, task.team.name, 1);
+      for (const task of slice.tasks) add(task.team.id, task.team.name, valueOf(task));
       return out;
     }
     // The task's own STAKEHOLDER cell, resolved against the registry, so a
     // renamed department stays one row. Never the requester's profile.
     const departmentOf = (task: TaskFact) => task.department?.name ?? UNKNOWN_DEPARTMENT;
-    if (unit === "assets") {
-      const byTask = new Map(slice.tasks.map((t) => [t.id, departmentOf(t)]));
-      for (const asset of slice.assets) {
-        const key = byTask.get(asset.taskId);
-        if (key) add(key, key, asset.units);
-      }
-    } else {
-      for (const task of slice.tasks) add(departmentOf(task), departmentOf(task), 1);
-    }
+    for (const task of slice.tasks) add(departmentOf(task), departmentOf(task), valueOf(task));
     return out;
   };
 
@@ -593,14 +650,24 @@ export function upcoming(facts: DashboardFacts, today: ISODate, teamIds: string[
  * Communications" without being counted twice.
  */
 
-/** The four states a person's open work can be in, and the two totals over them. */
+/**
+ * The four states a person's open work can be in.
+ *
+ * The band figures are in whatever measure the page is being read in — hours,
+ * tasks or asset units — because a table that could only count tasks would be
+ * the one panel answering a different question from everything around it.
+ * `tasks` is always a count beside them: it is what the sentence "54 tasks,
+ * 30 late" is made of, and what the rows are ranked by whatever is on screen.
+ */
 export interface WorkloadBands {
   inProgress: number;
   scheduled: number;
   overdue: number;
   undated: number;
+  /** The four bands added up, in the measure. */
+  total: number;
+  /** Always a count of tasks, whatever the measure. */
   tasks: number;
-  assetUnits: number;
 }
 
 /**
@@ -643,16 +710,16 @@ export function departmentNameOf(task: TaskFact): string {
   return task.department?.name ?? UNKNOWN_DEPARTMENT;
 }
 
-const blankBands = (): WorkloadBands => ({ inProgress: 0, scheduled: 0, overdue: 0, undated: 0, tasks: 0, assetUnits: 0 });
-type BandKey = "inProgress" | "scheduled" | "overdue" | "undated";
+const blankBands = (): WorkloadBands => ({ inProgress: 0, scheduled: 0, overdue: 0, undated: 0, total: 0, tasks: 0 });
+export type BandKey = "inProgress" | "scheduled" | "overdue" | "undated";
 
-function countInto(target: WorkloadBands, task: TaskFact, band: BandKey): void {
+function countInto(target: WorkloadBands, value: number, band: BandKey): void {
   target.tasks += 1;
-  target.assetUnits += task.assetUnits;
-  target[band] += 1;
+  target.total += value;
+  target[band] += value;
 }
 
-export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds: string[] | null, weeks: 2 | 4 | 8): WorkloadRow[] {
+export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds: string[] | null, weeks: 2 | 4 | 8, valueOf: TaskValue = () => 1): WorkloadRow[] {
   const horizon = addDays(today, weeks * 7);
   const rows = new Map<string | null, WorkloadRow>();
   const blank = (userId: string | null, name: string, former = false): WorkloadRow => ({
@@ -690,7 +757,8 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
         row = blank(owner, user?.displayName ?? "Someone who has left", true);
         rows.set(owner, row);
       }
-      countInto(row, task, band);
+      const value = valueOf(task);
+      countInto(row, value, band);
       // The same task counted a second time against the group it is for, so
       // the split is the row broken up rather than a second, separate count.
       let cell = row.byDepartment.find((d) => d.key === key);
@@ -698,23 +766,24 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
         cell = { key, name, ...blankBands() };
         row.byDepartment.push(cell);
       }
-      countInto(cell, task, band);
+      countInto(cell, value, band);
       if (task.team.id !== NO_TEAM && !row.teamNames.includes(task.team.name)) row.teamNames.push(task.team.name);
     }
   }
 
-  for (const row of rows.values()) row.byDepartment.sort(byTasksThenName);
+  for (const row of rows.values()) row.byDepartment.sort(byTotalThenName);
   return sortWorkload([...rows.values()]);
 }
 
-const byTasksThenName = (a: { tasks: number; name: string }, b: { tasks: number; name: string }) => b.tasks - a.tasks || a.name.localeCompare(b.name);
+/** Biggest first in the measure on screen, and alphabetical where they tie. */
+const byTotalThenName = (a: { total: number; name: string }, b: { total: number; name: string }) => b.total - a.total || a.name.localeCompare(b.name);
 
 function sortWorkload(rows: WorkloadRow[]): WorkloadRow[] {
   return rows.sort((a, b) => {
     // Unassigned work leads: it is the only row nobody has picked up.
     if (a.userId === null) return -1;
     if (b.userId === null) return 1;
-    return byTasksThenName(a, b);
+    return byTotalThenName(a, b);
   });
 }
 
@@ -722,6 +791,8 @@ function sortWorkload(rows: WorkloadRow[]): WorkloadRow[] {
 export interface DepartmentLoadOption {
   key: string;
   name: string;
+  /** In the measure on screen. */
+  total: number;
   tasks: number;
   /** How many named people hold some of it; the unassigned row is not a person. */
   people: number;
@@ -738,13 +809,14 @@ export function workloadDepartments(rows: WorkloadRow[]): DepartmentLoadOption[]
   for (const row of rows) {
     for (const cell of row.byDepartment) {
       if (cell.tasks === 0) continue;
-      const entry = out.get(cell.key) ?? { key: cell.key, name: cell.name, tasks: 0, people: 0 };
+      const entry = out.get(cell.key) ?? { key: cell.key, name: cell.name, total: 0, tasks: 0, people: 0 };
+      entry.total += cell.total;
       entry.tasks += cell.tasks;
       if (row.userId !== null) entry.people += 1;
       out.set(cell.key, entry);
     }
   }
-  return [...out.values()].sort(byTasksThenName);
+  return [...out.values()].sort(byTotalThenName);
 }
 
 /**

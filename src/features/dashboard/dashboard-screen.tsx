@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
-import { normaliseAssetRates } from "@/domain";
+import { hasAnyRate, normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
-import { ScopeToolbar, UnitToggle } from "@/features/dashboard/dashboard-controls";
+import { MeasureToggle, ScopeToolbar } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
-import { coverage, monthlyComparison, operations, resolvePeriod, volumeReport, BUSINESS_TIMEZONE, type ReportingPeriod } from "@/features/dashboard/metrics";
+import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport, BUSINESS_TIMEZONE, MEASURE_UNITS, type ReportingPeriod } from "@/features/dashboard/metrics";
 import { useDashboardPrefs } from "@/features/dashboard/prefs";
 import { DashboardBody } from "@/features/dashboard/views/overview";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
@@ -71,7 +71,13 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   // what turn deliverables into hours, and nothing is stored per task.
   const rates = React.useMemo(() => normaliseAssetRates(snapshot.workspace.assetRates), [snapshot.workspace.assetRates]);
   const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds, rates), [facts, resolved, prefs.basis, prefs.teamIds, rates]);
-  const monthly = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, prefs.unit, prefs.teamIds), [facts, resolved, prefs.basis, prefs.unit, prefs.teamIds]);
+  // Hours per task, once for the snapshot; every measure-aware panel reads it
+  // through `valueOf` rather than walking the asset lines again.
+  const effort = React.useMemo(() => effortByTask(facts, rates), [facts, rates]);
+  // Effort is only offered where a rate exists to weigh by.
+  const measure = hasAnyRate(rates) || prefs.measure !== "effort" ? prefs.measure : "tasks";
+  const valueOf = React.useMemo(() => taskValuer(measure, effort), [measure, effort]);
+  const monthly = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, measure, prefs.teamIds, rates), [facts, resolved, prefs.basis, measure, prefs.teamIds, rates]);
   // Both measures, because each headline card draws its own trend and the unit
   // toggle must not change what the other card is showing.
   const monthlyTasks = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "tasks", prefs.teamIds), [facts, resolved, prefs.basis, prefs.teamIds]);
@@ -82,7 +88,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, onOpenTask, onOpenBoard };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">
@@ -106,10 +112,10 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
           period={resolved}
           teams={facts.teams}
           years={years}
-          unitToggle={<UnitToggle unit={prefs.unit} onChange={(unit) => set({ unit })} />}
+          unitToggle={<MeasureToggle measure={measure} onChange={(next) => set({ measure: next })} effortAvailable={hasAnyRate(rates)} />}
         />
         <p className="ml-auto hidden text-2xs text-muted-foreground lg:block">
-          {resolved.alignment === "elapsed" ? "Matched to the same elapsed period" : "Whole periods"} · {BUSINESS_TIMEZONE}
+          Everything below in {MEASURE_UNITS[measure]} · {resolved.alignment === "elapsed" ? "matched to the same elapsed period" : "whole periods"} · {BUSINESS_TIMEZONE}
         </p>
       </div>
 

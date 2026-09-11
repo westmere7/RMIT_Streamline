@@ -264,6 +264,17 @@ function AssetRowCard({
   const edit = (patch: Partial<AssetDraft>) => setDraft((current) => ({ ...current, ...patch }));
   const patch = draftPatch(row, draft);
   const dirty = Object.keys(patch).length > 0;
+  /**
+   * Whether a field in the open form has the cursor.
+   *
+   * Update is disabled while there is nothing to save — but two of the fields
+   * in here only commit what is typed when they lose focus, so "nothing to
+   * save" can be false and about to become true. A disabled button swallows
+   * the click that would have blurred the field, and the first press then
+   * appears to do nothing. While the cursor is in the form the button stays
+   * live and that click does its work.
+   */
+  const [typing, setTyping] = React.useState(false);
 
   // Closed, the row reads what is saved; open, it reads the draft.
   const shown = open ? { ...row, ...draft } : row;
@@ -464,7 +475,12 @@ function AssetRowCard({
 
         {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
         {open && (
-          <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5" data-testid="asset-details">
+          <div
+            className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5"
+            onFocusCapture={() => setTyping(true)}
+            onBlurCapture={(event) => setTyping(event.currentTarget.contains(event.relatedTarget as Node | null))}
+            data-testid="asset-details"
+          >
             {fields.type && (
               <Detail label="Type">
                 <Popover>
@@ -613,12 +629,13 @@ function AssetRowCard({
                 >
                   <Trash2 className="size-3.5" /> Remove
                 </Button>
+                {/* Nothing changed yet: there is nothing to throw away, and
+                    the button is still the way out of the open row — so it
+                    says what it does instead of pretending otherwise. */}
                 <Button type="button" variant="ghost" size="sm" onClick={discard} className="h-7 px-2.5 text-xs" data-testid="asset-discard">
-                  Discard
+                  {dirty ? "Discard" : "Close"}
                 </Button>
-                {/* Never disabled: clicking it is what blurs the field being typed in,
-                    and a disabled button would swallow that click along with the edit. */}
-                <Button type="button" size="sm" onClick={save} className="h-7 px-3 text-xs" data-testid="asset-update">
+                <Button type="button" size="sm" onClick={save} disabled={!dirty && !typing} className="h-7 px-3 text-xs" data-testid="asset-update">
                   Update
                 </Button>
               </div>

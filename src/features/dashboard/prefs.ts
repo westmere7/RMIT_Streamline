@@ -3,8 +3,7 @@
 import * as React from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Unit } from "./analytics";
-import type { PeriodMode, ReportingBasis } from "./metrics";
+import type { MeasureKind, PeriodMode, ReportingBasis } from "./metrics";
 
 /** The three things the dashboard is for, in the order a manager meets them. */
 export const DASHBOARD_VIEWS = ["overview", "demand", "resourcing"] as const;
@@ -18,7 +17,13 @@ export const VIEW_META: Record<DashboardView, { label: string; hint: string }> =
 
 export interface DashboardPrefs {
   view: DashboardView;
-  unit: Unit;
+  /**
+   * What the page is read in: hours, tasks or asset units. One choice for the
+   * whole dashboard rather than a switch per chart — the point of the page is
+   * that the splits agree with each other, and they cannot while each panel
+   * counts what it likes.
+   */
+  measure: MeasureKind;
   basis: ReportingBasis;
   periodMode: PeriodMode;
   /** Null means "the current year"; a number pins the report to that year. */
@@ -42,7 +47,7 @@ export interface DashboardPrefs {
 
 export const DEFAULT_PREFS: DashboardPrefs = {
   view: "overview",
-  unit: "tasks",
+  measure: "tasks",
   // Created, not due: every task has a creation date, so the default report is
   // the one with no coverage gap. Due is a click away and says what it excludes.
   basis: "created",

@@ -1,6 +1,6 @@
 import type { AssetRates } from "@/domain";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
-import type { Coverage, MonthlyComparisonRow, OperationsSnapshot, VolumeReport } from "@/features/dashboard/metrics";
+import type { Coverage, MeasureKind, MonthlyComparisonRow, OperationsSnapshot, TaskValue, VolumeReport } from "@/features/dashboard/metrics";
 import type { DashboardPrefs } from "@/features/dashboard/prefs";
 
 /**
@@ -27,6 +27,14 @@ export interface DashboardViewProps {
   ops: OperationsSnapshot;
   gaps: Coverage;
   prefs: DashboardPrefs;
+  /**
+   * What the page is being read in. Held here rather than read from `prefs`
+   * because the screen falls back to tasks where no output rate exists, and
+   * one panel disagreeing about that would be a page contradicting itself.
+   */
+  measure: MeasureKind;
+  /** One task's worth in that measure. */
+  valueOf: TaskValue;
   set: (patch: Partial<DashboardPrefs>) => void;
   today: string;
   onOpenTask?: (taskId: string, boardId: string) => void;

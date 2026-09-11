@@ -45,12 +45,10 @@ export function StakeholderLoad({ userId }: { userId: string }) {
           id: cell.key,
           name: cell.name,
           value: cell.tasks,
-          secondary: cell.assetUnits,
           color: departmentHex(cell.name),
           detail: cell.overdue > 0 ? `${cell.overdue} overdue` : undefined,
         }))}
         valueLabel="tasks"
-        secondaryLabel="asset units"
         emptyMessage="No open work for any stakeholder group."
         compact
       />

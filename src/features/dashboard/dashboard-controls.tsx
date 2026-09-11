@@ -5,8 +5,8 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { TeamRef, Unit } from "@/features/dashboard/analytics";
-import { BASIS_HINTS, BASIS_LABELS, REPORTING_BASES, type PeriodMode, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
+import type { TeamRef } from "@/features/dashboard/analytics";
+import { BASIS_HINTS, BASIS_LABELS, MEASURE_LABELS, MEASURES, REPORTING_BASES, type MeasureKind, type PeriodMode, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
 import type { DashboardPrefs } from "@/features/dashboard/prefs";
 import { cn } from "@/lib/utils";
 
@@ -186,20 +186,30 @@ export function TeamFilter({ teams, selected, onChange }: { teams: TeamRef[]; se
   );
 }
 
-/** Tasks or asset units. Switches charts; never hides either headline. */
-export function UnitToggle({ unit, onChange }: { unit: Unit; onChange: (unit: Unit) => void }) {
+/**
+ * What the whole page is measured in.
+ *
+ * Effort leads because hours are what a manager plans with — three hundred
+ * photo edits and ten films are not thirty times the work — and it is offered
+ * only where a rate exists to weigh by; with none it would switch the page to
+ * a confident nought. Every split follows this one control, which is what
+ * replaced the switches that each chart used to carry.
+ */
+export function MeasureToggle({ measure, onChange, effortAvailable }: { measure: MeasureKind; onChange: (measure: MeasureKind) => void; effortAvailable: boolean }) {
+  const offered = MEASURES.filter((value) => value !== "effort" || effortAvailable);
   return (
-    <div role="radiogroup" aria-label="Measure" className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid="dashboard-unit">
-      {(["tasks", "assets"] as const).map((value) => (
+    <div role="radiogroup" aria-label="Measure" className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid="dashboard-measure">
+      {offered.map((value) => (
         <button
           key={value}
           type="button"
           role="radio"
-          aria-checked={unit === value}
+          aria-checked={measure === value}
           onClick={() => onChange(value)}
-          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", unit === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", measure === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          data-testid={`dashboard-measure-${value}`}
         >
-          {value === "tasks" ? "Tasks" : "Asset units"}
+          {MEASURE_LABELS[value]}
         </button>
       ))}
     </div>

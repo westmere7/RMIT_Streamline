@@ -8,6 +8,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /** The shape of the real year to date: nine answers, one spike, three months that have not happened. */
 const CURRENT = [1, 1, 1, 35, 19, 22, 53, 251, 104, null, null, null];
 const PREVIOUS = [28, 49, 41, 47, 31, 29, 57, 39, 11, null, null, null];
+/** The rest of last year, which the current period has not reached. */
+const OUTLOOK = [null, null, null, null, null, null, null, null, null, 44, 52, 18];
 
 const rows: MonthlyComparisonRow[] = MONTHS.map((label, index) => {
   const current = CURRENT[index] ?? null;
@@ -19,6 +21,7 @@ const rows: MonthlyComparisonRow[] = MONTHS.map((label, index) => {
     comparison,
     delta: current === null || comparison === null ? null : current - comparison,
     percent: current === null || comparison === null || comparison === 0 ? null : ((current - comparison) / comparison) * 100,
+    outlook: OUTLOOK[index] ?? null,
   };
 });
 

@@ -53,7 +53,9 @@ export function YearComparisonChart({
   const mounted = useMounted();
   const reduced = usePrefersReducedMotion();
 
-  const peak = Math.max(1, ...rows.map((r) => Math.max(r.current ?? 0, r.comparison ?? 0)));
+  // The rest of last year counts towards the scale: a bar drawn off the top
+  // of the plot would be worse than not drawing it.
+  const peak = Math.max(1, ...rows.map((r) => Math.max(r.current ?? 0, r.comparison ?? 0, r.outlook ?? 0)));
   const width = Math.max(size.width, 320);
   const height = Math.max(size.height, 168);
   const roomy = height >= 260;
@@ -132,6 +134,21 @@ export function YearComparisonChart({
               >
                 <rect x={padLeft + index * slot} y={0} width={slot} height={plot} className={cn("fill-transparent", on && "fill-foreground/[0.05]")} />
 
+                {/* The rest of the comparison year, in the months the current
+                    period has not reached. Paler than a matched bar and
+                    never part of a delta: it is context, not a comparison. */}
+                {row.comparison === null && row.outlook !== null && (
+                  <rect
+                    x={centre - barWidth - 1}
+                    y={y(row.outlook)}
+                    width={barWidth}
+                    height={Math.max(0, plot - y(row.outlook))}
+                    rx={3}
+                    fill="var(--chart-comparison)"
+                    opacity={0.4}
+                    data-testid="year-outlook-bar"
+                  />
+                )}
                 {row.comparison !== null && (
                   <rect
                     x={centre - barWidth - 1}
@@ -162,6 +179,11 @@ export function YearComparisonChart({
                 {roomy && row.current !== null && row.current > 0 && index !== peakIndex && (
                   <text x={centre + 1 + barWidth / 2} y={y(row.current) - 4} textAnchor="middle" className="fill-foreground text-[9px] font-medium tabular">
                     {formatCount(row.current)}
+                  </text>
+                )}
+                {generous && row.comparison === null && row.outlook !== null && row.outlook > 0 && (
+                  <text x={centre - barWidth / 2 - 1} y={y(row.outlook) - 4} textAnchor="middle" className="fill-muted-foreground/70 text-[9px] tabular">
+                    {formatCount(row.outlook)}
                   </text>
                 )}
                 {generous && row.comparison !== null && row.comparison > 0 && (
@@ -231,7 +253,19 @@ export function YearComparisonChart({
                 </p>
                 <p className="mt-0.5 flex items-center gap-1.5 tabular">
                   <span aria-hidden className="size-2 rounded-sm" style={{ background: "var(--chart-comparison)" }} />
-                  {rows[hovered]!.comparison === null ? <span className="text-muted-foreground">no comparison</span> : <>{formatCount(rows[hovered]!.comparison!)} <span className="text-muted-foreground">in {comparisonLabel}</span></>}
+                  {rows[hovered]!.comparison === null ? (
+                    rows[hovered]!.outlook === null ? (
+                      <span className="text-muted-foreground">no comparison</span>
+                    ) : (
+                      <>
+                        {formatCount(rows[hovered]!.outlook!)} <span className="text-muted-foreground">last year · not compared</span>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {formatCount(rows[hovered]!.comparison!)} <span className="text-muted-foreground">in {comparisonLabel}</span>
+                    </>
+                  )}
                 </p>
                 {rows[hovered]!.delta !== null && (
                   <p className="mt-1">

@@ -4,7 +4,7 @@ import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import * as React from "react";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { teamHex, type TeamRef } from "@/features/dashboard/analytics";
-import { departmentHex, dimensionComparison, type ComparisonDimension } from "@/features/dashboard/metrics";
+import { departmentHex, dimensionComparison, MEASURE_UNITS, type ComparisonDimension } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
@@ -33,16 +33,16 @@ const DIMENSIONS: Array<{ key: ComparisonDimension; label: string; column: strin
  * already on the bars, the change was already on the year chart above, and it
  * left the panel taller than the one beside it for a table nobody opened.
  */
-export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewProps) {
+export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf }: DashboardViewProps) {
   const [dimension, setDimension] = React.useState<ComparisonDimension>("team");
-  const unitWord = prefs.unit === "assets" ? "asset units" : "tasks";
+  const unitWord = MEASURE_UNITS[measure];
 
   const colorOf = React.useMemo(() => {
     const teams = new Map(facts.teams.map((t: TeamRef) => [t.id, teamHex(t)]));
     return (key: string) => (dimension === "team" ? (teams.get(key) ?? "#94a3b8") : departmentHex(key));
   }, [dimension, facts.teams]);
 
-  const rows = React.useMemo(() => dimensionComparison(report, dimension, prefs.unit, colorOf), [report, dimension, prefs.unit, colorOf]);
+  const rows = React.useMemo(() => dimensionComparison(report, dimension, measure, colorOf, valueOf), [report, dimension, measure, colorOf, valueOf]);
   const measured = unitWord;
   const active = DIMENSIONS.find((d) => d.key === dimension)!;
 
