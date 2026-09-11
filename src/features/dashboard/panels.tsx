@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowUpRight, CheckCircle2, ChevronDown, Clock, Info, Layers, ListChecks, Users } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Info, Layers, ListChecks, Users } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -323,22 +323,3 @@ export function DeliveredPanel({ entries, onOpen }: { entries: DeliveredEntry[];
   );
 }
 
-/**
- * The exact figures, one click away.
- *
- * For a panel whose picture is the point but whose numbers somebody will still
- * need to read out or paste into an email. The table stays in the document —
- * reachable by a screen reader and by a copy — without competing with the shape
- * for the first look.
- */
-export function Numbers({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <details className="group mt-3 border-t border-border/50 pt-2">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground">
-        <ChevronDown className="size-3 transition-transform group-open:rotate-180" aria-hidden />
-        {label}
-      </summary>
-      <div className="mt-2">{children}</div>
-    </details>
-  );
-}

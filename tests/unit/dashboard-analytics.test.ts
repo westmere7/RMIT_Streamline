@@ -3,6 +3,7 @@ import type { Board, BoardColumn, BoardGroup, DashboardSnapshot, Item, ItemAsset
 import { defaultSettingsFor, publicDashboardSnapshot } from "@/domain";
 import {
   acrossTheYear,
+  assetEffortMix,
   assetMix,
   assetTypesByTeam,
   assetsInScope,
@@ -209,6 +210,17 @@ describe("aggregates", () => {
       ["Untyped", 2],
       ["Digital", 1],
     ]);
+    // The same deliverables weighed by the rates: 14 print units at 2 hours
+    // each against 1 digital unit at 30 minutes, and "Untyped" has no rate so
+    // it leaves the mix rather than sitting in it as a nought.
+    const byEffort = assetEffortMix(assets, { Print: { qty: 1, every: 2, per: "hour" }, Digital: { qty: 2, every: 1, per: "hour" } });
+    expect(byEffort.map((r) => [r.name, r.value])).toEqual([
+      ["Print", 28],
+      ["Digital", 0.5],
+    ]);
+    expect(byEffort.find((r) => r.name === "Untyped")).toBeUndefined();
+    expect(assetEffortMix(assets, {})).toEqual([]);
+
     const dist = assetTypesByTeam(assets, facts.teams);
     expect(dist[0]).toMatchObject({ name: "Print", total: 14 });
     expect(dist[0]!.segments.map((s) => s.label)).toEqual(["Alpha"]);

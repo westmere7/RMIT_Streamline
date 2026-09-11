@@ -1,10 +1,10 @@
 import { Tooltip as RadixTooltip } from "radix-ui";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import * as React from "react";
 import type { DashboardFacts, TaskFact, TeamRef } from "@/features/dashboard/analytics";
-import { CapacityNote, WorkloadSection } from "@/features/dashboard/views/workload-section";
+import { WorkloadSection } from "@/features/dashboard/views/workload-section";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
 
 const TODAY = "2026-09-10";
@@ -100,26 +100,42 @@ const groupedProps = (stakeholderGroup: string | null = null) =>
  * reachable, because a manager reporting upwards needs those.
  */
 describe("the workload section", () => {
-  it("gives every person a row, and names the work nobody owns", () => {
+  it("gives every person a row, and keeps work nobody owns out of them", () => {
     const { container } = inProvider(<WorkloadSection {...props} />);
-    // Scoped to the bars: each name is also in the figures table, which is in
-    // the DOM inside a closed disclosure.
     const names = [...container.querySelectorAll('[data-testid="dashboard-workload-row"]')].map((row) => row.textContent ?? "");
     expect(names.some((t) => t.includes("Danh Nguyen"))).toBe(true);
     expect(names.some((t) => t.includes("Emily Carter"))).toBe(true);
-    // A task with no owner is not quietly dropped.
-    expect(screen.getByTestId("dashboard-unassigned-row")).toBeInTheDocument();
+    // Unowned work is nobody's workload, so it is a line in the note rather
+    // than a row among the people — and it is still not quietly dropped.
+    expect(names.some((t) => t.includes("Nobody assigned"))).toBe(false);
+    expect(screen.getByText(/have no owner at all/)).toBeInTheDocument();
   });
 
   it("draws the longest bar for whoever is carrying most", () => {
     const { container } = inProvider(<WorkloadSection {...props} />);
     const rows = [...container.querySelectorAll('[data-testid="dashboard-workload-row"]')];
-    const widthOf = (row: Element) => parseFloat((row.querySelector("span.flex.h-2\\.5") as HTMLElement | null)?.style.maxWidth ?? "0");
+    // The fill inside the track, as a percentage of the busiest load.
+    const widthOf = (row: Element) => parseFloat((row.querySelector("span.absolute") as HTMLElement | null)?.style.width ?? "0");
     const danh = rows.find((r) => r.textContent?.includes("Danh"))!;
     const emily = rows.find((r) => r.textContent?.includes("Emily"))!;
     // Two tasks against one, so Danh's bar is the full width and Emily's half.
     expect(widthOf(danh)).toBeGreaterThan(widthOf(emily));
     expect(widthOf(danh)).toBe(100);
+  });
+
+  it("puts the whole of a person's load at the cursor, since the row only has room for the shape", async () => {
+    const u = userEvent.setup();
+    const { container } = inProvider(<WorkloadSection {...groupedProps()} />);
+    const row = [...container.querySelectorAll('[data-testid="dashboard-workload-row"]')].find((r) => r.textContent?.includes("Danh"))!;
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await u.hover(row);
+    const tip = screen.getByRole("tooltip");
+    // The total, the states behind the bar, and who the work is for — the
+    // three things the row itself cannot say.
+    expect(tip).toHaveTextContent("Danh Nguyen");
+    expect(tip).toHaveTextContent("3");
+    expect(tip).toHaveTextContent("In progress");
+    expect(tip).toHaveTextContent("Comm. 2");
   });
 
   it("says how much of somebody's load is already late", () => {
@@ -128,19 +144,16 @@ describe("the workload section", () => {
     expect(screen.getByText("1 late")).toBeInTheDocument();
   });
 
-  it("keeps the exact counts one click away rather than on the page", () => {
+  it("gives the exact counts a panel of their own, on the page rather than behind a click", () => {
     inProvider(<WorkloadSection {...props} />);
-    // The table is in the DOM for a screen reader and a copy-paste, inside a
-    // closed disclosure so it does not compete with the bars.
-    const summary = screen.getByText("Per-person figures");
-    expect(summary.closest("details")).not.toHaveAttribute("open");
-    expect(screen.getByRole("table")).toBeInTheDocument();
-  });
-
-  it("opens the figures when asked", async () => {
-    inProvider(<WorkloadSection {...props} />);
-    await userEvent.click(screen.getByText("Per-person figures"));
-    expect(screen.getByText("Per-person figures").closest("details")).toHaveAttribute("open");
+    // A manager reporting upwards needs the exact figures, and a disclosure at
+    // the foot of the bars is where they went unread.
+    const figures = screen.getByTestId("dashboard-workload-figures");
+    expect(figures).toHaveTextContent("Per-person figures");
+    expect(within(figures).getByRole("table")).toBeInTheDocument();
+    // Work nobody has picked up is not a person: it stays a bar above and a
+    // line in the note, and is not a row in a table of people.
+    expect(figures).not.toHaveTextContent("Nobody assigned");
   });
 
   it("says these are association counts, because a task with two owners is counted twice", () => {
@@ -188,27 +201,13 @@ describe("the stakeholder group filter", () => {
     expect(screen.getByText("Show every stakeholder group")).toBeInTheDocument();
   });
 
-  it("gives the whole grid when no group is chosen, so one click is not needed per group", async () => {
+  it("gives the whole grid when no group is chosen, so one click is not needed per group", () => {
     inProvider(<WorkloadSection {...groupedProps()} />);
-    await userEvent.click(screen.getByText("Per person, per stakeholder group"));
-    const table = screen.getByText("Per person, per stakeholder group").closest("details")!.querySelector("table")!;
+    const table = screen.getByTestId("dashboard-workload-matrix").querySelector("table")!;
     expect(table.textContent).toContain("Comm.");
     expect(table.textContent).toContain("Events");
     const danh = [...table.querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("Danh"))!;
     // Two for Communications, one for Events, three in all.
     expect([...danh.querySelectorAll("td")].map((c) => c.textContent)).toEqual(["2", "1", "3"]);
-  });
-});
-
-describe("the capacity note", () => {
-  it("says which of the four things a load percentage needs the workspace now has", () => {
-    render(<CapacityNote />);
-    // Output rates supplied effort per task; the other three are still missing,
-    // which is why the page reports assignment and not capacity.
-    expect(screen.getByText("Effort per task")).toBeInTheDocument();
-    expect(screen.getByText("have")).toBeInTheDocument();
-    expect(screen.getByText("Working time")).toBeInTheDocument();
-    expect(screen.getByText("Unavailable time")).toBeInTheDocument();
-    expect(screen.getByText("Planned intervals")).toBeInTheDocument();
   });
 });

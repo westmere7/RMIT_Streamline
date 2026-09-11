@@ -20,6 +20,7 @@ export function RankedBars({
   leading,
   className,
   compact,
+  fill,
 }: {
   data: NamedCount[];
   onSelect?: (row: NamedCount) => void;
@@ -32,6 +33,8 @@ export function RankedBars({
   leading?: (row: NamedCount) => React.ReactNode;
   className?: string;
   compact?: boolean;
+  /** Spread the rows down the panel and thicken the tracks, for a tall column. */
+  fill?: boolean;
 }) {
   if (data.length === 0) return <ChartEmpty message={emptyMessage} />;
   const max = maxOverride ?? Math.max(1, ...data.map((d) => d.value));
@@ -41,7 +44,7 @@ export function RankedBars({
   // Widened for the whole list rather than per row, so the bars still line up.
   const paired = data.some((row) => row.secondary != null);
   return (
-    <div className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1", className)} role="list">
+    <div className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1", fill && "h-full justify-around", className)} role="list">
       {data.map((row) => {
         const width = Math.max(row.value > 0 ? 2 : 0, (row.value / max) * 100);
         const tip = [`${formatCount(row.value)} ${valueLabel ?? ""}`.trim(), row.secondary != null && secondaryLabel ? `${formatCount(row.secondary)} ${secondaryLabel}` : null, row.detail].filter(Boolean).join(" · ");
@@ -76,7 +79,7 @@ export function RankedBars({
                 takes effect on a track that would otherwise be absurd. It never
                 binds in the narrow composition column either, where the track is
                 a couple of hundred pixels wide anyway. */}
-            <div className="h-2 max-w-[34rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80">
+            <div className={cn("max-w-[34rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80", fill ? "h-3" : "h-2")}>
               <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${width}%`, background: row.color }} />
             </div>
             <span className={cn("flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem] justify-start" : "w-[4.25rem] justify-end")}>

@@ -115,21 +115,44 @@ function ShareBar({ data, total, active, setActive, onSelect, totalLabel }: { da
   );
 }
 
-export function MixLegend({ data, total, active, setActive, onSelect, className }: { data: NamedCount[]; total: number; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; className?: string }) {
+export function MixLegend({
+  data,
+  total,
+  active,
+  setActive,
+  onSelect,
+  format = formatCount,
+  className,
+}: {
+  data: NamedCount[];
+  total: number;
+  active: string | null;
+  setActive: (id: string | null) => void;
+  onSelect?: (row: NamedCount) => void;
+  /** How a row's figure reads — counts by default, `formatHours` for effort. */
+  format?: (value: number) => string;
+  className?: string;
+}) {
   return (
     // Capped to the panel and scrollable: a workspace with a dozen asset types must not
-    // stretch the row every other panel in it is sized by.
-    <ul className={cn("scrollbar-thin max-h-full min-w-0 flex-1 space-y-0.5 overflow-y-auto text-xs", className)}>
+    // stretch the row every other panel in it is sized by. `px-1` pays for the
+    // rows' own `-mx-1` bleed, which otherwise overflows the list by eight
+    // pixels and hangs a horizontal scrollbar under it.
+    <ul className={cn("scrollbar-thin flex max-h-full min-w-0 flex-1 flex-col space-y-0.5 overflow-y-auto px-1 text-xs", className)}>
       {data.map((d) => {
         const key = d.id ?? d.name;
         const share = total > 0 ? Math.round((d.value / total) * 100) : 0;
         return (
-          <li key={key}>
+          // Grows to fill a tall legend and stops at its own height in a
+          // crowded one, where the list scrolls instead — so eighteen types
+          // fill the column beside the map and forty still fit in it.
+          <li key={key} className="flex min-h-5 flex-1 flex-col justify-center">
             <div
               role={onSelect ? "button" : undefined}
               tabIndex={onSelect ? 0 : undefined}
               className={cn("flex items-center gap-2 rounded-md -mx-1 px-1 py-0.5 transition-colors", onSelect && "cursor-pointer", active === key && "bg-accent/70")}
-              title={d.detail}
+              // The name truncates in a narrow legend, so hovering has to give it back in full.
+              title={d.detail ? `${d.name} · ${d.detail}` : d.name}
               onMouseEnter={() => setActive(key)}
               onMouseLeave={() => setActive(null)}
               onClick={onSelect ? () => onSelect(d) : undefined}
@@ -145,10 +168,14 @@ export function MixLegend({ data, total, active, setActive, onSelect, className 
               }
             >
               <span className="size-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
-              <span className="truncate text-foreground">{d.name}</span>
+              {/* `min-w-0` or a long type name refuses to shrink, widens the row
+                  and puts a horizontal scrollbar under the whole legend. */}
+              <span className="min-w-0 truncate text-foreground">{d.name}</span>
               <span aria-hidden className="min-w-3 flex-1 border-b border-dotted border-border/80" />
               <span className="w-8 shrink-0 text-right text-2xs text-muted-foreground tabular">{share}%</span>
-              <span className="w-10 shrink-0 text-right font-semibold tabular">{formatCount(d.value)}</span>
+              {/* Wide enough for "35,200 h": a wrapped figure turns a one-line
+                  row into two and the whole legend loses its rhythm. */}
+              <span className="w-16 shrink-0 text-right font-semibold whitespace-nowrap tabular">{format(d.value)}</span>
             </div>
           </li>
         );

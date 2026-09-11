@@ -1,19 +1,22 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import * as React from "react";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { assetTypeHex, teamHex, type TeamRef } from "@/features/dashboard/analytics";
+import { teamHex, type TeamRef } from "@/features/dashboard/analytics";
 import { departmentHex, dimensionComparison, type ComparisonDimension } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
 
+/**
+ * Asset type is not here: the treemap beside this panel is the same breakdown
+ * with room to show every type at once, and two answers to one question in one
+ * row is one too many.
+ */
 const DIMENSIONS: Array<{ key: ComparisonDimension; label: string; column: string }> = [
   { key: "team", label: "Team", column: "Team" },
   { key: "department", label: "Department", column: "Department" },
-  { key: "assetType", label: "Asset type", column: "Asset type" },
 ];
 
 /**
@@ -36,15 +39,11 @@ export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewP
 
   const colorOf = React.useMemo(() => {
     const teams = new Map(facts.teams.map((t: TeamRef) => [t.id, teamHex(t)]));
-    return (key: string) => {
-      if (dimension === "team") return teams.get(key) ?? "#94a3b8";
-      if (dimension === "assetType") return assetTypeHex(key);
-      return departmentHex(key);
-    };
+    return (key: string) => (dimension === "team" ? (teams.get(key) ?? "#94a3b8") : departmentHex(key));
   }, [dimension, facts.teams]);
 
   const rows = React.useMemo(() => dimensionComparison(report, dimension, prefs.unit, colorOf), [report, dimension, prefs.unit, colorOf]);
-  const measured = dimension === "assetType" ? "asset units" : unitWord;
+  const measured = unitWord;
   const active = DIMENSIONS.find((d) => d.key === dimension)!;
 
   // Requests are counted by the day they arrived, and a request is not a task —
@@ -54,20 +53,19 @@ export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewP
   const openNow = ops.unallocated.length;
   const peak = Math.max(requestsNow.length, requestsThen?.length ?? 0, openNow, 1);
 
-  // Two panels of one width. Given a third of the row the bars had a 26rem cap
-  // and several inches of nothing to the right of them; on half the row the cap
-  // never binds and the bars fill the panel they are in.
+  // Two panels, stacked in the column beside the asset map and sharing its
+  // height with the status bar above them. They are returned loose rather than
+  // in a grid of their own: where they sit is the page's business, and boxing
+  // them here is what left them side by side in a row of their own with the
+  // bars capped at 26rem and inches of nothing to the right.
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
-      {/* `h-auto` undoes Panel's own `h-full`, which resolves to 100% of the
-          grid row and would stretch this panel to match whichever of the two is
-          taller. `self-start` alone cannot win against a height of 100%. */}
-      <Panel title="Requests in" subtitle="By the day they arrived" className="h-auto self-start p-4" testId="dashboard-demand-requests">
+    <>
+      <Panel title="Requests in" subtitle="By the day they arrived" className="flex flex-col p-4" bodyClassName="flex flex-1 flex-col justify-center" testId="dashboard-demand-requests">
         {/* Three bordered cards with a 2xl figure each was a lot of furniture
             for three numbers in a narrow column. One row apiece: the figure, its
             label, and a rule underneath showing it against the larger of the two
             years — so the comparison is still visible without three boxes. */}
-        <dl className="flex flex-col gap-2.5">
+        <dl className="flex flex-col justify-around gap-2.5">
           <RequestFigure label={report.period.label} value={requestsNow.length} peak={peak} tone="good" />
           <RequestFigure label={report.period.comparisonLabel} value={requestsThen?.length ?? null} peak={peak} />
           <RequestFigure label="Open right now" value={openNow} peak={peak} tone={openNow > 0 ? "urgent" : undefined} hint="no team, nobody assigned" />
@@ -80,7 +78,8 @@ export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewP
       <Panel
         title={`By ${active.label.toLowerCase()}`}
         subtitle={`${measured} · ${report.period.label} against ${report.period.comparisonLabel}`}
-        className="p-4"
+        className="flex min-h-0 flex-col p-4"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
         action={
           <div role="radiogroup" aria-label="Break the comparison down by" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
             {DIMENSIONS.map((d) => (
@@ -110,12 +109,8 @@ export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewP
           data={rows.slice(0, 8).map((r) => ({ id: r.key, name: r.name, value: r.current, color: r.color }))}
           valueLabel={measured}
           emptyMessage="Nothing in this period."
+          fill
         />
-        {dimension === "assetType" && (
-          <p className="mt-2 text-2xs leading-relaxed text-muted-foreground">
-            Asset types are measured in units, and one task can hold several — so these rows are not unique task counts and do not sum to the task total.
-          </p>
-        )}
         {prefs.teamIds && (
           <p className="mt-2 text-2xs text-muted-foreground">
             <button type="button" onClick={() => set({ teamIds: null })} className="font-medium text-foreground/80 underline-offset-4 hover:underline">
@@ -124,7 +119,7 @@ export function DemandSection({ facts, report, ops, prefs, set }: DashboardViewP
           </p>
         )}
       </Panel>
-    </div>
+    </>
   );
 }
 
@@ -163,25 +158,5 @@ function RequestFigure({ label, value, peak, tone, hint }: { label: string; valu
         </span>
       )}
     </div>
-  );
-}
-
-/**
- * The exact figures, one click away.
- *
- * Every chart on this page used to carry its table beside it, which is honest
- * and made the page a spreadsheet. A `<details>` keeps the numbers reachable —
- * and reachable by a screen reader and a copy-paste into an email — without
- * them competing with the picture for the first look.
- */
-export function Numbers({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <details className="group mt-3 border-t border-border/50 pt-2">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground">
-        <ChevronDown className="size-3 transition-transform group-open:rotate-180" aria-hidden />
-        {label}
-      </summary>
-      <div className="mt-2">{children}</div>
-    </details>
   );
 }

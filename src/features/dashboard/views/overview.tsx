@@ -2,19 +2,18 @@
 
 import * as React from "react";
 import { formatHours, hasAnyRate, unratedTypes } from "@/domain";
-import { assetMix, priorityMix, statusMix, teamHex, UNTYPED, type TaskFact } from "@/features/dashboard/analytics";
+import { assetEffortMix, assetMix, priorityMix, teamHex, UNTYPED } from "@/features/dashboard/analytics";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
-import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { AttentionList, UpcomingList } from "@/features/dashboard/components/attention";
+import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
+import { TreemapChart } from "@/features/dashboard/charts/treemap";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
-import { ShareBar } from "@/features/dashboard/components/stat-visuals";
 import { YearComparisonChart } from "@/features/dashboard/components/year-comparison";
 import { departmentHex, UNKNOWN_DEPARTMENT } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { DemandSection } from "./demand-section";
 import type { DashboardViewProps } from "./types";
-import { CapacityNote, WorkloadSection } from "./workload-section";
+import { WorkloadSection } from "./workload-section";
 
 /**
  * The dashboard: one page.
@@ -29,9 +28,8 @@ import { CapacityNote, WorkloadSection } from "./workload-section";
  *   what the period came to      the three headline figures
  *   how it arrived               the year against last year, and how it divides
  *   where it came from           requests in, and the period by team or department
- *   what is true right now       the operations strip and the two lists that name tasks
- *   who is carrying it           a bar per person
- *   what the page cannot say     assignment is not capacity, and why
+ *   what is true right now       the operations strip
+ *   who is carrying it           a bar per person, split by stakeholder group
  *
  * Read as a picture, not a page. Almost everything is a shape; where a figure
  * has to be exact it sits behind a disclosure rather than beside the shape,
@@ -47,18 +45,20 @@ export function DashboardBody(props: DashboardViewProps) {
   // Destructured for the body, and kept whole for the sections that take the
   // lot — they are handed the same figures this page is drawn from, so the two
   // cannot disagree about the period they describe.
-  const { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, onOpenTask } = props;
-  const rows = attentionRows;
-  const open = (task: TaskFact) => onOpenTask?.(task.id, task.boardId);
+  const { report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set } = props;
   const unitWord = prefs.unit === "assets" ? "asset units" : "tasks";
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${report.period.label}${report.period.partial ? " · partial actuals" : ""}`;
 
   const scoped = report.current.tasks;
   const scopedAssets = report.current.assets;
-  const status = React.useMemo(() => statusMix(scoped), [scoped]);
   const priority = React.useMemo(() => priorityMix(scoped), [scoped]);
   const mix = React.useMemo(() => assetMix(scopedAssets), [scopedAssets]);
   const mixUnits = React.useMemo(() => mix.reduce((sum, row) => sum + row.value, 0), [mix]);
+  // The same deliverables weighed into hours. Kept beside the count rather
+  // than replacing it: which types there are most of and which take the most
+  // work are two different questions, and the answers rarely agree.
+  const mixEffort = React.useMemo(() => assetEffortMix(scopedAssets, rates), [scopedAssets, rates]);
+  const [assetMeasure, setAssetMeasure] = React.useState<"units" | "effort">("units");
   const byTeam = React.useMemo(() => {
     const rowsByTeam = new Map<string, { name: string; value: number; color: string }>();
     for (const task of scoped) {
@@ -83,6 +83,10 @@ export function DashboardBody(props: DashboardViewProps) {
   // would be a confident nought against a thousand deliverables, so the row
   // goes back to the two counts and the Settings link says what is missing.
   const ratesOn = hasAnyRate(rates);
+  // Effort is only offered where a rate exists to weigh by; with none the
+  // toggle would switch to an empty map.
+  const byEffort = ratesOn && assetMeasure === "effort";
+  const effortTotal = React.useMemo(() => mixEffort.reduce((sum, row) => sum + row.value, 0), [mixEffort]);
   // Types carrying volume with no rate: exactly what the total leaves out.
   //
   // "Untyped" is not one of them. It is the placeholder for a deliverable that
@@ -127,6 +131,7 @@ export function DashboardBody(props: DashboardViewProps) {
                 </>
               ) : undefined
             }
+            accent
             testId="dashboard-headline-effort"
           />
         )}
@@ -185,25 +190,38 @@ export function DashboardBody(props: DashboardViewProps) {
         </div>
       </div>
 
-      {/* What the period is made of, as two shares of one whole each. They pair
-          because they answer the same shape of question — how the work divides,
-          not which slice is biggest — and they are a line of their own because
-          in the column beside the chart they made it taller than it wanted to
-          be. Asset types no longer waits on the unit toggle either: the mix of
-          work is worth knowing whether you are counting tasks or units, and it
-          was the one split that disappeared depending on a control elsewhere. */}
-      <div className="grid gap-3 lg:grid-cols-2" data-testid="dashboard-shares">
-        <Panel title="Status" subtitle={`${report.tasks.current} tasks`} className="p-4" testId="dashboard-status-mix">
-          <ShareBar data={status} />
-        </Panel>
-        <Panel title="Asset types" subtitle={`${formatCount(mixUnits)} units`} className="p-4" testId="dashboard-asset-mix">
-          {mix.length > 0 ? <ShareBar data={mix} testId="dashboard-asset-share" /> : <ChartEmpty message="No deliverables in this period." />}
+      {/* Where the work came from, and what it was made of. Asset types is
+          twenty categories and cannot be a stacked bar — half of them become
+          slivers, and a slice too thin to hover is a category nobody can ask
+          about — so it takes the map and two thirds of the row. The column
+          beside it sets the height and the map scales to whatever that comes
+          to, rather than the row being as tall as a map wants to be. */}
+      <div className="grid gap-3 xl:grid-cols-3" data-testid="dashboard-shares">
+        {/* A grid, not a flex column: every Panel is `h-full` so that a panel
+            given a column span fills it, and in a flex column that height wins
+            against `flex-1` and the first panel eats the lot. Grid rows size
+            the panels instead, and `h-full` then means the row it is in. */}
+        <div className="grid min-h-0 grid-rows-[auto_1fr] gap-3">
+          <DemandSection {...props} />
+        </div>
+        <Panel
+          title="Asset types"
+          subtitle={byEffort ? `${formatHours(effortTotal)} across ${mixEffort.length} rated types · area is effort` : `${formatCount(mixUnits)} units across ${mix.length} types · area is units`}
+          className="p-4 xl:col-span-2"
+          bodyClassName="flex min-h-0 flex-1 flex-col"
+          action={ratesOn ? <MeasureToggle measure={assetMeasure} onChange={setAssetMeasure} /> : undefined}
+          testId="dashboard-asset-mix"
+        >
+          <TreemapChart
+            data={byEffort ? mixEffort : mix}
+            totalLabel={byEffort ? "hours" : "units"}
+            format={byEffort ? formatHours : formatCount}
+            emptyMessage={byEffort ? "Nothing in this period has a rate to weigh it by." : "No deliverables in this period."}
+            testId="dashboard-asset-treemap"
+            className="min-h-0 flex-1"
+          />
         </Panel>
       </div>
-
-      {/* Where the work came from. Under the year, because it breaks the same
-          period down — and above the strip, because it is still reporting. */}
-      <DemandSection {...props} />
 
       <OperationsStrip
         asOf={ops.asOf}
@@ -215,22 +233,8 @@ export function DashboardBody(props: DashboardViewProps) {
         ]}
       />
 
-      {/* The only two things on this page meant to be read, because they name
-          individual tasks somebody has to decide about. */}
-      <div className="grid gap-3 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <Panel title="Attention needed" subtitle="Ordered by reason, then by deadline" className="p-4" testId="dashboard-attention-panel">
-            <AttentionList rows={rows} users={facts.users} onOpen={onOpenTask ? open : undefined} limit={8} />
-          </Panel>
-        </div>
-        <Panel title="Due in the next four weeks" subtitle="By due date — not campaign launches" className="p-4" testId="dashboard-upcoming-panel">
-          <UpcomingList tasks={upcomingTasks} onOpen={onOpenTask ? open : undefined} limit={8} />
-        </Panel>
-      </div>
-
       {/* Who is carrying it. */}
       <WorkloadSection {...props} />
-      <CapacityNote />
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
         <CoverageNote lines={coverageLines} />
@@ -246,6 +250,34 @@ export function DashboardBody(props: DashboardViewProps) {
           )}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Count or effort, for the asset mix.
+ *
+ * The same pill as the period and window controls elsewhere on the page, and
+ * deliberately local to this panel: it changes what one map measures, not what
+ * the page reports, so it does not belong in the toolbar with the controls that
+ * do.
+ */
+function MeasureToggle({ measure, onChange }: { measure: "units" | "effort"; onChange: (measure: "units" | "effort") => void }) {
+  return (
+    <div role="radiogroup" aria-label="Measure the asset mix by" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
+      {(["units", "effort"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={measure === option}
+          onClick={() => onChange(option)}
+          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", measure === option ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          data-testid={`dashboard-asset-measure-${option}`}
+        >
+          {option === "units" ? "Asset units" : "Effort"}
+        </button>
+      ))}
     </div>
   );
 }

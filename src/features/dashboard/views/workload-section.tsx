@@ -1,15 +1,15 @@
 "use client";
 
-import { Building2, CalendarOff, Check, ChevronDown, Clock, Ruler, Search, Timer } from "lucide-react";
+import { Building2, Check, ChevronDown, Search } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { User } from "@/domain";
-import { formatCount } from "@/features/dashboard/charts/chart-utils";
-import { assignedWorkload, workloadDepartments, workloadForDepartment, type DepartmentLoadOption, type WorkloadRow } from "@/features/dashboard/metrics";
-import { Numbers, Panel } from "@/features/dashboard/panels";
+import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
+import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, type DepartmentLoadOption, type WorkloadRow } from "@/features/dashboard/metrics";
+import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
 
@@ -41,6 +41,10 @@ const BANDS = [
  */
 export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps) {
   const [query, setQuery] = React.useState("");
+  // Which row the cursor is over, and where it is inside the list.
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
+  const [listRef, listBox] = useSize<HTMLDivElement>();
   const all = React.useMemo(() => assignedWorkload(facts, today, prefs.teamIds, prefs.weeks), [facts, today, prefs.teamIds, prefs.weeks]);
   const groups = React.useMemo(() => workloadDepartments(all), [all]);
   // A group that has dropped out of the window — the weeks changed, the work
@@ -50,10 +54,21 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
   const filtered = query.trim() ? rows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : rows;
   const totals = rows.reduce((acc, r) => ({ tasks: acc.tasks + r.tasks, units: acc.units + r.assetUnits }), { tasks: 0, units: 0 });
   const unowned = rows.find((r) => r.userId === null);
+
+  // One group chosen already answers "per group", so the grid is only worth a
+  // column — and a second table of one column beside it would be a waste.
+  const showMatrix = !group && groups.length > 1;
+  const users = facts.users;
+  // Work nobody has picked up is not a person and gets no row of its own on
+  // any of this: it is a line in the note under the bars, where it reads as
+  // the exception it is rather than as somebody's workload.
+  const people = filtered.filter((row) => row.userId !== null);
   // Every bar against the busiest person, so the lengths mean something.
-  const peak = Math.max(1, ...rows.map((r) => r.tasks));
+  const tablePeak = Math.max(1, ...people.map((row) => row.tasks));
+  const hoveredRow = hovered === null ? null : (people.find((row) => row.userId === hovered) ?? null);
 
   return (
+    <>
     <Panel
       title="Who is carrying what"
       subtitle={
@@ -101,25 +116,43 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
         ))}
       </ul>
 
-      <div className="mt-2.5 flex flex-col" role="list">
-        {filtered.map((row) => {
+      <div
+        ref={listRef}
+        className="relative mt-2.5 flex flex-col gap-px"
+        role="list"
+        onMouseMove={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+          setAt({ x: event.clientX - box.left, y: event.clientY - box.top });
+        }}
+        onMouseLeave={() => {
+          setHovered(null);
+          setAt(null);
+        }}
+      >
+        {people.map((row) => {
           const user = row.userId ? facts.users.get(row.userId) : undefined;
-          const share = row.tasks / peak;
+          const share = row.tasks / tablePeak;
+          const late = row.tasks > 0 ? row.overdue / row.tasks : 0;
           return (
             <div
               key={row.userId ?? "unassigned"}
               role="listitem"
-              className={cn("flex items-center gap-2.5 rounded-md px-1 py-1 text-xs", row.userId === null && "bg-surface/60")}
-              data-testid={row.userId === null ? "dashboard-unassigned-row" : "dashboard-workload-row"}
+              className="group flex items-center gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-accent/50"
+              onMouseEnter={() => setHovered(row.userId)}
+              data-testid="dashboard-workload-row"
+              data-active={hovered === row.userId || undefined}
             >
-              <span className="flex w-[10rem] shrink-0 items-center gap-2">
-                {user ? <UserAvatar user={user as User} size="xs" /> : <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />}
+              {/* Room for a full name over the teams it comes from: at ten rem
+                  every second person was "Nguyen Anh D…" over "Publication,
+                  Events, Dig…", which is two truncations and no information. */}
+              <span className="flex w-[15rem] shrink-0 items-center gap-2.5">
+                {user ? <UserAvatar user={user as User} size="sm" /> : <span aria-hidden className="size-6 shrink-0 rounded-full border border-dashed border-border" />}
                 <span className="min-w-0">
-                  <span className={cn("block truncate", row.userId === null && "font-medium")} title={row.name}>
+                  <span className="block truncate font-medium" title={row.name}>
                     {row.name}
                   </span>
                   {(row.teamNames.length > 0 || row.former) && (
-                    <span className="block truncate text-2xs text-muted-foreground">
+                    <span className="block truncate text-2xs text-muted-foreground" title={row.teamNames.join(", ")}>
                       {row.former ? "No longer a member · " : ""}
                       {row.teamNames.join(", ")}
                     </span>
@@ -127,78 +160,87 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
                 </span>
               </span>
 
-              {/* The bar is as long as this person's share of the busiest
-                  person's load, and split by what state the work is in. */}
-              <span className="flex h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70" style={{ maxWidth: `${Math.max(4, share * 100)}%` }}>
-                {BANDS.map((band) => {
-                  const value = row[band.key];
-                  if (value <= 0) return null;
-                  return (
-                    <span
-                      key={band.key}
-                      className={cn("h-full", band.className)}
-                      style={{ width: `${(value / Math.max(1, row.tasks)) * 100}%` }}
-                      title={`${band.label}: ${formatCount(value)}`}
-                    />
-                  );
-                })}
+              {/* A track the full width of the row, with the load inside it:
+                  every bar then starts and ends on the same two lines, so the
+                  column can be read down as a shape. The fill is this person's
+                  share of the busiest load, split by the state the work is in. */}
+              <span className="relative h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/40 ring-1 ring-border/40 ring-inset">
+                <span className="absolute inset-y-0 left-0 flex overflow-hidden rounded-full transition-[width] duration-500" style={{ width: `${Math.max(row.tasks > 0 ? 2 : 0, share * 100)}%` }}>
+                  {BANDS.map((band) => {
+                    const value = row[band.key];
+                    if (value <= 0) return null;
+                    return (
+                      <span
+                        key={band.key}
+                        className={cn("h-full", band.className)}
+                        style={{ width: `${(value / Math.max(1, row.tasks)) * 100}%` }}
+                        title={`${band.label}: ${formatCount(value)}`}
+                      />
+                    );
+                  })}
+                </span>
               </span>
 
-              <span className="ml-auto flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular">
-                <span className="font-medium">{formatCount(row.tasks)}</span>
+              <span className="flex w-[8.5rem] shrink-0 items-center justify-end gap-2 whitespace-nowrap tabular">
+                <span className="text-[13px] font-semibold">{formatCount(row.tasks)}</span>
                 <span className="text-2xs text-muted-foreground">tasks</span>
-                {row.overdue > 0 && <span className="text-2xs font-medium text-destructive">{formatCount(row.overdue)} late</span>}
+                {/* The one figure on this panel that is bad news, so it is the
+                    one thing wearing a colour of its own. */}
+                {row.overdue > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-2xs font-semibold",
+                      late >= 0.5 ? "bg-destructive/15 text-destructive" : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                    )}
+                    title={`${formatCount(row.overdue)} of ${formatCount(row.tasks)} already past their due date`}
+                  >
+                    {formatCount(row.overdue)} late
+                  </span>
+                )}
               </span>
             </div>
           );
         })}
-        {filtered.length === 0 && (
+        {people.length === 0 && (
           <p className="py-4 text-center text-muted-foreground">
             {query.trim() ? <>Nobody matches “{query}”.</> : <>Nobody is carrying work for {group?.name ?? "this group"} in this window.</>}
           </p>
         )}
-      </div>
 
-      <Numbers label="Per-person figures">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-left text-xs">
-            <thead>
-              <tr className="border-b border-border/60 text-2xs text-muted-foreground">
-                <th scope="col" className="py-1.5 pr-3 font-medium">
-                  Person
-                </th>
-                {BANDS.map((band) => (
-                  <th key={band.key} scope="col" className="py-1.5 pr-3 text-right font-medium">
-                    {band.label}
-                  </th>
-                ))}
-                <th scope="col" className="py-1.5 pr-3 text-right font-medium">
-                  Tasks
-                </th>
-                <th scope="col" className="py-1.5 text-right font-medium">
-                  Asset units
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {filtered.map((row) => (
-                <tr key={row.userId ?? "unassigned"} className={cn(row.userId === null && "bg-surface/60")}>
-                  <th scope="row" className="max-w-[12rem] truncate py-1.5 pr-3 font-normal" title={row.name}>
-                    {row.name}
-                  </th>
-                  {BANDS.map((band) => (
-                    <Cell key={band.key} value={row[band.key]} tone={band.key === "overdue" ? "urgent" : undefined} />
-                  ))}
-                  <Cell value={row.tasks} strong />
-                  <Cell value={row.assetUnits} strong last />
-                </tr>
+        {/* What the bar is made of, at the cursor. A row shows a shape, a
+            total and what is late; the four states behind the shape and the
+            groups the work is for are what a reader asks next, and they do not
+            fit on the row. Same readout as the treemap's, for the same reason. */}
+        {at && hoveredRow && (
+          <ChartTooltip x={at.x} y={at.y} width={listBox.width || 0} height={listBox.height || 0}>
+            <p className="font-medium text-foreground">{hoveredRow.name}</p>
+            <p className="mt-0.5 flex items-baseline gap-1.5 tabular">
+              <span className="text-sm font-semibold">{formatCount(hoveredRow.tasks)}</span>
+              <span className="text-2xs text-muted-foreground">tasks · {formatCount(hoveredRow.assetUnits)} asset units</span>
+            </p>
+            <ul className="mt-1.5 space-y-0.5 border-t border-border/50 pt-1.5">
+              {BANDS.filter((band) => hoveredRow[band.key] > 0).map((band) => (
+                <li key={band.key} className="flex items-center gap-1.5">
+                  <span aria-hidden className={cn("size-1.5 shrink-0 rounded-sm", band.className)} />
+                  <span className="flex-1 text-muted-foreground">{band.label}</span>
+                  <span className="font-medium tabular">{formatCount(hoveredRow[band.key])}</span>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </Numbers>
-
-      {!group && groups.length > 1 && <DepartmentMatrix rows={filtered} groups={groups} />}
+            </ul>
+            {hoveredRow.byDepartment.length > 0 && (
+              <p className="mt-1.5 border-t border-border/50 pt-1.5 text-2xs leading-relaxed text-muted-foreground">
+                <span className="text-foreground/80">For </span>
+                {hoveredRow.byDepartment
+                  .slice(0, 3)
+                  .map((cell) => `${cell.name} ${formatCount(cell.tasks)}`)
+                  .join(" · ")}
+                {hoveredRow.byDepartment.length > 3 ? ` · and ${hoveredRow.byDepartment.length - 3} more` : ""}
+              </p>
+            )}
+            {hoveredRow.teamNames.length > 0 && <p className="mt-1 text-2xs text-muted-foreground/80">{hoveredRow.teamNames.join(", ")}</p>}
+          </ChartTooltip>
+        )}
+      </div>
 
       <div className="mt-3 space-y-1.5 border-t border-border/50 pt-2.5 text-2xs leading-relaxed text-muted-foreground">
         <p>
@@ -220,6 +262,78 @@ export function WorkloadSection({ facts, prefs, set, today }: DashboardViewProps
         )}
       </div>
     </Panel>
+
+    {/* The exact figures, in cards of their own rather than two disclosures at
+        the foot of the bars, and stacked rather than side by side: two dense
+        tables on one line is a wall, and each of these is wide enough to want
+        the whole width to itself. */}
+    <div className="grid gap-3">
+      <Panel title="Per-person figures" subtitle={group ? `${group.name} · exact counts` : "Exact counts behind the bars"} className="p-4" testId="dashboard-workload-figures">
+        <div className="scrollbar-thin overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-left text-xs">
+            <thead>
+              <tr className="border-b border-border/60 text-[10px] tracking-wide text-muted-foreground uppercase">
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Person
+                </th>
+                {BANDS.map((band) => (
+                  <th key={band.key} scope="col" className="py-2 pr-3 text-right font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className={cn("size-1.5 rounded-sm", band.className)} />
+                      {band.label}
+                    </span>
+                  </th>
+                ))}
+                <th scope="col" className="py-2 pr-3 text-right font-medium">
+                  Tasks
+                </th>
+                <th scope="col" className="py-2 text-right font-medium">
+                  Asset units
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((row) => {
+                const user = row.userId ? users.get(row.userId) : undefined;
+                return (
+                  <tr
+                    key={row.userId ?? "unassigned"}
+                    className={cn(
+                      "border-b border-border/40 transition-colors last:border-0 hover:bg-accent/60",
+                      row.userId === null ? "bg-surface/60" : "odd:bg-surface/25",
+                    )}
+                  >
+                    <th scope="row" className="py-1.5 pr-3 font-normal">
+                      <span className="flex items-center gap-2">
+                        {user ? (
+                          <UserAvatar user={user as User} size="xs" />
+                        ) : (
+                          <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />
+                        )}
+                        <span className="max-w-[12rem] truncate" title={row.name}>
+                          {row.name}
+                        </span>
+                      </span>
+                    </th>
+                    {BANDS.map((band) => (
+                      <Cell key={band.key} value={row[band.key]} tone={band.key === "overdue" ? "urgent" : undefined} />
+                    ))}
+                    {/* The busiest person's row fills; everyone else's is a
+                        share of it, so the column can be read down as well as
+                        across without leaving the table for the bars above. */}
+                    <Cell value={row.tasks} strong share={row.tasks / tablePeak} />
+                    <Cell value={row.assetUnits} strong last />
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      {showMatrix && <DepartmentMatrix rows={people} groups={groups} users={facts.users} />}
+    </div>
+    </>
   );
 }
 
@@ -259,8 +373,13 @@ function StakeholderFilter({ groups, selected, onChange }: { groups: DepartmentL
   );
 }
 
-/** How many groups get a column of their own before the rest are folded together. */
-const MATRIX_COLUMNS = 8;
+/** What one group's column needs to hold a dotted heading and a figure. */
+const MATRIX_COLUMN_PX = 92;
+/** The name column, and the row total at the end. */
+const MATRIX_PERSON_PX = 176;
+const MATRIX_TOTAL_PX = 64;
+/** Before the panel has been measured: enough to be useful, narrow enough to fit. */
+const MATRIX_COLUMNS_FALLBACK = 8;
 
 /**
  * Every person against every stakeholder group, in one grid.
@@ -270,49 +389,87 @@ const MATRIX_COLUMNS = 8;
  * It is the same projection the filter uses, read across instead of down, so
  * a row's total is that person's total and nothing here is counted twice.
  */
-function DepartmentMatrix({ rows, groups }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[] }) {
-  const columns = groups.slice(0, MATRIX_COLUMNS);
-  const rest = groups.slice(MATRIX_COLUMNS);
+function DepartmentMatrix({ rows, groups, users }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[]; users: Map<string, User> }) {
+  const [ref, { width }] = useSize<HTMLDivElement>();
+  // As many groups as the panel can hold rather than a fixed eight: on a wide
+  // screen the rest were folded into "4 more" with room to spare beside them.
+  // One slot is given back when there is a remainder to fold, so the "more"
+  // column is not what pushes the grid over the edge.
+  const room = width > 0 ? Math.floor((width - MATRIX_PERSON_PX - MATRIX_TOTAL_PX) / MATRIX_COLUMN_PX) : MATRIX_COLUMNS_FALLBACK;
+  const fit = Math.max(3, room);
+  const shown = fit >= groups.length ? groups.length : Math.max(1, fit - 1);
+  const columns = groups.slice(0, shown);
+  const rest = groups.slice(shown);
   const restKeys = new Set(rest.map((g) => g.key));
   const people = rows.filter((row) => row.tasks > 0);
   if (people.length === 0) return null;
+  // The busiest cell in the grid, so the tints are comparable across it.
+  const hottest = Math.max(1, ...people.flatMap((row) => row.byDepartment.map((cell) => cell.tasks)));
 
   return (
-    <Numbers label="Per person, per stakeholder group">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] text-left text-xs">
+    <Panel title="Per person, per stakeholder group" subtitle={`Tasks each person holds for each of ${groups.length} groups`} className="p-4" testId="dashboard-workload-matrix">
+      <div ref={ref} className="scrollbar-thin overflow-x-auto">
+        {/* Fixed layout with the two ends sized: the group columns then divide
+            what is left equally, instead of each one sizing itself to its own
+            longest heading — which is what left "Marketing VN" three times the
+            width of "Web". */}
+        <table className="w-full min-w-[34rem] table-fixed text-left text-xs">
+          <colgroup>
+            <col style={{ width: MATRIX_PERSON_PX }} />
+            {columns.map((group) => (
+              <col key={group.key} />
+            ))}
+            {rest.length > 0 && <col />}
+            <col style={{ width: MATRIX_TOTAL_PX }} />
+          </colgroup>
           <thead>
-            <tr className="border-b border-border/60 text-2xs text-muted-foreground">
-              <th scope="col" className="py-1.5 pr-3 font-medium">
+            <tr className="border-b border-border/60 text-[10px] tracking-wide text-muted-foreground uppercase">
+              <th scope="col" className="py-2 pr-3 font-medium">
                 Person
               </th>
               {columns.map((group) => (
-                <th key={group.key} scope="col" className="max-w-[8rem] truncate py-1.5 pr-3 text-right font-medium" title={group.name}>
-                  {group.name}
+                <th key={group.key} scope="col" className="py-2 pr-3 font-medium" title={`${group.name} · ${formatCount(group.tasks)} tasks`}>
+                  <span className="flex items-center justify-end gap-1.5">
+                    <span aria-hidden className="size-1.5 shrink-0 rounded-sm" style={{ background: departmentHex(group.name) }} />
+                    <span className="truncate">{group.name}</span>
+                  </span>
                 </th>
               ))}
               {rest.length > 0 && (
-                <th scope="col" className="py-1.5 pr-3 text-right font-medium" title={rest.map((g) => g.name).join(", ")}>
+                <th scope="col" className="py-2 pr-3 text-right font-medium" title={rest.map((g) => g.name).join(", ")}>
                   {rest.length} more
                 </th>
               )}
-              <th scope="col" className="py-1.5 text-right font-medium">
+              <th scope="col" className="py-2 text-right font-medium">
                 Tasks
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/50">
+          <tbody>
             {people.map((row) => {
               const byKey = new Map(row.byDepartment.map((cell) => [cell.key, cell.tasks]));
               const other = row.byDepartment.filter((cell) => restKeys.has(cell.key)).reduce((sum, cell) => sum + cell.tasks, 0);
+              const user = row.userId ? users.get(row.userId) : undefined;
               return (
-                <tr key={row.userId ?? "unassigned"} className={cn(row.userId === null && "bg-surface/60")}>
-                  <th scope="row" className="max-w-[12rem] truncate py-1.5 pr-3 font-normal" title={row.name}>
-                    {row.name}
+                <tr
+                  key={row.userId ?? "unassigned"}
+                  className={cn("border-b border-border/40 transition-colors last:border-0 hover:bg-accent/60", row.userId === null ? "bg-surface/60" : "odd:bg-surface/25")}
+                >
+                  <th scope="row" className="py-1.5 pr-3 font-normal">
+                    <span className="flex items-center gap-2">
+                      {user ? <UserAvatar user={user as User} size="xs" /> : <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />}
+                      <span className="max-w-[12rem] truncate" title={row.name}>
+                        {row.name}
+                      </span>
+                    </span>
                   </th>
-                  {columns.map((group) => (
-                    <Cell key={group.key} value={byKey.get(group.key) ?? 0} />
-                  ))}
+                  {/* Tinted in the group's own colour, deeper where the figure
+                      is bigger: a grid is read across a row and down a column,
+                      and a wall of plain numerals is read neither way. */}
+                  {columns.map((group) => {
+                    const value = byKey.get(group.key) ?? 0;
+                    return <Cell key={group.key} value={value} tint={value > 0 ? { color: departmentHex(group.name), share: value / hottest } : undefined} />;
+                  })}
                   {rest.length > 0 && <Cell value={other} />}
                   <Cell value={row.tasks} strong last />
                 </tr>
@@ -321,59 +478,43 @@ function DepartmentMatrix({ rows, groups }: { rows: WorkloadRow[]; groups: Depar
           </tbody>
         </table>
       </div>
-    </Numbers>
-  );
-}
-
-/**
- * Why this is assignment and not capacity.
- *
- * Four cards rather than four bullet points, because it is a standing statement
- * about the model and it should not read like an apology buried at the foot of
- * the page. Output rates supply the first of the four now, which is why effort
- * in hours leads the page — the other three are still missing, and a load
- * percentage without them would be a number about nothing.
- */
-export function CapacityNote() {
-  const items = [
-    { icon: Ruler, title: "Effort per task", detail: "Output rates give this now — hours per deliverable, set in Settings → Lists.", have: true },
-    { icon: Clock, title: "Working time", detail: "Contracted hours per person, part-time patterns included.", have: false },
-    { icon: CalendarOff, title: "Unavailable time", detail: "Leave, public holidays and standing commitments, so availability is net.", have: false },
-    { icon: Timer, title: "Planned intervals", detail: "Where only a due date exists, work shows on its deadline — not when it is done.", have: false },
-  ];
-
-  return (
-    <Panel title="Assignment, not capacity" subtitle="What a load percentage would still need" className="p-4" testId="dashboard-capacity-gap">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <div
-            key={item.title}
-            className={cn(
-              "flex min-w-0 flex-col gap-1 rounded-xl border p-3",
-              item.have ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-border/50 bg-surface/50",
-            )}
-          >
-            <span className="flex items-center gap-1.5">
-              <item.icon className={cn("size-3.5 shrink-0", item.have ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} aria-hidden />
-              <span className="truncate text-[13px] font-medium">{item.title}</span>
-              {item.have && <span className="ml-auto shrink-0 text-2xs font-medium text-emerald-600 dark:text-emerald-400">have</span>}
-            </span>
-            <span className="text-2xs leading-relaxed text-muted-foreground">{item.detail}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2.5 text-2xs leading-relaxed text-muted-foreground">
-        With all four: net availability = working time − unavailable time; load = assigned effort in the same interval; remaining = availability − load, kept negative when
-        overloaded. Until then this page shows assignment, which is a real thing, rather than capacity, which would not be.
-      </p>
     </Panel>
   );
 }
 
-function Cell({ value, strong, tone, last }: { value: number; strong?: boolean; tone?: "urgent"; last?: boolean }) {
+/**
+ * One figure in a table that would otherwise be a field of numerals.
+ *
+ * `share` fills the cell from the right in proportion to the row's own total,
+ * so the column can be read as a shape as well as a number. `tint` washes the
+ * cell in a category's colour at a strength set by the figure, which is what
+ * turns the grid into a heat map. Both sit behind the number and never replace
+ * it: the exact figure is the reason this table exists.
+ */
+function Cell({
+  value,
+  strong,
+  tone,
+  last,
+  share,
+  tint,
+}: {
+  value: number;
+  strong?: boolean;
+  tone?: "urgent";
+  last?: boolean;
+  share?: number;
+  tint?: { color: string; share: number };
+}) {
+  const background = tint
+    ? `color-mix(in oklab, ${tint.color} ${Math.round(12 + Math.min(1, tint.share) * 45)}%, transparent)`
+    : share !== undefined && share > 0
+      ? `linear-gradient(to left, color-mix(in oklab, var(--color-primary) 22%, transparent) ${Math.max(4, Math.min(1, share) * 100)}%, transparent 0)`
+      : undefined;
   return (
-    <td className={cn("py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}>
-      {value === 0 ? <span className="text-muted-foreground/50">—</span> : formatCount(value)}
+    <td className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}>
+      {background && <span aria-hidden className="pointer-events-none absolute inset-y-px right-1 left-0 rounded-sm" style={{ background }} />}
+      <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : formatCount(value)}</span>
     </td>
   );
 }

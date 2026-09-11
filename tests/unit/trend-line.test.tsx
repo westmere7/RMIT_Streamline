@@ -47,6 +47,18 @@ describe("TrendLine", () => {
     expect(container.querySelectorAll("line")).toHaveLength(4);
   });
 
+  it("says what the height is worth, on the right and at the peak's own height", () => {
+    render(<TrendLine values={[10, 12, 9, 1400, null]} label="Tasks by month" />);
+    const axis = screen.getByTestId("trend-line-axis");
+    // Compact, because the exact figure is the headline above this chart.
+    expect(axis).toHaveTextContent("1.4k");
+    expect(axis).toHaveTextContent("0");
+    // The top tick sits at the peak, not at the top of the padded box.
+    const top = parseFloat((axis.firstElementChild as HTMLElement).style.top);
+    expect(top).toBeGreaterThan(0);
+    expect(top).toBeLessThan(15);
+  });
+
   it("labels the months that have answers, and only those", () => {
     render(<TrendLine values={ytd} labels={MONTHS} label="Tasks by month" />);
     for (const month of ["Jan", "May", "Sep"]) expect(screen.getByText(month)).toBeInTheDocument();

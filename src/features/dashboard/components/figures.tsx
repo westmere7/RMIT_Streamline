@@ -33,6 +33,7 @@ export function HeadlineFigure({
   trend,
   trendLabels,
   valueFormat = formatCount,
+  accent,
   testId,
 }: {
   label: string;
@@ -53,17 +54,39 @@ export function HeadlineFigure({
    * "6,186" and "6,186 h" are not the same claim.
    */
   valueFormat?: (value: number) => string;
+  /** The figure the page leads on: brand-tinted, and the number a size larger. */
+  accent?: boolean;
   testId?: string;
 }) {
   const { current, comparison: previous, delta, percent } = comparison;
   return (
-    <section className="flex min-w-0 flex-col rounded-2xl border border-border/60 bg-card p-4 shadow-xs" data-testid={testId}>
+    // The accented card is the one the page is about — effort, where there are
+    // rates to compute it from. A tint of the brand red and a ring, rather
+    // than a different size of card: it still has to line up with the two
+    // counts beside it.
+    <section
+      className={cn(
+        "relative flex min-w-0 flex-col rounded-2xl border p-4 shadow-xs",
+        accent
+          ? // One line, not two: a tinted border and a ring of the same colour
+            // read as a double outline, which is what a focus state looks like.
+            "border-primary/35 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-primary)_10%,var(--color-card)),var(--color-card)_65%)]"
+          : "border-border/60 bg-card",
+      )}
+      data-testid={testId}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-[13px] font-medium text-muted-foreground">{label}</h3>
+          <h3 className={cn("flex items-center gap-1.5 text-[13px] font-medium", accent ? "text-foreground/80" : "text-muted-foreground")}>
+            {accent && <span aria-hidden className="size-1.5 rounded-full bg-primary" />}
+            {label}
+          </h3>
           <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
             {/* Big, because this is the figure the team reports upwards. */}
-            <span className="text-[2.5rem] font-semibold leading-none tracking-tight tabular sm:text-[3rem]" data-testid={testId ? `${testId}-value` : undefined}>
+            <span
+              className={cn("font-semibold leading-none tracking-tight tabular", accent ? "text-[2.75rem] sm:text-[3.25rem]" : "text-[2.5rem] sm:text-[3rem]")}
+              data-testid={testId ? `${testId}-value` : undefined}
+            >
               {valueFormat(current)}
             </span>
             <span className="text-[13px] text-muted-foreground">{unitWord}</span>

@@ -1,5 +1,5 @@
-import type { Board, BoardColumn, ColorToken, ColumnValue, DashboardSnapshot, ISODate, ItemAsset, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
-import { assetCount, BOOKING_ASSET_TYPES, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
+import type { AssetRates, Board, BoardColumn, ColorToken, ColumnValue, DashboardSnapshot, ISODate, ItemAsset, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
+import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 
 /**
@@ -645,6 +645,32 @@ export function assetMix(assets: AssetFact[]): NamedCount[] {
     .map((r) => ({ name: r.name, value: r.value, color: r.color, secondary: r.done, detail: `${r.lines} ${r.lines === 1 ? "line" : "lines"} · ${r.done} of ${r.value} done` }))
     .sort(byValueDesc);
 }
+
+/**
+ * The same mix weighed into hours instead of counted.
+ *
+ * Three hundred photo edits and ten films are not a 30:1 difference in work,
+ * which is the whole reason output rates exist — so the asset mix can be read
+ * either way, and the two pictures are usually not the same shape. A type with
+ * no rate contributes nothing and is dropped rather than drawn as a nought
+ * tile; `unratedTypes` is what names those out loud.
+ */
+export function assetEffortMix(assets: AssetFact[], rates: AssetRates): NamedCount[] {
+  const rows = new Map<string, NamedCount & { units: number }>();
+  for (const a of assets) {
+    const hours = sumEffortHours([{ type: a.type, units: a.units }], rates);
+    if (hours <= 0) continue;
+    const row = rows.get(a.type) ?? { name: a.type, value: 0, color: assetTypeHex(a.type), units: 0 };
+    row.value += hours;
+    row.units += a.units;
+    rows.set(a.type, row);
+  }
+  return [...rows.values()]
+    .map((r) => ({ name: r.name, value: r.value, color: r.color, detail: `${formatUnits(r.units)} at ${formatHours(r.value / Math.max(1, r.units))} each` }))
+    .sort(byValueDesc);
+}
+
+const formatUnits = (units: number) => `${Math.round(units).toLocaleString()} ${units === 1 ? "unit" : "units"}`;
 
 export interface StackedRow {
   name: string;

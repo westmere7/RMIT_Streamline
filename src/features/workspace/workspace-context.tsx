@@ -184,3 +184,15 @@ export function useWorkspace(): WorkspaceContextValue {
   if (!ctx) throw new Error("useWorkspace must be used inside WorkspaceProvider");
   return ctx;
 }
+
+/**
+ * The workspace if there is one, null if there is not.
+ *
+ * For a component that is at home inside the workspace but must still render
+ * outside it — a picker in a unit test, or anywhere a provider has not been
+ * mounted. It offers whatever needs the workspace (a link to a profile, say)
+ * only when the workspace is actually there, rather than throwing.
+ */
+export function useWorkspaceOptional(): WorkspaceContextValue | null {
+  return useContext(WorkspaceContext);
+}

@@ -4,6 +4,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { describe, expect, it, vi } from "vitest";
 import type { User } from "@/domain";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
+import { WorkspaceContextProvider, type WorkspaceContextValue } from "@/features/workspace/workspace-context";
 
 const user = (id: string, first: string, last: string, jobTitle: string): User => ({
   id,
@@ -52,6 +53,33 @@ describe("PersonPicker", () => {
     expect(onChange).toHaveBeenCalledWith(["danh", "emily"]);
     await u.click(screen.getByRole("button", { name: "Remove Danh Nguyen" }));
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  /**
+   * A chip carries two targets: the face opens the person, the cross beside it
+   * takes them off. The cross is the destructive one, so it stays the smaller
+   * of the two and has to survive the face becoming a link.
+   */
+  it("opens a chosen person's profile from their face, and still removes them from the cross", async () => {
+    const u = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <TooltipPrimitive.Provider>
+        <WorkspaceContextProvider value={{ slug: "rmit" } as WorkspaceContextValue}>
+          <PersonPicker users={users} value={["danh"]} onChange={onChange} />
+        </WorkspaceContextProvider>
+      </TooltipPrimitive.Provider>,
+    );
+    expect(screen.getByRole("link", { name: "Open Danh Nguyen's profile" })).toHaveAttribute("href", "/workspace/rmit/people/danh");
+    await u.click(screen.getByRole("button", { name: "Remove Danh Nguyen" }));
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  /** Outside a workspace there is no profile to open, and the chip says nothing about one. */
+  it("leaves the face a plain avatar where there is no workspace to open a profile in", () => {
+    renderPicker(["danh"]);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Danh Nguyen" })).toBeInTheDocument();
   });
 
   it("replaces the selection and closes in single-select mode", async () => {

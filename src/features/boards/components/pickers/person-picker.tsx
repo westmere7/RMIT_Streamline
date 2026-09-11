@@ -1,10 +1,13 @@
 "use client";
 
 import { Check, X } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import type { User } from "@/domain";
+import { useWorkspaceOptional } from "@/features/workspace/workspace-context";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 export interface PersonPickerProps {
@@ -18,6 +21,9 @@ export interface PersonPickerProps {
 
 /** Searchable member picker supporting single and multiple assignment. */
 export function PersonPicker({ users, value, onChange, allowMultiple = true, onDone }: PersonPickerProps) {
+  // Optional: the picker is at home inside a workspace, and the chips only
+  // lead to a profile where there is one to lead to.
+  const slug = useWorkspaceOptional()?.slug ?? null;
   const selected = value.map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
   const available = users.filter((u) => u.deactivatedAt === null);
 
@@ -36,7 +42,22 @@ export function PersonPicker({ users, value, onChange, allowMultiple = true, onD
         <div className="flex flex-wrap gap-1 border-b p-2">
           {selected.map((user) => (
             <span key={user.id} className="inline-flex h-6 items-center gap-1 rounded-full bg-surface-strong pr-1 pl-0.5 text-xs">
-              <UserAvatar user={user} size="xs" tooltip={false} />
+              {/* The face opens the person; the cross beside it still removes
+                  them. Two targets on one chip, so the smaller one is the
+                  destructive one and the larger one is not. */}
+              {slug ? (
+                <Link
+                  href={routes.person(slug, user.id)}
+                  aria-label={`Open ${user.displayName}'s profile`}
+                  title={`Open ${user.displayName}'s profile`}
+                  className="rounded-full transition-opacity hover:opacity-75 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                  data-testid="person-chip-profile"
+                >
+                  <UserAvatar user={user} size="xs" tooltip={false} />
+                </Link>
+              ) : (
+                <UserAvatar user={user} size="xs" tooltip={false} />
+              )}
               <span className="max-w-28 truncate">{user.firstName}</span>
               <button
                 type="button"

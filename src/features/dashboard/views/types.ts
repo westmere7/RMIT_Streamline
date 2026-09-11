@@ -1,7 +1,6 @@
 import type { AssetRates } from "@/domain";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
-import type { AttentionRow, Coverage, MonthlyComparisonRow, OperationsSnapshot, VolumeReport } from "@/features/dashboard/metrics";
-import type { TaskFact } from "@/features/dashboard/analytics";
+import type { Coverage, MonthlyComparisonRow, OperationsSnapshot, VolumeReport } from "@/features/dashboard/metrics";
 import type { DashboardPrefs } from "@/features/dashboard/prefs";
 
 /**
@@ -26,8 +25,6 @@ export interface DashboardViewProps {
    */
   rates: AssetRates;
   ops: OperationsSnapshot;
-  attentionRows: AttentionRow[];
-  upcomingTasks: TaskFact[];
   gaps: Coverage;
   prefs: DashboardPrefs;
   set: (patch: Partial<DashboardPrefs>) => void;

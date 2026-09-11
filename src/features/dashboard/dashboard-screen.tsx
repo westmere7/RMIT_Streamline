@@ -6,17 +6,7 @@ import { normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { ScopeToolbar, UnitToggle } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
-import {
-  attention,
-  coverage,
-  monthlyComparison,
-  operations,
-  resolvePeriod,
-  upcoming,
-  volumeReport,
-  BUSINESS_TIMEZONE,
-  type ReportingPeriod,
-} from "@/features/dashboard/metrics";
+import { coverage, monthlyComparison, operations, resolvePeriod, volumeReport, BUSINESS_TIMEZONE, type ReportingPeriod } from "@/features/dashboard/metrics";
 import { useDashboardPrefs } from "@/features/dashboard/prefs";
 import { DashboardBody } from "@/features/dashboard/views/overview";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
@@ -89,12 +79,10 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const monthlyEffort = React.useMemo(() => monthlyComparison(facts, resolved, prefs.basis, "effort", prefs.teamIds, rates), [facts, resolved, prefs.basis, prefs.teamIds, rates]);
   // As of now, and deliberately not a function of the reporting period.
   const ops = React.useMemo(() => operations(facts, today, prefs.teamIds), [facts, today, prefs.teamIds]);
-  const attentionRows = React.useMemo(() => attention(ops, today), [ops, today]);
-  const upcomingTasks = React.useMemo(() => upcoming(facts, today, prefs.teamIds, 4), [facts, today, prefs.teamIds]);
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, attentionRows, upcomingTasks, gaps, prefs, set, today, onOpenTask, onOpenBoard };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, onOpenTask, onOpenBoard };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">

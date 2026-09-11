@@ -133,14 +133,28 @@ export function usePrefersReducedMotion(): boolean {
   );
 }
 
-/** The floating readout charts show on hover, positioned against the chart's box. */
-export function ChartTooltip({ x, y, width, children }: { x: number; y: number; width: number; children: React.ReactNode }) {
+/**
+ * The floating readout charts show on hover, positioned against the chart's box.
+ *
+ * It flips to the other side of the cursor near an edge rather than hanging
+ * over it. Horizontally that is enough on its own; vertically it needs to know
+ * the box's height, so a chart that can be hovered near its own bottom — a
+ * treemap, where the last row of tiles sits on the edge — passes `height` and
+ * gets a readout that opens upwards there instead of being cut in half.
+ */
+export function ChartTooltip({ x, y, width, height, children }: { x: number; y: number; width: number; height?: number; children: React.ReactNode }) {
   const flip = x > width * 0.62;
+  const flipUp = height !== undefined && height > 0 && y > height * 0.62;
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-10 min-w-[10rem] max-w-[16rem] rounded-lg border border-border/70 bg-popover/95 px-2.5 py-2 text-xs text-popover-foreground shadow-lg backdrop-blur"
-      style={{ left: flip ? undefined : x + 12, right: flip ? width - x + 12 : undefined, top: Math.max(0, y - 8) }}
+      className="pointer-events-none absolute z-20 min-w-[10rem] max-w-[16rem] rounded-lg border border-border/70 bg-popover/95 px-2.5 py-2 text-xs text-popover-foreground shadow-lg backdrop-blur"
+      style={{
+        left: flip ? undefined : x + 12,
+        right: flip ? width - x + 12 : undefined,
+        top: flipUp ? undefined : Math.max(0, y - 8),
+        bottom: flipUp && height !== undefined ? Math.max(0, height - y - 8) : undefined,
+      }}
     >
       {children}
     </div>

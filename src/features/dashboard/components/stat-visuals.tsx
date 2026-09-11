@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { formatCount } from "@/features/dashboard/charts/chart-utils";
+import { compactCount, formatCount } from "@/features/dashboard/charts/chart-utils";
 import { cn } from "@/lib/utils";
 
 /**
@@ -149,6 +149,11 @@ export function StatBar({
  * so a label sits under its own month rather than being evenly spaced and
  * approximately wrong. The two at the ends are pulled inside the box instead of
  * being centred, which would hang them over the edge.
+ *
+ * The scale is a column on the right: the tallest month and the nought under
+ * it, so the gridlines mean something. On the right because on the left it
+ * reads as the first month's own value, and because the line then still starts
+ * at the edge of the card.
  */
 export function TrendLine({
   values,
@@ -185,46 +190,68 @@ export function TrendLine({
       {/* The line needs a band of its own. The month labels underneath are
           twelve more pixels, and sharing a 28px minimum with them left the
           chart itself twelve pixels tall — a squiggle with a grid behind it. */}
-      <div className="relative min-h-11 flex-1">
-        <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" role="img" aria-label={label} className="absolute inset-0 size-full overflow-visible">
-          {/* Something to read the height against, quiet enough to ignore. */}
-          {[0.25, 0.5, 0.75].map((at) => (
-            <line key={at} x1={0} x2={100} y1={height * at} y2={height * at} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/40" />
-          ))}
-          <line x1={0} x2={100} y1={height} y2={height} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/70" />
-          <path d={area} className="fill-primary/10" />
-          <path d={path} fill="none" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="stroke-primary" strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-        {/* Round at any card width, which a stretched <circle> is not. */}
-        <span
-          aria-hidden
-          className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
-          style={{ left: `${x(last.i)}%`, top: `${(y(last.v) / height) * 100}%` }}
-          data-testid="trend-line-marker"
-        />
+      <div className="flex min-h-11 flex-1 gap-1">
+        <div className="relative min-h-11 flex-1">
+          <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" role="img" aria-label={label} className="absolute inset-0 size-full overflow-visible">
+            {/* Something to read the height against, quiet enough to ignore. */}
+            {[0.25, 0.5, 0.75].map((at) => (
+              <line key={at} x1={0} x2={100} y1={height * at} y2={height * at} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/40" />
+            ))}
+            <line x1={0} x2={100} y1={height} y2={height} strokeWidth={1} vectorEffect="non-scaling-stroke" className="stroke-border/70" />
+            <path d={area} className="fill-primary/10" />
+            <path d={path} fill="none" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="stroke-primary" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
+          {/* Round at any card width, which a stretched <circle> is not. */}
+          <span
+            aria-hidden
+            className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
+            style={{ left: `${x(last.i)}%`, top: `${(y(last.v) / height) * 100}%` }}
+            data-testid="trend-line-marker"
+          />
+        </div>
+
+        {/* The height, in two figures: what the tallest month came to, and the
+            nought the area sits on. On the right, where it cannot be mistaken
+            for the first month's value, and compact ("8.1k") because the
+            exact figure is the headline above and this is a scale. The top
+            tick is placed at the peak's own height rather than at the top of
+            the box, which the padding above the line would make a lie. */}
+        <div className={cn("relative shrink-0 text-right text-[9px] leading-3 text-muted-foreground/70 tabular", AXIS_WIDTH)} aria-hidden data-testid="trend-line-axis">
+          <span className="absolute right-0 -translate-y-1/2" style={{ top: `${(y(peak) / height) * 100}%` }}>
+            {compactCount(peak)}
+          </span>
+          <span className="absolute right-0 bottom-0">0</span>
+        </div>
       </div>
 
       {shown.length > 0 && (
-        <div className="relative mt-1 h-3 shrink-0" aria-hidden>
-          {shown.map((entry, index) => (
-            <span
-              key={entry.text}
-              className="absolute top-0 text-[9px] leading-3 whitespace-nowrap text-muted-foreground/70 tabular"
-              style={{
-                left: `${entry.at}%`,
-                // Centred, except at the ends, where centring would hang the
-                // label over the edge of the card.
-                transform: index === 0 ? "translateX(0)" : index === shown.length - 1 ? "translateX(-100%)" : "translateX(-50%)",
-              }}
-            >
-              {entry.text}
-            </span>
-          ))}
+        <div className="flex gap-1" aria-hidden>
+          <div className="relative mt-1 h-3 flex-1">
+            {shown.map((entry, index) => (
+              <span
+                key={entry.text}
+                className="absolute top-0 text-[9px] leading-3 whitespace-nowrap text-muted-foreground/70 tabular"
+                style={{
+                  left: `${entry.at}%`,
+                  // Centred, except at the ends, where centring would hang the
+                  // label over the edge of the card.
+                  transform: index === 0 ? "translateX(0)" : index === shown.length - 1 ? "translateX(-100%)" : "translateX(-50%)",
+                }}
+              >
+                {entry.text}
+              </span>
+            ))}
+          </div>
+          {/* The months line up under the line they belong to, not under the axis. */}
+          <span className={cn("shrink-0", AXIS_WIDTH)} />
         </div>
       )}
     </div>
   );
 }
+
+/** The scale's column, wide enough for "8.1k" and no wider. */
+const AXIS_WIDTH = "w-7";
 
 /**
  * A single 100 % bar, split by category.
