@@ -1,96 +1,129 @@
 "use client";
 
-import { Check, ChevronDown, Plus, SquarePen, UserRound, Users, X } from "lucide-react";
+import { Check, ChevronDown, CircleQuestionMark, Plus, X } from "lucide-react";
 import * as React from "react";
-import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PrioritySignal } from "@/components/shared/priority-signal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
-import type { BookingExtraField, BookingFieldType, BookingForm as BookingFormData, BookingStandardField, BookingTeamOption, ColumnValue, TagOption } from "@/domain";
-import { T_SHIRT_SIZES, emptyValueFor, priorityStrength } from "@/domain";
+import type { BookingAnswer, BookingForm as BookingFormData, BookingHintMode, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, TagOption } from "@/domain";
+import { emptyAnswerFor, priorityStrength } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
 /**
- * The controls of the booking form, one per kind of question, shared by the
- * form itself (booking-form.tsx) and the editor that shapes it
- * (editor/booking-form-editor.tsx), which shows each question as a disabled
- * preview so an admin sees what they are wording.
+ * The controls of the booking wizard, one per kind of question, shared by the
+ * wizard itself and by the editor that shapes it — which shows each block as a
+ * disabled preview, so an administrator words a question while looking at the
+ * control it labels.
  */
 
-export const NO_TEAM = "__none__";
-
-/**
- * The mark a section wears, so the form reads as a few groups rather than one
- * column of boxes. Keyed by the sections the template ships with; a section
- * somebody added themselves goes without, which is also how it tells them
- * apart at a glance in the editor.
- */
-export function sectionIcon(sectionId: string): React.ComponentType<{ className?: string }> | undefined {
-  return sectionId === "sec-about" ? UserRound : sectionId === "sec-task" ? SquarePen : sectionId === "sec-team" ? Users : undefined;
-}
 export const NO_PRIORITY = "__normal__";
 
-/** What a person has typed so far, before it becomes a BookingRequest. */
-export interface BookingDraft {
-  requesterName: string;
-  requesterEmail: string;
-  department: string;
-  title: string;
-  brief: string;
-  dueDate: string;
-  referenceUrl: string;
-  assetTypes: string[];
-  priority: string | null;
-  teamId: string | null;
-  /** Answers to the form's custom questions, keyed by field id. */
-  answers: Record<string, ColumnValue>;
-  /** Answers to the chosen team's board columns, keyed by column id. */
-  extra: Record<string, ColumnValue>;
+/** What the wizard is holding: the request being built, and the deliverable rows. */
+export type BookingDraft = BookingRequest;
+
+/** A deliverable on a booking, in the shape the asset composer edits. */
+export type AssetRow = AssetComposerRow;
+
+let assetKey = 0;
+
+/** A new row for the composer to open: quantity one, everything else to be filled in. */
+export function newAssetRow(name: string): AssetRow {
+  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, previewUrl: null, artworkUrl: null, completedAt: null };
+}
+
+// ---- the shell every question wears -------------------------------------------
+
+export interface FieldShellProps {
+  id?: string;
+  label: string;
+  required?: boolean;
+  /** The explaining line. Where it appears is `hintMode`'s business. */
+  description?: string | null;
+  hintMode?: BookingHintMode;
+  error?: string;
+  /** A subtle rounded badge before the label: which question of the brief this is. */
+  number?: number | null;
+  /** The editor words the label in a box of its own, so the control goes without one. */
+  hideLabel?: boolean;
+  children: React.ReactNode;
 }
 
 /**
- * What a caller may fill in before anyone types.
+ * Label, control, and whatever has to be said about them.
  *
- * Was the three "about you" answers; it is the whole draft now, because a
- * booking started from a past request arrives with a title, a brief and a list
- * of asset types as well. Custom and team answers stay out: they belong to a
- * template and a board this caller cannot know.
+ * The description is the interesting part: the same words go under the label,
+ * behind a question mark beside it, or inside the empty box, and which of the
+ * three is the question's own setting. An error always wins the line under the
+ * control — a hint nobody can act on is not what somebody stuck needs to read.
  */
-export type BookingDefaults = Partial<Omit<BookingDraft, "answers" | "extra">>;
-
-export function emptyDraft(defaults?: BookingDefaults): BookingDraft {
-  return {
-    requesterName: defaults?.requesterName ?? "",
-    requesterEmail: defaults?.requesterEmail ?? "",
-    department: defaults?.department ?? "",
-    title: defaults?.title ?? "",
-    brief: defaults?.brief ?? "",
-    dueDate: defaults?.dueDate ?? "",
-    referenceUrl: defaults?.referenceUrl ?? "",
-    assetTypes: defaults?.assetTypes ?? [],
-    priority: defaults?.priority ?? null,
-    teamId: defaults?.teamId ?? null,
-    answers: {},
-    extra: {},
-  };
+export function Field({ id, label, required, description, hintMode = "below", error, number, hideLabel, children }: FieldShellProps) {
+  const hint = description?.trim() ? description.trim() : null;
+  const text = (
+    <>
+      {typeof number === "number" && <NumberBadge n={number} />}
+      <span className="min-w-0">
+        {label}
+        {required && (
+          <span aria-hidden className="ml-0.5 text-primary">
+            *
+          </span>
+        )}
+      </span>
+      {hint && hintMode === "icon" && (
+        <SimpleTooltip label={hint}>
+          <button type="button" className="inline-flex text-muted-foreground transition-colors hover:text-foreground" aria-label={`About “${label}”: ${hint}`}>
+            <CircleQuestionMark className="size-3.5" />
+          </button>
+        </SimpleTooltip>
+      )}
+    </>
+  );
+  return (
+    <div className="grid gap-1.5">
+      {!hideLabel &&
+        (id ? (
+          <Label htmlFor={id} className="flex items-center gap-1.5">
+            {text}
+          </Label>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[13px] font-medium">{text}</span>
+        ))}
+      {hint && hintMode === "below" && <p className="-mt-0.5 text-2xs text-muted-foreground">{hint}</p>}
+      {children}
+      {error && (
+        <p className="text-2xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
-/** Whether a draft field holds something worth not hiding behind a disclosure. */
-export function draftHasValue(draft: BookingDraft, key: keyof BookingDraft): boolean {
-  const value = draft[key];
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "string") return value.trim().length > 0;
-  return value !== null && value !== undefined;
+/** Which question of the brief this is: quiet, round, and never in the way of the words. */
+export function NumberBadge({ n }: { n: number }) {
+  return (
+    <span aria-hidden className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-surface px-1.5 text-2xs font-semibold text-muted-foreground ring-1 ring-border/60 tabular">
+      {n}
+    </span>
+  );
 }
+
+/** The placeholder a control shows: the question's own words, but only when it asked for them there. */
+function placeholderOf(description: string | null | undefined, hintMode: BookingHintMode | undefined, fallback?: string): string | undefined {
+  if (hintMode === "placeholder" && description?.trim()) return description.trim();
+  return fallback;
+}
+
+// ---- step one: the fixed questions --------------------------------------------
 
 export interface StandardFieldProps {
   field: BookingStandardField;
@@ -100,18 +133,15 @@ export interface StandardFieldProps {
   error?: string;
   /** The editor's preview: disabled, with ids kept apart from the live form's and no test ids. */
   preview?: boolean;
-  /** Rendered under the team select in the live form: the routing note and the team's extra questions. */
-  teamExtras?: React.ReactNode;
-  /** The editor shows the label as an editable box of its own, so the control goes without one. */
   hideLabel?: boolean;
 }
 
 /** One of the fixed questions, worded by the template, with the control it calls for. */
-export function StandardField({ field, form, draft, onChange, error, preview, teamExtras, hideLabel }: StandardFieldProps) {
+export function StandardField({ field, form, draft, onChange, error, preview, hideLabel }: StandardFieldProps) {
   const id = (base: string) => (preview ? `preview-${base}` : base);
   const tid = (base: string) => (preview ? undefined : base);
-  const shell = { label: field.label, required: field.required, hint: field.hint ?? undefined, error, hideLabel };
-  const placeholder = field.placeholder ?? undefined;
+  const shell = { label: field.label, required: field.required, description: field.description, hintMode: field.hintMode, error, hideLabel };
+  const placeholder = placeholderOf(field.description, field.hintMode);
   switch (field.key) {
     case "requesterName":
       return (
@@ -128,7 +158,16 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
     case "department":
       return (
         <Field id={id("booking-department")} {...shell}>
-          <Input id={id("booking-department")} autoComplete="organization" placeholder={placeholder} value={draft.department} onChange={(e) => onChange({ department: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-department")} />
+          <Input
+            id={id("booking-department")}
+            autoComplete="organization"
+            placeholder={placeholder}
+            value={draft.department ?? ""}
+            onChange={(e) => onChange({ department: e.target.value })}
+            aria-invalid={!!error}
+            disabled={preview}
+            data-testid={tid("booking-department")}
+          />
         </Field>
       );
     case "title":
@@ -137,22 +176,10 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
           <Input id={id("booking-title")} placeholder={placeholder} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-title")} />
         </Field>
       );
-    case "brief":
-      return (
-        <Field id={id("booking-brief")} {...shell}>
-          <Textarea id={id("booking-brief")} rows={5} placeholder={placeholder} value={draft.brief} onChange={(e) => onChange({ brief: e.target.value })} aria-invalid={!!error} className="resize-y" disabled={preview} data-testid={tid("booking-brief")} />
-        </Field>
-      );
-    case "assetTypes":
-      return (
-        <Field {...shell}>
-          <AssetTypePicker options={form.assetTypes} value={draft.assetTypes} onChange={(assetTypes) => onChange({ assetTypes })} disabled={preview} tid={tid} />
-        </Field>
-      );
     case "dueDate":
       return (
         <Field id={id("booking-due")} {...shell}>
-          <Input id={id("booking-due")} type="date" min={todayISO()} value={draft.dueDate} onChange={(e) => onChange({ dueDate: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-due")} />
+          <Input id={id("booking-due")} type="date" min={todayISO()} value={draft.dueDate ?? ""} onChange={(e) => onChange({ dueDate: e.target.value || null })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-due")} />
         </Field>
       );
     case "priority":
@@ -166,7 +193,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_PRIORITY}>{field.placeholder || "Not sure — normal turnaround"}</SelectItem>
+              <SelectItem value={NO_PRIORITY}>{placeholderOf(field.description, field.hintMode, "Not sure — normal turnaround")}</SelectItem>
               {form.priorities.map((option) => (
                 <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-priority-${slug(option.name)}`)}>
                   <span className="flex items-center gap-2">
@@ -179,305 +206,177 @@ export function StandardField({ field, form, draft, onChange, error, preview, te
           </Select>
         </Field>
       );
-    case "referenceUrl":
-      return (
-        <Field id={id("booking-reference")} {...shell}>
-          <Input id={id("booking-reference")} type="url" inputMode="url" placeholder={placeholder ?? "https://"} value={draft.referenceUrl} onChange={(e) => onChange({ referenceUrl: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-reference")} />
-        </Field>
-      );
-    case "team":
-      return (
-        <div className="space-y-4">
-          <Field id={id("booking-team")} {...shell}>
-            <Select value={draft.teamId ?? NO_TEAM} onValueChange={(v) => onChange({ teamId: v === NO_TEAM ? null : v })} disabled={preview}>
-              <SelectTrigger id={id("booking-team")} aria-label={field.label} className="h-10" data-testid={tid("booking-team")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_TEAM}>{field.placeholder || "Not sure — let us route it"}</SelectItem>
-                {form.teams.map((t) => (
-                  <SelectItem key={t.id} value={t.id} data-testid={tid(`booking-team-${t.id}`)}>
-                    <span className="flex items-center gap-2">
-                      <DynamicIcon name={t.icon} className={cn("size-3.5", colorClasses(t.color).text)} />
-                      {t.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {teamExtras}
-        </div>
-      );
   }
 }
 
-export function routingNote(team: BookingTeamOption | null): string {
-  if (!team) return "Goes to the allocation queue. A manager places it with the right team.";
-  if (team.boardName) return `Goes straight onto ${team.name}'s “${team.boardName}” board.`;
-  return `Goes to the allocation queue, marked for ${team.name}.`;
-}
+// ---- step two: the blocks of a brief -------------------------------------------
 
-// ---- typed answers: custom questions and a board's extra columns ------------------
-
-/** What an answer control needs to know, whichever kind of question it serves. */
-export interface AnswerSpec {
-  id: string;
-  label: string;
-  type: BookingFieldType;
-  hint?: string | null;
-  placeholder?: string | null;
-  required?: boolean;
-  /** TAGS: the palette to choose from. Without one, tags are typed comma-separated. */
-  options?: TagOption[];
-  /** NUMBER: the unit shown after the label. */
-  unit?: string | null;
-}
-
-export function specForExtraField(field: BookingExtraField): AnswerSpec {
-  return { id: field.columnId, label: field.name, type: field.type, options: field.options, unit: field.unit ?? null };
-}
-
-export interface AnswerFieldProps {
-  spec: AnswerSpec;
-  value: ColumnValue | undefined;
-  onChange: (value: ColumnValue) => void;
+export interface BlockFieldProps {
+  block: BookingQuestionBlock;
+  /** Which question of this brief it is, for the badge. */
+  number: number | null;
+  value: BookingAnswer | undefined;
+  onChange: (answer: BookingAnswer) => void;
   error?: string;
-  disabled?: boolean;
-  /** Prefix for element ids and test ids, e.g. "booking-answer" → "booking-answer-<id>". */
-  idPrefix: string;
   preview?: boolean;
   hideLabel?: boolean;
+  /** Prefix for element ids and test ids, e.g. "booking-answer" → "booking-answer-<id>". */
+  idPrefix?: string;
 }
 
-/** A question with a typed answer, rendered by type. */
-export function AnswerField({ spec, value: given, onChange, error, disabled, idPrefix, preview, hideLabel }: AnswerFieldProps) {
-  const value = given ?? emptyValueFor(spec.type);
-  const id = `${preview ? "preview-" : ""}${idPrefix}-${spec.id}`;
-  const testId = preview ? undefined : `${idPrefix}-${spec.id}`;
-  const off = disabled || preview;
-  const shell = { label: spec.unit ? `${spec.label} (${spec.unit})` : spec.label, required: spec.required, hint: spec.hint ?? undefined, error, hideLabel };
-  const placeholder = spec.placeholder ?? undefined;
-  switch (spec.type) {
-    case "TEXT":
+/** One question of a service's brief, rendered by kind. */
+export function BlockField({ block, number, value, onChange, error, preview, hideLabel, idPrefix = "booking-answer" }: BlockFieldProps) {
+  const answer = value ?? emptyAnswerFor(block.kind);
+  const id = `${preview ? "preview-" : ""}${idPrefix}-${block.id}`;
+  const testId = preview ? undefined : `${idPrefix}-${block.id}`;
+  const shell = { label: block.label, required: block.required, description: block.description, hintMode: block.hintMode, error, number, hideLabel };
+  const placeholder = placeholderOf(block.description, block.hintMode);
+  const text = answer.kind === "text" ? answer.text : "";
+  const values = answer.kind === "choice" ? answer.values : [];
+  switch (block.kind) {
+    case "short":
       return (
         <Field id={id} {...shell}>
-          <Input id={id} placeholder={placeholder} value={value.type === "TEXT" ? value.text : ""} onChange={(e) => onChange({ type: "TEXT", text: e.target.value })} aria-invalid={!!error} disabled={off} data-testid={testId} />
+          <Input id={id} placeholder={placeholder} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={testId} />
         </Field>
       );
-    case "LONG_TEXT":
+    case "long":
       return (
         <Field id={id} {...shell}>
-          <Textarea id={id} rows={3} placeholder={placeholder} value={value.type === "LONG_TEXT" ? value.text : ""} onChange={(e) => onChange({ type: "LONG_TEXT", text: e.target.value })} aria-invalid={!!error} disabled={off} data-testid={testId} />
+          <Textarea id={id} rows={4} placeholder={placeholder} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} className="resize-y" disabled={preview} data-testid={testId} />
         </Field>
       );
-    case "NUMBER":
-      return (
-        <Field id={id} {...shell}>
-          <Input
-            id={id}
-            type="number"
-            inputMode="decimal"
-            placeholder={placeholder}
-            value={value.type === "NUMBER" && value.number !== null ? String(value.number) : ""}
-            onChange={(e) => onChange({ type: "NUMBER", number: e.target.value === "" ? null : Number(e.target.value) })}
-            aria-invalid={!!error}
-            disabled={off}
-            data-testid={testId}
-          />
-        </Field>
-      );
-    case "DATE":
-      return (
-        <Field id={id} {...shell}>
-          <Input id={id} type="date" value={value.type === "DATE" ? (value.date ?? "") : ""} onChange={(e) => onChange({ type: "DATE", date: e.target.value || null })} aria-invalid={!!error} disabled={off} data-testid={testId} />
-        </Field>
-      );
-    case "LINK":
-      return (
-        <Field id={id} {...shell}>
-          <Input id={id} type="url" inputMode="url" placeholder={placeholder ?? "https://"} value={value.type === "LINK" ? value.url : ""} onChange={(e) => onChange({ type: "LINK", url: e.target.value, text: null })} aria-invalid={!!error} disabled={off} data-testid={testId} />
-        </Field>
-      );
-    case "CHECKBOX":
-      return (
-        <div className="grid gap-1.5">
-          <label className="flex items-center gap-2.5 text-[13px]" htmlFor={id}>
-            <Checkbox id={id} checked={value.type === "CHECKBOX" && value.checked} onCheckedChange={(checked) => onChange({ type: "CHECKBOX", checked: checked === true })} disabled={off} data-testid={testId} />
-            <span>
-              {spec.label}
-              {spec.required && <RequiredMark />}
-            </span>
-          </label>
-          <FieldNote error={error} hint={spec.hint ?? undefined} />
-        </div>
-      );
-    case "TAGS": {
-      const tags = value.type === "TAGS" ? value.tags : [];
-      if (!spec.options || spec.options.length === 0) {
-        return (
-          <Field id={id} {...shell} hint={shell.hint ?? "Separate with commas"}>
-            <Input id={id} placeholder={placeholder} value={tags.join(", ")} onChange={(e) => onChange({ type: "TAGS", tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} aria-invalid={!!error} disabled={off} data-testid={testId} />
-          </Field>
-        );
-      }
+    case "multi":
       return (
         <Field {...shell}>
-          <ChipGroup ariaLabel={spec.label}>
-            {spec.options.map((option) => (
-              <Chip key={option.name} color={option.color} active={tags.includes(option.name)} disabled={off} onClick={() => onChange({ type: "TAGS", tags: toggle(tags, option.name) })} testId={testId ? `${testId}-${slug(option.name)}` : undefined}>
+          <ChipGroup ariaLabel={block.label}>
+            {block.options.map((option) => (
+              <Chip
+                key={option.name}
+                color={option.color}
+                active={values.includes(option.name)}
+                disabled={preview}
+                onClick={() => onChange({ kind: "choice", values: toggle(values, option.name) })}
+                testId={testId ? `${testId}-${slug(option.name)}` : undefined}
+              >
                 {option.name}
               </Chip>
             ))}
           </ChipGroup>
         </Field>
       );
-    }
-    case "SIZE": {
-      const size = value.type === "SIZE" ? value.size : null;
+    case "single":
       return (
         <Field {...shell}>
-          <ChipGroup ariaLabel={spec.label}>
-            {T_SHIRT_SIZES.map((s) => (
-              <Chip key={s} active={size === s} disabled={off} onClick={() => onChange({ type: "SIZE", size: size === s ? null : s })} testId={testId ? `${testId}-${s.toLowerCase()}` : undefined}>
-                {s}
+          <ChipGroup ariaLabel={block.label}>
+            {block.options.map((option) => (
+              <Chip
+                key={option.name}
+                color={option.color}
+                active={values[0] === option.name}
+                disabled={preview}
+                // Choosing the one already chosen clears it, which is the only
+                // way back to "no answer" on a question that never had to be answered.
+                onClick={() => onChange({ kind: "choice", values: values[0] === option.name ? [] : [option.name] })}
+                testId={testId ? `${testId}-${slug(option.name)}` : undefined}
+              >
+                {option.name}
               </Chip>
             ))}
           </ChipGroup>
+        </Field>
+      );
+    case "link": {
+      const link = answer.kind === "link" ? answer : { url: "", label: "" };
+      return (
+        <Field id={id} {...shell}>
+          {/* Two boxes, because a bare URL in a brief tells nobody what they are
+              about to open. The words are optional; the address is the answer. */}
+          <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
+            <Input
+              id={id}
+              type="url"
+              inputMode="url"
+              placeholder={placeholder ?? "https://"}
+              value={link.url}
+              onChange={(e) => onChange({ kind: "link", url: e.target.value, label: link.label })}
+              aria-invalid={!!error}
+              disabled={preview}
+              data-testid={testId}
+            />
+            <Input
+              aria-label={`What to call the link for “${block.label}”`}
+              placeholder="What to call it (optional)"
+              value={link.label}
+              onChange={(e) => onChange({ kind: "link", url: link.url, label: e.target.value })}
+              disabled={preview}
+              data-testid={testId ? `${testId}-label` : undefined}
+            />
+          </div>
         </Field>
       );
     }
   }
 }
 
-// ---- the asset list ------------------------------------------------------------------
-
-/** A deliverable on a booking, held in the same shape the asset composer edits. */
-export type AssetRow = AssetComposerRow;
-
-let assetKey = 0;
-
-/** A new row for the composer to open: quantity one, everything else to be filled in. */
-export function newAssetRow(name: string): AssetRow {
-  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, previewUrl: null, artworkUrl: null, completedAt: null };
+/** A heading or a note the team wrote into the middle of a brief. */
+export function TextBlockView({ block }: { block: BookingTextBlock }) {
+  const text = block.text.trim();
+  if (!text) return null;
+  if (block.level === "heading") return <h3 className="text-[15px] font-semibold tracking-tight">{text}</h3>;
+  if (block.level === "subheading") return <h4 className="text-[13px] font-semibold tracking-tight">{text}</h4>;
+  return <p className="text-[13px] text-muted-foreground">{text}</p>;
 }
 
-/** One filled-in row, so the form editor's preview shows what the tab will look like. */
+/** The rule between two groups of questions. */
+export function SeparatorBlockView() {
+  return <hr className="my-1 border-border/70" />;
+}
+
+// ---- the asset list ------------------------------------------------------------------
+
+/** One filled-in row, so the editor's preview shows what the step will look like. */
 const PREVIEW_ROWS: AssetRow[] = [{ ...newAssetRow("A1 poster"), quantity: 6, notes: "594×841 mm, CMYK, print ready" }];
 
 /**
  * What exactly is being asked for: one row per deliverable with a quantity and
- * the spec it has to meet. Each becomes a subitem of the request, so the team
- * can track them one by one. Its own tab, because a list can be long and nobody
- * has to fill it in: a spreadsheet or the asset tracker does as well.
+ * the spec it has to meet. Each becomes a line on the item's Assets tab, so the
+ * team can track them one by one. Its own step, because a list can be long and
+ * nobody has to fill it in: a spreadsheet or the asset tracker does as well.
  *
  * The rows are the same asset composer the item panel uses, minus the fields a
  * stakeholder cannot answer — there is nobody to put in charge and nothing to
  * tick off until the work exists.
  */
-export function AssetList({ rows, onChange, title, hint, error, preview }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void; title: string; hint: string; error?: string; preview?: boolean }) {
+export function AssetList({ rows, onChange, preview }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void; preview?: boolean }) {
   const shown = preview ? PREVIEW_ROWS : rows;
   const patch = (id: string, p: AssetComposerPatch) => onChange(rows.map((r) => (r.id === id ? { ...r, ...p } : r)));
-  const tid = (base: string) => (preview ? undefined : base);
   return (
-    <div className="grid gap-3" data-testid={tid("booking-assets")}>
-      <div>
-        <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
-        {hint && <p className="text-[13px] text-muted-foreground">{hint}</p>}
-      </div>
+    <div className="grid gap-3" data-testid={preview ? undefined : "booking-assets"}>
       <AssetComposer
         rows={shown}
         fields={{ done: false, people: false, type: false, due: false }}
         disabled={preview}
-        // No empty state: the box above says what to do, and a dashed panel
-        // repeating it is a second thing to read before anything has happened.
         onAdd={(name) => onChange([...rows, newAssetRow(name)])}
         onPatch={patch}
         onDuplicate={(row) => onChange([...rows, { ...row, id: newAssetRow(row.name).id }])}
         onRemove={(id) => onChange(rows.filter((r) => r.id !== id))}
       />
-      {error && (
-        <p className="text-2xs text-destructive" role="alert">
-          {error}
-        </p>
-      )}
     </div>
   );
 }
 
 // ---- small building blocks -----------------------------------------------------
 
-export function Section({
-  title,
-  hint,
-  icon: Icon,
-  action,
-  children,
-  className,
-}: {
-  title: string;
-  hint?: React.ReactNode;
-  icon?: React.ComponentType<{ className?: string }>;
-  /** A control belonging to the group, at the right of its heading. */
-  action?: React.ReactNode;
-  children?: React.ReactNode;
-  className?: string;
-}) {
+export function Section({ title, hint, children, className }: { title: string; hint?: React.ReactNode; children?: React.ReactNode; className?: string }) {
   return (
     <fieldset className={cn("space-y-4", className)}>
-      {/* Every group on this form wears this: the same tile, the same heading
-          size, the same left edge. Who is asking is a group like the other
-          two, so it is built from this and not from a card of its own. */}
-      <legend className={cn("flex w-full items-start gap-2.5", children ? "mb-3" : "mb-0")}>
-        {Icon && (
-          <span aria-hidden className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="size-4" />
-          </span>
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
-          {hint && <span className="block text-[13px] text-muted-foreground">{hint}</span>}
-        </span>
-        {action && <span className="shrink-0 pt-0.5">{action}</span>}
+      <legend className={cn("w-full", children ? "mb-3" : "mb-0")}>
+        <span className="block text-[15px] font-semibold tracking-tight">{title}</span>
+        {hint && <span className="block text-[13px] text-muted-foreground">{hint}</span>}
       </legend>
       {children}
     </fieldset>
-  );
-}
-
-/** Label, control, and the error or hint under it. Without `id` the label is plain text, for chip groups. */
-export function Field({ id, label, required, error, hint, hideLabel, children }: { id?: string; label: string; required?: boolean; error?: string; hint?: string; hideLabel?: boolean; children: React.ReactNode }) {
-  const text = (
-    <>
-      {label}
-      {required && <RequiredMark />}
-    </>
-  );
-  return (
-    <div className="grid gap-1.5">
-      {hideLabel ? null : id ? <Label htmlFor={id}>{text}</Label> : <span className="text-[13px] font-medium">{text}</span>}
-      {children}
-      <FieldNote error={error} hint={hint} />
-    </div>
-  );
-}
-
-function FieldNote({ error, hint }: { error?: string; hint?: string }) {
-  if (error)
-    return (
-      <p className="text-2xs text-destructive" role="alert">
-        {error}
-      </p>
-    );
-  if (hint) return <p className="text-2xs text-muted-foreground">{hint}</p>;
-  return null;
-}
-
-function RequiredMark() {
-  return (
-    <span aria-hidden className="ml-0.5 text-primary">
-      *
-    </span>
   );
 }
 
@@ -485,110 +384,6 @@ export function ChipGroup({ ariaLabel, children }: { ariaLabel: string; children
   return (
     <div role="group" aria-label={ariaLabel} className="flex flex-wrap gap-1.5">
       {children}
-    </div>
-  );
-}
-
-/**
- * Asset types: a search box over twenty-odd options, answered in chips.
- *
- * Twenty chips in a wall is a wall — the eye has to read every one to find
- * "Flyer", and on a phone it was five rows deep before anything else on the
- * form could be seen. A picker asks for one line of the form, searches by
- * typing, and what has been chosen stays visible underneath as chips that can
- * be taken off one at a time.
- */
-function AssetTypePicker({
-  options,
-  value,
-  onChange,
-  disabled,
-  tid,
-}: {
-  options: TagOption[];
-  value: string[];
-  onChange: (next: string[]) => void;
-  disabled?: boolean;
-  tid: (base: string) => string | undefined;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const chosen = value.map((name) => options.find((o) => o.name === name) ?? { name, color: "gray" as const });
-  return (
-    <div>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild disabled={disabled}>
-          {/* The chips sit in the control, not under it: what has been chosen
-              is the value of this field, and a box that said "3 types chosen"
-              with the answer somewhere below it is a box you have to read
-              twice. It grows with them and the × on each takes one off. */}
-          <div
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setOpen(true);
-              }
-            }}
-            className={cn(
-              "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
-              disabled ? "cursor-default opacity-70" : "cursor-pointer hover:border-foreground/30",
-              "focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11 max-md:text-[15px]",
-            )}
-            data-testid={tid("booking-asset-picker")}
-          >
-            {chosen.map((option) => (
-              <span
-                key={option.name}
-                className={cn("inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/60 pr-1 pl-2.5 text-xs", colorClasses(option.color).soft)}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <span className="truncate">{option.name}</span>
-                {!disabled && (
-                  <button
-                    type="button"
-                    aria-label={`Remove ${option.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onChange(value.filter((name) => name !== option.name));
-                    }}
-                    className="rounded-full p-0.5 transition-colors hover:bg-background/60"
-                  >
-                    <X className="size-3" />
-                  </button>
-                )}
-              </span>
-            ))}
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-muted-foreground">
-              <Plus className="size-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{value.length === 0 ? "Choose what you need" : "Add another"}</span>
-            </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          </div>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-0">
-          <Command>
-            <CommandInput placeholder="Search asset types…" />
-            <CommandList className="max-h-64">
-              <CommandEmpty>Nothing matches. Describe it in the brief instead.</CommandEmpty>
-              <CommandGroup>
-                {options.map((option) => {
-                  const picked = value.includes(option.name);
-                  return (
-                    <CommandItem key={option.name} value={option.name} onSelect={() => onChange(toggle(value, option.name))} data-testid={tid(`booking-asset-${slug(option.name)}`)}>
-                      <ColorDot color={option.color} />
-                      <span className="min-w-0 flex-1 truncate">{option.name}</span>
-                      <Check className={cn("size-4 shrink-0", picked ? "opacity-100" : "opacity-0")} />
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }
@@ -609,6 +404,92 @@ export function Chip({ active, onClick, color, testId, disabled, children }: { a
       {color && <ColorDot color={color} className={cn(active && "ring-1 ring-background/60")} />}
       {children}
     </button>
+  );
+}
+
+/**
+ * Asset types: a search box over twenty-odd options, answered in chips.
+ *
+ * Twenty chips in a wall is a wall — the eye has to read every one to find
+ * "Flyer", and on a phone it was five rows deep before anything else on the
+ * form could be seen. A picker asks for one line of the form, searches by
+ * typing, and what has been chosen stays visible inside it as chips that can
+ * be taken off one at a time.
+ */
+export function AssetTypePicker({ options, value, onChange, disabled }: { options: TagOption[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
+  const [open, setOpen] = React.useState(false);
+  const tid = (base: string) => (disabled ? undefined : base);
+  const chosen = value.map((name) => options.find((o) => o.name === name) ?? { name, color: "gray" as const });
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
+        {/* The chips sit in the control, not under it: what has been chosen is
+            the value of this field, and a box that said "3 types chosen" with
+            the answer somewhere below it is a box you have to read twice. */}
+        <div
+          role="button"
+          tabIndex={disabled ? -1 : 0}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
+          className={cn(
+            "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
+            disabled ? "cursor-default opacity-70" : "cursor-pointer hover:border-foreground/30",
+            "focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11 max-md:text-[15px]",
+          )}
+          data-testid={tid("booking-asset-picker")}
+        >
+          {chosen.map((option) => (
+            <span key={option.name} className={cn("inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/60 pr-1 pl-2.5 text-xs", colorClasses(option.color).soft)} onClick={(event) => event.stopPropagation()}>
+              <span className="truncate">{option.name}</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${option.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChange(value.filter((name) => name !== option.name));
+                  }}
+                  className="rounded-full p-0.5 transition-colors hover:bg-background/60"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </span>
+          ))}
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-muted-foreground">
+            <Plus className="size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{value.length === 0 ? "Choose what you need" : "Add another"}</span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+        <Command>
+          <CommandInput placeholder="Search asset types…" />
+          <CommandList className="max-h-64">
+            <CommandEmpty>Nothing matches. Describe it in the brief instead.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const picked = value.includes(option.name);
+                return (
+                  <CommandItem key={option.name} value={option.name} onSelect={() => onChange(toggle(value, option.name))} data-testid={tid(`booking-asset-${slug(option.name)}`)}>
+                    <ColorDot color={option.color} />
+                    <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                    <Check className={cn("size-4 shrink-0", picked ? "opacity-100" : "opacity-0")} />
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

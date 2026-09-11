@@ -12,8 +12,17 @@ export interface Workspace extends Timestamps {
   logoUrl: string | null;
   /** Secret in the public booking link (/book/<slug>/<key>). Null until an admin first opens the workspace. */
   bookingKey?: string | null;
-  /** The booking form as this workspace shaped it. Null or absent means the built-in form. */
+  /** The live booking form, as this workspace shaped it. Null or absent means the built-in form. */
   bookingForm?: BookingFormTemplate | null;
+  /**
+   * The form an administrator is working on, which nobody is served.
+   *
+   * Building a four-step form is not a five-minute job, and the whole of it
+   * happens while stakeholders are still booking. The editor saves here;
+   * `bookingForm` changes only when somebody publishes this onto it. Null means
+   * there is no work in progress.
+   */
+  bookingFormDraft?: BookingFormTemplate | null;
   /**
    * What the stakeholder portal calls the team — "RMIT Creative", say, where the
    * workspace itself is "RMIT VN MKT". Presentation only: it never renames the

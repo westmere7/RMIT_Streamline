@@ -1,7 +1,6 @@
-import type { ColumnValue } from "@/domain/item/item";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
-import type { ColumnType, TagOption } from "@/domain/board/column";
-import type { BookingFormTemplate } from "./booking-template";
+import type { TagOption } from "@/domain/board/column";
+import type { BookingAnswer, BookingFormTemplate } from "./booking-template";
 
 /**
  * Task booking: how people outside the team ask for work.
@@ -57,28 +56,13 @@ export const BOOKING_ASSET_TYPES: TagOption[] = [
 ];
 
 /**
- * Column types a booking form can ask a stakeholder to fill in directly. The
- * rest (people, status, dependencies…) are the team's business.
+ * A team the form can route a service to.
+ *
+ * Not a question any more. A stakeholder picking a service type is picking the
+ * kind of work; which team does that kind of work is the team's own business,
+ * settled once per service in the form editor. This is the list that editor
+ * chooses from, and the routing note the wizard shows once a service is picked.
  */
-export const BOOKING_FIELD_TYPES = ["TEXT", "LONG_TEXT", "NUMBER", "DATE", "LINK", "CHECKBOX", "TAGS", "SIZE"] as const satisfies readonly ColumnType[];
-export type BookingFieldType = (typeof BOOKING_FIELD_TYPES)[number];
-
-export function isBookingFieldType(type: ColumnType): type is BookingFieldType {
-  return (BOOKING_FIELD_TYPES as readonly string[]).includes(type);
-}
-
-/** One extra question, taken from a column of the board the booking will land on. */
-export interface BookingExtraField {
-  columnId: EntityId;
-  name: string;
-  type: BookingFieldType;
-  /** TAGS: the palette to choose from. */
-  options?: TagOption[];
-  /** NUMBER: the unit shown after the value. */
-  unit?: string | null;
-}
-
-/** A team the form offers, with whatever its receiving board asks on top of the standard questions. */
 export interface BookingTeamOption {
   id: EntityId;
   name: string;
@@ -87,7 +71,6 @@ export interface BookingTeamOption {
   icon: string;
   /** Name of the board bookings for this team land on, or null when they go to Task Allocation. */
   boardName: string | null;
-  fields: BookingExtraField[];
 }
 
 /** Everything the booking page needs to render, safe to show to someone without an account. */
@@ -124,19 +107,30 @@ export interface BookingRequest {
   requesterEmail: string;
   department: string | null;
   title: string;
+  /**
+   * The brief as one document.
+   *
+   * Composed rather than typed: the wizard writes it out of the service, the
+   * sub-services and the step-two answers (`composeBrief`), and the server
+   * composes it again from the same parts before anything is stored, so what
+   * lands on the board is what the template asked for and not what a caller
+   * chose to send.
+   */
   brief: string;
   assetTypes: string[];
-  /** The deliverables, each of which becomes a subitem of the request. */
+  /** The deliverables, each of which becomes a line on the item's Assets tab. */
   assets: BookingAssetLine[];
+  /** The kind of work, as a `BookingServiceType` id. Decides step two, and where the booking is routed. */
+  serviceTypeId: string | null;
+  /** The sub-services chosen under it, by name. Chips in the brief. */
+  subServices: string[];
   teamId: EntityId | null;
   dueDate: ISODate | null;
   /** A priority label name, e.g. "High". */
   priority: string | null;
   referenceUrl: string | null;
-  /** Answers to the receiving board's extra fields, keyed by column id. */
-  extra: Record<EntityId, ColumnValue>;
-  /** Answers to the form's own custom questions, keyed by template field id. */
-  answers: Record<string, ColumnValue>;
+  /** Answers to the chosen service's brief, keyed by block id. */
+  answers: Record<string, BookingAnswer>;
   /**
    * The id the item should be created with. The form makes one up front so the
    * reference it shows is the reference the booking gets; nothing is written

@@ -12,24 +12,34 @@ import { resetLocalData, signInAs } from "./helpers";
  */
 
 /**
- * Fills the portal's booking form and sends it.
+ * Walks the portal's four-step booking wizard and sends it.
  *
- * The form sits behind a gate while it is being rebuilt for the unified portal:
- * it warns, and it will not open at all until a stakeholder is selected, since
- * one link now serves all of them and a request has to be for somebody.
+ * The wizard does not open at all until a stakeholder is selected: one link
+ * serves all of them and a request has to be raised for somebody. The Design
+ * service is picked because the built-in form gives it three required
+ * questions, which is what makes this exercise the gating between steps.
  */
 async function bookThroughPortal(page: Page, title: string, brief: string): Promise<void> {
   await page.getByTestId("portal-book-button").click();
-  await expect(page.getByTestId("portal-book-gate")).toBeVisible();
-  await page.getByTestId("portal-book-continue").click();
   const form = page.getByTestId("portal-book");
   await expect(form).toBeVisible();
-  await form.getByLabel(/Your name/).fill("Priya Nair");
-  await form.getByLabel(/Email/).fill("priya@rmit.edu.vn");
-  await form.getByLabel(/What is it/i).first().fill(title);
-  await form.getByLabel(/Tell us more/i).first().fill(brief);
-  await form.getByRole("button", { name: /Book this task/i }).click();
-  // The receipt stays on screen with its reference and somewhere to go.
+  await form.getByTestId("booking-name").fill("Priya Nair");
+  await form.getByTestId("booking-email").fill("priya@rmit.edu.vn");
+  await form.getByTestId("booking-title").fill(title);
+  await form.getByTestId("booking-service-design").click();
+  await form.getByTestId("booking-next").click();
+
+  await expect(form.getByTestId("booking-step-brief")).toBeVisible();
+  await form.getByTestId("booking-answer-design-what").fill(brief);
+  await form.getByTestId("booking-answer-design-specs").fill("A1 portrait for print.");
+  await form.getByTestId("booking-answer-design-copy-yes-final-and-approved").click();
+  await form.getByTestId("booking-next").click();
+
+  await expect(form.getByTestId("booking-step-assets")).toBeVisible();
+  await form.getByTestId("booking-skip-assets").click();
+  await expect(form.getByTestId("booking-step-review")).toBeVisible();
+  await form.getByTestId("booking-submit").click();
+  // The ticket stays on screen with its reference and somewhere to go.
   await expect(page.getByTestId("booking-receipt")).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId("portal-view-request")).toBeVisible();
 }
@@ -175,7 +185,7 @@ test.describe("the stakeholder portal", () => {
     await page.getByTestId("portal-book-button").click();
     await expect(page.getByTestId("portal-book-gate")).toBeVisible();
     await expect(page.getByTestId("portal-book-needs-stakeholder")).toBeVisible();
-    await expect(page.getByTestId("portal-book-continue")).toBeDisabled();
+    await expect(page.getByTestId("booking-wizard")).toHaveCount(0);
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {

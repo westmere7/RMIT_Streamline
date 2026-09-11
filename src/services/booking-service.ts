@@ -1,7 +1,6 @@
 import type {
   Board,
   BoardColumn,
-  BookingCustomField,
   BookingForm,
   BookingFormTemplate,
   BookingReceipt,
@@ -16,11 +15,22 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, isEmptyValue, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
-import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, normaliseBookingTemplate, resolveBookingTemplate, validateBookingAgainstTemplate } from "./booking";
+import {
+  bookingRequestSchema,
+  composeBrief,
+  describeBooking,
+  isDefaultBookingTemplate,
+  mapBookingToColumns,
+  normaliseBookingTemplate,
+  readBookingTemplate,
+  resolveBookingDraft,
+  resolveBookingTemplate,
+  validateBookingAgainstTemplate,
+} from "./booking";
 import type { ItemAssetService } from "./item-asset-service";
 import { mapColumns, translateValue } from "./item-link-sync";
 import type { ItemService } from "./item-service";
@@ -107,10 +117,7 @@ export class BookingService {
     const { workspace, board: allocation, teams, boards } = await this.systemEntities(workspaceId);
     const offered = teams.filter((t) => t.archivedAt === null && !t.system).sort((a, b) => a.name.localeCompare(b.name));
     const receiving = offered.map((team) => (team.bookingBoardId ? boards.find((b) => b.id === team.bookingBoardId && b.archivedAt === null && !b.system) : undefined));
-    // Every board's columns in one round of requests: a stakeholder is looking at a spinner.
-    const receivingIds = [...new Set(receiving.flatMap((b) => (b ? [b.id] : [])))];
-    const [columns, ...receivingColumns] = await Promise.all([this.repos.boards.listColumns(allocation.id), ...receivingIds.map((id) => this.repos.boards.listColumns(id))]);
-    const columnsByBoard = new Map(receivingIds.map((id, i) => [id, receivingColumns[i]!]));
+    const columns = await this.repos.boards.listColumns(allocation.id);
 
     const priorityColumn = columns.find((c) => c.type === "PRIORITY");
     const priorities = priorityColumn ? (priorityColumn.settings as PriorityColumnSettings).labels.map((l) => ({ name: l.name, color: l.color })) : [];
@@ -122,11 +129,7 @@ export class BookingService {
     const listTypes = storedLists.filter((row) => row.listKey === "ASSET_TYPES");
     const assetTypes = listTypes.length > 0 ? toTagOptions(listTypes) : columnTypes;
 
-    const options: BookingTeamOption[] = offered.map((team, i) => {
-      const board = receiving[i];
-      const fields = board ? extraFieldsFor(columnsByBoard.get(board.id) ?? []) : [];
-      return { id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: board?.name ?? null, fields };
-    });
+    const options: BookingTeamOption[] = offered.map((team, i) => ({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: receiving[i]?.name ?? null }));
     return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, priorities, teams: options, template: resolveBookingTemplate(workspace) };
   }
 
@@ -141,15 +144,30 @@ export class BookingService {
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
-    const team = request.teamId ? (teams.find((t) => t.id === request.teamId) ?? null) : null;
-    if (request.teamId && (!team || team.workspaceId !== workspaceId || team.archivedAt || team.system)) throw new Error("That team is no longer taking bookings. Pick another, or leave it blank.");
-
-    // The form's own rules: what it marked required, and answers only to questions it asks.
     const template = resolveBookingTemplate(workspace);
+    const service = serviceById(template, request.serviceTypeId);
+    if (request.serviceTypeId && !service) throw new Error("That kind of work is no longer on the form. Start again and pick another.");
+
+    // Routing is the service's, never the caller's. The stakeholder was not
+    // asked which team should do this and cannot be allowed to answer it: the
+    // team behind each service is set in the form editor, by somebody who knows.
+    const team = service?.teamId ? (teams.find((t) => t.id === service.teamId && t.workspaceId === workspaceId && !t.archivedAt && !t.system) ?? null) : null;
+    request.teamId = team?.id ?? null;
+
+    // Only answers to questions this service asks travel, and only sub-services
+    // it actually offers - everything else is a word the caller made up.
+    const asked = new Set((service?.blocks ?? []).filter(isQuestionBlock).map((b) => b.id));
+    request.answers = Object.fromEntries(Object.entries(request.answers).filter(([id]) => asked.has(id)));
+    const offered = new Set((service?.subServices ?? []).map((o) => o.name));
+    request.subServices = request.subServices.filter((name) => offered.has(name));
+
+    // The form's own rules: what it marked required, answered in the shape it asked for.
     const problems = validateBookingAgainstTemplate(request, template);
     if (Object.keys(problems).length) throw new Error(Object.values(problems).join(". "));
-    const asked = new Set(customFields(template).map((f) => f.id));
-    request.answers = Object.fromEntries(Object.entries(request.answers).filter(([id]) => asked.has(id)));
+
+    // The brief is composed here, from the template and the answers, whatever
+    // the caller sent as one. What the team reads is what the form asked for.
+    request.brief = composeBrief(request, template);
 
     const receiving = team?.bookingBoardId ? await this.repos.boards.getById(team.bookingBoardId) : null;
     const direct = !!receiving && receiving.workspaceId === workspaceId && receiving.archivedAt === null && !receiving.system;
@@ -209,77 +227,90 @@ export class BookingService {
   // ---- shaping the form ----------------------------------------------------
 
   /**
-   * Stores the form an admin shaped, for everyone from now on. A custom question
-   * bound for a column gets one on Task Allocation here — created when the board
-   * has none of that name and type, otherwise reused — so the answers have
-   * somewhere to land the moment the form goes live. Columns left behind by a
-   * question that was removed or re-pointed at the brief stay: their values are
-   * the team's history.
+   * The form an administrator is working on, which is the live one until they
+   * have started. Inside the app only: a draft is nobody else's business.
    */
-  async saveForm(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
+  async getDraft(workspaceId: EntityId): Promise<BookingFormTemplate> {
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace", workspaceId);
+    return resolveBookingDraft(workspace);
+  }
+
+  /**
+   * Keeps the editor's work without putting it in front of anybody.
+   *
+   * Building a four-step form takes longer than a sitting, and for the whole of
+   * that time stakeholders are still booking through the form that was live
+   * when it started. So editing writes here and only here; `publishForm` is the
+   * one act that changes what anybody is served.
+   */
+  async saveDraft(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
     const template = normaliseBookingTemplate(input);
-    // A form saved exactly as the built-in one is stored as nothing at all, so
-    // the workspace goes on following the built-in form as the app improves it
-    // rather than pinning today's copy of it. Both sides go through the same
-    // parser first: it settles the order of the keys, which a plain compare of
-    // the two objects would otherwise trip over.
-    if (JSON.stringify(template) === JSON.stringify(normaliseBookingTemplate(defaultBookingFormTemplate()))) return this.resetForm(workspaceId);
-    const { board } = await this.systemEntities(workspaceId);
-    const columns = await this.repos.boards.listColumns(board.id);
-    for (const field of customFields(template)) {
-      if (field.destination !== "column") continue;
-      field.columnId = (await this.ensureColumnFor(board.id, columns, field)).id;
-    }
-    await this.repos.workspaces.update(workspaceId, { bookingForm: template });
+    await this.repos.workspaces.update(workspaceId, { bookingFormDraft: template });
     return template;
   }
 
-  /** Back to the built-in form. */
+  /** Throws the work in progress away; the editor goes back to whatever is live. */
+  async discardDraft(workspaceId: EntityId): Promise<BookingFormTemplate> {
+    await this.repos.workspaces.update(workspaceId, { bookingFormDraft: null });
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    return resolveBookingTemplate(workspace);
+  }
+
+  /**
+   * Puts a form live, for everyone from now on - the public link and the
+   * stakeholder portal included. The draft is cleared with it: what was being
+   * worked towards has arrived, and leaving it behind would have the editor
+   * open for ever after on a "draft" identical to the live form.
+   */
+  async publishForm(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
+    const template = normaliseBookingTemplate(input);
+    // A form published exactly as the built-in one is stored as nothing at all,
+    // so the workspace goes on following the built-in form as the app improves
+    // it rather than pinning today's copy of it.
+    const stored = isDefaultBookingTemplate(template) ? null : template;
+    await this.repos.workspaces.update(workspaceId, { bookingForm: stored, bookingFormDraft: null });
+    return template;
+  }
+
+  /** Back to the built-in form, live and in the editor. */
   async resetForm(workspaceId: EntityId): Promise<BookingFormTemplate> {
-    await this.repos.workspaces.update(workspaceId, { bookingForm: null });
+    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null });
     return defaultBookingFormTemplate();
   }
 
+  /**
+   * The workspace's saved forms, each read as a current one.
+   *
+   * A template saved by an earlier version is stored in the shape that version
+   * wrote, and every reader here — the editor, the list, the counts — expects
+   * the current one. Migrating on the way out means one place knows about the
+   * old shape; the row itself is left as it is until somebody saves over it.
+   */
   async listTemplates(workspaceId: EntityId): Promise<BookingTemplate[]> {
-    return this.repos.bookingTemplates.listByWorkspace(workspaceId);
+    const rows = await this.repos.bookingTemplates.listByWorkspace(workspaceId);
+    return rows.map((row) => ({ ...row, template: readBookingTemplate(row.template) ?? defaultBookingFormTemplate() }));
   }
 
-  /** Saves a form under a name; the same name (whatever its case) replaces the earlier one. */
-  async saveTemplate(workspaceId: EntityId, name: string, input: BookingFormTemplate, actorId: EntityId): Promise<BookingTemplate> {
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error("Give the template a name.");
-    if (trimmed.length > 80) throw new Error("Keep the template name under 80 characters.");
-    const template = normaliseBookingTemplate(input);
-    const existing = (await this.repos.bookingTemplates.listByWorkspace(workspaceId)).find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
-    if (existing) return this.repos.bookingTemplates.update(existing.id, { name: trimmed, template });
-    return this.repos.bookingTemplates.create({ workspaceId, name: trimmed, template, createdBy: actorId });
+  /**
+   * Saves a form under a name, for the workspace rather than for whoever saved
+   * it: one administrator writing a summer form and another loading it back in
+   * November is the whole point of these. The same name (whatever its case)
+   * replaces the earlier one.
+   */
+  async saveTemplate(workspaceId: EntityId, input: { name: string; description?: string | null; template: BookingFormTemplate }, actorId: EntityId): Promise<BookingTemplate> {
+    const name = input.name.trim();
+    if (!name) throw new Error("Give the template a name.");
+    if (name.length > MAX_BOOKING_TEMPLATE_NAME) throw new Error("Keep the template name under " + MAX_BOOKING_TEMPLATE_NAME + " characters.");
+    const description = input.description?.trim().slice(0, MAX_BOOKING_TEMPLATE_DESCRIPTION) || null;
+    const template = normaliseBookingTemplate(input.template);
+    const existing = (await this.repos.bookingTemplates.listByWorkspace(workspaceId)).find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (existing) return this.repos.bookingTemplates.update(existing.id, { name, description, template });
+    return this.repos.bookingTemplates.create({ workspaceId, name, description, template, createdBy: actorId });
   }
 
   async deleteTemplate(id: EntityId): Promise<void> {
     await this.repos.bookingTemplates.delete(id);
-  }
-
-  /** The column a custom question writes to: the one it had, else one of the same name and type, else a new one. */
-  private async ensureColumnFor(boardId: EntityId, columns: BoardColumn[], field: BookingCustomField): Promise<BoardColumn> {
-    const norm = (s: string) => s.trim().toLowerCase();
-    const existing = columns.find((c) => c.id === field.columnId && c.type === field.type) ?? columns.find((c) => c.type === field.type && norm(c.name) === norm(field.label));
-    if (existing) {
-      // A choice question's options belong in the column's palette too, so the board colours them.
-      if (field.type === "TAGS" && existing.settings.kind === "tags") {
-        const known = new Set(existing.settings.options.map((o) => norm(o.name)));
-        const missing = field.options.filter((o) => !known.has(norm(o.name)));
-        if (missing.length) {
-          const updated = await this.repos.boards.updateColumn(existing.id, { settings: { kind: "tags", options: [...existing.settings.options, ...missing.map((o) => ({ ...o }))] } });
-          columns.splice(columns.indexOf(existing), 1, updated);
-          return updated;
-        }
-      }
-      return existing;
-    }
-    const settings = field.type === "TAGS" ? { kind: "tags" as const, options: field.options.map((o) => ({ ...o })) } : defaultSettingsFor(field.type);
-    const created = await this.repos.boards.createColumn({ boardId, name: field.label, type: field.type, settings });
-    columns.push(created);
-    return created;
   }
 
   // ---- allocation ----------------------------------------------------------
@@ -395,7 +426,14 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     // text a public requester types about themselves; this one is only ever
     // written from a portal token, so it can be trusted and filtered on.
     { name: "Stakeholder", type: "STAKEHOLDER" },
+    // What kind of work it is, as step one of the form asked it. One tag: the
+    // sub-services answer a different question and live in the brief.
+    { name: "Service", type: "TAGS", settings: { kind: "tags", options: DEFAULT_SERVICE_TAGS.map((o) => ({ ...o })) } },
     { name: "Asset type", type: "TAGS", settings: { kind: "tags", options: BOOKING_ASSET_TYPES.map((o) => ({ ...o })) } },
+    // The whole of step two as one document, which opens as a popup on the
+    // board. A brief is read as a whole or not at all, so it is one column and
+    // not a dozen holding a sentence each.
+    { name: "Brief", type: "LONG_TEXT" },
     { name: "Assets & specs", type: "LONG_TEXT" },
     { name: "Requested team", type: "TAGS", settings: { kind: "tags", options: teamNames.map((name, i) => ({ name, color: TEAM_TAG_COLORS[i % TEAM_TAG_COLORS.length]! })) } },
     { name: "Status", type: "STATUS" },
@@ -408,3 +446,11 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
 }
 
 const TEAM_TAG_COLORS = ["blue", "orange", "violet", "green", "sky", "amber", "teal", "pink", "rose", "cyan"] as const;
+
+/**
+ * The palette the Service column starts with: the services the built-in form
+ * offers. A workspace that renames or adds one gets the new word as a plain
+ * tag, which is the board's own behaviour for any tag it has not met - the
+ * column is a record of what was booked, not a copy of the form.
+ */
+const DEFAULT_SERVICE_TAGS = defaultBookingFormTemplate().services.map((service) => ({ name: service.name, color: service.color }));

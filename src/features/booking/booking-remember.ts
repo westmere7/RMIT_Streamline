@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { BookingAssetLine, BookingRequest } from "@/domain";
+import type { BookingAnswer, BookingAssetLine, BookingRequest } from "@/domain";
 
 /**
  * What this browser remembers about the bookings made from it.
@@ -30,25 +30,26 @@ export interface PastBooking {
   reference: string;
   bookedAt: string;
   title: string;
-  brief: string;
+  /** The service it was booked under, so the same brief opens with the same answers in it. */
+  serviceTypeId: string | null;
+  subServices: string[];
+  answers: Record<string, BookingAnswer>;
   assetTypes: string[];
   priority: string | null;
-  teamId: string | null;
   referenceUrl: string | null;
   assets: BookingAssetLine[];
 }
 
-/** A booking that was started and not sent, exactly as it was left. */
+/**
+ * A booking that was started and not sent, exactly as it was left.
+ *
+ * The whole request rather than a handful of its fields: four steps is a long
+ * way to be from the start of something, and a wizard that remembered the task
+ * name but not the brief would be worse than one that remembered nothing.
+ */
 export interface BookingDraftMemory {
   savedAt: string;
-  title: string;
-  brief: string;
-  dueDate: string;
-  referenceUrl: string;
-  assetTypes: string[];
-  priority: string | null;
-  teamId: string | null;
-  assets: BookingAssetLine[];
+  request: BookingRequest;
 }
 
 export interface BookingMemory {
@@ -104,8 +105,8 @@ function all(): Record<string, BookingMemory> {
       const requester = entry?.requester;
       value[scope] = {
         requester: requester && typeof requester.name === "string" && typeof requester.email === "string" && requester.name.trim() && requester.email.trim() ? requester : null,
-        bookings: Array.isArray(entry?.bookings) ? entry.bookings.filter((b): b is PastBooking => !!b && typeof b.id === "string" && typeof b.title === "string").slice(0, KEEP) : [],
-        draft: entry?.draft && typeof entry.draft === "object" && typeof entry.draft.title === "string" ? entry.draft : null,
+        bookings: Array.isArray(entry?.bookings) ? entry.bookings.filter((b): b is PastBooking => !!b && typeof b.id === "string" && typeof b.title === "string" && !!b.answers).slice(0, KEEP) : [],
+        draft: entry?.draft && typeof entry.draft === "object" && !!entry.draft.request && typeof entry.draft.request === "object" ? entry.draft : null,
       };
     }
   } catch {
@@ -158,10 +159,11 @@ export function useBookingMemory(scope: string | null) {
         reference,
         bookedAt,
         title: request.title.trim(),
-        brief: request.brief.trim(),
+        serviceTypeId: request.serviceTypeId,
+        subServices: request.subServices,
+        answers: request.answers,
         assetTypes: request.assetTypes,
         priority: request.priority,
-        teamId: request.teamId,
         referenceUrl: request.referenceUrl ?? null,
         assets: request.assets,
       };

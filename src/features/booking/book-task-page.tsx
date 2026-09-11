@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BookingFormTemplate, BookingTemplate } from "@/domain";
-import { BookingForm } from "@/features/booking/booking-form";
+import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -52,6 +52,15 @@ export function BookTaskPage() {
     queryFn: () => services.booking.listTemplates(ws.workspace.id),
     enabled: manager,
   });
+  // What the editor opens on. Separate from the form above because they are
+  // separate things: that one is what stakeholders are being served, this one
+  // is what somebody is part-way through building.
+  const draft = useQuery({
+    queryKey: queryKeys.bookingDraft(ws.workspace.id),
+    queryFn: () => services.booking.getDraft(ws.workspace.id),
+    enabled: manager,
+    staleTime: 60_000,
+  });
 
   const onBooked = async (receipt: { boardId: string }) => {
     publishDataChange({ kinds: ["items", "board"] });
@@ -59,29 +68,44 @@ export function BookTaskPage() {
     await queryClient.invalidateQueries({ queryKey: queryKeys.notifications(ws.currentUser.id) });
   };
 
-  // The saved form is read by every booking page of the workspace, public link included.
+  // The published form is read by every booking page of the workspace, public
+  // link included; the draft by nobody but this page.
+  const draftChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingDraft(ws.workspace.id) });
   const formChanged = async () => {
     await queryClient.invalidateQueries({ queryKey: ["booking-form", ws.slug] });
+    await draftChanged();
     await ws.refresh();
   };
-  const saveForm = useMutation({
-    mutationFn: (template: BookingFormTemplate) => services.booking.saveForm(ws.workspace.id, template),
+  const saveDraft = useMutation({
+    mutationFn: (template: BookingFormTemplate) => services.booking.saveDraft(ws.workspace.id, template),
+    onSuccess: draftChanged,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the draft"),
+  });
+  const publishForm = useMutation({
+    mutationFn: (template: BookingFormTemplate) => services.booking.publishForm(ws.workspace.id, template),
     onSuccess: async () => {
       await formChanged();
       setEditing(false);
-      toast.success("Form saved", { description: "Everyone sees the new form from now on." });
+      toast.success("Form published", { description: "Everyone sees the new form from now on." });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the form"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not publish the form"),
   });
+  const discardDraft = async () => {
+    await services.booking.discardDraft(ws.workspace.id);
+    await draftChanged();
+  };
   const templatesChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) });
-  const saveTemplate = async (name: string, template: BookingFormTemplate) => {
-    await services.booking.saveTemplate(ws.workspace.id, name, template, ws.currentUser.id);
+  const saveTemplate = async (input: { name: string; description: string | null; template: BookingFormTemplate }) => {
+    await services.booking.saveTemplate(ws.workspace.id, input, ws.currentUser.id);
     await templatesChanged();
   };
   const deleteTemplate = async (template: BookingTemplate) => {
     await services.booking.deleteTemplate(template.id);
     await templatesChanged();
   };
+  // An unpublished draft is worth saying out loud: the question "why is the
+  // form not what I edited" has exactly one answer and this is it.
+  const unpublished = !!draft.data && !!form.data && JSON.stringify(draft.data) !== JSON.stringify(form.data.template);
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -103,7 +127,7 @@ export function BookTaskPage() {
           actions={
             manager && tab === "book" && !editing && form.data ? (
               <Button type="button" onClick={() => setEditing(true)} data-testid="booking-edit">
-                <Pencil /> Edit form
+                <Pencil /> Edit form{unpublished ? " (draft waiting)" : ""}
               </Button>
             ) : undefined
           }
@@ -152,20 +176,28 @@ export function BookTaskPage() {
             </div>
           ) : form.isError || !form.data ? (
             <ErrorState title="Could not load the booking form." error={form.error} onRetry={() => form.refetch()} />
+          ) : editing && manager && draft.isLoading ? (
+            <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
+              <LoaderCircle className="size-4 animate-spin" /> Opening the editor…
+            </div>
           ) : editing && manager ? (
             <BookingFormEditor
               form={form.data}
-              initial={form.data.template}
+              live={form.data.template}
+              initial={draft.data ?? form.data.template}
               templates={templates.data ?? []}
-              saving={saveForm.isPending}
-              onSave={(template) => saveForm.mutate(template)}
-              onCancel={() => setEditing(false)}
+              savingDraft={saveDraft.isPending}
+              publishing={publishForm.isPending}
+              onSaveDraft={(template) => saveDraft.mutateAsync(template).then(() => undefined)}
+              onPublish={(template) => publishForm.mutateAsync(template).then(() => undefined)}
+              onDiscardDraft={discardDraft}
+              onClose={() => setEditing(false)}
               onSaveTemplate={saveTemplate}
               onDeleteTemplate={deleteTemplate}
               panelContainer={editorPanel}
             />
           ) : (
-            <BookingForm
+            <BookingWizard
               key={form.dataUpdatedAt}
               form={form.data}
               defaults={{ requesterName: ws.currentUser.displayName, requesterEmail: ws.currentUser.email, department: ws.currentUser.department ?? "" }}

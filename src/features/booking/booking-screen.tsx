@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { BrandMark, AuthShell } from "@/features/auth/components/auth-shell";
-import { BookingForm } from "@/features/booking/booking-form";
+import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -58,7 +58,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
             </div>
           </div>
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-7 py-6 sm:px-8">
-            <BookingForm
+            <BookingWizard
               key={signedIn ? user.id : "guest"}
               form={form.data}
               defaults={signedIn ? { requesterName: user.displayName, requesterEmail: user.email, department: user.department ?? "" } : undefined}

@@ -1,11 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import type { BoardColumn, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
-import { bookingReference, customFields, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, newCustomField, standardFieldFor } from "@/domain";
+import type { BoardColumn, BookingChoiceBlock, BookingFormTemplate, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
+import { bookingReference, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, newBookingBlock, serviceById, standardFieldFor } from "@/domain";
 import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { createServices } from "@/services";
-import { bookingRequestSchema, describeBooking, extraFieldsFor, mapBookingToColumns, planStandardFields, resolveBookingTemplate, validateBookingAgainstTemplate } from "@/services/booking";
+import {
+  bookingRequestSchema,
+  composeBrief,
+  describeBooking,
+  mapBookingToColumns,
+  migrateLegacyTemplate,
+  planStandardFields,
+  resolveBookingDraft,
+  resolveBookingTemplate,
+  validateBookingAgainstTemplate,
+  validateBookingStep,
+} from "@/services/booking";
 import { taskAllocationColumns } from "@/services/booking-service";
 
 const column = (name: string, type: ColumnType, position: number, settings = defaultSettingsFor(type)): BoardColumn => ({
@@ -20,24 +31,72 @@ const column = (name: string, type: ColumnType, position: number, settings = def
   createdAt: "2026-01-01T00:00:00.000Z",
 });
 
-const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => ({
-  requesterName: "Priya Nair",
-  requesterEmail: "priya@rmit.edu.au",
-  department: "School of Design",
-  title: "Open Day wayfinding posters",
-  brief: "Six A1 posters for the Brunswick campus, brand compliant, print ready by the due date.",
-  assetTypes: ["Print"],
-  assets: [
-    { name: "A1 poster", quantity: 6, spec: "594×841 mm, CMYK, print ready" },
-    { name: "Instagram tile", quantity: null, spec: null },
-  ],
-  teamId: null,
-  dueDate: "2026-10-01",
-  priority: "High",
-  referenceUrl: "https://example.com/brief",
-  extra: {},
-  answers: {},
-  ...overrides,
+/** The built-in Design brief, answered: what a stakeholder who got to the end has. */
+const DESIGN_ANSWERS: BookingRequest["answers"] = {
+  "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, brand compliant, print ready." },
+  "design-specs": { kind: "text", text: "A1 portrait for print, plus 1080x1350 for Instagram." },
+  "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+};
+
+const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => {
+  const base: BookingRequest = {
+    requesterName: "Priya Nair",
+    requesterEmail: "priya@rmit.edu.au",
+    department: "School of Design",
+    title: "Open Day wayfinding posters",
+    brief: "",
+    assetTypes: ["Print"],
+    assets: [
+      { name: "A1 poster", quantity: 6, spec: "594×841 mm, CMYK, print ready" },
+      { name: "Instagram tile", quantity: null, spec: null },
+    ],
+    serviceTypeId: "svc-design",
+    subServices: ["Print"],
+    teamId: null,
+    dueDate: "2026-10-01",
+    priority: "High",
+    referenceUrl: "https://example.com/brief",
+    answers: DESIGN_ANSWERS,
+    ...overrides,
+  };
+  // The brief is composed, never typed; a caller may still override it outright.
+  return overrides.brief === undefined ? { ...base, brief: composeBrief(base, defaultBookingFormTemplate()) } : base;
+};
+
+describe("the brief a service's answers compose", () => {
+  it("leads with the service, numbers the questions as the form did, and leaves the blanks out", () => {
+    const brief = composeBrief(request(), defaultBookingFormTemplate());
+    expect(brief).toContain("Service: Design");
+    expect(brief).toContain("Involves: Print");
+    expect(brief).toContain("1. What are you asking for?");
+    expect(brief).toContain("2. Sizes, formats and where it will run");
+    expect(brief).toContain("3. Is the copy written?");
+    expect(brief).toContain("Yes, final and approved");
+    // The fourth block is the separator and the fifth an unanswered link: neither appears.
+    expect(brief).not.toContain("Where are the assets?");
+  });
+
+  it("keeps a heading the team wrote in, and drops the instructions that were only for the person filling it in", () => {
+    const template = defaultBookingFormTemplate();
+    const design = serviceById(template, "svc-design")!;
+    design.blocks = [
+      { id: "h", kind: "text", level: "heading", text: "The work itself" },
+      { id: "note", kind: "text", level: "body", text: "Take your time over this one." },
+      { id: "q", kind: "short", label: "Audience", description: null, hintMode: "below", required: false },
+    ];
+    const brief = composeBrief(request({ answers: { q: { kind: "text", text: "Prospective students" } } }), template);
+    expect(brief).toContain("The work itself");
+    expect(brief).not.toContain("Take your time");
+    expect(brief).toContain("1. Audience");
+    expect(brief).toContain("Prospective students");
+  });
+
+  it("writes a link with the words that were given for it", () => {
+    const template = defaultBookingFormTemplate();
+    serviceById(template, "svc-design")!.blocks = [{ id: "l", kind: "link", label: "Assets", description: null, hintMode: "below", required: false }];
+    expect(composeBrief(request({ answers: { l: { kind: "link", url: "https://x.test/a", label: "The folder" } } }), template)).toContain("The folder — https://x.test/a");
+    expect(composeBrief(request({ answers: { l: { kind: "link", url: "https://x.test/a", label: "" } } }), template)).toContain("https://x.test/a");
+  });
 });
 
 describe("placing a booking's answers on a board", () => {
@@ -47,30 +106,35 @@ describe("placing a booking's answers on a board", () => {
     expect(plan.requesterName?.name).toBe("Requester");
     expect(plan.requesterEmail?.name).toBe("Email");
     expect(plan.department?.name).toBe("Department");
+    expect(plan.service?.name).toBe("Service");
     expect(plan.assetTypes?.name).toBe("Asset type");
+    expect(plan.brief?.name).toBe("Brief");
     expect(plan.assets?.name).toBe("Assets & specs");
     expect(plan.team?.name).toBe("Requested team");
     expect(plan.dueDate?.name).toBe("Due Date");
     expect(plan.priority?.name).toBe("Priority");
     expect(plan.referenceUrl?.name).toBe("Reference");
-    // "Allocated to" is the manager's; the form never asks about it.
-    expect(extraFieldsFor(columns)).toEqual([]);
 
-    const placement = mapBookingToColumns(request(), columns, { team: { id: "t", name: "Brand" } });
+    const req = request();
+    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Brand" }, template: defaultBookingFormTemplate() });
     expect(placement.leftover).toEqual([]);
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Requester")).toEqual({ type: "TEXT", text: "Priya Nair" });
+    // One tag, and it is the service. The sub-services are chips in the brief.
+    expect(byName.get("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     expect(byName.get("Asset type")).toEqual({ type: "TAGS", tags: ["Print"] });
+    expect(byName.get("Brief")).toEqual({ type: "LONG_TEXT", text: req.brief });
     expect(byName.get("Assets & specs")).toEqual({ type: "LONG_TEXT", text: "1. A1 poster ×6 — 594×841 mm, CMYK, print ready\n2. Instagram tile" });
     expect(byName.get("Requested team")).toEqual({ type: "TAGS", tags: ["Brand"] });
     expect(byName.get("Due Date")).toEqual({ type: "DATE", date: "2026-10-01" });
     expect(byName.get("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });
     expect(byName.get("Reference")).toEqual({ type: "LINK", url: "https://example.com/brief", text: null });
-    expect(describeBooking(request(), placement)).toBe(request().brief);
+    // The brief is the description; it is never repeated under "Request details".
+    expect(describeBooking(req, placement)).toBe(req.brief);
   });
 
   it("adapts to a team board with different columns and keeps the rest in the description", () => {
-    // The "Creative Production" template: no requester, email or link columns.
+    // The "Creative Production" template: no requester, email, brief or link columns.
     const columns = [
       column("Designer", "PERSON", 0),
       column("Status", "STATUS", 1),
@@ -81,30 +145,39 @@ describe("placing a booking's answers on a board", () => {
     ];
     const plan = planStandardFields(columns);
     expect(plan.requesterName).toBeNull();
+    // "Market" is the first free TAGS column and the service question has no
+    // name to match, so nothing is written there by accident.
+    expect(plan.service).toBeNull();
     expect(plan.assetTypes?.name).toBe("Format");
+    expect(plan.brief).toBeNull();
     expect(plan.dueDate?.name).toBe("Due Date");
     expect(plan.priority?.name).toBe("Priority");
     expect(plan.referenceUrl).toBeNull();
 
-    // Market is the one column the standard questions leave untouched: the form asks about it.
-    const extras = extraFieldsFor(columns);
-    expect(extras.map((f) => f.name)).toEqual(["Market"]);
-    expect(extras[0]!.options?.map((o) => o.name)).toEqual(["Vietnam", "Melbourne"]);
-
-    const req = request({ assetTypes: ["Print", "Digital"], extra: { "col-5": { type: "TAGS", tags: ["Vietnam"] }, "col-4": { type: "TEXT", text: "ignored: Format is spoken for" } } });
-    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Vietnam Creative" } });
+    const req = request({ assetTypes: ["Print", "Digital"] });
+    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Vietnam Creative" }, template: defaultBookingFormTemplate() });
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Format")).toEqual({ type: "TEXT", text: "Print, Digital" });
-    expect(byName.get("Market")).toEqual({ type: "TAGS", tags: ["Vietnam"] });
     expect(byName.has("Designer")).toBe(false);
-    expect(placement.leftover.map((l) => l.label)).toEqual(["Requester", "Email", "Department", "Assets & specs", "Requested team", "Reference"]);
+    expect(placement.leftover.map((l) => l.label)).toEqual(["Requester", "Email", "Department", "Service", "Assets & specs", "Requested team", "Reference"]);
 
     const description = describeBooking(req, placement);
-    expect(description).toContain(req.brief);
+    // The brief leads, whatever the board could not hold follows it.
+    expect(description.startsWith(req.brief)).toBe(true);
     expect(description).toContain("Requester: Priya Nair");
+    expect(description).toContain("Service: Design");
     expect(description).toContain("Assets & specs:\n  1. A1 poster ×6 — 594×841 mm, CMYK, print ready\n  2. Instagram tile");
     expect(description).toContain("Email: priya@rmit.edu.au");
     expect(description).toContain("Reference: https://example.com/brief");
+  });
+
+  it("writes the brief into a column named for it, and never twice", () => {
+    const columns = [column("Status", "STATUS", 0), column("Brief", "LONG_TEXT", 1), column("Notes", "LONG_TEXT", 2)];
+    const req = request({ assets: [] });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate() });
+    expect(placement.values).toContainEqual({ columnId: "col-1", value: { type: "LONG_TEXT", text: req.brief } });
+    expect(placement.leftover.some((l) => l.field === "brief")).toBe(false);
+    expect(describeBooking(req, placement)).toContain(req.brief);
   });
 
   it("matches priorities by label name and writes a due date into a lone timeline", () => {
@@ -121,13 +194,43 @@ describe("placing a booking's answers on a board", () => {
   it("validates what a stakeholder sends", () => {
     expect(bookingRequestSchema.safeParse(request()).success).toBe(true);
     expect(bookingRequestSchema.safeParse(request({ requesterEmail: "not-an-email" })).success).toBe(false);
-    expect(bookingRequestSchema.safeParse(request({ brief: "short" })).success).toBe(false);
+    expect(bookingRequestSchema.safeParse(request({ title: "no" })).success).toBe(false);
     expect(bookingRequestSchema.safeParse(request({ referenceUrl: "javascript:alert(1)" })).success).toBe(false);
     expect(bookingRequestSchema.safeParse(request({ dueDate: "next week" })).success).toBe(false);
-    const parsed = bookingRequestSchema.parse({ ...request(), department: undefined, extra: undefined, assetTypes: undefined });
+    const parsed = bookingRequestSchema.parse({ ...request(), department: undefined, answers: undefined, assetTypes: undefined, subServices: undefined });
     expect(parsed.department).toBeNull();
-    expect(parsed.extra).toEqual({});
+    expect(parsed.answers).toEqual({});
     expect(parsed.assetTypes).toEqual([]);
+    expect(parsed.subServices).toEqual([]);
+  });
+});
+
+describe("what a step will not let a stakeholder past", () => {
+  const template = defaultBookingFormTemplate();
+
+  it("insists on the questions step one marks required, and on a service", () => {
+    expect(validateBookingStep("basics", request(), template)).toEqual({});
+    expect(validateBookingStep("basics", request({ requesterName: "  " }), template)).toEqual({ "std-requesterName": "Your name is required" });
+    expect(validateBookingStep("basics", request({ serviceTypeId: null }), template)).toEqual({ service: "Pick the kind of work this is" });
+    // The two the built-in form leaves optional stay optional.
+    expect(validateBookingStep("basics", request({ dueDate: null, priority: null }), template)).toEqual({});
+  });
+
+  it("insists on the required questions of the service that was picked, and on answers of the right shape", () => {
+    expect(validateBookingStep("brief", request(), template)).toEqual({});
+    const missing = validateBookingStep("brief", request({ answers: { ...DESIGN_ANSWERS, "design-specs": { kind: "text", text: "" } } }), template);
+    expect(missing).toEqual({ "design-specs": "Sizes, formats and where it will run is required" });
+    const wrong = validateBookingStep("brief", request({ answers: { ...DESIGN_ANSWERS, "design-copy": { kind: "text", text: "yes" } } }), template);
+    expect(wrong).toEqual({ "design-copy": "Is the copy written? has an answer of the wrong kind" });
+    // Production asks other questions entirely, so Design's answers do not satisfy it.
+    const production = validateBookingStep("brief", request({ serviceTypeId: "svc-production" }), template);
+    expect(Object.keys(production).sort()).toEqual(["prod-people", "prod-what", "prod-when", "prod-where"]);
+  });
+
+  it("never holds anybody on the deliverables or the recap", () => {
+    const bare = request({ assets: [], assetTypes: [], referenceUrl: null });
+    expect(validateBookingStep("assets", bare, template)).toEqual({});
+    expect(validateBookingStep("review", bare, template)).toEqual({});
   });
 });
 
@@ -155,7 +258,25 @@ describe("the built-in Admin team and Task Allocation board", () => {
     expect(teams.filter((t) => t.system).length).toBe(1);
 
     const columns = await services.repos.boards.listColumns(first.board.id);
-    expect(columns.map((c) => c.name)).toEqual(["Requester", "Email", "Department", "Stakeholder", "Asset type", "Assets & specs", "Requested team", "Status", "Priority", "Due Date", "Reference", "Assets recap", "Allocated to"]);
+    expect(columns.map((c) => c.name)).toEqual([
+      "Requester",
+      "Email",
+      "Department",
+      "Stakeholder",
+      "Service",
+      "Asset type",
+      "Brief",
+      "Assets & specs",
+      "Requested team",
+      "Status",
+      "Priority",
+      "Due Date",
+      "Reference",
+      "Assets recap",
+      "Allocated to",
+    ]);
+    const serviceTags = columns.find((c) => c.name === "Service")!.settings as TagsColumnSettings;
+    expect(serviceTags.options.map((o) => o.name)).toEqual(["Brand", "Design", "Production"]);
     const teamTags = columns.find((c) => c.name === "Requested team")!.settings as TagsColumnSettings;
     expect(teamTags.options.map((o) => o.name)).toContain("Digital");
     expect(teamTags.options.map((o) => o.name)).not.toContain("Admin");
@@ -199,24 +320,23 @@ describe("booking a task", () => {
     services = createServices(createLocalRepositories({ databaseName: `booking-${Date.now()}-${Math.random()}` }));
   });
 
-  it("offers every ordinary team and lands on Task Allocation when no team takes bookings directly", async () => {
+  const keyFor = async () => (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
+
+  it("offers the built-in services and lands on Task Allocation when none names a team", async () => {
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
+    expect(form.template.services.map((s) => s.name)).toEqual(["Brand", "Design", "Production"]);
+    expect(form.template.services.every((s) => s.teamId === null)).toBe(true);
     expect(form.teams.map((t) => t.name)).not.toContain("Admin");
-    expect(form.teams.length).toBeGreaterThan(3);
-    expect(form.teams.every((t) => t.boardName === null && t.fields.length === 0)).toBe(true);
     expect(form.priorities.map((p) => p.name)).toEqual(["Critical", "High", "Medium", "Low"]);
     expect(form.assetTypes.map((a) => a.name)).toContain("Print assets");
 
-    const digital = form.teams.find((t) => t.name === "Digital")!;
-    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: form.workspaceId && (await services.repos.workspaces.getById(form.workspaceId))!.bookingKey!, request: request({ teamId: digital.id }) });
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: await keyFor(), request: request() });
     expect(receipt.boardName).toBe("Task Allocation");
     expect(receipt.teamName).toBeNull();
     expect(receipt.reference).toMatch(/^TA-[0-9A-F]{4}$/);
 
     const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     const items = await services.repos.items.listByBoard(board.id);
-    // The seed already has bookings on the board; the new one joins them.
-    expect(items.filter((i) => i.parentItemId === null).map((i) => i.name)).toContain("Open Day wayfinding posters");
     const item = items.find((i) => i.parentItemId === null && i.name === "Open Day wayfinding posters")!;
     expect(item.createdBy).toBe(owner);
     // The asset lines are deliverables on the Assets tab, and nothing on the
@@ -226,23 +346,47 @@ describe("booking a task", () => {
     const lines = await services.repos.itemAssets.listByItem(item.id);
     expect(lines.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
     expect(lines[0]!.quantity).toBe(6);
-    expect(lines[0]!.notes).toBe("594×841 mm, CMYK, print ready");
     expect(receipt.assetCount).toBe(2);
-    expect(item.description).toBe(request().brief);
+    expect(item.description).toContain("Service: Design");
+    expect(item.description).toContain("1. What are you asking for?");
+
     const columns = await services.repos.boards.listColumns(board.id);
     const values = await services.repos.items.listValuesByItem(item.id);
     const valueOf = (name: string) => values.find((v) => v.columnId === columns.find((c) => c.name === name)!.id)?.value;
     expect(valueOf("Requester")).toEqual({ type: "TEXT", text: "Priya Nair" });
-    expect(valueOf("Requested team")).toEqual({ type: "TAGS", tags: ["Digital"] });
+    expect(valueOf("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
+    expect(valueOf("Brief")).toEqual({ type: "LONG_TEXT", text: item.description });
     expect(valueOf("Status")).toEqual({ type: "STATUS", labelId: "not_started" });
     expect(valueOf("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });
-    expect(valueOf("Assets & specs")).toEqual({ type: "LONG_TEXT", text: "1. A1 poster ×6 — 594×841 mm, CMYK, print ready\n2. Instagram tile" });
 
     // Admins hear about it; a plain member does not.
     const adminInbox = await services.repos.notifications.listByUser(SEED_USER_IDS.emily);
     expect(adminInbox.some((n) => n.type === "TASK_BOOKED" && n.entityId === item.id)).toBe(true);
     const memberInbox = await services.repos.notifications.listByUser(SEED_USER_IDS.jun);
     expect(memberInbox.some((n) => n.type === "TASK_BOOKED")).toBe(false);
+  });
+
+  it("composes the brief itself, and keeps only the answers and sub-services the service offers", async () => {
+    const receipt = await services.booking.submit({
+      workspaceSlug: "rmit",
+      key: null,
+      request: request({
+        brief: "Something the caller made up.",
+        subServices: ["Print", "Not a sub-service of anything"],
+        answers: { ...DESIGN_ANSWERS, stray: { kind: "text", text: "should never appear" } },
+      }),
+    });
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(item.description).not.toContain("Something the caller made up");
+    expect(item.description).toContain("Involves: Print");
+    expect(item.description).not.toContain("Not a sub-service");
+    expect(item.description).not.toContain("should never appear");
+  });
+
+  it("refuses a booking that leaves a required question of its service blank", async () => {
+    await expect(
+      services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ answers: { ...DESIGN_ANSWERS, "design-what": { kind: "text", text: "" } } }) }),
+    ).rejects.toThrow(/What are you asking for\? is required/);
   });
 
   it("records a signed-in member as the requester, and ignores a stranger's id", async () => {
@@ -252,44 +396,51 @@ describe("booking a task", () => {
     expect((await services.repos.items.getById(stranger.itemId))!.createdBy).toBe(owner);
   });
 
-  it("rejects a stale key and an archived team", async () => {
+  it("rejects a stale key and a service the form has dropped", async () => {
     await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     await expect(services.booking.getForm({ workspaceSlug: "rmit", key: "wrong-key-wrong-key-wrong" })).rejects.toThrow(/no longer valid/);
     await expect(services.booking.getForm({ workspaceSlug: "nowhere", key: null })).rejects.toThrow(/does not point/);
-    const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
-    const events = teams.find((t) => t.name === "Events")!;
-    await services.workspace.archiveTeam(events.id, true);
-    await expect(services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ teamId: events.id }) })).rejects.toThrow(/no longer taking bookings/);
+    await expect(services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ serviceTypeId: "svc-gone" }) })).rejects.toThrow(/no longer on the form/);
   });
 
-  it("goes straight to a team's chosen board, mapping answers to its columns and asking its extra questions", async () => {
+  it("routes by the service, not by anything the caller sends, and lands on the team's own board", async () => {
     const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
-    // An ordinary team with an ordinary board: the built-in Admin team and Task Allocation cannot take bookings.
     const team = teams.find((t) => !t.system && boards.some((b) => b.teamId === t.id && !b.archivedAt && !b.system))!;
     const board = boards.find((b) => b.teamId === team.id && !b.archivedAt && !b.system)!;
     await services.workspace.updateTeam(team.id, { bookingBoardId: board.id });
 
-    const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
-    const option = form.teams.find((t) => t.id === team.id)!;
-    expect(option.boardName).toBe(board.name);
-    const columns = await services.repos.boards.listColumns(board.id);
-    expect(option.fields.map((f) => f.columnId)).toEqual(extraFieldsFor(columns).map((f) => f.columnId));
+    const template = defaultBookingFormTemplate();
+    serviceById(template, "svc-design")!.teamId = team.id;
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template);
 
-    const textExtra = option.fields.find((f) => f.type === "TEXT");
-    const extra = textExtra ? { [textExtra.columnId]: { type: "TEXT" as const, text: "From the form" } } : {};
-    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ teamId: team.id, extra }) });
+    // A caller naming some other team is simply ignored: the service decides.
+    const other = teams.find((t) => !t.system && t.id !== team.id)!;
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ teamId: other.id }) });
     expect(receipt.boardId).toBe(board.id);
     expect(receipt.teamName).toBe(team.name);
 
     const item = (await services.repos.items.getById(receipt.itemId))!;
+    const columns = await services.repos.boards.listColumns(board.id);
     const values = await services.repos.items.listValuesByItem(item.id);
     const plan = planStandardFields(columns);
     if (plan.dueDate) expect(values.find((v) => v.columnId === plan.dueDate!.id)?.value).toEqual({ type: "DATE", date: "2026-10-01" });
-    if (textExtra) expect(values.find((v) => v.columnId === textExtra.columnId)?.value).toEqual({ type: "TEXT", text: "From the form" });
     // Whatever found no column is still on the record.
-    expect(item.description).toContain(request().brief);
+    expect(item.description).toContain("Service: Design");
     if (!plan.requesterEmail) expect(item.description).toContain("priya@rmit.edu.au");
+  });
+
+  it("falls back to the allocation queue when the service names a team that has gone", async () => {
+    const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
+    const events = teams.find((t) => t.name === "Events")!;
+    const template = defaultBookingFormTemplate();
+    serviceById(template, "svc-design")!.teamId = events.id;
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template);
+    await services.workspace.archiveTeam(events.id, true);
+
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
+    expect(receipt.boardName).toBe("Task Allocation");
+    expect(receipt.teamName).toBeNull();
   });
 
   it("moves an allocated request onto the team board rather than copying it", async () => {
@@ -304,7 +455,7 @@ describe("booking a task", () => {
     expect(item.id).toBe(receipt.itemId);
     expect(item.boardId).toBe(target.id);
     expect(item.name).toBe("Open Day wayfinding posters");
-    expect(item.description).toContain(request().brief);
+    expect(item.description).toContain("Service: Design");
 
     // Nothing was copied and nothing was linked.
     expect(await services.repos.links.listByItem(receipt.itemId)).toHaveLength(0);
@@ -321,8 +472,6 @@ describe("booking a task", () => {
     expect(assets).toHaveLength(2);
     expect(assets.every((a) => a.boardId === target.id)).toBe(true);
 
-    // Values that had a column on the new board were translated across; the
-    // ones that had none did not survive as cells pointing at the old board.
     const values = await services.repos.items.listValuesByItem(item.id);
     const targetColumnIds = new Set((await services.repos.boards.listColumns(target.id)).map((c) => c.id));
     expect(values.length).toBeGreaterThan(0);
@@ -340,116 +489,179 @@ describe("shaping the booking form", () => {
     services = createServices(createLocalRepositories({ databaseName: `booking-form-${Date.now()}-${Math.random()}` }));
   });
 
-  it("starts from the built-in form and refuses to lose the questions a booking cannot do without", async () => {
+  it("starts from the built-in form and refuses to lose what a booking cannot do without", async () => {
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
     expect(form.template).toEqual(defaultBookingFormTemplate());
-    const broken = defaultBookingFormTemplate();
-    broken.sections[0]!.fields = broken.sections[0]!.fields.filter((f) => f.kind !== "standard" || f.key !== "requesterEmail");
-    await expect(services.booking.saveForm(SEED_WORKSPACE_ID, broken)).rejects.toThrow(/requester's email/);
+
+    const noEmail = defaultBookingFormTemplate();
+    noEmail.basics.fields = noEmail.basics.fields.filter((f) => f.key !== "requesterEmail");
+    await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noEmail)).rejects.toThrow(/requester's email/);
+
+    const noServices = defaultBookingFormTemplate();
+    noServices.services = [];
+    await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noServices)).rejects.toThrow(/at least one type of service/);
   });
 
-  it("saves the admin's wording, drops a question, adds its own, and gives a column question its column", async () => {
+  it("keeps a draft to itself until it is published", async () => {
     const draft = defaultBookingFormTemplate();
-    const about = draft.sections[0]!;
-    about.title = "Who are you?";
-    about.fields = about.fields.filter((f) => f.kind !== "standard" || f.key !== "department");
-    const task = draft.sections[1]!;
-    const due = task.fields.find((f) => f.kind === "standard" && f.key === "dueDate")!;
-    due.required = true;
-    due.label = "Deadline";
-    task.fields.push(newCustomField("cost", "Cost centre", "TEXT", "column"));
-    task.fields.push(newCustomField("campus", "Campus", "TAGS", "brief", [{ name: "Melbourne", color: "navy" }, { name: "Hanoi", color: "red" }]));
-    draft.assets.enabled = false;
-    draft.submitLabel = "Send the request";
+    draft.review.submitLabel = "Send the request";
+    draft.basics.title = "Who are you?";
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, draft);
 
-    const saved = await services.booking.saveForm(SEED_WORKSPACE_ID, draft);
-    const cost = customFields(saved).find((f) => f.id === "cost")!;
-    expect(cost.columnId).toBeTruthy();
-    const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
-    const columns = await services.repos.boards.listColumns(board.id);
-    expect(columns.find((c) => c.id === cost.columnId)).toMatchObject({ name: "Cost centre", type: "TEXT" });
+    // Nobody booking sees any of it.
+    const live = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
+    expect(live.template.review.submitLabel).toBe("Book this task");
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm ?? null).toBeNull();
+    // The editor picks it up exactly where it was left.
+    expect((await services.booking.getDraft(SEED_WORKSPACE_ID)).basics.title).toBe("Who are you?");
+
+    await services.booking.publishForm(SEED_WORKSPACE_ID, draft);
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.review.submitLabel).toBe("Send the request");
+    // Published, so there is nothing left in progress.
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormDraft ?? null).toBeNull();
+  });
+
+  it("throws a draft away without touching what is live", async () => {
+    const published = defaultBookingFormTemplate();
+    published.review.submitLabel = "Send it";
+    await services.booking.publishForm(SEED_WORKSPACE_ID, published);
+
+    const wip = defaultBookingFormTemplate();
+    wip.review.submitLabel = "Half-written";
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, wip);
+    expect((await services.booking.discardDraft(SEED_WORKSPACE_ID)).review.submitLabel).toBe("Send it");
+    expect((await services.booking.getDraft(SEED_WORKSPACE_ID)).review.submitLabel).toBe("Send it");
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.review.submitLabel).toBe("Send it");
+  });
+
+  it("saves a service of the workspace's own, with its own questions, and asks them of nobody else", async () => {
+    const template = defaultBookingFormTemplate();
+    template.services = [
+      {
+        ...template.services[1]!,
+        id: "svc-web",
+        name: "Web",
+        subServices: [{ name: "Landing page", color: "blue" }],
+        blocks: [
+          { id: "url", kind: "link", label: "Which page?", description: "Paste the address", hintMode: "placeholder", required: true },
+          { id: "sep", kind: "separator" },
+          { ...(newBookingBlock("multi") as BookingChoiceBlock), id: "who", label: "Who is it for?", required: false, options: [{ name: "Students", color: "blue" }] },
+        ],
+      },
+    ];
+    template.basics.fields = template.basics.fields.filter((f) => f.key !== "department");
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template);
 
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
-    expect(form.template.sections[0]!.title).toBe("Who are you?");
+    expect(form.template.services.map((s) => s.name)).toEqual(["Web"]);
     expect(standardFieldFor(form.template, "department")).toBeNull();
-    expect(form.template.submitLabel).toBe("Send the request");
-    expect(form.template.assets.enabled).toBe(false);
 
-    // Saving again reuses the column rather than making a twin.
-    await services.booking.saveForm(SEED_WORKSPACE_ID, saved);
-    expect((await services.repos.boards.listColumns(board.id)).filter((c) => c.name === "Cost centre")).toHaveLength(1);
-
-    // Booking: the deadline the form made required is enforced; custom answers land where the form said; strays are dropped.
     const key = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
-    await expect(services.booking.submit({ workspaceSlug: "rmit", key, request: request({ dueDate: null }) })).rejects.toThrow(/Deadline is required/);
+    const bare = request({ serviceTypeId: "svc-web", subServices: ["Landing page"], answers: {} });
+    await expect(services.booking.submit({ workspaceSlug: "rmit", key, request: bare })).rejects.toThrow(/Which page\? is required/);
+
     const receipt = await services.booking.submit({
       workspaceSlug: "rmit",
       key,
-      request: request({ answers: { cost: { type: "TEXT", text: "CC-4410" }, campus: { type: "TAGS", tags: ["Hanoi"] }, stray: { type: "TEXT", text: "ignored" } } }),
+      request: request({ serviceTypeId: "svc-web", subServices: ["Landing page"], answers: { url: { kind: "link", url: "https://rmit.test/open-day", label: "Open Day" }, who: { kind: "choice", values: ["Students"] } } }),
     });
-    const values = await services.repos.items.listValuesByItem(receipt.itemId);
-    expect(values.find((v) => v.columnId === cost.columnId)?.value).toEqual({ type: "TEXT", text: "CC-4410" });
-    const item = await services.repos.items.getById(receipt.itemId);
-    expect(item!.description).toContain("Campus: Hanoi");
-    expect(item!.description).not.toContain("ignored");
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(item.description).toContain("Service: Web");
+    expect(item.description).toContain("1. Which page?");
+    expect(item.description).toContain("Open Day — https://rmit.test/open-day");
+    expect(item.description).toContain("2. Who is it for?");
   });
 
-  it("puts a column-bound answer in the brief on a board that has no such column", () => {
-    const template = defaultBookingFormTemplate();
-    template.sections[1]!.fields.push({ ...newCustomField("cost", "Cost centre", "TEXT", "column"), columnId: "elsewhere" });
-    const columns = [column("Status", "STATUS", 0), column("Cost centre", "NUMBER", 1)];
-    const placement = mapBookingToColumns(request({ answers: { cost: { type: "TEXT", text: "CC-1" } } }), columns, { team: null, template });
-    expect(placement.values.some((v) => v.columnId === "col-1")).toBe(false);
-    expect(placement.leftover).toContainEqual({ field: "custom", label: "Cost centre", text: "CC-1" });
-    // The same name and type is good enough when the id is not there.
-    const matched = mapBookingToColumns(request({ answers: { cost: { type: "TEXT", text: "CC-1" } } }), [column("cost centre", "TEXT", 2)], { team: null, template });
-    expect(matched.values).toContainEqual({ columnId: "col-2", value: { type: "TEXT", text: "CC-1" } });
-  });
-
-  it("validates a request against the form it answered", () => {
-    const template = defaultBookingFormTemplate();
-    template.sections[1]!.fields.push({ ...newCustomField("q", "Cost centre", "NUMBER", "brief"), required: true });
-    expect(validateBookingAgainstTemplate(request(), template)).toEqual({ q: "Cost centre is required" });
-    expect(validateBookingAgainstTemplate(request({ answers: { q: { type: "TEXT", text: "x" } } }), template)).toEqual({ q: "Cost centre has an answer of the wrong kind" });
-    expect(validateBookingAgainstTemplate(request({ answers: { q: { type: "NUMBER", number: 4410 } } }), template)).toEqual({});
-    // A stored form that no longer parses falls back to the built-in one rather than breaking the page.
-    expect(resolveBookingTemplate({ bookingForm: { version: 1 } as never })).toEqual(defaultBookingFormTemplate());
-    expect(resolveBookingTemplate({ bookingForm: null })).toEqual(defaultBookingFormTemplate());
-  });
-
-  it("keeps forms by name, replaces on the same name, and swaps them back in", async () => {
+  it("keeps forms by name with what they are for, replaces on the same name, and swaps them back in", async () => {
     const lean = defaultBookingFormTemplate();
-    lean.sections = lean.sections.slice(0, 2);
-    const saved = await services.booking.saveTemplate(SEED_WORKSPACE_ID, "Lean", lean, owner);
+    lean.services = lean.services.slice(0, 1);
+    const saved = await services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: "Lean", description: "Brand only, for the shutdown.", template: lean }, owner);
     expect(saved.name).toBe("Lean");
-    expect(saved.template.sections).toHaveLength(2);
-    const again = await services.booking.saveTemplate(SEED_WORKSPACE_ID, " lean ", defaultBookingFormTemplate(), owner);
+    expect(saved.description).toBe("Brand only, for the shutdown.");
+    expect(saved.template.services).toHaveLength(1);
+
+    const again = await services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: " lean ", description: null, template: defaultBookingFormTemplate() }, owner);
     expect(again.id).toBe(saved.id);
-    expect(again.template.sections).toHaveLength(3);
+    expect(again.description).toBeNull();
+    expect(again.template.services).toHaveLength(3);
     expect((await services.booking.listTemplates(SEED_WORKSPACE_ID)).map((t) => t.name)).toEqual(["lean"]);
-    await expect(services.booking.saveTemplate(SEED_WORKSPACE_ID, "  ", lean, owner)).rejects.toThrow(/name/);
+
+    await expect(services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: "  ", template: lean }, owner)).rejects.toThrow(/name/);
     await services.booking.deleteTemplate(saved.id);
     expect(await services.booking.listTemplates(SEED_WORKSPACE_ID)).toEqual([]);
   });
 
-  it("stores nothing when the form saved is the built-in one, so it keeps up with the app", async () => {
-    await services.booking.saveForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate());
+  it("stores nothing when the form published is the built-in one, so it keeps up with the app", async () => {
+    await services.booking.publishForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate());
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm ?? null).toBeNull();
 
-    // Anything of the workspace's own is stored as it is.
     const own = defaultBookingFormTemplate();
-    own.submitLabel = "Send it";
-    await services.booking.saveForm(SEED_WORKSPACE_ID, own);
-    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm?.submitLabel).toBe("Send it");
+    own.review.submitLabel = "Send it";
+    await services.booking.publishForm(SEED_WORKSPACE_ID, own);
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm?.review.submitLabel).toBe("Send it");
   });
 
-  it("goes back to the built-in form on reset", async () => {
+  it("goes back to the built-in form on reset, draft and all", async () => {
     const custom = defaultBookingFormTemplate();
-    custom.submitLabel = "Go";
-    await services.booking.saveForm(SEED_WORKSPACE_ID, custom);
-    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Go");
+    custom.review.submitLabel = "Go";
+    await services.booking.publishForm(SEED_WORKSPACE_ID, custom);
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, { ...custom, review: { ...custom.review, submitLabel: "Still going" } });
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.review.submitLabel).toBe("Go");
     await services.booking.resetForm(SEED_WORKSPACE_ID);
-    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.submitLabel).toBe("Book this task");
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.review.submitLabel).toBe("Book this task");
+    expect((await services.booking.getDraft(SEED_WORKSPACE_ID)).review.submitLabel).toBe("Book this task");
+  });
+});
+
+describe("reading whatever a workspace has stored", () => {
+  it("falls back to the built-in form rather than breaking the page", () => {
+    expect(resolveBookingTemplate({ bookingForm: { version: 9 } as never })).toEqual(defaultBookingFormTemplate());
+    expect(resolveBookingTemplate({ bookingForm: null })).toEqual(defaultBookingFormTemplate());
+    expect(resolveBookingDraft({ bookingForm: null, bookingFormDraft: null })).toEqual(defaultBookingFormTemplate());
+  });
+
+  it("carries a form written for the old single-page version forward instead of losing it", () => {
+    const legacy = {
+      version: 1,
+      requestTabLabel: "Request",
+      sections: [
+        { id: "a", title: "About you", hint: null, fields: [{ kind: "standard", id: "std-requesterName", key: "requesterName", label: "Who are you?", hint: "Your full name", required: true, width: "half" }] },
+        {
+          id: "b",
+          title: "The task",
+          hint: "Plain language is perfect.",
+          fields: [
+            { kind: "standard", id: "std-requesterEmail", key: "requesterEmail", label: "Email", hint: null, required: true, width: "half" },
+            { kind: "standard", id: "std-title", key: "title", label: "What is it?", hint: null, required: true, width: "full" },
+            { kind: "standard", id: "std-brief", key: "brief", label: "Tell us more", hint: null, placeholder: "What do you need, and what should it achieve?", required: true, width: "full" },
+            { kind: "custom", id: "cost", type: "TEXT", label: "Cost centre", hint: "Ask your finance officer", required: true, options: [], destination: "brief", width: "full" },
+            { kind: "custom", id: "campus", type: "TAGS", label: "Campus", hint: null, required: false, options: [{ name: "Melbourne", color: "navy" }], destination: "brief", width: "full" },
+          ],
+        },
+      ],
+      assets: { enabled: false, tabLabel: "Assets", title: "Assets and specs", hint: "Optional." },
+      submitLabel: "Send the request",
+      submitNote: "",
+    };
+    const migrated = migrateLegacyTemplate(legacy) as BookingFormTemplate;
+    expect(migrated.version).toBe(2);
+    // The wording survives.
+    expect(standardFieldFor(migrated, "requesterName")?.label).toBe("Who are you?");
+    expect(standardFieldFor(migrated, "requesterName")?.description).toBe("Your full name");
+    expect(standardFieldFor(migrated, "title")?.label).toBe("What is it?");
+    expect(migrated.review.submitLabel).toBe("Send the request");
+    expect(migrated.assets.enabled).toBe(false);
+    // The old form asked everybody the same questions, which is one service.
+    expect(migrated.services).toHaveLength(1);
+    // The old form's one free-text brief leads step two, because step two has
+    // no standard questions of its own and it would otherwise be lost.
+    expect(migrated.services[0]!.blocks.map((b) => b.id)).toEqual(["legacy-brief", "cost", "campus"]);
+    expect(migrated.services[0]!.blocks[0]).toMatchObject({ kind: "long", label: "Tell us more", description: "What do you need, and what should it achieve?", hintMode: "placeholder", required: true });
+    expect(migrated.services[0]!.blocks[1]).toMatchObject({ kind: "short", label: "Cost centre", description: "Ask your finance officer", required: true });
+    expect(migrated.services[0]!.blocks[2]).toMatchObject({ kind: "multi", label: "Campus" });
+
+    // And it is read straight off a workspace that still has one stored.
+    expect(resolveBookingTemplate({ bookingForm: legacy as never }).version).toBe(2);
   });
 });
 
@@ -470,5 +682,16 @@ describe("the reference a booking carries", () => {
     const second = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
     expect(second.itemId).not.toBe(itemId);
     expect(second.reference).toBe(bookingReference(second.itemId));
+  });
+});
+
+describe("everything a request validates against at once", () => {
+  it("gathers the problems of every step, keyed by the question that has one", () => {
+    const template = defaultBookingFormTemplate();
+    const broken = request({ title: "", answers: {} });
+    const problems = validateBookingAgainstTemplate(broken, template);
+    expect(problems["std-title"]).toBe("What should we call this? is required");
+    expect(problems["design-what"]).toBe("What are you asking for? is required");
+    expect(validateBookingAgainstTemplate(request(), template)).toEqual({});
   });
 });

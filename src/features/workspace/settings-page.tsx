@@ -20,6 +20,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListsSection } from "@/features/workspace/lists-section";
+import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
@@ -28,9 +29,9 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "teams", "permissions", "lists", "view", "data"] as const;
+const SECTIONS = ["general", "teams", "permissions", "lists", "view", "data", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
-const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", lists: "Lists", view: "View", data: "Data" };
+const SECTION_LABELS: Record<Section, string> = { general: "General", teams: "Teams", permissions: "Permissions", lists: "Lists", view: "View", data: "Data", documentation: "Documentation" };
 
 export function SettingsPage() {
   const ws = useWorkspace();
@@ -44,7 +45,7 @@ export function SettingsPage() {
   const [aboutOpen, setAboutOpen] = React.useState(false);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader title="Workspace settings" description={ws.workspace.name} />
       <div className="flex min-h-0 flex-1 max-md:flex-col">
         {/* A side list on desktop, a row of tabs on a phone. */}
@@ -78,16 +79,17 @@ export function SettingsPage() {
             </li>
           </ul>
         </nav>
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
+        <div data-settings-content className="scrollbar-thin min-w-0 flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
           {/* Lists carries a table of rates rather than a column of fields, so it
               is given the room the rest of the sections do not need. */}
-          <div className={cn("max-w-2xl", section === "lists" && "max-w-4xl")}>
+          <div className={cn("max-w-2xl", section === "lists" && "max-w-4xl", section === "documentation" && "max-w-6xl")}>
             {section === "general" && <GeneralSection />}
             {section === "teams" && <TeamsSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "lists" && <ListsSection />}
             {section === "view" && <ViewSection />}
             {section === "data" && <DataSection />}
+            {section === "documentation" && <DocumentationSection />}
           </div>
         </div>
         <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />

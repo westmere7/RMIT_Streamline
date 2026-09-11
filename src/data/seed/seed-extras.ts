@@ -22,7 +22,7 @@ import type {
   TrackerColumn,
   TrackerSheet,
 } from "@/domain";
-import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultSettingsFor, normaliseLinkPair, recapAssets, recapColumnValue } from "@/domain";
+import { DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, defaultBookingFormTemplate, defaultSettingsFor, normaliseLinkPair, recapAssets, recapColumnValue } from "@/domain";
 import { buildRows, type DemoRowSpec } from "@/features/trackers/tracker-template";
 import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
@@ -81,6 +81,12 @@ interface BookingSpec {
   bookedHoursAgo: number;
   /** Admins who have already read their TASK_BOOKED notification. */
   readBy: UserKey[];
+  /**
+   * Which service it was booked under, as an id of the built-in form. Left out
+   * where the asset types already say: a video brief is Production and
+   * everything else is Design, which is true of every booking in this list.
+   */
+  service?: string;
   /** For allocated bookings: where the manager placed it and who picked it up. */
   allocate?: { board: BoardKey; owner: UserKey; hoursAgo: number };
 }
@@ -519,9 +525,16 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     return position;
   };
 
+  // The built-in form, so a seeded booking carries a service the way a real one
+  // does and the Service column on Task Allocation is not an empty stripe.
+  const bookingTemplate = defaultBookingFormTemplate();
+  const serviceOf = (spec: BookingSpec): string => spec.service ?? (spec.assetTypes.some((t) => /video|photo|gif|motion/i.test(t)) ? "svc-production" : "svc-design");
+
   for (const spec of BOOKINGS) {
     const booked = subHours(now, spec.bookedHoursAgo);
     const team = spec.team ? { id: teams[spec.team], name: teamNameOf[spec.team] } : null;
+    const serviceTypeId = serviceOf(spec);
+    const service = bookingTemplate.services.find((s) => s.id === serviceTypeId) ?? null;
     const request: BookingRequest = {
       requesterName: spec.requesterName,
       requesterEmail: spec.requesterEmail,
@@ -530,15 +543,18 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       brief: spec.brief,
       assetTypes: spec.assetTypes,
       assets: spec.assets,
+      serviceTypeId,
+      // One sub-service, picked from what that service offers, so the chips in
+      // the brief look like somebody answered rather than like test data.
+      subServices: service?.subServices.slice(0, 1).map((o) => o.name) ?? [],
       teamId: team?.id ?? null,
       dueDate: day(spec.due),
       priority: spec.priority,
       referenceUrl: spec.referenceUrl,
-      extra: {},
       answers: {},
     };
     const group = allocationGroups.get(spec.group)!;
-    const placement = mapBookingToColumns(request, allocationColumns, { team });
+    const placement = mapBookingToColumns(request, allocationColumns, { team, template: bookingTemplate });
     const item: Item = {
       id: sid("extraItem"),
       boardId: allocationBoardId,

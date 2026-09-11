@@ -25,7 +25,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {
-    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates });
+    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
     return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
   }

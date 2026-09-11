@@ -46,6 +46,7 @@ import {
 import type { Repositories } from "@/data/repositories";
 import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-password";
 import { todayISO } from "@/lib/dates/dates";
+import { composeBrief, resolveBookingTemplate } from "./booking";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import {
   matchesPortalSearch,
@@ -814,10 +815,16 @@ export class StakeholderPortalService {
 
     // The stakeholder is written over whatever arrived in the body: the name on
     // the request is the one belonging to the id that was just checked, never a
-    // word the caller supplied. The brief the requester typed is captured before
-    // the booking writer appends their contact details to the description.
+    // word the caller supplied.
     const request: BookingRequest = { ...input.request, department: department.name };
-    const publicBrief = request.brief?.trim() ? request.brief.trim().slice(0, MAX_PUBLIC_BRIEF) : null;
+    // The brief as the form composed it, worked out here rather than taken from
+    // the body, and captured before the booking writer appends the requester's
+    // contact details to the item's description. Composed from the same
+    // template the booking will be composed from, so what the portal shows a
+    // stakeholder and what the board shows the team are the same words.
+    const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
+    const composed = composeBrief(request, resolveBookingTemplate(workspace)).trim();
+    const publicBrief = composed ? composed.slice(0, MAX_PUBLIC_BRIEF) : null;
     const requestHash = await hashSubmission(resolved.portal.id, request);
 
     const existing = await this.repos.stakeholderPortals.getSubmission(resolved.portal.id, key);

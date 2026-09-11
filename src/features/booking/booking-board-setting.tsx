@@ -10,7 +10,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
-import { STANDARD_BOOKING_FIELDS, STANDARD_FIELD_LABELS, extraFieldsFor, planStandardFields } from "@/services/booking";
+import { STANDARD_BOOKING_FIELDS, STANDARD_FIELD_LABELS, planStandardFields } from "@/services/booking";
 import { cn } from "@/lib/utils";
 
 const TASK_ALLOCATION = "__allocation__";
@@ -18,8 +18,12 @@ const TASK_ALLOCATION = "__allocation__";
 /**
  * Team settings: which board receives this team's bookings. Because every board
  * has its own columns, the preview underneath shows exactly where each answer
- * from the booking form will go on the chosen board, what stays in the item's
- * description, and which extra questions the form will ask on the team's behalf.
+ * from the booking form will go on the chosen board and what stays in the
+ * item's description.
+ *
+ * Which bookings arrive here at all is the form's business, not this setting's:
+ * a service type in the form editor names the team it belongs to, and this says
+ * where that team's work lands once it does.
  */
 export function BookingBoardSetting({ team, value, onChange }: { team: Team; value: string | null; onChange: (boardId: string | null) => void }) {
   const ws = useWorkspace();
@@ -35,7 +39,6 @@ export function BookingBoardSetting({ team, value, onChange }: { team: Team; val
   });
 
   const plan = columns.data ? planStandardFields(columns.data) : null;
-  const extras = columns.data ? extraFieldsFor(columns.data) : [];
 
   return (
     <div className="grid gap-1.5">
@@ -76,11 +79,6 @@ export function BookingBoardSetting({ team, value, onChange }: { team: Team; val
               );
             })}
           </ul>
-          {extras.length > 0 && (
-            <p className="text-muted-foreground">
-              The form also asks for: <span className="font-medium text-foreground">{extras.map((f) => f.name).join(", ")}</span>.
-            </p>
-          )}
         </div>
       ) : null}
     </div>

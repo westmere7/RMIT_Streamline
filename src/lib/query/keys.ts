@@ -78,4 +78,6 @@ export const queryKeys = {
   bookingForm: (workspaceSlug: string, key: string | null) => ["booking-form", workspaceSlug, key] as const,
   /** Every form of the workspace's saved by name, for the editor's Templates menu. */
   bookingTemplates: (workspaceId: string) => ["booking-templates", workspaceId] as const,
+  /** The form an admin is part-way through building; never what a stakeholder is served. */
+  bookingDraft: (workspaceId: string) => ["booking-draft", workspaceId] as const,
 };

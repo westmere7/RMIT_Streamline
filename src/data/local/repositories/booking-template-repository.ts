@@ -26,7 +26,7 @@ export class LocalBookingTemplateRepository implements BookingTemplateRepository
     return template;
   }
 
-  async update(id: string, patch: Partial<Pick<BookingTemplate, "name" | "template">>): Promise<BookingTemplate> {
+  async update(id: string, patch: Partial<Pick<BookingTemplate, "name" | "description" | "template">>): Promise<BookingTemplate> {
     const db = await this.conn.getDb();
     const existing = await db.get("bookingTemplates", id);
     if (!existing) throw new NotFoundError("BookingTemplate", id);

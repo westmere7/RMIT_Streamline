@@ -147,8 +147,13 @@ describe("asset lines on an item", () => {
         dueDate: "2026-10-01",
         priority: "High",
         referenceUrl: null,
-        extra: {},
-        answers: {},
+        serviceTypeId: "svc-design",
+        subServices: ["Print"],
+        answers: {
+          "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, print ready." },
+          "design-specs": { kind: "text", text: "A1 portrait, CMYK." },
+          "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+        },
       },
       actorId: owner,
     });

@@ -58,7 +58,6 @@ Videography
  
  ---
  
-Main hub: show Incoming + In progress
 
 ---
 
@@ -87,4 +86,11 @@ Turnaround time
 ---
 
 
-Archived item 
+Ticket system: Inside the setting, allow the app to have a real ticket system now, this will follow the following format. 
+
+CP26_9999
+1. CP = Content Production, basically our prefix, this is the only changeable setting, and will affect all tasks.
+2. 26 = year, 2026
+3. 9999, count. so begins with 0 and end in 9999, we will never exceed 9999 in a single year (hopefully lmao). The Ticket must always follow that format, so the first task would be CP_0001
+
+The ticket system should make sure that there will never be 2 tasks with the same ticket unless they're linked. When unlink 2 tasks that used to share the same ticket, auto-ticket one of them to make sure they're different.

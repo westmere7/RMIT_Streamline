@@ -17,12 +17,17 @@ const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => ({
   brief: "Six A1 posters for the Brunswick campus, print ready by the due date.",
   assetTypes: ["Print"],
   assets: [{ name: "A1 poster", quantity: 6, spec: "594x841 mm, CMYK" }],
+  serviceTypeId: "svc-design",
+  subServices: ["Print"],
+  answers: {
+    "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, print ready." },
+    "design-specs": { kind: "text", text: "A1 portrait, CMYK." },
+    "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+  },
   teamId: null,
   dueDate: "2026-10-01",
   priority: "High",
   referenceUrl: null,
-  extra: {},
-  answers: {},
   ...overrides,
 });
 
@@ -78,14 +83,15 @@ describe("booking through a portal", () => {
     return value && value.type === "STAKEHOLDER" ? value.group : null;
   };
 
-  it("cannot be pointed at another department through a stakeholder extra", async () => {
+  it("cannot be pointed at another department by anything in the body", async () => {
     // Task Allocation carries a STAKEHOLDER column, and a booking must not be
-    // able to set it. `extra` accepts only BOOKING_FIELD_TYPES, which excludes
-    // STAKEHOLDER, so a spoofed value is refused before anything is written.
-    const board = (await services.repos.boards.listByWorkspace(WS)).find((b) => b.system === "TASK_ALLOCATION")!;
-    const stakeholderColumn = (await services.repos.boards.listColumns(board.id)).find((c) => c.type === "STAKEHOLDER")!;
-    await expect(book("key-000000003", { extra: { [stakeholderColumn.id]: { type: "STAKEHOLDER", group: other.name } } })).rejects.toThrow();
-    expect((await services.portals.tasks(resolved)).tasks).toHaveLength(0);
+    // able to set it. Nothing a caller sends reaches that column: it is written
+    // only from the department the token was checked against, and the free-text
+    // "department" answer is overwritten with that department's own name.
+    const receipt = await book("key-000000003", { department: other.name });
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(await groupOn(item.id, item.boardId)).toBe(department.name);
+    expect((await services.portals.tasks(resolved)).tasks).toHaveLength(1);
   });
 
   it("writes its own department to the board, so Task Allocation shows who booked it", async () => {
@@ -108,7 +114,7 @@ describe("booking through a portal", () => {
     expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
   });
 
-  it("publishes the brief the requester typed, and keeps their contact details internal", async () => {
+  it("publishes the brief the form composed, and keeps their contact details internal", async () => {
     const receipt = await book("key-000000004");
     const item = (await services.repos.items.getById(receipt.itemId))!;
 
@@ -119,7 +125,9 @@ describe("booking through a portal", () => {
     expect(stored).toContain("priya@rmit.edu.au");
 
     const detail = await services.portals.task(resolved, receipt.itemId, null);
-    expect(detail.brief).toBe("Six A1 posters for the Brunswick campus, print ready by the due date.");
+    // The requester's own answers, in the words the board carries them in.
+    expect(detail.brief).toContain("Service: Design");
+    expect(detail.brief).toContain("Six A1 posters for the Brunswick campus, print ready.");
     expect(JSON.stringify(detail)).not.toContain("priya@rmit.edu.au");
     expect(JSON.stringify(detail)).not.toContain("Priya Nair");
   });

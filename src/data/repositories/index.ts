@@ -350,7 +350,7 @@ export interface BookingTemplateRepository {
   listByWorkspace(workspaceId: EntityId): Promise<BookingTemplate[]>;
   getById(id: EntityId): Promise<BookingTemplate | null>;
   create(input: BookingTemplateInput): Promise<BookingTemplate>;
-  update(id: EntityId, patch: Partial<Pick<BookingTemplate, "name" | "template">>): Promise<BookingTemplate>;
+  update(id: EntityId, patch: Partial<Pick<BookingTemplate, "name" | "description" | "template">>): Promise<BookingTemplate>;
   delete(id: EntityId): Promise<void>;
 }
 

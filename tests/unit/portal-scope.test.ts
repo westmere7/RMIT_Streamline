@@ -116,8 +116,13 @@ describe("what the portal is allowed to show", () => {
         dueDate: null,
         priority: null,
         referenceUrl: null,
-        extra: {},
-        answers: {},
+        serviceTypeId: "svc-design",
+        subServices: ["Print"],
+        answers: {
+          "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, print ready." },
+          "design-specs": { kind: "text", text: "A1 portrait, CMYK." },
+          "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+        },
       },
       booking: services.booking,
     });
@@ -235,8 +240,13 @@ describe("what the portal is allowed to show", () => {
         dueDate: null,
         priority: null,
         referenceUrl: null,
-        extra: {},
-        answers: {},
+        serviceTypeId: "svc-design",
+        subServices: ["Print"],
+        answers: {
+          "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, print ready." },
+          "design-specs": { kind: "text", text: "A1 portrait, CMYK." },
+          "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+        },
       },
       booking: services.booking,
     });
@@ -280,8 +290,13 @@ describe("what the portal is allowed to show", () => {
         dueDate: null,
         priority: null,
         referenceUrl: null,
-        extra: {},
-        answers: {},
+        serviceTypeId: "svc-design",
+        subServices: ["Print"],
+        answers: {
+          "design-what": { kind: "text", text: "Six A1 posters for the Brunswick campus, print ready." },
+          "design-specs": { kind: "text", text: "A1 portrait, CMYK." },
+          "design-copy": { kind: "choice", values: ["Yes, final and approved"] },
+        },
       },
       booking: services.booking,
     });
