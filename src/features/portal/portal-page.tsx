@@ -16,6 +16,7 @@ import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBookingScreen } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalRangePicker, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
+import { cn } from "@/lib/utils";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
 /**
@@ -98,6 +99,10 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     refetchInterval: PORTAL_REFRESH_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    // Switching stakeholder or range is a new key. The board on screen stays
+    // put until the next one has arrived, with a bar saying it is on its way,
+    // rather than blanking to a skeleton between two arrangements of the same page.
+    placeholderData: (previous) => previous,
     refetchOnReconnect: true,
   });
 
@@ -214,12 +219,18 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           onStakeholder={(id) => replaceParams({ for: id })}
         />
 
+        {/* The next board is on its way: the one on screen is the old one. */}
+        {page.isPlaceholderData && (
+          <div className="relative h-0.5 shrink-0 overflow-hidden bg-primary/10" role="status" aria-label="Loading" data-testid="portal-switching">
+            <span aria-hidden className="auth-sweep absolute inset-y-0 w-1/2" />
+          </div>
+        )}
 
         {page.data ? (
 
           // The department's work, rendered by the board the workspace uses:
           // the same views, the same cells, the same item panel.
-          <div className="flex min-h-0 flex-1 flex-col" data-testid="portal-board">
+          <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", page.isPlaceholderData && "pointer-events-none opacity-60")} data-testid="portal-board">
             <PortalBoardScreen
                 token={token}
                 payload={page.data}

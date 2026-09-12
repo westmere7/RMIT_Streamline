@@ -174,10 +174,11 @@ export function BoardToolbar({
             )}
           </>
         )}
+        {actions && <span className="ml-1 flex shrink-0 items-center gap-2">{actions}</span>}
+        {/* Last, after the controls: a figure, not a thing to click. */}
         <span className="pl-1.5 text-2xs text-muted-foreground tabular">
           {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel} items` : `${model.totalTopLevel} items`}
         </span>
-        {actions && <span className="ml-1 flex shrink-0 items-center gap-2">{actions}</span>}
       </div>
     </div>
   );

@@ -301,7 +301,10 @@ export interface PortalScope {
  * somebody reviewing means: a fixed period everybody can name. Everything is
  * the third, for a search or a count.
  */
-export type PortalRange = { kind: "months"; months: number } | { kind: "year"; year: number } | { kind: "all" };
+export type PortalRange = { kind: "weeks"; weeks: number } | { kind: "months"; months: number } | { kind: "year"; year: number } | { kind: "all" };
+
+/** The short rolling windows offered, in weeks: this week's work and the fortnight's. */
+export const PORTAL_WEEK_RANGES = [1, 2] as const;
 
 /** The rolling windows offered, in months. */
 export const PORTAL_MONTH_RANGES = [1, 3, 6] as const;
@@ -318,8 +321,9 @@ export const DEFAULT_PORTAL_RANGE: PortalRange = { kind: "months", months: 3 };
 /** The whole of it: what a search runs against, and what the counts are taken over. */
 export const EVERY_PORTAL_RANGE: PortalRange = { kind: "all" };
 
-/** As it travels: "3m", "2026", "all". Short enough to read in a URL. */
+/** As it travels: "2w", "3m", "2026", "all". Short enough to read in a URL. */
 export function formatPortalRange(range: PortalRange): string {
+  if (range.kind === "weeks") return `${range.weeks}w`;
   if (range.kind === "months") return `${range.months}m`;
   if (range.kind === "year") return String(range.year);
   return "all";
@@ -329,6 +333,11 @@ export function formatPortalRange(range: PortalRange): string {
 export function parsePortalRange(value: string | null | undefined): PortalRange | null {
   if (!value) return null;
   if (value === "all") return EVERY_PORTAL_RANGE;
+  const weeks = /^(\d{1,2})w$/.exec(value);
+  if (weeks) {
+    const count = Number(weeks[1]);
+    return (PORTAL_WEEK_RANGES as readonly number[]).includes(count) ? { kind: "weeks", weeks: count } : null;
+  }
   const months = /^(\d{1,2})m$/.exec(value);
   if (months) {
     const count = Number(months[1]);
@@ -343,10 +352,11 @@ export function withinPortalRange(iso: string, range: PortalRange, now: Date = n
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return false;
   if (range.kind === "year") return at.getUTCFullYear() === range.year;
+  const from = new Date(now);
+  if (range.kind === "weeks") from.setUTCDate(from.getUTCDate() - 7 * range.weeks);
   // Calendar months back, not thirty-day blocks: "three months" means the same
   // day three months ago, which is what a person counting back would say.
-  const from = new Date(now);
-  from.setUTCMonth(from.getUTCMonth() - range.months);
+  else from.setUTCMonth(from.getUTCMonth() - range.months);
   return at.getTime() >= from.getTime();
 }
 
@@ -354,6 +364,7 @@ export function withinPortalRange(iso: string, range: PortalRange, now: Date = n
 export function portalRangeLabel(range: PortalRange): string {
   if (range.kind === "all") return "All time";
   if (range.kind === "year") return String(range.year);
+  if (range.kind === "weeks") return range.weeks === 1 ? "Last week" : range.weeks === 2 ? "Last fortnight" : `Last ${range.weeks} weeks`;
   return range.months === 1 ? "Last month" : `Last ${range.months} months`;
 }
 

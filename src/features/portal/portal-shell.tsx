@@ -5,7 +5,7 @@ import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
-import { PORTAL_MONTH_RANGES, portalRangeLabel } from "@/domain";
+import { PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -221,6 +221,12 @@ export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-60">
           <DropdownMenuLabel>Requested in</DropdownMenuLabel>
+          {PORTAL_WEEK_RANGES.map((weeks) => (
+            <DropdownMenuItem key={`${weeks}w`} onSelect={() => onRange({ kind: "weeks", weeks })} data-testid={`portal-range-${weeks}w`}>
+              <span className="flex-1">{portalRangeLabel({ kind: "weeks", weeks })}</span>
+              {range.kind === "weeks" && range.weeks === weeks && <Check className="size-3.5" />}
+            </DropdownMenuItem>
+          ))}
           {PORTAL_MONTH_RANGES.map((months) => (
             <DropdownMenuItem key={months} onSelect={() => onRange({ kind: "months", months })} data-testid={`portal-range-${months}m`}>
               <span className="flex-1">{portalRangeLabel({ kind: "months", months })}</span>
@@ -307,7 +313,7 @@ export function PortalHeader({
                 >
                   {selected && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(selected.color).dot)} />}
                   <span className="truncate text-[13px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
-                    {selected ? selected.name : `${portalName} · everything`}
+                    {selected ? selected.name : "All departments"}
                   </span>
                   <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
@@ -316,7 +322,7 @@ export function PortalHeader({
                 <DropdownMenuLabel>Whose work to show</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={() => onStakeholder(null)} data-testid="portal-stakeholder-all">
                   <Users />
-                  <span className="flex-1">The full creative team</span>
+                  <span className="flex-1">All departments</span>
                   {stakeholderId === null && <Check className="size-3.5" />}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

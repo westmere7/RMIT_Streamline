@@ -35,7 +35,7 @@ function daysAgo(days: number): string {
 describe("how far back the portal reads", () => {
   describe("the range itself", () => {
     it("survives the round trip through a URL", () => {
-      for (const range of [DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, { kind: "months" as const, months: 1 }, { kind: "year" as const, year: 2026 }]) {
+      for (const range of [DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, { kind: "weeks" as const, weeks: 2 }, { kind: "months" as const, months: 1 }, { kind: "year" as const, year: 2026 }]) {
         expect(parsePortalRange(formatPortalRange(range))).toEqual(range);
       }
     });
@@ -49,6 +49,7 @@ describe("how far back the portal reads", () => {
       // the important half being that a bad address falls back to the cheap
       // read rather than to everything.
       expect(parsePortalRange("99m")).toBeNull();
+      expect(parsePortalRange("3w")).toBeNull();
       expect(parsePortalRange("everything")).toBeNull();
       expect(parsePortalRange("")).toBeNull();
       expect(parsePortalRange(null)).toBeNull();
@@ -59,6 +60,10 @@ describe("how far back the portal reads", () => {
       const now = new Date("2026-03-15T00:00:00.000Z");
       expect(withinPortalRange("2025-12-15T12:00:00.000Z", { kind: "months", months: 3 }, now)).toBe(true);
       expect(withinPortalRange("2025-12-14T00:00:00.000Z", { kind: "months", months: 3 }, now)).toBe(false);
+      // A week is seven days; a fortnight fourteen.
+      expect(withinPortalRange("2026-03-08T00:00:00.000Z", { kind: "weeks", weeks: 1 }, now)).toBe(true);
+      expect(withinPortalRange("2026-03-07T23:00:00.000Z", { kind: "weeks", weeks: 1 }, now)).toBe(false);
+      expect(withinPortalRange("2026-03-01T12:00:00.000Z", { kind: "weeks", weeks: 2 }, now)).toBe(true);
       // A year is the calendar's, so December is in it and the next January is not.
       expect(withinPortalRange("2026-12-31T23:00:00.000Z", { kind: "year", year: 2026 }, now)).toBe(true);
       expect(withinPortalRange("2027-01-01T00:00:00.000Z", { kind: "year", year: 2026 }, now)).toBe(false);
@@ -66,6 +71,8 @@ describe("how far back the portal reads", () => {
     });
 
     it("reads as something a visitor would say", () => {
+      expect(portalRangeLabel({ kind: "weeks", weeks: 1 })).toBe("Last week");
+      expect(portalRangeLabel({ kind: "weeks", weeks: 2 })).toBe("Last fortnight");
       expect(portalRangeLabel({ kind: "months", months: 1 })).toBe("Last month");
       expect(portalRangeLabel({ kind: "months", months: 6 })).toBe("Last 6 months");
       expect(portalRangeLabel({ kind: "year", year: 2026 })).toBe("2026");
