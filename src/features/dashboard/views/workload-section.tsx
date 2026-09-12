@@ -130,7 +130,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
                 aria-checked={prefs.weeks === weeks}
                 onClick={() => set({ weeks })}
                 className={cn(
-                  "h-7 rounded-full px-2.5 text-2xs font-medium transition-colors",
+                  "h-9 rounded-full px-3 text-2xs font-medium transition-colors sm:h-7 sm:px-2.5",
                   prefs.weeks === weeks ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
                 )}
                 data-testid={`dashboard-weeks-${weeks}`}

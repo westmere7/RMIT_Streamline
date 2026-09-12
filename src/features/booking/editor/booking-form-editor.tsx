@@ -461,6 +461,9 @@ function BasicsPane({
                   <Switch
                     size="sm"
                     checked={on}
+                    // A wrapping <label> does not name this: Radix renders a
+                    // button, and `for`/wrapping only label a form control.
+                    aria-label={`Also ask for ${BOOKING_STANDARD_KEY_LABELS[key].toLowerCase()}`}
                     onCheckedChange={(next) =>
                       update((t) => {
                         if (next) t.basics.fields.push(newStandardField(key));
@@ -691,7 +694,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
   return (
     <div className="space-y-4">
       <label className="flex items-center gap-2 text-[13px]">
-        <Switch size="sm" checked={step.enabled} onCheckedChange={(on) => update((t) => (t.assets.enabled = on))} data-testid="editor-assets-toggle" />
+        <Switch size="sm" checked={step.enabled} aria-label="Show the deliverables step" onCheckedChange={(on) => update((t) => (t.assets.enabled = on))} data-testid="editor-assets-toggle" />
         <Boxes className={cn("size-3.5 shrink-0 text-muted-foreground", !step.enabled && "opacity-50")} aria-hidden />
         {step.enabled ? "This step is shown" : "This step is skipped altogether"}
       </label>
@@ -718,7 +721,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           title="Asset types"
           aside={
             <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={step.askAssetTypes} onCheckedChange={(on) => update((t) => (t.assets.askAssetTypes = on))} data-testid="editor-assets-types-toggle" />
+              <Switch size="sm" checked={step.askAssetTypes} aria-label="Ask for asset types" onCheckedChange={(on) => update((t) => (t.assets.askAssetTypes = on))} data-testid="editor-assets-types-toggle" />
               Asked
             </label>
           }
@@ -739,7 +742,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           }
           aside={
             <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={step.askLink} onCheckedChange={(on) => update((t) => (t.assets.askLink = on))} data-testid="editor-assets-link-toggle" />
+              <Switch size="sm" checked={step.askLink} aria-label="Offer a link instead of a list" onCheckedChange={(on) => update((t) => (t.assets.askLink = on))} data-testid="editor-assets-link-toggle" />
               Offered
             </label>
           }

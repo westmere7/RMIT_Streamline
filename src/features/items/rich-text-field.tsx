@@ -214,7 +214,7 @@ function DocButton({ label, onClick, children, testId }: { label: string; onClic
         aria-label={label}
         onClick={onClick}
         data-testid={testId}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:size-7"
       >
         {children}
       </button>

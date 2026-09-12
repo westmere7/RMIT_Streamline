@@ -378,7 +378,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 function Option({ label, color, checked, onChange, disabled, testId }: { label: string; color?: string; checked: boolean; onChange: () => void; disabled?: boolean; testId?: string }) {
   return (
     <label className={cn("flex min-h-12 items-center gap-3 rounded-lg px-2 text-[15px] active:bg-accent/70", disabled && "opacity-50")}>
-      <Checkbox checked={checked} onCheckedChange={onChange} disabled={disabled} className="size-5" data-testid={testId} />
+      <Checkbox aria-label={label} checked={checked} onCheckedChange={onChange} disabled={disabled} className="size-5" data-testid={testId} />
       {color && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", color)} />}
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </label>

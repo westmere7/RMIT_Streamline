@@ -98,10 +98,13 @@ export function HeadlineFigure({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className={cn("flex items-center gap-1.5 text-[13px] font-medium", accent ? "text-foreground/80" : "text-muted-foreground")}>
+          {/* h2, not h3: the headline figures are the first division of the
+              page under its title, and a reader stepping through the headings
+              was going straight from h1 to h3. */}
+          <h2 className={cn("flex items-center gap-1.5 text-[13px] font-medium", accent ? "text-foreground/80" : "text-muted-foreground")}>
             {accent && <span aria-hidden className="size-1.5 rounded-full bg-primary" />}
             {label}
-          </h3>
+          </h2>
           <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
             {/* Big, because this is the figure the team reports upwards. */}
             <span

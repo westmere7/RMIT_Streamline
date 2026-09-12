@@ -95,7 +95,7 @@ export function MobileBoardHeader({ board }: { board: Board }) {
               {team && <span className="truncate">{team.name}</span>}
               {board.archivedAt && <span className="shrink-0 rounded bg-surface-strong px-1 py-px font-medium">Archived</span>}
               {shared && (
-                <button type="button" onClick={() => void copyToClipboard(shareUrl, "Link copied")} className="flex shrink-0 items-center gap-0.5 text-emerald-700 dark:text-emerald-300" data-testid="mobile-board-shared">
+                <button type="button" onClick={() => void copyToClipboard(shareUrl, "Link copied")} className="-my-2 flex shrink-0 items-center gap-0.5 py-2 text-emerald-700 dark:text-emerald-300" data-testid="mobile-board-shared">
                   <Globe className="size-3" aria-hidden /> Shared
                 </button>
               )}

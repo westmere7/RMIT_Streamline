@@ -131,7 +131,7 @@ function Chip({
     <span className={cn("inline-flex h-8 items-center gap-1 border border-border bg-card pr-1 pl-2 text-[13px] transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", list ? "w-full rounded-lg" : "rounded-full")}>
       <Popover>
         <PopoverTrigger asChild>
-          <button type="button" aria-label={`Colour of “${option.name || "this choice"}”`} className="rounded-full p-0.5 transition-transform hover:scale-125">
+          <button type="button" aria-label={`Colour of “${option.name || "this choice"}”`} className="rounded-full p-1.5 transition-transform hover:scale-125">
             <ColorDot color={option.color} />
           </button>
         </PopoverTrigger>
@@ -182,7 +182,9 @@ function Chip({
           else onRemove();
           pressedWhileEditing.current = false;
         }}
-        className={cn("rounded-full p-0.5 transition-colors hover:bg-accent", editing ? "text-ring hover:text-ring" : "text-muted-foreground hover:text-foreground")}
+        // p-1.5 rather than p-0.5: a 16px cross that deletes a choice is a
+        // hard thing to hit and an easy thing to hit by accident.
+        className={cn("rounded-full p-1.5 transition-colors hover:bg-accent", editing ? "text-ring hover:text-ring" : "text-muted-foreground hover:text-foreground")}
         data-testid={testId ? `${testId}-${editing ? "done" : "remove"}` : undefined}
       >
         {editing ? <Check className="size-3" /> : <X className="size-3" />}

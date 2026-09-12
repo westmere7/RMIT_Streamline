@@ -205,7 +205,7 @@ function BlockEditor({
           )}
           {question && (
             <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={block.required} onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
+              <Switch size="sm" checked={block.required} aria-label="Required" onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
               Required
             </label>
           )}
@@ -559,7 +559,7 @@ function FollowUpBlockEditor({ block, onPatch, onDuplicate, onRemove }: { block:
           )}
           {isQuestionBlock(block) && (
             <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={block.required} onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
+              <Switch size="sm" checked={block.required} aria-label="Required" onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
               Required
             </label>
           )}

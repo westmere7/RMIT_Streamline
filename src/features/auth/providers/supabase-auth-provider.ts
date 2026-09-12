@@ -66,6 +66,11 @@ export class SupabaseAuthProvider implements AuthProvider {
 /**
  * Whether this profile has been deactivated.
  *
+ * Reads `profiles`, which is where a person's row actually lives: this asked
+ * `users` for years, a table PostgREST has never heard of, so every check 404ed
+ * and the `catch` below read that as "not deactivated". A deactivated member was
+ * never turned away by this at all.
+ *
  * Read with the caller's own session, so it is subject to the same RLS as
  * everything else — a profile the reader cannot see answers `false`, and they
  * are then refused by the ordinary membership checks instead. A failed read is
@@ -73,7 +78,7 @@ export class SupabaseAuthProvider implements AuthProvider {
  */
 async function isDeactivated(userId: string): Promise<boolean> {
   try {
-    const { data, error } = await getSupabaseClient().from("users").select("deactivated_at").eq("id", userId).maybeSingle();
+    const { data, error } = await getSupabaseClient().from("profiles").select("deactivated_at").eq("id", userId).maybeSingle();
     if (error) return false;
     return !!data?.deactivated_at;
   } catch {

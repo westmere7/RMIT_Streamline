@@ -54,7 +54,7 @@ function DeleteTeamBody({ team, boardCount, trackerCount, busy, onOpenChange, on
       <div className="space-y-4">
         {contents ? (
           <label className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-surface/50 p-3.5 text-[13px]" htmlFor="delete-team-boards">
-            <Checkbox id="delete-team-boards" checked={withBoards} onCheckedChange={(checked) => setWithBoards(checked === true)} className="mt-0.5" data-testid="delete-team-boards" />
+            <Checkbox id="delete-team-boards" aria-label={`Delete its ${contents} as well`} checked={withBoards} onCheckedChange={(checked) => setWithBoards(checked === true)} className="mt-0.5" data-testid="delete-team-boards" />
             <span>
               <span className="font-medium">Delete its {contents} as well</span>
               <span className="mt-0.5 block text-muted-foreground">

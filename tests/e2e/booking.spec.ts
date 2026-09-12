@@ -240,7 +240,9 @@ test.describe("task booking", () => {
     await panel.getByTestId("editor-service-name-new-service").fill("Web");
     await page.getByTestId("editor-service-subs-web-add").click();
     await page.getByLabel("Choice").last().fill("Landing page");
-    await page.keyboard.press("Enter");
+    // Enter finishes a choice rather than starting another, so a second one is
+    // added the way a person adds it.
+    await page.getByTestId("editor-service-subs-web-add").click();
     await page.getByLabel("Choice").last().fill("Microsite");
     await page.getByTestId("editor-service-brief-web").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();

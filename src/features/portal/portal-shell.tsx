@@ -209,7 +209,7 @@ export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { 
           <button
             type="button"
             className={cn(
-              "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring/50",
+              "flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring/50 sm:h-8",
               all ? "border-amber-400/60 text-amber-800 hover:bg-amber-100/60 dark:text-amber-200 dark:hover:bg-amber-500/15" : "border-border/70 bg-card hover:bg-surface-strong/70",
             )}
             data-testid="portal-range-picker"
@@ -364,7 +364,7 @@ export function PortalHeader({
                   aria-checked={active}
                   aria-label={`${option} theme`}
                   onClick={() => themeContext.set(option)}
-                  className={cn("flex size-9 items-center justify-center rounded-full transition-colors", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                  className={cn("flex size-11 items-center justify-center rounded-full transition-colors sm:size-9", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
                   data-testid={`portal-theme-${option}`}
                 >
                   <Icon className="size-4" />

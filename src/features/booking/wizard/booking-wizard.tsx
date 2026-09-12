@@ -463,7 +463,9 @@ function ProgressBar({ steps, index, furthest, onJump, preview }: { steps: StepD
               onClick={() => onJump(i)}
               disabled={!preview && i > furthest}
               aria-current={here ? "step" : undefined}
-              className={cn("group block w-full text-left focus-visible:outline-2 focus-visible:outline-ring", !preview && i > furthest ? "cursor-default" : "cursor-pointer")}
+              // Padded rather than taller: the bar keeps its height and the
+              // step still takes a thumb on a phone.
+              className={cn("group block w-full py-1.5 text-left focus-visible:outline-2 focus-visible:outline-ring sm:py-0", !preview && i > furthest ? "cursor-default" : "cursor-pointer")}
               data-testid={`booking-progress-${step.key}`}
             >
               <span className={cn("block h-1.5 rounded-full transition-colors", here ? "bg-primary" : done ? "bg-primary/45 group-hover:bg-primary/70" : "bg-border")} />
@@ -578,7 +580,7 @@ function Identity({
             <p className="truncate text-[13px] font-semibold">{known.name}</p>
             <p className="truncate text-2xs text-muted-foreground">{[account.title?.trim(), known.email].filter(Boolean).join(" · ")}</p>
           </div>
-          <button type="button" className="text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onForget} data-testid="booking-not-you">
+          <button type="button" className="-my-2 py-2 text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onForget} data-testid="booking-not-you">
             Booking for someone else?
           </button>
         </div>

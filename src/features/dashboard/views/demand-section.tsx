@@ -90,7 +90,7 @@ export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf
                 aria-checked={dimension === d.key}
                 onClick={() => setDimension(d.key)}
                 className={cn(
-                  "h-7 rounded-full px-2.5 text-2xs font-medium transition-colors",
+                  "h-9 rounded-full px-3 text-2xs font-medium transition-colors sm:h-7 sm:px-2.5",
                   dimension === d.key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
                 )}
                 data-testid={`dashboard-dimension-${d.key}`}

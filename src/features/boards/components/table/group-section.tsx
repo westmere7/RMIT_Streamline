@@ -140,7 +140,9 @@ export function GroupSection({
                 <GripVertical className="size-4" />
               </button>
             )}
-            <h3 className={cn("flex min-w-0 items-center text-[15px] font-semibold tracking-tight", colors.text)}>
+            {/* h2: a group is the first division of a board under its name,
+                and nothing on the page sits between the two. */}
+            <h2 className={cn("flex min-w-0 items-center text-[15px] font-semibold tracking-tight", colors.text)}>
               <InlineEdit
                 value={group.name}
                 editing={renaming}
@@ -152,7 +154,7 @@ export function GroupSection({
                 className="max-w-72 rounded-lg px-1.5 hover:bg-accent/70"
                 inputClassName="h-8 w-72 text-[15px] font-semibold"
               />
-            </h3>
+            </h2>
             <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
             {collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
             {canEdit && (

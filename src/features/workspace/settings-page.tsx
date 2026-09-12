@@ -265,7 +265,7 @@ function ViewSection() {
           <Label htmlFor="show-team-counts" className="text-[13px] font-medium">
             Item counts beside teams
           </Label>
-          <Switch id="show-team-counts" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
+          <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
         </div>
       </div>
     </>

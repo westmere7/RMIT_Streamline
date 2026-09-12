@@ -208,7 +208,7 @@ export function MeasureToggle({ measure, onChange, effortAvailable }: { measure:
             role="radio"
             aria-checked={measure === value}
             onClick={() => onChange(value)}
-            className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", measure === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+            className={cn("h-9 rounded-full px-3 text-2xs font-medium transition-colors sm:h-7 sm:px-2.5", measure === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
             data-testid={`dashboard-measure-${value}`}
           >
             {MEASURE_LABELS[value]}

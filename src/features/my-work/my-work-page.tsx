@@ -80,7 +80,7 @@ function MyWorkDesktop() {
           description={`${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`}
           actions={
             <div className="flex items-center gap-2">
-              <Switch id="show-completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
+              <Switch id="show-completed" aria-label="Show completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
               <Label htmlFor="show-completed" className="text-[13px] font-normal">
                 Show completed
               </Label>

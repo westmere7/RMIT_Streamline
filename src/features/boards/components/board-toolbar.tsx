@@ -419,7 +419,7 @@ function FilterGroup({ title, children }: { title: string; children: React.React
 function FilterOption({ label, color, checked, onChange }: { label: string; color: string; checked: boolean; onChange: () => void }) {
   return (
     <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[13px] hover:bg-accent">
-      <Checkbox checked={checked} onCheckedChange={onChange} />
+      <Checkbox aria-label={label} checked={checked} onCheckedChange={onChange} />
       <span className={cn("size-2.5 rounded-full", color)} />
       <span className="truncate">{label}</span>
     </label>

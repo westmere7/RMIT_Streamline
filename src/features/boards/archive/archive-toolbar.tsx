@@ -266,6 +266,7 @@ function CheckList({
         {options.map((option) => (
           <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-[13px] hover:bg-accent/60">
             <Checkbox
+              aria-label={option.label}
               checked={selected.includes(option.id)}
               onCheckedChange={(next) => onChange(next === true ? [...selected, option.id] : selected.filter((id) => id !== option.id))}
             />
