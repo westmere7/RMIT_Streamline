@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
+import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,6 +44,8 @@ import { useBoardUpdates } from "@/features/comments/updates";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/ui-store";
 import { readRememberedView, rememberView, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 function isViewKind(value: string | null): value is BoardViewKind {
@@ -213,9 +216,18 @@ function BoardScreen({ boardId }: { boardId: string }) {
     [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showReference, setShowReference],
   );
 
+  // Next holds this page on screen until the next one is ready, so a board
+  // being left looks identical to one being read. It says so instead: the
+  // sweep runs and the board it is about to stop being fades back.
+  const navPending = useUiStore((s) => s.navPending);
+  const leaving = !!navPending && navPending !== pathname;
+  const waiting = leaving || (!snapshot.isError && !contextValue);
+
   if (isMobile) {
     return (
       <div className="flex h-full min-h-0 flex-col" data-testid="board-page">
+        {waiting && <LoadingSweep label="Loading board" />}
+        <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", leaving && "pointer-events-none opacity-60")}>
         <MobileBoardHeader board={board} />
         {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
         {!snapshot.isError && !contextValue && <BoardSkeleton />}
@@ -232,12 +244,20 @@ function BoardScreen({ boardId }: { boardId: string }) {
             <ArchiveItemsDialog />
           </BoardContextProvider>
         )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="board-page">
+      {/* Either the board on screen is on its way out, or the one asked for has
+          not arrived. Shown here rather than on the sidebar row that asked for
+          it: this is where it is being waited for — and outside the fade below,
+          since a loading bar that dims with the thing it is reporting on is
+          faintest exactly when it is needed. */}
+      {waiting && <LoadingSweep label="Loading board" />}
+      <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", leaving && "pointer-events-none opacity-60")}>
       <BoardHeader board={board} />
       {board.archivedAt && (
         <div className="flex items-center gap-2 border-b bg-amber-50 px-6 py-2 text-[13px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
@@ -285,6 +305,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             <ArchiveItemsDialog />
         </BoardContextProvider>
       )}
+      </div>
     </div>
   );
 }

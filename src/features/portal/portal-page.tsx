@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { Lock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -220,11 +221,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
         />
 
         {/* The next board is on its way: the one on screen is the old one. */}
-        {page.isPlaceholderData && (
-          <div className="relative h-0.5 shrink-0 overflow-hidden bg-primary/10" role="status" aria-label="Loading" data-testid="portal-switching">
-            <span aria-hidden className="auth-sweep absolute inset-y-0 w-1/2" />
-          </div>
-        )}
+        {page.isPlaceholderData && <LoadingSweep testId="portal-switching" />}
 
         {page.data ? (
 

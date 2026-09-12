@@ -39,6 +39,20 @@ interface UiState {
   /** Whether the asset recap above an item's tabs is open past its one-line form. */
   assetRecapExpanded: boolean;
   toggleAssetRecap: () => void;
+  /**
+   * Where a click in the sidebar is trying to get to, until the router agrees.
+   *
+   * Next keeps the page you are on until the next one is ready, so for a few
+   * hundred milliseconds nothing anywhere knows a navigation is under way: the
+   * sidebar still points at the old page and the old page is still on screen,
+   * looking for all the world like the click missed. This is how the two ends
+   * find out — the sidebar moves its selection to it, and the page it is
+   * leaving can say it is on the way out.
+   *
+   * Not persisted: it is true for the length of one click.
+   */
+  navPending: string | null;
+  setNavPending: (path: string | null) => void;
   commandPaletteOpen: boolean;
   /** Chosen search scope, or null to follow whatever the user is looking at. */
   searchScope: "view" | "workspace" | null;
@@ -94,6 +108,8 @@ export const useUiStore = create<UiState>()(
       // Opening search always starts from the current view's scope again.
       setCommandPaletteOpen: (commandPaletteOpen) => set(commandPaletteOpen ? { commandPaletteOpen, searchScope: null } : { commandPaletteOpen }),
       setSearchScope: (searchScope) => set({ searchScope }),
+      navPending: null,
+      setNavPending: (navPending) => set({ navPending }),
       viewAsUserId: null,
       setViewAsUserId: (viewAsUserId) => {
         try {
