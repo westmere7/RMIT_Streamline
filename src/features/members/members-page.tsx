@@ -367,12 +367,26 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
   const pending = member.status === "INVITED";
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
 
+  /**
+   * Say so when a change is refused.
+   *
+   * These three ask the database to do something the database is entitled to
+   * say no to — a policy, or the rule that a workspace keeps an owner
+   * (migrations/0043). Without this the menu simply closed and the row stayed
+   * as it was, which reads as the app ignoring the click.
+   */
+  const refused = (fallback: string) => (error: unknown) => {
+    toast.error(error instanceof Error && error.message ? error.message : fallback);
+    void invalidate();
+  };
+
   const changeRole = useMutation({
     mutationFn: (role: WorkspaceRole) => services.workspace.changeMemberRole(member.id, role),
     onSuccess: async () => {
       await invalidate();
       toast.success(`${user.firstName} is now ${ROLE_LABEL[changeRole.variables ?? member.role].toLowerCase()}`);
     },
+    onError: refused(`Could not change ${user.firstName}'s role`),
   });
   const toggleTeam = useMutation({
     mutationFn: async ({ teamId, join }: { teamId: string; join: boolean }) => {
@@ -380,6 +394,7 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
       else await services.workspace.removeTeamMember(teamId, user.id);
     },
     onSuccess: invalidate,
+    onError: refused(`Could not change ${user.firstName}'s teams`),
   });
   const setActive = useMutation({
     mutationFn: (active: boolean) => services.workspace.setMemberActive(member.id, user.id, active),
@@ -387,6 +402,7 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
       await invalidate();
       toast.success(active ? `${user.firstName} reactivated` : `${user.firstName} deactivated`);
     },
+    onError: refused(`Could not change ${user.firstName}'s access`),
   });
 
   return (

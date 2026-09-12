@@ -9,6 +9,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ColorDot } from "@/components/shared/label-pill";
+import { colorClasses } from "@/lib/colors";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -427,11 +428,10 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
         {branches.map((option) => {
           const branch = followUps[option.name] ?? [];
           return (
-            <div
-              key={option.name}
-              className="relative py-1 pl-4 before:absolute before:top-[1.05rem] before:left-1 before:h-px before:w-2.5 before:bg-border"
-              data-testid={`editor-followup-${block.id}-${slug(option.name)}`}
-            >
+            <div key={option.name} className="relative py-1 pl-4" data-testid={`editor-followup-${block.id}-${slug(option.name)}`}>
+              {/* The elbow into a branch wears that choice's colour, the way the
+                  rule down the same branch does on the form itself. */}
+              <span aria-hidden className={cn("absolute top-[1.05rem] left-1 h-px w-2.5", colorClasses(option.color).dot)} />
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-border bg-card px-2 text-2xs">
                   <ColorDot color={option.color} />

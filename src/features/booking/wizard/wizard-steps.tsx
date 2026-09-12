@@ -8,6 +8,7 @@ import { RichText } from "@/components/shared/rich-text";
 import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
 import { isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, visibleBlocks } from "@/domain";
 import { SPAN } from "../booking-fields";
+import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { SERVICE_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
@@ -213,6 +214,11 @@ function BriefBlocks({
         if (block.kind === "text") return <TextBlockView key={block.id} block={block} />;
         const answer = request.answers[block.id];
         const opened = openFollowUps(block, answer);
+        // The rule down the branch is drawn in the colour of the chip that
+        // opened it, so the answer and the questions it caused are tied
+        // together by something other than their position.
+        const chosen = answer?.kind === "choice" ? answer.values[0] : null;
+        const branchColor = (block.kind === "single" ? block.options.find((o) => o.name === chosen)?.color : null) ?? null;
         return (
           <div key={block.id} className="space-y-4">
             <BlockField
@@ -223,7 +229,10 @@ function BriefBlocks({
               error={errors[block.id]}
             />
             {opened.length > 0 && (
-              <div className="relative pl-5 before:absolute before:inset-y-0 before:left-1.5 before:w-px before:bg-border" data-testid={`booking-followups-${block.id}`}>
+              <div className="relative pl-5" data-testid={`booking-followups-${block.id}`}>
+                {/* An element rather than a ::before, because the colour is the
+                    chip's and a pseudo-element cannot take a class per branch. */}
+                <span aria-hidden className={cn("absolute inset-y-0 left-1.5 w-0.5 rounded-full", branchColor ? colorClasses(branchColor).dot : "bg-border")} />
                 <BriefBlocks blocks={opened} numbers={numbers} request={request} patch={patch} errors={errors} />
               </div>
             )}
