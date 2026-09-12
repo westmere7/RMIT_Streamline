@@ -96,7 +96,8 @@ test.describe("data integrity under stress", () => {
 
     // The global search does not offer it either.
     await page.keyboard.press("Control+k");
-    await page.getByPlaceholder("Search boards, items, teams and people…").fill("RMITinerary Explorer");
+    await page.getByTestId("palette-kind-items").click();
+    await page.getByTestId("palette-input").fill("RMITinerary Explorer");
     await page.waitForTimeout(800);
     await expect(page.getByRole("option", { name: /RMITinerary Explorer/ })).toHaveCount(0);
   });

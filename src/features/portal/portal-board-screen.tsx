@@ -1,12 +1,18 @@
 "use client";
 
-import { ClipboardPen, Rows3 } from "lucide-react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ArrowDownUp, ClipboardPen, GripVertical, Rows3 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Button } from "@/components/ui/button";
+import { ColorDot } from "@/components/shared/label-pill";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { BOARD_VIEWS, PORTAL_GROUPINGS, type BoardViewKind, type PortalBoardPayload, type PortalGrouping } from "@/domain";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { BOARD_VIEWS, PORTAL_GROUPINGS, type BoardViewKind, type ColumnLabel, type PortalBoardPayload, type PortalGrouping } from "@/domain";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
@@ -25,9 +31,10 @@ import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
-import { applyPortalGrouping } from "@/features/portal/portal-grouping";
+import { applyPortalGrouping, orderStatusLabels } from "@/features/portal/portal-grouping";
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 /**
@@ -48,7 +55,8 @@ import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 export function PortalBoardScreen({
   token,
   payload,
-  onBook,
+  bookHref,
+  rangePicker,
   defaultView,
   onSearchChange,
   searchingAllYears,
@@ -61,8 +69,10 @@ export function PortalBoardScreen({
    * status and a link asking for "board" is read as status too.
    */
   showItemGroups: boolean;
-  /** Null when the link has been set to reading only. */
-  onBook: (() => void) | null;
+  /** Where booking happens, or null when the link has been set to reading only. */
+  bookHref: string | null;
+  /** How far back the board reads, placed on the toolbar before the view. */
+  rangePicker?: React.ReactNode;
   /** The view a bare link lands on, chosen by the team. */
   defaultView: BoardViewKind;
   /**
@@ -80,14 +90,25 @@ export function PortalBoardScreen({
   const asked = searchParams.get("group");
   const fallback: PortalGrouping = showItemGroups ? "board" : "status";
   const grouping = isGrouping(asked) && (asked !== "board" || showItemGroups) ? asked : fallback;
+  // The order of the status groups is the visitor's own, kept in this browser
+  // for this portal: a preference about reading, not a fact about the work.
+  const [statusOrder, setStatusOrder] = React.useState<string[]>(() => readStatusOrder(token));
+  const saveStatusOrder = (next: string[]) => {
+    setStatusOrder(next);
+    writeStatusOrder(token, next);
+  };
   // Regrouped before the read-only data layer is built over it, so every
   // component below reads the arrangement through the ordinary hooks and none
   // of them needs to know the visitor chose it.
-  const shown = React.useMemo(() => applyPortalGrouping(payload, grouping), [payload, grouping]);
+  const shown = React.useMemo(() => applyPortalGrouping(payload, grouping, statusOrder), [payload, grouping, statusOrder]);
+  const statusLabels = React.useMemo(() => {
+    const column = payload.columns.find((c) => c.type === "STATUS");
+    return column && column.settings.kind === "status" ? orderStatusLabels(column.settings.labels, statusOrder) : [];
+  }, [payload, statusOrder]);
 
   return (
     <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
+      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
     </ShareGuestProviders>
   );
 }
@@ -102,7 +123,9 @@ function isGrouping(value: string | null): value is PortalGrouping {
 
 function PortalBoard({
   payload,
-  onBook,
+  bookHref,
+  rangePicker,
+  statusOrder,
   defaultView,
   grouping,
   groupings,
@@ -110,7 +133,10 @@ function PortalBoard({
   searchingAllYears,
 }: {
   payload: PortalBoardPayload;
-  onBook: (() => void) | null;
+  bookHref: string | null;
+  rangePicker?: React.ReactNode;
+  /** The status groups in their current order and where a new order goes; null when not grouped by status. */
+  statusOrder: { labels: ColumnLabel[]; onApply: (names: string[]) => void } | null;
   defaultView: BoardViewKind;
   grouping: PortalGrouping;
   /** The groupings on offer. */
@@ -210,9 +236,11 @@ function PortalBoard({
               onViewChange={(next) => replaceParams({ view: next })}
               actions={
                 <>
+                  {rangePicker}
                   <AllYearsMark on={searchingAllYears} />
                   <GroupByControl grouping={grouping} groupings={groupings} onChange={(next) => replaceParams({ group: next })} />
-                  {onBook && <BookButton onBook={onBook} />}
+                  {statusOrder && <StatusOrderControl labels={statusOrder.labels} onApply={statusOrder.onApply} />}
+                  {bookHref && <BookButton href={bookHref} />}
                 </>
               }
             />
@@ -234,11 +262,19 @@ function PortalBoard({
             view={view}
             onViewChange={(next) => replaceParams({ view: next })}
             searchAlways
-            leading={onBook ? <BookButton onBook={onBook} /> : undefined}
+            leading={
+              bookHref || rangePicker ? (
+                <>
+                  {bookHref && <BookButton href={bookHref} />}
+                  {rangePicker}
+                </>
+              ) : undefined
+            }
             actions={
               <>
                 <AllYearsMark on={searchingAllYears} />
                 <GroupByControl grouping={grouping} groupings={groupings} onChange={(next) => replaceParams({ group: next })} />
+                {statusOrder && <StatusOrderControl labels={statusOrder.labels} onApply={statusOrder.onApply} />}
               </>
             }
           />
@@ -303,6 +339,121 @@ function GroupByControl({ grouping, groupings, onChange }: { grouping: PortalGro
   );
 }
 
+/** Where this browser keeps the visitor's order of the status groups, per portal. */
+const statusOrderKey = (token: string) => `streamline.portal-status-order:${token}`;
+
+function readStatusOrder(token: string): string[] {
+  try {
+    const raw = window.localStorage.getItem(statusOrderKey(token));
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStatusOrder(token: string, order: string[]): void {
+  try {
+    if (order.length === 0) window.localStorage.removeItem(statusOrderKey(token));
+    else window.localStorage.setItem(statusOrderKey(token), JSON.stringify(order));
+  } catch {
+    // Storage blocked: the order holds for this page and no longer.
+  }
+}
+
+/**
+ * The order of the status groups, for the visitor to change.
+ *
+ * A small list to drag, and nothing moves on the board until Apply: reordering
+ * live would have the groups jumping under the list while it is being used.
+ * Discard puts the list back as the board has it.
+ */
+function StatusOrderControl({ labels, onApply }: { labels: ColumnLabel[]; onApply: (names: string[]) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<ColumnLabel[]>(labels);
+  // Opened fresh each time, from the order the board is showing.
+  const [seen, setSeen] = React.useState(labels);
+  if (seen !== labels) {
+    setSeen(labels);
+    setDraft(labels);
+  }
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = draft.findIndex((l) => l.id === active.id);
+    const to = draft.findIndex((l) => l.id === over.id);
+    if (from >= 0 && to >= 0) setDraft(arrayMove(draft, from, to));
+  };
+  const dirty = draft.some((l, i) => l.id !== labels[i]?.id);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setDraft(labels);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-2xs" data-testid="portal-status-order">
+          <ArrowDownUp className="size-3.5" aria-hidden />
+          Order
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-2" data-testid="portal-status-order-menu">
+        <p className="px-1 pb-1.5 text-2xs font-medium text-muted-foreground">Drag the statuses into the order you read them in.</p>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
+          <SortableContext items={draft.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+            <ul className="grid gap-1">
+              {draft.map((label) => (
+                <StatusOrderRow key={label.id} label={label} />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+        <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-border/60 pt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setDraft(labels);
+              setOpen(false);
+            }}
+            data-testid="portal-status-order-discard"
+          >
+            Discard
+          </Button>
+          <Button
+            size="sm"
+            disabled={!dirty}
+            onClick={() => {
+              onApply(draft.map((l) => l.name));
+              setOpen(false);
+            }}
+            data-testid="portal-status-order-apply"
+          >
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function StatusOrderRow({ label }: { label: ColumnLabel }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: label.id });
+  return (
+    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("flex items-center gap-2 rounded-lg border border-border/60 bg-card px-2 py-1.5 text-[13px]", isDragging && "z-10 shadow-md")} data-testid={`portal-status-order-${label.id}`}>
+      <button type="button" aria-label={`Move ${label.name}`} className="flex size-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/70 hover:text-foreground active:cursor-grabbing" {...attributes} {...listeners}>
+        <GripVertical className="size-3.5" />
+      </button>
+      <ColorDot color={label.color} />
+      <span className="min-w-0 flex-1 truncate">{label.name}</span>
+    </li>
+  );
+}
+
 /**
  * What a stakeholder came here to do, first on the row they are already
  * looking at.
@@ -313,10 +464,13 @@ function GroupByControl({ grouping, groupings, onChange }: { grouping: PortalGro
  * in the line, the same size as a filter. It leads, and it is the only button
  * on the page wearing the brand red.
  */
-function BookButton({ onBook }: { onBook: () => void }) {
+function BookButton({ href }: { href: string }) {
   return (
-    <Button onClick={onBook} className="shrink-0 gap-2 px-4 text-[13px] font-semibold shadow-sm shadow-primary/25" data-testid="portal-book-button">
-      <ClipboardPen className="size-4" /> Book a task
+    // A new tab: the form is a page of its own, and the board stays where it was.
+    <Button asChild className="shrink-0 gap-2 px-4 text-[13px] font-semibold shadow-sm shadow-primary/25">
+      <a href={href} target="_blank" rel="noreferrer noopener" data-testid="portal-book-button">
+        <ClipboardPen className="size-4" /> Book a task
+      </a>
     </Button>
   );
 }

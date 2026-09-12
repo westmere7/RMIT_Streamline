@@ -13,9 +13,9 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { PortalCredentials } from "@/features/portal/portal-client";
-import { PortalBookingDialog } from "@/features/portal/portal-booking";
+import { PortalBookingScreen } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
-import { PortalHeader, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
+import { PortalHeader, PortalRangePicker, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
 /**
@@ -59,7 +59,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // The two scope choices, in the URL so a link keeps them. An unreadable
   // range falls back to the default rather than to everything: the fallback for
   // a bad address must be the cheap read, not the expensive one.
-  const stakeholderId = searchParams.get("for");
+  const stakeholderId = searchParams.get("for") || null;
   const chosenRange = parsePortalRange(searchParams.get("range")) ?? DEFAULT_PORTAL_RANGE;
 
   // What the board's own search box holds, lifted so the request can widen to
@@ -114,19 +114,11 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     [router],
   );
 
-  // The open request lives in the URL, so Back, refresh and a pasted link all
-  // behave, and the board keeps its place behind the panel. The board screen
-  // reads the parameter for itself; this is here so booking can open what it
-  // just created.
-  const setOpenTask = React.useCallback((id: string | null) => replaceParams({ task: id }), [replaceParams]);
 
-  // Booking replaces the board rather than sitting beside it in a tab strip:
-  // it is the one thing a stakeholder comes here to *do*, and it gets a button.
-  // `startOnBooking` is the dedicated booking link (/portal/<token>/book), which
-  // opens straight onto the form: somebody sent that link to have a request
-  // made, and making them find the button on a board of other people's work
-  // first is a step with nothing in it for them.
-  const [booking, setBooking] = React.useState(startOnBooking);
+  // Booking is a page of its own (/portal/<token>/book), opened in a new tab
+  // from the board so the board is still there when the booking is done. It
+  // carries the stakeholder on show, so the form opens on them.
+  const bookHref = `/portal/${encodeURIComponent(token)}/book${stakeholderId ? `?for=${encodeURIComponent(stakeholderId)}` : ""}`;
 
   if (gate.isPending) {
     return (
@@ -184,49 +176,44 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     );
   }
 
+  // Booking takes the whole window: the same page a direct booking link and
+  // the app's own "book a task" open, so the form is one page everywhere. The
+  // board comes back when the booking is done or given up on.
+  if (startOnBooking) {
+    const leave = () => router.push(`/portal/${encodeURIComponent(token)}`);
+    return (
+      <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+        <PortalBookingScreen
+          credentials={credentials}
+          portalName={context?.portalName ?? gate.data.portalName}
+          creativeTeamName={context?.creativeTeamName ?? gate.data.creativeTeamName}
+          stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
+          // Chosen inside step one; null until the portal has read them, so the
+          // form does not appear and then grow a question.
+          stakeholders={context?.stakeholders ?? null}
+          onView={(itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
+          onClose={leave}
+        />
+      </PortalThemeScope>
+    );
+  }
+
   return (
     <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
-      {/* Both tabs are one window tall now: the board scrolls its own rows,
-          and the booking form scrolls inside its card so the bar at its foot
-          never leaves the screen. */}
+      {/* One window tall: the board scrolls its own rows under a header that stays put. */}
       <PortalShell fill>
         <PortalHeader
           token={token}
           portalName={context?.portalName ?? gate.data.portalName}
-          creativeTeamName={context?.creativeTeamName ?? gate.data.creativeTeamName}
           viewerName={context?.viewerName ?? null}
           servedAt={page.data?.servedAt ?? null}
           stale={page.isFetching}
-          totals={booking || context?.showRecap === false ? null : (page.data?.totals ?? null)}
-          description={context?.description ?? null}
+          totals={context?.showRecap === false ? null : (page.data?.totals ?? null)}
           stakeholders={context?.stakeholders ?? []}
           stakeholderId={stakeholderId}
           onStakeholder={(id) => replaceParams({ for: id })}
-          years={context?.years ?? []}
-          range={range}
-          // Stored as it was chosen, so the address says what is on screen.
-          onRange={(next) => replaceParams({ range: formatPortalRange(next) })}
-          // A search has taken the window off; say so rather than leaving the
-          // picker looking as though it were being ignored.
-          rangeOverridden={searching}
         />
 
-        <PortalBookingDialog
-          open={booking}
-          onOpenChange={(next) => {
-            setBooking(next);
-            if (!next) void page.refetch();
-          }}
-          credentials={credentials}
-          stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
-          // Chosen inside step one, so the dedicated booking link needs nothing
-          // of the board behind it.
-          stakeholders={context?.stakeholders ?? []}
-          onView={(itemId) => {
-            void page.refetch();
-            setOpenTask(itemId);
-          }}
-        />
 
         {page.data ? (
 
@@ -236,7 +223,12 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
             <PortalBoardScreen
                 token={token}
                 payload={page.data}
-                onBook={context?.allowBooking === false ? null : () => setBooking(true)}
+                bookHref={context?.allowBooking === false ? null : bookHref}
+                rangePicker={
+                  // Stored as it was chosen, so the address says what is on
+                  // screen; a search has taken the window off, and says so.
+                  <PortalRangePicker range={range} onRange={(next) => replaceParams({ range: formatPortalRange(next) })} years={context?.years ?? []} rangeOverridden={searching} />
+                }
                 defaultView={(context?.defaultView ?? "table") as BoardViewKind}
                 showItemGroups={context?.showItemGroups === true}
                 onSearchChange={setSearch}

@@ -16,6 +16,8 @@ export interface MyWorkItem {
   statusColumn: BoardColumn | null;
   /** Other boards where this task appears as a linked (synced) item. */
   linkedBoards: Board[];
+  /** Everyone on the item's person columns, the reader included: who is in charge and who shares it. */
+  people: EntityId[];
 }
 
 export type MyWorkSection = DateBucket | "completed";
@@ -79,6 +81,7 @@ export class MyWorkService {
             priorityColumn && priorityValue?.type === "PRIORITY"
               ? (columnLabels(priorityColumn).find((l) => l.id === priorityValue.labelId) ?? null)
               : null;
+          const people = [...new Set(itemValues.flatMap((v) => (personColumnIds.has(v.columnId) && v.value.type === "PERSON" ? v.value.userIds : [])))];
           const dueValue = dueColumn ? itemValues.find((v) => v.columnId === dueColumn.id)?.value : undefined;
           let dueDate = dueValue?.type === "DATE" ? dueValue.date : null;
           if (!dueDate && timelineColumn) {
@@ -96,6 +99,7 @@ export class MyWorkService {
             dueColumn,
             statusColumn,
             linkedBoards: [],
+            people,
           });
         }
       }),

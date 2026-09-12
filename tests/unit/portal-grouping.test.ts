@@ -81,6 +81,14 @@ describe("grouping a portal board by status", () => {
     expect(groupOf(grouped, "d")).toBe("Blocked");
   });
 
+  it("puts the groups in the visitor's order, and anything they did not name after them", () => {
+    const payload = build([entry(task({ id: "a", status: inProgress })), entry(task({ id: "b", status: shipped })), entry(task({ id: "c", status: blocked }))]);
+    expect(groupNames(groupPortalBoardByStatus(payload, ["shipped", "Blocked"]))).toEqual(["Shipped", "Blocked", "In Progress"]);
+    // Names the column does not have are ignored; an empty order is the column's own.
+    expect(groupNames(groupPortalBoardByStatus(payload, ["Nowhere"]))).toEqual(groupNames(groupPortalBoardByStatus(payload)));
+    expect(groupNames(applyPortalGrouping(payload, "status", ["Blocked"]))[0]).toBe("Blocked");
+  });
+
   it("gives each group the status's own colour", () => {
     const grouped = groupPortalBoardByStatus(build([entry(task({ id: "a", status: blocked })), entry(task({ id: "b", status: shipped }))]));
     expect(grouped.groups.find((g) => g.name === "Blocked")!.color).toBe("red");

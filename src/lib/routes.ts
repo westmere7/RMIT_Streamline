@@ -12,6 +12,8 @@ export const routes = {
   itemShare: (token: string) => `/share/item/${encodeURIComponent(token)}`,
   /** The public booking form stakeholders open; needs no session, just the workspace's key. */
   publicBooking: (slug: string, key: string) => `/book/${encodeURIComponent(slug)}/${encodeURIComponent(key)}`,
+  /** The same booking page for somebody signed in: no key, the session answers for them. */
+  bookForm: (slug: string) => `/book/${encodeURIComponent(slug)}`,
   /**
    * A department's own portal: its requests, and the form to add another.
    *

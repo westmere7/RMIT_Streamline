@@ -26,12 +26,12 @@ import { slugify } from "@/lib/slug";
  * all gathers under one heading rather than falling off the board, and a
  * payload with no STATUS column is returned exactly as it arrived.
  */
-export function groupPortalBoardByStatus<T extends PublicBoardPayload>(payload: T): T {
+export function groupPortalBoardByStatus<T extends PublicBoardPayload>(payload: T, order: readonly string[] = []): T {
   const status = payload.columns.find((column) => column.type === "STATUS");
   if (!status || status.settings.kind !== "status") return payload;
 
   const boardId = payload.board.id;
-  const labels = status.settings.labels;
+  const labels = orderStatusLabels(status.settings.labels, order);
   const labelById = new Map(labels.map((label) => [label.id, label]));
 
   // Which label each request is showing, by the value on the status column.
@@ -71,6 +71,22 @@ export function groupPortalBoardByStatus<T extends PublicBoardPayload>(payload: 
   });
 
   return { ...payload, groups, items };
+}
+
+/**
+ * The status labels in the visitor's order.
+ *
+ * The order is a list of names — names are what survive the reconciliation
+ * across boards, and what the visitor dragged. Names on the list come first in
+ * that order; anything not on it keeps its place after them, so a label that
+ * appears later (a new status on some board) is not lost.
+ */
+export function orderStatusLabels<L extends { name: string }>(labels: readonly L[], order: readonly string[]): L[] {
+  if (order.length === 0) return [...labels];
+  const rank = new Map(order.map((name, i) => [name.toLowerCase(), i]));
+  const placed = labels.filter((l) => rank.has(l.name.toLowerCase())).sort((a, b) => rank.get(a.name.toLowerCase())! - rank.get(b.name.toLowerCase())!);
+  const rest = labels.filter((l) => !rank.has(l.name.toLowerCase()));
+  return [...placed, ...rest];
 }
 
 /** The heading for requests whose board has no status to report. */
@@ -131,8 +147,8 @@ export function groupPortalBoardByStakeholder<T extends PublicBoardPayload>(payl
 }
 
 /** Applies a visitor's choice. "board" is the payload exactly as it was built. */
-export function applyPortalGrouping<T extends PublicBoardPayload>(payload: T, grouping: PortalGrouping): T {
-  if (grouping === "status") return groupPortalBoardByStatus(payload);
+export function applyPortalGrouping<T extends PublicBoardPayload>(payload: T, grouping: PortalGrouping, statusOrder: readonly string[] = []): T {
+  if (grouping === "status") return groupPortalBoardByStatus(payload, statusOrder);
   if (grouping === "stakeholder") return groupPortalBoardByStakeholder(payload);
   return payload;
 }

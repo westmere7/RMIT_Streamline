@@ -145,11 +145,14 @@ test.describe("views, routing and error states", () => {
     await page.goto("/workspace/rmit");
     await expect(page.getByText("Recently visited")).toBeVisible({ timeout: 20000 });
     await page.keyboard.press("Control+f");
-    const input = page.getByPlaceholder("Search boards, items, teams and people…");
+    const input = page.getByTestId("palette-input");
     await expect(input).toBeVisible({ timeout: 15000 });
+    // Nothing is searched until the reader says what for.
+    await expect(input).toBeDisabled();
+    await page.getByTestId("palette-kind-items").click();
 
     await input.fill("zzzzzz");
-    await expect(page.getByText(/no results/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/no items/i)).toBeVisible({ timeout: 15000 });
 
     await input.fill("Pragmatist");
     await page.getByRole("option", { name: /RMITinerary Pragmatist/ }).first().click();

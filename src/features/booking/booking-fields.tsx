@@ -31,6 +31,9 @@ export const NO_PRIORITY = "__normal__";
 /** The dropdown item that means "nothing chosen" on a single choice nobody has to answer. */
 const NO_CHOICE = "__none__";
 
+/** The department item that opens a box for one not on the list. */
+const OTHER_DEPARTMENT = "__other__";
+
 /**
  * What each width spans on step one's six-column row.
  *
@@ -159,22 +162,59 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
           <Input id={id("booking-email")} type="email" autoComplete="email" value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-email")} />
         </Field>
       );
-    case "department":
+    case "department": {
+      // Picked from the workspace's stakeholder groups when it has any, so the
+      // same school is not spelt six ways; "Other" opens a box for the rest.
+      // Never locked: the one on an account is a default, not a fact.
+      if (form.departments.length === 0) {
+        return (
+          <Field id={id("booking-department")} {...shell}>
+            <Input id={id("booking-department")} autoComplete="organization" value={draft.department ?? ""} onChange={(e) => onChange({ department: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-department")} />
+          </Field>
+        );
+      }
+      // Kept untrimmed while it is being typed: trimming as you go eats the
+      // space between two words. The sentinel single space shows as empty.
+      const raw = draft.department ?? "";
+      const listed = form.departments.find((d) => d.name === raw.trim()) ?? null;
+      const other = raw !== "" && !listed;
       return (
         <Field id={id("booking-department")} {...shell}>
-          <Input
-            id={id("booking-department")}
-            autoComplete="organization"
-           
-            value={draft.department ?? ""}
-            onChange={(e) => onChange({ department: e.target.value })}
-            aria-invalid={!!error}
-            disabled={preview}
-            {...locked}
-            data-testid={tid("booking-department")}
-          />
+          <div className="grid gap-1.5">
+            <Select value={listed ? listed.name : other ? OTHER_DEPARTMENT : ""} onValueChange={(v) => onChange({ department: v === OTHER_DEPARTMENT ? (other ? draft.department : " ") : v })} disabled={preview}>
+              <SelectTrigger id={id("booking-department")} aria-label={field.label} aria-invalid={!!error} className="h-10" data-testid={tid("booking-department")}>
+                <SelectValue placeholder="Pick yours">
+                  {listed && (
+                    <span className="flex items-center gap-2">
+                      <ColorDot color={listed.color} />
+                      {listed.name}
+                    </span>
+                  )}
+                  {other && "Other"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {form.departments.map((option) => (
+                  <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-department-${slug(option.name)}`)}>
+                    <span className="flex items-center gap-2">
+                      <ColorDot color={option.color} />
+                      {option.name}
+                    </span>
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_DEPARTMENT} data-testid={tid("booking-department-other")}>
+                  Other…
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {/* "Other" holds a single space until something is typed, so the
+                select stays on Other while the box is empty; it is trimmed away
+                before anything is sent. */}
+            {other && <Input value={raw === " " ? "" : raw} onChange={(e) => onChange({ department: e.target.value || " " })} autoComplete="organization" placeholder="Which school or department?" aria-label={`${field.label}, other`} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-department-other-input")} />}
+          </div>
         </Field>
       );
+    }
     case "title":
       return (
         <Field id={id("booking-title")} {...shell}>
@@ -587,10 +627,24 @@ export function Chip({ active, onClick, color, testId, disabled, children }: { a
  * typing, and what has been chosen stays visible inside it as chips that can
  * be taken off one at a time.
  */
-export function AssetTypePicker({ options, value, onChange, disabled }: { options: TagOption[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
+export function AssetTypePicker({
+  options,
+  value,
+  fixed = [],
+  onChange,
+  disabled,
+}: {
+  options: TagOption[];
+  value: string[];
+  /** Types that came from the deliverables themselves: shown, but not for taking off here. */
+  fixed?: readonly string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const tid = (base: string) => (disabled ? undefined : base);
   const chosen = value.map((name) => options.find((o) => o.name === name) ?? { name, color: "gray" as const });
+  const isFixed = (name: string) => fixed.includes(name);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild disabled={disabled}>
@@ -616,9 +670,14 @@ export function AssetTypePicker({ options, value, onChange, disabled }: { option
           data-testid={tid("booking-asset-picker")}
         >
           {chosen.map((option) => (
-            <span key={option.name} className={cn("inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/60 pr-1 pl-2.5 text-xs", colorClasses(option.color).soft)} onClick={(event) => event.stopPropagation()}>
+            <span
+              key={option.name}
+              className={cn("inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-border/60 pl-2.5 text-xs", isFixed(option.name) ? "pr-2.5" : "pr-1", colorClasses(option.color).soft)}
+              onClick={(event) => event.stopPropagation()}
+              data-testid={tid(isFixed(option.name) ? "booking-asset-type-fixed" : "booking-asset-type-chosen")}
+            >
               <span className="truncate">{option.name}</span>
-              {!disabled && (
+              {!disabled && !isFixed(option.name) && (
                 <button
                   type="button"
                   aria-label={`Remove ${option.name}`}
@@ -649,7 +708,7 @@ export function AssetTypePicker({ options, value, onChange, disabled }: { option
               {options.map((option) => {
                 const picked = value.includes(option.name);
                 return (
-                  <CommandItem key={option.name} value={option.name} onSelect={() => onChange(toggle(value, option.name))} data-testid={tid(`booking-asset-${slug(option.name)}`)}>
+                  <CommandItem key={option.name} value={option.name} disabled={isFixed(option.name)} onSelect={() => onChange(toggle(value, option.name))} data-testid={tid(`booking-asset-${slug(option.name)}`)}>
                     <ColorDot color={option.color} />
                     <span className="min-w-0 flex-1 truncate">{option.name}</span>
                     <Check className={cn("size-4 shrink-0", picked ? "opacity-100" : "opacity-0")} />

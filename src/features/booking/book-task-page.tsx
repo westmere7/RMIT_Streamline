@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, LoaderCircle, Pencil, RefreshCw } from "lucide-react";
+import { Check, Copy, ExternalLink, LoaderCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -11,13 +12,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BookingBlock, BookingFormTemplate, BookingSavedBlock, BookingTemplate } from "@/domain";
-import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { canManageWorkspace, canSeeSystemEntities, canViewBoard } from "@/lib/permissions/permissions";
+import { canManageWorkspace, canSeeSystemEntities } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
-import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { PortalAdmin } from "@/features/portal/portal-admin";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -25,27 +24,32 @@ import { cn } from "@/lib/utils";
 /**
  * The Stakeholder Portal destination, at the URL "Book a task" always had.
  *
- * Two things live here now. The portal and its link are an administrator's
- * business, and booking from inside the app is everyone's — so an ordinary
- * member sees the form exactly as they always did, with no tabs and nothing
- * taken away, and an admin gets a tab in front of it. The URL is unchanged, so
- * every existing link, bookmark and search entry still lands here.
+ * For a manager this is where the portal and the form are shaped: the portal's
+ * links and settings on one tab, the form editor on the other. Booking itself
+ * happens on the one booking page (/book/<slug>), the same page a stakeholder's
+ * link opens, so the form is never embedded here as a second copy. A member
+ * with nothing to manage is sent straight on to that page.
  */
 export function BookTaskPage() {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const admin = canSeeSystemEntities(ws.permissions);
   const manager = canManageWorkspace(ws.permissions);
-  const [editing, setEditing] = React.useState(false);
-  const [tab, setTab] = React.useState<"portals" | "book">(manager ? "portals" : "book");
+  const [tab, setTab] = React.useState<"portals" | "book">("portals");
   // Where the editor hangs its controls: the top of the aside, so the card holds the form alone.
   const [editorPanel, setEditorPanel] = React.useState<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!manager) router.replace(routes.bookForm(ws.slug));
+  }, [manager, router, ws.slug]);
 
   const form = useQuery({
     queryKey: queryKeys.bookingForm(ws.slug, null),
     queryFn: () => services.booking.getForm({ workspaceSlug: ws.slug, key: null }),
     staleTime: 60_000,
+    enabled: manager,
   });
   const templates = useQuery({
     queryKey: queryKeys.bookingTemplates(ws.workspace.id),
@@ -67,12 +71,6 @@ export function BookTaskPage() {
     staleTime: 60_000,
   });
 
-  const onBooked = async (receipt: { boardId: string }) => {
-    publishDataChange({ kinds: ["items", "board"] });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(receipt.boardId) });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.notifications(ws.currentUser.id) });
-  };
-
   // The published form is read by every booking page of the workspace, public
   // link included; the draft by nobody but this page.
   const draftChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingDraft(ws.workspace.id) });
@@ -90,7 +88,6 @@ export function BookTaskPage() {
     mutationFn: (template: BookingFormTemplate) => services.booking.publishForm(ws.workspace.id, template),
     onSuccess: async () => {
       await formChanged();
-      setEditing(false);
       toast.success("Form published", { description: "Everyone sees the new form from now on." });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not publish the form"),
@@ -117,9 +114,14 @@ export function BookTaskPage() {
     await services.booking.deleteSavedBlock(saved.id);
     await savedBlocksChanged();
   };
-  // An unpublished draft is worth saying out loud: the question "why is the
-  // form not what I edited" has exactly one answer and this is it.
-  const unpublished = !!draft.data && !!form.data && JSON.stringify(draft.data) !== JSON.stringify(form.data.template);
+
+  if (!manager) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status" data-testid="booking-redirect">
+        <LoaderCircle className="size-4 animate-spin" /> Opening the booking form…
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -135,105 +137,80 @@ export function BookTaskPage() {
             <span className="block max-w-[44rem]">
               {tab === "portals"
                 ? "One link for every stakeholder. They pick whose work to look at once they are in, and book new work from the same place."
-                : "Ask the creative team for work. Requests wait on Task Allocation until a manager places them, unless the team you pick takes bookings directly."}
+                : "Shape the form everybody books through. Save as you go; nothing changes for anyone until you publish."}
             </span>
           }
           actions={
-            manager && tab === "book" && !editing && form.data ? (
-              <Button type="button" onClick={() => setEditing(true)} data-testid="booking-edit">
-                <Pencil /> Edit form{unpublished ? " (draft waiting)" : ""}
-              </Button>
-            ) : undefined
+            <Button type="button" variant={tab === "book" ? "outline" : "default"} asChild>
+              <a href={routes.bookForm(ws.slug)} target="_blank" rel="noreferrer noopener" data-testid="booking-open-form">
+                <ExternalLink /> Open the form
+              </a>
+            </Button>
           }
         />
-        {manager && (
-          <div role="tablist" aria-label="Stakeholder Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
-            {(
-              [
-                ["portals", "Portal"],
-                ["book", "Booking Form"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                // A manager opening the form tab has come to shape the form:
-                // that is what the tab is for them, and the editor's own Done
-                // hands them the form itself when they want to use it.
-                onClick={() => {
-                  setTab(id);
-                  if (id === "book" && manager) setEditing(true);
-                }}
-                className={cn(
-                  "relative -mb-px inline-flex h-10 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12",
-                  tab === id ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
-                )}
-                data-testid={`portal-tab-${id}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div role="tablist" aria-label="Stakeholder Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
+          {(
+            [
+              ["portals", "Portal"],
+              ["book", "Booking Form"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={cn(
+                "relative -mb-px inline-flex h-10 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12",
+                tab === id ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
+              )}
+              data-testid={`portal-tab-${id}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {manager && tab === "portals" && (
+      {tab === "portals" && (
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7">
           <div className="mx-auto w-full max-w-[66rem]">
             <PortalAdmin />
           </div>
         </div>
       )}
-      {/* On a desktop the form card scrolls by itself under the header; on a phone the whole page scrolls. */}
-      <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", manager && tab !== "book" && "hidden")}>
+      {/* On a desktop the editor card scrolls by itself under the header; on a phone the whole page scrolls. */}
+      <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", tab !== "book" && "hidden")}>
         <div className="mx-auto grid w-full max-w-[66rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,44rem)_minmax(16rem,20rem)]">
-        <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
-          {form.isLoading ? (
-            <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
-              <LoaderCircle className="size-4 animate-spin" /> Getting the form ready…
-            </div>
-          ) : form.isError || !form.data ? (
-            <ErrorState title="Could not load the booking form." error={form.error} onRetry={() => form.refetch()} />
-          ) : editing && manager && draft.isLoading ? (
-            <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
-              <LoaderCircle className="size-4 animate-spin" /> Opening the editor…
-            </div>
-          ) : editing && manager ? (
-            <BookingFormEditor
-              form={form.data}
-              live={form.data.template}
-              initial={draft.data ?? form.data.template}
-              templates={templates.data ?? []}
-              savedBlocks={savedBlocks.data ?? []}
-              savingDraft={saveDraft.isPending}
-              publishing={publishForm.isPending}
-              onSaveDraft={(template) => saveDraft.mutateAsync(template).then(() => undefined)}
-              onPublish={(template) => publishForm.mutateAsync(template).then(() => undefined)}
-              onDiscardDraft={discardDraft}
-              onClose={() => setEditing(false)}
-              onSaveTemplate={saveTemplate}
-              onDeleteTemplate={deleteTemplate}
-              onSaveBlock={saveBlock}
-              onDeleteSavedBlock={deleteSavedBlock}
-              panelContainer={editorPanel}
-            />
-          ) : (
-            <BookingWizard
-              key={form.dataUpdatedAt}
-              form={form.data}
-              defaults={{ requesterName: ws.currentUser.displayName, requesterEmail: ws.currentUser.email, department: ws.currentUser.department ?? "" }}
-              onSubmit={(request) => services.booking.submit({ workspaceSlug: ws.slug, key: null, request, actorId: ws.currentUser.id })}
-              onBooked={(receipt) => void onBooked(receipt)}
-              itemHref={(receipt) => {
-                const board = ws.boardById(receipt.boardId);
-                return board && canViewBoard(ws.permissions, board) ? routes.board(ws.slug, board.slug, { itemId: receipt.itemId }) : null;
-              }}
-            />
-          )}
-        </section>
-        {admin && <AdminAside editorSlot={editing ? setEditorPanel : null} />}
+          <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
+            {form.isLoading || draft.isLoading ? (
+              <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
+                <LoaderCircle className="size-4 animate-spin" /> Opening the editor…
+              </div>
+            ) : form.isError || !form.data ? (
+              <ErrorState title="Could not load the booking form." error={form.error} onRetry={() => form.refetch()} />
+            ) : (
+              <BookingFormEditor
+                form={form.data}
+                live={form.data.template}
+                initial={draft.data ?? form.data.template}
+                templates={templates.data ?? []}
+                savedBlocks={savedBlocks.data ?? []}
+                savingDraft={saveDraft.isPending}
+                publishing={publishForm.isPending}
+                onSaveDraft={(template) => saveDraft.mutateAsync(template).then(() => undefined)}
+                onPublish={(template) => publishForm.mutateAsync(template).then(() => undefined)}
+                onDiscardDraft={discardDraft}
+                onSaveTemplate={saveTemplate}
+                onDeleteTemplate={deleteTemplate}
+                onSaveBlock={saveBlock}
+                onDeleteSavedBlock={deleteSavedBlock}
+                panelContainer={editorPanel}
+              />
+            )}
+          </section>
+          {admin && <AdminAside editorSlot={setEditorPanel} />}
         </div>
       </div>
     </div>
@@ -241,7 +218,7 @@ export function BookTaskPage() {
 }
 
 /** The public link and where bookings arrive: admins only. */
-function AdminAside({ editorSlot }: { editorSlot: ((node: HTMLDivElement | null) => void) | null }) {
+function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) => void }) {
   const ws = useWorkspace();
   const services = useServices();
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -273,7 +250,7 @@ function AdminAside({ editorSlot }: { editorSlot: ((node: HTMLDivElement | null)
 
   return (
     <aside className="scrollbar-thin space-y-4 lg:min-h-0 lg:overflow-y-auto">
-      {editorSlot && <div ref={editorSlot} />}
+      <div ref={editorSlot} />
       <section className="rounded-2xl border border-border/60 bg-surface/40 p-5" data-testid="booking-share">
         <h2 className="text-[15px] font-semibold tracking-tight">Share with stakeholders</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">Anyone with this link can book a task without an account. Send it by email or put it on the intranet.</p>

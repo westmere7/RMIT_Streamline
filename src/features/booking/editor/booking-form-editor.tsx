@@ -68,7 +68,8 @@ export interface BookingFormEditorProps {
   onSaveDraft: (template: BookingFormTemplate) => Promise<void>;
   onPublish: (template: BookingFormTemplate) => Promise<void>;
   onDiscardDraft: () => Promise<void>;
-  onClose: () => void;
+  /** Leaves the editor, where the page has somewhere to go. */
+  onClose?: () => void;
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
   onSaveBlock: (input: { name: string; block: BookingBlock }) => Promise<void>;
@@ -206,9 +207,11 @@ export function BookingFormEditor({
           <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || savingDraft || publishing} data-testid="booking-editor-revert">
             <Undo2 /> Undo changes
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={savingDraft || publishing} data-testid="booking-editor-close">
-            Done
-          </Button>
+          {onClose && (
+            <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={savingDraft || publishing} data-testid="booking-editor-close">
+              Done
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <TemplatesMenu

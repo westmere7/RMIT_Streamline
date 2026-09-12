@@ -19,10 +19,10 @@ import { resetLocalData, signInAs } from "./helpers";
  * service is picked because the built-in form gives it three required
  * questions, which is what makes this exercise the gating between steps.
  */
-async function bookThroughPortal(page: Page, title: string, brief: string): Promise<void> {
-  await page.getByTestId("portal-book-button").click();
-  const form = page.getByTestId("portal-book");
-  await expect(form).toBeVisible();
+async function bookThroughPortal(page: Page, title: string, brief: string): Promise<Page> {
+  // The form opens in a tab of its own; the board stays put behind it.
+  const [form] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("portal-book-button").click()]);
+  await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
   await form.getByTestId("booking-name").fill("Priya Nair");
   await form.getByTestId("booking-email").fill("priya@rmit.edu.vn");
   await form.getByTestId("booking-title").fill(title);
@@ -40,8 +40,18 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   await expect(form.getByTestId("booking-step-review")).toBeVisible();
   await form.getByTestId("booking-submit").click();
   // The ticket stays on screen with its reference and somewhere to go.
-  await expect(page.getByTestId("booking-receipt")).toBeVisible({ timeout: 20000 });
-  await expect(page.getByTestId("portal-view-request")).toBeVisible();
+  await expect(form.getByTestId("booking-receipt")).toBeVisible({ timeout: 20000 });
+  await expect(form.getByTestId("portal-view-request")).toBeVisible();
+  return form;
+}
+
+/** Done with the booking tab: close it and let the board re-read. */
+async function backToTasks(page: Page, form: Page): Promise<void> {
+  await form.getByTestId("portal-back-to-tasks").click();
+  await expect(form.getByTestId("portal-board")).toBeVisible({ timeout: 20000 });
+  await form.close();
+  await page.reload();
+  await expect(page.getByTestId("portal-board")).toBeVisible({ timeout: 20000 });
 }
 
 /** The workspace's one portal, on the management screen. */
@@ -114,12 +124,11 @@ test.describe("the stakeholder portal", () => {
     await showOnly(page, "Comm.");
     await expect(page.getByTestId("portal-totals")).toContainText("0");
 
-    await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.");
+    const form = await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.");
 
     // And the request is on the board straight away, which is what "submitted"
     // means. The board is the workspace's own, so the row is an ordinary one.
-    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
-    await expect(page.getByTestId("portal-board")).toBeVisible();
+    await backToTasks(page, form);
     await expect(page.getByRole("button", { name: "Open Day wayfinding posters", exact: true })).toBeVisible();
     await expect(page.getByTestId("portal-totals")).toContainText("1");
   });
@@ -129,8 +138,7 @@ test.describe("the stakeholder portal", () => {
 
     await page.goto(portalPath);
     await showOnly(page, "Comm.");
-    await bookThroughPortal(page, "Comm only request", "Should never appear under Event.");
-    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
+    await backToTasks(page, await bookThroughPortal(page, "Comm only request", "Should never appear under Event."));
 
     // Switching the selector is what separates them now, not a second link.
     await showOnly(page, "Event");
@@ -169,8 +177,7 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await showOnly(page, "Comm.");
-    await bookThroughPortal(page, "Findable by search", "A request to look for.");
-    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
+    await backToTasks(page, await bookThroughPortal(page, "Findable by search", "A request to look for."));
 
     // A search is not a question about a date, so the window steps aside and
     // says that it has.
@@ -185,14 +192,13 @@ test.describe("the stakeholder portal", () => {
     await page.goto(portalPath);
 
     // Showing the full creative team, there is no stakeholder to raise the
-    // request for, so the gate explains rather than booking against nobody.
-    // The form opens over the board either way; who it is for is its first
-    // question, and step one will not let anybody past without an answer.
-    await page.getByTestId("portal-book-button").click();
-    await expect(page.getByTestId("portal-book")).toBeVisible();
-    await expect(page.getByTestId("booking-stakeholder")).toBeVisible();
-    await page.getByTestId("booking-next").click();
-    await expect(page.getByText("Say who this request is for")).toBeVisible();
+    // request for. The form opens in its own tab either way; who it is for is
+    // its first question, and step one will not let anybody past without it.
+    const [form] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("portal-book-button").click()]);
+    await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
+    await expect(form.getByTestId("booking-stakeholder")).toBeVisible();
+    await form.getByTestId("booking-next").click();
+    await expect(form.getByText("Say which department this is for")).toBeVisible();
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {
@@ -252,8 +258,6 @@ test.describe("the stakeholder portal", () => {
     await bookThroughPortal(page, "Settings ride along", "One request, to see the board with.");
 
     const card = await portalCard(page);
-    await card.getByTestId("portal-description").fill("Everything the Marketing team is making for you.");
-    await card.getByTestId("portal-description-save").click();
     // Hiding a column is about clutter on the page, not about access.
     await card.getByTestId("portal-column-priority").click();
     await expect(card.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
@@ -262,7 +266,6 @@ test.describe("the stakeholder portal", () => {
     await expect(card.getByTestId("portal-allow-booking")).toHaveAttribute("aria-checked", "false");
 
     await page.goto(portalPath);
-    await expect(page.getByText("Everything the Marketing team is making for you.")).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Priority" })).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
     await expect(page.getByTestId("portal-book-button")).toHaveCount(0);
@@ -284,23 +287,23 @@ test.describe("the stakeholder portal", () => {
   test("deep-links a request, and Back leaves it", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await bookThroughPortal(page, "Deep link me", "A request to open by URL.");
+    const form = await bookThroughPortal(page, "Deep link me", "A request to open by URL.");
 
-    await page.getByTestId("portal-view-request").click();
-    await expect(page.getByTestId("item-panel")).toBeVisible();
-    await expect(page).toHaveURL(/[?&]task=/);
+    // "View request" takes the booking tab to the board with the request open.
+    await form.getByTestId("portal-view-request").click();
+    await expect(form.getByTestId("item-panel")).toBeVisible({ timeout: 20000 });
+    await expect(form).toHaveURL(/[?&]task=/);
 
-    await page.reload();
-    await expect(page.getByTestId("item-panel")).toBeVisible();
-    await page.goBack();
-    await expect(page.getByTestId("item-panel")).toHaveCount(0);
+    await form.reload();
+    await expect(form.getByTestId("item-panel")).toBeVisible();
+    await form.goBack();
+    await expect(form.getByTestId("item-panel")).toHaveCount(0);
   });
 
   test("gives the portal the board's own views", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await bookThroughPortal(page, "Something to look at", "One request, seven ways of looking at it.");
-    await page.getByTestId("portal-book").getByTestId("portal-back-to-tasks").click();
+    await backToTasks(page, await bookThroughPortal(page, "Something to look at", "One request, seven ways of looking at it."));
 
     // The search sits above the board rather than inside the toolbar, so it is
     // there on every view — which is the point of moving it.
@@ -321,9 +324,10 @@ test.describe("the stakeholder portal", () => {
   test("offers a stakeholder nothing to write with", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await bookThroughPortal(page, "Read only please", "Nothing here should be editable by a visitor.");
-    await page.getByTestId("portal-view-request").click();
-    await expect(page.getByTestId("item-panel")).toBeVisible();
+    const form = await bookThroughPortal(page, "Read only please", "Nothing here should be editable by a visitor.");
+    await form.getByTestId("portal-view-request").click();
+    await expect(form.getByTestId("item-panel")).toBeVisible({ timeout: 20000 });
+    await form.close();
 
     // A stakeholder holding nothing but the link. The data stays put; only the
     // session goes.
@@ -347,10 +351,11 @@ test.describe("the stakeholder portal", () => {
   test("publishes the brief and never the internal description", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await bookThroughPortal(page, "Brief only", "The words the requester actually typed.");
-    await page.getByTestId("portal-view-request").click();
+    const form = await bookThroughPortal(page, "Brief only", "The words the requester actually typed.");
+    await form.getByTestId("portal-view-request").click();
 
-    const panel = page.getByTestId("item-panel");
+    const panel = form.getByTestId("item-panel");
+    await expect(panel).toBeVisible({ timeout: 20000 });
     await expect(panel).toContainText("The words the requester actually typed.");
     // The booking writer appends contact details to items.description; that
     // field must never reach a portal.

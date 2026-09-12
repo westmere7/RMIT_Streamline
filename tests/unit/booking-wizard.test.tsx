@@ -15,6 +15,7 @@ const formWith = (template: BookingFormTemplate = defaultBookingFormTemplate()):
     { name: "Print assets", color: "red" },
     { name: "Static Designs", color: "blue" },
   ],
+  departments: [],
   priorities: [
     { name: "High", color: "orange" },
     { name: "Medium", color: "blue" },
@@ -324,19 +325,20 @@ describe("the booking wizard", () => {
     expect(screen.getByTestId("booking-auto-reply")).toHaveTextContent("Thanks — a producer reads every booking.");
   });
 
-  it("fills the requester in from the account without taking the questions off the form", async () => {
+  it("answers the requester from the account and takes those two questions off the form", async () => {
     const { user } = renderWizard({ account: { name: "Danh Nguyen", email: "danh@rmit.edu.au" } });
-    // Filled in, and still there to be changed: somebody booking for a
-    // colleague needs the boxes, not a banner telling them whose name it is.
-    expect(screen.getByTestId("booking-name")).toHaveValue("Danh Nguyen");
-    expect(screen.getByTestId("booking-email")).toHaveValue("danh@rmit.edu.au");
+    // The card says who; the boxes it answers are not asked again.
     expect(screen.getByTestId("booking-known-requester")).toHaveTextContent("Danh Nguyen");
+    expect(screen.queryByTestId("booking-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("booking-email")).not.toBeInTheDocument();
 
+    // Booking for a colleague brings the boxes back, empty.
     await user.click(screen.getByTestId("booking-not-you"));
     expect(screen.getByTestId("booking-name")).toHaveValue("");
+    expect(screen.getByTestId("booking-email")).toHaveValue("");
     // And the way back to the account is offered as soon as it is not in use.
     await user.click(screen.getByTestId("booking-book-as-me"));
-    expect(screen.getByTestId("booking-name")).toHaveValue("Danh Nguyen");
+    expect(screen.queryByTestId("booking-name")).not.toBeInTheDocument();
   });
 
   it("offers signing in to anybody who has not, without insisting on it", () => {
@@ -376,10 +378,74 @@ describe("the booking wizard", () => {
     await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
     await user.click(screen.getByTestId("booking-service-design"));
     await user.click(screen.getByTestId("booking-next"));
-    expect(screen.getByText("Say who this request is for")).toBeInTheDocument();
+    expect(screen.getByText("Say which department this is for")).toBeInTheDocument();
     expect(screen.getByTestId("booking-step-basics")).toBeInTheDocument();
     // It is a question of step one, not a gate in front of the form.
     expect(screen.getByTestId("booking-stakeholder")).toBeInTheDocument();
+  });
+
+  it("offers the workspace's departments as a list, with Other for the rest, and never locks it", async () => {
+    const form = { ...formWith(), departments: [{ name: "Comm.", color: "blue" as const }, { name: "Events", color: "orange" as const }] };
+    const { user, onSubmit } = renderWizard({ form, account: { name: "Danh Nguyen", email: "danh@rmit.edu.au", title: "Producer" }, defaults: { department: "Events" } });
+    // The account shows as a person, and its department is only the default.
+    expect(screen.getByTestId("booking-known-requester")).toHaveTextContent("Producer");
+    expect(screen.queryByTestId("booking-name")).not.toBeInTheDocument();
+    expect(screen.getByTestId("booking-department")).toHaveTextContent("Events");
+    expect(screen.getByTestId("booking-department")).not.toBeDisabled();
+
+    await user.click(screen.getByTestId("booking-department"));
+    await user.click(await screen.findByTestId("booking-department-other"));
+    await user.type(screen.getByTestId("booking-department-other-input"), "School of Design");
+    expect(screen.getByTestId("booking-department")).toHaveTextContent("Other");
+
+    await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
+    await user.click(screen.getByTestId("booking-priority"));
+    await user.click(await screen.findByTestId("booking-priority-high"));
+    fireEvent.change(screen.getByTestId("booking-due"), { target: { value: "2026-12-01" } });
+    await user.click(screen.getByTestId("booking-service-brand"));
+    await user.click(screen.getByTestId("booking-sub-approval"));
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-brief");
+    await user.type(screen.getByTestId("booking-answer-brand-what"), "A logo wall.");
+    await user.type(screen.getByTestId("booking-answer-brand-audience"), "Staff.");
+    await user.click(screen.getByTestId("booking-answer-brand-history-first-time"));
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-assets");
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-review");
+    await user.click(screen.getByTestId("booking-submit"));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const sent = (onSubmit.mock.calls as unknown as BookingRequest[][])[0]![0]!;
+    expect(sent.department).toBe("School of Design");
+  });
+
+  it("counts the deliverables' own types as asset types, and lets others be added", async () => {
+    const { user, onSubmit } = renderWizard();
+    await fillBasics(user);
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-brief");
+    await user.type(screen.getByTestId("booking-answer-design-what"), "Six A1 posters.");
+    await user.type(screen.getByTestId("booking-answer-design-specs"), "A1 portrait, CMYK.");
+    await user.click(screen.getByTestId("booking-answer-design-copy-yes-final-and-approved"));
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-assets");
+
+    await user.type(screen.getByTestId("asset-add-input"), "A1 poster{Enter}");
+    await user.click(within(screen.getByTestId("asset-line")).getByTestId("asset-type"));
+    await user.click(await screen.findByRole("option", { name: "Print assets" }));
+    // Picked from the row: shown, said so, and not for taking off here.
+    expect(screen.getByTestId("booking-asset-type-fixed")).toHaveTextContent("Print assets");
+    expect(screen.getByText(/We picked these from your deliverables/)).toBeInTheDocument();
+    await user.click(screen.getByTestId("booking-asset-picker"));
+    await user.click(await screen.findByTestId("booking-asset-static-designs"));
+    expect(screen.getByTestId("booking-asset-type-chosen")).toHaveTextContent("Static Designs");
+
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-review");
+    await user.click(screen.getByTestId("booking-submit"));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const sent = (onSubmit.mock.calls as unknown as BookingRequest[][])[0]![0]!;
+    expect(sent.assetTypes).toEqual(["Print assets", "Static Designs"]);
   });
 
   it("drops the deliverables step altogether when the form turns it off", () => {

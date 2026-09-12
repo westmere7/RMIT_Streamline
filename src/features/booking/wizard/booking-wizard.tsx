@@ -5,7 +5,8 @@ import { ArrowLeft, ArrowRight, CheckCircle2, History, LoaderCircle, LogIn, Mess
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, ColorToken } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, ColorToken, User } from "@/domain";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { bookingReference, serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
@@ -42,7 +43,7 @@ export interface BookingWizardProps {
    * book for somebody else — the banner says whose name it is going in under
    * and offers the way out.
    */
-  account?: { name: string; email: string } | null;
+  account?: BookingAccount | null;
   /** Where signing in leads, for a page that has somewhere to send them back to. */
   signInHref?: string | null;
   /**
@@ -87,8 +88,23 @@ export interface BookingWizardProps {
   onBooked?: (receipt: BookingReceipt) => void;
 }
 
-/** The questions an account answers on the reader's behalf. */
+/** Who the app knows is signed in, with enough about them to be shown as a person and not a pair of boxes. */
+export interface BookingAccount {
+  name: string;
+  email: string;
+  /** Their job title, when the account has one. */
+  title?: string | null;
+  avatar?: Pick<User, "id" | "firstName" | "lastName" | "displayName" | "avatarUrl"> | null;
+}
+
+/** The questions about the requester. */
 const REQUESTER_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail", "department"];
+/**
+ * The two an account answers outright, and so takes off the form. The
+ * department stays a question whoever is signed in: it is picked from a list,
+ * and the one on the account is a default rather than a fact.
+ */
+const ACCOUNT_KEYS: readonly BookingStandardKey[] = ["requesterName", "requesterEmail"];
 
 export function BookingWizard(props: BookingWizardProps) {
   // One commit behind on purpose. The first draft is built from what this
@@ -141,6 +157,13 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
   }));
   const [assets, setAssets] = React.useState<AssetRow[]>(() => (memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
   const [restored, setRestored] = React.useState(!!memory.draft);
+  /**
+   * The asset types the deliverables already name. They are part of the answer
+   * to "asset type" whether or not anybody ticks them again, so the picker shows
+   * them fixed and the request carries them.
+   */
+  const derivedTypes = React.useMemo(() => [...new Set(assets.map((a) => a.assetType?.trim() ?? "").filter(Boolean))], [assets]);
+  const allAssetTypes = React.useCallback((chosen: readonly string[]) => [...derivedTypes, ...chosen.filter((t) => !derivedTypes.includes(t))], [derivedTypes]);
   // The booking's reference, settled before it is sent: the id the item will be
   // created with is made here, so the code on the recap is the code on the ticket.
   const [itemId, setItemId] = React.useState(() => newId());
@@ -177,12 +200,12 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
       requesterEmail: request.requesterEmail.trim().toLowerCase(),
       department: omit?.includes("department") ? null : (request.department?.trim() || null),
       assets: template.assets.enabled ? assets.filter((a) => a.name.trim()).map((a) => ({ name: a.name.trim(), quantity: a.quantity, spec: a.notes?.trim() || null, assetType: a.assetType?.trim() || null })) : [],
-      assetTypes: template.assets.enabled && template.assets.askAssetTypes ? request.assetTypes : [],
+      assetTypes: template.assets.enabled ? allAssetTypes(template.assets.askAssetTypes ? request.assetTypes : []) : [],
       referenceUrl: template.assets.enabled && template.assets.askLink ? (request.referenceUrl?.trim() || null) : null,
       brief: composeBrief(request, template),
       itemId,
     }),
-    [request, assets, template, omit, itemId],
+    [request, assets, template, omit, itemId, allAssetTypes],
   );
 
   // Who the wizard is booking as without having to ask: the account first, and
@@ -217,7 +240,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
    * would show up in nobody's list, which is worse than being asked.
    */
   const stakeholderProblem = (key: BookingStep): Record<string, string> =>
-    key === "basics" && stakeholders && stakeholders.length > 0 && !stakeholderId ? { [STAKEHOLDER_ERROR_KEY]: "Say who this request is for" } : {};
+    key === "basics" && stakeholders && stakeholders.length > 0 && !stakeholderId ? { [STAKEHOLDER_ERROR_KEY]: "Say which department this is for" } : {};
 
   const advance = () => {
     if (!preview) {
@@ -369,10 +392,10 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
             stakeholderId={stakeholderId ?? null}
             onStakeholder={onStakeholder}
             stakeholderLabel={stakeholderLabel}
-            // Signed in and booking as themselves: their details are the
-            // account's, and there is nothing to correct. "Booking for someone
-            // else?" is what hands the boxes back.
-            lockedKeys={account && knownRequester ? REQUESTER_KEYS : undefined}
+            // Signed in and booking as themselves: the card says who, and the
+            // two boxes it answers are not on the form. "Booking for someone
+            // else?" is what brings them back, empty.
+            hiddenKeys={account && knownRequester ? ACCOUNT_KEYS : undefined}
             identity={
               <Identity
                 account={account ?? null}
@@ -396,8 +419,8 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
           />
         )}
         {index === 1 && <StepBrief {...stepProps} />}
-        {step.key === "assets" && <StepAssets {...stepProps} assets={assets} onAssets={setAssets} onSkip={advance} />}
-        {step.key === "review" && <StepReview {...stepProps} assets={assets} onEditStep={jumpTo} />}
+        {step.key === "assets" && <StepAssets {...stepProps} assets={assets} onAssets={setAssets} derivedTypes={derivedTypes} onSkip={advance} />}
+        {step.key === "review" && <StepReview {...stepProps} request={{ ...request, assetTypes: allAssetTypes(request.assetTypes) }} assets={assets} onEditStep={jumpTo} />}
       </div>
 
       {failure && (
@@ -509,7 +532,7 @@ function Identity({
   savedAt,
   onStartBlank,
 }: {
-  account: { name: string; email: string } | null;
+  account: BookingAccount | null;
   known: { name: string; email: string } | null;
   knownRequester: boolean;
   signInHref: string | null;
@@ -572,14 +595,29 @@ function Identity({
         </div>
       )}
 
-      {asksRequester && knownRequester && known && (
+      {/* Signed in and booking as themselves: the person, not a line of small
+          print. The department stays a question below, because the one on the
+          account is only a default. */}
+      {asksRequester && knownRequester && known && account && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-surface/40 px-3.5 py-2.5" data-testid="booking-known-requester">
+          {account.avatar && <UserAvatar user={account.avatar} size="lg" tooltip={false} />}
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-[13px] font-semibold">{known.name}</p>
+            <p className="truncate text-2xs text-muted-foreground">{[account.title?.trim(), known.email].filter(Boolean).join(" · ")}</p>
+          </div>
+          <button type="button" className="text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onForget} data-testid="booking-not-you">
+            Booking for someone else?
+          </button>
+        </div>
+      )}
+      {asksRequester && knownRequester && known && !account && (
         <p className="flex flex-wrap items-center gap-x-2 text-2xs text-muted-foreground" data-testid="booking-known-requester">
           <UserRound className="size-3.5 shrink-0" aria-hidden />
           <span>
-            Filled in {account ? "from your account" : "from what this browser remembers"} — <strong className="font-semibold text-foreground">{known.name}</strong>.
+            Filled in from what this browser remembers — <strong className="font-semibold text-foreground">{known.name}</strong>.
           </span>
           <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onForget} data-testid="booking-not-you">
-            {account ? "Booking for someone else?" : "Not you?"}
+            Not you?
           </button>
         </p>
       )}

@@ -45,17 +45,17 @@ export function StepBasics({
   stakeholderId,
   onStakeholder,
   stakeholderLabel,
-  lockedKeys,
+  hiddenKeys,
 }: StepProps & {
   identity?: React.ReactNode;
-  /** Questions the app has answered from an account, shown but not typed over. */
-  lockedKeys?: readonly BookingStandardKey[];
+  /** Questions the account has answered: the card above carries them, so they are not on the form. */
+  hiddenKeys?: readonly BookingStandardKey[];
   stakeholders?: readonly { id: string; name: string; color: ColorToken }[];
   stakeholderId?: string | null;
   onStakeholder?: (id: string) => void;
   stakeholderLabel?: string;
 }) {
-  const omitted = new Set<BookingStandardKey>(omit ?? []);
+  const omitted = new Set<BookingStandardKey>([...(omit ?? []), ...(hiddenKeys ?? [])]);
   const fields = template.basics.fields.filter((field) => !omitted.has(field.key));
   const service = serviceById(template, request.serviceTypeId);
   const chosen = stakeholders?.find((s) => s.id === stakeholderId) ?? null;
@@ -77,10 +77,10 @@ export function StepBasics({
           on a portal this is one fact about the requester and not the shape of
           the work. */}
       {stakeholders && stakeholders.length > 0 && (
-        <Field label={stakeholderLabel ?? "Who is this request for?"} required description="One link serves everybody the team works with." error={errors[STAKEHOLDER_ERROR_KEY]}>
+        <Field label={stakeholderLabel ?? "Which department is this for?"} required error={errors[STAKEHOLDER_ERROR_KEY]}>
           <Select value={stakeholderId ?? ""} onValueChange={(id) => onStakeholder?.(id)}>
-            <SelectTrigger className="h-10" aria-label={stakeholderLabel ?? "Who is this request for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
-              <SelectValue placeholder="Pick a group">
+            <SelectTrigger className="h-10" aria-label={stakeholderLabel ?? "Which department is this for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
+              <SelectValue placeholder="Pick a department">
                 {chosen && (
                   <span className="flex items-center gap-2">
                     <ColorDot color={chosen.color} />
@@ -106,7 +106,7 @@ export function StepBasics({
         <div className="grid gap-4 sm:grid-cols-6">
           {fields.map((field) => (
             <div key={field.id} className={cn("col-span-6 min-w-0", SPAN[field.width])}>
-              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} readOnly={lockedKeys?.includes(field.key)} />
+              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} />
             </div>
           ))}
         </div>
@@ -226,8 +226,10 @@ export function StepBrief({ template, request, patch, errors }: StepProps) {
 
 // ---- 3. the deliverables, all of it optional ----------------------------------
 
-export function StepAssets({ form, template, request, patch, assets, onAssets, onSkip }: StepProps & { assets: AssetRow[]; onAssets: (rows: AssetRow[]) => void; onSkip: () => void }) {
+export function StepAssets({ form, template, request, patch, assets, onAssets, derivedTypes, onSkip }: StepProps & { assets: AssetRow[]; onAssets: (rows: AssetRow[]) => void; derivedTypes: readonly string[]; onSkip: () => void }) {
   const step = template.assets;
+  // What the rows above already said, first and fixed; anything else is the requester's own addition.
+  const shownTypes = [...derivedTypes, ...request.assetTypes.filter((t) => !derivedTypes.includes(t))];
   return (
     <div className="space-y-5" data-testid="booking-step-assets">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -248,8 +250,8 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, o
       <AssetList rows={assets} onChange={onAssets} options={form.assetTypes} />
 
       {step.askAssetTypes && (
-        <Field label={step.assetTypesLabel} description="Helps us plan; pick as many as apply.">
-          <AssetTypePicker options={form.assetTypes} value={request.assetTypes} onChange={(assetTypes) => patch({ assetTypes })} />
+        <Field label={step.assetTypesLabel} description={derivedTypes.length > 0 ? "We picked these from your deliverables. List any other types here." : "Helps us plan; pick as many as apply."}>
+          <AssetTypePicker options={form.assetTypes} value={shownTypes} fixed={derivedTypes} onChange={(next) => patch({ assetTypes: next.filter((t) => !derivedTypes.includes(t)) })} />
         </Field>
       )}
 

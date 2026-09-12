@@ -43,7 +43,9 @@ test.describe("authentication and navigation", () => {
   test("global search finds items and navigates", async ({ page }) => {
     await signInAs(page, "Danh");
     await page.keyboard.press("Control+k");
-    await page.getByPlaceholder("Search boards, items, teams and people…").fill("Pragmatist");
+    // What first, then the words.
+    await page.getByTestId("palette-kind-items").click();
+    await page.getByTestId("palette-input").fill("Pragmatist");
     await page.getByRole("option", { name: /RMITinerary Pragmatist/ }).click();
     await expect(page).toHaveURL(/rmitinerary-2026\?item=/);
     await expect(page.getByTestId("item-panel")).toContainText("RMITinerary Pragmatist");

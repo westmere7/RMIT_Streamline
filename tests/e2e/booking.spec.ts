@@ -11,18 +11,21 @@ const TASK_ALLOCATION_URL = "/workspace/rmit/boards/task-allocation";
 
 /**
  * The destination is the Stakeholder Portal now, at the same URL. An
- * administrator lands on the portal, so booking is one tab across; a member
- * without those controls still lands straight on the wizard.
+ * administrator lands on the portal, with the form editor one tab across; the
+ * form itself lives on the booking page (/book/rmit) for everybody.
  */
 async function openBookPage(page: Page) {
   await page.getByTestId("sidebar-book-task").click();
   await expect(page).toHaveURL(/\/workspace\/rmit\/book$/);
   await openEditorTab(page);
-  // A manager lands in the editor, because shaping the form is what the tab is
-  // for them; the form itself is one click away.
-  const done = page.getByTestId("booking-editor-close");
-  if (await done.isVisible().catch(() => false)) await done.click();
-  await expect(page.getByTestId("booking-wizard")).toBeVisible();
+  await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
+}
+
+/** The booking page as a signed-in member meets it: no key, the session answers. */
+async function openBookingForm(page: Page) {
+  await page.goto("/book/rmit");
+  await expect(page.getByTestId("booking-card")).toBeVisible();
+  await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });
 }
 
 /** The Booking Form tab, which opens the editor for anyone who may shape it. */
@@ -58,7 +61,7 @@ test.describe("task booking", () => {
   test("a member sees neither the Admin team nor the Task Allocation board", async ({ page }) => {
     // Let the owner create them first, then look as a plain member.
     await signInAs(page, "Danh");
-    await page.getByTestId("sidebar-book-task").click();
+    await openBookPage(page);
     await expect(page.getByTestId("booking-public-link")).toHaveValue(/\/book\/rmit\//, { timeout: 15_000 });
 
     await page.getByTestId("user-menu").click();
@@ -88,7 +91,10 @@ test.describe("task booking", () => {
     await expect(page.getByText("Pick the kind of work this is")).toBeVisible();
     await page.getByTestId("booking-name").fill("Priya Nair");
     await page.getByTestId("booking-email").fill("priya.nair@rmit.edu.au");
-    await page.getByTestId("booking-department").fill("School of Design");
+    // The department is picked from the stakeholder groups, with a box for any other.
+    await page.getByTestId("booking-department").click();
+    await page.getByTestId("booking-department-other").click();
+    await page.getByTestId("booking-department-other-input").fill("School of Design");
     await page.getByTestId("booking-title").fill("Open Day wayfinding posters");
     await page.getByTestId("booking-priority").click();
     await page.getByTestId("booking-priority-high").click();
@@ -161,7 +167,7 @@ test.describe("task booking", () => {
 
   test("the recap goes back to the step that owns each answer", async ({ page }) => {
     await signInAs(page, "Danh");
-    await openBookPage(page);
+    await openBookingForm(page);
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
     await page.getByTestId("booking-service-design").click();
     await page.getByTestId("booking-next").click();
@@ -190,8 +196,10 @@ test.describe("task booking", () => {
 
   test("a member books from inside the app and a manager allocates it to a team board", async ({ page }) => {
     await signInAs(page, "Danh");
-    await openBookPage(page);
-    await expect(page.getByTestId("booking-name")).toHaveValue("Danh Nguyen");
+    // "Book a task" inside the app is the booking page, filled in from the account.
+    await openBookingForm(page);
+    await expect(page.getByTestId("booking-known-requester")).toContainText("Danh Nguyen");
+    await expect(page.getByTestId("booking-name")).toHaveCount(0);
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
     await page.getByTestId("booking-service-design").click();
     await page.getByTestId("booking-next").click();
@@ -223,8 +231,6 @@ test.describe("task booking", () => {
     await signInAs(page, "Danh");
     await openBookPage(page);
     const publicUrl = await page.getByTestId("booking-public-link").inputValue();
-    await page.getByTestId("booking-edit").click();
-    await expect(page.getByTestId("booking-editor")).toBeVisible();
 
     // A service of the workspace's own, with a question of its own. Adding one
     // picks it, and its settings open under the cards.
@@ -259,7 +265,7 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("booking-editor-publish").click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("booking-editor-draft-waiting")).toHaveCount(0, { timeout: 15_000 });
 
     await page.goto(publicUrl);
     await page.getByTestId("booking-name").fill("Priya Nair");
@@ -289,7 +295,6 @@ test.describe("task booking", () => {
   test("an admin keeps forms as templates, with a word about what each is for", async ({ page }) => {
     await signInAs(page, "Danh");
     await openBookPage(page);
-    await page.getByTestId("booking-edit").click();
     await page.getByTestId("booking-editor-templates").click();
     await page.getByTestId("template-save").click();
     await page.getByTestId("template-name").fill("Built-in copy");

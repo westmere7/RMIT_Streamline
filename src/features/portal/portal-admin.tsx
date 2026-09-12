@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { MAX_PORTAL_DESCRIPTION, PORTAL_COLUMN_LABELS, PORTAL_COLUMNS, PORTAL_THEMES, PORTAL_VIEWS, type PortalTheme, type PortalView, type StakeholderPortal } from "@/domain";
+import { PORTAL_COLUMN_LABELS, PORTAL_COLUMNS, PORTAL_THEMES, PORTAL_VIEWS, type PortalTheme, type PortalView, type StakeholderPortal } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -217,7 +217,7 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
       <p className="flex items-start gap-1.5 text-2xs text-muted-foreground" data-testid="portal-stakeholders">
         <Users className="mt-px size-3 shrink-0" aria-hidden />
         <span>
-          No stakeholder groups yet. Add them in{" "}
+          No departments yet. Add them in{" "}
           <a href={routes.settings(ws.slug, "lists")} className="font-medium text-foreground underline-offset-2 hover:underline">
             Settings → Lists
           </a>{" "}
@@ -227,7 +227,7 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
     );
   }
   return (
-    <ul className="flex flex-wrap gap-1.5" aria-label="Stakeholders the portal shows" data-testid="portal-stakeholders">
+    <ul className="flex flex-wrap gap-1.5" aria-label="Departments the portal shows" data-testid="portal-stakeholders">
       {rows.map(({ department, requests }) => (
         <li key={department.id} className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs" data-testid="portal-stakeholder-row" data-department={department.name}>
           <span aria-hidden className={cn("size-2 shrink-0 rounded-full", colorClasses(department.color).dot)} />
@@ -314,39 +314,6 @@ function TeamNameField() {
   );
 }
 
-/**
- * A description that saves when the writer stops, not on every keystroke.
- *
- * Each save is a round trip and a refetch; typing a sentence would fire twenty
- * of them.
- */
-function DescriptionEditor({ value, busy, onSave }: { value: string; busy: boolean; onSave: (value: string) => void }) {
-  const [draft, setDraft] = React.useState(value);
-  const dirty = draft.trim() !== value.trim();
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && dirty) onSave(draft);
-          if (event.key === "Escape") setDraft(value);
-        }}
-        maxLength={MAX_PORTAL_DESCRIPTION}
-        placeholder="Everything the Marketing team is making for you."
-        aria-label="Portal description"
-        className="h-9 min-w-0 flex-1"
-        data-testid="portal-description"
-      />
-      {dirty && (
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => onSave(draft)} data-testid="portal-description-save">
-          {busy ? <Loader2 className="animate-spin" /> : <Check />} Save
-        </Button>
-      )}
-    </div>
-  );
-}
-
 /** Everything that tunes the portal. Set once, then left alone, which is why it folds. */
 function PortalSettings({ portal }: { portal: StakeholderPortal }) {
   const { setTheme, setPresentation, regenerate, setPassword } = usePortalMutations();
@@ -361,9 +328,6 @@ function PortalSettings({ portal }: { portal: StakeholderPortal }) {
           the width, and one long column read as a form to be filled in. */}
       <div className="grid gap-4">
         <TeamNameField />
-        <Field label="Description" hint="Shown under the team's name on the portal.">
-          <DescriptionEditor key={portal.id} value={portal.description ?? ""} busy={setPresentation.isPending} onSave={(description) => setPresentation.mutate({ description })} />
-        </Field>
       </div>
 
       <div className="grid gap-4">

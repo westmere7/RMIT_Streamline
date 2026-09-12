@@ -14,6 +14,7 @@ import type {
   Item,
   NotificationInput,
   PriorityColumnSettings,
+  TagOption,
   Team,
   WorkspaceMember,
 } from "@/domain";
@@ -133,7 +134,10 @@ export class BookingService {
     const assetTypes = listTypes.length > 0 ? toTagOptions(listTypes) : columnTypes;
 
     const options: BookingTeamOption[] = offered.map((team, i) => ({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: receiving[i]?.name ?? null }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, priorities, teams: options, template: resolveBookingTemplate(workspace) };
+    // The stakeholder groups, so "school or department" is picked from a list
+    // rather than typed six different ways.
+    const departments: TagOption[] = (await this.repos.stakeholderPortals.listDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color }));
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, template: resolveBookingTemplate(workspace) };
   }
 
   /**

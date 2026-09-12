@@ -148,7 +148,7 @@ function FreshnessMark({ stale, servedAt }: { stale: boolean; servedAt: string |
 function PortalRecap({ totals }: { totals: PortalTotals }) {
   const { deliverables } = totals;
   return (
-    <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-0.5 border-border/70 sm:ml-2 sm:border-l sm:pl-5" data-testid="portal-totals">
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-0.5 border-border/70 sm:border-l sm:pl-5" data-testid="portal-totals">
       <Figure value={totals.requests} label={totals.requests === 1 ? "request" : "requests"} />
       <Figure value={totals.done} label="done" tone="text-emerald-600 dark:text-emerald-400" />
       {totals.overdue > 0 && <Figure value={totals.overdue} label="overdue" tone="text-destructive" />}
@@ -162,7 +162,7 @@ function PortalRecap({ totals }: { totals: PortalTotals }) {
 function Figure({ value, label, tone }: { value: number; label: string; tone?: string }) {
   return (
     <span className="flex items-baseline gap-1">
-      <span className={cn("text-[15px] font-semibold tabular tracking-tight", tone)}>{value}</span>
+      <span className={cn("text-[17px] font-semibold tabular tracking-tight", tone)}>{value}</span>
       <span className="text-2xs text-muted-foreground">{label}</span>
     </span>
   );
@@ -191,71 +191,125 @@ function subscribeToStorage(key: string, onChange: () => void): () => void {
 
 const THEME_ICONS: Record<PortalTheme, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
 
+/**
+ * How far back the board reads.
+ *
+ * Three months by default: a portal that fetched every request the team has
+ * ever taken would be the slowest page in the product, and most visits are
+ * about what is happening now. It sits on the board's toolbar beside the view,
+ * with the other ways of narrowing what is on screen; a search sets it aside
+ * and looks everywhere.
+ */
+export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { range: PortalRange; onRange: (range: PortalRange) => void; years?: number[]; rangeOverridden?: boolean }) {
+  const all = range.kind === "all" && !rangeOverridden;
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring/50",
+              all ? "border-amber-400/60 text-amber-800 hover:bg-amber-100/60 dark:text-amber-200 dark:hover:bg-amber-500/15" : "border-border/70 bg-card hover:bg-surface-strong/70",
+            )}
+            data-testid="portal-range-picker"
+          >
+            <CalendarRange className="size-3.5 text-muted-foreground" />
+            {rangeOverridden ? "Searching everything" : portalRangeLabel(range)}
+            <ChevronDown className="size-3.5 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuLabel>Requested in</DropdownMenuLabel>
+          {PORTAL_MONTH_RANGES.map((months) => (
+            <DropdownMenuItem key={months} onSelect={() => onRange({ kind: "months", months })} data-testid={`portal-range-${months}m`}>
+              <span className="flex-1">{portalRangeLabel({ kind: "months", months })}</span>
+              {range.kind === "months" && range.months === months && <Check className="size-3.5" />}
+            </DropdownMenuItem>
+          ))}
+          {(years?.length ?? 0) > 0 && <DropdownMenuSeparator />}
+          {(years ?? []).map((year) => (
+            <DropdownMenuItem key={year} onSelect={() => onRange({ kind: "year", year })} data-testid={`portal-range-${year}`}>
+              <span className="flex-1 tabular">{year}</span>
+              {range.kind === "year" && range.year === year && <Check className="size-3.5" />}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          {/* The expensive one, and it says so. Everything the team has ever
+              taken for every stakeholder is a long read on a portal this
+              size, and somebody reaching for it should know before they
+              wait rather than afterwards. */}
+          <DropdownMenuItem onSelect={() => onRange({ kind: "all" })} className="items-start" data-testid="portal-range-all">
+            <TriangleAlert className="mt-0.5 size-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span>All time</span>
+              <span className="text-2xs text-muted-foreground">Loads every request the team has taken. Slow on a busy portal.</span>
+            </span>
+            {range.kind === "all" && <Check className="mt-0.5 size-3.5" />}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Up while it is actually loading everything, so the cost is visible
+          where the choice was made. */}
+      {all && (
+        <span className="flex shrink-0 items-center gap-1.5 text-2xs font-medium text-amber-700 dark:text-amber-300" data-testid="portal-all-time-warning">
+          <TriangleAlert className="size-3" aria-hidden />
+          Loading every request
+        </span>
+      )}
+    </>
+  );
+}
+
 export function PortalHeader({
   token,
   portalName,
-  creativeTeamName,
   viewerName,
   servedAt,
   stale,
   totals,
-  description,
   stakeholders,
   stakeholderId,
   onStakeholder,
-  years,
-  range,
-  onRange,
-  rangeOverridden,
 }: {
   token: string;
   portalName: string;
-  creativeTeamName: string;
   viewerName: string | null;
   servedAt: string | null;
   stale: boolean;
   /** The figures over everything on screen, shown beside the selector. */
   totals?: PortalTotals | null;
-  /** The team's own line about the portal, in place of the standing subtitle. */
-  description?: string | null;
   /** Every stakeholder with work to show. Empty while the first read is in flight. */
   stakeholders?: PortalStakeholderOption[];
   /** The one selected, or null for all of them. */
   stakeholderId?: EntityId | null;
   onStakeholder?: (id: EntityId | null) => void;
-  /** The years that have work in them, offered under the rolling windows. */
-  years?: number[];
-  range?: PortalRange;
-  onRange?: (range: PortalRange) => void;
-  /** True when a search has set the range aside and is reading everything. */
-  rangeOverridden?: boolean;
 }) {
   const selected = stakeholders?.find((row) => row.id === stakeholderId) ?? null;
   const themeContext = React.useContext(PortalThemeContext);
   return (
     <header className="border-b border-border/70 bg-background">
-      {/* Edge to edge, like everything under it. Boxed to a column of its own it
-          left the name floating in the middle of a full-width page. */}
-      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-        <BrandMark className="size-9 shrink-0 rounded-lg" />
-        {/* Whose work is on screen leads, because on a portal that carries every
-            stakeholder's work it is the first thing a reader has to settle — and
-            it is a control rather than a heading, because it is also the first
-            thing they will want to change. */}
-        <div className="min-w-0 shrink-0">
+      {/* One row: whose work, the figures, and the tools at the far end. How far
+          back to read sits on the board's own toolbar beside the view, where
+          the other ways of narrowing the board are. Nothing here explains
+          itself in small print. */}
+      <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6">
+        <BrandMark className="size-9 shrink-0 rounded-xl" />
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {onStakeholder ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="-ml-1.5 flex max-w-[19rem] items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-left transition-colors hover:bg-surface-strong/70"
+                  className="flex h-9 max-w-[19rem] shrink-0 items-center gap-2 rounded-full bg-surface-strong/60 px-3.5 text-left transition-colors hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ring/50"
                   data-testid="portal-stakeholder-picker"
                 >
                   {selected && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(selected.color).dot)} />}
-                  <span className="truncate text-[15px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
+                  <span className="truncate text-[13px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
                     {selected ? selected.name : `${portalName} · everything`}
                   </span>
-                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-72">
@@ -266,7 +320,7 @@ export function PortalHeader({
                   {stakeholderId === null && <Check className="size-3.5" />}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Stakeholders</DropdownMenuLabel>
+                <DropdownMenuLabel>Departments</DropdownMenuLabel>
                 {(stakeholders ?? []).map((option) => (
                   <DropdownMenuItem key={option.id} onSelect={() => onStakeholder(option.id)} data-testid={`portal-stakeholder-${option.id}`}>
                     <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(option.color).dot)} />
@@ -275,7 +329,7 @@ export function PortalHeader({
                     {stakeholderId === option.id && <Check className="size-3.5" />}
                   </DropdownMenuItem>
                 ))}
-                {(stakeholders ?? []).length === 0 && <p className="px-2 py-1.5 text-2xs text-muted-foreground">No stakeholder has work here yet.</p>}
+                {(stakeholders ?? []).length === 0 && <p className="px-2 py-1.5 text-2xs text-muted-foreground">No department has work here yet.</p>}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
@@ -283,72 +337,8 @@ export function PortalHeader({
               {portalName}
             </p>
           )}
-          <p className="truncate pl-0.5 text-2xs text-muted-foreground">{description?.trim() || `${creativeTeamName} · requests and bookings`}</p>
+
         </div>
-
-        {/* How far back to read. Three months by default: a portal that fetched
-            every request the team has ever taken would be the slowest page in
-            the product, and most visits are about what is happening now. A
-            search ignores this and looks everywhere. */}
-        {onRange && range && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-medium transition-colors hover:bg-surface-strong/70",
-                  range.kind === "all" && !rangeOverridden ? "border-amber-400/70 text-amber-700 dark:text-amber-300" : "border-border/70",
-                )}
-                data-testid="portal-range-picker"
-              >
-                <CalendarRange className="size-3.5 text-muted-foreground" />
-                {rangeOverridden ? "Searching everything" : portalRangeLabel(range)}
-                <ChevronDown className="size-3.5 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-60">
-              <DropdownMenuLabel>Requested in</DropdownMenuLabel>
-              {PORTAL_MONTH_RANGES.map((months) => (
-                <DropdownMenuItem key={months} onSelect={() => onRange({ kind: "months", months })} data-testid={`portal-range-${months}m`}>
-                  <span className="flex-1">{portalRangeLabel({ kind: "months", months })}</span>
-                  {range.kind === "months" && range.months === months && <Check className="size-3.5" />}
-                </DropdownMenuItem>
-              ))}
-              {(years?.length ?? 0) > 0 && <DropdownMenuSeparator />}
-              {(years ?? []).map((year) => (
-                <DropdownMenuItem key={year} onSelect={() => onRange({ kind: "year", year })} data-testid={`portal-range-${year}`}>
-                  <span className="flex-1 tabular">{year}</span>
-                  {range.kind === "year" && range.year === year && <Check className="size-3.5" />}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              {/* The expensive one, and it says so. Everything the team has ever
-                  taken for every stakeholder is a long read on a portal this
-                  size, and somebody reaching for it should know before they
-                  wait rather than afterwards. */}
-              <DropdownMenuItem onSelect={() => onRange({ kind: "all" })} className="items-start" data-testid="portal-range-all">
-                <TriangleAlert className="mt-0.5 size-3.5 text-amber-600 dark:text-amber-400" />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span>All time</span>
-                  <span className="text-2xs text-muted-foreground">Loads every request the team has taken. Slow on a busy portal.</span>
-                </span>
-                {range.kind === "all" && <Check className="mt-0.5 size-3.5" />}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
-        {/* Up while it is actually loading everything, so the cost is visible
-            where the choice was made. */}
-        {range?.kind === "all" && !rangeOverridden && (
-          <span
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-2xs font-medium text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
-            data-testid="portal-all-time-warning"
-          >
-            <TriangleAlert className="size-3" aria-hidden />
-            Loading every request
-          </span>
-        )}
 
         {totals && <PortalRecap totals={totals} />}
 
