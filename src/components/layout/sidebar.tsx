@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -440,7 +440,7 @@ const subtleButtonClasses =
  */
 function primaryNavClasses(active: boolean): string {
   return cn(
-    "flex h-10 w-full items-center gap-3 rounded-xl px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+    "relative isolate flex h-10 w-full items-center gap-3 rounded-xl px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
     active ? "bg-sidebar-accent font-semibold text-foreground" : "font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
   );
 }
@@ -460,9 +460,34 @@ function PrimaryIcon({ icon: Icon, active, children }: { icon: React.ComponentTy
   );
 }
 
+/**
+ * The row you just clicked, lit up before the route has caught up.
+ *
+ * Next commits a navigation only once the destination is ready, which on a
+ * cold route is a few hundred milliseconds of a click doing nothing at all:
+ * the old board stays highlighted and nothing says the click landed. This
+ * paints the selection straight away and sweeps the workspace's red along the
+ * row while the board is on its way.
+ *
+ * It has to be a child of the Link rather than a class on it, because that is
+ * where `useLinkStatus` can be read from.
+ */
+function NavPending() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return (
+    <>
+      <span aria-hidden className="absolute inset-0 -z-10 rounded-xl bg-sidebar-accent" />
+      <span aria-hidden className="absolute inset-x-2 bottom-0.5 h-0.5 overflow-hidden rounded-full">
+        <span className="auth-sweep absolute inset-y-0 w-1/2" />
+      </span>
+    </>
+  );
+}
+
 function navItemClasses(active: boolean): string {
   return cn(
-    "flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+    "relative isolate flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
     active ? "bg-sidebar-accent font-semibold text-foreground" : "font-medium text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
   );
 }
@@ -496,6 +521,7 @@ function NavItem({
           aria-label={anything || collapsed ? badgeLabel(label, loud, quiet) : undefined}
           className={cn("group", primaryNavClasses(active), collapsed && "justify-center px-0")}
         >
+          <NavPending />
           <PrimaryIcon icon={Icon} active={active}>
             {collapsed && anything ? (
               // Off the right edge, level with the middle of the icon: above
@@ -610,6 +636,7 @@ function BoardLink({
             archived && "text-muted-foreground italic",
           )}
         >
+          <NavPending />
           {archived ? (
             <Archive className="size-3.5 shrink-0 text-muted-foreground/60" />
           ) : (

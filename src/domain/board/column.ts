@@ -355,7 +355,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   PRIORITY: "A fixed four-step scale, the same on every board, so priority can be compared across them. Its labels cannot be edited.",
   STAKEHOLDER: "Who the work is for, chosen from the workspace's stakeholder groups. Groups the dashboard and drives the stakeholder portal.",
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
-  ASSETS_RECAP: "Not typed into: a live summary of the task's deliverables, counted from its asset lines.",
+  ASSETS_RECAP: "A live summary of the task's deliverables, counted from its asset lines.",
 };
 
 /** True for the types the workspace reads meaning out of. */
