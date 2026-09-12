@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
-import { columnLabels, T_SHIRT_SIZES } from "@/domain";
+import { columnLabels, resolveColumnRoles, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
@@ -20,13 +20,17 @@ function personColumnIds(columns: BoardColumn[]): string[] {
 
 /** Primary due date for an item: the first DATE column, else the end of the first TIMELINE. */
 export function primaryDueDate(itemId: string, columns: BoardColumn[], getValue: ValueLookup): string | null {
-  const dateColumn = columns.find((c) => c.type === "DATE");
-  if (dateColumn) {
-    const v = getValue(itemId, dateColumn.id);
+  const roles = resolveColumnRoles(columns);
+  const due = roles.dueDate;
+  if (due) {
+    const v = getValue(itemId, due.id);
     if (v?.type === "DATE" && v.date) return v.date;
+    if (v?.type === "TIMELINE" && v.end) return v.end;
   }
-  const timeline = columns.find((c) => c.type === "TIMELINE");
-  if (timeline) {
+  // A board whose deadline is a plain date can still fall back to the end of
+  // its timeline when the date is blank.
+  const timeline = roles.timeline;
+  if (timeline && timeline.id !== due?.id) {
     const v = getValue(itemId, timeline.id);
     if (v?.type === "TIMELINE" && v.end) return v.end;
   }
@@ -77,14 +81,14 @@ export function matchesFilters(item: Item, filters: BoardFilters, ctx: FilterCon
   }
 
   if (filters.statusIds.length) {
-    const statusColumn = ctx.columns.find((c) => c.type === "STATUS");
+    const statusColumn = resolveColumnRoles(ctx.columns).status;
     const v = statusColumn ? ctx.getValue(item.id, statusColumn.id) : undefined;
     const labelId = v?.type === "STATUS" ? v.labelId : null;
     if (!labelId || !filters.statusIds.includes(labelId)) return false;
   }
 
   if (filters.priorityIds.length) {
-    const priorityColumn = ctx.columns.find((c) => c.type === "PRIORITY");
+    const priorityColumn = resolveColumnRoles(ctx.columns).priority;
     const v = priorityColumn ? ctx.getValue(item.id, priorityColumn.id) : undefined;
     const labelId = v?.type === "PRIORITY" ? v.labelId : null;
     if (!labelId || !filters.priorityIds.includes(labelId)) return false;
@@ -106,7 +110,7 @@ export function filterItems(items: Item[], search: string, filters: BoardFilters
   return items.filter((item) => matchesSearch(item, search) && matchesFilters(item, filters, ctx));
 }
 
-function labelRank(column: BoardColumn | undefined, value: ColumnValue | undefined): number {
+function labelRank(column: BoardColumn | null | undefined, value: ColumnValue | undefined): number {
   if (!column || !value || (value.type !== "STATUS" && value.type !== "DROPDOWN" && value.type !== "PRIORITY")) return Number.MAX_SAFE_INTEGER;
   const index = columnLabels(column).findIndex((l) => l.id === value.labelId);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
@@ -193,13 +197,13 @@ export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<Filter
       return da.localeCompare(db) * dir;
     }
     case "priority": {
-      const column = ctx.columns.find((c) => c.type === "PRIORITY");
+      const column = resolveColumnRoles(ctx.columns).priority;
       const ra = labelRank(column, column ? ctx.getValue(a.id, column.id) : undefined);
       const rb = labelRank(column, column ? ctx.getValue(b.id, column.id) : undefined);
       return (ra - rb) * dir;
     }
     case "status": {
-      const column = ctx.columns.find((c) => c.type === "STATUS");
+      const column = resolveColumnRoles(ctx.columns).status;
       const ra = labelRank(column, column ? ctx.getValue(a.id, column.id) : undefined);
       const rb = labelRank(column, column ? ctx.getValue(b.id, column.id) : undefined);
       return (ra - rb) * dir;

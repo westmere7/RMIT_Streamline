@@ -1,5 +1,5 @@
-import type { AssetRates, Board, BoardColumn, ColorToken, ColumnValue, DashboardSnapshot, ISODate, ItemAsset, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
-import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
+import type { AssetRates, Board, BoardColumn, ColorToken, ColumnRoleMap, ColumnValue, DashboardSnapshot, ISODate, ItemAsset, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
+import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, resolveColumnRoles, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 
 /**
@@ -185,13 +185,6 @@ export interface DashboardFacts {
 
 export const UNTYPED = "Untyped";
 
-const REQUESTER_HINTS = ["requester", "requested by", "stakeholder", "client", "booked by"];
-const DEPARTMENT_HINTS = ["department", "school", "faculty", "portfolio", "unit", "college"];
-const TEAM_HINTS = ["requested team", "team"];
-const ASSET_TYPE_HINTS = ["asset type", "asset types", "deliverable type"];
-
-const hasHint = (name: string, hints: string[]) => hints.some((h) => name.toLowerCase().includes(h));
-
 function dateOf(iso: string): ISODate {
   return iso.slice(0, 10);
 }
@@ -211,6 +204,10 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     columnsByBoard.set(column.boardId, list);
   }
   for (const list of columnsByBoard.values()) list.sort((a, b) => a.position - b.position);
+  // Which column does which job, once per board rather than once per task, and
+  // asked of the board rather than guessed from column names.
+  const rolesByBoard = new Map<string, ColumnRoleMap>();
+  for (const [boardId, list] of columnsByBoard) rolesByBoard.set(boardId, resolveColumnRoles(list));
   const groupsById = new Map(snapshot.groups.map((g) => [g.id, g]));
   // The registry, keyed the way a cell is written: trimmed and case-folded.
   const departmentKey = (name: string) => name.trim().toLowerCase();
@@ -246,33 +243,34 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     const lines = assetsByItem.get(item.id) ?? [];
 
     // Status: the first STATUS column with a value (or its default label).
+    const roles = rolesByBoard.get(board.id)!;
+
     let status: StatusBucket = "none";
     let statusLabel: string | null = null;
-    for (const column of columns) {
-      if (column.type !== "STATUS" || column.settings.kind !== "status") continue;
-      const v = getValue(item.id, column.id);
-      const labelId = v?.type === "STATUS" && v.labelId ? v.labelId : column.settings.defaultLabelId;
-      if (!labelId) continue;
-      const role = statusLabelRole(column.settings, labelId);
-      status = role ?? "other";
-      statusLabel = column.settings.labels.find((l) => l.id === labelId)?.name ?? null;
-      break;
+    const statusColumn = roles.status;
+    const statusSettings = statusColumn?.settings.kind === "status" ? statusColumn.settings : null;
+    if (statusColumn && statusSettings) {
+      const v = getValue(item.id, statusColumn.id);
+      const labelId = v?.type === "STATUS" && v.labelId ? v.labelId : statusSettings.defaultLabelId;
+      if (labelId) {
+        status = statusLabelRole(statusSettings, labelId) ?? "other";
+        statusLabel = statusSettings.labels.find((l) => l.id === labelId)?.name ?? null;
+      }
     }
     const isDone = status === "done";
 
+    // The deadline is the column the board nominated, or the first date column
+    // as it always was. A timeline supplies the start, and the end where there
+    // is no date to be had.
     let dueDate: ISODate | null = null;
     let startDate: ISODate | null = null;
-    for (const column of columns) {
-      if (column.type === "DATE" && dueDate === null) {
-        const v = getValue(item.id, column.id);
-        if (v?.type === "DATE" && v.date) dueDate = v.date;
-      }
-      if (column.type === "TIMELINE") {
-        const v = getValue(item.id, column.id);
-        if (v?.type === "TIMELINE") {
-          if (v.start && startDate === null) startDate = v.start;
-          if (v.end && dueDate === null) dueDate = v.end;
-        }
+    for (const column of [roles.dueDate, roles.timeline]) {
+      if (!column) continue;
+      const v = getValue(item.id, column.id);
+      if (v?.type === "DATE" && v.date && dueDate === null) dueDate = v.date;
+      if (v?.type === "TIMELINE") {
+        if (v.start && startDate === null) startDate = v.start;
+        if (v.end && dueDate === null) dueDate = v.end;
       }
     }
 
@@ -313,7 +311,9 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
           if (size === null && v.size) size = v.size;
           break;
         case "PERSON":
-          if (hasHint(column.name, REQUESTER_HINTS)) takeRequester(v.userIds);
+          // Every PIC column carries owners, not just the nominated one: a
+          // board with "Designer" and "Editor" means both.
+          if (column.id === roles.requester?.id) takeRequester(v.userIds);
           else for (const id of v.userIds) owners.add(id);
           break;
         // A People column is nobody's workload — that is the whole point of it
@@ -322,19 +322,19 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
         // moving a "Requester" column off PIC would quietly empty the requester
         // and department figures.
         case "PEOPLE":
-          if (hasHint(column.name, REQUESTER_HINTS)) takeRequester(v.userIds);
+          if (column.id === roles.requester?.id) takeRequester(v.userIds);
           break;
         case "TAGS":
-          if (hasHint(column.name, ASSET_TYPE_HINTS)) requestAssetTypes = v.tags;
-          else if (hasHint(column.name, TEAM_HINTS)) requestedTeam = v.tags[0] ?? null;
+          if (column.id === roles.assetType?.id) requestAssetTypes = v.tags;
+          else if (column.id === roles.requestedTeam?.id) requestedTeam = v.tags[0] ?? null;
           else for (const tag of v.tags) tags.add(tag);
           break;
         case "TEXT":
-          if (v.text.trim() && hasHint(column.name, REQUESTER_HINTS) && !hasHint(column.name, ["email"])) requesterName = requesterName ?? v.text.trim();
+          if (v.text.trim() && column.id === roles.requester?.id && !column.name.toLowerCase().includes("email")) requesterName = requesterName ?? v.text.trim();
           // Only where the board has no STAKEHOLDER column to ask. Kept for
           // boards built before that column type existed, and marked inferred
           // so the page can say the figure rests on a column's name.
-          else if (v.text.trim() && department === null && hasHint(column.name, DEPARTMENT_HINTS)) {
+          else if (v.text.trim() && department === null && column.id === roles.department?.id) {
             const known = departmentsByName.get(departmentKey(v.text));
             department = { id: known?.id ?? null, name: known?.name ?? v.text.trim(), inferred: true };
           }

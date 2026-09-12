@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
-import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
+import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
 import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseItemReference } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -465,6 +465,21 @@ export function useBoardMutations(boardId: string) {
   );
 
   /**
+   * Hands a job to a column, taking it off whichever column held it. The
+   * optimistic update does the same, so the board never shows two columns
+   * claiming one job for the length of a round trip.
+   */
+  const setColumnRole = useCallback(
+    (columnId: string, role: ColumnRole | null) =>
+      run(
+        (s) => ({ ...s, columns: s.columns.map((c) => (c.id === columnId ? { ...c, role } : role && c.role === role ? { ...c, role: null } : c)) }),
+        () => services.boards.setColumnRole(columnId, role),
+        "Could not change what this column is used for",
+      ),
+    [run, services],
+  );
+
+  /**
    * Saves a TAGS column's palette. Values store tag names, so a rename or a
    * removal has to be applied to every item that used the old tag.
    */
@@ -567,6 +582,7 @@ export function useBoardMutations(boardId: string) {
       deleteGroup,
       addColumn,
       updateColumn,
+      setColumnRole,
       updateColumnTags,
       reorderColumns,
       deleteColumn,
@@ -591,6 +607,7 @@ export function useBoardMutations(boardId: string) {
       deleteGroup,
       addColumn,
       updateColumn,
+      setColumnRole,
       updateColumnTags,
       reorderColumns,
       deleteColumn,

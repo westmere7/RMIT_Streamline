@@ -1,4 +1,5 @@
 import type { ColorToken, EntityId } from "@/domain/common/types";
+import type { ColumnRole } from "@/domain/board/column-role";
 
 export const COLUMN_TYPES = [
   "TEXT",
@@ -161,11 +162,17 @@ export interface BoardColumn {
    * so every column that existed before this stays where it was.
    */
   hiddenInPanel?: boolean;
+  /**
+   * The job this column does for the rest of the workspace, where the board has
+   * said so. Absent means "work it out", which is what every board did before
+   * roles existed — see `resolveColumnRoles`.
+   */
+  role?: ColumnRole | null;
   createdAt: string;
 }
 
 export type BoardColumnInput = Pick<BoardColumn, "boardId" | "name" | "type"> &
-  Partial<Pick<BoardColumn, "settings" | "width" | "hidden" | "hiddenInPanel">>;
+  Partial<Pick<BoardColumn, "settings" | "width" | "hidden" | "hiddenInPanel" | "role">>;
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   TEXT: "Text",

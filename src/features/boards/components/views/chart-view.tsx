@@ -10,7 +10,7 @@ import {
   availableDimensions,
   availableMeasures,
   contextFromModel,
-  DIMENSION_LABELS,
+  dimensionLabel,
   groupItems,
   isItemDone,
   isItemOverdue,
@@ -89,7 +89,7 @@ export function ChartView() {
           <ViewSelect value={activeMeasure} onChange={setMeasure} options={measures} ariaLabel="Measure" testId="chart-measure" />
         </ViewControl>
         <ViewControl label="By">
-          <ViewSelect value={activeDimension} onChange={setDimension} options={dimensions.map((d) => ({ value: d, label: DIMENSION_LABELS[d] }))} ariaLabel="Dimension" testId="chart-dimension" />
+          <ViewSelect value={activeDimension} onChange={setDimension} options={dimensions.map((d) => ({ value: d, label: dimensionLabel(d, model.columns) }))} ariaLabel="Dimension" testId="chart-dimension" />
         </ViewControl>
         <Segmented
           value={type}
@@ -107,9 +107,9 @@ export function ChartView() {
         <ViewEmpty title="Nothing to chart" description={model.isFiltered ? "No items match the current search or filters." : "Add items to this board to see them summed up here."} />
       ) : (
         <div className="scrollbar-thin min-h-0 flex-1 overflow-auto bg-surface/50 p-5">
-          <section aria-label={`${measures.find((m) => m.value === activeMeasure)?.label ?? "Items"} by ${DIMENSION_LABELS[activeDimension]}`} className="rounded-xl border border-border/60 bg-card p-5 shadow-xs">
+          <section aria-label={`${measures.find((m) => m.value === activeMeasure)?.label ?? "Items"} by ${dimensionLabel(activeDimension, model.columns)}`} className="rounded-xl border border-border/60 bg-card p-5 shadow-xs">
             <h3 className="mb-4 text-[13px] font-semibold tracking-tight">
-              {measures.find((m) => m.value === activeMeasure)?.label ?? "Items"} <span className="font-normal text-muted-foreground">by {DIMENSION_LABELS[activeDimension].toLowerCase()}</span>
+              {measures.find((m) => m.value === activeMeasure)?.label ?? "Items"} <span className="font-normal text-muted-foreground">by {dimensionLabel(activeDimension, model.columns).toLowerCase()}</span>
             </h3>
             {type === "bars" ? <BarChart slices={slices} ctx={ctx} /> : <DonutChart slices={slices} ctx={ctx} />}
           </section>

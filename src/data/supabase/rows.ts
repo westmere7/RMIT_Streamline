@@ -1,3 +1,4 @@
+import { COLUMN_ROLES, type ColumnRole } from "@/domain";
 import type {
   Activity,
   ActivityEventType,
@@ -328,6 +329,7 @@ export interface BoardColumnRow {
   hidden: boolean;
   /** Added by migration 0044; absent on a row read before it ran. */
   hidden_in_panel?: boolean;
+  role?: string | null;
   created_at: string;
 }
 
@@ -342,6 +344,7 @@ export function toBoardColumn(row: BoardColumnRow): BoardColumn {
     width: row.width,
     hidden: row.hidden,
     hiddenInPanel: row.hidden_in_panel ?? false,
+    role: (COLUMN_ROLES as readonly string[]).includes(row.role ?? "") ? (row.role as ColumnRole) : null,
     createdAt: row.created_at,
   };
 }
@@ -355,6 +358,7 @@ export function fromBoardColumnPatch(patch: Partial<Omit<BoardColumn, "id" | "bo
     width: patch.width,
     hidden: patch.hidden,
     hidden_in_panel: patch.hiddenInPanel,
+    role: patch.role,
   });
 }
 

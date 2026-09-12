@@ -115,9 +115,29 @@ export function isItemOverdue(itemId: string, ctx: Pick<AggregateContext, "colum
 // Grouping
 
 export const GROUP_DIMENSIONS = ["status", "priority", "group", "person", "tags", "size", "dueWeek"] as const;
-export type GroupDimension = (typeof GROUP_DIMENSIONS)[number];
 
-export const DIMENSION_LABELS: Record<GroupDimension, string> = {
+/**
+ * What a board can be split by.
+ *
+ * The fixed ones are jobs a board has at most one of. A dropdown names its own
+ * column instead, because a board can have several and "which one" is the whole
+ * question: "Stage" and "Channel" are both lists of choices.
+ */
+export type GroupDimension = (typeof GROUP_DIMENSIONS)[number] | `dropdown:${string}`;
+
+/** The dropdown column a dimension points at, or null for the fixed ones. */
+export function dimensionDropdownId(dimension: GroupDimension): string | null {
+  return dimension.startsWith("dropdown:") ? dimension.slice("dropdown:".length) : null;
+}
+
+/** What to call a dimension, which for a dropdown is whatever the board called the column. */
+export function dimensionLabel(dimension: GroupDimension, columns: readonly Pick<BoardColumn, "id" | "name">[]): string {
+  const id = dimensionDropdownId(dimension);
+  if (!id) return DIMENSION_LABELS[dimension as (typeof GROUP_DIMENSIONS)[number]];
+  return columns.find((c) => c.id === id)?.name ?? "Dropdown";
+}
+
+const DIMENSION_LABELS: Record<(typeof GROUP_DIMENSIONS)[number], string> = {
   status: "Status",
   priority: "Priority",
   group: "Group",
@@ -128,9 +148,10 @@ export const DIMENSION_LABELS: Record<GroupDimension, string> = {
 };
 
 /** The dimensions a board can be split by: only those it has a column for. Groups are always there. */
-export function availableDimensions(columns: ReadonlyArray<Pick<BoardColumn, "type">>): GroupDimension[] {
+export function availableDimensions(columns: ReadonlyArray<Pick<BoardColumn, "id" | "name" | "type">>): GroupDimension[] {
   const types = new Set(columns.map((c) => c.type));
-  return GROUP_DIMENSIONS.filter((d) => {
+  const dropdowns = columns.filter((c) => c.type === "DROPDOWN").map((c) => `dropdown:${c.id}` as GroupDimension);
+  return [...GROUP_DIMENSIONS.filter((d) => {
     switch (d) {
       case "status":
         return types.has("STATUS");
@@ -147,7 +168,7 @@ export function availableDimensions(columns: ReadonlyArray<Pick<BoardColumn, "ty
       case "dueWeek":
         return types.has("DATE") || types.has("TIMELINE");
     }
-  });
+  }), ...dropdowns];
 }
 
 export interface Bucket {
@@ -161,7 +182,7 @@ export interface Bucket {
 /** Key of the bucket that collects items without a value in the chosen dimension. */
 export const NONE_KEY = "__none__";
 
-const NONE_LABELS: Record<GroupDimension, string> = {
+const NONE_LABELS: Record<(typeof GROUP_DIMENSIONS)[number], string> = {
   status: "No status",
   priority: "No priority",
   group: "No group",
@@ -200,9 +221,27 @@ export function groupItems(items: ReadonlyArray<AggregateItem>, dimension: Group
     bucket.itemIds.push(itemId);
     buckets.set(key, bucket);
   };
-  const none = (itemId: string) => put(NONE_KEY, NONE_LABELS[dimension], null, itemId);
+  const dropdownId = dimensionDropdownId(dimension);
+  const dropdownColumn = dropdownId ? (ctx.columns.find((c) => c.id === dropdownId) ?? null) : null;
+  const noneLabel = dropdownColumn ? `No ${dropdownColumn.name.toLowerCase()}` : NONE_LABELS[dimension as (typeof GROUP_DIMENSIONS)[number]];
+  const none = (itemId: string) => put(NONE_KEY, noneLabel, null, itemId);
 
-  switch (dimension) {
+  // A dropdown buckets exactly as a status does; only which column it reads differs.
+  if (dropdownId) {
+    const labels = dropdownColumn ? columnLabels(dropdownColumn) : [];
+    for (const item of items) {
+      const v = dropdownColumn ? ctx.getValue(item.id, dropdownColumn.id) : undefined;
+      const label = v?.type === "DROPDOWN" ? labels.find((l) => l.id === v.labelId) : undefined;
+      if (label) put(label.id, label.name, label.color, item.id);
+      else none(item.id);
+    }
+    const order = new Map(labels.map((l, i) => [l.id, i]));
+    return sortBuckets(buckets, (b) => order.get(b.key) ?? Number.MAX_SAFE_INTEGER);
+  }
+
+  // Narrowed to the fixed dimensions: the dropdown case returned above, and
+  // keeping the switch exhaustive still catches a new fixed dimension.
+  switch (dimension as (typeof GROUP_DIMENSIONS)[number]) {
     case "status":
     case "priority": {
       const column = ctx.columns.find((c) => c.type === (dimension === "status" ? "STATUS" : "PRIORITY"));

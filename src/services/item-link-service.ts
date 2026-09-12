@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnPair, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -654,7 +654,7 @@ function ownersOf(columns: readonly BoardColumn[], values: readonly ItemColumnVa
 }
 
 function dueDateOf(columns: readonly BoardColumn[], values: readonly ItemColumnValue[]): string | null {
-  const date = columns.find((c) => c.type === "DATE");
+  const date = resolveColumnRoles(columns).dueDate;
   const dv = date ? values.find((x) => x.columnId === date.id)?.value : undefined;
   if (dv?.type === "DATE" && dv.date) return dv.date;
   const timeline = columns.find((c) => c.type === "TIMELINE");

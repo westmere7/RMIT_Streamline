@@ -24,7 +24,7 @@ const BOARD = BOARD_COLUMNS;
 const MEMBER = "id, board_id, user_id, role";
 const FAVOURITE = "id, board_id, user_id, created_at";
 const GROUP = "id, board_id, name, color, position, collapsed, created_at";
-const COLUMN = "id, board_id, name, type, settings, position, width, hidden, hidden_in_panel, created_at";
+const COLUMN = "id, board_id, name, type, settings, position, width, hidden, hidden_in_panel, role, created_at";
 
 /**
  * Boards and everything under them. Deletes rely on `on delete cascade` in

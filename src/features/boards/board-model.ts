@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import type { BoardColumn, BoardGroup, ColumnType, ColumnValue, Item, ItemLink } from "@/domain";
+import type { BoardColumn, BoardGroup, ColumnRoleMap, ColumnType, ColumnValue, Item, ItemLink } from "@/domain";
+import { resolveColumnRoles } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
 import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
@@ -10,6 +11,8 @@ export interface BoardModel {
   columns: BoardColumn[];
   visibleColumns: BoardColumn[];
   statusColumn: BoardColumn | null;
+  /** Which column does which job for the workspace. */
+  roles: ColumnRoleMap;
   priorityColumn: BoardColumn | null;
   dateColumn: BoardColumn | null;
   timelineColumn: BoardColumn | null;
@@ -63,7 +66,10 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
   const { getValue } = buildValueLookup(snapshot);
   const columns = [...snapshot.columns].sort((a, b) => a.position - b.position);
   const groups = [...snapshot.groups].sort((a, b) => a.position - b.position);
-  const statusColumn = columns.find((c) => c.type === "STATUS") ?? null;
+  // Which column does which job, as the board said, or as it always used to be
+  // guessed where it has not.
+  const roles = resolveColumnRoles(columns);
+  const statusColumn = roles.status;
 
   const itemById = new Map(snapshot.items.map((i) => [i.id, i]));
   const topLevel = snapshot.items.filter((i) => i.parentItemId === null);
@@ -121,9 +127,10 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     columns,
     visibleColumns: columns.filter((c) => !c.hidden),
     statusColumn,
-    priorityColumn: columns.find((c) => c.type === "PRIORITY") ?? null,
-    dateColumn: columns.find((c) => c.type === "DATE") ?? null,
-    timelineColumn: columns.find((c) => c.type === "TIMELINE") ?? null,
+    priorityColumn: roles.priority,
+    dateColumn: roles.dueDate?.type === "DATE" ? roles.dueDate : null,
+    timelineColumn: roles.timeline,
+    roles,
     personColumns: columns.filter((c) => c.type === "PERSON"),
     dependencyColumn,
     itemById,

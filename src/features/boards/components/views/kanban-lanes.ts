@@ -8,7 +8,16 @@ import { useBoardContext } from "@/features/boards/board-context";
 /** The lane for items with no value in the laned column. */
 export const NONE = "__none__";
 
-export type LaneBy = "status" | "priority" | "person" | "group";
+/**
+ * A dropdown lanes by the column itself, not by its type: a board can have
+ * several, and "which one" is the whole question.
+ */
+export type LaneBy = "status" | "priority" | "person" | "group" | `dropdown:${string}`;
+
+/** The dropdown column a lane setting points at, or null for the fixed lanes. */
+export function laneDropdownId(laneBy: LaneBy): string | null {
+  return laneBy.startsWith("dropdown:") ? laneBy.slice("dropdown:".length) : null;
+}
 
 export interface Lane {
   id: string;
@@ -37,6 +46,9 @@ export function useLaneOptions(): Array<{ value: LaneBy; label: string }> {
         model.priorityColumn && { value: "priority" as const, label: "Priority" },
         model.personColumns[0] && { value: "person" as const, label: "Person" },
         model.groups.length > 0 && { value: "group" as const, label: "Group" },
+        // One entry per dropdown, named after the column: "Stage" and "Channel"
+        // are both lists of choices and neither is "the" dropdown.
+        ...model.columns.filter((c) => c.type === "DROPDOWN").map((c) => ({ value: `dropdown:${c.id}` as LaneBy, label: c.name })),
       ].filter((o): o is { value: LaneBy; label: string } => !!o),
     [model],
   );
@@ -56,7 +68,7 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
   const personColumn = model.personColumns[0] ?? null;
 
   return React.useMemo<Lane[]>(() => {
-    const byLabel = (column: BoardColumn, type: "STATUS" | "PRIORITY"): Lane[] => {
+    const byLabel = (column: BoardColumn, type: "STATUS" | "PRIORITY" | "DROPDOWN"): Lane[] => {
       const labels = columnLabels(column);
       const valueOf = (item: Item) => {
         const v = model.getValue(item.id, column.id);
@@ -71,11 +83,17 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
         initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type, labelId: label.id } as ColumnValue }] } : null,
       }));
       const unset = visibleItems.filter((i) => !labels.some((l) => l.id === valueOf(i)));
-      if (unset.length) out.push({ id: NONE, name: type === "STATUS" ? "No status" : "No priority", color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
+      const noneName = type === "STATUS" ? "No status" : type === "PRIORITY" ? "No priority" : `No ${column.name.toLowerCase()}`;
+      if (unset.length) out.push({ id: NONE, name: noneName, color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
       return out;
     };
     if (laneBy === "status" && model.statusColumn) return byLabel(model.statusColumn, "STATUS");
     if (laneBy === "priority" && model.priorityColumn) return byLabel(model.priorityColumn, "PRIORITY");
+    const dropdownId = laneDropdownId(laneBy);
+    if (dropdownId) {
+      const column = model.columns.find((c) => c.id === dropdownId && c.type === "DROPDOWN");
+      if (column) return byLabel(column, "DROPDOWN");
+    }
     if (laneBy === "person" && personColumn) {
       const column = personColumn;
       const ownersOf = (item: Item) => {

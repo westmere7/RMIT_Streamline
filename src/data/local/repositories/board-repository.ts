@@ -234,6 +234,7 @@ export class LocalBoardRepository implements BoardRepository {
       width: input.width ?? DEFAULT_COLUMN_WIDTHS[input.type],
       hidden: input.hidden ?? false,
       hiddenInPanel: input.hiddenInPanel ?? false,
+      role: input.role ?? null,
       createdAt: nowIso(),
     };
     await db.put("boardColumns", column);

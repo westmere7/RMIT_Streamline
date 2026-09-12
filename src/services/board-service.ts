@@ -6,6 +6,7 @@ import type {
   BoardInput,
   BoardRole,
   ColorToken,
+  ColumnRole,
   ColumnSettings,
   ColumnType,
   EntityId,
@@ -442,6 +443,25 @@ export class BoardService {
     // A recap column summarises lines that may already exist; fill it in straight away.
     if (column.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, column.boardId, column.id);
     return column;
+  }
+
+  /**
+   * Says which job a column does for the workspace, or takes the job away.
+   *
+   * One column per job per board, so whichever column held it is released
+   * first — the database enforces the same thing, and a caller that set the new
+   * one first would simply be refused.
+   */
+  async setColumnRole(columnId: EntityId, role: ColumnRole | null): Promise<BoardColumn> {
+    const column = await this.repos.boards.getColumn(columnId);
+    if (!column) throw new NotFoundError("BoardColumn", columnId);
+    if (role) {
+      const siblings = await this.repos.boards.listColumns(column.boardId);
+      for (const other of siblings) {
+        if (other.id !== columnId && other.role === role) await this.repos.boards.updateColumn(other.id, { role: null });
+      }
+    }
+    return this.repos.boards.updateColumn(columnId, { role });
   }
 
   async updateColumn(

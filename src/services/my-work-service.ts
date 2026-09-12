@@ -1,5 +1,5 @@
 import type { Board, BoardColumn, BoardGroup, ColumnLabel, EntityId, ISODate, Item } from "@/domain";
-import { columnLabels } from "@/domain";
+import { columnLabels, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { bucketDate, type DateBucket } from "@/lib/dates/dates";
 
@@ -54,11 +54,12 @@ export class MyWorkService {
           this.repos.items.listByBoard(board.id),
           this.repos.items.listValuesByBoard(board.id),
         ]);
+        const roles = resolveColumnRoles(columns);
         const personColumnIds = new Set(columns.filter((c) => c.type === "PERSON").map((c) => c.id));
-        const statusColumn = columns.find((c) => c.type === "STATUS") ?? null;
-        const priorityColumn = columns.find((c) => c.type === "PRIORITY") ?? null;
-        const dueColumn = columns.find((c) => c.type === "DATE") ?? null;
-        const timelineColumn = columns.find((c) => c.type === "TIMELINE") ?? null;
+        const statusColumn = roles.status;
+        const priorityColumn = roles.priority;
+        const dueColumn = roles.dueDate?.type === "DATE" ? roles.dueDate : null;
+        const timelineColumn = roles.timeline;
 
         const assignedItemIds = new Set<EntityId>();
         for (const v of values) {

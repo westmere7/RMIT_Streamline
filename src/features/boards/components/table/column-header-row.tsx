@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronDown, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, Check, ChevronDown, Crosshair, EyeOff, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,11 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardColumn, BoardGroup } from "@/domain";
-import { COLUMN_TYPE_LABELS, hasEditableLabels, isSystemColumnType } from "@/domain";
+import { COLUMN_ROLE_LABELS, COLUMN_ROLE_PURPOSE, COLUMN_TYPE_LABELS, hasEditableLabels, isSystemColumnType, rolesForType } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { ReferenceHeaderCell } from "@/features/boards/components/table/reference-cell";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { colorClasses } from "@/lib/colors";
 import { columnSortField, useBoardUi, useBoardUiStore, type SortField } from "@/stores/board-ui-store";
@@ -259,6 +260,10 @@ function ColumnHeaderCell({
 
   // Priority is a fixed scale, so there is nothing to edit on it.
   const hasLabels = hasEditableLabels(column);
+  const roleOptions = rolesForType(column.type);
+  // What this column is doing today, whether the board said so or the guess
+  // landed on it — so the menu shows the truth rather than only what was typed.
+  const activeRole = roleOptions.find((role) => model.roles[role]?.id === column.id) ?? null;
   const hasTags = column.type === "TAGS";
   const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
     void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id });
@@ -379,6 +384,30 @@ function ColumnHeaderCell({
                     <DropdownMenuItem onSelect={() => openEditLabels(column)}>
                       <Tags /> Edit tags
                     </DropdownMenuItem>
+                  )}
+                  {/* What the workspace should read off this column. Only shown
+                      where the column's type could do a job at all. */}
+                  {roleOptions.length > 0 && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Crosshair /> Used as
+                        {activeRole && <span className="ml-auto pl-2 text-2xs text-green-600 dark:text-green-400">{COLUMN_ROLE_LABELS[activeRole]}</span>}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-64">
+                        <DropdownMenuItem onSelect={() => void mutations.setColumnRole(column.id, null)}>
+                          <span className={cn("min-w-0 truncate", !activeRole && "font-medium")}>Nothing in particular</span>
+                          {!activeRole && <Check className="ml-auto size-3.5 shrink-0" />}
+                        </DropdownMenuItem>
+                        {roleOptions.map((role) => (
+                          <SimpleTooltip key={role} label={COLUMN_ROLE_PURPOSE[role]} side="right">
+                            <DropdownMenuItem onSelect={() => void mutations.setColumnRole(column.id, role)}>
+                              <span className={cn("min-w-0 truncate", activeRole === role && "font-medium")}>{COLUMN_ROLE_LABELS[role]}</span>
+                              {activeRole === role && <Check className="ml-auto size-3.5 shrink-0" />}
+                            </DropdownMenuItem>
+                          </SimpleTooltip>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
