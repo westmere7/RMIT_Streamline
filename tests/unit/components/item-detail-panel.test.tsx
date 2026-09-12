@@ -24,7 +24,7 @@ describe("ItemDetailPanel", () => {
     );
     const panel = screen.getByTestId("item-panel");
     expect(within(panel).getByRole("heading", { name: /RMITinerary High Achiever/ })).toBeInTheDocument();
-    expect(within(panel).getByText("Fields")).toBeInTheDocument();
+    expect(within(panel).getByText("Columns")).toBeInTheDocument();
     expect(within(panel).getByRole("gridcell", { name: /Status: Done for RMITinerary High Achiever/ })).toBeInTheDocument();
     expect(within(panel).getByText("Persona illustration")).toBeInTheDocument();
     expect(within(panel).getByText("Final export")).toBeInTheDocument();

@@ -178,56 +178,45 @@ export function RichTextDocDialog({ open, onOpenChange, startEditing, ...doc }: 
 }
 
 /**
- * The document as a field of the task panel: closed, until somebody wants it.
+ * The value side of a brief's row on the task panel.
  *
- * Closed because everything under it — the deliverables, the linked tasks, the
- * subitems — is what somebody scrolling the panel is usually after, and a brief
- * opened by default pushes all of it below the fold. The row still says what is
- * in there: the first line of it, and the controls to open it where it stands,
- * copy it, or give it a window of its own.
+ * The panel owns the row — the handle, the column's name — because the brief is
+ * a column like the others and sits in their order. This is only what goes in
+ * the value column: the first line of the document, and the ways into it.
+ *
+ * Closed by default. Everything under it — the deliverables, the linked tasks,
+ * the subitems — is what somebody scrolling the panel is usually after, and a
+ * brief opened by default pushes all of it below the fold.
  */
-export function RichTextPanelField({ title, body, canEdit, onSave }: DocProps) {
-  const [open, setOpen] = React.useState(false);
+export function BriefRowValue({ title, body, canEdit, onSave, open, onToggle }: DocProps & { open: boolean; onToggle: () => void }) {
   /** Shut, opened to read, or opened to write. */
   const [popup, setPopup] = React.useState<null | "read" | "edit">(null);
   const summary = richTextSummary(body);
   return (
-    <section className="mt-3" data-testid="rich-text-field">
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-        <div className="flex items-center gap-1 pr-1.5">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-2 pl-2 text-left"
-            data-testid="rich-text-field-toggle"
-          >
-            <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} aria-hidden />
-            <span className="shrink-0 text-[13px] font-medium">{title}</span>
-            {!open && <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">{summary || "Empty"}</span>}
-          </button>
-          {/* No copy here: the row is a summary, and copying a document you
-              cannot see the whole of is a thing you do from the popup. */}
-          {canEdit && (
-            <DocButton label={`Edit ${title.toLowerCase()}`} onClick={() => setPopup("edit")} testId="rich-text-field-edit">
-              <Pencil className="size-3.5" />
-            </DocButton>
-          )}
-          <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup("read")} testId="rich-text-field-popup">
-            <Maximize2 className="size-3.5" />
-          </DocButton>
-        </div>
-        {open && (
-          <div className="border-t border-border/60">
-            <div className="scrollbar-thin max-h-96 overflow-y-auto px-3 py-2.5" data-testid="rich-text-field-body">
-              <RichTextDocument body={body} />
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="flex min-w-0 flex-1 items-center gap-0.5 pr-1" data-testid="rich-text-field">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+        className="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-accent/50"
+        data-testid="rich-text-field-toggle"
+      >
+        <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{summary || <span className="text-muted-foreground/70">Empty</span>}</span>
+      </button>
+      {/* No copy here: the row is a summary, and copying a document you cannot
+          see the whole of is a thing you do from the popup. */}
+      {canEdit && (
+        <DocButton label={`Edit ${title.toLowerCase()}`} onClick={() => setPopup("edit")} testId="rich-text-field-edit">
+          <Pencil className="size-3.5" />
+        </DocButton>
+      )}
+      <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup("read")} testId="rich-text-field-popup">
+        <Maximize2 className="size-3.5" />
+      </DocButton>
       <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} />
-    </section>
+    </div>
   );
 }
 

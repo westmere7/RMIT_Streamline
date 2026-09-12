@@ -1,6 +1,10 @@
 "use client";
 
-import { CornerDownRight, Globe, History, MessageSquare, Package, Plus, Share2, SquarePen, X } from "lucide-react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { CornerDownRight, Globe, GripVertical, History, MessageSquare, Package, Plus, Share2, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -31,7 +35,7 @@ import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
-import { RichTextPanelField } from "@/features/items/rich-text-field";
+import { BriefRowValue, RichTextDocument } from "@/features/items/rich-text-field";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -433,12 +437,25 @@ function Overview({ item }: { item: Item }) {
   // The two that hold documents are too tall for a field row, so they sit under
   // the list as blocks of their own: a long text column as a box, a rich text
   // column as a collapsible brief.
-  const fieldColumns = model.columns.filter((c) => c.type !== "LONG_TEXT" && c.type !== "RICH_TEXT");
-  const longTextColumns = model.columns.filter((c) => c.type === "LONG_TEXT");
-  const richTextColumns = model.columns.filter((c) => c.type === "RICH_TEXT");
+  const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  /** Dragging a field row is dragging the column: the panel and the board share one order. */
+  const onFieldDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = model.columns.map((c) => c.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    void mutations.reorderColumns(arrayMove(ids, from, to));
+  };
 
   return (
     <div className="space-y-6 p-4">
+      {/* The brief replaced the description on any board that has one: the two
+          held the same words, and the brief is the one that can show them.
+          Boards without a Brief column — team boards, mostly — still keep it,
+          because on those it is the only place a note about the task lives. */}
+      {!model.columns.some((c) => c.type === "RICH_TEXT") && (
       <section>
         <h3 className="mb-1.5 label-quiet">Description</h3>
         {canEdit ? (
@@ -457,49 +474,23 @@ function Overview({ item }: { item: Item }) {
           <p className="whitespace-pre-wrap text-[13px] text-foreground/90">{item.description || <span className="text-muted-foreground">No description.</span>}</p>
         )}
       </section>
+      )}
 
       <section>
-        <h3 className="mb-1.5 label-quiet">Fields</h3>
-        <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
-          {fieldColumns.map((column) => (
-            <div key={column.id} className={cn("flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : "h-10 items-center")}>
-              <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : "w-32 shrink-0 px-3")}>{column.name}</span>
-              <CellStretchProvider mode={isMobile ? "fill" : "none"}>
-              <div className={cn("flex min-w-0 items-center [&>*]:border-r-0", isMobile ? "min-h-11 w-full" : "h-8 flex-1")}>
-                <CellRenderer
-                  item={item}
-                  column={column}
-                  width={FIELD_WIDTH}
-                  value={model.getValue(item.id, column.id)}
-                  onChange={(value) => void mutations.setValue(item, column, value)}
-                  readOnly={!canEdit}
-                  isDone={model.isDone(item.id)}
-                />
-              </div>
-              </CellStretchProvider>
+        <h3 className="mb-1.5 label-quiet">Columns</h3>
+        {/* Every column, in the board's own order, one row each — the brief
+            included, because a document is a field like any other and putting it
+            below the list meant the panel disagreed with the board about what
+            order the columns are in. Dragging a row reorders the board. */}
+        <DndContext sensors={fieldSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onFieldDragEnd}>
+          <SortableContext items={model.columns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="panel-fields">
+              {model.columns.map((column) => (
+                <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} />
+              ))}
             </div>
-          ))}
-        </div>
-        {richTextColumns.map((column) => {
-          const v = model.getValue(item.id, column.id);
-          const body = v?.type === "RICH_TEXT" ? v.text : "";
-          return (
-            <RichTextPanelField
-              key={column.id}
-              title={column.name}
-              body={body}
-              canEdit={canEdit}
-              onSave={(text) => void mutations.setValue(item, column, { type: "RICH_TEXT", text })}
-            />
-          );
-        })}
-        {longTextColumns.map((column) => {
-          const v = model.getValue(item.id, column.id);
-          const text = v?.type === "LONG_TEXT" ? v.text : "";
-          return (
-            <LongTextField key={`${column.id}:${text}`} column={column} text={text} canEdit={canEdit} onSave={(next) => void mutations.setValue(item, column, { type: "LONG_TEXT", text: next })} />
-          );
-        })}
+          </SortableContext>
+        </DndContext>
       </section>
 
       <AllocationSection item={item} />
@@ -560,6 +551,94 @@ function Overview({ item }: { item: Item }) {
   );
 }
 
+/**
+ * One column of the board, as a row of the panel.
+ *
+ * Every column is here, in the board's order, so the two views agree about what
+ * comes first. A rich text column is the one that can be opened where it
+ * stands: its value is a page, and a page does not fit on a row.
+ *
+ * The handle is always drawn rather than appearing on hover — a control you
+ * cannot see is a control nobody finds — but it is quiet until the row is under
+ * the cursor. On a phone there is no handle at all: reordering by drag inside a
+ * scrolling sheet fights the scroll, and the board is where columns get
+ * arranged anyway.
+ */
+function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: BoardColumn; isMobile: boolean; canEdit: boolean }) {
+  const { model, mutations } = useBoardContext();
+  const [open, setOpen] = React.useState(false);
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || !canEdit });
+
+  const value = model.getValue(item.id, column.id);
+  const brief = column.type === "RICH_TEXT";
+  const body = value?.type === "RICH_TEXT" ? value.text : "";
+
+  // The handle takes 24px off the left, so the label gives that back out of its
+  // own padding rather than out of its words: "Requested team" fits either way.
+  const label = <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : "w-28 shrink-0 pr-2 pl-1")}>{column.name}</span>;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("bg-card", isDragging && "relative z-10 rounded-lg opacity-95 shadow-lg")}
+      data-testid={`panel-field-${column.id}`}
+    >
+      <div className={cn("group/row flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : "h-10 items-center")}>
+        {!isMobile && (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            aria-label={`Reorder ${column.name}`}
+            title={`Reorder ${column.name}`}
+            className={cn(
+              "ml-1 flex size-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing group-hover/row:opacity-100",
+              !canEdit && "invisible",
+            )}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-3.5" />
+          </button>
+        )}
+        {label}
+        {brief ? (
+          <BriefRowValue
+            title={column.name}
+            body={body}
+            canEdit={canEdit}
+            open={open}
+            onToggle={() => setOpen((v) => !v)}
+            onSave={(text) => void mutations.setValue(item, column, { type: "RICH_TEXT", text })}
+          />
+        ) : (
+          <CellStretchProvider mode={isMobile ? "fill" : "none"}>
+            {/* The cell takes the whole height of the row, so a status chip is
+                a band down the row rather than a small pill floating in it. Its
+                own padding keeps it off the dividers. */}
+            <div className={cn("flex min-w-0 items-center [&>*]:border-r-0", isMobile ? "min-h-11 w-full" : "h-full flex-1")}>
+              <CellRenderer
+                item={item}
+                column={column}
+                width={FIELD_WIDTH}
+                value={value}
+                onChange={(next) => void mutations.setValue(item, column, next)}
+                readOnly={!canEdit}
+                isDone={model.isDone(item.id)}
+              />
+            </div>
+          </CellStretchProvider>
+        )}
+      </div>
+      {brief && open && (
+        <div className="scrollbar-thin max-h-96 overflow-y-auto border-t border-border/60 px-3 py-2.5" data-testid="rich-text-field-body">
+          <RichTextDocument body={body} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubOwners({ userIds }: { userIds: string[] }) {
   const ws = useWorkspace();
   const users = userIds.map((id) => ws.userById(id)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -570,20 +649,6 @@ function SubOwners({ userIds }: { userIds: string[] }) {
         <UserAvatar key={u.id} user={u} size="xs" />
       ))}
     </span>
-  );
-}
-
-function LongTextField({ column, text, canEdit, onSave }: { column: BoardColumn; text: string; canEdit: boolean; onSave: (text: string) => void }) {
-  const [draft, setDraft] = React.useState(text);
-  return (
-    <div className="mt-3">
-      <p className="mb-1 text-[13px] text-muted-foreground">{column.name}</p>
-      {canEdit ? (
-        <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft !== text && onSave(draft)} rows={3} aria-label={column.name} />
-      ) : (
-        <p className="whitespace-pre-wrap text-[13px]">{text || <span className="text-muted-foreground">—</span>}</p>
-      )}
-    </div>
   );
 }
 
