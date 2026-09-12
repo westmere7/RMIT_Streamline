@@ -5,13 +5,13 @@ import { ArrowLeft, ArrowRight, CheckCircle2, History, LoaderCircle, LogIn, Mess
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, ColorToken, User } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { bookingReference, serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
-import { STAKEHOLDER_ERROR_KEY, bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
+import { bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
 import { newAssetRow, type AssetRow } from "../booking-fields";
 import { useBookingMemory, useMountedInBrowser, type PastBooking } from "../booking-remember";
 import { StepAssets, StepBasics, StepBrief, StepReview } from "./wizard-steps";
@@ -60,20 +60,6 @@ export interface BookingWizardProps {
    * Null for a signed-in member, whose details the app already knows.
    */
   remember?: string | null;
-  /**
-   * Who the request is for, when the caller is a portal serving several of
-   * them.
-   *
-   * Not part of the template, because it is not the workspace's question: the
-   * portal decides whether it needs asking at all. It rides in step one as an
-   * ordinary question so that whoever is booking answers it where they answer
-   * everything else, rather than being sent back to a filter on the page
-   * behind the form.
-   */
-  stakeholders?: readonly { id: string; name: string; color: ColorToken }[];
-  stakeholderId?: string | null;
-  onStakeholder?: (id: string) => void;
-  stakeholderLabel?: string;
   /**
    * A run of the form for somebody shaping it, not filling it in.
    *
@@ -132,7 +118,7 @@ interface StepDef {
   label: string;
 }
 
-function Wizard({ form, defaults, account, signInHref, omit, remember, stakeholders, stakeholderId, onStakeholder, stakeholderLabel, preview, onSubmit, itemHref, onBooked }: BookingWizardProps) {
+function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, itemHref, onBooked }: BookingWizardProps) {
   const template = form.template;
   const memory = useBookingMemory(remember ?? null);
 
@@ -233,18 +219,9 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
     bodyRef.current?.scrollIntoView({ block: "nearest" });
   };
 
-  /**
-   * The caller's own question, checked beside the template's.
-   *
-   * Nothing may be booked against nobody: a request raised for no stakeholder
-   * would show up in nobody's list, which is worse than being asked.
-   */
-  const stakeholderProblem = (key: BookingStep): Record<string, string> =>
-    key === "basics" && stakeholders && stakeholders.length > 0 && !stakeholderId ? { [STAKEHOLDER_ERROR_KEY]: "Say which department this is for" } : {};
-
   const advance = () => {
     if (!preview) {
-      const found = { ...validateBookingStep(step.key, buildRequest(), template, omit), ...stakeholderProblem(step.key) };
+      const found = validateBookingStep(step.key, buildRequest(), template, omit);
       setErrors(found);
       if (Object.keys(found).length) return;
       keep();
@@ -274,7 +251,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
     if (target > index) {
       const value = buildRequest();
       for (let at = index; at < target; at++) {
-        const found = { ...validateBookingStep(steps[at]!.key, value, template, omit), ...stakeholderProblem(steps[at]!.key) };
+        const found = validateBookingStep(steps[at]!.key, value, template, omit);
         if (Object.keys(found).length) {
           setErrors(found);
           goTo(at);
@@ -310,7 +287,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
       return;
     }
     for (const [at, candidate] of steps.entries()) {
-      const found = { ...validateBookingStep(candidate.key, value, template, omit), ...stakeholderProblem(candidate.key) };
+      const found = validateBookingStep(candidate.key, value, template, omit);
       if (Object.keys(found).length) {
         setErrors(found);
         goTo(at);
@@ -388,10 +365,6 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
         {index === 0 && (
           <StepBasics
             {...stepProps}
-            stakeholders={stakeholders}
-            stakeholderId={stakeholderId ?? null}
-            onStakeholder={onStakeholder}
-            stakeholderLabel={stakeholderLabel}
             // Signed in and booking as themselves: the card says who, and the
             // two boxes it answers are not on the form. "Booking for someone
             // else?" is what brings them back, empty.

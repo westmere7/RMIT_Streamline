@@ -23,6 +23,9 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   // The form opens in a tab of its own; the board stays put behind it.
   const [form] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("portal-book-button").click()]);
   await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
+  // Signed in, the account answers the name and email; booking for a stakeholder brings the boxes back.
+  const someoneElse = form.getByTestId("booking-not-you");
+  if (await someoneElse.isVisible().catch(() => false)) await someoneElse.click();
   await form.getByTestId("booking-name").fill("Priya Nair");
   await form.getByTestId("booking-email").fill("priya@rmit.edu.vn");
   await form.getByTestId("booking-title").fill(title);
@@ -191,14 +194,15 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
 
-    // Showing the full creative team, there is no stakeholder to raise the
-    // request for. The form opens in its own tab either way; who it is for is
-    // its first question, and step one will not let anybody past without it.
+    // Showing every department, there is none to raise the request for. The
+    // form opens in its own tab either way; the department is one of step
+    // one's questions, and step one will not let anybody past without it.
     const [form] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("portal-book-button").click()]);
     await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
-    await expect(form.getByTestId("booking-stakeholder")).toBeVisible();
+    await expect(form.getByTestId("booking-department")).toBeVisible();
+    await expect(form.getByTestId("booking-department")).not.toHaveAttribute("data-department", /.+/);
     await form.getByTestId("booking-next").click();
-    await expect(form.getByText("Say which department this is for")).toBeVisible();
+    await expect(form.getByText(/school or department is required/i)).toBeVisible();
   });
 
   test("stops opening the moment the link is replaced", async ({ page }) => {

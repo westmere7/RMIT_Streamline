@@ -57,6 +57,8 @@ export function PortalBookingScreen({
   // fills their details in, and they can still type over them.
   const auth = useAuth();
   const account = auth.user ? { name: auth.user.displayName, email: auth.user.email, title: auth.user.jobTitle, avatar: auth.user } : null;
+  // The account's own department is not offered as a default here: this link
+  // is somebody else's, and the request is for whoever it is showing.
   // Back to this portal once they have signed in; the login page only follows
   // a path on this site, so the round trip cannot be pointed anywhere else.
   const signInHref = `/login?next=${encodeURIComponent(typeof window === "undefined" ? "" : window.location.pathname + window.location.search)}`;
@@ -66,16 +68,13 @@ export function PortalBookingScreen({
   // the screen just as somebody was reading it.
   const [booked, setBooked] = React.useState<string | null>(null);
   /**
-   * Who this particular request is for.
-   *
-   * The form's own answer, not the portal's filter: changing it here must not
-   * quietly re-filter the board the visitor was reading. It starts on whichever
-   * stakeholder the portal is showing — the Marketing portal opens the form on
-   * Marketing.
+   * Who the request is for is the form's own department question — the same
+   * control, from the same list, as every other booking page — and it starts
+   * on whichever department the portal was showing. The server still wants the
+   * department's id, so the chosen name is looked up among the departments
+   * this link serves before anything is sent.
    */
-  const [chosenId, setChosenId] = React.useState<string | null>(null);
-  const forId = chosenId ?? stakeholder?.id ?? null;
-  const forStakeholder = stakeholders?.find((s) => s.id === forId) ?? null;
+  const stakeholderFor = (name: string | null) => stakeholders?.find((s) => s.name === (name ?? "").trim()) ?? null;
 
   const form = useQuery({
     queryKey: ["portal-booking-form", credentials.token, credentials.credentialVersion],
@@ -124,19 +123,15 @@ export function PortalBookingScreen({
               form={form.data}
               account={account}
               signInHref={account ? null : signInHref}
-              // The department is not a free question here: who the request is
-              // for is asked as a stakeholder, and the server takes the
-              // department from that.
-              omit={["department"]}
-              stakeholders={stakeholders ?? []}
-              stakeholderId={forId}
-              onStakeholder={setChosenId}
+              // Opens on the department the portal was showing; the visitor may change it.
+              defaults={{ department: stakeholder?.name ?? "" }}
               // Scoped to the link, not to the browser: one machine may be
               // used to book for two departments, and the person doing it is
               // not always the same one. Nothing of this leaves the machine.
               remember={account ? null : `portal:${credentials.token}`}
               onSubmit={async (request) => {
-                if (!forStakeholder) throw new Error("Say which department this is for.");
+                const forStakeholder = stakeholderFor(request.department);
+                if (!forStakeholder) throw new Error("Pick which department this is for.");
                 return services.portals.publicBook(credentials, submissionKey, request, forStakeholder.id, services.booking);
               }}
               // Nothing here links into the application: a stakeholder has no

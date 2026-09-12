@@ -4,14 +4,12 @@ import { ArrowRight, Boxes, Info, Link2, SkipForward } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ColorDot } from "@/components/shared/label-pill";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey, ColorToken } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
 import { isQuestionBlock, numberedQuestions, serviceById } from "@/domain";
 import { SPAN } from "../booking-fields";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
-import { SERVICE_ERROR_KEY, STAKEHOLDER_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
+import { SERVICE_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
 import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, NumberBadge, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
 
 /**
@@ -41,19 +39,11 @@ export function StepBasics({
   errors,
   omit,
   identity,
-  stakeholders,
-  stakeholderId,
-  onStakeholder,
-  stakeholderLabel,
   hiddenKeys,
 }: StepProps & {
   identity?: React.ReactNode;
   /** Questions the account has answered: the card above carries them, so they are not on the form. */
   hiddenKeys?: readonly BookingStandardKey[];
-  stakeholders?: readonly { id: string; name: string; color: ColorToken }[];
-  stakeholderId?: string | null;
-  onStakeholder?: (id: string) => void;
-  stakeholderLabel?: string;
 }) {
   const omitted = new Set<BookingStandardKey>([...(omit ?? []), ...(hiddenKeys ?? [])]);
   const fields = template.basics.fields.filter((field) => !omitted.has(field.key));
@@ -64,7 +54,6 @@ export function StepBasics({
   const besideCard = accountRow ? (fields.find((f) => f.key === "department") ?? null) : null;
   const gridFields = besideCard ? fields.filter((f) => f !== besideCard) : fields;
   const service = serviceById(template, request.serviceTypeId);
-  const chosen = stakeholders?.find((s) => s.id === stakeholderId) ?? null;
   return (
     <div className="space-y-7" data-testid="booking-step-basics">
       {/* The step's own heading, in the workspace's words. Shown only when
@@ -85,36 +74,6 @@ export function StepBasics({
         identity
       )}
 
-      {/* Who the request is for. First, because everything after it is filed
-          under the answer — and a dropdown rather than a wall of cards, because
-          on a portal this is one fact about the requester and not the shape of
-          the work. */}
-      {stakeholders && stakeholders.length > 0 && (
-        <Field label={stakeholderLabel ?? "Which department is this for?"} required error={errors[STAKEHOLDER_ERROR_KEY]}>
-          <Select value={stakeholderId ?? ""} onValueChange={(id) => onStakeholder?.(id)}>
-            <SelectTrigger className="h-11" aria-label={stakeholderLabel ?? "Which department is this for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
-              <SelectValue placeholder="Pick a department">
-                {chosen && (
-                  <span className="flex items-center gap-2">
-                    <ColorDot color={chosen.color} />
-                    {chosen.name}
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {stakeholders.map((option) => (
-                <SelectItem key={option.id} value={option.id} data-testid={`booking-stakeholder-${option.id}`}>
-                  <span className="flex items-center gap-2">
-                    <ColorDot color={option.color} />
-                    {option.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      )}
       {gridFields.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-6">
           {gridFields.map((field) => (

@@ -408,7 +408,6 @@ export const SERVICE_ERROR_KEY = "service";
  * And the stakeholder chooser's, which the template does not know about at all:
  * whether it is asked is the portal's business, not the workspace's.
  */
-export const STAKEHOLDER_ERROR_KEY = "stakeholder";
 
 /** And the sub-service chips', which belong to the service rather than to the form. */
 export const SUBSERVICE_ERROR_KEY = "subServices";

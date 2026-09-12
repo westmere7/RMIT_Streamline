@@ -366,24 +366,6 @@ describe("the booking wizard", () => {
     expect(await screen.findByTestId("booking-step-brief")).toBeInTheDocument();
   });
 
-  it("asks who the request is for when the caller serves several, and will not move on without it", async () => {
-    const stakeholders = [
-      { id: "d1", name: "Comm.", color: "blue" as const },
-      { id: "d2", name: "Events", color: "orange" as const },
-    ];
-    let chosen: string | null = null;
-    const { user } = renderWizard({ omit: ["department"], stakeholders, stakeholderId: null, onStakeholder: (id) => (chosen = id) });
-    await user.type(screen.getByTestId("booking-name"), "Priya Nair");
-    await user.type(screen.getByTestId("booking-email"), "priya.nair@rmit.edu.au");
-    await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
-    await user.click(screen.getByTestId("booking-service-design"));
-    await user.click(screen.getByTestId("booking-next"));
-    expect(screen.getByText("Say which department this is for")).toBeInTheDocument();
-    expect(screen.getByTestId("booking-step-basics")).toBeInTheDocument();
-    // It is a question of step one, not a gate in front of the form.
-    expect(screen.getByTestId("booking-stakeholder")).toBeInTheDocument();
-  });
-
   it("offers the workspace's departments as a list, only from the list, and never locks it", async () => {
     const form = { ...formWith(), departments: [{ name: "Comm.", color: "blue" as const }, { name: "Events", color: "orange" as const }] };
     const { user, onSubmit } = renderWizard({ form, account: { name: "Danh Nguyen", email: "danh@rmit.edu.au", title: "Producer" }, defaults: { department: "Events" } });
