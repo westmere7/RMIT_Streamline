@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, TagOption } from "@/domain";
+import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, ColorToken, TagOption } from "@/domain";
 import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, copyBlockWithNewIds, isQuestionBlock, newBookingBlock, questionNumbers, renameFollowUpKey } from "@/domain";
 import { cn } from "@/lib/utils";
 import { NumberBadge, slug } from "../booking-fields";
@@ -424,14 +424,12 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
         <CornerDownRight className="size-3 shrink-0" aria-hidden />
         <span className="min-w-0 truncate">Asked only after</span>
       </p>
-      <div className="relative before:absolute before:inset-y-1 before:left-1 before:w-px before:bg-border">
+      <div className="grid gap-2">
         {branches.map((option) => {
           const branch = followUps[option.name] ?? [];
+          const line = colorClasses(option.color).dot;
           return (
-            <div key={option.name} className="relative py-1 pl-4" data-testid={`editor-followup-${block.id}-${slug(option.name)}`}>
-              {/* The elbow into a branch wears that choice's colour, the way the
-                  rule down the same branch does on the form itself. */}
-              <span aria-hidden className={cn("absolute top-[1.05rem] left-1 h-px w-2.5", colorClasses(option.color).dot)} />
+            <div key={option.name} data-testid={`editor-followup-${block.id}-${slug(option.name)}`}>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-border bg-card px-2 text-2xs">
                   <ColorDot color={option.color} />
@@ -444,15 +442,28 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
                   testId={`editor-followup-more-${block.id}-${slug(option.name)}`}
                 />
               </div>
-              <div className="mt-1.5 grid gap-1.5">
+              {/* The questions hang off the chip above them, on a line in the
+                  chip's own colour: 12px from the left puts it under the middle
+                  of the colour dot (px-2 of padding, then half of a size-2.5
+                  dot), so the branch visibly descends from the answer that opens
+                  it rather than from a grey rule shared with every other answer.
+                  Each row carries its own segment — full height plus the gap
+                  below it, except the last, which stops at its own elbow. The
+                  line therefore ends by pointing into the last question rather
+                  than running on past it into nothing. */}
+              <div className="relative grid gap-1.5 pl-7">
                 {branch.map((child, index) => (
-                  <FollowUpBlockEditor
-                    key={child.id}
-                    block={child}
-                    onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
-                    onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
-                    onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
-                  />
+                  <div key={child.id} className="relative">
+                    <span aria-hidden className={cn("absolute -left-4 top-0 w-0.5 rounded-full", line, index === branch.length - 1 ? "h-[1.1rem]" : "h-[calc(100%+0.375rem)]")} />
+                    <span aria-hidden className={cn("absolute top-[1.1rem] -left-4 h-0.5 w-4 rounded-full", line)} />
+                    <FollowUpBlockEditor
+                      block={child}
+                      color={option.color}
+                      onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
+                      onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
+                      onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -528,12 +539,16 @@ function AddFollowUp({ count, optionName, onAdd, testId }: { count: number; opti
  * reordering or saving one of them is not worth four more controls on a card
  * that is already indented twice.
  */
-function FollowUpBlockEditor({ block, onPatch, onDuplicate, onRemove }: { block: BookingBlock; onPatch: (patch: Partial<BookingBlock>) => void; onDuplicate: () => void; onRemove: () => void }) {
+function FollowUpBlockEditor({ block, color, onPatch, onDuplicate, onRemove }: { block: BookingBlock; color: ColorToken; onPatch: (patch: Partial<BookingBlock>) => void; onDuplicate: () => void; onRemove: () => void }) {
   const Icon = BLOCK_ICONS[block.kind];
   return (
     <EditorSection
       className="bg-card"
       bodyClassName="p-2.5"
+      // The title bar is tinted with the choice that opens it, so a card read
+      // on its own still says which answer it belongs to — the line only says
+      // that while you can see the chip at the top of it.
+      headerClassName={colorClasses(color).soft}
       testId={`editor-block-${block.id}`}
       title={
         <>

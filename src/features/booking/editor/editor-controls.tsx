@@ -56,6 +56,7 @@ export function EditorSection({
   children,
   className,
   bodyClassName,
+  headerClassName,
   testId,
   innerRef,
   style,
@@ -66,6 +67,8 @@ export function EditorSection({
   children?: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** Extra classes for the title bar — a follow-up tints its own in the colour of the choice that opens it. */
+  headerClassName?: string;
   testId?: string;
   innerRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
@@ -73,7 +76,7 @@ export function EditorSection({
   return (
     <section ref={innerRef} style={style} className={cn("rounded-xl border border-border/70 bg-card", className)} data-testid={testId}>
       {(title || aside) && (
-        <header className="flex min-h-9 items-center gap-2 rounded-t-xl border-b border-border/60 bg-surface/40 px-2.5 py-1">
+        <header className={cn("flex min-h-9 items-center gap-2 rounded-t-xl border-b border-border/60 bg-surface/40 px-2.5 py-1", headerClassName)}>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 label-quiet">{title}</div>
           {aside && <div className="flex shrink-0 items-center gap-1">{aside}</div>}
         </header>
