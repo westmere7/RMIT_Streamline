@@ -17,15 +17,26 @@ export interface ItemLink {
    * share syncs unless listed.
    */
   excluded: string[];
+  /**
+   * Column pairings made by hand, as pairs of column ids. The automatic rules
+   * pair columns by name and type; this says what to do about the ones they
+   * cannot place. A link is symmetric, so neither id in a pair is "the source":
+   * each board reads the pair from its own side.
+   */
+  pairs: ColumnPair[];
   createdBy: EntityId;
   createdAt: string;
 }
+
+/** Two column ids the link should treat as the same field. */
+export type ColumnPair = [EntityId, EntityId];
 
 export interface ItemLinkInput {
   workspaceId: EntityId;
   itemIds: [EntityId, EntityId];
   createdBy: EntityId;
   excluded?: string[];
+  pairs?: ColumnPair[];
 }
 
 /** Exclusion keys for the item-level fields (columns use their ids). */

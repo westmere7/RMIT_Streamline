@@ -646,7 +646,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
       pushValue(mirror.id, targetColumns.find((c) => c.type === "ASSETS_RECAP"), recapColumnValue(recapAssets(mirrorLines, day(0))), allocatedAt);
 
       const [itemAId, itemBId] = normaliseLinkPair(item.id, mirror.id);
-      itemLinks.push({ id: sid("extraLink"), workspaceId, itemAId, itemBId, excluded: [], createdBy: users.danh, createdAt: iso(allocatedAt) });
+      itemLinks.push({ id: sid("extraLink"), workspaceId, itemAId, itemBId, excluded: [], pairs: [], createdBy: users.danh, createdAt: iso(allocatedAt) });
       activity({ boardId: targetBoardId, itemId: mirror.id, actorId: users.danh, eventType: "ITEM_CREATED", metadata: { itemName: spec.title, boardName: targetName, groupName: targetGroup.name }, createdAt: iso(allocatedAt) });
       activity({ boardId: allocationBoardId, itemId: item.id, actorId: users.danh, eventType: "ITEM_LINKED", metadata: { itemName: spec.title, linkedItemName: spec.title, linkedBoardName: targetName }, createdAt: iso(allocatedAt) });
       activity({ boardId: targetBoardId, itemId: mirror.id, actorId: users.danh, eventType: "ITEM_LINKED", metadata: { itemName: spec.title, linkedItemName: spec.title, linkedBoardName: allocationBoard.name }, createdAt: iso(allocatedAt) });

@@ -57,20 +57,43 @@ export function compatibleTypes(a: ColumnType, b: ColumnType): boolean {
 }
 
 /**
- * Pairs source columns with target columns. Exact name matches win; after that a
+ * Pairs source columns with target columns. A pairing the user made by hand
+ * wins outright; then exact name matches; then a
  * status/priority/people/date/timeline/files column that is the only one of its
  * type on both boards pairs up even when the names differ ("Owner" ↔ "Designer",
  * "Due Date" ↔ "Delivery"). Anything else is reported as unmapped so the user can
- * see what will not sync.
+ * see what will not sync — and can pair it here.
+ *
+ * `pairs` holds column ids in no particular order, because a link is symmetric
+ * and this function is called from both ends.
  */
-export function mapColumns(source: readonly BoardColumn[], target: readonly BoardColumn[]): ColumnMappingReport {
+export function mapColumns(source: readonly BoardColumn[], target: readonly BoardColumn[], pairs: readonly (readonly [string, string])[] = []): ColumnMappingReport {
   const src = source.filter((c) => !UNSYNCED_COLUMN_TYPES.has(c.type));
   const tgt = target.filter((c) => !UNSYNCED_COLUMN_TYPES.has(c.type));
   const taken = new Set<string>();
   const mapped: ColumnMapping[] = [];
   const pending: BoardColumn[] = [];
 
+  // Hand pairings first, so a column the rules would have matched elsewhere is
+  // still free to go where it was told to.
+  const byHand = new Map<string, string>();
+  for (const [a, b] of pairs) {
+    byHand.set(a, b);
+    byHand.set(b, a);
+  }
+  const placed = new Set<string>();
   for (const s of src) {
+    const mateId = byHand.get(s.id);
+    if (!mateId) continue;
+    const match = tgt.find((t) => t.id === mateId && !taken.has(t.id) && compatibleTypes(s.type, t.type));
+    if (!match) continue;
+    taken.add(match.id);
+    placed.add(s.id);
+    mapped.push({ source: s, target: match });
+  }
+
+  for (const s of src) {
+    if (placed.has(s.id)) continue;
     const match = tgt.find((t) => !taken.has(t.id) && compatibleTypes(s.type, t.type) && norm(t.name) === norm(s.name));
     if (match) {
       taken.add(match.id);

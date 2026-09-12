@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
+import type { ColumnPair } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -143,6 +144,12 @@ export function useLinkMutations(itemId: string) {
     onSettled: settle,
   });
 
+  const updatePairs = useMutation({
+    mutationFn: ({ linkId, pairs }: { linkId: string; pairs: ColumnPair[] }) => services.links.setPairs(linkId, pairs, itemId, user.id),
+    onError: (error) => toast.error("Could not pair the columns", { description: error instanceof Error ? error.message : undefined }),
+    onSettled: settle,
+  });
+
   const unlink = useMutation({
     mutationFn: (linkId: string) => services.links.unlink(linkId, user.id),
     onSuccess: () => toast.success("Items unlinked"),
@@ -153,5 +160,5 @@ export function useLinkMutations(itemId: string) {
     onSettled: settle,
   });
 
-  return { link, unlink, updateSync };
+  return { link, unlink, updateSync, updatePairs };
 }

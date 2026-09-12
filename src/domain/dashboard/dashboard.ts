@@ -221,6 +221,7 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       itemAId: link.itemAId,
       itemBId: link.itemBId,
       excluded: [],
+      pairs: [],
       createdBy: PUBLIC_NOBODY,
       createdAt: link.createdAt,
     })),

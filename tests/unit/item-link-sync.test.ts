@@ -47,6 +47,42 @@ describe("mapColumns", () => {
     expect(report.unmapped).toHaveLength(0);
     expect(report.targetOnly).toHaveLength(0);
   });
+
+  it("pairs two columns the user paired by hand, whichever way round they are given", () => {
+    const channel = col("a", "Channel", "TAGS");
+    const market = col("b", "Market", "TAGS");
+    const forwards = mapColumns([channel], [market], [[channel.id, market.id]]);
+    const backwards = mapColumns([channel], [market], [[market.id, channel.id]]);
+    for (const report of [forwards, backwards]) {
+      expect(report.mapped.map((m) => `${m.source.name}->${m.target.name}`)).toEqual(["Channel->Market"]);
+      expect(report.unmapped).toHaveLength(0);
+      expect(report.targetOnly).toHaveLength(0);
+    }
+  });
+
+  it("lets a hand pairing win over the name match the rules would have made", () => {
+    const status = col("a", "Status", "STATUS");
+    const sameName = col("b", "Status", "STATUS");
+    const other = col("b", "Stage", "STATUS");
+    const report = mapColumns([status], [sameName, other], [[status.id, other.id]]);
+    expect(report.mapped.map((m) => m.target.name)).toEqual(["Stage"]);
+    expect(report.targetOnly.map((c) => c.name)).toEqual(["Status"]);
+  });
+
+  it("ignores a hand pairing between types that could never carry each other's values", () => {
+    const due = col("a", "Due Date", "DATE");
+    const tags = col("b", "Market", "TAGS");
+    const report = mapColumns([due], [tags], [[due.id, tags.id]]);
+    expect(report.mapped).toHaveLength(0);
+    expect(report.unmapped.map((c) => c.name)).toEqual(["Due Date"]);
+  });
+
+  it("ignores a hand pairing whose other column has since been removed", () => {
+    const tags = col("a", "Channel", "TAGS");
+    const report = mapColumns([tags], [], [[tags.id, "deleted-column"]]);
+    expect(report.mapped).toHaveLength(0);
+    expect(report.unmapped.map((c) => c.name)).toEqual(["Channel"]);
+  });
 });
 
 describe("translateValue", () => {

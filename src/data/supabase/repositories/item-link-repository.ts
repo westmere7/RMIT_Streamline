@@ -4,7 +4,7 @@ import type { ItemLinkRepository } from "@/data/repositories";
 import { assertOk, chunk, db, unwrap, unwrapAll, unwrapMaybe } from "../client";
 import { pruneUndefined, toItemLink, type ItemLinkRow } from "../rows";
 
-const LINK = "id, workspace_id, item_a_id, item_b_id, excluded, created_by, created_at";
+const LINK = "id, workspace_id, item_a_id, item_b_id, excluded, pairs, created_by, created_at";
 
 /**
  * Item ids per request when asking about links.
@@ -88,14 +88,15 @@ export class SupabaseItemLinkRepository implements ItemLinkRepository {
       item_a_id: itemAId,
       item_b_id: itemBId,
       excluded: input.excluded ?? [],
+      pairs: input.pairs ?? [],
       created_by: input.createdBy,
     };
     const result = await db().from("item_links").insert(payload).select(LINK).single();
     return toItemLink(unwrap<ItemLinkRow>(result, "item_links.create"));
   }
 
-  async update(id: string, patch: Partial<Pick<ItemLink, "excluded">>): Promise<ItemLink> {
-    const result = await db().from("item_links").update(pruneUndefined({ excluded: patch.excluded })).eq("id", id).select(LINK).single();
+  async update(id: string, patch: Partial<Pick<ItemLink, "excluded" | "pairs">>): Promise<ItemLink> {
+    const result = await db().from("item_links").update(pruneUndefined({ excluded: patch.excluded, pairs: patch.pairs })).eq("id", id).select(LINK).single();
     return toItemLink(unwrap<ItemLinkRow>(result, "item_links.update"));
   }
 

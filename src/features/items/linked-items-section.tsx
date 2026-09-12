@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, type Item } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, type ColumnPair, type Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { LinkItemDialog } from "@/features/items/link-item-dialog";
 import { useItemLinks, useLinkMutations } from "@/features/items/link-hooks";
@@ -24,6 +24,9 @@ import { canEditBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 import type { LinkedItemView } from "@/services";
 import { useBoardUiStore } from "@/stores/board-ui-store";
+
+/** No row is waiting; one object rather than a new empty set on every render. */
+const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
 /** Items on other boards this item is kept in sync with. */
 export function LinkedItemsSection({ item }: { item: Item }) {
@@ -87,8 +90,17 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
   const ws = useWorkspace();
   const router = useRouter();
   const { board, canEdit } = useBoardContext();
-  const { unlink, updateSync } = useLinkMutations(item.id);
+  const { unlink, updateSync, updatePairs } = useLinkMutations(item.id);
   const [editing, setEditing] = React.useState(false);
+  // What the last toggle asked for, so the popover can say a row is waiting in
+  // place of its checkbox rather than sitting there looking like nothing
+  // happened.
+  const [asked, setAsked] = React.useState<{ keys: string[]; on: boolean } | null>(null);
+  // A row stops waiting when the link itself agrees, not when the write returns:
+  // the refetch lands a moment later, and clearing on settle put the old
+  // checkbox back in between — a tick that flickered back on before going off.
+  const granted = !asked || asked.keys.every((key) => asked.on !== view.link.excluded.includes(key));
+  const saving: ReadonlySet<string> = asked && !granted ? new Set(asked.keys) : EMPTY_KEYS;
   const visible = canViewBoard(ws.permissions, view.board);
   const removable = canEdit && canEditBoard(ws.permissions, view.board);
   const owners = view.ownerIds.map((id) => ws.userById(id)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -150,13 +162,20 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
             editable={removable}
             editing={editing}
             onEditingChange={setEditing}
+            saving={saving}
             onToggle={(keys, on) => {
               const next = new Set(view.link.excluded);
               for (const key of keys) {
                 if (on) next.delete(key);
                 else next.add(key);
               }
-              updateSync.mutate({ linkId: view.link.id, excluded: [...next] });
+              setAsked({ keys, on });
+              updateSync.mutate({ linkId: view.link.id, excluded: [...next] }, { onError: () => setAsked(null) });
+            }}
+            onPair={(columnId, otherColumnId) => {
+              const kept = view.link.pairs.filter((p) => !p.includes(columnId) && (otherColumnId === null || !p.includes(otherColumnId)));
+              const next: ColumnPair[] = otherColumnId ? [...kept, [columnId, otherColumnId]] : kept;
+              updatePairs.mutate({ linkId: view.link.id, pairs: next });
             }}
           />
           <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -182,14 +201,18 @@ function SyncSummary({
   editable,
   editing,
   onEditingChange,
+  saving,
   onToggle,
+  onPair,
 }: {
   view: LinkedItemView;
   boardName: string;
   editable: boolean;
   editing: boolean;
   onEditingChange: (open: boolean) => void;
+  saving: ReadonlySet<string>;
   onToggle: (keys: string[], on: boolean) => void;
+  onPair: (columnId: string, otherColumnId: string | null) => void;
 }) {
   const excluded = new Set(view.link.excluded);
   const { mapped, unmapped } = view.mapping;
@@ -211,7 +234,6 @@ function SyncSummary({
     <span className="min-w-0 truncate" title={detail}>
       {fieldCount > 0 ? `Syncs ${fieldCount} ${fieldCount === 1 ? "field" : "fields"}` : "Nothing syncs yet"}
       {off.length > 0 && <span className="text-muted-foreground/70"> · {off.length} off</span>}
-      {unmapped.length > 0 && <span className="text-muted-foreground/70"> · {unmapped.length} not on {view.board.name}</span>}
     </span>
   );
 
@@ -235,7 +257,16 @@ function SyncSummary({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3">
         <p className="mb-2 label-quiet">What stays in sync</p>
-        <SyncFieldList mapping={view.mapping} excluded={excluded} onToggle={onToggle} boardName={boardName} otherBoardName={view.board.name} />
+        <SyncFieldList
+          mapping={view.mapping}
+          excluded={excluded}
+          onToggle={onToggle}
+          pending={saving}
+          pairs={view.link.pairs}
+          onPair={onPair}
+          boardName={boardName}
+          otherBoardName={view.board.name}
+        />
         <p className="mt-2 text-2xs text-muted-foreground">Fields you switch back on are filled in from this item.</p>
       </PopoverContent>
     </Popover>

@@ -220,7 +220,7 @@ describe("a department's requests as a board", () => {
   });
 
   it("keeps a link only when it names two requests this department can see", () => {
-    const link = (id: string, a: string, b: string): ItemLink => ({ id, workspaceId: "ws-1", itemAId: a, itemBId: b, excluded: [], createdBy: "u1", createdAt: "" });
+    const link = (id: string, a: string, b: string): ItemLink => ({ id, workspaceId: "ws-1", itemAId: a, itemBId: b, excluded: [], pairs: [], createdBy: "u1", createdAt: "" });
     const payload = build([entry(task({ id: "a" })), entry(task({ id: "b" }))], [link("l1", "a", "b"), link("l2", "a", "secret-item-on-another-board")]);
 
     expect(payload.links.map((l) => l.id)).toEqual(["l1"]);

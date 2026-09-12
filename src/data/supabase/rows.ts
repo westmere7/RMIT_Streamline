@@ -425,6 +425,7 @@ export interface ItemLinkRow {
   item_a_id: string;
   item_b_id: string;
   excluded: string[];
+  pairs?: [string, string][];
   created_by: string;
   created_at: string;
 }
@@ -436,6 +437,7 @@ export function toItemLink(row: ItemLinkRow): ItemLink {
     itemAId: row.item_a_id,
     itemBId: row.item_b_id,
     excluded: row.excluded ?? [],
+    pairs: (row.pairs ?? []).filter((p): p is [string, string] => Array.isArray(p) && p.length === 2),
     createdBy: row.created_by,
     createdAt: row.created_at,
   };

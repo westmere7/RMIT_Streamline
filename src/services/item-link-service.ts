@@ -1,4 +1,4 @@
-import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
+import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnPair, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
 import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -53,6 +53,7 @@ export interface LinkOptions {
   seedFrom: "item" | "target";
   /** Fields that must not sync across this link: "name", "description", "reference" or column ids from either board. */
   excluded?: string[];
+  pairs?: ColumnPair[];
 }
 
 interface BoardBundle {
@@ -117,7 +118,7 @@ export class ItemLinkService {
         statusStuck: stuckStatus(bundle.columns, values),
         ownerIds: ownersOf(bundle.columns, values),
         dueDate: dueDateOf(bundle.columns, values),
-        mapping: own ? mapColumns(own.columns, bundle.columns) : { mapped: [], unmapped: [], targetOnly: [] },
+        mapping: own ? mapColumns(own.columns, bundle.columns, link.pairs) : { mapped: [], unmapped: [], targetOnly: [] },
       });
     }
     return views;
@@ -242,12 +243,13 @@ export class ItemLinkService {
       itemIds: [itemId, targetId],
       createdBy: actorId,
       excluded: options.excluded ?? [],
+      pairs: options.pairs ?? [],
     });
     // Whoever owned the target before seeding is told their item is now mirrored.
     const targetOwners = await this.ownersOf(target);
 
     const [source, dest] = options.seedFrom === "item" ? [item, target] : [target, item];
-    await this.fillFrom(source, dest, new Set(link.excluded));
+    await this.fillFrom(source, dest, new Set(link.excluded), link.pairs);
     // fillFrom already made these two agree. Only when one side was part of a
     // longer chain does the merged state have to travel further.
     if (!isolatedPair) await this.resyncFrom(source.id, actorId);
@@ -284,7 +286,30 @@ export class ItemLinkService {
       const source = await this.getItem(fromItemId);
       const dest = await this.getItem(otherEndOf(link, fromItemId));
       // Fill only the fields that just came back: everything still excluded stays put.
-      await this.fillFrom(source, dest, new Set(link.excluded));
+      await this.fillFrom(source, dest, new Set(link.excluded), link.pairs);
+      await this.resyncFrom(source.id, actorId);
+    }
+    return link;
+  }
+
+  /**
+   * Sets the hand-made column pairings for a link, and fills in whatever they
+   * just connected from `fromItemId`'s side.
+   *
+   * A pairing is only worth making because the two columns should already have
+   * been agreeing, so the fill is not optional: without it the pair would be
+   * joined and still showing two different values until somebody edited one.
+   */
+  async setPairs(linkId: EntityId, pairs: ColumnPair[], fromItemId: EntityId, actorId: EntityId): Promise<ItemLink> {
+    const before = await this.repos.links.getById(linkId);
+    if (!before) throw new NotFoundError("ItemLink", linkId);
+    const key = (p: ColumnPair) => [...p].sort().join(":");
+    const had = new Set(before.pairs.map(key));
+    const link = await this.repos.links.update(linkId, { pairs });
+    if (link.pairs.some((p) => !had.has(key(p)))) {
+      const source = await this.getItem(fromItemId);
+      const dest = await this.getItem(otherEndOf(link, fromItemId));
+      await this.fillFrom(source, dest, new Set(link.excluded), link.pairs);
       await this.resyncFrom(source.id, actorId);
     }
     return link;
@@ -412,7 +437,7 @@ export class ItemLinkService {
 
         let nextColumn: BoardColumn | null = null;
         if (change.kind === "value") {
-          const pair = node.column ? mapColumns(node.bundle.columns, bundle.columns).mapped.find((m) => m.source.id === node.column!.id) : undefined;
+          const pair = node.column ? mapColumns(node.bundle.columns, bundle.columns, link.pairs).mapped.find((m) => m.source.id === node.column!.id) : undefined;
           if (!pair || excluded.has(pair.source.id) || excluded.has(pair.target.id)) continue;
           nextColumn = pair.target;
         }
@@ -500,7 +525,7 @@ export class ItemLinkService {
    * wherever it has a value, and `dest` fills the gaps `source` left empty.
    * Excluded fields are left exactly as they are on both sides.
    */
-  private async fillFrom(source: Item, dest: Item, excluded: ReadonlySet<string>): Promise<void> {
+  private async fillFrom(source: Item, dest: Item, excluded: ReadonlySet<string>, pairs: readonly ColumnPair[] = []): Promise<void> {
     if (!excluded.has(LINK_FIELD_NAME) && dest.name !== source.name) await this.repos.items.update(dest.id, { name: source.name });
     if (!excluded.has(LINK_FIELD_REFERENCE)) {
       // The code travels the way a name does — the source wins — but an empty
@@ -516,7 +541,7 @@ export class ItemLinkService {
     const [sourceColumns, destColumns] = await Promise.all([this.repos.boards.listColumns(source.boardId), this.repos.boards.listColumns(dest.boardId)]);
     const [sourceValues, destValues] = await Promise.all([this.repos.items.listValuesByItem(source.id), this.repos.items.listValuesByItem(dest.id)]);
     const writes: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
-    for (const { source: sc, target: dc } of mapColumns(sourceColumns, destColumns).mapped) {
+    for (const { source: sc, target: dc } of mapColumns(sourceColumns, destColumns, pairs).mapped) {
       if (excluded.has(sc.id) || excluded.has(dc.id)) continue;
       const sv = sourceValues.find((v) => v.columnId === sc.id)?.value;
       const dv = destValues.find((v) => v.columnId === dc.id)?.value;

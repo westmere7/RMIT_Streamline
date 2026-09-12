@@ -1206,7 +1206,7 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
   // ---- Task links (cross-team pairs kept in sync) ---------------------------
   const linkPair = (a: [BoardKey, string], b: [BoardKey, string], createdBy: UserKey, daysAgo: number): ItemLink => {
     const [itemAId, itemBId] = normaliseLinkPair(itemId(a[0], a[1]), itemId(b[0], b[1]));
-    return { id: sid("link"), workspaceId: workspace.id, itemAId, itemBId, excluded: [], createdBy: SEED_USER_IDS[createdBy], createdAt: iso(subDays(now, daysAgo)) };
+    return { id: sid("link"), workspaceId: workspace.id, itemAId, itemBId, excluded: [], pairs: [], createdBy: SEED_USER_IDS[createdBy], createdAt: iso(subDays(now, daysAgo)) };
   };
   const itemLinks: ItemLink[] = [
     // Melbourne campaign task mirrored on the Vietnam team's production board.
