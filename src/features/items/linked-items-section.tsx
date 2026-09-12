@@ -97,7 +97,7 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
 
   if (!visible) {
     return (
-      <li className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground">
+      <li className="flex items-center gap-2.5 px-3.5 py-3 text-[13px] text-muted-foreground">
         <Lock className="size-3.5 shrink-0" />
         <span className="flex-1">Linked to an item on a board you can’t access.</span>
         {removable && <UnlinkButton name="this item" onClick={() => unlink.mutate(view.link.id)} />}
@@ -119,20 +119,23 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
   return (
     <li className="group/link" data-testid="linked-item">
       <RowMenu label={`Options for ${view.item.name}`} actions={actions} hideButton>
-        {/* A compact task line: what it is and where it stands; where it lives sits under it. */}
-        <div className="px-3 pt-2 pb-2">
-        <div className="flex h-7 items-center gap-2.5">
-          <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", colorClasses(view.board.color).solid)}>
-            <DynamicIcon name={view.board.icon} className="size-3.5" />
+        {/* The task line: what it is and where it stands, with where it lives
+            under it. Four things share this line, so it is given the room to
+            hold them rather than the least it can be drawn in. */}
+        <div className="px-3.5 pt-3 pb-2.5">
+        <div className="flex items-center gap-3">
+          <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-white", colorClasses(view.board.color).solid)}>
+            <DynamicIcon name={view.board.icon} className="size-4" />
           </span>
-          <Link href={href} className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline">
+          <Link href={href} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">
             {view.item.name}
           </Link>
           <LabelPill label={view.status} size="sm" emptyText="" striped={view.statusStuck} />
           {view.dueDate && <span className={cn("shrink-0 text-xs tabular", isOverdue(view.dueDate) ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{formatShortDate(view.dueDate)}</span>}
           {owners.length > 0 && <AvatarStack users={owners} size="xs" max={3} />}
         </div>
-        <p className="mt-0.5 truncate pl-[34px] text-2xs text-muted-foreground">
+        {/* Indented past the icon so it reads as the task's address, not a second line of the card. */}
+        <p className="mt-1.5 truncate pl-11 text-xs text-muted-foreground">
           {view.board.name}
           {team ? ` · ${team.name}` : ""}
           {view.group ? ` · ${view.group.name}` : ""}
@@ -140,7 +143,7 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
         </p>
         </div>
         {/* The sync strip: what flows between the two, and the controls. */}
-        <div className="flex min-w-0 items-center gap-2 border-t border-border/50 bg-surface/50 px-3 py-1.5 text-2xs text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2 border-t border-border/50 bg-surface/50 px-3.5 py-2 text-xs text-muted-foreground">
           <SyncSummary
             view={view}
             boardName={board.name}
@@ -156,9 +159,9 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
               updateSync.mutate({ linkId: view.link.id, excluded: [...next] });
             }}
           />
-          <span className="ml-auto flex shrink-0 items-center gap-0.5">
+          <span className="ml-auto flex shrink-0 items-center gap-1">
             <SimpleTooltip label={`Open on ${view.board.name}`}>
-              <Button variant="ghost" size="icon-xs" aria-label={`Open ${view.item.name} on ${view.board.name}`} className="text-muted-foreground" asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={`Open ${view.item.name} on ${view.board.name}`} className="text-muted-foreground" asChild>
                 <Link href={href}>
                   <ExternalLink />
                 </Link>
@@ -214,8 +217,8 @@ function SyncSummary({
 
   if (!editable) {
     return (
-      <span className="flex min-w-0 items-center gap-1">
-        <Link2 className="size-3 shrink-0" />
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Link2 className="size-3.5 shrink-0" />
         {summary}
       </span>
     );
@@ -224,10 +227,10 @@ function SyncSummary({
   return (
     <Popover open={editing} onOpenChange={onEditingChange}>
       <PopoverTrigger asChild>
-        <button type="button" className="flex min-w-0 items-center gap-1 rounded px-1 -mx-1 text-left hover:bg-accent hover:text-foreground" aria-label="Choose what syncs" data-testid="sync-summary">
-          <Link2 className="size-3 shrink-0" />
+        <button type="button" className="flex min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 -mx-1.5 text-left hover:bg-accent hover:text-foreground" aria-label="Choose what syncs" data-testid="sync-summary">
+          <Link2 className="size-3.5 shrink-0" />
           {summary}
-          <Settings2 className="size-3 shrink-0 opacity-60" />
+          <Settings2 className="size-3.5 shrink-0 opacity-60" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3">
@@ -242,7 +245,7 @@ function SyncSummary({
 function UnlinkButton({ name, onClick }: { name: string; onClick: () => void }) {
   return (
     <SimpleTooltip label="Unlink">
-      <Button variant="ghost" size="icon-xs" aria-label={`Unlink ${name}`} className="text-muted-foreground hover:text-destructive" onClick={onClick}>
+      <Button variant="ghost" size="icon-sm" aria-label={`Unlink ${name}`} className="text-muted-foreground hover:text-destructive" onClick={onClick}>
         <Unlink />
       </Button>
     </SimpleTooltip>

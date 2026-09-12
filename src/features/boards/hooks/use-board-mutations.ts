@@ -455,7 +455,7 @@ export function useBoardMutations(boardId: string) {
   );
 
   const updateColumn = useCallback(
-    (columnId: string, patch: Partial<Pick<BoardColumn, "name" | "width" | "hidden">> & { settings?: ColumnSettings }) =>
+    (columnId: string, patch: Partial<Pick<BoardColumn, "name" | "width" | "hidden" | "hiddenInPanel">> & { settings?: ColumnSettings }) =>
       run(
         (s) => ({ ...s, columns: s.columns.map((c) => (c.id === columnId ? { ...c, ...patch } : c)) }),
         () => services.boards.updateColumn(columnId, patch),

@@ -131,12 +131,22 @@ export interface BoardColumn {
   settings: ColumnSettings;
   position: number;
   width: number;
+  /** Not shown in the board's table. */
   hidden: boolean;
+  /**
+   * Not shown on the task panel.
+   *
+   * Separate from `hidden` because the two questions are different: a column
+   * worth filtering on is not always worth reading on every task, and a field
+   * you rarely set is still worth seeing when you open one. Absent means shown,
+   * so every column that existed before this stays where it was.
+   */
+  hiddenInPanel?: boolean;
   createdAt: string;
 }
 
 export type BoardColumnInput = Pick<BoardColumn, "boardId" | "name" | "type"> &
-  Partial<Pick<BoardColumn, "settings" | "width" | "hidden">>;
+  Partial<Pick<BoardColumn, "settings" | "width" | "hidden" | "hiddenInPanel">>;
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   TEXT: "Text",

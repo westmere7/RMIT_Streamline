@@ -149,12 +149,16 @@ export const BoardTable = React.memo(function BoardTable() {
 
     if (activeData.type === "column") {
       if (overData.type !== "column" || activeData.columnId === overData.columnId) return;
-      const visible = model.visibleColumns.map((c) => c.id);
-      const from = visible.indexOf(activeData.columnId);
-      const to = visible.indexOf(overData.columnId);
+      // Moved within the whole order, not within the visible part of it.
+      // Rebuilding as "visible, then hidden" swept every hidden column to the
+      // end of the board on any drag — which the table could not show but the
+      // task panel could, so the two views disagreed about the order the
+      // moment anybody dragged a column.
+      const ids = model.columns.map((c) => c.id);
+      const from = ids.indexOf(activeData.columnId);
+      const to = ids.indexOf(overData.columnId);
       if (from === -1 || to === -1) return;
-      const hidden = model.columns.filter((c) => c.hidden).map((c) => c.id);
-      void mutations.reorderColumns([...arrayMove(visible, from, to), ...hidden]);
+      void mutations.reorderColumns(arrayMove(ids, from, to));
       return;
     }
 

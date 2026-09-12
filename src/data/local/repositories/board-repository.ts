@@ -233,6 +233,7 @@ export class LocalBoardRepository implements BoardRepository {
       position: input.position ?? maxPosition + 1,
       width: input.width ?? DEFAULT_COLUMN_WIDTHS[input.type],
       hidden: input.hidden ?? false,
+      hiddenInPanel: input.hiddenInPanel ?? false,
       createdAt: nowIso(),
     };
     await db.put("boardColumns", column);

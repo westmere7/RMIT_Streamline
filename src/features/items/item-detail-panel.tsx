@@ -4,26 +4,39 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CornerDownRight, Globe, GripVertical, History, MessageSquare, Package, Plus, Share2, SquarePen, X } from "lucide-react";
+import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, History, MessageSquare, MoreVertical, Package, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item, ItemAsset } from "@/domain";
-import { ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
+import { COLUMN_TYPE_LABELS, ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
+import { COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
@@ -271,6 +284,7 @@ function PanelHeader({
               </Button>
             </SimpleTooltip>
           )}
+          <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} />
           {!hideClose && (
             <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
               <X />
@@ -426,17 +440,102 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
   );
 }
 
+/**
+ * The task's own description.
+ *
+ * This is a field of the item, not a column of the board — like the assets
+ * recap, it exists on every task whatever the board is made of — so it keeps
+ * its own section and never joins the column order.
+ *
+ * It stays folded down to one line until there is something in it. On a board
+ * with a brief most tasks never get one, and an empty three-row textarea on
+ * every one of them is a hole near the top of the panel; a reader who has
+ * nothing to read here should not have to scroll past it.
+ */
+function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean }) {
+  const { mutations } = useBoardContext();
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const text = item.description ?? "";
+
+  // The draft is filled at the moment editing starts rather than kept in step
+  // with the item, so a different task in the panel — or someone else's edit
+  // arriving — never has to be reconciled with what is in the box.
+  const startEditing = () => {
+    setDraft(text);
+    setEditing(true);
+  };
+
+  // Nothing written and nothing you could write: the section has no reason to be.
+  if (!text && !canEdit) return null;
+
+  const commit = () => {
+    setEditing(false);
+    // Emptied means gone, not an empty string: stored as "" it would never
+    // again match the guard below, and every blur would write it out afresh.
+    const next = draft.trim() || null;
+    if (next !== (item.description ?? null)) void mutations.updateDescription(item.id, next);
+  };
+
+  return (
+    <section>
+      <h3 className="mb-1.5 label-quiet">Description</h3>
+      {editing ? (
+        <Textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDraft(item.description ?? "");
+              setEditing(false);
+            }
+          }}
+          placeholder="Add a description, brief or links…"
+          rows={3}
+          aria-label="Description"
+          className="resize-y"
+        />
+      ) : text ? (
+        <button
+          type="button"
+          onClick={() => canEdit && startEditing()}
+          aria-label={canEdit ? "Edit description" : undefined}
+          className={cn(
+            "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left whitespace-pre-wrap text-[13px] text-foreground/90 shadow-xs",
+            canEdit && "hover:border-border",
+            !canEdit && "cursor-default",
+          )}
+          data-testid="panel-description"
+        >
+          {text}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={startEditing}
+          className="flex h-9 w-full items-center rounded-xl border border-dashed border-border/70 px-3 text-[13px] text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          data-testid="panel-description-empty"
+        >
+          Add a description
+        </button>
+      )}
+    </section>
+  );
+}
+
 function Overview({ item }: { item: Item }) {
   // Below 768 the field rows stack; the cell fills the row rather than holding
   // its desktop width, which at 375px would push the panel sideways.
   const isMobile = useIsMobile();
   const { model, mutations, canEdit, openItem } = useBoardContext();
-  const [description, setDescription] = React.useState(item.description ?? "");
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const [newSub, setNewSub] = React.useState("");
-  // The two that hold documents are too tall for a field row, so they sit under
-  // the list as blocks of their own: a long text column as a box, a rich text
-  // column as a collapsible brief.
+  // Every column the panel is allowed to show, in the board's order. Hiding a
+  // column here leaves nothing behind to click, so the panel's own menu keeps
+  // the list of what is missing.
+  const panelColumns = model.columns.filter((c) => !c.hiddenInPanel);
   const fieldSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   /** Dragging a field row is dragging the column: the panel and the board share one order. */
   const onFieldDragEnd = (event: DragEndEvent) => {
@@ -451,30 +550,7 @@ function Overview({ item }: { item: Item }) {
 
   return (
     <div className="space-y-6 p-4">
-      {/* The brief replaced the description on any board that has one: the two
-          held the same words, and the brief is the one that can show them.
-          Boards without a Brief column — team boards, mostly — still keep it,
-          because on those it is the only place a note about the task lives. */}
-      {!model.columns.some((c) => c.type === "RICH_TEXT") && (
-      <section>
-        <h3 className="mb-1.5 label-quiet">Description</h3>
-        {canEdit ? (
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => {
-              if ((description.trim() || null) !== (item.description ?? null)) void mutations.updateDescription(item.id, description);
-            }}
-            placeholder="Add a description, brief or links…"
-            rows={3}
-            aria-label="Description"
-            className="resize-y"
-          />
-        ) : (
-          <p className="whitespace-pre-wrap text-[13px] text-foreground/90">{item.description || <span className="text-muted-foreground">No description.</span>}</p>
-        )}
-      </section>
-      )}
+      <DescriptionSection item={item} canEdit={canEdit} />
 
       <section>
         <h3 className="mb-1.5 label-quiet">Columns</h3>
@@ -483,9 +559,9 @@ function Overview({ item }: { item: Item }) {
             below the list meant the panel disagreed with the board about what
             order the columns are in. Dragging a row reorders the board. */}
         <DndContext sensors={fieldSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onFieldDragEnd}>
-          <SortableContext items={model.columns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={panelColumns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
             <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="panel-fields">
-              {model.columns.map((column) => (
+              {panelColumns.map((column) => (
                 <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} />
               ))}
             </div>
@@ -548,6 +624,180 @@ function Overview({ item }: { item: Item }) {
       )}
 
     </div>
+  );
+}
+
+/**
+ * The panel's own overflow menu: what can be done to this task, and what to do
+ * about the columns it is no longer showing.
+ *
+ * A column hidden from the panel leaves nothing behind to click, so without
+ * this there would be no way back. The restore list is the only place that
+ * tells you what the panel is keeping from you.
+ */
+function PanelMenu({ item, canEdit, canManage, onShare }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void }) {
+  const { model, mutations, openItem } = useBoardContext();
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
+  const hiddenOnBoard = model.columns.filter((c) => c.hidden);
+  const anythingHidden = hiddenHere.length > 0 || hiddenOnBoard.length > 0;
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label="More actions for this task" data-testid="panel-menu">
+            <MoreVertical />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          {canEdit && (
+            <>
+              <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
+                <Copy /> Duplicate task
+              </DropdownMenuItem>
+              {canManage && (
+                <DropdownMenuItem onSelect={onShare}>
+                  <Share2 /> Share by link…
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+
+          {/* Everything the panel is not showing, and the way back — and
+              nothing at all when it is showing everything, since a heading over
+              the words "nothing is hidden" is a section that exists only to say
+              it is empty. */}
+          {anythingHidden && (
+            <>
+              {canEdit && <DropdownMenuSeparator />}
+              <DropdownMenuLabel className="text-2xs font-normal text-muted-foreground">Hidden columns</DropdownMenuLabel>
+              {hiddenHere.map((column) => (
+                <DropdownMenuItem key={column.id} onSelect={() => void mutations.updateColumn(column.id, { hiddenInPanel: false })} data-testid={`restore-panel-${column.id}`}>
+                  <Eye /> <span className="min-w-0 truncate">{column.name}</span>
+                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">panel</span>
+                </DropdownMenuItem>
+              ))}
+              {hiddenOnBoard.map((column) => (
+                <DropdownMenuItem key={`b-${column.id}`} onSelect={() => void mutations.updateColumn(column.id, { hidden: false })} data-testid={`restore-board-${column.id}`}>
+                  <Eye /> <span className="min-w-0 truncate">{column.name}</span>
+                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">board</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                onSelect={() => {
+                  for (const column of new Set([...hiddenHere, ...hiddenOnBoard])) void mutations.updateColumn(column.id, { hidden: false, hiddenInPanel: false });
+                }}
+                data-testid="restore-all-columns"
+              >
+                <Eye /> Show all columns
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {canEdit && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  void mutations.archiveItems([item.id]);
+                  openItem(null);
+                }}
+              >
+                <Package /> Archive task
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)} data-testid="panel-delete-item">
+                <Trash2 /> Delete task
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${item.name}”?`}
+        description="The task, its updates, its deliverables and its files all go. This cannot be undone."
+        confirmLabel="Delete task"
+        destructive
+        onConfirm={() => {
+          void mutations.deleteItems([item.id]);
+          openItem(null);
+        }}
+      />
+    </>
+  );
+}
+
+/**
+ * What can be done to a column, from the row that shows it.
+ *
+ * The board's header has the same menu; this is the panel's, for the times you
+ * are reading a task rather than a table. Hiding asks *where*, because the two
+ * views want different things out of the same column: one worth filtering a
+ * board by is not always worth reading on every task, and the other way round.
+ */
+function ColumnRowMenu({ column }: { column: BoardColumn }) {
+  const { mutations } = useBoardContext();
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const hide = (patch: Partial<Pick<BoardColumn, "hidden" | "hiddenInPanel">>) => void mutations.updateColumn(column.id, patch);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Options for ${column.name}`}
+            className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/row:opacity-100 data-[state=open]:opacity-100"
+            data-testid={`panel-column-menu-${column.id}`}
+          >
+            <MoreVertical className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {/* What kind of column this is, which the name alone rarely says. */}
+          <DropdownMenuLabel className="text-2xs font-normal text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Plus /> Insert column
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
+              <ColumnTypePicker onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id })} />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <EyeOff /> Hide
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-44">
+              <DropdownMenuItem onSelect={() => hide({ hidden: true })} data-testid="hide-on-board">
+                On the board
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => hide({ hiddenInPanel: true })} data-testid="hide-in-panel">
+                On this panel
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => hide({ hidden: true, hiddenInPanel: true })} data-testid="hide-both">
+                Both
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)} data-testid="panel-column-remove">
+            <Trash2 /> Remove column
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Remove “${column.name}”?`}
+        description="The column and everything every task has in it go, on this board and on the panel. This cannot be undone."
+        confirmLabel="Remove column"
+        destructive
+        onConfirm={() => void mutations.deleteColumn(column.id)}
+      />
+    </>
   );
 }
 
@@ -629,6 +879,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             </div>
           </CellStretchProvider>
         )}
+        {!isMobile && canEdit && <ColumnRowMenu column={column} />}
       </div>
       {brief && open && (
         <div className="scrollbar-thin max-h-96 overflow-y-auto border-t border-border/60 px-3 py-2.5" data-testid="rich-text-field-body">

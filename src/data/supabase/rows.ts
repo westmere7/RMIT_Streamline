@@ -326,6 +326,8 @@ export interface BoardColumnRow {
   position: number;
   width: number;
   hidden: boolean;
+  /** Added by migration 0044; absent on a row read before it ran. */
+  hidden_in_panel?: boolean;
   created_at: string;
 }
 
@@ -339,6 +341,7 @@ export function toBoardColumn(row: BoardColumnRow): BoardColumn {
     position: row.position,
     width: row.width,
     hidden: row.hidden,
+    hiddenInPanel: row.hidden_in_panel ?? false,
     createdAt: row.created_at,
   };
 }
@@ -351,6 +354,7 @@ export function fromBoardColumnPatch(patch: Partial<Omit<BoardColumn, "id" | "bo
     position: patch.position,
     width: patch.width,
     hidden: patch.hidden,
+    hidden_in_panel: patch.hiddenInPanel,
   });
 }
 
