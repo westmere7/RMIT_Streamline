@@ -138,12 +138,13 @@ export function translateValue(value: ColumnValue, source: BoardColumn, target: 
         };
       return { kind: "value", value: { type: value.type, labelId: match.id } };
     }
-    case "PERSON": {
+    case "PERSON":
+    case "PEOPLE": {
       const single = target.settings.kind === "person" && !target.settings.allowMultiple;
       return {
         kind: "value",
         value: {
-          type: "PERSON",
+          type: value.type,
           userIds: single ? value.userIds.slice(0, 1) : [...value.userIds],
         },
       };

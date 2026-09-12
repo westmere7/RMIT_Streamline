@@ -50,6 +50,7 @@ export function CellRenderer(props: CellProps) {
     case "PRIORITY":
       return <PriorityCell {...props} />;
     case "PERSON":
+    case "PEOPLE":
       return <PersonCell {...props} />;
     case "DATE":
       return <DateCell {...props} />;
@@ -361,9 +362,17 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
 
 // ---- People ------------------------------------------------------------------
 
+/**
+ * One cell for both people columns.
+ *
+ * The PIC and a plain list of people are picked the same way; the only
+ * difference is the type the value is written as, which is what tells the
+ * workload view and My Work whether these are the people doing the work.
+ */
 export function PersonCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const { users } = useBoardContext();
-  const v = valueOf("PERSON", value);
+  const type = column.type === "PEOPLE" ? "PEOPLE" : "PERSON";
+  const v = valueOf(type, value);
   const assigned = v.userIds.map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const allowMultiple = column.settings.kind === "person" ? column.settings.allowMultiple : true;
   return (
@@ -372,7 +381,7 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
       disabled={readOnly}
       align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${assigned.map((u) => u.displayName).join(", ") || "unassigned"} for ${item.name}`}
-      testId="person-cell"
+      testId={type === "PEOPLE" ? "people-cell" : "person-cell"}
       trigger={
         assigned.length === 0 ? (
           <UserAvatar user={null} size="sm" />
@@ -387,7 +396,7 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
       }
     >
       {(close) => (
-        <PersonPicker users={users} value={v.userIds} allowMultiple={allowMultiple} onChange={(userIds) => onChange({ type: "PERSON", userIds })} onDone={close} />
+        <PersonPicker users={users} value={v.userIds} allowMultiple={allowMultiple} onChange={(userIds) => onChange({ type, userIds })} onDone={close} />
       )}
     </PopoverCell>
   );

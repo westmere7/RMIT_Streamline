@@ -7,6 +7,7 @@ export const COLUMN_TYPES = [
   "STATUS",
   "DROPDOWN",
   "PERSON",
+  "PEOPLE",
   "DATE",
   "TIMELINE",
   "NUMBER",
@@ -172,8 +173,9 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   RICH_TEXT: "Rich text",
   STATUS: "Status",
   DROPDOWN: "Dropdown",
-  PERSON: "People",
-  DATE: "Date",
+  PERSON: "PIC",
+  PEOPLE: "People",
+  DATE: "Due date",
   TIMELINE: "Timeline",
   NUMBER: "Number",
   PRIORITY: "Priority",
@@ -193,6 +195,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   STATUS: 150,
   DROPDOWN: 150,
   PERSON: 130,
+  PEOPLE: 130,
   DATE: 130,
   TIMELINE: 190,
   NUMBER: 110,
@@ -255,6 +258,7 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
     case "PRIORITY":
       return { kind: "priority", labels: DEFAULT_PRIORITY_LABELS.map((l) => ({ ...l })) };
     case "PERSON":
+    case "PEOPLE":
       return { kind: "person", allowMultiple: true };
     case "NUMBER":
       return { kind: "number", unit: null, decimals: 0 };
@@ -302,4 +306,36 @@ export function columnLabels(column: BoardColumn): ColumnLabel[] {
 /** True where the user defines the labels, so the column has a list to edit. */
 export function hasEditableLabels(column: BoardColumn): boolean {
   return column.type === "STATUS" || column.type === "DROPDOWN";
+}
+
+/**
+ * The column types the rest of the app reads meaning out of.
+ *
+ * Every board is laid out differently and the dashboard still has to answer
+ * one question across all of them, so these types — not the names boards give
+ * them — are how it finds what it needs: which work is done, who is carrying
+ * it, when it is due, how big it is, who it is for. A column of one of these
+ * types is a fact the workspace reads; everything else is a field a board
+ * keeps for itself.
+ *
+ * Naming is still the board's business: a team that calls its PIC column
+ * "Designer" is understood perfectly well.
+ */
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP"];
+
+/** What the workspace does with each of those, for the note beside it. */
+export const SYSTEM_COLUMN_PURPOSE: Partial<Record<ColumnType, string>> = {
+  STATUS: "Says how the work is going. Its labels carry the meanings — done, stuck, in progress — that drive completion, My Work and every status figure on the dashboard. One per board.",
+  PERSON: "The person carrying the work. Feeds the workload view, My Work and who-is-busy on the dashboard. For people who are not doing the work — a requester, a contact — use a People column instead.",
+  DATE: "The deadline. Overdue, on-time delivery and the calendar are all read off this. Other dates can live in their own Date column without being mistaken for it.",
+  TIMELINE: "Start and end together. Drives the Gantt and timeline views, and stands in for the deadline where a board has no due date.",
+  PRIORITY: "A fixed four-step scale, the same on every board, so priority can be compared across them. Its labels cannot be edited.",
+  STAKEHOLDER: "Who the work is for, chosen from the workspace's stakeholder groups. Groups the dashboard and drives the stakeholder portal.",
+  SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
+  ASSETS_RECAP: "Not typed into: a live summary of the task's deliverables, counted from its asset lines.",
+};
+
+/** True for the types the workspace reads meaning out of. */
+export function isSystemColumnType(type: ColumnType): boolean {
+  return SYSTEM_COLUMN_TYPES.includes(type);
 }

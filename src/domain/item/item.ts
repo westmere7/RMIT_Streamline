@@ -50,6 +50,8 @@ export type ColumnValue =
   /** One of the choices the column defines. Shaped like a status, meaning nothing to the board. */
   | { type: "DROPDOWN"; labelId: string | null }
   | { type: "PERSON"; userIds: EntityId[] }
+  /** People with no bearing on the work: a requester, a contact, whoever else should be named. */
+  | { type: "PEOPLE"; userIds: EntityId[] }
   | { type: "DATE"; date: ISODate | null }
   | { type: "TIMELINE"; start: ISODate | null; end: ISODate | null }
   | { type: "NUMBER"; number: number | null }
@@ -85,6 +87,7 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
     case "DROPDOWN":
       return { type, labelId: null };
     case "PERSON":
+    case "PEOPLE":
       return { type, userIds: [] };
     case "DATE":
       return { type, date: null };
@@ -123,6 +126,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
     case "PRIORITY":
       return value.labelId === null;
     case "PERSON":
+    case "PEOPLE":
       return value.userIds.length === 0;
     case "DATE":
       return value.date === null;
