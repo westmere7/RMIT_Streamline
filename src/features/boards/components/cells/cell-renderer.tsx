@@ -314,11 +314,19 @@ export function SizeCell({ item, column, value, onChange, readOnly, width }: Cel
  * the item straight on its Assets tab, where the lines are.
  */
 export function AssetsRecapCell({ item, column, value, width }: CellProps) {
-  const { board, openItem } = useBoardContext();
+  const { board, openItem, model } = useBoardContext();
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   const assets = useBoardAssets(board.id);
   const stored = valueOf("ASSETS_RECAP", value);
-  const live = React.useMemo(() => (assets.data ? recapAssets(assets.data.filter((a) => a.itemId === item.id), todayISO()) : null), [assets.data, item.id]);
+  // A linked task shares its deliverables with the item on the other board, and
+  // half of them are not on this board to be counted. The stored recap is
+  // written from the whole set, so on those rows it is the only complete
+  // answer; everywhere else the live lines are fresher.
+  const linked = (model.linksByItem.get(item.id)?.length ?? 0) > 0;
+  const live = React.useMemo(
+    () => (assets.data && !linked ? recapAssets(assets.data.filter((a) => a.itemId === item.id), todayISO()) : null),
+    [assets.data, item.id, linked],
+  );
   const lines = live ? live.lines : stored.lines;
   const overdue = live ? live.overdue : stored.overdue;
   const quantity = live ? live.quantity : stored.quantity;

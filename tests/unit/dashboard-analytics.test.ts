@@ -154,7 +154,11 @@ describe("buildFacts", () => {
 
   it("keeps asset lines of delivery tasks only", () => {
     const facts = buildFacts(snapshot());
-    expect(facts.assets.map((a) => a.id).sort()).toEqual(["as1", "as2", "as3", "as5"]);
+    // as4 sits on b2, the allocated copy of a2. The copy is dropped so tasks
+    // are not counted twice, but its deliverables are real and belong to the
+    // set: they are counted once, against the copy that stands for it.
+    expect(facts.assets.map((a) => a.id).sort()).toEqual(["as1", "as2", "as3", "as4", "as5"]);
+    expect(facts.assets.find((a) => a.id === "as4")?.taskId).toBe("a2");
     expect(facts.assets.find((a) => a.id === "as2")?.units).toBe(1);
     expect(facts.assets.find((a) => a.id === "as5")?.type).toBe("Untyped");
     expect(facts.years).toEqual([2026, 2025]);
@@ -194,7 +198,7 @@ describe("aggregates", () => {
   it("summarises delivery, completion and lateness", () => {
     const s = summarize(tasks, assets, requests, "2026-09-08");
     // a2 (due May, in progress) and a3 (due January, stuck) are both past due on 8 September.
-    expect(s).toMatchObject({ tasks: 4, doneTasks: 2, assetUnits: 17, doneAssetUnits: 6, overdue: 2, stuck: 1, inProgress: 1, requests: 3, openRequests: 2, teams: 2, boards: 2 });
+    expect(s).toMatchObject({ tasks: 4, doneTasks: 2, assetUnits: 20, doneAssetUnits: 6, overdue: 2, stuck: 1, inProgress: 1, requests: 3, openRequests: 2, teams: 2, boards: 2 });
     expect(s.onTimeRate).toBe(100);
     expect(s.people).toBe(2);
   });
@@ -202,11 +206,14 @@ describe("aggregates", () => {
   it("ranks teams and asset types", () => {
     const teams = deliveryByTeam(tasks, assets, facts.teams, "2026-09-08", "assets");
     expect(teams.map((t) => [t.name, t.tasks, t.assetUnits])).toEqual([
-      ["Alpha", 3, 15],
+      // 18, not 15: a2 carries the three Social units added on Beta's copy of it.
+      ["Alpha", 3, 18],
       ["Beta", 1, 2],
     ]);
     expect(assetMix(assets).map((r) => [r.name, r.value])).toEqual([
       ["Print", 14],
+      // Added on the allocated copy, and counted here now rather than nowhere.
+      ["Social", 3],
       ["Untyped", 2],
       ["Digital", 1],
     ]);
@@ -229,7 +236,7 @@ describe("aggregates", () => {
   it("lays the year out month by month with one dot per task", () => {
     const { months, dots } = acrossTheYear(facts.tasks, facts.assets, 2026, "due", "assets", null);
     expect(months[1]).toMatchObject({ month: 1, value: 5, done: 4 });
-    expect(months[4]).toMatchObject({ month: 4, value: 10, done: 0 });
+    expect(months[4]).toMatchObject({ month: 4, value: 13, done: 0 });
     expect(dots.map((d) => d.id)).toEqual(["a1", "b1", "a2"]);
     expect(dots[0]!.x).toBeGreaterThan(0.13);
     expect(dots[0]!.x).toBeLessThan(0.14);

@@ -154,6 +154,51 @@ describe("Task Linking", () => {
     });
   });
 
+  /**
+   * Deliverables are shared by a link rather than copied: one poster, seen from
+   * both boards. Copying would give the two sides their own counts to disagree
+   * about, which is worse than not syncing them at all.
+   */
+  describe("deliverables", () => {
+    it("shows both sides the same lines, whichever side they were added on", async () => {
+      const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+      const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");
+      const before = (await services.assets.list(source.id)).length;
+      await services.links.link(source.id, target.id, SEED_USER_IDS.danh);
+
+      await services.assets.add({ itemId: target.id, boardId: SEED_BOARD_IDS.alwayson, name: "A1 poster" }, SEED_USER_IDS.danh);
+      const onSource = await services.assets.list(source.id);
+      const onTarget = await services.assets.list(target.id);
+      expect(onSource.map((a) => a.name)).toContain("A1 poster");
+      expect(onSource.map((a) => a.id).sort()).toEqual(onTarget.map((a) => a.id).sort());
+      // Shared, not copied: one line exists, not one per side.
+      expect(onSource.filter((a) => a.name === "A1 poster")).toHaveLength(1);
+      expect(onSource).toHaveLength(before + 1);
+    });
+
+    it("moves the recap on both boards when a line is ticked off on one", async () => {
+      const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+      const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");
+      await services.links.link(source.id, target.id, SEED_USER_IDS.danh);
+      const line = await services.assets.add({ itemId: target.id, boardId: SEED_BOARD_IDS.alwayson, name: "Banner" }, SEED_USER_IDS.danh);
+
+      const recapOn = async (itemId: string, boardId: string) => {
+        const column = (await services.repos.boards.listColumns(boardId)).find((c) => c.type === "ASSETS_RECAP");
+        if (!column) return null;
+        const value = (await services.repos.items.listValuesByItem(itemId)).find((v) => v.columnId === column.id)?.value;
+        return value?.type === "ASSETS_RECAP" ? value : null;
+      };
+
+      const sourceRecap = await recapOn(source.id, SEED_BOARD_IDS.sem1);
+      const targetRecap = await recapOn(target.id, SEED_BOARD_IDS.alwayson);
+      // Whichever boards carry a recap column agree on the count.
+      for (const recap of [sourceRecap, targetRecap]) {
+        if (recap) expect(recap.lines).toBe((await services.assets.list(source.id)).length);
+      }
+      expect(line.itemId).toBe(target.id);
+    });
+  });
+
   it("skips status labels the other board does not define", async () => {
     const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
     const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");

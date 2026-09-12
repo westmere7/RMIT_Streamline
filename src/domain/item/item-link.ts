@@ -51,6 +51,19 @@ export const LINK_FIELD_REFERENCE = "reference";
  */
 export const LINK_FIELD_UPDATES = "updates";
 
+/**
+ * The deliverables, which are shared the way the Updates thread is and cannot
+ * be switched off.
+ *
+ * A linked pair is one piece of work seen from two boards, and an A1 poster is
+ * one poster however many boards can see it. Copying the lines would give the
+ * two sides their own counts to disagree about — five of ten done here, three
+ * of ten there — which is worse than not syncing them at all. So a line stays
+ * on the item it was added to and every linked item shows it, and there is no
+ * exclusion key for this: it is not a choice.
+ */
+export const LINK_FIELD_ASSETS = "assets";
+
 /** Sorted pair so (a, b) and (b, a) map to the same stored link. */
 export function normaliseLinkPair(a: EntityId, b: EntityId): [EntityId, EntityId] {
   return a < b ? [a, b] : [b, a];

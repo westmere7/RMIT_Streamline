@@ -19,8 +19,43 @@ import { todayISO } from "@/lib/dates/dates";
 export class ItemAssetService {
   constructor(private readonly repos: Repositories) {}
 
-  list(itemId: EntityId): Promise<ItemAsset[]> {
-    return this.repos.itemAssets.listByItem(itemId);
+  /**
+   * The item's deliverables, which on a linked task means the pair's.
+   *
+   * A line belongs to the item it was added to and is shown on every item
+   * linked to it: one poster, seen from both boards. Copying instead would give
+   * the two sides their own counts to disagree about.
+   */
+  async list(itemId: EntityId): Promise<ItemAsset[]> {
+    const ids = await this.sharedWith(itemId);
+    if (ids.length === 1) return this.repos.itemAssets.listByItem(itemId);
+    const lists = await Promise.all(ids.map((id) => this.repos.itemAssets.listByItem(id)));
+    // The item's own lines first, then the far side's, each in its own order:
+    // the list reads as "ours, and theirs" rather than interleaved by position
+    // numbers that mean nothing across two boards.
+    return lists.flat();
+  }
+
+  /**
+   * Every item whose deliverables are the same as this one's: itself, and
+   * everything reachable through links. Assets are never excluded from a link,
+   * so no edge is skipped.
+   */
+  private async sharedWith(itemId: EntityId): Promise<EntityId[]> {
+    const seen = new Set<EntityId>([itemId]);
+    let frontier: EntityId[] = [itemId];
+    while (frontier.length) {
+      const next: EntityId[] = [];
+      for (const link of await this.repos.links.listByItems(frontier)) {
+        for (const end of [link.itemAId, link.itemBId]) {
+          if (seen.has(end)) continue;
+          seen.add(end);
+          next.push(end);
+        }
+      }
+      frontier = next;
+    }
+    return [itemId, ...[...seen].filter((id) => id !== itemId)];
   }
 
   listByBoard(boardId: EntityId): Promise<ItemAsset[]> {
@@ -98,13 +133,27 @@ export class ItemAssetService {
     await this.repos.activities.createMany(rows);
   }
 
-  /** Rewrites the item's ASSETS_RECAP values from its lines. A no-op on boards without such a column. */
+  /**
+   * Rewrites the ASSETS_RECAP values from the lines. A no-op on boards without
+   * such a column.
+   *
+   * Every item sharing these lines is rewritten, not just the one that changed:
+   * they are all looking at the same deliverables, so a tick on one board has
+   * to move the count on the other.
+   */
   async recompute(itemId: EntityId, boardId: EntityId): Promise<void> {
-    const columns = (await this.repos.boards.listColumns(boardId)).filter((c) => c.type === "ASSETS_RECAP");
-    if (columns.length === 0) return;
-    const lines = await this.repos.itemAssets.listByItem(itemId);
+    const ids = await this.sharedWith(itemId);
+    const lines = (await Promise.all(ids.map((id) => this.repos.itemAssets.listByItem(id)))).flat();
     const value = recapColumnValue(recapAssets(lines, todayISO()));
-    await this.repos.items.setValues(columns.map((column) => ({ itemId, columnId: column.id, value })));
+    const items = ids.length === 1 ? [{ id: itemId, boardId }] : await this.repos.items.listByIds(ids);
+    const writes: Array<{ itemId: EntityId; columnId: EntityId; value: typeof value }> = [];
+    const byBoard = new Map<EntityId, EntityId[]>();
+    for (const item of items) byBoard.set(item.boardId, [...(byBoard.get(item.boardId) ?? []), item.id]);
+    for (const [board, itemIds] of byBoard) {
+      const columns = (await this.repos.boards.listColumns(board)).filter((c) => c.type === "ASSETS_RECAP");
+      for (const column of columns) for (const id of itemIds) writes.push({ itemId: id, columnId: column.id, value });
+    }
+    if (writes.length) await this.repos.items.setValues(writes);
   }
 }
 

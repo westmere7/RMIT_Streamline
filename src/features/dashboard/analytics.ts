@@ -234,13 +234,23 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   // work the year did, and a dashboard that forgot it would fall as boards were
   // tidied. Archiving is housekeeping, not a retraction.
   const items = snapshot.items.filter((i) => i.parentItemId === null && boards.has(i.boardId));
-  const kept = collapseLinked(items.map((i) => i.id), snapshot.links, new Map(items.map((i) => [i.id, i.createdAt])));
+  const { kept, representativeOf } = collapseLinked(items.map((i) => i.id), snapshot.links, new Map(items.map((i) => [i.id, i.createdAt])));
+  // Deliverables belong to the item they were added to, and a linked pair
+  // shares them. Only the copy that stands for the set is counted, and it is
+  // counted with every line the set has — before this, a poster added on the
+  // team's board went missing from the dashboard entirely whenever the intake
+  // copy happened to be the older of the two.
+  const sharedAssets = new Map<string, ItemAsset[]>();
+  for (const [itemId, lines] of assetsByItem) {
+    const owner = representativeOf.get(itemId) ?? itemId;
+    sharedAssets.set(owner, [...(sharedAssets.get(owner) ?? []), ...lines]);
+  }
 
   for (const item of items) {
     const board = boards.get(item.boardId)!;
     const columns = columnsByBoard.get(board.id) ?? [];
     const team = teamOfBoard(board);
-    const lines = assetsByItem.get(item.id) ?? [];
+    const lines = (kept.has(item.id) ? sharedAssets.get(item.id) : assetsByItem.get(item.id)) ?? [];
 
     // Status: the first STATUS column with a value (or its default label).
     const roles = rolesByBoard.get(board.id)!;
@@ -445,7 +455,11 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
  * Linked items are one task mirrored on several boards. The earliest copy stands
  * for the set; the others are dropped so the totals do not double up.
  */
-function collapseLinked(ids: string[], links: DashboardSnapshot["links"], createdAt: Map<string, string>): Set<string> {
+function collapseLinked(
+  ids: string[],
+  links: DashboardSnapshot["links"],
+  createdAt: Map<string, string>,
+): { kept: Set<string>; representativeOf: Map<string, string> } {
   const present = new Set(ids);
   const leader = new Map<string, string>();
   const find = (id: string): string => {
@@ -467,7 +481,12 @@ function collapseLinked(ids: string[], links: DashboardSnapshot["links"], create
     const current = representative.get(root);
     if (!current || (createdAt.get(id) ?? "") < (createdAt.get(current) ?? "")) representative.set(root, id);
   }
-  return new Set(representative.values());
+  // Which copy each item's belongings should be counted against, so anything
+  // hanging off a dropped copy travels to the one that stands for the set
+  // rather than falling on the floor.
+  const representativeOf = new Map<string, string>();
+  for (const id of ids) representativeOf.set(id, representative.get(find(id)) ?? id);
+  return { kept: new Set(representative.values()), representativeOf };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash, Link2, Loader2, TriangleAlert, Unlink } from "lucide-react";
+import { Boxes, Hash, Link2, Loader2, TriangleAlert, Unlink } from "lucide-react";
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -71,6 +71,16 @@ export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onP
         onChange={(on) => onToggle?.([LINK_FIELD_NAME, LINK_FIELD_DESCRIPTION], on)}
         icon={<TextIcon className="size-3.5 shrink-0 text-muted-foreground" />}
         label="Name and description"
+      />
+      {/* Always on, and there is no key to switch it off with: an A1 poster is
+          one poster whichever board is looking at it. */}
+      <FieldRow
+        checked
+        locked
+        readOnly={readOnly}
+        onChange={() => {}}
+        icon={<Boxes className="size-3.5 shrink-0 text-muted-foreground" />}
+        label="Deliverables"
       />
       {reference && (
         <>
@@ -168,6 +178,7 @@ function FieldRow({
   checked,
   readOnly,
   pending,
+  locked,
   onChange,
   icon,
   label,
@@ -176,6 +187,8 @@ function FieldRow({
   checked: boolean;
   readOnly: boolean;
   pending?: boolean;
+  /** On, and not up for discussion: the box is shown ticked and disabled. */
+  locked?: boolean;
   onChange: (on: boolean) => void;
   icon: React.ReactNode;
   label: string;
@@ -183,7 +196,7 @@ function FieldRow({
 }) {
   return (
     <li className="group/sync">
-      <label className={cn("flex h-8 items-center gap-2.5 rounded-md px-1", !readOnly && "cursor-pointer hover:bg-accent/60", !checked && "text-muted-foreground")}>
+      <label className={cn("flex h-8 items-center gap-2.5 rounded-md px-1", !readOnly && !locked && "cursor-pointer hover:bg-accent/60", !checked && "text-muted-foreground")}>
         {readOnly ? (
           <span className="flex size-4 shrink-0 items-center justify-center">{checked ? icon : <span className="size-2 rounded-full border border-muted-foreground/40" />}</span>
         ) : pending ? (
@@ -194,7 +207,13 @@ function FieldRow({
             <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
           </span>
         ) : (
-          <Checkbox checked={checked} onCheckedChange={(next) => onChange(next === true)} aria-label={`Sync ${label}`} />
+          <Checkbox
+            checked={checked}
+            disabled={locked}
+            onCheckedChange={(next) => onChange(next === true)}
+            aria-label={locked ? `${label} always sync` : `Sync ${label}`}
+            title={locked ? "Deliverables are shared by a link, not copied, so this cannot be switched off." : undefined}
+          />
         )}
         {!readOnly && icon}
         <span className={cn("min-w-0 truncate", !checked && "line-through decoration-muted-foreground/40")}>{label}</span>

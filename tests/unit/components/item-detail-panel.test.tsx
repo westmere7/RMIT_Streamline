@@ -89,9 +89,10 @@ describe("ItemDetailPanel", () => {
     const linked = await within(section).findByTestId("linked-item");
     expect(within(linked).getByRole("link", { name: "Sem 1 DOOH adaptation" })).toBeInTheDocument();
     expect(linked).toHaveTextContent("DOOH Production");
-    // Name and description count as two fields, then Owner, Status, Priority and Due Date.
-    expect(linked).toHaveTextContent("Syncs 6 fields");
-    expect(within(linked).getByTitle(/Syncs name, description, Owner, Status, Priority, Due Date/)).toBeInTheDocument();
+    // Deliverables are always shared, then name and description count as two
+    // fields, then Owner, Status, Priority and Due Date.
+    expect(linked).toHaveTextContent("Syncs 7 fields");
+    expect(within(linked).getByTitle(/Syncs deliverables, name, description, Owner, Status, Priority, Due Date/)).toBeInTheDocument();
 
     await user.click(within(section).getByTestId("link-item-button"));
     const dialog = await screen.findByTestId("link-item-dialog");
