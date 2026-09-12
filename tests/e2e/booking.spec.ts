@@ -28,7 +28,7 @@ async function openBookingForm(page: Page) {
   await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });
 }
 
-/** The Booking Form tab, which opens the editor for anyone who may shape it. */
+/** The Form Editor tab, for anyone who may shape the form. */
 async function openEditorTab(page: Page) {
   const bookTab = page.getByTestId("portal-tab-book");
   if (await bookTab.isVisible().catch(() => false)) await bookTab.click();
@@ -91,10 +91,10 @@ test.describe("task booking", () => {
     await expect(page.getByText("Pick the kind of work this is")).toBeVisible();
     await page.getByTestId("booking-name").fill("Priya Nair");
     await page.getByTestId("booking-email").fill("priya.nair@rmit.edu.au");
-    // The department is picked from the stakeholder groups, with a box for any other.
+    // The department is picked from the workspace's own list, and only from it.
     await page.getByTestId("booking-department").click();
-    await page.getByTestId("booking-department-other").click();
-    await page.getByTestId("booking-department-other-input").fill("School of Design");
+    await page.getByRole("option").first().click();
+    await expect(page.getByTestId("booking-department")).toHaveAttribute("data-department", /.+/);
     await page.getByTestId("booking-title").fill("Open Day wayfinding posters");
     await page.getByTestId("booking-priority").click();
     await page.getByTestId("booking-priority-high").click();

@@ -152,7 +152,7 @@ export function BookTaskPage() {
           {(
             [
               ["portals", "Portal"],
-              ["book", "Booking Form"],
+              ["book", "Form Editor"],
             ] as const
           ).map(([id, label]) => (
             <button

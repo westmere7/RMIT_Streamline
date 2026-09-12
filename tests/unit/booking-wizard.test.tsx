@@ -384,7 +384,7 @@ describe("the booking wizard", () => {
     expect(screen.getByTestId("booking-stakeholder")).toBeInTheDocument();
   });
 
-  it("offers the workspace's departments as a list, with Other for the rest, and never locks it", async () => {
+  it("offers the workspace's departments as a list, only from the list, and never locks it", async () => {
     const form = { ...formWith(), departments: [{ name: "Comm.", color: "blue" as const }, { name: "Events", color: "orange" as const }] };
     const { user, onSubmit } = renderWizard({ form, account: { name: "Danh Nguyen", email: "danh@rmit.edu.au", title: "Producer" }, defaults: { department: "Events" } });
     // The account shows as a person, and its department is only the default.
@@ -394,9 +394,11 @@ describe("the booking wizard", () => {
     expect(screen.getByTestId("booking-department")).not.toBeDisabled();
 
     await user.click(screen.getByTestId("booking-department"));
-    await user.click(await screen.findByTestId("booking-department-other"));
-    await user.type(screen.getByTestId("booking-department-other-input"), "School of Design");
-    expect(screen.getByTestId("booking-department")).toHaveTextContent("Other");
+    // Only the list: there is nothing to type another one into.
+    expect(screen.queryByTestId("booking-department-other")).not.toBeInTheDocument();
+    await user.click(await screen.findByTestId("booking-department-comm-"));
+    expect(screen.getByTestId("booking-department")).toHaveTextContent("Comm.");
+    expect(screen.getByTestId("booking-department")).toHaveAttribute("data-department", "Comm.");
 
     await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
     await user.click(screen.getByTestId("booking-priority"));
@@ -416,7 +418,7 @@ describe("the booking wizard", () => {
     await user.click(screen.getByTestId("booking-submit"));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const sent = (onSubmit.mock.calls as unknown as BookingRequest[][])[0]![0]!;
-    expect(sent.department).toBe("School of Design");
+    expect(sent.department).toBe("Comm.");
   });
 
   it("counts the deliverables' own types as asset types, and lets others be added", async () => {

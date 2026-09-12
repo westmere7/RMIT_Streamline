@@ -31,8 +31,6 @@ export const NO_PRIORITY = "__normal__";
 /** The dropdown item that means "nothing chosen" on a single choice nobody has to answer. */
 const NO_CHOICE = "__none__";
 
-/** The department item that opens a box for one not on the list. */
-const OTHER_DEPARTMENT = "__other__";
 
 /**
  * What each width spans on step one's six-column row.
@@ -141,14 +139,17 @@ export interface StandardFieldProps {
    */
   readOnly?: boolean;
   hideLabel?: boolean;
+  /** Drawn as tall as the identity card it sits beside. Only the department takes this. */
+  tall?: boolean;
 }
 
 /** One of the fixed questions, worded by the template, with the control it calls for. */
-export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel }: StandardFieldProps) {
+export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel, tall }: StandardFieldProps) {
   const id = (base: string) => (preview ? `preview-${base}` : base);
   const tid = (base: string) => (preview ? undefined : base);
   const shell = { label: field.label, required: field.required, description: field.description, error, hideLabel };
-  const locked = readOnly ? { readOnly: true as const, className: "text-muted-foreground" } : {};
+  // The three about the requester share one row, so they share one height.
+  const locked = readOnly ? { readOnly: true as const, className: "h-11 text-muted-foreground" } : { className: "h-11" };
   switch (field.key) {
     case "requesterName":
       return (
@@ -163,9 +164,11 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
         </Field>
       );
     case "department": {
-      // Picked from the workspace's stakeholder groups when it has any, so the
-      // same school is not spelt six ways; "Other" opens a box for the rest.
-      // Never locked: the one on an account is a default, not a fact.
+      // Picked from the workspace's departments when it has any, and only from
+      // them: a department not on the list is one the team has not set up, and
+      // a request filed under a word nobody else uses reaches nobody. Never
+      // locked: the one on an account is a default, not a fact, and one the
+      // list does not know is shown as nothing chosen.
       if (form.departments.length === 0) {
         return (
           <Field id={id("booking-department")} {...shell}>
@@ -173,58 +176,55 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
           </Field>
         );
       }
-      // Kept untrimmed while it is being typed: trimming as you go eats the
-      // space between two words. The sentinel single space shows as empty.
-      const raw = draft.department ?? "";
-      const listed = form.departments.find((d) => d.name === raw.trim()) ?? null;
-      const other = raw !== "" && !listed;
+      const listed = form.departments.find((d) => d.name === (draft.department ?? "").trim()) ?? null;
+      const tint = listed ? colorClasses(listed.color) : null;
       return (
         <Field id={id("booking-department")} {...shell}>
-          <div className="grid gap-1.5">
-            <Select value={listed ? listed.name : other ? OTHER_DEPARTMENT : ""} onValueChange={(v) => onChange({ department: v === OTHER_DEPARTMENT ? (other ? draft.department : " ") : v })} disabled={preview}>
-              <SelectTrigger id={id("booking-department")} aria-label={field.label} aria-invalid={!!error} className="h-10" data-testid={tid("booking-department")}>
-                <SelectValue placeholder="Pick yours">
-                  {listed && (
-                    <span className="flex items-center gap-2">
-                      <ColorDot color={listed.color} />
-                      {listed.name}
-                    </span>
-                  )}
-                  {other && "Other"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {form.departments.map((option) => (
-                  <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-department-${slug(option.name)}`)}>
-                    <span className="flex items-center gap-2">
-                      <ColorDot color={option.color} />
-                      {option.name}
-                    </span>
-                  </SelectItem>
-                ))}
-                <SelectItem value={OTHER_DEPARTMENT} data-testid={tid("booking-department-other")}>
-                  Other…
+          {/* Louder than the boxes around it, and in the department's own colour
+              once one is chosen: this is the answer that decides who the request
+              is filed under, and it should not look like one more field. */}
+          <Select value={listed?.name ?? ""} onValueChange={(v) => onChange({ department: v })} disabled={preview}>
+            <SelectTrigger
+              id={id("booking-department")}
+              aria-label={field.label}
+              aria-invalid={!!error}
+              className={cn("text-[13px] font-semibold", tall ? "h-[58px] rounded-xl px-4" : "h-11", tint ? cn(tint.soft, "border-transparent hover:border-transparent") : "border-dashed")}
+              data-testid={tid("booking-department")}
+              data-department={listed?.name}
+            >
+              <SelectValue placeholder="Pick your department">
+                {listed && (
+                  <span className="flex items-center gap-2">
+                    <ColorDot color={listed.color} className="size-3" />
+                    {listed.name}
+                  </span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {form.departments.map((option) => (
+                <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-department-${slug(option.name)}`)}>
+                  <span className="flex items-center gap-2">
+                    <ColorDot color={option.color} />
+                    {option.name}
+                  </span>
                 </SelectItem>
-              </SelectContent>
-            </Select>
-            {/* "Other" holds a single space until something is typed, so the
-                select stays on Other while the box is empty; it is trimmed away
-                before anything is sent. */}
-            {other && <Input value={raw === " " ? "" : raw} onChange={(e) => onChange({ department: e.target.value || " " })} autoComplete="organization" placeholder="Which school or department?" aria-label={`${field.label}, other`} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-department-other-input")} />}
-          </div>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       );
     }
     case "title":
       return (
         <Field id={id("booking-title")} {...shell}>
-          <Input id={id("booking-title")} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-title")} />
+          <Input id={id("booking-title")} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} className="h-11" data-testid={tid("booking-title")} />
         </Field>
       );
     case "dueDate":
       return (
         <Field id={id("booking-due")} {...shell}>
-          <Input id={id("booking-due")} type="date" min={todayISO()} value={draft.dueDate ?? ""} onChange={(e) => onChange({ dueDate: e.target.value || null })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-due")} />
+          <Input id={id("booking-due")} type="date" min={todayISO()} value={draft.dueDate ?? ""} onChange={(e) => onChange({ dueDate: e.target.value || null })} aria-invalid={!!error} disabled={preview} className="h-11" data-testid={tid("booking-due")} />
         </Field>
       );
     case "priority":
@@ -234,7 +234,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
               rising bars say "critical" before the eye reaches the word, so a
               stakeholder choosing one here sees what the team will see. */}
           <Select value={draft.priority ?? NO_PRIORITY} onValueChange={(v) => onChange({ priority: v === NO_PRIORITY ? null : v })} disabled={preview}>
-            <SelectTrigger id={id("booking-priority")} aria-label={field.label} className="h-10" data-testid={tid("booking-priority")}>
+            <SelectTrigger id={id("booking-priority")} aria-label={field.label} className="h-11" data-testid={tid("booking-priority")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -281,7 +281,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
     case "short":
       return (
         <Field id={id} {...shell}>
-          <Input id={id} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={testId} />
+          <Input id={id} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} disabled={preview} className="h-11" data-testid={testId} />
         </Field>
       );
     case "long":
@@ -318,7 +318,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
         return (
           <Field id={id} {...shell}>
             <Select value={chosen} onValueChange={(v) => onChange({ kind: "choice", values: v === NO_CHOICE ? [] : [v] })} disabled={preview}>
-              <SelectTrigger id={id} aria-label={block.label} aria-invalid={!!error} className="h-10" data-testid={testId}>
+              <SelectTrigger id={id} aria-label={block.label} aria-invalid={!!error} className="h-11" data-testid={testId}>
                 <SelectValue placeholder="Pick one" />
               </SelectTrigger>
               <SelectContent>
@@ -372,6 +372,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
               onChange={(e) => onChange({ kind: "link", url: e.target.value, label: link.label })}
               aria-invalid={!!error}
               disabled={preview}
+              className="h-11"
               data-testid={testId}
             />
             <Input
@@ -380,6 +381,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
               value={link.label}
               onChange={(e) => onChange({ kind: "link", url: link.url, label: e.target.value })}
               disabled={preview}
+              className="h-11"
               data-testid={testId ? `${testId}-label` : undefined}
             />
           </div>
@@ -663,7 +665,7 @@ export function AssetTypePicker({
             }
           }}
           className={cn(
-            "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
+            "flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
             disabled ? "cursor-default opacity-70" : "cursor-pointer hover:border-foreground/30",
             "focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11 max-md:text-[15px]",
           )}

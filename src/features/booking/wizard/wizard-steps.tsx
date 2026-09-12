@@ -57,6 +57,12 @@ export function StepBasics({
 }) {
   const omitted = new Set<BookingStandardKey>([...(omit ?? []), ...(hiddenKeys ?? [])]);
   const fields = template.basics.fields.filter((field) => !omitted.has(field.key));
+  // Signed in, the card answers the name and email, and the department sits
+  // beside it on one line: three facts about one person, still in one row.
+  // Signed out the three are boxes in the grid, as they always were.
+  const accountRow = !!identity && !!hiddenKeys?.includes("requesterName") && hiddenKeys.includes("requesterEmail");
+  const besideCard = accountRow ? (fields.find((f) => f.key === "department") ?? null) : null;
+  const gridFields = besideCard ? fields.filter((f) => f !== besideCard) : fields;
   const service = serviceById(template, request.serviceTypeId);
   const chosen = stakeholders?.find((s) => s.id === stakeholderId) ?? null;
   return (
@@ -70,7 +76,14 @@ export function StepBasics({
           {template.basics.hint && <p className="text-[13px] text-muted-foreground">{template.basics.hint}</p>}
         </div>
       )}
-      {identity}
+      {besideCard ? (
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] md:items-end" data-testid="booking-account-row">
+          {identity}
+          <StandardField field={besideCard} form={form} draft={request} onChange={patch} error={errors[besideCard.id]} tall />
+        </div>
+      ) : (
+        identity
+      )}
 
       {/* Who the request is for. First, because everything after it is filed
           under the answer — and a dropdown rather than a wall of cards, because
@@ -79,7 +92,7 @@ export function StepBasics({
       {stakeholders && stakeholders.length > 0 && (
         <Field label={stakeholderLabel ?? "Which department is this for?"} required error={errors[STAKEHOLDER_ERROR_KEY]}>
           <Select value={stakeholderId ?? ""} onValueChange={(id) => onStakeholder?.(id)}>
-            <SelectTrigger className="h-10" aria-label={stakeholderLabel ?? "Which department is this for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
+            <SelectTrigger className="h-11" aria-label={stakeholderLabel ?? "Which department is this for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
               <SelectValue placeholder="Pick a department">
                 {chosen && (
                   <span className="flex items-center gap-2">
@@ -102,9 +115,9 @@ export function StepBasics({
           </Select>
         </Field>
       )}
-      {fields.length > 0 && (
+      {gridFields.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-6">
-          {fields.map((field) => (
+          {gridFields.map((field) => (
             <div key={field.id} className={cn("col-span-6 min-w-0", SPAN[field.width])}>
               <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} />
             </div>
@@ -261,7 +274,7 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, d
             <Link2 className="size-3.5 text-muted-foreground" aria-hidden /> {step.linkLabel}
           </Label>
           {step.linkHint && <p className="mt-0.5 text-2xs text-muted-foreground">{step.linkHint}</p>}
-          <Input id="booking-reference" type="url" inputMode="url" placeholder="https://" className="mt-2" value={request.referenceUrl ?? ""} onChange={(event) => patch({ referenceUrl: event.target.value || null })} data-testid="booking-reference" />
+          <Input id="booking-reference" type="url" inputMode="url" placeholder="https://" className="mt-2 h-11" value={request.referenceUrl ?? ""} onChange={(event) => patch({ referenceUrl: event.target.value || null })} data-testid="booking-reference" />
         </div>
       )}
     </div>
