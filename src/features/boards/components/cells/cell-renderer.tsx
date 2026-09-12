@@ -45,6 +45,8 @@ export function CellRenderer(props: CellProps) {
   switch (props.column.type) {
     case "STATUS":
       return <StatusCell {...props} />;
+    case "DROPDOWN":
+      return <DropdownCell {...props} />;
     case "PRIORITY":
       return <PriorityCell {...props} />;
     case "PERSON":
@@ -178,6 +180,56 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
           stripedIds={column.settings.kind === "status" ? statusRoleIds(column.settings, "stuck") : []}
           onChange={(labelId) => {
             onChange({ type: "STATUS", labelId });
+            close();
+          }}
+          onEditLabels={() => {
+            close();
+            openEditLabels(column);
+          }}
+        />
+      )}
+    </PopoverCell>
+  );
+}
+
+/**
+ * A status chip without the status.
+ *
+ * Same picker, same coloured pill, none of the reading-between-the-lines: no
+ * stripes for stuck, no asset progress, no done ring. A dropdown is a list of
+ * choices, and which one is chosen is the whole of what it says.
+ */
+export function DropdownCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const { openEditLabels } = useBoardContext();
+  const v = valueOf("DROPDOWN", value);
+  const labels = columnLabels(column);
+  const label = labels.find((l) => l.id === v.labelId) ?? null;
+  return (
+    <PopoverCell
+      width={width ?? column.width}
+      disabled={readOnly}
+      ariaLabel={`${column.name}: ${label?.name ?? "not set"} for ${item.name}`}
+      testId="dropdown-cell"
+      align={columnAlign(column.type)}
+      contentClassName="p-2"
+      trigger={
+        <span className="flex h-full w-full items-center p-1.5">
+          {label ? (
+            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid)}>
+              <span className="truncate px-2">{label.name}</span>
+            </span>
+          ) : (
+            <span className="flex h-full w-full items-center justify-center rounded-lg bg-surface-strong/50 text-2xs text-muted-foreground">—</span>
+          )}
+        </span>
+      }
+    >
+      {(close) => (
+        <LabelPicker
+          labels={labels}
+          value={v.labelId}
+          onChange={(labelId) => {
+            onChange({ type: "DROPDOWN", labelId });
             close();
           }}
           onEditLabels={() => {

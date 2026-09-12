@@ -264,7 +264,7 @@ const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio",
 /**
  * Whether a column's values may leave the building.
  *
- * An allowlist by type. STATUS, PRIORITY, DATE, TIMELINE, TAGS, SIZE,
+ * An allowlist by type. STATUS, DROPDOWN, PRIORITY, DATE, TIMELINE, TAGS, SIZE,
  * ASSETS_RECAP and STAKEHOLDER are categories and quantities the charts group
  * by, and PERSON is who is carrying the work — the workload panel is drawn from
  * it. Free text is published only where the column is plainly a department.
@@ -272,6 +272,7 @@ const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio",
 function isPublishableColumn(column: BoardColumn): boolean {
   switch (column.type) {
     case "STATUS":
+    case "DROPDOWN":
     case "PRIORITY":
     case "DATE":
     case "TIMELINE":

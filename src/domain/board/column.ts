@@ -5,6 +5,7 @@ export const COLUMN_TYPES = [
   "LONG_TEXT",
   "RICH_TEXT",
   "STATUS",
+  "DROPDOWN",
   "PERSON",
   "DATE",
   "TIMELINE",
@@ -82,6 +83,22 @@ export function isProgressLabel(column: BoardColumn | null | undefined, labelId:
   return column?.settings.kind === "status" && statusLabelRole(column.settings, labelId) === "progress";
 }
 
+/**
+ * A list of choices the board defines, and nothing more.
+ *
+ * The same shape as a status column without the meanings: a dropdown says
+ * which of several things this is — a format, a channel, a stage of an
+ * approval nobody counts as done — and the board should not read anything
+ * into the answer. Status is the column that means something; there is only
+ * ever one of those, and everything else that looked like it had to borrow it.
+ */
+export interface DropdownColumnSettings {
+  kind: "dropdown";
+  labels: ColumnLabel[];
+  /** Label used when no value exists. */
+  defaultLabelId: string | null;
+}
+
 export interface PriorityColumnSettings {
   kind: "priority";
   labels: ColumnLabel[];
@@ -117,6 +134,7 @@ export interface EmptyColumnSettings {
 
 export type ColumnSettings =
   | StatusColumnSettings
+  | DropdownColumnSettings
   | PriorityColumnSettings
   | PersonColumnSettings
   | NumberColumnSettings
@@ -153,6 +171,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   LONG_TEXT: "Long text",
   RICH_TEXT: "Rich text",
   STATUS: "Status",
+  DROPDOWN: "Dropdown",
   PERSON: "People",
   DATE: "Date",
   TIMELINE: "Timeline",
@@ -172,6 +191,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   LONG_TEXT: 240,
   RICH_TEXT: 220,
   STATUS: 150,
+  DROPDOWN: 150,
   PERSON: 130,
   DATE: 130,
   TIMELINE: 190,
@@ -228,6 +248,10 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
         progressLabelIds: ["working"],
         defaultLabelId: "not_started",
       };
+    case "DROPDOWN":
+      // Empty, because nobody can guess what this particular list is of. The
+      // cell says so and opens the label editor.
+      return { kind: "dropdown", labels: [], defaultLabelId: null };
     case "PRIORITY":
       return { kind: "priority", labels: DEFAULT_PRIORITY_LABELS.map((l) => ({ ...l })) };
     case "PERSON":
@@ -245,6 +269,10 @@ export function statusSettings(column: BoardColumn): StatusColumnSettings | null
   return column.settings.kind === "status" ? column.settings : null;
 }
 
+export function dropdownSettings(column: BoardColumn): DropdownColumnSettings | null {
+  return column.settings.kind === "dropdown" ? column.settings : null;
+}
+
 export function prioritySettings(column: BoardColumn): PriorityColumnSettings | null {
   return column.settings.kind === "priority" ? column.settings : null;
 }
@@ -260,13 +288,18 @@ export function columnTagOptions(column: BoardColumn): TagOption[] {
   return (column.settings as Partial<TagsColumnSettings>).options ?? [];
 }
 
-/** Labels for STATUS/PRIORITY columns, or an empty list for other types. */
+/** The label sets: STATUS, DROPDOWN and PRIORITY. An empty list for other types. */
 export function columnLabels(column: BoardColumn): ColumnLabel[] {
   // Priority is fixed (see DEFAULT_PRIORITY_LABELS): whatever a board has
   // stored, the four steps are the four steps.
   if (column.type === "PRIORITY") return DEFAULT_PRIORITY_LABELS.map((l) => ({ ...l }));
-  if (column.settings.kind === "status" || column.settings.kind === "priority") {
+  if (column.settings.kind === "status" || column.settings.kind === "dropdown" || column.settings.kind === "priority") {
     return column.settings.labels;
   }
   return [];
+}
+
+/** True where the user defines the labels, so the column has a list to edit. */
+export function hasEditableLabels(column: BoardColumn): boolean {
+  return column.type === "STATUS" || column.type === "DROPDOWN";
 }

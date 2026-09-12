@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardColumn, BoardGroup } from "@/domain";
-import { COLUMN_TYPE_LABELS } from "@/domain";
+import { COLUMN_TYPE_LABELS, hasEditableLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { ReferenceHeaderCell } from "@/features/boards/components/table/reference-cell";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
@@ -258,7 +258,7 @@ function ColumnHeaderCell({
   const headerSort = useHeaderSort(columnSortField(column.id));
 
   // Priority is a fixed scale, so there is nothing to edit on it.
-  const hasLabels = column.type === "STATUS";
+  const hasLabels = hasEditableLabels(column);
   const hasTags = column.type === "TAGS";
   const insertColumn = (type: (typeof ADDABLE_COLUMN_TYPES)[number]) =>
     void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id });

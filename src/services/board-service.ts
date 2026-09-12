@@ -7,6 +7,7 @@ import type {
   BoardRole,
   ColorToken,
   ColumnSettings,
+  ColumnType,
   EntityId,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
@@ -17,6 +18,9 @@ import { slugify, uniqueSlug } from "@/lib/slug";
 import { NotificationService } from "./notification-service";
 import { mapColumns, sameColumnName, syncLabelDefinitions } from "./item-link-sync";
 import { newId } from "@/lib/ids";
+
+/** The types whose labels a board defines, and so can carry to a linked board. */
+const LABELLED_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "DROPDOWN", "PRIORITY"]);
 
 export interface CreateBoardInput {
   workspaceId: EntityId;
@@ -451,14 +455,14 @@ export class BoardService {
     const before = patch.name !== undefined || patch.settings !== undefined ? await this.repos.boards.getColumn(columnId) : null;
     const updated = await this.repos.boards.updateColumn(columnId, clean);
     if (before && before.name !== updated.name) await this.renameLinkedColumns(before, updated);
-    if (before && patch.settings !== undefined && (updated.type === "STATUS" || updated.type === "PRIORITY")) await this.syncLinkedLabels(before, updated);
+    if (before && patch.settings !== undefined && LABELLED_COLUMN_TYPES.has(updated.type)) await this.syncLinkedLabels(before, updated);
     return updated;
   }
 
   /**
-   * Linked items sync status and priority by label name, so a label renamed or
-   * added here is carried to the paired column on every board this board is
-   * linked to, along with its colour and meaning. Boards where every link
+   * Linked items sync labels by name, so a label renamed or added here is
+   * carried to the paired column on every board this board is linked to, along
+   * with its colour — and, for a status, its meaning. Boards where every link
    * excludes the column from syncing are left alone.
    */
   private async syncLinkedLabels(before: BoardColumn, after: BoardColumn): Promise<void> {

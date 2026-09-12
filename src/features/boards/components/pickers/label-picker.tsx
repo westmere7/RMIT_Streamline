@@ -19,7 +19,7 @@ export interface LabelPickerProps {
   leading?: (label: ColumnLabel) => React.ReactNode;
 }
 
-/** Grid of status/priority labels used inside popovers. */
+/** Grid of status/dropdown/priority labels used inside popovers. */
 export function LabelPicker({ labels, value, onChange, appearance = "solid", stripedIds = [], allowClear = true, onEditLabels, leading }: LabelPickerProps) {
   return (
     <div className="w-56">
@@ -47,7 +47,9 @@ export function LabelPicker({ labels, value, onChange, appearance = "solid", str
             </button>
           );
         })}
-        {allowClear && (
+        {/* Nothing to clear before anything has been defined; the only thing
+            to do with an empty list is give it some labels. */}
+        {allowClear && labels.length > 0 && (
           <button
             type="button"
             role="option"

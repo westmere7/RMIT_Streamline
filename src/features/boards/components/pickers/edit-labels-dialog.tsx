@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { BoardColumn, ColumnLabel, ColumnSettings, PriorityColumnSettings, StatusColumnSettings, StatusLabelRole } from "@/domain";
+import type { BoardColumn, ColumnLabel, ColumnSettings, DropdownColumnSettings, PriorityColumnSettings, StatusColumnSettings, StatusLabelRole } from "@/domain";
 import { statusLabelRole } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { newId } from "@/lib/ids";
@@ -24,10 +24,10 @@ export interface EditLabelsDialogProps {
   onSave: (columnId: string, settings: ColumnSettings) => void;
 }
 
-/** Customise the labels of a STATUS or PRIORITY column. */
+/** Customise the labels of a STATUS, DROPDOWN or PRIORITY column. */
 export function EditLabelsDialog({ column, open, onOpenChange, onSave }: EditLabelsDialogProps) {
   const settings = column?.settings;
-  if (!column || !settings || (settings.kind !== "status" && settings.kind !== "priority")) return null;
+  if (!column || !settings || (settings.kind !== "status" && settings.kind !== "dropdown" && settings.kind !== "priority")) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -45,7 +45,7 @@ function LabelsEditor({
   onSave,
 }: {
   column: BoardColumn;
-  settings: StatusColumnSettings | PriorityColumnSettings;
+  settings: StatusColumnSettings | DropdownColumnSettings | PriorityColumnSettings;
   onCancel: () => void;
   onSave: (settings: ColumnSettings) => void;
 }) {
@@ -88,6 +88,10 @@ function LabelsEditor({
         progressLabelIds: withRole("progress"),
         defaultLabelId: cleaned.some((l) => l.id === settings.defaultLabelId) ? settings.defaultLabelId : (cleaned[0]?.id ?? null),
       });
+    } else if (settings.kind === "dropdown") {
+      // No meanings to write, and no default invented either: a dropdown that
+      // fills itself in on every new task would be answering for the person.
+      onSave({ kind: "dropdown", labels: cleaned, defaultLabelId: cleaned.some((l) => l.id === settings.defaultLabelId) ? settings.defaultLabelId : null });
     } else {
       onSave({ kind: "priority", labels: cleaned });
     }
@@ -131,7 +135,7 @@ function LabelsEditor({
                 </SelectContent>
               </Select>
             )}
-            <Button variant="ghost" size="icon-sm" aria-label={`Remove ${label.name}`} disabled={labels.length <= 1} onClick={() => remove(label.id)}>
+            <Button variant="ghost" size="icon-sm" aria-label={`Remove ${label.name}`} onClick={() => remove(label.id)}>
               <Trash2 />
             </Button>
           </li>

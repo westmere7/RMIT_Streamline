@@ -31,6 +31,7 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
   if (!value) return null;
   switch (value.type) {
     case "STATUS":
+    case "DROPDOWN":
     case "PRIORITY": {
       const label = columnLabels(column).find((l) => l.id === value.labelId);
       return label?.name ?? null;

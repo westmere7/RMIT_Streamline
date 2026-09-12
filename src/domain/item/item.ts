@@ -47,6 +47,8 @@ export type ColumnValue =
    */
   | { type: "RICH_TEXT"; text: string }
   | { type: "STATUS"; labelId: string | null }
+  /** One of the choices the column defines. Shaped like a status, meaning nothing to the board. */
+  | { type: "DROPDOWN"; labelId: string | null }
   | { type: "PERSON"; userIds: EntityId[] }
   | { type: "DATE"; date: ISODate | null }
   | { type: "TIMELINE"; start: ISODate | null; end: ISODate | null }
@@ -80,6 +82,7 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
     case "RICH_TEXT":
       return { type, text: "" };
     case "STATUS":
+    case "DROPDOWN":
       return { type, labelId: null };
     case "PERSON":
       return { type, userIds: [] };
@@ -116,6 +119,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
     case "RICH_TEXT":
       return value.text.trim() === "";
     case "STATUS":
+    case "DROPDOWN":
     case "PRIORITY":
       return value.labelId === null;
     case "PERSON":

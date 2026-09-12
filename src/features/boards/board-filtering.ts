@@ -126,7 +126,10 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       // Sorted by what it reads as, not by the markup it is stored in.
       return richTextToPlain(value.text) || null;
     case "STATUS":
+    case "DROPDOWN":
     case "PRIORITY": {
+      // By the order the board put the labels in, not alphabetically: a list of
+      // stages sorts as stages.
       const rank = labelRank(column, value);
       return rank === Number.MAX_SAFE_INTEGER ? null : rank;
     }

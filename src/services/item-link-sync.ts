@@ -1,4 +1,4 @@
-import type { BoardColumn, ColumnLabel, ColumnSettings, ColumnType, ColumnValue, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
+import type { BoardColumn, ColumnLabel, ColumnSettings, ColumnType, ColumnValue, DropdownColumnSettings, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
 import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 
@@ -126,6 +126,7 @@ export type ValueTranslation = { kind: "value"; value: ColumnValue } | { kind: "
 export function translateValue(value: ColumnValue, source: BoardColumn, target: BoardColumn): ValueTranslation {
   switch (value.type) {
     case "STATUS":
+    case "DROPDOWN":
     case "PRIORITY": {
       if (value.labelId === null) return { kind: "value", value: { type: value.type, labelId: null } };
       const label = columnLabels(source).find((l) => l.id === value.labelId);
@@ -181,7 +182,8 @@ export function valuesEqual(a: ColumnValue | undefined, b: ColumnValue | undefin
  * the name. Labels are never removed on the other board; its values may still
  * point at them. Returns null when there is nothing to change.
  */
-const hasLabels = (settings: ColumnSettings): settings is StatusColumnSettings | PriorityColumnSettings => settings.kind === "status" || settings.kind === "priority";
+const hasLabels = (settings: ColumnSettings): settings is StatusColumnSettings | DropdownColumnSettings | PriorityColumnSettings =>
+  settings.kind === "status" || settings.kind === "dropdown" || settings.kind === "priority";
 
 export function syncLabelDefinitions(before: ColumnSettings, after: ColumnSettings, target: ColumnSettings, newLabelId: () => string): ColumnSettings | null {
   if (!hasLabels(before) || !hasLabels(after) || !hasLabels(target)) return null;
