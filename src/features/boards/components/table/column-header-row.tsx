@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardColumn, BoardGroup } from "@/domain";
-import { COLUMN_TYPE_LABELS, hasEditableLabels } from "@/domain";
+import { COLUMN_TYPE_LABELS, hasEditableLabels, isSystemColumnType } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { ReferenceHeaderCell } from "@/features/boards/components/table/reference-cell";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
@@ -360,7 +360,7 @@ function ColumnHeaderCell({
                     }
                   }}
                 >
-                  <DropdownMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
+                  <DropdownMenuLabel className={cn(isSystemColumnType(column.type) && "text-green-600 dark:text-green-400")}>{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
                   <DropdownMenuItem
                     onSelect={() => {
                       renameRequested.current = true;
@@ -435,7 +435,7 @@ function ColumnHeaderCell({
           event.preventDefault();
         }}
       >
-        <ContextMenuLabel>{COLUMN_TYPE_LABELS[column.type]} column</ContextMenuLabel>
+        <ContextMenuLabel className={cn(isSystemColumnType(column.type) && "text-green-600 dark:text-green-400")}>{COLUMN_TYPE_LABELS[column.type]} column</ContextMenuLabel>
         <ContextMenuItem
           onSelect={() => {
             renameRequested.current = true;

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { BoardColumn, ColumnSettings, ColumnType } from "@/domain";
 import { columnLabels, defaultSettingsFor, emptyValueFor, hasEditableLabels, isEmptyValue, isProgressLabel, isStuckLabel } from "@/domain";
 import { syncLabelDefinitions, translateValue } from "@/services/item-link-sync";
+import { sortItems } from "@/features/boards/board-filtering";
+import { columnSortField } from "@/stores/board-ui-store";
+import type { Item } from "@/domain";
 
 let n = 0;
 function col(name: string, type: ColumnType, settings: ColumnSettings = defaultSettingsFor(type)): BoardColumn {
@@ -63,5 +66,23 @@ describe("the dropdown column", () => {
     const status = defaultSettingsFor("STATUS");
     const after = dropdown([{ id: "a", name: "Done", color: "green" }]);
     expect(syncLabelDefinitions(dropdown([]), after, status, () => "new")).toBeNull();
+  });
+});
+
+describe("sorting a board by a dropdown", () => {
+  it("orders by the labels' own order rather than alphabetically, empties last", () => {
+    // Named so that alphabetical order and label order disagree.
+    const column = col("Stage", "DROPDOWN", dropdown([
+      { id: "brief", name: "Zebra brief", color: "gray" },
+      { id: "art", name: "Artwork", color: "green" },
+    ]));
+    const mk = (id: string): Item => ({ id }) as Item;
+    const items = [mk("none"), mk("second"), mk("first")];
+    const stored: Record<string, string | null> = { first: "brief", second: "art", none: null };
+    const sorted = sortItems(items, { field: columnSortField(column.id), direction: "asc" }, {
+      columns: [column],
+      getValue: (itemId) => ({ type: "DROPDOWN", labelId: stored[itemId] ?? null }),
+    });
+    expect(sorted.map((i) => i.id)).toEqual(["first", "second", "none"]);
   });
 });

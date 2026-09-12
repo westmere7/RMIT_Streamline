@@ -32,10 +32,9 @@ interface MenuItemProps {
  * still has to answer one question across all of them, so it finds what it
  * needs by these types rather than by the names boards give them.
  *
- * The green icon and the rule above it are the whole of the distinction. A
- * heading saying so was tried and dropped — every type says what it is on
- * hover, and in a menu this size a line of prose is one more thing to read
- * past.
+ * The green icon marks them, with one small line under the group saying why.
+ * A heading over it was tried and dropped: it pushed the types down the menu
+ * to explain something nobody needs before they have seen them.
  *
  * `variant` picks the menu primitive, since Radix items only work inside their
  * own menu type.
@@ -60,7 +59,12 @@ export function ColumnTypePicker({ onPick, variant = "dropdown" }: { onPick: (ty
   return (
     <div>
       {group(PLAIN_TYPES, false)}
-      <div className="mt-1 border-t pt-1">{group(SYSTEM_TYPES, true)}</div>
+      <div className="mt-1 border-t pt-1">
+        {group(SYSTEM_TYPES, true)}
+        {/* Under the group rather than over it: the types are what you came for,
+            and this only explains why they are set apart. */}
+        <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Tracked workspace-wide, to power the dashboard.</p>
+      </div>
     </div>
   );
 }

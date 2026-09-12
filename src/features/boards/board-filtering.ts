@@ -107,7 +107,7 @@ export function filterItems(items: Item[], search: string, filters: BoardFilters
 }
 
 function labelRank(column: BoardColumn | undefined, value: ColumnValue | undefined): number {
-  if (!column || !value || (value.type !== "STATUS" && value.type !== "PRIORITY")) return Number.MAX_SAFE_INTEGER;
+  if (!column || !value || (value.type !== "STATUS" && value.type !== "DROPDOWN" && value.type !== "PRIORITY")) return Number.MAX_SAFE_INTEGER;
   const index = columnLabels(column).findIndex((l) => l.id === value.labelId);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }

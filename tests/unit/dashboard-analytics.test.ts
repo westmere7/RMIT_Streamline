@@ -320,3 +320,34 @@ describe("the public dashboard payload", () => {
     expect(published.workspace.assetRates).toEqual(snapshot().workspace.assetRates ?? null);
   });
 });
+
+/**
+ * The PIC/People split moved the requester off the type that means "carrying
+ * the work". These pin the two halves of that: a People column still names the
+ * requester, and still never counts as a person doing anything.
+ */
+describe("requesters on a People column", () => {
+  it("reads the requester and their department off a People column", () => {
+    const base = snapshot();
+    const columns = base.columns.map((c) => (c.id === "c-b-requester" ? { ...c, type: "PEOPLE" as const } : c));
+    const values = base.values.map((v) => (v.columnId === "c-b-requester" ? { ...v, value: { type: "PEOPLE" as const, userIds: ["u-grace"] } } : v));
+    const facts = buildFacts({ ...base, columns, values });
+
+    const b1 = facts.tasks.find((t) => t.id === "b1")!;
+    expect(b1.request?.requesterName).toBe("Grace Kim");
+    expect(b1.request?.department).toBe("Content");
+    // Named on the task, but not carrying it: the workload knows nothing of her.
+    expect(b1.owners).toEqual([]);
+  });
+
+  it("leaves a People column that is not a requester out of everything", () => {
+    const base = snapshot();
+    const columns = [...base.columns, column("c-a-contacts", "b-a", "Contacts", "PEOPLE")];
+    const values = [...base.values, value("a2", "c-a-contacts", { type: "PEOPLE", userIds: ["u-grace"] })];
+    const facts = buildFacts({ ...base, columns, values });
+
+    const a2 = facts.tasks.find((t) => t.id === "a2")!;
+    expect(a2.owners).toEqual(["u-tuyet", "u-duc"]);
+    expect(a2.request?.requesterName ?? null).toBeNull();
+  });
+});

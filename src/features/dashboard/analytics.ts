@@ -282,6 +282,15 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     const tags = new Set<string>();
     let requesterName: string | null = null;
     let department: DepartmentRef | null = null;
+    const takeRequester = (userIds: readonly string[]) => {
+      const requester = userIds.map((id) => users.get(id)).find(Boolean);
+      if (!requester) return;
+      requesterName = requester.displayName;
+      // A person's own profile department is a guess about the work.
+      if (department === null && requester.department?.trim()) {
+        department = { id: null, name: requester.department.trim(), inferred: true };
+      }
+    };
     let requestedTeam: string | null = null;
     let requestAssetTypes: string[] = [];
     for (const column of columns) {
@@ -304,18 +313,16 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
           if (size === null && v.size) size = v.size;
           break;
         case "PERSON":
-          if (hasHint(column.name, REQUESTER_HINTS)) {
-            const requester = v.userIds.map((id) => users.get(id)).find(Boolean);
-            if (requester) {
-              requesterName = requester.displayName;
-              // A person's own profile department is a guess about the work.
-              if (department === null && requester.department?.trim()) {
-                department = { id: null, name: requester.department.trim(), inferred: true };
-              }
-            }
-          } else {
-            for (const id of v.userIds) owners.add(id);
-          }
+          if (hasHint(column.name, REQUESTER_HINTS)) takeRequester(v.userIds);
+          else for (const id of v.userIds) owners.add(id);
+          break;
+        // A People column is nobody's workload — that is the whole point of it
+        // being a separate type — but it is where a requester belongs now that
+        // the type exists, and the picker's note on it says so. Without this,
+        // moving a "Requester" column off PIC would quietly empty the requester
+        // and department figures.
+        case "PEOPLE":
+          if (hasHint(column.name, REQUESTER_HINTS)) takeRequester(v.userIds);
           break;
         case "TAGS":
           if (hasHint(column.name, ASSET_TYPE_HINTS)) requestAssetTypes = v.tags;

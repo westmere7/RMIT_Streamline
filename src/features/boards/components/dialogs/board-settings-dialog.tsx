@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOARD_ROLES, COLUMN_TYPE_LABELS, type Board, type BoardRole } from "@/domain";
+import { BOARD_ROLES, COLUMN_TYPE_LABELS, isSystemColumnType, type Board, type BoardRole } from "@/domain";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { BoardSharePanel } from "@/features/boards/components/dialogs/share-board-dialog";
@@ -280,7 +280,7 @@ function ColumnsSection({ board, manage }: { board: Board; manage: boolean }) {
         {columns.map((column) => (
           <li key={column.id} className={cn("flex h-10 items-center gap-2 px-3 text-[13px]", column.hidden && "text-muted-foreground")}>
             <span className="flex-1 truncate font-medium">{column.name}</span>
-            <span className="text-2xs text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]}</span>
+            <span className={cn("text-2xs", isSystemColumnType(column.type) ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>{COLUMN_TYPE_LABELS[column.type]}</span>
             {manage && (
               <>
                 <Button variant="ghost" size="icon-sm" aria-label={column.hidden ? `Show ${column.name}` : `Hide ${column.name}`} onClick={() => void mutations.updateColumn(column.id, { hidden: !column.hidden })}>

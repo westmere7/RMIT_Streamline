@@ -29,7 +29,7 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item, ItemAsset } from "@/domain";
-import { COLUMN_TYPE_LABELS, ITEM_REFERENCE_MAX, normaliseItemReference } from "@/domain";
+import { COLUMN_TYPE_LABELS, ITEM_REFERENCE_MAX, isSystemColumnType, normaliseItemReference } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
@@ -757,7 +757,9 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {/* What kind of column this is, which the name alone rarely says. */}
-          <DropdownMenuLabel className="text-2xs font-normal text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]} column</DropdownMenuLabel>
+          <DropdownMenuLabel className={cn("text-2xs font-normal", isSystemColumnType(column.type) ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+            {COLUMN_TYPE_LABELS[column.type]} column
+          </DropdownMenuLabel>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Plus /> Insert column
