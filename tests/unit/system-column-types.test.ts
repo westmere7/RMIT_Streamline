@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoardColumn, ColumnType } from "@/domain";
-import { COLUMN_TYPES, COLUMN_TYPE_LABELS, SYSTEM_COLUMN_PURPOSE, SYSTEM_COLUMN_TYPES, defaultSettingsFor, emptyValueFor, isEmptyValue, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, SYSTEM_COLUMN_TYPES, defaultSettingsFor, emptyValueFor, isEmptyValue, isSystemColumnType } from "@/domain";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { EMPTY_FILTERS } from "@/stores/board-ui-store";
 import type { Board } from "@/domain";
@@ -13,13 +13,12 @@ function col(name: string, type: ColumnType): BoardColumn {
 }
 
 describe("system column types", () => {
-  it("names every one it claims, and claims only real types", () => {
-    for (const type of SYSTEM_COLUMN_TYPES) {
-      expect(COLUMN_TYPES).toContain(type);
-      expect(SYSTEM_COLUMN_PURPOSE[type], `${type} has no note`).toBeTruthy();
-    }
-    // Every note belongs to a type that is actually in the group.
-    for (const type of Object.keys(SYSTEM_COLUMN_PURPOSE) as ColumnType[]) expect(SYSTEM_COLUMN_TYPES).toContain(type);
+  it("claims only real types", () => {
+    for (const type of SYSTEM_COLUMN_TYPES) expect(COLUMN_TYPES).toContain(type);
+  });
+
+  it("says what every type is for, so the picker can too", () => {
+    for (const type of COLUMN_TYPES) expect(COLUMN_TYPE_PURPOSE[type], `${type} has no note`).toBeTruthy();
   });
 
   it("keeps a board's own field types out of the group", () => {

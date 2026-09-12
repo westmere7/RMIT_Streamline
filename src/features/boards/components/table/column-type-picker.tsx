@@ -1,11 +1,10 @@
 "use client";
 
-import { HelpCircle } from "lucide-react";
 import * as React from "react";
 import { ContextMenuItem } from "@/components/ui/context-menu";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COLUMN_TYPES, COLUMN_TYPE_LABELS, SYSTEM_COLUMN_PURPOSE, type ColumnType, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, type ColumnType, isSystemColumnType } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 
 /** Files are attached from the item panel, so a board never adds that column by hand. */
@@ -13,11 +12,11 @@ export const ADDABLE_COLUMN_TYPES: ColumnType[] = [...COLUMN_TYPES];
 
 /** A board's own fields: whatever it needs, called whatever it likes, as many as it likes. */
 const PLAIN_TYPES = ADDABLE_COLUMN_TYPES.filter((type) => !isSystemColumnType(type));
-/** The ones the workspace reads meaning out of, in the order they are worth reading. */
+/** The ones the workspace reads meaning out of. */
 const SYSTEM_TYPES = ADDABLE_COLUMN_TYPES.filter(isSystemColumnType);
 
-/** Fits two columns of type names, plus the note beside the ones that carry one. */
-export const COLUMN_TYPE_PICKER_WIDTH = "w-[20.5rem]";
+/** Fits two columns of type names without wrapping the longest label ("Dependency"). */
+export const COLUMN_TYPE_PICKER_WIDTH = "w-[19rem]";
 
 interface MenuItemProps {
   onSelect?: (event: Event) => void;
@@ -26,62 +25,42 @@ interface MenuItemProps {
 }
 
 /**
- * The column types on offer, in two groups.
+ * The column types on offer, in two groups of the same shape.
  *
- * The top grid is a board's own business. Below the rule are the types the rest
- * of the workspace reads: every board is laid out differently and the dashboard
+ * Above the rule are a board's own fields. Below it are the types the rest of
+ * the workspace reads: every board is laid out differently and the dashboard
  * still has to answer one question across all of them, so it finds what it
- * needs by these types rather than by the names boards give them. Choosing one
- * is therefore a decision with consequences elsewhere, which is what the note
- * beside each says.
+ * needs by these types rather than by the names boards give them.
+ *
+ * The green icon and the rule above it are the whole of the distinction. A
+ * heading saying so was tried and dropped — every type says what it is on
+ * hover, and in a menu this size a line of prose is one more thing to read
+ * past.
  *
  * `variant` picks the menu primitive, since Radix items only work inside their
  * own menu type.
  */
 export function ColumnTypePicker({ onPick, variant = "dropdown" }: { onPick: (type: ColumnType) => void; variant?: "dropdown" | "context" }) {
   const Item = (variant === "context" ? ContextMenuItem : DropdownMenuItem) as React.ComponentType<MenuItemProps>;
+  const group = (types: ColumnType[], system: boolean) => (
+    <div className="grid grid-cols-2 gap-0.5">
+      {types.map((type) => {
+        const Icon = COLUMN_TYPE_ICONS[type];
+        return (
+          <SimpleTooltip key={type} label={COLUMN_TYPE_PURPOSE[type]} side="right">
+            <Item onSelect={() => onPick(type)} className="min-w-0">
+              <Icon className={system ? "text-green-600 dark:text-green-400" : undefined} />
+              <span className="truncate whitespace-nowrap">{COLUMN_TYPE_LABELS[type]}</span>
+            </Item>
+          </SimpleTooltip>
+        );
+      })}
+    </div>
+  );
   return (
     <div>
-      <div className="grid grid-cols-2 gap-0.5">
-        {PLAIN_TYPES.map((type) => {
-          const Icon = COLUMN_TYPE_ICONS[type];
-          return (
-            <Item key={type} onSelect={() => onPick(type)} className="min-w-0">
-              <Icon />
-              <span className="truncate whitespace-nowrap">{COLUMN_TYPE_LABELS[type]}</span>
-            </Item>
-          );
-        })}
-      </div>
-      <p className="mt-1.5 border-t px-2 pt-2 pb-1 text-2xs text-muted-foreground">The workspace reads these</p>
-      {/* Laid out exactly like the group above it: the rule and the heading say
-          these are different, and a second, roomier shape saying it again only
-          makes the menu longer. */}
-      <div className="grid grid-cols-2 gap-0.5">
-        {SYSTEM_TYPES.map((type) => {
-          const Icon = COLUMN_TYPE_ICONS[type];
-          const purpose = SYSTEM_COLUMN_PURPOSE[type];
-          return (
-            <Item key={type} onSelect={() => onPick(type)} className="min-w-0">
-              <Icon />
-              <span className="truncate whitespace-nowrap">{COLUMN_TYPE_LABELS[type]}</span>
-              {purpose && (
-                <SimpleTooltip label={purpose} side="right">
-                  {/* A span, not a button: a button inside a menu item swallows
-                      the click that picks the type. */}
-                  <span
-                    role="note"
-                    aria-label={`${COLUMN_TYPE_LABELS[type]}: ${purpose}`}
-                    className="ml-auto flex size-4 shrink-0 items-center justify-center text-muted-foreground/60 hover:text-foreground"
-                  >
-                    <HelpCircle className="size-3.5" />
-                  </span>
-                </SimpleTooltip>
-              )}
-            </Item>
-          );
-        })}
-      </div>
+      {group(PLAIN_TYPES, false)}
+      <div className="mt-1 border-t pt-1">{group(SYSTEM_TYPES, true)}</div>
     </div>
   );
 }

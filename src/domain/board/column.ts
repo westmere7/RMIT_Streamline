@@ -323,8 +323,24 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  */
 export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP"];
 
-/** What the workspace does with each of those, for the note beside it. */
-export const SYSTEM_COLUMN_PURPOSE: Partial<Record<ColumnType, string>> = {
+/**
+ * What each type is for, shown when the type is hovered in the picker.
+ *
+ * The ones in SYSTEM_COLUMN_TYPES say what the workspace does with them,
+ * because choosing one is a decision with consequences on the dashboard. The
+ * rest just say what they hold.
+ */
+export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
+  TEXT: "A short line of text.",
+  LONG_TEXT: "Several lines of plain text.",
+  RICH_TEXT: "A document — headings, bullets, links. The cell shows the start of it and opens the rest.",
+  DROPDOWN: "One of a list of choices the board defines, with colours. A status without the meanings.",
+  PEOPLE: "People with no bearing on the work — a requester, a contact. For who is doing it, use PIC.",
+  NUMBER: "A number, with a unit if it needs one.",
+  CHECKBOX: "Ticked or not.",
+  LINK: "A web address, with its own text if a bare URL would not read well.",
+  TAGS: "Any number of labels at once, from a palette the board keeps.",
+  DEPENDENCY: "Tasks on this board this one waits on. Never carried to a linked board.",
   STATUS: "Says how the work is going. Its labels carry the meanings — done, stuck, in progress — that drive completion, My Work and every status figure on the dashboard. One per board.",
   PERSON: "The person carrying the work. Feeds the workload view, My Work and who-is-busy on the dashboard. For people who are not doing the work — a requester, a contact — use a People column instead.",
   DATE: "The deadline. Overdue, on-time delivery and the calendar are all read off this. Other dates can live in their own Date column without being mistaken for it.",
