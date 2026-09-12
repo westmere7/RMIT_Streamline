@@ -16,8 +16,8 @@ const PLAIN_TYPES = ADDABLE_COLUMN_TYPES.filter((type) => !isSystemColumnType(ty
 /** The ones the workspace reads meaning out of, in the order they are worth reading. */
 const SYSTEM_TYPES = ADDABLE_COLUMN_TYPES.filter(isSystemColumnType);
 
-/** Fits two columns of type names without wrapping the longest label ("Dependency"). */
-export const COLUMN_TYPE_PICKER_WIDTH = "w-[19rem]";
+/** Fits two columns of type names, plus the note beside the ones that carry one. */
+export const COLUMN_TYPE_PICKER_WIDTH = "w-[20.5rem]";
 
 interface MenuItemProps {
   onSelect?: (event: Event) => void;
@@ -53,10 +53,11 @@ export function ColumnTypePicker({ onPick, variant = "dropdown" }: { onPick: (ty
           );
         })}
       </div>
-      {/* One column rather than two: these are read rather than scanned, and
-          each carries a note. */}
       <p className="mt-1.5 border-t px-2 pt-2 pb-1 text-2xs text-muted-foreground">The workspace reads these</p>
-      <div className="grid gap-0.5">
+      {/* Laid out exactly like the group above it: the rule and the heading say
+          these are different, and a second, roomier shape saying it again only
+          makes the menu longer. */}
+      <div className="grid grid-cols-2 gap-0.5">
         {SYSTEM_TYPES.map((type) => {
           const Icon = COLUMN_TYPE_ICONS[type];
           const purpose = SYSTEM_COLUMN_PURPOSE[type];
