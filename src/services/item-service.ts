@@ -18,7 +18,7 @@ import type {
 import { EMPTY_ARCHIVE_LINK_IMPACT, emptyValueFor, normaliseItemReference, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
-import { displayValue } from "./column-display";
+import { clipActivityValue, displayValue } from "./column-display";
 import type { ItemLinkService } from "./item-link-service";
 import { NotificationService } from "./notification-service";
 
@@ -259,9 +259,14 @@ export class ItemService {
     const result = await this.repos.items.setValue(itemId, columnId, value);
     await this.links.propagate(itemId, { kind: "value", columnId, value }, actorId);
 
-    const from = displayValue(ctx.column, existing?.value ?? emptyValueFor(ctx.column.type), ctx.users);
-    const to = displayValue(ctx.column, value, ctx.users);
-    if (from === to) return result;
+    // Compared in full and quoted short: two briefs that differ in their last
+    // paragraph read the same for eighty characters, and clipping before the
+    // comparison would drop the edit from the record altogether.
+    const before = displayValue(ctx.column, existing?.value ?? emptyValueFor(ctx.column.type), ctx.users);
+    const after = displayValue(ctx.column, value, ctx.users);
+    if (before === after) return result;
+    const from = clipActivityValue(before);
+    const to = clipActivityValue(after);
 
     const activity: ActivityInput = {
       workspaceId: ctx.board.workspaceId,

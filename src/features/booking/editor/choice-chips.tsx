@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { ColorDot } from "@/components/shared/label-pill";
@@ -23,7 +23,22 @@ const NEXT_COLORS: readonly ColorToken[] = ["blue", "orange", "violet", "green",
 
 export type ChoiceLayout = "chips" | "list";
 
-export function ChoiceChips({ options, onChange, addLabel = "Add a choice", layout = "chips", testIdPrefix }: { options: TagOption[]; onChange: (next: TagOption[]) => void; addLabel?: string; layout?: ChoiceLayout; testIdPrefix?: string }) {
+export function ChoiceChips({
+  options,
+  onChange,
+  addLabel = "Add a choice",
+  layout = "chips",
+  testIdPrefix,
+  renderExtra,
+}: {
+  options: TagOption[];
+  onChange: (next: TagOption[]) => void;
+  addLabel?: string;
+  layout?: ChoiceLayout;
+  testIdPrefix?: string;
+  /** A control of the caller's, inside the chip and before its cross — the branch button on a single choice. */
+  renderExtra?: (index: number) => React.ReactNode;
+}) {
   /** Where the caret should go once a chip has been added; null when nothing is waiting. */
   const [focusAt, setFocusAt] = React.useState<number | null>(null);
 
@@ -53,7 +68,7 @@ export function ChoiceChips({ options, onChange, addLabel = "Add a choice", layo
             remove(index);
             setFocusAt(index - 1);
           }}
-          onEnter={add}
+          extra={renderExtra?.(index)}
           testId={testIdPrefix ? `${testIdPrefix}-${slug(option.name) || index}` : undefined}
         />
       ))}
@@ -81,7 +96,7 @@ function Chip({
   onColor,
   onRemove,
   onBackspaceEmpty,
-  onEnter,
+  extra,
   testId,
 }: {
   option: TagOption;
@@ -93,10 +108,19 @@ function Chip({
   onColor: (color: ColorToken) => void;
   onRemove: () => void;
   onBackspaceEmpty: () => void;
-  onEnter: () => void;
+  /** Rendered between the words and the trailing control. */
+  extra?: React.ReactNode;
   testId?: string;
 }) {
   const input = React.useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = React.useState(false);
+  // What the press *started* as. The trailing control is a tick while the words
+  // are being edited and a cross the rest of the time, and pressing the tick is
+  // itself what ends the editing — so by the time the click lands the button has
+  // already become the cross, and acting on what it is now would delete the
+  // choice somebody just finished naming.
+  const pressedWhileEditing = React.useRef(false);
+
   React.useEffect(() => {
     if (!autoFocus) return;
     input.current?.focus();
@@ -119,10 +143,15 @@ function Chip({
         ref={input}
         value={option.name}
         onChange={(event) => onName(event.target.value)}
+        onFocus={() => setEditing(true)}
+        onBlur={() => setEditing(false)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          // Enter finishes this choice. It used to add another, which meant the
+          // key that means "done" everywhere else left you editing something
+          // new and empty.
+          if (event.key === "Enter" || event.key === "Escape") {
             event.preventDefault();
-            onEnter();
+            input.current?.blur();
           }
           if (event.key === "Backspace" && option.name === "") {
             event.preventDefault();
@@ -138,8 +167,25 @@ function Chip({
         className={cn("bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/60", list ? "min-w-0 flex-1" : "min-w-12 [field-sizing:content]")}
         data-testid={testId}
       />
-      <button type="button" aria-label={`Remove “${option.name || "this choice"}”`} onClick={onRemove} className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-        <X className="size-3" />
+      {extra}
+      <button
+        type="button"
+        aria-label={editing ? `Done naming “${option.name || "this choice"}”` : `Remove “${option.name || "this choice"}”`}
+        // Pressing the tick must not blur the box first, or the icon swaps under
+        // the pointer. Touch has no such guarantee, hence the ref above.
+        onMouseDown={(event) => editing && event.preventDefault()}
+        onPointerDown={() => {
+          pressedWhileEditing.current = editing;
+        }}
+        onClick={() => {
+          if (pressedWhileEditing.current) input.current?.blur();
+          else onRemove();
+          pressedWhileEditing.current = false;
+        }}
+        className={cn("rounded-full p-0.5 transition-colors hover:bg-accent", editing ? "text-ring hover:text-ring" : "text-muted-foreground hover:text-foreground")}
+        data-testid={testId ? `${testId}-${editing ? "done" : "remove"}` : undefined}
+      >
+        {editing ? <Check className="size-3" /> : <X className="size-3" />}
       </button>
     </span>
   );

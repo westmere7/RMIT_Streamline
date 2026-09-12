@@ -307,6 +307,16 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
     );
   }
   const choice = block.kind === "multi" || block.kind === "single";
+  // One level only, so a branch never sprouts a branch of its own.
+  const branching = block.kind === "single" && !nested;
+  const followUps = (branching ? block.followUps : undefined) ?? {};
+  const setFor = (option: string, blocks: BookingBlock[]) => {
+    const next: BookingFollowUps = { ...followUps };
+    if (blocks.length) next[option] = blocks;
+    else delete next[option];
+    onPatch({ followUps: next } as Partial<BookingBlock>);
+  };
+
   return (
     <>
       <TextBox value={block.label} onChange={(v) => onPatch({ label: v } as Partial<BookingBlock>)} ariaLabel="Question" placeholder="What are you asking?" className="text-[13px] font-medium" testId={`editor-block-label-${block.id}`} />
@@ -325,6 +335,25 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
             onChange={(options) => onPatch(patchOptions(block, options))}
             layout={block.kind === "single" && block.display === "dropdown" ? "list" : "chips"}
             testIdPrefix={`editor-block-options-${block.id}`}
+            // The branch hangs off the choice it belongs to, rather than off a
+            // second copy of the list further down the card.
+            renderExtra={
+              branching
+                ? (index) => {
+                    const name = block.options[index]?.name.trim();
+                    if (!name) return null;
+                    const branch = followUps[name] ?? [];
+                    return (
+                      <AddFollowUp
+                        count={branch.length}
+                        optionName={name}
+                        onAdd={(created) => setFor(name, [...branch, created])}
+                        testId={`editor-followup-add-${block.id}-${slug(name)}`}
+                      />
+                    );
+                  }
+                : undefined
+            }
           />
           {/* Chips for a few words each; a dropdown for choices that are sentences. */}
           {block.kind === "single" && (
@@ -339,8 +368,7 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
               />
             </div>
           )}
-          {/* One level only, so a branch never sprouts a branch of its own. */}
-          {block.kind === "single" && !nested && <FollowUpTree block={block} onPatch={onPatch} />}
+          {branching && <FollowUpTree block={block} followUps={followUps} setFor={setFor} />}
         </div>
       )}
     </>
@@ -375,41 +403,28 @@ function patchOptions(block: BookingChoiceBlock, next: TagOption[]): Partial<Boo
 const FOLLOW_UP_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "text"];
 
 /**
- * The questions each choice opens, drawn as the tree they are.
+ * The questions each choice opens, under the choices themselves.
  *
- * A brief with branches in it is the one thing about this editor that could get
- * away from whoever is composing it: eight questions, three of which only exist
- * sometimes, read as eight questions unless the page says otherwise. So the
- * branches are bracketed — a rule down the left of the group, an elbow into
- * each choice — and the stakeholder's form draws the same bracket around the
- * same questions, so what was built and what is met are visibly one shape.
- *
- * Every named choice gets a branch, used or not. Showing only the choices that
- * already have follow-ups would hide the whole idea from every question that
- * has never used it.
+ * Only the branches that exist are drawn, each one headed by its own choice and
+ * bracketed by the rule the stakeholder's form draws around the same questions.
+ * An earlier version listed every choice again under the chips, with an empty
+ * "when this is picked" row for each — which meant reading the same six choices
+ * twice to find the one branch that had anything in it, and made a question with
+ * no follow-ups at all look like a question with six empty ones. Where a branch
+ * is added from is the chip; where it is edited is here.
  */
-function FollowUpTree({ block, onPatch }: { block: BookingChoiceBlock; onPatch: (patch: Partial<BookingBlock>) => void }) {
-  const followUps = block.followUps ?? {};
-  const named = block.options.filter((option) => option.name.trim());
-  const count = named.reduce((n, option) => n + (followUps[option.name]?.length ?? 0), 0);
-  if (named.length === 0) return null;
-
-  const setFor = (option: string, blocks: BookingBlock[]) => {
-    const next: BookingFollowUps = { ...followUps };
-    if (blocks.length) next[option] = blocks;
-    else delete next[option];
-    onPatch({ followUps: next } as Partial<BookingBlock>);
-  };
+function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock; followUps: BookingFollowUps; setFor: (option: string, blocks: BookingBlock[]) => void }) {
+  const branches = block.options.filter((option) => option.name.trim() && (followUps[option.name]?.length ?? 0) > 0);
+  if (branches.length === 0) return null;
 
   return (
     <div className="mt-1 rounded-lg border border-border/60 bg-surface/30 p-2 sm:p-2.5" data-testid={`editor-followups-${block.id}`}>
       <p className="mb-1.5 flex items-center gap-1.5 label-quiet">
         <CornerDownRight className="size-3 shrink-0" aria-hidden />
-        <span className="min-w-0 truncate">Asked only after a particular answer</span>
-        {count > 0 && <span className="tabular">{count}</span>}
+        <span className="min-w-0 truncate">Asked only after</span>
       </p>
       <div className="relative before:absolute before:inset-y-1 before:left-1 before:w-px before:bg-border">
-        {named.map((option) => {
+        {branches.map((option) => {
           const branch = followUps[option.name] ?? [];
           return (
             <div
@@ -418,27 +433,28 @@ function FollowUpTree({ block, onPatch }: { block: BookingChoiceBlock; onPatch: 
               data-testid={`editor-followup-${block.id}-${slug(option.name)}`}
             >
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-2xs text-muted-foreground">When</span>
                 <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-border bg-card px-2 text-2xs">
                   <ColorDot color={option.color} />
                   <span className="max-w-40 truncate sm:max-w-56">{option.name}</span>
                 </span>
-                <span className="text-2xs text-muted-foreground">is picked</span>
-                <AddFollowUp onAdd={(created) => setFor(option.name, [...branch, created])} testId={`editor-followup-add-${block.id}-${slug(option.name)}`} />
+                <AddFollowUp
+                  count={0}
+                  optionName={option.name}
+                  onAdd={(created) => setFor(option.name, [...branch, created])}
+                  testId={`editor-followup-more-${block.id}-${slug(option.name)}`}
+                />
               </div>
-              {branch.length > 0 && (
-                <div className="mt-1.5 grid gap-1.5">
-                  {branch.map((child, index) => (
-                    <FollowUpBlockEditor
-                      key={child.id}
-                      block={child}
-                      onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
-                      onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
-                      onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
-                    />
-                  ))}
-                </div>
-              )}
+              <div className="mt-1.5 grid gap-1.5">
+                {branch.map((child, index) => (
+                  <FollowUpBlockEditor
+                    key={child.id}
+                    block={child}
+                    onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
+                    onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
+                    onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
+                  />
+                ))}
+              </div>
             </div>
           );
         })}
@@ -447,21 +463,38 @@ function FollowUpTree({ block, onPatch }: { block: BookingChoiceBlock; onPatch: 
   );
 }
 
-/** The "+" on a branch: the same kinds the brief itself offers, minus the rule. */
-function AddFollowUp({ onAdd, testId }: { onAdd: (block: BookingBlock) => void; testId?: string }) {
+/**
+ * The branch control that lives on a choice: quiet with nothing behind it, and
+ * wearing the count once there is.
+ *
+ * On the chip it is how a branch is started, which is why it sits there and not
+ * in a panel of its own — the thing you want to ask something *after* is the
+ * thing you click.
+ */
+function AddFollowUp({ count, optionName, onAdd, testId }: { count: number; optionName: string; onAdd: (block: BookingBlock) => void; testId?: string }) {
   const [open, setOpen] = React.useState(false);
+  const label = count > 0 ? `${count} ${count === 1 ? "question" : "questions"} after “${optionName}”; ask another` : `Ask something after “${optionName}”`;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2 text-2xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+          aria-label={label}
+          title={label}
+          className={cn(
+            "inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full px-1 text-2xs transition-colors",
+            count > 0 ? "bg-ring/15 text-ring hover:bg-ring/25" : "text-muted-foreground/70 hover:bg-accent hover:text-foreground",
+          )}
           data-testid={testId}
         >
-          <Plus className="size-3" /> Ask something
+          <CornerDownRight className="size-3" aria-hidden />
+          {count > 0 && <span className="tabular">{count}</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(16rem,calc(100vw-2rem))] p-1.5">
+        <p className="px-2 pt-1 pb-1.5 label-quiet">
+          <span className="truncate">Asked after “{optionName}”</span>
+        </p>
         <div className="grid grid-cols-2 gap-0.5">
           {FOLLOW_UP_ORDER.map((kind) => {
             const Icon = BLOCK_ICONS[kind];

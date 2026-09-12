@@ -2,6 +2,7 @@ import * as React from "react";
 import type { Activity, User } from "@/domain";
 import { Mention, type MentionLinks } from "@/features/workspace/mention-link";
 import { formatShortDate } from "@/lib/dates/dates";
+import { clipActivityValue } from "@/services/column-display";
 
 function nameOf(users: readonly User[], id: string | null | undefined): string {
   if (!id) return "Someone";
@@ -23,10 +24,17 @@ function People({ ids, users, links }: { ids: readonly string[]; users: readonly
   );
 }
 
+/**
+ * A value as the sentence quotes it.
+ *
+ * Clipped here as well as where the row was written, because the rows written
+ * before it was clipped on the way in are still in the feed — and one of them
+ * is a whole booking brief, quoted twice.
+ */
 function formatValue(columnType: string | undefined, value: string | null | undefined): string {
   if (!value) return "empty";
   if (columnType === "DATE") return formatShortDate(value) || value;
-  return value;
+  return clipActivityValue(value) ?? "empty";
 }
 
 /**
@@ -127,6 +135,19 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
           <>
             <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.to === "Checked" ? "checked" : "unchecked"} <Mention>{m.columnName}</Mention>
             {item}
+          </>
+        );
+      }
+      // A document is not quotable in a sentence. A brief edited at the end
+      // reads the same for the first eighty characters either side, so "from …
+      // to …" prints two identical openings and says nothing about what
+      // changed; the line says that it changed and leaves the rest to the task.
+      if (isDocumentColumn(m.columnType)) {
+        return (
+          <>
+            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.from ? "edited" : "wrote"} <Mention>{m.columnName}</Mention>
+            {item}
+            {synced}
           </>
         );
       }
@@ -242,6 +263,11 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
   }
 }
 
+/** Columns that hold a page rather than a value. */
+function isDocumentColumn(columnType: string | undefined): boolean {
+  return columnType === "RICH_TEXT" || columnType === "LONG_TEXT";
+}
+
 /** Plain-text version for tests and tooltips. */
 export function describeActivityText(activity: Activity, users: readonly User[]): string {
   const actor = nameOf(users, activity.actorId);
@@ -252,6 +278,7 @@ export function describeActivityText(activity: Activity, users: readonly User[])
         const added = (m.addedUserIds ?? []).map((id) => users.find((u) => u.id === id)?.firstName ?? "someone");
         return added.length ? `${actor} assigned ${added.join(", ")}` : `${actor} updated ${m.columnName}`;
       }
+      if (isDocumentColumn(m.columnType)) return `${actor} ${m.from ? "edited" : "wrote"} ${m.columnName}`;
       return `${actor} changed ${m.columnName}${m.from ? ` from ${formatValue(m.columnType, m.from)}` : ""} to ${formatValue(m.columnType, m.to)}`;
     case "ITEM_MOVED":
       return `${actor} moved the item to ${m.toGroupName}`;

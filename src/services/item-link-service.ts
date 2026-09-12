@@ -2,7 +2,7 @@ import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, Column
 import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
-import { displayValue } from "./column-display";
+import { clipActivityValue, displayValue } from "./column-display";
 import { mapColumns, translateValue, valuesEqual, type ColumnMappingReport } from "./item-link-sync";
 import { NotificationService } from "./notification-service";
 
@@ -470,9 +470,12 @@ export class ItemLinkService {
         ]);
         touched.add(next.boardId);
         if (!options.silent) {
-          const from = displayValue(nextColumn!, existing?.value ?? emptyValueFor(nextColumn!.type), users);
-          const to = displayValue(nextColumn!, translated.value, users);
-          if (from !== to) {
+          // In full to tell a change from a non-change, short to record it.
+          const before = displayValue(nextColumn!, existing?.value ?? emptyValueFor(nextColumn!.type), users);
+          const after = displayValue(nextColumn!, translated.value, users);
+          const from = clipActivityValue(before);
+          const to = clipActivityValue(after);
+          if (before !== after) {
             activities.push({
               workspaceId: bundle.board.workspaceId,
               boardId: next.boardId,
