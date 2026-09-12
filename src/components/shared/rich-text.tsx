@@ -95,23 +95,36 @@ function indentClass(indent: number | undefined): string {
  * thirteen pixels wearing different weights. A brief is mostly body text with a
  * heading every few lines; anything louder than this turns it into a poster.
  */
-function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayName: string) => string | null }) {
+/**
+ * How a block is drawn, which depends on what it is part of.
+ *
+ * `compact` is an update in a feed: a few lines, read in passing, tight. In a
+ * `document` — a booking brief — every heading is a question and every
+ * paragraph under it is the answer, so the pair has to hold together and the
+ * next pair has to be plainly a different question. That is a wide gap above a
+ * heading, a narrow one below it, and the answer a shade quieter than the
+ * question it answers.
+ */
+export type RichTextVariant = "compact" | "document";
+
+function Block({ node, mentionHref, variant = "compact" }: { node: BlockNode; mentionHref?: (displayName: string) => string | null; variant?: RichTextVariant }) {
+  const doc = variant === "document";
   switch (node.type) {
     case "rule":
       return <hr className="my-2.5 border-border/70" />;
     case "heading":
       return node.level === 1 ? (
-        <p className={cn("mt-3 mb-1 text-[16px] leading-snug font-semibold tracking-tight first:mt-0", indentClass(node.indent))}>
+        <p className={cn("leading-snug font-semibold tracking-tight text-foreground first:mt-0", doc ? "mt-6 mb-1.5 text-[17px]" : "mt-3 mb-1 text-[16px]", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       ) : (
-        <p className={cn("mt-2.5 mb-0.5 text-[14px] leading-snug font-semibold first:mt-0", indentClass(node.indent))}>
+        <p className={cn("leading-snug font-semibold text-foreground first:mt-0", doc ? "mt-5 mb-1 text-[14px]" : "mt-2.5 mb-0.5 text-[14px]", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       );
     case "list":
       return node.ordered ? (
-        <ol className={cn("my-1 list-decimal space-y-0.5 pl-5", indentClass(node.indent))}>
+        <ol className={cn("my-1 list-decimal space-y-0.5 pl-5", doc && "text-muted-foreground", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -119,7 +132,7 @@ function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayN
           ))}
         </ol>
       ) : (
-        <ul className={cn("my-1 list-disc space-y-0.5 pl-5", indentClass(node.indent))}>
+        <ul className={cn("my-1 list-disc space-y-0.5 pl-5", doc && "text-muted-foreground", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -129,7 +142,7 @@ function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayN
       );
     case "paragraph":
       return (
-        <p className={cn("whitespace-pre-wrap", indentClass(node.indent))}>
+        <p className={cn("whitespace-pre-wrap", doc && "text-muted-foreground", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       );
@@ -145,10 +158,13 @@ export function RichText({
   mentionNames = [],
   className,
   mentionHref,
+  variant = "compact",
 }: {
   body: string;
   mentionNames?: readonly string[];
   className?: string;
+  /** "document" for a brief: wider gaps between questions, the answer a shade quieter. */
+  variant?: RichTextVariant;
   /** Where an @name leads. Without it a mention is highlighted but not clickable. */
   mentionHref?: (displayName: string) => string | null;
 }) {
@@ -156,7 +172,7 @@ export function RichText({
   return (
     <div className={cn("space-y-1 text-[13px] break-words", className)} data-testid="rich-text">
       {blocks.map((block, index) => (
-        <Block key={index} node={block} mentionHref={mentionHref} />
+        <Block key={index} node={block} mentionHref={mentionHref} variant={variant} />
       ))}
     </div>
   );

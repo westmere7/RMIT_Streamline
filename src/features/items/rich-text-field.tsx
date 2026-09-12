@@ -32,7 +32,7 @@ export function RichTextDocument({ body, className }: { body: string; className?
   const ws = useWorkspace();
   const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
   if (!body.trim()) return <p className="text-[13px] text-muted-foreground">Nothing here yet.</p>;
-  return <RichText body={body} mentionNames={names} className={cn("leading-relaxed", className)} />;
+  return <RichText body={body} mentionNames={names} variant="document" className={cn("leading-relaxed", className)} />;
 }
 
 /** The first words of a document, for a cell and for a closed field. */
@@ -70,9 +70,12 @@ interface DocProps {
  * Shared by the popup a board cell opens and the one the panel opens, so a
  * brief is the same thing to look at whichever one you arrived through.
  */
-export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose, testId }: DocProps & { onDone?: () => void; onClose?: () => void; testId?: string }) {
+export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose, startEditing, testId }: DocProps & { onDone?: () => void; onClose?: () => void; startEditing?: boolean; testId?: string }) {
   const ws = useWorkspace();
-  const [editing, setEditing] = React.useState(false);
+  // A dialog opened by the pencil is already writing: the alternative is a
+  // window that opens on the reading view with an Edit button to press next,
+  // which is two clicks for the thing the pencil already asked for.
+  const [editing, setEditing] = React.useState(!!startEditing && canEdit);
   const [draft, setDraft] = React.useState(body);
   const start = () => {
     setDraft(body);
@@ -105,9 +108,19 @@ export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose,
         )}
       </div>
       {editing ? (
-        <div className="scrollbar-thin min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-          <RichTextEditor value={draft} onChange={setDraft} people={ws.activeUsers} rows={12} autoFocus ariaLabel={title} testId="rich-text-input" />
-          <div className="flex justify-end gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+          <RichTextEditor
+            value={draft}
+            onChange={setDraft}
+            people={ws.activeUsers}
+            rows={12}
+            autoFocus
+            fill
+            className="rich-text-document min-h-0 flex-1"
+            ariaLabel={title}
+            testId="rich-text-input"
+          />
+          <div className="flex shrink-0 justify-end gap-2">
             <button type="button" onClick={() => setEditing(false)} className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent">
               Cancel
             </button>
@@ -135,16 +148,30 @@ export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose,
 }
 
 /** The document as a window of its own, opened from a cell or from the panel. */
-export function RichTextDocDialog({ open, onOpenChange, ...doc }: DocProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RichTextDocDialog({ open, onOpenChange, startEditing, ...doc }: DocProps & { open: boolean; onOpenChange: (open: boolean) => void; startEditing?: boolean }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* `hideClose`: the cross belongs in the title bar with the other two. */}
-      <DialogContent size="lg" className="p-0" hideClose data-testid="rich-text-dialog">
+      <DialogContent
+        size="lg"
+        className="p-0"
+        hideClose
+        tabIndex={-1}
+        // Land on the window, not on its first button. Radix focuses the first
+        // focusable child, which is Copy — so the dialog opened with "Copy
+        // brief" hanging over it, a tooltip nobody asked for, for a button
+        // nobody was pointing at. Focus stays inside the dialog either way.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).focus();
+        }}
+        data-testid="rich-text-dialog"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{doc.title}</DialogTitle>
           <DialogDescription>The document in full, with its formatting and its links.</DialogDescription>
         </DialogHeader>
-        <RichTextDocBody {...doc} onClose={() => onOpenChange(false)} onDone={() => onOpenChange(false)} />
+        <RichTextDocBody {...doc} startEditing={startEditing} onClose={() => onOpenChange(false)} onDone={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );
@@ -161,7 +188,8 @@ export function RichTextDocDialog({ open, onOpenChange, ...doc }: DocProps & { o
  */
 export function RichTextPanelField({ title, body, canEdit, onSave }: DocProps) {
   const [open, setOpen] = React.useState(false);
-  const [popup, setPopup] = React.useState(false);
+  /** Shut, opened to read, or opened to write. */
+  const [popup, setPopup] = React.useState<null | "read" | "edit">(null);
   const summary = richTextSummary(body);
   return (
     <section className="mt-3" data-testid="rich-text-field">
@@ -179,10 +207,14 @@ export function RichTextPanelField({ title, body, canEdit, onSave }: DocProps) {
             <span className="shrink-0 text-[13px] font-medium">{title}</span>
             {!open && <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">{summary || "Empty"}</span>}
           </button>
-          <DocButton label={`Copy ${title.toLowerCase()}`} onClick={() => void copyRichText(body, title)} testId="rich-text-field-copy">
-            <Copy className="size-3.5" />
-          </DocButton>
-          <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup(true)} testId="rich-text-field-popup">
+          {/* No copy here: the row is a summary, and copying a document you
+              cannot see the whole of is a thing you do from the popup. */}
+          {canEdit && (
+            <DocButton label={`Edit ${title.toLowerCase()}`} onClick={() => setPopup("edit")} testId="rich-text-field-edit">
+              <Pencil className="size-3.5" />
+            </DocButton>
+          )}
+          <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup("read")} testId="rich-text-field-popup">
             <Maximize2 className="size-3.5" />
           </DocButton>
         </div>
@@ -191,17 +223,10 @@ export function RichTextPanelField({ title, body, canEdit, onSave }: DocProps) {
             <div className="scrollbar-thin max-h-96 overflow-y-auto px-3 py-2.5" data-testid="rich-text-field-body">
               <RichTextDocument body={body} />
             </div>
-            {canEdit && (
-              <div className="flex justify-end border-t border-border/60 px-2 py-1.5">
-                <DocButton label="Edit" onClick={() => setPopup(true)} testId="rich-text-field-edit">
-                  <Pencil className="size-3.5" />
-                </DocButton>
-              </div>
-            )}
           </div>
         )}
       </div>
-      <RichTextDocDialog open={popup} onOpenChange={setPopup} title={title} body={body} canEdit={canEdit} onSave={onSave} />
+      <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} />
     </section>
   );
 }

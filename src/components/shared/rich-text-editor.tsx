@@ -44,6 +44,14 @@ export interface RichTextEditorProps {
   testId?: string;
   autoFocus?: boolean;
   className?: string;
+  /**
+   * Take the height the parent gives and scroll the writing, not the chrome.
+   *
+   * Without it the box grows with what is typed, which is what a comment
+   * composer wants. A brief is pages long, and scrolling the toolbar and the
+   * Save button off the top of a dialog is how you end up hunting for them.
+   */
+  fill?: boolean;
 }
 
 /** Text colour from the fixed palette, stored as {c:red}…{/c}. */
@@ -152,7 +160,7 @@ type LinkCardState = { href: string; from: number; to: number; left: number; top
  * as soon as you type "@". What is stored is still the plain markup that
  * ./rich-text.ts reads, so nothing about posted updates changes.
  */
-export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill }: RichTextEditorProps) {
   const [mention, setMention] = React.useState<MentionState | null>(null);
   const [highlighted, setHighlighted] = React.useState(0);
   const [colorsOpen, setColorsOpen] = React.useState(false);
@@ -309,41 +317,74 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     }),
   }) ?? EMPTY_STATE;
 
-  // A small card under whichever link the caret is in or the mouse is over,
-  // offering to edit or remove it.
+  /**
+   * The small card under a link, offering to edit or remove it.
+   *
+   * Shown on hover and on hover alone. It used to appear whenever the caret sat
+   * inside a link too, which meant that after clicking near one it stayed on
+   * screen with nothing to dismiss it — floating over whatever was underneath,
+   * and following nothing. Editing the link the caret is in is what the
+   * toolbar's Link button already does, so nothing is lost by leaving the card
+   * to the mouse.
+   */
+  const rootRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [linkCard, setLinkCard] = React.useState<LinkCardState | null>(null);
-  const hoveringRef = React.useRef(false);
+  const overCardRef = React.useRef(false);
+  const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelHide = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = null;
+  };
+  /**
+   * A moment's grace before it goes, so the pointer can travel the few pixels
+   * from the link to the card without it vanishing on the way.
+   */
+  const hideSoon = React.useCallback(() => {
+    cancelHide();
+    hideTimer.current = setTimeout(() => {
+      if (!overCardRef.current) setLinkCard(null);
+    }, 220);
+  }, []);
 
   const cardFor = React.useCallback(
     (from: number, to: number): LinkCardState | null => {
-      const box = contentRef.current?.getBoundingClientRect();
-      if (!editor || !box) return null;
+      // Measured against the outer wrapper, not the writing area: that area
+      // scrolls and clips its overflow, so a card placed inside it slid under
+      // the toolbar and off the bottom edge.
+      const host = rootRef.current;
+      if (!editor || !host) return null;
+      const box = host.getBoundingClientRect();
       const href = String(editor.state.doc.rangeHasMark(from, to, editor.schema.marks.link!) ? (editor.state.doc.resolve(from + 1).marks().find((m) => m.type.name === "link")?.attrs.href ?? "") : "");
       if (!href) return null;
       const start = editor.view.coordsAtPos(from);
       const end = editor.view.coordsAtPos(to);
-      return { href, from, to, left: Math.max(0, start.left - box.left), top: end.bottom - box.top + 4 };
+      // `coordsAtPos` answers in viewport pixels; `left`/`top` are written in
+      // the element's own. A dialog opens with a zoom transform on it, so those
+      // two are not the same unit and the card landed a line too high, on top
+      // of the link it was pointing at. Convert through the scale in force.
+      const scale = host.offsetWidth ? box.width / host.offsetWidth : 1;
+      const own = (value: number) => (scale > 0 ? value / scale : value);
+      return { href, from, to, left: Math.max(0, own(start.left - box.left)), top: own(end.bottom - box.top) + 4 };
     },
     [editor],
   );
 
-  // Caret moves into or out of a link.
+  // The card is anchored to a place in the text, so a selection change or a
+  // scroll leaves it pointing at nothing. Take it away rather than chase it.
   React.useEffect(() => {
     if (!editor) return;
-    const sync = () => {
-      if (hoveringRef.current) return;
-      const linkType = editor.schema.marks.link!;
-      const range = getMarkRange(editor.state.selection.$from, linkType);
-      setLinkCard(range && editor.isActive("link") ? cardFor(range.from, range.to) : null);
-    };
-    editor.on("selectionUpdate", sync);
-    editor.on("transaction", sync);
+    const drop = () => setLinkCard(null);
+    editor.on("selectionUpdate", drop);
+    const host = contentRef.current;
+    host?.addEventListener("scroll", drop, { passive: true });
     return () => {
-      editor.off("selectionUpdate", sync);
-      editor.off("transaction", sync);
+      editor.off("selectionUpdate", drop);
+      host?.removeEventListener("scroll", drop);
+      cancelHide();
     };
-  }, [editor, cardFor]);
+  }, [editor]);
 
   const onContentMouseOver = (event: React.MouseEvent) => {
     if (!editor) return;
@@ -353,25 +394,22 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     const $pos = editor.state.doc.resolve(Math.min(pos + 1, editor.state.doc.content.size));
     const range = getMarkRange($pos, editor.schema.marks.link!);
     if (!range) return;
-    hoveringRef.current = true;
+    cancelHide();
     setLinkCard(cardFor(range.from, range.to));
   };
 
-  const onContentMouseLeave = () => {
-    hoveringRef.current = false;
-    if (!editor?.isActive("link")) setLinkCard(null);
-  };
+  const onContentMouseLeave = () => hideSoon();
 
   const editLink = () => {
     if (!editor || !linkCard) return;
     editor.chain().focus().setTextSelection({ from: linkCard.from, to: linkCard.to }).run();
     setLinkOpen(true);
+    setLinkCard(null);
   };
 
   const removeLink = () => {
     if (!editor || !linkCard) return;
     editor.chain().focus().setTextSelection({ from: linkCard.from, to: linkCard.to }).unsetLink().run();
-    hoveringRef.current = false;
     setLinkCard(null);
   };
 
@@ -381,9 +419,9 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
   };
 
   return (
-    <div className={cn("rich-text-editor relative", className)}>
-      <div className="overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-surface/50 px-1.5 py-1" role="toolbar" aria-label="Formatting">
+    <div ref={rootRef} className={cn("rich-text-editor relative", fill && "flex min-h-0 flex-col", className)}>
+      <div className={cn("overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", fill && "flex min-h-0 flex-1 flex-col")}>
+      <div className={cn("flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-surface/50 px-1.5 py-1", fill && "shrink-0")} role="toolbar" aria-label="Formatting">
         <ToolButton label="Bold" pressed={state.bold} onClick={() => editor?.chain().focus().toggleBold().run()} testId="format-bold">
           <Bold className="size-3.5" />
         </ToolButton>
@@ -470,38 +508,46 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         </div>
       </div>
 
-      <div ref={contentRef} className="relative" onMouseOver={onContentMouseOver} onMouseLeave={onContentMouseLeave}>
+      <div ref={contentRef} className={cn("relative", fill && "scrollbar-thin min-h-0 flex-1 overflow-y-auto")} onMouseOver={onContentMouseOver} onMouseLeave={onContentMouseLeave}>
         <EditorContent editor={editor} />
-        {linkCard && !linkOpen && (
-          <div
-            role="group"
-            aria-label="Link"
-            data-testid="link-card"
-            style={{ left: linkCard.left, top: linkCard.top }}
-            className="absolute z-30 flex max-w-72 items-center gap-1 rounded-lg border border-border/70 bg-popover p-1 text-2xs shadow-lg"
-          >
-            <a
-              href={linkCard.href}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="flex min-w-0 items-center gap-1 rounded px-1.5 py-1 text-ring hover:bg-accent"
-              title={linkCard.href}
-            >
-              <ExternalLink className="size-3 shrink-0" />
-              <span className="truncate">{linkCard.href.replace(/^https?:\/\//, "")}</span>
-            </a>
-            <span aria-hidden className="h-4 w-px bg-border/70" />
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={editLink} data-testid="link-card-edit" className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-accent">
-              <Pencil className="size-3" /> Edit
-            </button>
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={removeLink} data-testid="link-card-remove" className="flex items-center gap-1 rounded px-1.5 py-1 text-destructive hover:bg-accent">
-              <Trash2 className="size-3" /> Remove
-            </button>
-          </div>
-        )}
       </div>
       </div>
 
+      {linkCard && !linkOpen && (
+        <div
+          role="group"
+          aria-label="Link"
+          data-testid="link-card"
+          onMouseEnter={() => {
+            overCardRef.current = true;
+            cancelHide();
+          }}
+          onMouseLeave={() => {
+            overCardRef.current = false;
+            hideSoon();
+          }}
+          style={{ left: linkCard.left, top: linkCard.top }}
+          className="absolute z-50 flex max-w-72 items-center gap-1 rounded-lg border border-border/70 bg-popover p-1 text-2xs shadow-lg"
+        >
+          <a
+            href={linkCard.href}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex min-w-0 items-center gap-1 rounded px-1.5 py-1 text-ring hover:bg-accent"
+            title={linkCard.href}
+          >
+            <ExternalLink className="size-3 shrink-0" />
+            <span className="truncate">{linkCard.href.replace(/^https?:\/\//, "")}</span>
+          </a>
+          <span aria-hidden className="h-4 w-px bg-border/70" />
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={editLink} data-testid="link-card-edit" className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-accent">
+            <Pencil className="size-3" /> Edit
+          </button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={removeLink} data-testid="link-card-remove" className="flex items-center gap-1 rounded px-1.5 py-1 text-destructive hover:bg-accent">
+            <Trash2 className="size-3" /> Remove
+          </button>
+        </div>
+      )}
       {mention && mention.items.length > 0 && (
         <ul
           className="absolute right-0 bottom-full left-0 z-30 mb-1 max-h-56 overflow-y-auto rounded-xl border border-border/70 bg-popover p-1 shadow-lg"
