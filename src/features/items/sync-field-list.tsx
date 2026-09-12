@@ -80,7 +80,7 @@ export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onP
         readOnly={readOnly}
         onChange={() => {}}
         icon={<Boxes className="size-3.5 shrink-0 text-muted-foreground" />}
-        label="Deliverables"
+        label="Assets"
       />
       {reference && (
         <>
@@ -212,7 +212,7 @@ function FieldRow({
             disabled={locked}
             onCheckedChange={(next) => onChange(next === true)}
             aria-label={locked ? `${label} always sync` : `Sync ${label}`}
-            title={locked ? "Deliverables are shared by a link, not copied, so this cannot be switched off." : undefined}
+            title={locked ? "Assets are shared by a link, not copied, so this cannot be switched off." : undefined}
           />
         )}
         {!readOnly && icon}

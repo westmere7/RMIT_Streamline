@@ -88,8 +88,13 @@ export function useAssetMutations(item: Item) {
     await queryClient.invalidateQueries({ queryKey: ["item-assets"] });
     // Every asset change is written to the feed, so the tab and the board's activity follow it.
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(item.boardId) });
-    publishDataChange({ itemIds: [item.id], boardIds: [item.boardId], kinds: ["assets", "board"] });
+    // Every board's snapshot, not just this one: a linked task shares these
+    // lines, and the recap the other board draws was just rewritten too. Only
+    // the board on screen is actually being watched, so the rest are marked
+    // stale and re-read when they are next opened.
+    void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
+    const linked = await services.links.connectedItemIds(item.id).catch(() => []);
+    publishDataChange({ itemIds: [item.id, ...linked], boardIds: [item.boardId], kinds: ["assets", "board"] });
   };
   const rollback = (previous: ItemAsset[] | undefined, error: unknown, fallback: string) => {
     if (previous) queryClient.setQueryData(key, previous);

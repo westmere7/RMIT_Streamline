@@ -220,9 +220,9 @@ function SyncSummary({
   const on = mapped.filter((m) => !excluded.has(m.source.id) && !excluded.has(m.target.id));
   const off = mapped.filter((m) => excluded.has(m.source.id) || excluded.has(m.target.id));
   const label = (m: (typeof mapped)[number]) => (m.source.name.trim().toLowerCase() === m.target.name.trim().toLowerCase() ? m.source.name : `${m.source.name} → ${m.target.name}`);
-  // Deliverables are always in the list: they are shared by the link rather
-  // than copied, and there is no switching that off.
-  const synced = ["deliverables", ...(nameOn ? ["name, description"] : []), ...on.map(label)];
+  // Assets are always in the list: they are shared by the link rather than
+  // copied, and there is no switching that off.
+  const synced = ["assets", ...(nameOn ? ["name, description"] : []), ...on.map(label)];
 
   const detail = [
     synced.length ? `Syncs ${synced.join(", ")}` : "Nothing syncs yet",

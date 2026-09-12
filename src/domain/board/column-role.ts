@@ -60,11 +60,11 @@ export const COLUMN_ROLE_PURPOSE: Record<ColumnRole, string> = {
   priority: "How urgent the work is, compared across boards.",
   stakeholder: "Who the work is for.",
   size: "How big the piece of work is.",
-  assetsRecap: "The live summary of the task's deliverables.",
+  assetsRecap: "The live summary of the task's assets.",
   requester: "Who asked for the work. Their department is taken from their profile.",
   department: "The school or department the request came from.",
   requestedTeam: "The team the request asked for.",
-  assetType: "What kind of deliverable was asked for.",
+  assetType: "What kind of asset was asked for.",
   brief: "Where an intake booking writes the request.",
 };
 
