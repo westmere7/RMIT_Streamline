@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Link2, Pencil, TriangleAlert } from "lucide-react";
+import { Check, ExternalLink, FileText, Link2, Pencil, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
@@ -17,6 +17,7 @@ import { columnAlign } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { useBoardAssets, useItemAssetProgress } from "@/features/items/asset-hooks";
+import { RichTextDocBody, richTextSummary } from "@/features/items/rich-text-field";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
@@ -56,6 +57,8 @@ export function CellRenderer(props: CellProps) {
       return <TextCell {...props} />;
     case "LONG_TEXT":
       return <LongTextCell {...props} />;
+    case "RICH_TEXT":
+      return <RichTextCell {...props} />;
     case "NUMBER":
       return <NumberCell {...props} />;
     case "CHECKBOX":
@@ -529,6 +532,51 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
             <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">Nothing here yet.</p>
           )}
         </div>
+      )}
+    </PopoverCell>
+  );
+}
+
+/**
+ * A formatted document — the booking brief, and anything else a team writes as
+ * one.
+ *
+ * The cell is deliberately a brief of the brief: the first line of it, flat,
+ * because a column two hundred pixels wide cannot show a document and pretending
+ * otherwise gives every row three lines of clipped markup. The whole of it,
+ * formatted and with its links live, is one click away.
+ */
+export function RichTextCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const v = valueOf("RICH_TEXT", value);
+  const summary = React.useMemo(() => richTextSummary(v.text), [v.text]);
+  return (
+    <PopoverCell
+      width={width ?? column.width}
+      disabled={readOnly && !summary}
+      align={columnAlign(column.type)}
+      ariaLabel={`${column.name} for ${item.name}`}
+      contentClassName="w-[min(40rem,calc(100vw-2rem))] p-0"
+      testId="rich-text-cell"
+      trigger={
+        summary ? (
+          <span className="flex min-w-0 items-center gap-1.5 px-1 text-muted-foreground">
+            <FileText className="size-3.5 shrink-0 opacity-70" aria-hidden />
+            <span className="truncate">{summary}</span>
+          </span>
+        ) : (
+          <span className="px-1" />
+        )
+      }
+    >
+      {(close) => (
+        <RichTextDocBody
+          title={column.name}
+          body={v.text}
+          canEdit={!readOnly}
+          onSave={(text) => onChange({ type: "RICH_TEXT", text })}
+          onDone={close}
+          testId="rich-text-popup"
+        />
       )}
     </PopoverCell>
   );

@@ -62,8 +62,8 @@ export interface FieldShellProps {
   /** The explaining line, under the label. */
   description?: string | null;
   error?: string;
-  /** A subtle rounded badge before the label: which question of the brief this is. */
-  number?: number | null;
+  /** A subtle rounded badge before the label: which question of the brief this is ("4", "4a"). */
+  number?: string | null;
   /** The editor words the label in a box of its own, so the control goes without one. */
   hideLabel?: boolean;
   children: React.ReactNode;
@@ -80,7 +80,7 @@ export function Field({ id, label, required, description, error, number, hideLab
   const hint = description?.trim() ? description.trim() : null;
   const text = (
     <>
-      {typeof number === "number" && <NumberBadge n={number} />}
+      {number && <NumberBadge n={number} />}
       <span className="min-w-0">
         {label}
         {required && (
@@ -113,7 +113,7 @@ export function Field({ id, label, required, description, error, number, hideLab
 }
 
 /** Which question of the brief this is: quiet, round, and never in the way of the words. */
-export function NumberBadge({ n }: { n: number }) {
+export function NumberBadge({ n }: { n: number | string }) {
   return (
     <span aria-hidden className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-surface px-1.5 text-2xs font-semibold text-muted-foreground ring-1 ring-border/60 tabular">
       {n}
@@ -258,8 +258,8 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
 
 export interface BlockFieldProps {
   block: BookingQuestionBlock;
-  /** Which question of this brief it is, for the badge. */
-  number: number | null;
+  /** Which question of this brief it is, for the badge: "4", or "4a" for one a choice opened. */
+  number: string | null;
   value: BookingAnswer | undefined;
   onChange: (answer: BookingAnswer) => void;
   error?: string;

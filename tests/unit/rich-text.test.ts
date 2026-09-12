@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { continueList, parseInline, parseRichText, richTextToPlain, togglePrefix, wrapSelection } from "@/lib/rich-text";
+import { continueList, MAX_INDENT, parseInline, parseRichText, richTextToPlain, togglePrefix, wrapSelection } from "@/lib/rich-text";
 
 describe("inline markup", () => {
   it("leaves plain text alone", () => {
@@ -13,6 +13,22 @@ describe("inline markup", () => {
       { type: "text", text: " word" },
     ]);
     expect(parseInline("*just italic*")).toEqual([{ type: "italic", children: [{ type: "text", text: "just italic" }] }]);
+  });
+
+  it("reads underline, which spends the two underscores bold does not", () => {
+    expect(parseInline("a __stressed__ word")).toEqual([
+      { type: "text", text: "a " },
+      { type: "underline", children: [{ type: "text", text: "stressed" }] },
+      { type: "text", text: " word" },
+    ]);
+    // Standard Markdown reads __ as bold. Here bold is ** and only **, so a
+    // brief written in one and read in the other never swaps the two.
+    expect(parseInline("**bold** and __underlined__")).toEqual([
+      { type: "bold", children: [{ type: "text", text: "bold" }] },
+      { type: "text", text: " and " },
+      { type: "underline", children: [{ type: "text", text: "underlined" }] },
+    ]);
+    expect(parseInline("snake_case_name")).toEqual([{ type: "text", text: "snake_case_name" }]);
   });
 
   it("reads a colour from the palette and ignores one that is not", () => {
@@ -81,6 +97,37 @@ describe("blocks", () => {
     expect(blocks[1]).toMatchObject({ ordered: true });
   });
 
+  it("reads a line of dashes as a rule, and a dash with words after it as a bullet", () => {
+    expect(parseRichText("above\n---\nbelow")).toEqual([
+      { type: "paragraph", children: [{ type: "text", text: "above" }] },
+      { type: "rule" },
+      { type: "paragraph", children: [{ type: "text", text: "below" }] },
+    ]);
+    // Three or more, so a run of them drawn out by hand is still one rule.
+    expect(parseRichText("-------")).toEqual([{ type: "rule" }]);
+    expect(parseRichText("- a bullet")).toEqual([{ type: "list", ordered: false, items: [[{ type: "text", text: "a bullet" }]] }]);
+  });
+
+  it("reads the indent of a block, in steps of two spaces, and stops at the ceiling", () => {
+    expect(parseRichText("flush\n  one step\n    two steps")).toEqual([
+      { type: "paragraph", children: [{ type: "text", text: "flush" }] },
+      { type: "paragraph", children: [{ type: "text", text: "one step" }], indent: 1 },
+      { type: "paragraph", children: [{ type: "text", text: "two steps" }], indent: 2 },
+    ]);
+    expect(parseRichText("  ## A question")).toEqual([{ type: "heading", level: 2, children: [{ type: "text", text: "A question" }], indent: 1 }]);
+    // A tab is a step of its own, for anything pasted in from elsewhere.
+    expect(parseRichText("\t- indented bullet")).toEqual([{ type: "list", ordered: false, items: [[{ type: "text", text: "indented bullet" }]], indent: 1 }]);
+    // Past MAX_INDENT the indent stops growing rather than the text stops being a paragraph.
+    expect(parseRichText(`${" ".repeat(20)}very far in`)).toEqual([{ type: "paragraph", children: [{ type: "text", text: "very far in" }], indent: MAX_INDENT }]);
+  });
+
+  it("keeps a list at one indent apart from a list at another", () => {
+    expect(parseRichText("- outer\n  - inner")).toEqual([
+      { type: "list", ordered: false, items: [[{ type: "text", text: "outer" }]] },
+      { type: "list", ordered: false, items: [[{ type: "text", text: "inner" }]], indent: 1 },
+    ]);
+  });
+
   it("treats an update written before any of this as one paragraph", () => {
     expect(parseRichText("Printer confirmed the spot UV area.")).toEqual([
       { type: "paragraph", children: [{ type: "text", text: "Printer confirmed the spot UV area." }] },
@@ -88,8 +135,8 @@ describe("blocks", () => {
   });
 
   it("reduces to plain text for a notification body", () => {
-    expect(richTextToPlain("# Heading\n**bold** and {c:red}red{/c}\n- a bullet\n[label](https://example.com)")).toBe(
-      "Heading\nbold and red\na bullet\nlabel",
+    expect(richTextToPlain("# Heading\n**bold**, __underlined__ and {c:red}red{/c}\n- a bullet\n[label](https://example.com)")).toBe(
+      "Heading\nbold, underlined and red\na bullet\nlabel",
     );
   });
 });

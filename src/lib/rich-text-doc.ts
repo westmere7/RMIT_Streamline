@@ -7,7 +7,7 @@
  * markup again, so what is stored stays the same legible text it always was.
  */
 
-import { isRichTextColor, parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { indentPrefix, isRichTextColor, parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 
 /** The shape of a ProseMirror/TipTap JSON node — only what we need. */
 export interface DocNode {
@@ -36,6 +36,9 @@ function inlineToNodes(nodes: InlineNode[], marks: NonNullable<DocNode["marks"]>
       case "italic":
         out.push(...inlineToNodes(node.children, [...marks, { type: "italic" }]));
         break;
+      case "underline":
+        out.push(...inlineToNodes(node.children, [...marks, { type: "underline" }]));
+        break;
       case "color":
         out.push(...inlineToNodes(node.children, [...marks, { type: "textColor", attrs: { color: node.color } }]));
         break;
@@ -55,20 +58,33 @@ function paragraph(nodes: InlineNode[]): DocNode {
   return content.length ? { type: "paragraph", content } : { type: "paragraph" };
 }
 
+/** The indent attribute, left off entirely when a block sits at the margin. */
+function indentAttr(indent: number | undefined): Record<string, unknown> {
+  return indent ? { indent } : {};
+}
+
 function blockToNode(block: BlockNode): DocNode {
   switch (block.type) {
-    case "paragraph":
-      return paragraph(block.children);
+    case "rule":
+      return { type: "horizontalRule" };
+    case "paragraph": {
+      const node = paragraph(block.children);
+      return block.indent ? { ...node, attrs: indentAttr(block.indent) } : node;
+    }
     case "heading": {
       const content = inlineToNodes(block.children);
-      return { type: "heading", attrs: { level: block.level }, ...(content.length ? { content } : {}) };
+      return { type: "heading", attrs: { level: block.level, ...indentAttr(block.indent) }, ...(content.length ? { content } : {}) };
     }
-    case "list":
+    case "list": {
+      // No `attrs` key at all when there is nothing to put in it: an empty one
+      // is noise in a stored document and in a diff of two of them.
+      const attrs = { ...(block.ordered ? { start: 1 } : {}), ...indentAttr(block.indent) };
       return {
         type: block.ordered ? "orderedList" : "bulletList",
-        ...(block.ordered ? { attrs: { start: 1 } } : {}),
+        ...(Object.keys(attrs).length ? { attrs } : {}),
         content: block.items.map((item) => ({ type: "listItem", content: [paragraph(item)] })),
       };
+    }
   }
 }
 
@@ -82,9 +98,9 @@ export function richTextToDoc(body: string, mentionNames: readonly string[] = []
 // ---------------------------------------------------------------------------
 // Document → markup
 
-type MarkKind = "link" | "textColor" | "bold" | "italic";
+type MarkKind = "link" | "textColor" | "bold" | "italic" | "underline";
 /** Outermost first: a coloured bold link serialises as [{c:red}**text**{/c}](href). */
-const MARK_ORDER: MarkKind[] = ["link", "textColor", "bold", "italic"];
+const MARK_ORDER: MarkKind[] = ["link", "textColor", "bold", "italic", "underline"];
 
 function markOf(node: DocNode, kind: MarkKind) {
   return node.marks?.find((m) => m.type === kind) ?? null;
@@ -119,6 +135,8 @@ function wrapRun(kind: MarkKind, mark: NonNullable<ReturnType<typeof markOf>>, i
       return `**${inner}**`;
     case "italic":
       return `*${inner}*`;
+    case "underline":
+      return `__${inner}__`;
   }
 }
 
@@ -175,22 +193,31 @@ export function docToRichText(doc: DocNode): string {
   let previous: string | null = null;
   for (const block of doc.content ?? []) {
     let text: string;
+    const pad = indentPrefix(Number(block.attrs?.indent) || 0);
     switch (block.type) {
+      case "horizontalRule":
+        text = "---";
+        break;
       case "heading": {
         const level = Number(block.attrs?.level) === 1 ? 1 : 2;
-        text = `${"#".repeat(level)} ${serializeInline(block.content ?? []).trim()}`;
+        text = `${pad}${"#".repeat(level)} ${serializeInline(block.content ?? []).trim()}`;
         break;
       }
       case "bulletList":
-        text = (block.content ?? []).map((item) => `- ${listItemText(item)}`).join("\n");
+        text = (block.content ?? []).map((item) => `${pad}- ${listItemText(item)}`).join("\n");
         break;
       case "orderedList": {
         const start = Number(block.attrs?.start) || 1;
-        text = (block.content ?? []).map((item, i) => `${start + i}. ${listItemText(item)}`).join("\n");
+        text = (block.content ?? []).map((item, i) => `${pad}${start + i}. ${listItemText(item)}`).join("\n");
         break;
       }
-      default:
-        text = serializeInline(block.content ?? []);
+      default: {
+        // Nothing on the line means nothing on the line: two spaces of indent
+        // on an empty paragraph is trailing whitespace the parser has to trim
+        // again, and the database has to store.
+        const inline = serializeInline(block.content ?? []);
+        text = inline ? `${pad}${inline}` : "";
+      }
     }
     // Two paragraphs in a row need a blank line between them, or the parser
     // would run them together into one; other blocks start their own line.

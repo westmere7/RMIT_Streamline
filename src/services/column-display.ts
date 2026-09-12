@@ -1,6 +1,7 @@
 import type { BoardColumn, ColumnValue, User } from "@/domain";
 import { columnLabels, formatAssetsRecap } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
+import { richTextToPlain } from "@/lib/rich-text";
 
 /** Human-readable form of a value for activity feeds and notifications. */
 export function displayValue(column: BoardColumn, value: ColumnValue | undefined, users: readonly User[]): string | null {
@@ -20,6 +21,8 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
     case "TEXT":
     case "LONG_TEXT":
       return value.text || null;
+    case "RICH_TEXT":
+      return richTextToPlain(value.text) || null;
     case "NUMBER":
       return value.number === null ? null : String(value.number);
     case "CHECKBOX":

@@ -5,7 +5,7 @@
  * this existed still reads exactly as it did, and so that what is stored stays
  * legible in the database and in a search result:
  *
- *   **bold**            *italic*
+ *   **bold**            *italic*            __underlined__
  *   # Heading           ## Subheading
  *   - bullet            1. numbered
  *   [text](https://…)   bare https://… addresses
@@ -27,14 +27,28 @@ export type InlineNode =
   | { type: "text"; text: string }
   | { type: "bold"; children: InlineNode[] }
   | { type: "italic"; children: InlineNode[] }
+  | { type: "underline"; children: InlineNode[] }
   | { type: "color"; color: RichTextColor; children: InlineNode[] }
   | { type: "link"; href: string; label: string }
   | { type: "mention"; name: string };
 
+/**
+ * How far a block is pushed in from the left, in steps of one Tab.
+ *
+ * Three steps, which is as much as a document this small can carry before the
+ * indentation says more about the person typing than about the text. Stored as
+ * two spaces a step, so what is in the database still reads as the shape it is.
+ */
+export const MAX_INDENT = 3;
+const INDENT_SPACES = 2;
+
 export type BlockNode =
-  | { type: "paragraph"; children: InlineNode[] }
-  | { type: "heading"; level: 1 | 2; children: InlineNode[] }
-  | { type: "list"; ordered: boolean; items: InlineNode[][] };
+  | { type: "paragraph"; children: InlineNode[]; indent?: number }
+  | { type: "heading"; level: 1 | 2; children: InlineNode[]; indent?: number }
+  | { type: "list"; ordered: boolean; items: InlineNode[][]; indent?: number }
+  /** A line across the page: the separator of a brief, the break between two groups of questions. */
+  | { type: "rule" };
+
 
 /** Addresses we are willing to turn into a link. */
 export function safeHref(raw: string): string | null {
@@ -92,6 +106,12 @@ export function parseInline(line: string, mentionNames: readonly string[] = []):
       build: (m) => ({ type: "italic", children: parseInline(m[1]!, mentionNames) }),
     },
     {
+      // Two underscores, which this markup uses for nothing else. Standard
+      // Markdown spends them on bold; here bold is ** and only **.
+      re: /__([^_\n]+)__/,
+      build: (m) => ({ type: "underline", children: parseInline(m[1]!, mentionNames) }),
+    },
+    {
       re: /\{c:([a-z]+)\}([\s\S]*?)\{\/c\}/,
       build: (m) => (isRichTextColor(m[1]!) ? { type: "color", color: m[1]!, children: parseInline(m[2]!, mentionNames) } : null),
     },
@@ -126,41 +146,68 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Splits the whole update into blocks: headings, lists and paragraphs. */
+/** The indent a line asks for, and the line with that indent taken off. */
+function readIndent(line: string): { indent: number; rest: string } {
+  const leading = /^[ \t]*/.exec(line)?.[0] ?? "";
+  if (!leading) return { indent: 0, rest: line };
+  // A tab is a step; spaces are two to a step. Written by us as spaces, but
+  // anybody pasting from elsewhere is likely to bring tabs.
+  const steps = leading.split("").reduce((n, ch) => n + (ch === "\t" ? INDENT_SPACES : 1), 0) / INDENT_SPACES;
+  return { indent: Math.min(MAX_INDENT, Math.floor(steps)), rest: line.slice(leading.length) };
+}
+
+/** The prefix a block of this indent is written with. */
+export function indentPrefix(indent: number | undefined): string {
+  return " ".repeat(Math.min(MAX_INDENT, Math.max(0, indent ?? 0)) * INDENT_SPACES);
+}
+
+/** Splits the whole update into blocks: headings, lists, rules and paragraphs. */
 export function parseRichText(body: string, mentionNames: readonly string[] = []): BlockNode[] {
   const lines = body.replace(/\r\n?/g, "\n").split("\n");
   const blocks: BlockNode[] = [];
-  let paragraph: string[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
+  let paragraph: { lines: string[]; indent: number } | null = null;
+  let list: { ordered: boolean; items: string[]; indent: number } | null = null;
 
   const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    blocks.push({ type: "paragraph", children: parseInline(paragraph.join(" "), mentionNames) });
-    paragraph = [];
+    if (!paragraph) return;
+    blocks.push({ type: "paragraph", children: parseInline(paragraph.lines.join(" "), mentionNames), ...(paragraph.indent ? { indent: paragraph.indent } : {}) });
+    paragraph = null;
   };
   const flushList = () => {
     if (!list) return;
-    blocks.push({ type: "list", ordered: list.ordered, items: list.items.map((item) => parseInline(item, mentionNames)) });
+    blocks.push({ type: "list", ordered: list.ordered, items: list.items.map((item) => parseInline(item, mentionNames)), ...(list.indent ? { indent: list.indent } : {}) });
     list = null;
   };
 
-  for (const line of lines) {
+  for (const raw of lines) {
+    const { indent, rest: line } = readIndent(raw);
+
+    // Three or more dashes on a line of their own. Checked before the bullet
+    // rule, which would otherwise read "- --" out of it.
+    if (/^-{3,}$/.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: "rule" });
+      continue;
+    }
+
     const heading = /^(#{1,2})\s+(.*)$/.exec(line);
-    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
-    const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
 
     if (heading) {
       flushParagraph();
       flushList();
-      blocks.push({ type: "heading", level: heading[1]!.length === 1 ? 1 : 2, children: parseInline(heading[2]!, mentionNames) });
+      blocks.push({ type: "heading", level: heading[1]!.length === 1 ? 1 : 2, children: parseInline(heading[2]!, mentionNames), ...(indent ? { indent } : {}) });
       continue;
     }
     if (bullet || numbered) {
       flushParagraph();
       const ordered = !!numbered;
       const text = (bullet?.[1] ?? numbered?.[1])!;
-      if (list && list.ordered !== ordered) flushList();
-      list ??= { ordered, items: [] };
+      // A list that changes kind, or steps in or out, is a new list.
+      if (list && (list.ordered !== ordered || list.indent !== indent)) flushList();
+      list ??= { ordered, items: [], indent };
       list.items.push(text);
       continue;
     }
@@ -170,22 +217,39 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
       continue;
     }
     flushList();
-    paragraph.push(line);
+    // Wrapped lines are one paragraph; a line that steps in or out is a new
+    // one, because stepping in is the whole point of stepping in.
+    if (paragraph && paragraph.indent !== indent) flushParagraph();
+    if (paragraph) paragraph.lines.push(line);
+    else paragraph = { lines: [line], indent };
   }
   flushParagraph();
   flushList();
   return blocks;
 }
 
-/** The first line of an update, for a notification body or a preview. */
+/**
+ * The words of an update with the markup taken off: a notification body, a
+ * preview, a cell, or the plain copy of a brief.
+ *
+ * The line markers come off first, before the inline ones. A brief numbers its
+ * questions inside the bold — `**4. Where will it run?**` — and taking the bold
+ * off first would leave a line starting "4. ", which the numbered-list rule
+ * would then read as a list item and strip the number from. Stripping lines
+ * first, a line beginning with `*` is bold or italic and never a bullet, so a
+ * real list still loses its markers and a numbered question keeps its number.
+ */
 export function richTextToPlain(body: string): string {
   return body
+    .replace(/^[ \t]*-{3,}[ \t]*$/gm, "")
+    .replace(/^[ \t]+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/^#{1,2}\s+/gm, "")
     .replace(/\{c:[a-z]+\}([\s\S]*?)\{\/c\}/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
-    .replace(/^#{1,2}\s+/gm, "")
-    .replace(/^\s*[-*]\s+/gm, "")
-    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/__([^_\n]+)__/g, "$1")
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1")
     .trim();
 }

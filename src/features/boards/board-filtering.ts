@@ -1,6 +1,7 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
 import { columnLabels, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
+import { richTextToPlain } from "@/lib/rich-text";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
 
 export type ValueLookup = (itemId: string, columnId: string) => ColumnValue | undefined;
@@ -121,6 +122,9 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
     case "TEXT":
     case "LONG_TEXT":
       return value.text.trim() || null;
+    case "RICH_TEXT":
+      // Sorted by what it reads as, not by the markup it is stored in.
+      return richTextToPlain(value.text) || null;
     case "STATUS":
     case "PRIORITY": {
       const rank = labelRank(column, value);

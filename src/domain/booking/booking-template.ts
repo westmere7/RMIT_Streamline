@@ -18,10 +18,11 @@ import type { TagOption } from "@/domain/board/column";
  * worth keeping are saved by name as `BookingTemplate`s.
  *
  * Answers to step two do not each get a column of their own. They are one
- * document — the brief — written to the item's description and to the "Brief"
- * column of the receiving board, where it opens as a popup. A brief is read as
- * a whole or not at all; twelve columns holding one sentence each is a board
- * nobody can look at.
+ * document — the brief — composed as rich text and written to the "Brief"
+ * column of the receiving board, where it opens as a popup and sits on the
+ * task panel as one collapsible field. A brief is read as a whole or not at
+ * all; twelve columns holding one sentence each is a board nobody can look at,
+ * and the same words in the description as well is the same page printed twice.
  */
 
 // ---- the blocks a brief is built from ---------------------------------------
@@ -71,7 +72,24 @@ export interface BookingChoiceBlock extends BookingQuestionBase {
   kind: "multi" | "single";
   options: TagOption[];
   display?: BookingChoiceDisplay;
+  /**
+   * Questions that only exist once a particular choice has been made, keyed by
+   * the choice that opens them.
+   *
+   * "Are there people on camera?" → "Yes" → "Who is arranging their consent?"
+   * is one question of the brief, not two, and asking the second of everybody
+   * is how a form gets long enough that nobody reads it. A single choice is
+   * the only block that carries these: one answer means one branch, and a
+   * multiple choice would open four branches at once.
+   *
+   * Keyed by option *name*, the way a TAGS column keys its values — so the
+   * editor remaps these when an option is renamed (see `renameFollowUpKey`).
+   */
+  followUps?: BookingFollowUps;
 }
+
+/** The follow-ups of a single-choice question: option name → the questions it opens. */
+export type BookingFollowUps = Record<string, BookingBlock[]>;
 
 /** A URL the requester supplies, with their own words for it. */
 export interface BookingLinkBlock extends BookingQuestionBase {
@@ -108,6 +126,88 @@ export function isQuestionBlock(block: BookingBlock): block is BookingQuestionBl
   return block.kind !== "separator" && block.kind !== "text";
 }
 
+// ---- follow-ups ---------------------------------------------------------------
+
+/**
+ * How deep a brief may branch: a question, and the questions its answer opens.
+ *
+ * One level, deliberately. Two would let an administrator build a decision tree
+ * in a form editor, and a stakeholder meet a form whose length depends on a
+ * choice they made three questions ago.
+ */
+export const MAX_FOLLOW_UP_DEPTH = 1;
+
+/** True when this block may carry follow-ups at all: one answer, one branch. */
+export function canHaveFollowUps(block: BookingBlock): block is BookingChoiceBlock {
+  return block.kind === "single";
+}
+
+/** The follow-ups stored against one option, never undefined. */
+export function followUpsForOption(block: BookingBlock, optionName: string): BookingBlock[] {
+  return (canHaveFollowUps(block) ? block.followUps?.[optionName] : undefined) ?? [];
+}
+
+/** Every follow-up of a block, in option order — whichever option was chosen. */
+export function allFollowUps(block: BookingBlock): BookingBlock[] {
+  if (!canHaveFollowUps(block)) return [];
+  return block.options.flatMap((option) => followUpsForOption(block, option.name));
+}
+
+/** The follow-ups an answer has actually opened. */
+export function openFollowUps(block: BookingBlock, answer: BookingAnswer | undefined): BookingBlock[] {
+  if (!canHaveFollowUps(block) || !answer || answer.kind !== "choice") return [];
+  const chosen = answer.values[0];
+  if (!chosen) return [];
+  // Only an option the question still offers: renaming one leaves its old key
+  // behind, and a brief must never ask a question nothing can reach.
+  if (!block.options.some((option) => option.name === chosen)) return [];
+  return followUpsForOption(block, chosen);
+}
+
+/** `followUps` with one option's key renamed, dropping keys no option answers to any more. */
+export function renameFollowUpKey(followUps: BookingFollowUps | undefined, from: string, to: string): BookingFollowUps | undefined {
+  if (!followUps || from === to || !followUps[from]) return followUps;
+  const next: BookingFollowUps = {};
+  for (const [key, blocks] of Object.entries(followUps)) next[key === from ? to : key] = blocks;
+  return next;
+}
+
+/**
+ * Every block of a brief, follow-ups included, in the order they are numbered.
+ *
+ * What the server checks answers against and what the editor counts: a question
+ * behind a choice is still a question the form may ask.
+ */
+export function flattenBlocks(blocks: readonly BookingBlock[]): BookingBlock[] {
+  return blocks.flatMap((block) => [block, ...flattenBlocks(allFollowUps(block))]);
+}
+
+/** The blocks a brief is showing right now, in reading order: what is asked of these answers. */
+export function visibleBlocks(blocks: readonly BookingBlock[], answers: Record<string, BookingAnswer>): BookingBlock[] {
+  return blocks.flatMap((block) => [block, ...visibleBlocks(openFollowUps(block, answers[block.id]), answers)]);
+}
+
+// ---- numbering ----------------------------------------------------------------
+
+export interface NumberedQuestion {
+  block: BookingQuestionBlock;
+  /** "4" at the top level, "4a" for the first question its answer opens. */
+  number: string;
+  /** 0 for a question of the brief itself, 1 for one a choice opened. */
+  depth: number;
+}
+
+/** a, b, … z, aa, ab — the suffix a follow-up wears under its question. */
+function letterSuffix(index: number): string {
+  let out = "";
+  let n = index;
+  do {
+    out = String.fromCharCode(97 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+}
+
 /**
  * The questions of a brief in order, numbered from one.
  *
@@ -115,15 +215,40 @@ export function isQuestionBlock(block: BookingBlock): block is BookingQuestionBl
  * is the one about print specs" — so it counts questions and nothing else.
  * Headings and rules are furniture; numbering them would put the fourth badge
  * beside the seventh question.
+ *
+ * Follow-ups take their question's number and a letter: 4a, 4b. Every one of
+ * them is numbered, not only the ones the current answer opens, so the number
+ * on a question is the same number whatever anybody answered.
  */
-export function numberedQuestions(blocks: readonly BookingBlock[]): Array<{ block: BookingQuestionBlock; number: number }> {
-  let n = 0;
-  return blocks.flatMap((block) => (isQuestionBlock(block) ? [{ block, number: ++n }] : []));
+export function numberedQuestions(blocks: readonly BookingBlock[]): NumberedQuestion[] {
+  const out: NumberedQuestion[] = [];
+  const walk = (list: readonly BookingBlock[], prefix: string | null, depth: number) => {
+    // One counter per level. Furniture never touches it: a heading counted as a
+    // question would put the fourth badge beside the seventh question.
+    let n = 0;
+    for (const block of list) {
+      let number: string | null = null;
+      if (isQuestionBlock(block)) {
+        number = prefix === null ? String(++n) : `${prefix}${letterSuffix(n++)}`;
+        out.push({ block, number, depth });
+      }
+      // Only a question can open a branch, so `number` is always set by here.
+      const follows = allFollowUps(block);
+      if (follows.length && number) walk(follows, number, depth + 1);
+    }
+  };
+  walk(blocks, null, 0);
+  return out;
 }
 
 /** The number this block wears, or null when it is furniture. */
-export function questionNumber(blocks: readonly BookingBlock[], blockId: string): number | null {
+export function questionNumber(blocks: readonly BookingBlock[], blockId: string): string | null {
   return numberedQuestions(blocks).find((q) => q.block.id === blockId)?.number ?? null;
+}
+
+/** Every question's number, keyed by block id: what a form and a brief look numbers up in. */
+export function questionNumbers(blocks: readonly BookingBlock[]): Map<string, string> {
+  return new Map(numberedQuestions(blocks).map((q) => [q.block.id, q.number]));
 }
 
 // ---- what a stakeholder answers ---------------------------------------------
@@ -398,6 +523,23 @@ export function newBlockId(prefix = "b"): string {
   return `${prefix}-${Date.now().toString(36)}-${(++blockSeq).toString(36)}`;
 }
 
+/**
+ * A deep copy of a block with every id in it freshly minted — the follow-ups
+ * included.
+ *
+ * Duplicating a question, or dropping a saved one into a brief, has to produce
+ * a block that shares nothing with the original: answers are keyed by block id,
+ * and two questions with the same id would be one answer wearing two labels.
+ */
+export function copyBlockWithNewIds(block: BookingBlock): BookingBlock {
+  const copy = structuredClone(block) as BookingBlock;
+  copy.id = newBlockId();
+  if (canHaveFollowUps(copy) && copy.followUps) {
+    copy.followUps = Object.fromEntries(Object.entries(copy.followUps).map(([option, blocks]) => [option, blocks.map(copyBlockWithNewIds)]));
+  }
+  return copy;
+}
+
 /** A fresh block of `kind`, with sensible blanks, ready for the editor. */
 export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
   const base = { id: newBlockId(), description: null, required: false };
@@ -596,5 +738,5 @@ export function newStandardField(key: BookingStandardKey): BookingStandardField 
  * at all. A count is never worth a blank page.
  */
 export function templateQuestionCount(template: Pick<BookingFormTemplate, "services"> | null | undefined): number {
-  return (template?.services ?? []).reduce((n, service) => n + (service.blocks ?? []).filter(isQuestionBlock).length, 0);
+  return (template?.services ?? []).reduce((n, service) => n + flattenBlocks(service.blocks ?? []).filter(isQuestionBlock).length, 0);
 }

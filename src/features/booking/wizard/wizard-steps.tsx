@@ -4,13 +4,14 @@ import { ArrowRight, Boxes, Info, Link2, SkipForward } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
-import { isQuestionBlock, numberedQuestions, serviceById } from "@/domain";
+import { RichText } from "@/components/shared/rich-text";
+import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
+import { isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, visibleBlocks } from "@/domain";
 import { SPAN } from "../booking-fields";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { SERVICE_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
-import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, NumberBadge, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
+import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
 
 /**
  * The four steps of the booking wizard, each one a plain function of the
@@ -88,7 +89,7 @@ export function StepBasics({
         <Field label={template.basics.serviceLabel} required description={template.basics.serviceHint} error={errors[SERVICE_ERROR_KEY]}>
           {/* Cards rather than a dropdown: this is the one answer that decides
               what the rest of the form asks, so it is worth the room. */}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
             {template.services.map((option) => (
               <ServiceCard
                 key={option.id}
@@ -166,7 +167,7 @@ export function StepBrief({ template, request, patch, errors }: StepProps) {
       </p>
     );
   }
-  const numbers = new Map(numberedQuestions(service.blocks).map((q) => [q.block.id, q.number]));
+  const numbers = questionNumbers(service.blocks);
   return (
     <div className="space-y-5" data-testid="booking-step-brief">
       {(service.briefTitle || service.briefHint) && (
@@ -176,22 +177,59 @@ export function StepBrief({ template, request, patch, errors }: StepProps) {
         </div>
       )}
       {service.blocks.length === 0 && <p className="text-[13px] text-muted-foreground">Nothing else to ask — carry on.</p>}
-      <div className="space-y-5">
-        {service.blocks.map((block) => {
-          if (block.kind === "separator") return <SeparatorBlockView key={block.id} />;
-          if (block.kind === "text") return <TextBlockView key={block.id} block={block} />;
-          return (
+      <BriefBlocks blocks={service.blocks} numbers={numbers} request={request} patch={patch} errors={errors} />
+    </div>
+  );
+}
+
+/**
+ * The blocks of a brief, and the questions its answers open.
+ *
+ * A follow-up appears under the question that opened it, bracketed by a rule
+ * that runs down the left of the group — the same bracket the form editor draws
+ * around the same questions, so what an administrator built and what a
+ * stakeholder meets are visibly the same shape. Nothing appears until the
+ * choice that opens it is made, and nothing has to be scrolled past when it is
+ * not: a question behind "Yes" is not a question anybody answering "No" has to
+ * read and skip.
+ */
+function BriefBlocks({
+  blocks,
+  numbers,
+  request,
+  patch,
+  errors,
+}: {
+  blocks: readonly BookingBlock[];
+  numbers: Map<string, string>;
+  request: BookingRequest;
+  patch: StepProps["patch"];
+  errors: Record<string, string>;
+}) {
+  return (
+    <div className="space-y-5">
+      {blocks.map((block) => {
+        if (block.kind === "separator") return <SeparatorBlockView key={block.id} />;
+        if (block.kind === "text") return <TextBlockView key={block.id} block={block} />;
+        const answer = request.answers[block.id];
+        const opened = openFollowUps(block, answer);
+        return (
+          <div key={block.id} className="space-y-4">
             <BlockField
-              key={block.id}
               block={block}
               number={numbers.get(block.id) ?? null}
-              value={request.answers[block.id]}
-              onChange={(answer) => patch((prev) => ({ answers: { ...prev.answers, [block.id]: answer } }))}
+              value={answer}
+              onChange={(next) => patch((prev) => ({ answers: { ...prev.answers, [block.id]: next } }))}
               error={errors[block.id]}
             />
-          );
-        })}
-      </div>
+            {opened.length > 0 && (
+              <div className="relative pl-5 before:absolute before:inset-y-0 before:left-1.5 before:w-px before:bg-border" data-testid={`booking-followups-${block.id}`}>
+                <BriefBlocks blocks={opened} numbers={numbers} request={request} patch={patch} errors={errors} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -247,11 +285,9 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
   const service = serviceById(template, request.serviceTypeId);
   const team = service?.teamId ? (form.teams.find((t) => t.id === service.teamId) ?? null) : null;
   const named = assets.filter((a) => a.name.trim());
-  const answered = (service?.blocks ?? []).filter(isQuestionBlock).filter((b) => {
-    const answer = request.answers[b.id];
-    return answer && !(answer.kind === "text" ? !answer.text.trim() : answer.kind === "choice" ? answer.values.length === 0 : !answer.url.trim());
-  });
-  const numbers = new Map(numberedQuestions(service?.blocks ?? []).map((q) => [q.block.id, q.number]));
+  const answered = visibleBlocks(service?.blocks ?? [], request.answers)
+    .filter(isQuestionBlock)
+    .filter((b) => !isAnswerEmpty(request.answers[b.id])).length;
   const brief = composeBrief(request, template);
 
   const rows: Array<[string, React.ReactNode]> = [];
@@ -284,32 +320,19 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
         </dl>
       </RecapCard>
 
-      <RecapCard title="The brief" onEdit={() => onEditStep(1)} count={answered.length}>
-        {answered.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">Nothing answered yet.</p>
+      {/* The brief as the team will read it, and nothing else.
+          It used to be shown twice here — once as a list of question-and-answer
+          rows, and again underneath as "see it as the team will" — which asked
+          the requester to check the same answers twice and still left them
+          guessing which of the two was the one that got sent. There is one
+          document; this is it. */}
+      <RecapCard title="The brief" onEdit={() => onEditStep(1)} count={answered}>
+        {brief ? (
+          <div className="scrollbar-thin max-h-80 overflow-y-auto rounded-lg border border-border/60 bg-card p-3" data-testid="booking-recap-brief">
+            <RichText body={brief} />
+          </div>
         ) : (
-          <ul className="space-y-2.5" data-testid="booking-recap-brief">
-            {answered.map((block) => (
-              <li key={block.id} className="grid gap-0.5 text-[13px]">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <NumberBadge n={numbers.get(block.id) ?? 0} />
-                  {block.label}
-                </span>
-                <span className="whitespace-pre-wrap break-words">{answerText(request, block.id)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* What the team will actually read, in the words it will read them.
-            Nobody has to open it; it is here so nothing about the brief is a
-            surprise once it lands. */}
-        {brief && (
-          <details className="mt-3 text-2xs text-muted-foreground">
-            <summary className="cursor-pointer select-none underline-offset-4 hover:underline">See it as the team will</summary>
-            <pre className="scrollbar-thin mt-2 max-h-56 overflow-auto rounded-lg border border-border/60 bg-surface/60 p-2.5 font-sans text-[13px] whitespace-pre-wrap text-foreground" data-testid="booking-recap-brief-text">
-              {brief}
-            </pre>
-          </details>
+          <p className="text-[13px] text-muted-foreground">Nothing answered yet.</p>
         )}
       </RecapCard>
 
@@ -359,14 +382,6 @@ function RecapCard({ title, count, onEdit, children }: { title: string; count?: 
       {children}
     </section>
   );
-}
-
-function answerText(request: BookingRequest, blockId: string): string {
-  const answer = request.answers[blockId];
-  if (!answer) return "";
-  if (answer.kind === "text") return answer.text.trim();
-  if (answer.kind === "choice") return answer.values.join(", ");
-  return answer.label.trim() ? `${answer.label.trim()} — ${answer.url.trim()}` : answer.url.trim();
 }
 
 function Missing() {

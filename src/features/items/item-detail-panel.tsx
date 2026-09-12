@@ -31,6 +31,7 @@ import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
+import { RichTextPanelField } from "@/features/items/rich-text-field";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -429,8 +430,12 @@ function Overview({ item }: { item: Item }) {
   const [description, setDescription] = React.useState(item.description ?? "");
   const subitems = model.subitemsByParent.get(item.id) ?? [];
   const [newSub, setNewSub] = React.useState("");
-  const fieldColumns = model.columns.filter((c) => c.type !== "LONG_TEXT");
+  // The two that hold documents are too tall for a field row, so they sit under
+  // the list as blocks of their own: a long text column as a box, a rich text
+  // column as a collapsible brief.
+  const fieldColumns = model.columns.filter((c) => c.type !== "LONG_TEXT" && c.type !== "RICH_TEXT");
   const longTextColumns = model.columns.filter((c) => c.type === "LONG_TEXT");
+  const richTextColumns = model.columns.filter((c) => c.type === "RICH_TEXT");
 
   return (
     <div className="space-y-6 p-4">
@@ -475,6 +480,19 @@ function Overview({ item }: { item: Item }) {
             </div>
           ))}
         </div>
+        {richTextColumns.map((column) => {
+          const v = model.getValue(item.id, column.id);
+          const body = v?.type === "RICH_TEXT" ? v.text : "";
+          return (
+            <RichTextPanelField
+              key={column.id}
+              title={column.name}
+              body={body}
+              canEdit={canEdit}
+              onSave={(text) => void mutations.setValue(item, column, { type: "RICH_TEXT", text })}
+            />
+          );
+        })}
         {longTextColumns.map((column) => {
           const v = model.getValue(item.id, column.id);
           const text = v?.type === "LONG_TEXT" ? v.text : "";

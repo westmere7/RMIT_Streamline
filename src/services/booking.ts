@@ -27,15 +27,18 @@ import {
   COLOR_TOKENS,
   answerKindFor,
   defaultBookingFormTemplate,
+  flattenBlocks,
   formatAssetLine,
-  formatBookingAnswer,
   isAnswerEmpty,
   isEmptyValue,
   isQuestionBlock,
   isRequesterKey,
-  numberedQuestions,
+  openFollowUps,
+  questionNumbers,
   serviceById,
+  visibleBlocks,
 } from "@/domain";
+import { MAX_INDENT, richTextToPlain } from "@/lib/rich-text";
 
 /**
  * The booking form's rules, with nothing async in them so they can be tested
@@ -49,7 +52,9 @@ import {
  * to a service's brief into the one document the team reads (`composeBrief`),
  * then works out which column of the receiving board each fixed answer belongs
  * in (`mapBookingToColumns`), writing whatever found no column into the item's
- * description so nothing is ever dropped.
+ * description so nothing is ever dropped. The brief itself is not one of those:
+ * it is the Brief column's, and the description only carries it when the board
+ * has no such column.
  */
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -136,15 +141,39 @@ const questionBase = {
 
 const choiceOptions = z.array(tagOptionSchema).min(1, "A choice question needs at least one choice").max(40);
 
+const choiceBase = { options: choiceOptions, display: z.enum(BOOKING_CHOICE_DISPLAYS).default("chips") };
+const furniture = [
+  z.object({ kind: z.literal("separator"), id: z.string().trim().min(1).max(80) }),
+  z.object({ kind: z.literal("text"), id: z.string().trim().min(1).max(80), level: z.enum(BOOKING_TEXT_LEVELS), text: z.string().trim().max(2000) }),
+] as const;
+
+/**
+ * A block that opens nothing further — what a follow-up is allowed to be.
+ *
+ * Spelling the one level out rather than making the schema recursive is the
+ * point: `MAX_FOLLOW_UP_DEPTH` is a rule about forms, and a schema that let a
+ * branch carry a branch would leave it to the editor to remember.
+ */
+const leafBlockSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("short"), ...questionBase }),
+  z.object({ kind: z.literal("long"), ...questionBase }),
+  z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
+  z.object({ kind: z.literal("single"), ...choiceBase, ...questionBase }),
+  z.object({ kind: z.literal("link"), ...questionBase }),
+  ...furniture,
+]);
+
+/** Questions a single choice opens, keyed by the option that opens them. */
+const followUpsSchema = z.record(z.string().trim().min(1).max(120), z.array(leafBlockSchema).max(12)).optional();
+
 /** One block of a brief, which is also the shape a saved block is kept in. */
 export const bookingBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("short"), ...questionBase }),
   z.object({ kind: z.literal("long"), ...questionBase }),
-  z.object({ kind: z.literal("multi"), options: choiceOptions, display: z.enum(BOOKING_CHOICE_DISPLAYS).default("chips"), ...questionBase }),
-  z.object({ kind: z.literal("single"), options: choiceOptions, display: z.enum(BOOKING_CHOICE_DISPLAYS).default("chips"), ...questionBase }),
+  z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
+  z.object({ kind: z.literal("single"), ...choiceBase, followUps: followUpsSchema, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
-  z.object({ kind: z.literal("separator"), id: z.string().trim().min(1).max(80) }),
-  z.object({ kind: z.literal("text"), id: z.string().trim().min(1).max(80), level: z.enum(BOOKING_TEXT_LEVELS), text: z.string().trim().max(2000) }),
+  ...furniture,
 ]);
 const blockSchema = bookingBlockSchema;
 
@@ -227,8 +256,10 @@ export const bookingFormTemplateSchema = z
     for (const service of template.services) {
       if (serviceIds.has(service.id)) ctx.addIssue({ code: "custom", message: `Two services share the id “${service.id}”` });
       serviceIds.add(service.id);
+      // Follow-ups included: answers are keyed by block id, so a follow-up
+      // sharing an id with a question two branches away would be answered twice.
       const blockIds = new Set<string>();
-      for (const block of service.blocks) {
+      for (const block of flattenBlocks(service.blocks as BookingBlock[])) {
         if (blockIds.has(block.id)) ctx.addIssue({ code: "custom", message: `${service.name} has two blocks with the id “${block.id}”` });
         blockIds.add(block.id);
       }
@@ -441,7 +472,9 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
       errors[SERVICE_ERROR_KEY] = "Pick the kind of work this is";
       return errors;
     }
-    for (const block of service.blocks) {
+    // Only the questions the brief is actually showing: a required follow-up
+    // behind a choice nobody made is not a question anybody has failed to answer.
+    for (const block of visibleBlocks(service.blocks, request.answers)) {
       if (!isQuestionBlock(block)) continue;
       const answer = request.answers[block.id];
       if (answer && answer.kind !== answerKindFor(block.kind)) errors[block.id] = `${block.label} has an answer of the wrong kind`;
@@ -460,39 +493,101 @@ export function validateBookingAgainstTemplate(request: BookingRequest, template
 
 // ---- the brief ----------------------------------------------------------------
 
+/** Anything in an answer that the markup would otherwise read as formatting. */
+function plain(text: string): string {
+  return text.replace(/([*_#[\]])/g, "\\$1");
+}
+
+/** Two spaces a step, as `parseRichText` reads them. */
+function pad(depth: number): string {
+  return "  ".repeat(depth);
+}
+
 /**
  * The answers to step two as the one document the team reads.
  *
  * Composed here and nowhere else, so the browser's recap and the board's Brief
- * column are the same words. It leads with the service and its sub-services —
- * the two things a producer looks at first — and then runs the questions in the
- * order they were asked, numbered as the form numbered them, skipping the ones
- * that were left blank. Headings the team wrote into the brief are kept as
- * headings; rules and instructions to the person filling it in are not part of
- * what they said, so they are left out.
+ * column are the same words — and composed as rich text (src/lib/rich-text.ts),
+ * because a brief is read rather than scanned. The three sizes each do one job:
+ *
+ *   heading      the team's own section headings, written into the form
+ *   subheading   every question, numbered as the form numbered it
+ *   body         the answer under it
+ *
+ * and the rest of the shape carries what prose cannot. A multiple choice is a
+ * bulleted list, because it is a list. A separator block is a rule across the
+ * page, which is what the person who put it in the form meant by it. A question
+ * that only exists because of an answer is indented under that answer, so the
+ * brief has the same shape on the page that the form had on the screen.
+ *
+ * Blank questions are left out, and so are the instructions the team wrote for
+ * whoever was filling the form in: those were never part of what was said.
+ *
+ * Everything a requester typed is escaped on the way in, so nobody can type
+ * markup into a brief and have it come out as markup.
  */
 export function composeBrief(request: BookingRequest, template: BookingFormTemplate): string {
   const service = serviceById(template, request.serviceTypeId);
   const lines: string[] = [];
-  if (service) lines.push(`Service: ${service.name}`);
-  if (request.subServices.length) lines.push(`Involves: ${request.subServices.join(", ")}`);
+  // The two facts a producer looks at first, on their own lines above the rule.
+  if (service) lines.push(`**Service:** ${plain(service.name)}`);
+  if (request.subServices.length) lines.push("", `**Involves:** ${request.subServices.map(plain).join(", ")}`);
+  if (lines.length) lines.push("", "---");
 
-  const numbers = new Map(service ? numberedQuestions(service.blocks).map((q) => [q.block.id, q.number]) : []);
-  for (const block of service?.blocks ?? []) {
-    if (block.kind === "separator") continue;
-    if (block.kind === "text") {
-      if (block.level === "body") continue;
-      lines.push("", block.text.trim());
-      continue;
+  const numbers = questionNumbers(service?.blocks ?? []);
+
+  const walk = (blocks: readonly BookingBlock[], depth: number) => {
+    for (const block of blocks) {
+      if (block.kind === "separator") {
+        lines.push("", "---");
+        continue;
+      }
+      if (block.kind === "text") {
+        // A note to whoever was filling the form in is not part of the answer.
+        if (block.level === "body") continue;
+        lines.push("", `${pad(depth)}${block.level === "heading" ? "#" : "##"} ${plain(block.text.trim())}`);
+        continue;
+      }
+      const answer = request.answers[block.id];
+      if (!isAnswerEmpty(answer)) {
+        // The question is a subheading and the answer the body under it. Bold
+        // on its own would not do: a heading ends its block, so the answer
+        // starts a new one, where a bold line and the line after it are one
+        // paragraph and the question runs into its own answer.
+        const number = numbers.get(block.id);
+        lines.push("", `${pad(depth)}## ${number ? `${number}. ` : ""}${plain(block.label)}`);
+        lines.push(...answerLines(answer!, depth));
+      }
+      // Under its own question, and a step further in. A follow-up whose
+      // question was left blank was never opened, so `openFollowUps` returns
+      // nothing for it.
+      walk(openFollowUps(block, answer), Math.min(MAX_INDENT, depth + 1));
     }
-    const answer = request.answers[block.id];
-    if (isAnswerEmpty(answer)) continue;
-    const text = formatBookingAnswer(answer!);
-    lines.push("", `${numbers.get(block.id) ?? ""}. ${block.label}`.trim());
-    // A multi-line answer keeps its shape; a one-liner sits on the line under its question.
-    lines.push(...text.split("\n"));
+  };
+  walk(service?.blocks ?? [], 0);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** One answer as the lines of the brief it becomes, at the depth its question sits. */
+function answerLines(answer: BookingAnswer, depth: number): string[] {
+  const prefix = pad(depth);
+  // Several choices are a list, because that is what they are; one is a
+  // sentence, and a bullet on its own reads as the first of a list that never
+  // arrived.
+  if (answer.kind === "choice") {
+    return answer.values.length > 1 ? answer.values.map((value) => `${prefix}- ${plain(value)}`) : [`${prefix}${plain(answer.values.join(""))}`];
   }
-  return lines.join("\n").trim();
+  if (answer.kind === "link") {
+    const url = answer.url.trim();
+    const label = answer.label.trim();
+    return [`${prefix}${label ? `[${plain(label)}](${url})` : url}`];
+  }
+  // A multi-line answer keeps its shape; a line left blank inside one would
+  // otherwise be read as the end of the answer.
+  return answer.text
+    .trim()
+    .split("\n")
+    .map((line) => (line.trim() ? `${prefix}${plain(line.trim())}` : " "));
 }
 
 /** The one-line summary of the service chosen, for a column and for the recap. */
@@ -537,9 +632,10 @@ const FIELD_RULES: Record<StandardBookingField, FieldRule> = {
   department: { types: ["TEXT"], hints: ["department", "school", "faculty", "portfolio", "unit", "college"], loneFallback: false },
   service: { types: ["TAGS", "TEXT"], hints: ["service", "discipline", "craft"], loneFallback: false },
   assetTypes: { types: ["TAGS", "TEXT"], hints: ["asset", "type", "format", "channel", "deliverable"], loneFallback: false },
-  // Named only. A board with one long-text column called "Notes" is not
-  // volunteering it for the brief, and the description carries the brief anyway.
-  brief: { types: ["LONG_TEXT"], hints: ["brief", "request detail"], loneFallback: false },
+  // A rich-text column first: the brief is a document, and that is the column
+  // that renders one. Named only, either way — a board with one long-text column
+  // called "Notes" is not volunteering it for the brief.
+  brief: { types: ["RICH_TEXT", "LONG_TEXT"], hints: ["brief", "request detail"], loneFallback: false },
   assets: { types: ["LONG_TEXT"], hints: ["asset", "spec", "deliverable", "scope", "requirement"], loneFallback: true },
   team: { types: ["TAGS", "TEXT"], hints: ["team", "allocated", "assigned team"], loneFallback: false },
   dueDate: { types: ["DATE", "TIMELINE"], hints: ["due", "deadline", "needed", "delivery"], loneFallback: true },
@@ -582,6 +678,8 @@ export interface BookingPlacement {
   values: Array<{ columnId: string; value: ColumnValue }>;
   /** Answers that found no column; they go into the description instead. */
   leftover: Array<{ field: StandardBookingField; label: string; text: string }>;
+  /** True when the board had a Brief column to put the brief in. */
+  briefPlaced: boolean;
 }
 
 export interface PlacementContext {
@@ -629,12 +727,15 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   place("assetTypes", request.assetTypes.length ? request.assetTypes.join(", ") : null, (column) =>
     column.type === "TAGS" ? { type: "TAGS", tags: request.assetTypes } : { type: "TEXT", text: request.assetTypes.join(", ") },
   );
-  // The brief is never a leftover: it is the item's description whatever
-  // happens, and repeating the whole of it under "Request details" would print
-  // the same page twice.
+  // The brief goes to the Brief column and nowhere else. It used to be written
+  // to the description as well, which meant every booking arrived as the same
+  // page printed twice — once in a field nobody could format and once in a
+  // column that opened as a popup. The description is only its fallback now,
+  // for a board that has no Brief column at all (see `describeBooking`).
   const brief = request.brief.trim();
   const briefColumn = plan.brief;
-  if (brief && briefColumn) values.push({ columnId: briefColumn.id, value: { type: "LONG_TEXT", text: brief } });
+  const briefPlaced = !!brief && !!briefColumn;
+  if (briefPlaced) values.push({ columnId: briefColumn!.id, value: briefColumn!.type === "LONG_TEXT" ? { type: "LONG_TEXT", text: richTextToPlain(brief) } : { type: "RICH_TEXT", text: brief } });
   place("assets", request.assets.length ? formatAssets(request.assets) : null, () => ({ type: "LONG_TEXT", text: formatAssets(request.assets) }));
   place("team", ctx.team?.name ?? null, (column) => (column.type === "TAGS" ? { type: "TAGS", tags: [ctx.team!.name] } : { type: "TEXT", text: ctx.team!.name }));
   place("dueDate", request.dueDate, (column) => (column.type === "TIMELINE" ? { type: "TIMELINE", start: null, end: request.dueDate } : { type: "DATE", date: request.dueDate }));
@@ -655,15 +756,20 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
     const column = columns.find((c) => c.type === "STAKEHOLDER" && !spokenFor.has(c.id));
     if (column) values.push({ columnId: column.id, value: { type: "STAKEHOLDER", group: ctx.stakeholder } });
   }
-  return { values, leftover };
+  return { values, leftover, briefPlaced };
 }
 
 /**
- * The item's description: the brief, then a short block with whatever fixed
- * answers the board had no column for.
+ * The item's description: whatever fixed answers the board had no column for —
+ * and the brief itself only when the board had nowhere to put it.
+ *
+ * A board with a Brief column gets a blank description, deliberately. The brief
+ * belongs in the one field that renders it, and a description holding the same
+ * words is a second copy nobody maintains: it does not update when the brief is
+ * edited, and it made every booking open on two of the same thing.
  */
 export function describeBooking(request: BookingRequest, placement: BookingPlacement): string {
-  const lines = [request.brief.trim()];
+  const lines = placement.briefPlaced ? [] : [richTextToPlain(request.brief.trim())];
   if (placement.leftover.length) {
     lines.push("", "Request details");
     for (const entry of placement.leftover) {

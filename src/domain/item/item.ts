@@ -38,6 +38,14 @@ export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy">
 export type ColumnValue =
   | { type: "TEXT"; text: string }
   | { type: "LONG_TEXT"; text: string }
+  /**
+   * A formatted document: headings, bold, underline, lists and links.
+   *
+   * Stored as the same small markup an update is written in (src/lib/rich-text.ts),
+   * so what is in the database stays legible and nothing a person types can
+   * become markup. The cell shows the brief of it; the popup shows all of it.
+   */
+  | { type: "RICH_TEXT"; text: string }
   | { type: "STATUS"; labelId: string | null }
   | { type: "PERSON"; userIds: EntityId[] }
   | { type: "DATE"; date: ISODate | null }
@@ -69,6 +77,7 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
     case "TEXT":
       return { type, text: "" };
     case "LONG_TEXT":
+    case "RICH_TEXT":
       return { type, text: "" };
     case "STATUS":
       return { type, labelId: null };
@@ -104,6 +113,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
   switch (value.type) {
     case "TEXT":
     case "LONG_TEXT":
+    case "RICH_TEXT":
       return value.text.trim() === "";
     case "STATUS":
     case "PRIORITY":

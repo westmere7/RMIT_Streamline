@@ -1,0 +1,21 @@
+-- =============================================================================
+-- 0041 – Rich text column  (domain: src/domain/board/column.ts COLUMN_TYPES)
+--
+-- A formatted document in a cell: headings, bold, italic, underline, lists and
+-- links. What the booking brief has always wanted to be — step two composes one
+-- (src/services/booking.ts composeBrief) and the board's "Brief" column holds
+-- it, where it opens as a popup and sits on the task panel as one collapsible
+-- field instead of a dozen columns carrying a sentence each.
+--
+-- The value is { "type": "RICH_TEXT", "text": "..." } in
+-- item_column_values.value, following the shape of every other cell. `text` is
+-- the small Markdown subset described in src/lib/rich-text.ts, not HTML: what
+-- is stored stays legible in the database and in a search result, and nothing
+-- anybody types can become markup.
+--
+-- Adding the value and using it have to be two migrations: Postgres will not
+-- let a new enum member be used in the same transaction that added it, and this
+-- script runs each file in one. 0042 does the converting.
+-- =============================================================================
+
+alter type public.column_type add value if not exists 'RICH_TEXT';

@@ -3,6 +3,7 @@ import type { ColorToken, EntityId } from "@/domain/common/types";
 export const COLUMN_TYPES = [
   "TEXT",
   "LONG_TEXT",
+  "RICH_TEXT",
   "STATUS",
   "PERSON",
   "DATE",
@@ -140,6 +141,7 @@ export type BoardColumnInput = Pick<BoardColumn, "boardId" | "name" | "type"> &
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   TEXT: "Text",
   LONG_TEXT: "Long text",
+  RICH_TEXT: "Rich text",
   STATUS: "Status",
   PERSON: "People",
   DATE: "Date",
@@ -158,6 +160,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
 export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   TEXT: 180,
   LONG_TEXT: 240,
+  RICH_TEXT: 220,
   STATUS: 150,
   PERSON: 130,
   DATE: 130,

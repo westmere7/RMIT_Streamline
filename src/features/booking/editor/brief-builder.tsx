@@ -4,10 +4,11 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlignLeft, Bookmark, BookmarkPlus, ChevronDown, CircleDot, Copy, Link2, ListChecks, LoaderCircle, Minus, Plus, TextCursorInput, Trash2, Type } from "lucide-react";
+import { AlignLeft, Bookmark, BookmarkPlus, ChevronDown, CircleDot, Copy, CornerDownRight, Link2, ListChecks, LoaderCircle, Minus, Plus, TextCursorInput, Trash2, Type } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ColorDot } from "@/components/shared/label-pill";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingBlock, BookingBlockKind, BookingChoiceDisplay, BookingSavedBlock, BookingServiceType, BookingTextLevel } from "@/domain";
-import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, isQuestionBlock, newBlockId, newBookingBlock, numberedQuestions } from "@/domain";
+import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, TagOption } from "@/domain";
+import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, copyBlockWithNewIds, isQuestionBlock, newBookingBlock, questionNumbers, renameFollowUpKey } from "@/domain";
 import { cn } from "@/lib/utils";
-import { NumberBadge } from "../booking-fields";
+import { NumberBadge, slug } from "../booking-fields";
 import { ChoiceChips } from "./choice-chips";
 import { DragHandle, EditorSection, Handle, Segmented, TextBox } from "./editor-controls";
 
@@ -56,7 +57,7 @@ export interface BriefBuilderProps {
 
 export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDeleteSavedBlock }: BriefBuilderProps) {
   const blocks = service.blocks;
-  const numbers = new Map(numberedQuestions(blocks).map((q) => [q.block.id, q.number]));
+  const numbers = questionNumbers(blocks);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const [saving, setSaving] = React.useState<BookingBlock | null>(null);
 
@@ -67,7 +68,9 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
     const at = blocks.findIndex((b) => b.id === id);
     if (at < 0) return;
     const next = blocks.slice();
-    next.splice(at + 1, 0, { ...structuredClone(blocks[at]!), id: newBlockId() });
+    // Every id in the copy is new, follow-ups included: two blocks sharing an id
+    // would share the answer given to either of them.
+    next.splice(at + 1, 0, copyBlockWithNewIds(blocks[at]!));
     setBlocks(next);
   };
   const insertAt = (index: number, block: BookingBlock) => {
@@ -77,7 +80,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
   };
   const add = (kind: BookingBlockKind) => insertAt(blocks.length, newBookingBlock(kind));
   // A copy with an id of its own: the brief and the saved block part ways here.
-  const copyOf = (saved: BookingSavedBlock): BookingBlock => ({ ...structuredClone(saved.block), id: newBlockId() });
+  const copyOf = (saved: BookingSavedBlock): BookingBlock => copyBlockWithNewIds(saved.block);
   const insertSaved = (saved: BookingSavedBlock) => insertAt(blocks.length, copyOf(saved));
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -155,7 +158,7 @@ function BlockEditor({
   insertBelow,
 }: {
   block: BookingBlock;
-  number: number | null;
+  number: string | null;
   onPatch: (patch: Partial<BookingBlock>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -270,7 +273,7 @@ function InsertLine({ position, saved, onInsert, testId }: { position: "top" | "
                     const Icon = BLOCK_ICONS[entry.block.kind];
                     return (
                       <li key={entry.id}>
-                        <button type="button" onClick={() => insert({ ...structuredClone(entry.block), id: newBlockId() })} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent" data-testid={testId ? `${testId}-saved-${entry.id}` : undefined}>
+                        <button type="button" onClick={() => insert(copyBlockWithNewIds(entry.block))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent" data-testid={testId ? `${testId}-saved-${entry.id}` : undefined}>
                           <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           <span className="truncate">{entry.name}</span>
                         </button>
@@ -288,7 +291,7 @@ function InsertLine({ position, saved, onInsert, testId }: { position: "top" | "
   );
 }
 
-function BlockBody({ block, onPatch }: { block: BookingBlock; onPatch: (patch: Partial<BookingBlock>) => void }) {
+function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (patch: Partial<BookingBlock>) => void; nested?: boolean }) {
   if (block.kind === "separator") return null;
   if (block.kind === "text") {
     return (
@@ -303,6 +306,7 @@ function BlockBody({ block, onPatch }: { block: BookingBlock; onPatch: (patch: P
       />
     );
   }
+  const choice = block.kind === "multi" || block.kind === "single";
   return (
     <>
       <TextBox value={block.label} onChange={(v) => onPatch({ label: v } as Partial<BookingBlock>)} ariaLabel="Question" placeholder="What are you asking?" className="text-[13px] font-medium" testId={`editor-block-label-${block.id}`} />
@@ -314,11 +318,11 @@ function BlockBody({ block, onPatch }: { block: BookingBlock; onPatch: (patch: P
         className="text-2xs text-muted-foreground"
         testId={`editor-block-description-${block.id}`}
       />
-      {(block.kind === "multi" || block.kind === "single") && (
+      {choice && (
         <div className="mt-1 grid gap-2">
           <ChoiceChips
             options={block.options}
-            onChange={(options) => onPatch({ options } as Partial<BookingBlock>)}
+            onChange={(options) => onPatch(patchOptions(block, options))}
             layout={block.kind === "single" && block.display === "dropdown" ? "list" : "chips"}
             testIdPrefix={`editor-block-options-${block.id}`}
           />
@@ -335,9 +339,208 @@ function BlockBody({ block, onPatch }: { block: BookingBlock; onPatch: (patch: P
               />
             </div>
           )}
+          {/* One level only, so a branch never sprouts a branch of its own. */}
+          {block.kind === "single" && !nested && <FollowUpTree block={block} onPatch={onPatch} />}
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The choices, changed — and the follow-ups kept pointing at the right one.
+ *
+ * Follow-ups are keyed by the words of the choice that opens them, the way a
+ * TAGS column keys its values, so renaming "Yes" to "Yes, confirmed" has to
+ * carry its branch across or the branch becomes unreachable. A rename is the
+ * only edit that leaves the list the same length, and that is how it is told
+ * from the others: a removal read as a rename would hand one choice's questions
+ * to whichever choice happened to slide up into its place.
+ */
+function patchOptions(block: BookingChoiceBlock, next: TagOption[]): Partial<BookingBlock> {
+  let followUps = block.followUps;
+  if (!followUps) return { options: next } as Partial<BookingBlock>;
+  if (next.length === block.options.length) {
+    for (const [index, option] of block.options.entries()) {
+      const to = next[index]!.name;
+      if (option.name !== to) followUps = renameFollowUpKey(followUps, option.name, to);
+    }
+  }
+  const live = new Set(next.map((option) => option.name));
+  const kept = Object.fromEntries(Object.entries(followUps ?? {}).filter(([name]) => live.has(name)));
+  return { options: next, followUps: kept } as Partial<BookingBlock>;
+}
+
+/** The kinds a follow-up may be. A rule inside a two-question branch is furniture nobody needs. */
+const FOLLOW_UP_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "text"];
+
+/**
+ * The questions each choice opens, drawn as the tree they are.
+ *
+ * A brief with branches in it is the one thing about this editor that could get
+ * away from whoever is composing it: eight questions, three of which only exist
+ * sometimes, read as eight questions unless the page says otherwise. So the
+ * branches are bracketed — a rule down the left of the group, an elbow into
+ * each choice — and the stakeholder's form draws the same bracket around the
+ * same questions, so what was built and what is met are visibly one shape.
+ *
+ * Every named choice gets a branch, used or not. Showing only the choices that
+ * already have follow-ups would hide the whole idea from every question that
+ * has never used it.
+ */
+function FollowUpTree({ block, onPatch }: { block: BookingChoiceBlock; onPatch: (patch: Partial<BookingBlock>) => void }) {
+  const followUps = block.followUps ?? {};
+  const named = block.options.filter((option) => option.name.trim());
+  const count = named.reduce((n, option) => n + (followUps[option.name]?.length ?? 0), 0);
+  if (named.length === 0) return null;
+
+  const setFor = (option: string, blocks: BookingBlock[]) => {
+    const next: BookingFollowUps = { ...followUps };
+    if (blocks.length) next[option] = blocks;
+    else delete next[option];
+    onPatch({ followUps: next } as Partial<BookingBlock>);
+  };
+
+  return (
+    <div className="mt-1 rounded-lg border border-border/60 bg-surface/30 p-2 sm:p-2.5" data-testid={`editor-followups-${block.id}`}>
+      <p className="mb-1.5 flex items-center gap-1.5 label-quiet">
+        <CornerDownRight className="size-3 shrink-0" aria-hidden />
+        <span className="min-w-0 truncate">Asked only after a particular answer</span>
+        {count > 0 && <span className="tabular">{count}</span>}
+      </p>
+      <div className="relative before:absolute before:inset-y-1 before:left-1 before:w-px before:bg-border">
+        {named.map((option) => {
+          const branch = followUps[option.name] ?? [];
+          return (
+            <div
+              key={option.name}
+              className="relative py-1 pl-4 before:absolute before:top-[1.05rem] before:left-1 before:h-px before:w-2.5 before:bg-border"
+              data-testid={`editor-followup-${block.id}-${slug(option.name)}`}
+            >
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-2xs text-muted-foreground">When</span>
+                <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-border bg-card px-2 text-2xs">
+                  <ColorDot color={option.color} />
+                  <span className="max-w-40 truncate sm:max-w-56">{option.name}</span>
+                </span>
+                <span className="text-2xs text-muted-foreground">is picked</span>
+                <AddFollowUp onAdd={(created) => setFor(option.name, [...branch, created])} testId={`editor-followup-add-${block.id}-${slug(option.name)}`} />
+              </div>
+              {branch.length > 0 && (
+                <div className="mt-1.5 grid gap-1.5">
+                  {branch.map((child, index) => (
+                    <FollowUpBlockEditor
+                      key={child.id}
+                      block={child}
+                      onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
+                      onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
+                      onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** The "+" on a branch: the same kinds the brief itself offers, minus the rule. */
+function AddFollowUp({ onAdd, testId }: { onAdd: (block: BookingBlock) => void; testId?: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2 text-2xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+          data-testid={testId}
+        >
+          <Plus className="size-3" /> Ask something
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(16rem,calc(100vw-2rem))] p-1.5">
+        <div className="grid grid-cols-2 gap-0.5">
+          {FOLLOW_UP_ORDER.map((kind) => {
+            const Icon = BLOCK_ICONS[kind];
+            return (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => {
+                  onAdd(newBookingBlock(kind));
+                  setOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent"
+                data-testid={testId ? `${testId}-${kind}` : undefined}
+              >
+                <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 truncate">{BOOKING_BLOCK_LABELS[kind]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * One question inside a branch.
+ *
+ * The same card as a question of the brief, without the drag handle, the insert
+ * lines or the bookmark: a branch holds two questions at the outside, and
+ * reordering or saving one of them is not worth four more controls on a card
+ * that is already indented twice.
+ */
+function FollowUpBlockEditor({ block, onPatch, onDuplicate, onRemove }: { block: BookingBlock; onPatch: (patch: Partial<BookingBlock>) => void; onDuplicate: () => void; onRemove: () => void }) {
+  const Icon = BLOCK_ICONS[block.kind];
+  return (
+    <EditorSection
+      className="bg-card"
+      bodyClassName="p-2.5"
+      testId={`editor-block-${block.id}`}
+      title={
+        <>
+          <Icon className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{BOOKING_BLOCK_LABELS[block.kind]}</span>
+        </>
+      }
+      aside={
+        <>
+          {block.kind === "text" && (
+            <Select value={block.level} onValueChange={(v) => onPatch({ level: v as BookingTextLevel } as Partial<BookingBlock>)}>
+              <SelectTrigger className="h-6 w-auto gap-1 px-1.5 text-2xs" aria-label="Text level" data-testid={`editor-block-level-${block.id}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BOOKING_TEXT_LEVELS.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {BOOKING_TEXT_LEVEL_LABELS[level]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {isQuestionBlock(block) && (
+            <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
+              <Switch size="sm" checked={block.required} onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
+              Required
+            </label>
+          )}
+          <Handle label="Duplicate" onClick={onDuplicate} testId={`editor-block-copy-${block.id}`}>
+            <Copy />
+          </Handle>
+          <Handle label="Remove" onClick={onRemove} destructive testId={`editor-block-remove-${block.id}`}>
+            <Trash2 />
+          </Handle>
+        </>
+      }
+    >
+      <BlockBody block={block} onPatch={onPatch} nested />
+    </EditorSection>
   );
 }
 

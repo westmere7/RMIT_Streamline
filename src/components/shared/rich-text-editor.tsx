@@ -6,7 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
-import { Bold, ExternalLink, Heading1, Heading2, Italic, Link2, List, ListOrdered, Palette, Pencil, Trash2 } from "lucide-react";
+import { Bold, ExternalLink, Heading1, Heading2, Indent, Italic, Link2, List, ListOrdered, Minus, Outdent, Palette, Pencil, Trash2, Underline } from "lucide-react";
 import * as React from "react";
 import { RICH_TEXT_COLOR_CLASSES } from "@/components/shared/rich-text";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { User } from "@/domain";
-import { normalizeLinkHref, RICH_TEXT_COLORS, type RichTextColor } from "@/lib/rich-text";
+import { MAX_INDENT, normalizeLinkHref, RICH_TEXT_COLORS, type RichTextColor } from "@/lib/rich-text";
 import { docToRichText, richTextToDoc } from "@/lib/rich-text-doc";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +66,56 @@ const TextColor = Mark.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ["span", mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+/**
+ * Tab moves a block in, Shift-Tab moves it back out.
+ *
+ * Indentation is the one thing a brief needs that plain paragraphs cannot say:
+ * a follow-up question belongs *under* the question that opened it, and saying
+ * so with an extra heading level would run out of levels by the second one.
+ * Three steps is the ceiling (MAX_INDENT) — past that a document is drawing a
+ * diagram, not writing a sentence.
+ *
+ * Inside a list Tab keeps the meaning it has everywhere else and nests the
+ * item; a person who presses it there is not asking to shove the bullet
+ * sideways.
+ */
+const BlockIndent = Extension.create({
+  name: "blockIndent",
+  addOptions() {
+    return { types: ["paragraph", "heading", "bulletList", "orderedList"] };
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types as string[],
+        attributes: {
+          indent: {
+            default: 0,
+            parseHTML: (element: HTMLElement) => Number(element.getAttribute("data-indent")) || 0,
+            renderHTML: (attributes: Record<string, unknown>) => {
+              const indent = Number(attributes.indent) || 0;
+              return indent ? { "data-indent": String(indent) } : {};
+            },
+          },
+        },
+      },
+    ];
+  },
+  addKeyboardShortcuts() {
+    const step = (delta: number) => (): boolean => {
+      const editor = this.editor;
+      if (editor.isActive("listItem")) return delta > 0 ? editor.commands.sinkListItem("listItem") : editor.commands.liftListItem("listItem");
+      const types = this.options.types as string[];
+      const type = types.find((name) => editor.isActive(name)) ?? "paragraph";
+      const current = Number(editor.getAttributes(type).indent) || 0;
+      const next = Math.min(MAX_INDENT, Math.max(0, current + delta));
+      if (next === current) return delta > 0; // Tab is swallowed at the ceiling; Shift-Tab at zero is not.
+      return editor.commands.updateAttributes(type, { indent: next });
+    };
+    return { Tab: step(1), "Shift-Tab": step(-1) };
   },
 });
 
@@ -133,8 +183,6 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         code: false,
         codeBlock: false,
         strike: false,
-        underline: false,
-        horizontalRule: false,
         dropcursor: false,
         gapcursor: false,
         link: {
@@ -146,6 +194,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         },
       }),
       TextColor,
+      BlockIndent,
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Extension.create({
         name: "submitShortcut",
@@ -243,16 +292,18 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     editor.commands.setContent(richTextToDoc(value, namesRef.current), { emitUpdate: false });
   }, [editor, value]);
 
-  const EMPTY_STATE = { bold: false, italic: false, h1: false, h2: false, bullets: false, numbers: false, link: false, color: null as RichTextColor | null };
+  const EMPTY_STATE = { bold: false, italic: false, underline: false, h1: false, h2: false, bullets: false, numbers: false, link: false, indent: 0, color: null as RichTextColor | null };
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
       bold: e?.isActive("bold") ?? false,
       italic: e?.isActive("italic") ?? false,
+      underline: e?.isActive("underline") ?? false,
       h1: e?.isActive("heading", { level: 1 }) ?? false,
       h2: e?.isActive("heading", { level: 2 }) ?? false,
       bullets: e?.isActive("bulletList") ?? false,
       numbers: e?.isActive("orderedList") ?? false,
+      indent: Number(e?.getAttributes(e?.isActive("heading") ? "heading" : "paragraph").indent) || 0,
       link: e?.isActive("link") ?? false,
       color: (e?.getAttributes("textColor").color as RichTextColor | undefined) ?? null,
     }),
@@ -339,11 +390,16 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         <ToolButton label="Italic" pressed={state.italic} onClick={() => editor?.chain().focus().toggleItalic().run()} testId="format-italic">
           <Italic className="size-3.5" />
         </ToolButton>
-        <ToolButton label="Large text" pressed={state.h1} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} testId="format-h1">
+        {/* The three sizes. Body is neither of them pressed, so it needs no
+            button of its own: pressing the one that is on turns it back. */}
+        <ToolButton label="Heading" pressed={state.h1} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} testId="format-h1">
           <Heading1 className="size-3.5" />
         </ToolButton>
-        <ToolButton label="Medium text" pressed={state.h2} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} testId="format-h2">
+        <ToolButton label="Subheading" pressed={state.h2} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} testId="format-h2">
           <Heading2 className="size-3.5" />
+        </ToolButton>
+        <ToolButton label="Underline" pressed={state.underline} onClick={() => editor?.chain().focus().toggleUnderline().run()} testId="format-underline">
+          <Underline className="size-3.5" />
         </ToolButton>
         <span aria-hidden className="mx-0.5 h-4 w-px bg-border/70" />
         <ToolButton label="Bulleted list" pressed={state.bullets} onClick={() => editor?.chain().focus().toggleBulletList().run()} testId="format-bullets">
@@ -362,6 +418,18 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
           </PopoverAnchor>
           {editor && linkOpen && <LinkPopover editor={editor} onClose={() => setLinkOpen(false)} />}
         </Popover>
+        <ToolButton label="Separator" onClick={() => editor?.chain().focus().setHorizontalRule().run()} testId="format-rule">
+          <Minus className="size-3.5" />
+        </ToolButton>
+        <span aria-hidden className="mx-0.5 h-4 w-px bg-border/70" />
+        {/* Tab and Shift-Tab do the same thing; these are here because nothing
+            about a toolbar says that Tab is a formatting key. */}
+        <ToolButton label="Move out" onClick={() => editor?.commands.keyboardShortcut("Shift-Tab")} testId="format-outdent">
+          <Outdent className="size-3.5" />
+        </ToolButton>
+        <ToolButton label="Move in" pressed={state.indent > 0} onClick={() => editor?.commands.keyboardShortcut("Tab")} testId="format-indent">
+          <Indent className="size-3.5" />
+        </ToolButton>
         <span aria-hidden className="mx-0.5 h-4 w-px bg-border/70" />
         <div className="relative">
           <ToolButton label="Colour" onClick={() => setColorsOpen((open) => !open)} testId="format-color" pressed={colorsOpen || !!state.color}>

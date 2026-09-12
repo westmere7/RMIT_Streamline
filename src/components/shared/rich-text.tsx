@@ -34,6 +34,12 @@ function Inline({ nodes, mentionHref }: { nodes: InlineNode[]; mentionHref?: (di
                 <Inline nodes={node.children} mentionHref={mentionHref} />
               </em>
             );
+          case "underline":
+            return (
+              <u key={index} className="underline underline-offset-2">
+                <Inline nodes={node.children} mentionHref={mentionHref} />
+              </u>
+            );
           case "color":
             return (
               <span key={index} className={RICH_TEXT_COLOR_CLASSES[node.color]}>
@@ -71,21 +77,41 @@ function Inline({ nodes, mentionHref }: { nodes: InlineNode[]; mentionHref?: (di
   );
 }
 
+/**
+ * How far in a block sits. Tailwind needs the whole class name in the source,
+ * so the steps are written out rather than worked out.
+ */
+const INDENT_CLASSES = ["", "pl-5", "pl-10", "pl-15"] as const;
+
+function indentClass(indent: number | undefined): string {
+  return INDENT_CLASSES[Math.min(INDENT_CLASSES.length - 1, Math.max(0, indent ?? 0))] ?? "";
+}
+
+/**
+ * Three sizes and no more: a heading, a subheading, and the words themselves.
+ *
+ * They have to be told apart at a glance or they are not three sizes, so the
+ * step between them is a real one — 16, 14 and 13 — rather than the same
+ * thirteen pixels wearing different weights. A brief is mostly body text with a
+ * heading every few lines; anything louder than this turns it into a poster.
+ */
 function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayName: string) => string | null }) {
   switch (node.type) {
+    case "rule":
+      return <hr className="my-2.5 border-border/70" />;
     case "heading":
       return node.level === 1 ? (
-        <p className="mt-2 mb-1 text-[15px] font-semibold first:mt-0">
+        <p className={cn("mt-3 mb-1 text-[16px] leading-snug font-semibold tracking-tight first:mt-0", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       ) : (
-        <p className="mt-2 mb-0.5 text-[13px] font-semibold first:mt-0">
+        <p className={cn("mt-2.5 mb-0.5 text-[14px] leading-snug font-semibold first:mt-0", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       );
     case "list":
       return node.ordered ? (
-        <ol className="my-1 list-decimal space-y-0.5 pl-5">
+        <ol className={cn("my-1 list-decimal space-y-0.5 pl-5", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -93,7 +119,7 @@ function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayN
           ))}
         </ol>
       ) : (
-        <ul className="my-1 list-disc space-y-0.5 pl-5">
+        <ul className={cn("my-1 list-disc space-y-0.5 pl-5", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -103,7 +129,7 @@ function Block({ node, mentionHref }: { node: BlockNode; mentionHref?: (displayN
       );
     case "paragraph":
       return (
-        <p className="whitespace-pre-wrap">
+        <p className={cn("whitespace-pre-wrap", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       );

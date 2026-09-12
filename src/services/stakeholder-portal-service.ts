@@ -46,6 +46,7 @@ import {
 import type { Repositories } from "@/data/repositories";
 import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-password";
 import { todayISO } from "@/lib/dates/dates";
+import { richTextToPlain } from "@/lib/rich-text";
 import { composeBrief, resolveBookingTemplate } from "./booking";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import {
@@ -824,7 +825,11 @@ export class StakeholderPortalService {
     // template the booking will be composed from, so what the portal shows a
     // stakeholder and what the board shows the team are the same words.
     const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
-    const composed = composeBrief(request, resolveBookingTemplate(workspace)).trim();
+    // Flattened on the way out. The brief is composed as rich text for the
+    // board's Brief column, which renders it; this copy is a public payload
+    // read by the portal and matched against by its search, and markup nothing
+    // has promised to render reads worse than the words alone.
+    const composed = richTextToPlain(composeBrief(request, resolveBookingTemplate(workspace))).trim();
     const publicBrief = composed ? composed.slice(0, MAX_PUBLIC_BRIEF) : null;
     const requestHash = await hashSubmission(resolved.portal.id, request);
 

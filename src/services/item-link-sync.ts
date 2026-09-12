@@ -1,5 +1,6 @@
 import type { BoardColumn, ColumnLabel, ColumnSettings, ColumnType, ColumnValue, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
 import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
+import { richTextToPlain } from "@/lib/rich-text";
 
 /**
  * Pure rules for keeping two items on different boards in sync. Boards carry
@@ -7,7 +8,7 @@ import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
  *
  *  1. `mapColumns` pairs the columns two boards have in common.
  *  2. `translateValue` rewrites a value for the paired column (status labels by
- *     name, single-assignee people columns, text ↔ long text) or reports why it
+ *     name, single-assignee people columns, text ↔ long text ↔ rich text) or reports why it
  *     cannot be represented on the other board.
  *
  * Nothing here touches storage, so the UI can show the same "what syncs"
@@ -45,7 +46,10 @@ const norm = (name: string): string => name.trim().toLowerCase();
 export function sameColumnName(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
-const isText = (type: ColumnType): boolean => type === "TEXT" || type === "LONG_TEXT";
+// The three that carry a text payload and can be handed between each other.
+// A rich brief copied into a plain column loses its formatting, which is
+// better than the two columns refusing to speak to each other at all.
+const isText = (type: ColumnType): boolean => type === "TEXT" || type === "LONG_TEXT" || type === "RICH_TEXT";
 
 /** Same type, or text/long text which share a text payload. */
 export function compatibleTypes(a: ColumnType, b: ColumnType): boolean {
@@ -122,10 +126,13 @@ export function translateValue(value: ColumnValue, source: BoardColumn, target: 
     }
     case "TEXT":
     case "LONG_TEXT":
-      return {
-        kind: "value",
-        value: target.type === "LONG_TEXT" ? { type: "LONG_TEXT", text: value.text } : { type: "TEXT", text: value.text },
-      };
+    case "RICH_TEXT": {
+      // Markup only survives into a column that can render it; anywhere else it
+      // arrives as the words it reads as.
+      const text = value.type === "RICH_TEXT" && target.type !== "RICH_TEXT" ? richTextToPlain(value.text) : value.text;
+      if (target.type === "RICH_TEXT") return { kind: "value", value: { type: "RICH_TEXT", text } };
+      return { kind: "value", value: target.type === "LONG_TEXT" ? { type: "LONG_TEXT", text } : { type: "TEXT", text } };
+    }
     case "DEPENDENCY":
       return {
         kind: "skip",

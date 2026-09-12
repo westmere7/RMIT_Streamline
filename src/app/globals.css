@@ -352,13 +352,35 @@
 .rich-text-editor .ProseMirror > * + * {
   margin-top: 0.25rem;
 }
+/* Three sizes, and a real step between them — the same step the renderer
+   draws (src/components/shared/rich-text.tsx), so what is typed is what the
+   team will read. */
 .rich-text-editor .ProseMirror h1 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .rich-text-editor .ProseMirror h2 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+}
+.rich-text-editor .ProseMirror hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0.625rem 0;
+}
+.rich-text-editor .ProseMirror hr.ProseMirror-selectednode {
+  border-top-color: var(--ring);
+}
+/* Tab and Shift-Tab, up to MAX_INDENT (src/lib/rich-text.ts). */
+.rich-text-editor .ProseMirror [data-indent="1"] {
+  padding-left: 1.25rem;
+}
+.rich-text-editor .ProseMirror [data-indent="2"] {
+  padding-left: 2.5rem;
+}
+.rich-text-editor .ProseMirror [data-indent="3"] {
+  padding-left: 3.75rem;
 }
 .rich-text-editor .ProseMirror strong {
   font-weight: 600;

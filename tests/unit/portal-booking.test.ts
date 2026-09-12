@@ -126,7 +126,10 @@ describe("booking through a portal", () => {
 
     const detail = await services.portals.task(resolved, receipt.itemId, null);
     // The requester's own answers, in the words the board carries them in.
+    // The public copy is the same document flattened: the portal shows words,
+    // the board's Brief column shows the formatting.
     expect(detail.brief).toContain("Service: Design");
+    expect(detail.brief).not.toContain("**");
     expect(detail.brief).toContain("Six A1 posters for the Brunswick campus, print ready.");
     expect(JSON.stringify(detail)).not.toContain("priya@rmit.edu.au");
     expect(JSON.stringify(detail)).not.toContain("Priya Nair");

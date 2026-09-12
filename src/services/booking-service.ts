@@ -18,7 +18,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -36,6 +36,7 @@ import {
   validateBookingAgainstTemplate,
 } from "./booking";
 import type { ItemAssetService } from "./item-asset-service";
+import { richTextToPlain } from "@/lib/rich-text";
 import { mapColumns, translateValue } from "./item-link-sync";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
@@ -163,7 +164,9 @@ export class BookingService {
 
     // Only answers to questions this service asks travel, and only sub-services
     // it actually offers - everything else is a word the caller made up.
-    const asked = new Set((service?.blocks ?? []).filter(isQuestionBlock).map((b) => b.id));
+    // Follow-ups included: a question a choice opens is still a question this
+    // service asks, and an answer to one has to be allowed through.
+    const asked = new Set(flattenBlocks(service?.blocks ?? []).filter(isQuestionBlock).map((b) => b.id));
     request.answers = Object.fromEntries(Object.entries(request.answers).filter(([id]) => asked.has(id)));
     const offered = new Set((service?.subServices ?? []).map((o) => o.name));
     request.subServices = request.subServices.filter((name) => offered.has(name));
@@ -394,14 +397,31 @@ export class BookingService {
     if (!group) throw new Error(`${target.name} has no group to receive the task.`);
 
     // Worked out before the move, while the values still have their columns.
-    // Anything the team's board has no column for is left behind: what the
-    // requester actually asked for is in the description, which travels.
+    // Anything the team's board has no column for is left behind.
     const carried: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
+    let briefCarried = false;
+    const briefColumn = sourceColumns.find((c) => c.type === "RICH_TEXT") ?? null;
     for (const { source: sc, target: tc } of mapColumns(sourceColumns, targetColumns).mapped) {
       const value = sourceValues.find((v) => v.columnId === sc.id)?.value;
       if (!value || isEmptyValue(value)) continue;
       const translated = translateValue(value, sc, tc);
-      if (translated.kind === "value") carried.push({ itemId: item.id, columnId: tc.id, value: translated.value });
+      if (translated.kind !== "value") continue;
+      carried.push({ itemId: item.id, columnId: tc.id, value: translated.value });
+      if (sc.id === briefColumn?.id) briefCarried = true;
+    }
+
+    // The brief is a column, and a column does not travel to a board that has
+    // no column to receive it. It is also the one thing on the task the
+    // requester actually wrote, so rather than leave it behind on a board
+    // nobody will look at again, it goes back into the description on the way
+    // out — flattened, because a description has no formatting to show. A team
+    // board with a Brief column of its own never reaches this: the value is
+    // carried across as a value, with its formatting on it.
+    const briefValue = briefColumn ? sourceValues.find((v) => v.columnId === briefColumn.id)?.value : undefined;
+    const brief = briefValue && "text" in briefValue ? richTextToPlain(briefValue.text ?? "").trim() : "";
+    if (brief && !briefCarried && !(item.description ?? "").includes(brief)) {
+      const description = item.description?.trim() ? `${brief}\n\n${item.description.trim()}` : brief;
+      await this.repos.items.update(item.id, { description });
     }
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
@@ -470,10 +490,12 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     // sub-services answer a different question and live in the brief.
     { name: "Service", type: "TAGS", settings: { kind: "tags", options: DEFAULT_SERVICE_TAGS.map((o) => ({ ...o })) } },
     { name: "Asset type", type: "TAGS", settings: { kind: "tags", options: BOOKING_ASSET_TYPES.map((o) => ({ ...o })) } },
-    // The whole of step two as one document, which opens as a popup on the
-    // board. A brief is read as a whole or not at all, so it is one column and
-    // not a dozen holding a sentence each.
-    { name: "Brief", type: "LONG_TEXT" },
+    // The whole of step two as one document, formatted: headings for the
+    // questions, lists for the choices, live links for the links. It opens as a
+    // popup on the board and as one collapsible field on the task panel. A brief
+    // is read as a whole or not at all, so it is one column and not a dozen
+    // holding a sentence each — and it is not repeated in the description.
+    { name: "Brief", type: "RICH_TEXT" },
     { name: "Assets & specs", type: "LONG_TEXT" },
     { name: "Requested team", type: "TAGS", settings: { kind: "tags", options: teamNames.map((name, i) => ({ name, color: TEAM_TAG_COLORS[i % TEAM_TAG_COLORS.length]! })) } },
     { name: "Status", type: "STATUS" },

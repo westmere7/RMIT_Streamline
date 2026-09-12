@@ -499,7 +499,10 @@ function BasicsPane({
         {/* The chooser as the form shows it. Pick a card and its settings open underneath. */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onServiceDrag}>
           <SortableContext items={draft.services.map((x) => x.id)} strategy={rectSortingStrategy}>
-            <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="editor-services">
+            {/* Four to a row on a wide screen: most workspaces run three or
+                four kinds of work, and at three columns the fourth one and the
+                "Add a service" card fall onto a second row that is mostly gap. */}
+            <div className="mt-1 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" data-testid="editor-services">
               {draft.services.map((s) => (
                 <ServiceCard key={s.id} service={s} selected={s.id === shown?.id} onSelect={() => onSelect(s.id)} />
               ))}

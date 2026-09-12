@@ -48,7 +48,7 @@ describe("markup to document", () => {
 
 describe("document to markup", () => {
   it("round-trips what the renderer understands", () => {
-    const body = ["# Cover plan", "**Print** and *digital* both need it.", "- artwork", "- proof", "1. one", "2. two", "[the brief](https://example.com/brief)", "", "{c:red}blocked on photography{/c}"].join("\n");
+    const body = ["# Cover plan", "**Print**, __final__ and *digital* all need it.", "- artwork", "- proof", "1. one", "2. two", "[the brief](https://example.com/brief)", "", "{c:red}blocked on photography{/c}", "---", "  ## Indented subheading", "  a step in", "  - an indented bullet"].join("\n");
     expect(roundTrip(body)).toBe(body);
   });
 
