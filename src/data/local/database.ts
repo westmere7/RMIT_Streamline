@@ -10,6 +10,7 @@ import type {
   BoardFavourite,
   BoardGroup,
   BoardMember,
+  BookingSavedBlock,
   BookingTemplate,
   Comment,
   ItemRead,
@@ -102,6 +103,7 @@ export interface StreamlineDB extends DBSchema {
   comments: { key: string; value: Comment; indexes: { byItem: string } };
   itemAssets: { key: string; value: ItemAsset; indexes: { byItem: string; byBoard: string } };
   bookingTemplates: { key: string; value: BookingTemplate; indexes: { byWorkspace: string } };
+  bookingSavedBlocks: { key: string; value: BookingSavedBlock; indexes: { byWorkspace: string } };
   boardShares: { key: string; value: BoardShare; indexes: { byBoard: string; byToken: string } };
   dashboardShares: { key: string; value: DashboardShare; indexes: { byWorkspace: string; byToken: string } };
   workspaceLists: { key: string; value: WorkspaceListOption; indexes: { byWorkspace: string } };
@@ -150,6 +152,7 @@ export const ALL_STORES: StoreName[] = [
   "comments",
   "itemAssets",
   "bookingTemplates",
+  "bookingSavedBlocks",
   "boardShares",
   "dashboardShares",
   "workspaceLists",
@@ -169,7 +172,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 14;
+export const DB_VERSION = 15;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -364,6 +367,13 @@ function createPortalStores(db: IDBPDatabase<StreamlineDB>): void {
   }
 }
 
+/** v15: blocks of a brief saved by name. */
+function createBookingSavedBlocksStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("bookingSavedBlocks")) return;
+  const blocks = db.createObjectStore("bookingSavedBlocks", { keyPath: "id" });
+  blocks.createIndex("byWorkspace", "workspaceId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -380,6 +390,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 12) createWorkspaceListsStore(db);
   if (oldVersion < 13) createItemSharesStore(db);
   if (oldVersion < 14) createPortalStores(db);
+  if (oldVersion < 15) createBookingSavedBlocksStore(db);
 }
 
 export interface OpenDatabaseOptions {

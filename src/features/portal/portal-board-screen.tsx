@@ -52,9 +52,15 @@ export function PortalBoardScreen({
   defaultView,
   onSearchChange,
   searchingAllYears,
+  showItemGroups,
 }: {
   token: string;
   payload: PortalBoardPayload;
+  /**
+   * Whether the boards' own groups are on offer. Off, the portal groups by
+   * status and a link asking for "board" is read as status too.
+   */
+  showItemGroups: boolean;
   /** Null when the link has been set to reading only. */
   onBook: (() => void) | null;
   /** The view a bare link lands on, chosen by the team. */
@@ -71,7 +77,9 @@ export function PortalBoardScreen({
   searchingAllYears?: boolean;
 }) {
   const searchParams = useSearchParams();
-  const grouping = isGrouping(searchParams.get("group")) ? (searchParams.get("group") as PortalGrouping) : "board";
+  const asked = searchParams.get("group");
+  const fallback: PortalGrouping = showItemGroups ? "board" : "status";
+  const grouping = isGrouping(asked) && (asked !== "board" || showItemGroups) ? asked : fallback;
   // Regrouped before the read-only data layer is built over it, so every
   // component below reads the arrangement through the ordinary hooks and none
   // of them needs to know the visitor chose it.
@@ -79,7 +87,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
+      <PortalBoard payload={shown} onBook={onBook} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
     </ShareGuestProviders>
   );
 }
@@ -97,6 +105,7 @@ function PortalBoard({
   onBook,
   defaultView,
   grouping,
+  groupings,
   onSearchChange,
   searchingAllYears,
 }: {
@@ -104,6 +113,8 @@ function PortalBoard({
   onBook: (() => void) | null;
   defaultView: BoardViewKind;
   grouping: PortalGrouping;
+  /** The groupings on offer. */
+  groupings: readonly PortalGrouping[];
   onSearchChange?: (term: string) => void;
   searchingAllYears?: boolean;
 }) {
@@ -200,7 +211,7 @@ function PortalBoard({
               actions={
                 <>
                   <AllYearsMark on={searchingAllYears} />
-                  <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
+                  <GroupByControl grouping={grouping} groupings={groupings} onChange={(next) => replaceParams({ group: next })} />
                   {onBook && <BookButton onBook={onBook} />}
                 </>
               }
@@ -227,7 +238,7 @@ function PortalBoard({
             actions={
               <>
                 <AllYearsMark on={searchingAllYears} />
-                <GroupByControl grouping={grouping} onChange={(next) => replaceParams({ group: next })} />
+                <GroupByControl grouping={grouping} groupings={groupings} onChange={(next) => replaceParams({ group: next })} />
               </>
             }
           />
@@ -270,7 +281,7 @@ function AllYearsMark({ on }: { on?: boolean }) {
   );
 }
 
-function GroupByControl({ grouping, onChange }: { grouping: PortalGrouping; onChange: (next: PortalGrouping) => void }) {
+function GroupByControl({ grouping, groupings, onChange }: { grouping: PortalGrouping; groupings: readonly PortalGrouping[]; onChange: (next: PortalGrouping) => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -281,7 +292,7 @@ function GroupByControl({ grouping, onChange }: { grouping: PortalGrouping; onCh
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup value={grouping} onValueChange={(value) => onChange(value as PortalGrouping)}>
-          {PORTAL_GROUPINGS.map((option) => (
+          {groupings.map((option) => (
             <DropdownMenuRadioItem key={option} value={option} data-testid={`portal-group-by-${option}`}>
               {GROUPING_LABELS[option]}
             </DropdownMenuRadioItem>

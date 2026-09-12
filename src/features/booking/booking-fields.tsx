@@ -1,19 +1,19 @@
 "use client";
 
-import { Check, ChevronDown, CircleCheck, CircleQuestionMark, Plus, X } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, Plus, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PrioritySignal } from "@/components/shared/priority-signal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { AssetComposer, type AssetComposerPatch, type AssetComposerRow } from "@/features/assets/asset-composer";
-import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingHintMode, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
+import type { AssetComposerRow } from "@/features/assets/asset-composer";
+import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
 import { emptyAnswerFor, priorityStrength } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
@@ -27,6 +27,9 @@ import { cn } from "@/lib/utils";
  */
 
 export const NO_PRIORITY = "__normal__";
+
+/** The dropdown item that means "nothing chosen" on a single choice nobody has to answer. */
+const NO_CHOICE = "__none__";
 
 /**
  * What each width spans on step one's six-column row.
@@ -55,9 +58,8 @@ export interface FieldShellProps {
   id?: string;
   label: string;
   required?: boolean;
-  /** The explaining line. Where it appears is `hintMode`'s business. */
+  /** The explaining line, under the label. */
   description?: string | null;
-  hintMode?: BookingHintMode;
   error?: string;
   /** A subtle rounded badge before the label: which question of the brief this is. */
   number?: number | null;
@@ -69,12 +71,11 @@ export interface FieldShellProps {
 /**
  * Label, control, and whatever has to be said about them.
  *
- * The description is the interesting part: the same words go under the label,
- * behind a question mark beside it, or inside the empty box, and which of the
- * three is the question's own setting. An error always wins the line under the
+ * The description goes under the label, always: one place to look for the
+ * explanation, on every question. An error always wins the line under the
  * control — a hint nobody can act on is not what somebody stuck needs to read.
  */
-export function Field({ id, label, required, description, hintMode = "below", error, number, hideLabel, children }: FieldShellProps) {
+export function Field({ id, label, required, description, error, number, hideLabel, children }: FieldShellProps) {
   const hint = description?.trim() ? description.trim() : null;
   const text = (
     <>
@@ -87,13 +88,6 @@ export function Field({ id, label, required, description, hintMode = "below", er
           </span>
         )}
       </span>
-      {hint && hintMode === "icon" && (
-        <SimpleTooltip label={hint}>
-          <button type="button" className="inline-flex text-muted-foreground transition-colors hover:text-foreground" aria-label={`About “${label}”: ${hint}`}>
-            <CircleQuestionMark className="size-3.5" />
-          </button>
-        </SimpleTooltip>
-      )}
     </>
   );
   return (
@@ -106,7 +100,7 @@ export function Field({ id, label, required, description, hintMode = "below", er
         ) : (
           <span className="flex items-center gap-1.5 text-[13px] font-medium">{text}</span>
         ))}
-      {hint && hintMode === "below" && <p className="-mt-0.5 text-2xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="-mt-0.5 text-2xs text-muted-foreground">{hint}</p>}
       {children}
       {error && (
         <p className="text-2xs text-destructive" role="alert">
@@ -124,12 +118,6 @@ export function NumberBadge({ n }: { n: number }) {
       {n}
     </span>
   );
-}
-
-/** The placeholder a control shows: the question's own words, but only when it asked for them there. */
-function placeholderOf(description: string | null | undefined, hintMode: BookingHintMode | undefined, fallback?: string): string | undefined {
-  if (hintMode === "placeholder" && description?.trim()) return description.trim();
-  return fallback;
 }
 
 // ---- step one: the fixed questions --------------------------------------------
@@ -156,20 +144,19 @@ export interface StandardFieldProps {
 export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel }: StandardFieldProps) {
   const id = (base: string) => (preview ? `preview-${base}` : base);
   const tid = (base: string) => (preview ? undefined : base);
-  const shell = { label: field.label, required: field.required, description: field.description, hintMode: field.hintMode, error, hideLabel };
-  const placeholder = placeholderOf(field.description, field.hintMode);
+  const shell = { label: field.label, required: field.required, description: field.description, error, hideLabel };
   const locked = readOnly ? { readOnly: true as const, className: "text-muted-foreground" } : {};
   switch (field.key) {
     case "requesterName":
       return (
         <Field id={id("booking-name")} {...shell}>
-          <Input id={id("booking-name")} autoComplete="name" placeholder={placeholder} value={draft.requesterName} onChange={(e) => onChange({ requesterName: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-name")} />
+          <Input id={id("booking-name")} autoComplete="name" value={draft.requesterName} onChange={(e) => onChange({ requesterName: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-name")} />
         </Field>
       );
     case "requesterEmail":
       return (
         <Field id={id("booking-email")} {...shell}>
-          <Input id={id("booking-email")} type="email" autoComplete="email" placeholder={placeholder} value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-email")} />
+          <Input id={id("booking-email")} type="email" autoComplete="email" value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-email")} />
         </Field>
       );
     case "department":
@@ -178,7 +165,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
           <Input
             id={id("booking-department")}
             autoComplete="organization"
-            placeholder={placeholder}
+           
             value={draft.department ?? ""}
             onChange={(e) => onChange({ department: e.target.value })}
             aria-invalid={!!error}
@@ -191,7 +178,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
     case "title":
       return (
         <Field id={id("booking-title")} {...shell}>
-          <Input id={id("booking-title")} placeholder={placeholder} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-title")} />
+          <Input id={id("booking-title")} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-title")} />
         </Field>
       );
     case "dueDate":
@@ -211,7 +198,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_PRIORITY}>{placeholderOf(field.description, field.hintMode, "Not sure — normal turnaround")}</SelectItem>
+              <SelectItem value={NO_PRIORITY}>Not sure — normal turnaround</SelectItem>
               {form.priorities.map((option) => (
                 <SelectItem key={option.name} value={option.name} data-testid={tid(`booking-priority-${slug(option.name)}`)}>
                   <span className="flex items-center gap-2">
@@ -247,21 +234,20 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
   const answer = value ?? emptyAnswerFor(block.kind);
   const id = `${preview ? "preview-" : ""}${idPrefix}-${block.id}`;
   const testId = preview ? undefined : `${idPrefix}-${block.id}`;
-  const shell = { label: block.label, required: block.required, description: block.description, hintMode: block.hintMode, error, number, hideLabel };
-  const placeholder = placeholderOf(block.description, block.hintMode);
+  const shell = { label: block.label, required: block.required, description: block.description, error, number, hideLabel };
   const text = answer.kind === "text" ? answer.text : "";
   const values = answer.kind === "choice" ? answer.values : [];
   switch (block.kind) {
     case "short":
       return (
         <Field id={id} {...shell}>
-          <Input id={id} placeholder={placeholder} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={testId} />
+          <Input id={id} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={testId} />
         </Field>
       );
     case "long":
       return (
         <Field id={id} {...shell}>
-          <Textarea id={id} rows={4} placeholder={placeholder} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} className="resize-y" disabled={preview} data-testid={testId} />
+          <Textarea id={id} rows={4} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} className="resize-y" disabled={preview} data-testid={testId} />
         </Field>
       );
     case "multi":
@@ -284,6 +270,32 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
         </Field>
       );
     case "single":
+      if (block.display === "dropdown") {
+        // A dropdown for choices that are sentences: chips that long wrap into
+        // a paragraph. Optional questions get a way back to "no answer".
+        // Nothing chosen shows the placeholder, whether or not the question must be answered.
+        const chosen = values[0] && block.options.some((o) => o.name === values[0]) ? values[0] : "";
+        return (
+          <Field id={id} {...shell}>
+            <Select value={chosen} onValueChange={(v) => onChange({ kind: "choice", values: v === NO_CHOICE ? [] : [v] })} disabled={preview}>
+              <SelectTrigger id={id} aria-label={block.label} aria-invalid={!!error} className="h-10" data-testid={testId}>
+                <SelectValue placeholder="Pick one" />
+              </SelectTrigger>
+              <SelectContent>
+                {!block.required && <SelectItem value={NO_CHOICE}>No answer</SelectItem>}
+                {block.options.map((option) => (
+                  <SelectItem key={option.name} value={option.name} data-testid={testId ? `${testId}-${slug(option.name)}` : undefined}>
+                    <span className="flex items-center gap-2">
+                      <ColorDot color={option.color} />
+                      {option.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        );
+      }
       return (
         <Field {...shell}>
           <ChipGroup ariaLabel={block.label}>
@@ -315,7 +327,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
               id={id}
               type="url"
               inputMode="url"
-              placeholder={placeholder ?? "https://"}
+              placeholder="https://"
               value={link.url}
               onChange={(e) => onChange({ kind: "link", url: e.target.value, label: link.label })}
               aria-invalid={!!error}
@@ -422,32 +434,105 @@ export function ServiceCardShell({
 // ---- the asset list ------------------------------------------------------------------
 
 /** One filled-in row, so the editor's preview shows what the step will look like. */
-const PREVIEW_ROWS: AssetRow[] = [{ ...newAssetRow("A1 poster"), quantity: 6, notes: "594×841 mm, CMYK, print ready" }];
+const PREVIEW_ROWS: AssetRow[] = [{ ...newAssetRow("A1 poster"), assetType: "Print", quantity: 6, notes: "594×841 mm, CMYK, print ready" }];
+
+/** The select item that means "no type picked"; a Radix item cannot carry an empty value. */
+const NO_ASSET_TYPE = "__none__";
 
 /**
- * What exactly is being asked for: one row per deliverable with a quantity and
- * the spec it has to meet. Each becomes a line on the item's Assets tab, so the
- * team can track them one by one. Its own step, because a list can be long and
- * nobody has to fill it in: a spreadsheet or the asset tracker does as well.
+ * What exactly is being asked for: one row per deliverable, on one line — the
+ * name, what kind of thing it is, how many, and the spec it has to meet. Each
+ * becomes a line on the item's Assets tab, so the team can track them one by one.
  *
- * The rows are the same asset composer the item panel uses, minus the fields a
- * stakeholder cannot answer — there is nobody to put in charge and nothing to
- * tick off until the work exists.
+ * Its own step, because a list can be long and nobody has to fill it in: a
+ * spreadsheet or the asset tracker does as well. The rows are plain inputs
+ * rather than the item panel's composer: a stakeholder has four things to say
+ * about a deliverable and nothing to open, tick off or hand to anybody, so a
+ * row that folds out to be edited was a row that took two clicks to fill in.
  */
-export function AssetList({ rows, onChange, preview }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void; preview?: boolean }) {
+export function AssetList({ rows, onChange, options, preview }: { rows: AssetRow[]; onChange: (rows: AssetRow[]) => void; options: TagOption[]; preview?: boolean }) {
   const shown = preview ? PREVIEW_ROWS : rows;
-  const patch = (id: string, p: AssetComposerPatch) => onChange(rows.map((r) => (r.id === id ? { ...r, ...p } : r)));
+  const [newName, setNewName] = React.useState("");
+  const tid = (base: string) => (preview ? undefined : base);
+  const patch = (id: string, p: Partial<AssetRow>) => onChange(rows.map((r) => (r.id === id ? { ...r, ...p } : r)));
+  const add = () => {
+    const name = newName.trim();
+    if (!name) return;
+    onChange([...rows, newAssetRow(name)]);
+    setNewName("");
+  };
+
   return (
-    <div className="grid gap-3" data-testid={preview ? undefined : "booking-assets"}>
-      <AssetComposer
-        rows={shown}
-        fields={{ done: false, people: false, type: false, due: false }}
-        disabled={preview}
-        onAdd={(name) => onChange([...rows, newAssetRow(name)])}
-        onPatch={patch}
-        onDuplicate={(row) => onChange([...rows, { ...row, id: newAssetRow(row.name).id }])}
-        onRemove={(id) => onChange(rows.filter((r) => r.id !== id))}
-      />
+    <div className="grid gap-2" data-testid={tid("booking-assets")}>
+      {shown.length > 0 && (
+        <ul className="grid gap-1.5" data-testid={tid("asset-lines")}>
+          {shown.map((row, index) => (
+            <li key={row.id} className="grid gap-1.5 rounded-xl border border-border/60 bg-card p-2 sm:grid-cols-[1.25rem_minmax(0,1.5fr)_minmax(0,9rem)_4.5rem_minmax(0,1.5fr)_auto] sm:items-center" data-testid={tid("asset-line")} data-asset-name={row.name}>
+              <span aria-hidden className="hidden text-center text-2xs font-medium tabular text-muted-foreground/60 sm:block">
+                {index + 1}
+              </span>
+              <Input value={row.name} onChange={(e) => patch(row.id, { name: e.target.value })} aria-label="Deliverable" placeholder="What is it?" className="h-8 text-[13px]" disabled={preview} data-testid={tid("asset-name")} />
+              <Select value={row.assetType ?? NO_ASSET_TYPE} onValueChange={(v) => patch(row.id, { assetType: v === NO_ASSET_TYPE ? null : v })} disabled={preview}>
+                <SelectTrigger className="h-8 text-[13px]" aria-label={`Type of ${row.name || "this deliverable"}`} data-testid={tid("asset-type")}>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ASSET_TYPE}>No type</SelectItem>
+                  {options.map((option) => (
+                    <SelectItem key={option.name} value={option.name}>
+                      <span className="flex items-center gap-2">
+                        <ColorDot color={option.color} />
+                        {option.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={9999}
+                value={row.quantity ?? ""}
+                onChange={(e) => {
+                  const n = Number.parseInt(e.target.value, 10);
+                  patch(row.id, { quantity: Number.isFinite(n) && n > 0 ? Math.min(n, 9999) : null });
+                }}
+                aria-label={`How many of ${row.name || "this deliverable"}`}
+                placeholder="Qty"
+                className="h-8 text-[13px] tabular"
+                disabled={preview}
+                data-testid={tid("asset-quantity")}
+              />
+              <Input value={row.notes ?? ""} onChange={(e) => patch(row.id, { notes: e.target.value || null })} aria-label={`Spec for ${row.name || "this deliverable"}`} placeholder="Size, format, finish…" className="h-8 text-[13px]" disabled={preview} data-testid={tid("asset-notes")} />
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${row.name || "this deliverable"}`} onClick={() => onChange(rows.filter((r) => r.id !== row.id))} disabled={preview} className="justify-self-end text-muted-foreground hover:text-destructive" data-testid={tid("asset-remove")}>
+                <X />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* The way in: name it and it is a row; the rest is filled in on the row. */}
+      <div className="flex gap-1.5">
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder={shown.length === 0 ? "Add a deliverable, e.g. A1 poster" : "Add another"}
+          aria-label="Add a deliverable"
+          className="h-9 flex-1 text-[13px]"
+          disabled={preview}
+          data-testid={tid("asset-add-input")}
+        />
+        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0" onClick={add} disabled={preview || !newName.trim()} data-testid={tid("asset-add-submit")}>
+          <Plus /> Add
+        </Button>
+      </div>
     </div>
   );
 }

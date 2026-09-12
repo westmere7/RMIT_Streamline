@@ -135,24 +135,35 @@ describe("the booking wizard", () => {
     expect(within(link).getByText("4")).toBeInTheDocument();
   });
 
-  it("shows a question's description where the question says to", async () => {
+  it("puts help text under the question, and asks a dropdown single choice as a select", async () => {
     const template = defaultBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
-      { id: "b-below", kind: "short", label: "Under it", description: "Shown below the label", hintMode: "below", required: false },
-      { id: "b-icon", kind: "short", label: "Behind a mark", description: "Shown in a tooltip", hintMode: "icon", required: false },
-      { id: "b-ph", kind: "short", label: "In the box", description: "Shown as placeholder", hintMode: "placeholder", required: false },
+      { id: "b-help", kind: "short", label: "With help", description: "Shown under the question", required: false },
+      {
+        id: "b-drop",
+        kind: "single",
+        label: "How many?",
+        description: null,
+        required: true,
+        display: "dropdown",
+        options: [
+          { name: "Just the one", color: "blue" },
+          { name: "A whole series of them", color: "violet" },
+        ],
+      },
     ];
     const { user } = renderWizard({ form: formWith(template) });
     await fillBasics(user);
     await user.click(screen.getByTestId("booking-next"));
     await screen.findByTestId("booking-step-brief");
 
-    expect(screen.getByText("Shown below the label")).toBeInTheDocument();
-    // The tooltip's words are on the trigger's accessible name until it opens.
-    expect(screen.getByRole("button", { name: /Behind a mark.*Shown in a tooltip/ })).toBeInTheDocument();
-    expect(screen.queryByText("Shown in a tooltip")).not.toBeInTheDocument();
-    expect(screen.getByTestId("booking-answer-b-ph")).toHaveAttribute("placeholder", "Shown as placeholder");
-    expect(screen.queryByText("Shown as placeholder")).not.toBeInTheDocument();
+    expect(screen.getByText("Shown under the question")).toBeInTheDocument();
+    // A dropdown, not chips: no pressed buttons, one trigger asking for a pick.
+    expect(screen.queryByRole("button", { name: "Just the one" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("booking-answer-b-drop")).toHaveTextContent("Pick one");
+    await user.click(screen.getByTestId("booking-answer-b-drop"));
+    await user.click(await screen.findByTestId("booking-answer-b-drop-a-whole-series-of-them"));
+    expect(screen.getByTestId("booking-answer-b-drop")).toHaveTextContent("A whole series of them");
   });
 
   it("keeps every answer when two controls change in the same tick", async () => {
@@ -161,8 +172,8 @@ describe("the booking wizard", () => {
     // request, so whichever fired second threw the other away.
     const template = defaultBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
-      { id: "l", kind: "link", label: "A link", description: null, hintMode: "below", required: false },
-      { id: "q", kind: "short", label: "And a question", description: null, hintMode: "below", required: false },
+      { id: "l", kind: "link", label: "A link", description: null, required: false },
+      { id: "q", kind: "short", label: "And a question", description: null, required: false },
     ];
     const { onSubmit, user } = renderWizard({ form: formWith(template) });
     await fillBasics(user);
@@ -208,6 +219,34 @@ describe("the booking wizard", () => {
     await user.click(screen.getByTestId("booking-answer-design-copy-yes-final-and-approved"));
     await user.click(screen.getByTestId("booking-next"));
     expect(await screen.findByTestId("booking-step-assets")).toBeInTheDocument();
+  });
+
+  it("takes deliverables one line each, with a type of their own", async () => {
+    const { user, onSubmit } = renderWizard();
+    await fillBasics(user);
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-brief");
+    await user.type(screen.getByTestId("booking-answer-design-what"), "Six A1 posters.");
+    await user.type(screen.getByTestId("booking-answer-design-specs"), "A1 portrait, CMYK.");
+    await user.click(screen.getByTestId("booking-answer-design-copy-yes-final-and-approved"));
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-assets");
+
+    // Naming it makes the row; everything else is filled in on the row itself.
+    await user.type(screen.getByTestId("asset-add-input"), "A1 poster{Enter}");
+    const line = screen.getByTestId("asset-line");
+    expect(line).toHaveAttribute("data-asset-name", "A1 poster");
+    fireEvent.change(within(line).getByTestId("asset-quantity"), { target: { value: "6" } });
+    await user.type(within(line).getByTestId("asset-notes"), "594×841 mm");
+    await user.click(within(line).getByTestId("asset-type"));
+    await user.click(await screen.findByRole("option", { name: "Print assets" }));
+
+    await user.click(screen.getByTestId("booking-next"));
+    await screen.findByTestId("booking-step-review");
+    await user.click(screen.getByTestId("booking-submit"));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const sent = (onSubmit.mock.calls as unknown as BookingRequest[][])[0]![0]!;
+    expect(sent.assets).toEqual([{ name: "A1 poster", quantity: 6, spec: "594×841 mm", assetType: "Print assets" }]);
   });
 
   it("lets the deliverables step be skipped outright", async () => {

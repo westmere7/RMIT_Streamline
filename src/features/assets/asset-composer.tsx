@@ -49,9 +49,11 @@ export interface AssetComposerFields {
   type?: boolean;
   people?: boolean;
   due?: boolean;
+  /** The preview and final-artwork links. Off where nobody has any yet, as on a booking. */
+  links?: boolean;
 }
 
-const ALL_FIELDS: Required<AssetComposerFields> = { done: true, type: true, people: true, due: true };
+const ALL_FIELDS: Required<AssetComposerFields> = { done: true, type: true, people: true, due: true, links: true };
 
 /**
  * The asset composer: a list of deliverables, one row each, with a box above it
@@ -289,7 +291,7 @@ function AssetRowCard({
   // between them only earns its pixel when there is something either side.
   const showPeople = fields.people && assignees.length > 0;
   const showDue = fields.due && !!shown.dueDate;
-  const showLinks = !open;
+  const showLinks = !open && fields.links;
   const [renaming, setRenaming] = React.useState(false);
   const [dueOpen, setDueOpen] = React.useState(false);
   // Rename opens a field, so it waits for the menu to finish closing rather than
@@ -611,7 +613,7 @@ function AssetRowCard({
                 order: something to review, then the artwork that was signed off.
                 The switch says which one the box is holding, and each side shows
                 a tick once it has a link, so both are visible without toggling. */}
-            <Detail label="Link" className={cn("col-span-2", !canEdit && !draft.previewUrl && !draft.artworkUrl && "hidden")}>
+            <Detail label="Link" className={cn("col-span-2", (!fields.links || (!canEdit && !draft.previewUrl && !draft.artworkUrl)) && "hidden")}>
               <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
             </Detail>
 

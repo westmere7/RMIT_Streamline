@@ -77,7 +77,7 @@ export function StepBasics({
           on a portal this is one fact about the requester and not the shape of
           the work. */}
       {stakeholders && stakeholders.length > 0 && (
-        <Field label={stakeholderLabel ?? "Who is this request for?"} required description="One link serves everybody the team works with." hintMode="below" error={errors[STAKEHOLDER_ERROR_KEY]}>
+        <Field label={stakeholderLabel ?? "Who is this request for?"} required description="One link serves everybody the team works with." error={errors[STAKEHOLDER_ERROR_KEY]}>
           <Select value={stakeholderId ?? ""} onValueChange={(id) => onStakeholder?.(id)}>
             <SelectTrigger className="h-10" aria-label={stakeholderLabel ?? "Who is this request for?"} data-testid="booking-stakeholder" aria-invalid={!!errors[STAKEHOLDER_ERROR_KEY]}>
               <SelectValue placeholder="Pick a group">
@@ -113,7 +113,7 @@ export function StepBasics({
       )}
 
       <div className="space-y-3">
-        <Field label={template.basics.serviceLabel} required description={template.basics.serviceHint} hintMode="below" error={errors[SERVICE_ERROR_KEY]}>
+        <Field label={template.basics.serviceLabel} required description={template.basics.serviceHint} error={errors[SERVICE_ERROR_KEY]}>
           {/* Cards rather than a dropdown: this is the one answer that decides
               what the rest of the form asks, so it is worth the room. */}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
@@ -136,7 +136,7 @@ export function StepBasics({
         </Field>
 
         {service && service.subServices.length > 0 && (
-          <Field label={service.subServiceLabel} required description={service.subServiceHint} hintMode="below" error={errors[SUBSERVICE_ERROR_KEY]}>
+          <Field label={service.subServiceLabel} required description={service.subServiceHint} error={errors[SUBSERVICE_ERROR_KEY]}>
             <ChipGroup ariaLabel={service.subServiceLabel}>
               {service.subServices.map((option) => (
                 <Chip key={option.name} color={option.color} active={request.subServices.includes(option.name)} onClick={() => patch((prev) => ({ subServices: toggle(prev.subServices, option.name) }))} testId={`booking-sub-${slug(option.name)}`}>
@@ -245,10 +245,10 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, o
         </button>
       </div>
 
-      <AssetList rows={assets} onChange={onAssets} />
+      <AssetList rows={assets} onChange={onAssets} options={form.assetTypes} />
 
       {step.askAssetTypes && (
-        <Field label={step.assetTypesLabel} description="Helps us plan; pick as many as apply." hintMode="below">
+        <Field label={step.assetTypesLabel} description="Helps us plan; pick as many as apply.">
           <AssetTypePicker options={form.assetTypes} value={request.assetTypes} onChange={(assetTypes) => patch({ assetTypes })} />
         </Field>
       )}

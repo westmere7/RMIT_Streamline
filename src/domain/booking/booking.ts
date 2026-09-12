@@ -92,13 +92,16 @@ export interface BookingAssetLine {
   quantity: number | null;
   /** Size, format, dimensions, colour, duration… free text. */
   spec: string | null;
+  /** One of the workspace's asset types, or null when the requester did not say. */
+  assetType?: string | null;
 }
 
-/** "A1 poster ×6 — 594×841 mm, CMYK" */
+/** "A1 poster ×6 (Print) — 594×841 mm, CMYK" */
 export function formatAssetLine(line: BookingAssetLine): string {
   const qty = line.quantity && line.quantity > 1 ? ` ×${line.quantity}` : "";
+  const type = line.assetType?.trim() ? ` (${line.assetType.trim()})` : "";
   const spec = line.spec?.trim() ? ` — ${line.spec.trim()}` : "";
-  return `${line.name.trim()}${qty}${spec}`;
+  return `${line.name.trim()}${qty}${type}${spec}`;
 }
 
 /** What a stakeholder submits. Validated by `bookingRequestSchema` on both sides. */

@@ -17,10 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
+import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
 import {
   BOOKING_STANDARD_KEY_LABELS,
   defaultBookingFormTemplate,
+  isQuestionBlock,
   isRequesterKey,
   newServiceType,
   newStandardField,
@@ -34,7 +35,7 @@ import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { ChoiceChips } from "./choice-chips";
 import { PreviewDialog } from "./preview-dialog";
-import { DragHandle, EditorFrame, TextBox } from "./editor-controls";
+import { DragHandle, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesMenu } from "./templates-menu";
 
 /**
@@ -45,6 +46,11 @@ import { TemplatesMenu } from "./templates-menu";
  * takes — and the live form changes only when somebody publishes it. That
  * separation is the point: building a service's brief is an afternoon's work,
  * and for the whole of that afternoon people are still booking.
+ *
+ * Every control is in plain sight. The first version drew the finished form and
+ * kept the handles for hovering; it looked right and edited badly, most of all
+ * on the service cards, where a strip of controls floated over whichever card
+ * was picked. Now a card is picked and its settings open in a panel underneath.
  */
 
 const ALLOCATION_TEAM = "__allocation__";
@@ -56,6 +62,7 @@ export interface BookingFormEditorProps {
   /** What the editor opens on: the saved draft, or the live form when there is no draft. */
   initial: BookingFormTemplate;
   templates: BookingTemplate[];
+  savedBlocks: BookingSavedBlock[];
   savingDraft: boolean;
   publishing: boolean;
   onSaveDraft: (template: BookingFormTemplate) => Promise<void>;
@@ -64,6 +71,8 @@ export interface BookingFormEditorProps {
   onClose: () => void;
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
+  onSaveBlock: (input: { name: string; block: BookingBlock }) => Promise<void>;
+  onDeleteSavedBlock: (saved: BookingSavedBlock) => Promise<void>;
   /** Where the editing controls go. Given one, they sit beside the form rather than above it. */
   panelContainer?: HTMLElement | null;
 }
@@ -77,7 +86,28 @@ const STEP_TABS = [
 
 type StepTab = (typeof STEP_TABS)[number]["key"];
 
-export function BookingFormEditor({ form, live, initial, templates, savingDraft, publishing, onSaveDraft, onPublish, onDiscardDraft, onClose, onSaveTemplate, onDeleteTemplate, panelContainer }: BookingFormEditorProps) {
+/** The underline tab every tab row of the editor wears, at two heights. */
+const TAB_CLASS = "relative -mb-px inline-flex items-center gap-1.5 rounded-t-lg px-3 font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent";
+const tabTone = (active: boolean) => (active ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground");
+
+export function BookingFormEditor({
+  form,
+  live,
+  initial,
+  templates,
+  savedBlocks,
+  savingDraft,
+  publishing,
+  onSaveDraft,
+  onPublish,
+  onDiscardDraft,
+  onClose,
+  onSaveTemplate,
+  onDeleteTemplate,
+  onSaveBlock,
+  onDeleteSavedBlock,
+  panelContainer,
+}: BookingFormEditorProps) {
   const [draft, setDraft] = React.useState<BookingFormTemplate>(() => clone(initial));
   /**
    * What was last written down, as far as this editor is concerned.
@@ -89,7 +119,9 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
    */
   const [saved, setSaved] = React.useState<BookingFormTemplate>(() => clone(initial));
   const [tab, setTab] = React.useState<StepTab>("basics");
-  const [editingService, setEditingService] = React.useState<string | null>(() => initial.services[0]?.id ?? null);
+  /** The service picked on step one and open on step two: one choice, both places. */
+  const [selectedService, setSelectedService] = React.useState<string | null>(() => initial.services[0]?.id ?? null);
+  const [removingService, setRemovingService] = React.useState<string | null>(null);
   const [confirmDrop, setConfirmDrop] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
@@ -112,7 +144,26 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
       return next;
     });
 
-  const service = draft.services.find((s) => s.id === editingService) ?? draft.services[0] ?? null;
+  const service = draft.services.find((s) => s.id === selectedService) ?? draft.services[0] ?? null;
+  const removing = draft.services.find((s) => s.id === removingService) ?? null;
+  const patchService = (id: string, patch: Partial<BookingServiceType>) => update((t) => Object.assign(t.services.find((x) => x.id === id)!, patch));
+  const addService = () => {
+    const fresh = newServiceType("New service");
+    update((t) => t.services.push(fresh));
+    setSelectedService(fresh.id);
+  };
+  const duplicateService = (id: string) =>
+    update((t) => {
+      const at = t.services.findIndex((x) => x.id === id);
+      const source = t.services[at]!;
+      const copy = { ...clone(source), id: newServiceType(source.name).id, name: `${source.name} copy` };
+      t.services.splice(at + 1, 0, copy);
+      setSelectedService(copy.id);
+    });
+  const removeService = (id: string) => {
+    update((t) => (t.services = t.services.filter((x) => x.id !== id)));
+    if (selectedService === id) setSelectedService(draft.services.find((x) => x.id !== id)?.id ?? null);
+  };
 
   // The controls: beside the form when the page offers a place for them, above it otherwise.
   const panel = (
@@ -165,7 +216,7 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
             current={draft}
             onLoad={(t) => {
               setDraft(clone(t.template));
-              setEditingService(t.template.services[0]?.id ?? null);
+              setSelectedService(t.template.services[0]?.id ?? null);
               toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
             }}
             onSaveTemplate={onSaveTemplate}
@@ -173,7 +224,7 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
             onReset={() => {
               const fresh = defaultBookingFormTemplate();
               setDraft(fresh);
-              setEditingService(fresh.services[0]?.id ?? null);
+              setSelectedService(fresh.services[0]?.id ?? null);
             }}
           />
         </div>
@@ -198,24 +249,25 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
       {panelContainer ? createPortal(panel, panelContainer) : panel}
 
       {/* Pinned, like the bar it stands for: a form long enough to scroll is
-          exactly when knowing which step is open matters. */}
-      <div role="tablist" aria-label="The steps of the form" className="sticky top-0 z-10 flex flex-wrap items-end gap-0.5 border-b border-border/60 pt-1 before:absolute before:inset-y-0 before:-inset-x-10 before:-z-10 before:bg-card">
-        {STEP_TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cn(
-              "relative -mb-px inline-flex h-9 items-center gap-1.5 rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent",
-              tab === key ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
-            )}
-            data-testid={`editor-tab-${key}`}
-          >
-            <Icon className="size-3.5" /> {label}
-          </button>
-        ))}
+          exactly when knowing which step is open matters. A segmented bar,
+          unlike the underline tabs the services wear on step two, so the two
+          rows never read as one. */}
+      <div className="sticky top-0 z-10 flex pt-1 pb-1 before:absolute before:-inset-x-10 before:-top-8 before:bottom-0 before:-z-10 before:bg-card">
+        <div role="tablist" aria-label="The steps of the form" className="inline-flex flex-wrap items-center gap-1 rounded-full bg-surface p-1 text-muted-foreground">
+          {STEP_TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn("inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50", tab === key ? "bg-card text-foreground shadow-sm" : "")}
+              data-testid={`editor-tab-${key}`}
+            >
+              <Icon className="size-3.5" /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "basics" && (
@@ -223,8 +275,13 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
           form={form}
           draft={draft}
           update={update}
+          selected={service?.id ?? null}
+          onSelect={setSelectedService}
+          onAddService={addService}
+          onDuplicateService={duplicateService}
+          onRemoveService={setRemovingService}
           onEditBrief={(id) => {
-            setEditingService(id);
+            setSelectedService(id);
             setTab("brief");
           }}
         />
@@ -232,35 +289,42 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
 
       {tab === "brief" && (
         <div className="space-y-4">
-          {draft.services.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Which service's brief">
-              {draft.services.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={s.id === service?.id}
-                  onClick={() => setEditingService(s.id)}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors",
-                    s.id === service?.id ? "border-foreground/80 bg-foreground text-background" : "border-border bg-card text-foreground hover:border-foreground/40 hover:bg-accent",
-                  )}
-                  data-testid={`editor-brief-service-${slug(s.name)}`}
-                >
-                  <DynamicIcon name={s.icon} className="size-3.5" />
-                  {s.name || "Untitled"}
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-            <Info className="mt-px size-3 shrink-0" aria-hidden />
-            Only people who picked {service?.name || "this service"} in step one see these questions.
-          </p>
+          {/* One tab per service, in the same dress as the steps above: the
+              brief branches here, and a row of tabs is what branching looks
+              like. Adding and removing a service is offered here as well as on
+              step one, because this is where the question "does Web need its
+              own brief?" is actually asked. */}
+          <div role="tablist" aria-label="Which service's brief" className="flex flex-wrap items-end gap-0.5 border-b border-border/60">
+            {draft.services.map((s) => (
+              <button key={s.id} type="button" role="tab" aria-selected={s.id === service?.id} onClick={() => setSelectedService(s.id)} className={cn(TAB_CLASS, "h-8 text-[13px]", tabTone(s.id === service?.id))} data-testid={`editor-brief-service-${slug(s.name)}`}>
+                <DynamicIcon name={s.icon} className={cn("size-3.5", s.id === service?.id && colorClasses(s.color).text)} />
+                {s.name || "Untitled"}
+                <span className="text-2xs text-muted-foreground tabular">{s.blocks.filter(isQuestionBlock).length}</span>
+              </button>
+            ))}
+            <button type="button" onClick={addService} className={cn(TAB_CLASS, "h-8 text-2xs text-muted-foreground hover:text-foreground")} data-testid="editor-brief-add-service">
+              <Plus className="size-3.5" /> Add a service
+            </button>
+            {service && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mb-0.5 ml-auto h-7 text-2xs text-muted-foreground hover:text-destructive"
+                onClick={() => setRemovingService(service.id)}
+                disabled={draft.services.length === 1}
+                title={draft.services.length === 1 ? "The form needs at least one service" : `Remove ${service.name}`}
+                data-testid={`editor-brief-remove-service-${slug(service.name)}`}
+              >
+                <Trash2 /> Remove {service.name || "this service"}
+              </Button>
+            )}
+          </div>
+
           {service ? (
-            <BriefBuilder service={service} onPatch={(patch) => update((t) => Object.assign(t.services.find((s) => s.id === service.id)!, patch))} />
+            <BriefBuilder service={service} onPatch={(patch) => patchService(service.id, patch)} savedBlocks={savedBlocks} onSaveBlock={onSaveBlock} onDeleteSavedBlock={onDeleteSavedBlock} />
           ) : (
-            <p className="text-[13px] text-muted-foreground">Add a service in step one first.</p>
+            <p className="text-[13px] text-muted-foreground">Add a service first.</p>
           )}
         </div>
       )}
@@ -269,6 +333,22 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
       {tab === "review" && <ReviewPane draft={draft} update={update} />}
 
       <PreviewDialog open={previewing} onOpenChange={setPreviewing} form={form} template={draft} />
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemovingService(null)}
+        title={`Remove ${removing?.name || "this service"}?`}
+        description={
+          removing
+            ? `Its ${removing.blocks.filter(isQuestionBlock).length === 1 ? "one question goes" : `${removing.blocks.filter(isQuestionBlock).length} questions go`} with it, and it leaves the form once you publish. Nothing already booked is touched.`
+            : ""
+        }
+        confirmLabel="Remove service"
+        destructive
+        onConfirm={() => {
+          if (removing) removeService(removing.id);
+          setRemovingService(null);
+        }}
+      />
       <ConfirmDialog
         open={confirmDrop}
         onOpenChange={setConfirmDrop}
@@ -280,7 +360,7 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
           await onDiscardDraft();
           setDraft(clone(live));
           setSaved(clone(live));
-          setEditingService(live.services[0]?.id ?? null);
+          setSelectedService(live.services[0]?.id ?? null);
         }}
       />
       <ConfirmDialog
@@ -297,16 +377,34 @@ export function BookingFormEditor({ form, live, initial, templates, savingDraft,
 
 // ---- step one --------------------------------------------------------------
 
-function BasicsPane({ form, draft, update, onEditBrief }: { form: BookingFormData; draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void; onEditBrief: (serviceId: string) => void }) {
+function BasicsPane({
+  form,
+  draft,
+  update,
+  selected,
+  onSelect,
+  onAddService,
+  onDuplicateService,
+  onRemoveService,
+  onEditBrief,
+}: {
+  form: BookingFormData;
+  draft: BookingFormTemplate;
+  update: (fn: (t: BookingFormTemplate) => void) => void;
+  selected: string | null;
+  onSelect: (id: string) => void;
+  onAddService: () => void;
+  onDuplicateService: (id: string) => void;
+  onRemoveService: (id: string) => void;
+  onEditBrief: (serviceId: string) => void;
+}) {
   const previewRequest = React.useMemo(() => emptyBookingRequest(), []);
   // The three about the requester are one block; everything else on this step
-  // is a question in its own right, orderable and removable like any other.
+  // is a question in its own right.
   const requester = draft.basics.fields.filter((f) => isRequesterKey(f.key));
   const rest = draft.basics.fields.filter((f) => !isRequesterKey(f.key));
   const patchField = (id: string, patch: Partial<BookingStandardField>) => update((t) => Object.assign(t.basics.fields.find((f) => f.id === id)!, patch));
-  /** Which service's chips are on show, exactly as picking one in the form shows them. */
-  const [showing, setShowing] = React.useState<string | null>(() => draft.services[0]?.id ?? null);
-  const shown = draft.services.find((s) => s.id === showing) ?? draft.services[0] ?? null;
+  const shown = draft.services.find((s) => s.id === selected) ?? draft.services[0] ?? null;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const onServiceDrag = (event: DragEndEvent) => {
@@ -320,138 +418,105 @@ function BasicsPane({ form, draft, update, onEditBrief }: { form: BookingFormDat
   };
 
   return (
-    <div className="space-y-6">
-      <EditorFrame testId="editor-basics-heading">
+    <div className="space-y-5">
+      <EditorSection title="Heading of this step" testId="editor-basics-heading">
         <TextBox value={draft.basics.title ?? ""} onChange={(v) => update((t) => (t.basics.title = v || null))} ariaLabel="Step one title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
-        <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" quiet={!draft.basics.hint} className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
-      </EditorFrame>
+        <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
+      </EditorSection>
 
       {/* Who is asking: one block, three boxes, nothing to explain and nothing
           to turn off. Only its wording is anybody's to change. */}
       {requester.length > 0 && (
-        <EditorFrame testId="editor-requester-block">
+        <EditorSection title="Who is asking" aside={<span className="text-2xs text-muted-foreground">Always asked, always required</span>} testId="editor-requester-block">
           <div className="grid gap-3 sm:grid-cols-3">
             {requester.map((field) => (
               <div key={field.id} className="min-w-0 grid gap-1.5">
-                <span className="flex items-center gap-1">
-                  <TextBox value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
-                  <span aria-hidden className="text-primary">
-                    *
-                  </span>
-                </span>
+                <TextBox value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
                 <div className="pointer-events-none" aria-hidden>
                   <StandardField field={field} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
                 </div>
               </div>
             ))}
           </div>
-          <p className="mt-2 flex items-start gap-1.5 text-2xs text-muted-foreground opacity-0 transition-opacity group-hover/frame:opacity-100">
-            <Info className="mt-px size-3 shrink-0" aria-hidden />
-            Always asked and always required. Filled in from the account of anyone signed in, and still theirs to change.
-          </p>
-        </EditorFrame>
+          <p className="text-2xs text-muted-foreground">Filled in from the account of anyone signed in, and still theirs to change.</p>
+        </EditorSection>
       )}
 
       {/* The rest of the step, as it lays them out: same six columns, same
           widths. Not reorderable: there are a handful of them, they are the
           same handful on every workspace's form, and the order they are asked
           in is the order they make sense in. Their words are another matter. */}
-      <div className="grid gap-2 sm:grid-cols-6">
-        {rest.map((field) => (
-          <StandardFieldEditor
-            key={field.id}
-            field={field}
-            form={form}
-            previewRequest={previewRequest}
-            onPatch={(patch) => patchField(field.id, patch)}
-          />
-        ))}
-      </div>
-      {/* Which of the optional questions this step asks. Switches rather than a
-          handle on each card: it is one decision about the step, and it should
-          be visible without hovering anything. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs text-muted-foreground">
-        <span>Also ask</span>
-        {OPTIONAL_KEYS.map((key) => {
-          const on = draft.basics.fields.some((f) => f.key === key);
-          return (
-            <label key={key} className="flex items-center gap-1.5">
-              <Switch
-                size="sm"
-                checked={on}
-                onCheckedChange={(next) =>
-                  update((t) => {
-                    if (next) t.basics.fields.push(newStandardField(key));
-                    else t.basics.fields = t.basics.fields.filter((f) => f.key !== key);
-                  })
-                }
-                data-testid={`editor-ask-${key}`}
-              />
-              {BOOKING_STANDARD_KEY_LABELS[key]}
-            </label>
-          );
-        })}
-      </div>
+      <EditorSection
+        title="About the request"
+        aside={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+            <span>Also ask</span>
+            {OPTIONAL_KEYS.map((key) => {
+              const on = draft.basics.fields.some((f) => f.key === key);
+              return (
+                <label key={key} className="flex items-center gap-1.5">
+                  <Switch
+                    size="sm"
+                    checked={on}
+                    onCheckedChange={(next) =>
+                      update((t) => {
+                        if (next) t.basics.fields.push(newStandardField(key));
+                        else t.basics.fields = t.basics.fields.filter((f) => f.key !== key);
+                      })
+                    }
+                    data-testid={`editor-ask-${key}`}
+                  />
+                  {BOOKING_STANDARD_KEY_LABELS[key]}
+                </label>
+              );
+            })}
+          </span>
+        }
+        testId="editor-request-block"
+      >
+        <div className="grid gap-2 sm:grid-cols-6">
+          {rest.map((field) => (
+            <StandardFieldEditor key={field.id} field={field} form={form} previewRequest={previewRequest} onPatch={(patch) => patchField(field.id, patch)} />
+          ))}
+        </div>
+      </EditorSection>
 
-      <div className="space-y-3">
-        <EditorFrame testId="editor-service-question">
-          <TextBox value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
-          <TextBox value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" quiet={!draft.basics.serviceHint} className="text-2xs text-muted-foreground" testId="editor-service-hint" />
-        </EditorFrame>
+      <EditorSection
+        title="Kind of work"
+        aside={
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onAddService} data-testid="editor-add-service">
+            <Plus /> Add a service
+          </Button>
+        }
+        testId="editor-service-question"
+      >
+        <TextBox value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
+        <TextBox value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" testId="editor-service-hint" />
 
-        {/* The chooser itself. Clicking a card shows its sub-services underneath,
-            which is what clicking one does in the form. */}
+        {/* The chooser as the form shows it. Pick a card and its settings open underneath. */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onServiceDrag}>
           <SortableContext items={draft.services.map((x) => x.id)} strategy={rectSortingStrategy}>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="editor-services">
-              {draft.services.map((service) => (
-                <ServiceEditor
-                  key={service.id}
-                  service={service}
-                  form={form}
-                  selected={service.id === shown?.id}
-                  only={draft.services.length === 1}
-                  onSelect={() => setShowing(service.id)}
-                  onPatch={(patch) => update((t) => Object.assign(t.services.find((x) => x.id === service.id)!, patch))}
-                  onDuplicate={() =>
-                    update((t) => {
-                      const at = t.services.findIndex((x) => x.id === service.id);
-                      t.services.splice(at + 1, 0, { ...clone(service), id: newServiceType(service.name).id, name: `${service.name} copy` });
-                    })
-                  }
-                  onRemove={() => update((t) => (t.services = t.services.filter((x) => x.id !== service.id)))}
-                  onEditBrief={() => onEditBrief(service.id)}
-                />
+            <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="editor-services">
+              {draft.services.map((s) => (
+                <ServiceCard key={s.id} service={s} selected={s.id === shown?.id} onSelect={() => onSelect(s.id)} />
               ))}
             </div>
           </SortableContext>
         </DndContext>
-        <Button type="button" variant="outline" size="sm" onClick={() => update((t) => t.services.push(newServiceType("New service")))} data-testid="editor-add-service">
-          <Plus /> Add a service
-        </Button>
 
-        {/* Exactly where the form shows them: under the chooser, once one is picked. */}
         {shown && (
-          <EditorFrame className="mt-1" testId={`editor-service-subs-frame-${slug(shown.name)}`}>
-            <div className="grid gap-1.5">
-              <TextBox value={shown.subServiceLabel} onChange={(v) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServiceLabel = v))} ariaLabel="Sub-service question" placeholder="What does it involve?" className="text-[13px] font-medium" testId={`editor-service-sublabel-${slug(shown.name)}`} />
-              <TextBox
-                value={shown.subServiceHint ?? ""}
-                onChange={(v) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServiceHint = v || null))}
-                ariaLabel="Sub-service hint"
-                placeholder="A line under it (optional)"
-                className="-mt-0.5 text-2xs text-muted-foreground"
-              />
-              <ChoiceChips
-                options={shown.subServices}
-                onChange={(subServices) => update((t) => (t.services.find((x) => x.id === shown.id)!.subServices = subServices))}
-                addLabel="Add a sub-service"
-                testIdPrefix={`editor-service-subs-${slug(shown.name)}`}
-              />
-            </div>
-          </EditorFrame>
+          <ServicePanel
+            key={shown.id}
+            service={shown}
+            form={form}
+            only={draft.services.length === 1}
+            onPatch={(patch) => update((t) => Object.assign(t.services.find((x) => x.id === shown.id)!, patch))}
+            onDuplicate={() => onDuplicateService(shown.id)}
+            onRemove={() => onRemoveService(shown.id)}
+            onEditBrief={() => onEditBrief(shown.id)}
+          />
         )}
-      </div>
+      </EditorSection>
     </div>
   );
 }
@@ -459,11 +524,9 @@ function BasicsPane({ form, draft, update, onEditBrief }: { form: BookingFormDat
 /**
  * One of step one's fixed questions.
  *
- * Only its wording is anybody's business. There is no strip of handles over it
- * and no description to place: the questions are the same handful on every
- * workspace's form, their order is the order they make sense in, and which of
- * the optional two are asked is a pair of switches under the grid rather than
- * something hidden behind a hover.
+ * Only its wording is anybody's business: the questions are the same handful
+ * on every workspace's form, their order is the order they make sense in, and
+ * which of the optional two are asked is a pair of switches in the title bar.
  */
 function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: BookingStandardField; form: BookingFormData; previewRequest: ReturnType<typeof emptyBookingRequest>; onPatch: (patch: Partial<BookingStandardField>) => void }) {
   return (
@@ -487,12 +550,41 @@ function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: 
 /** The two step one may or may not ask. Everything else on it is fixed. */
 const OPTIONAL_KEYS: BookingStandardKey[] = ["priority", "dueDate"];
 
-function ServiceEditor({
+/** A service on the chooser, exactly as the form draws it, plus a grip to reorder by. */
+function ServiceCard({ service, selected, onSelect }: { service: BookingServiceType; selected: boolean; onSelect: () => void }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: service.id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative min-w-0", isDragging && "z-10 opacity-90")}>
+      <ServiceCardShell
+        color={service.color}
+        icon={service.icon}
+        selected={selected}
+        onSelect={onSelect}
+        testId={`editor-service-${slug(service.name)}`}
+        className="pr-8"
+        name={<span className="block truncate">{service.name || "Untitled"}</span>}
+        description={service.description ? <span className="line-clamp-2 text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
+        chrome={<DragHandle label={`Reorder ${service.name}`} testId={`editor-service-drag-${slug(service.name)}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} className="absolute top-2 right-1.5" />}
+      />
+    </div>
+  );
+}
+
+/** A labelled control in the service panel. */
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid min-w-0 gap-1">
+      <span className="label-quiet">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** The settings of the picked service: its words, its look, where it goes, and its sub-services. */
+function ServicePanel({
   service,
   form,
-  selected,
   only,
-  onSelect,
   onPatch,
   onDuplicate,
   onRemove,
@@ -500,121 +592,89 @@ function ServiceEditor({
 }: {
   service: BookingServiceType;
   form: BookingFormData;
-  selected: boolean;
   only: boolean;
-  onSelect: () => void;
   onPatch: (patch: Partial<BookingServiceType>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onEditBrief: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: service.id });
-  const questions = service.blocks.filter((b) => b.kind !== "separator" && b.kind !== "text").length;
-
+  const questions = service.blocks.filter(isQuestionBlock).length;
+  const key = slug(service.name);
   return (
-    // The top band is empty on purpose: it is where the handles of the card
-    // being edited sit, so they never cover the name they belong to.
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("group/frame relative min-w-0 pt-6", isDragging && "z-10 opacity-90")}>
-      <DragHandle label={`Reorder ${service.name}`} testId={`editor-service-drag-${slug(service.name)}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} />
-      {selected && (
-        <div className="absolute top-0 right-1 z-[2] flex items-center gap-1 rounded-lg border border-border bg-card px-1.5 py-0.5 shadow-xs">
-          <ServiceChrome service={service} form={form} only={only} onPatch={onPatch} onDuplicate={onDuplicate} onRemove={onRemove} />
-        </div>
-      )}
-      <ServiceCardShell
-        color={service.color}
-        icon={service.icon}
-        selected={selected}
-        onSelect={onSelect}
-        testId={`editor-service-${slug(service.name)}`}
-        name={<TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${slug(service.name)}`} />}
-        description={
-          <TextBox
-            value={service.description ?? ""}
-            onChange={(v) => onPatch({ description: v || null })}
-            ariaLabel="Service description"
-            placeholder="A line describing it (optional)"
-            className="text-2xs leading-relaxed text-muted-foreground"
-          />
-        }
-      />
-      <button
-        type="button"
-        onClick={onEditBrief}
-        className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        data-testid={`editor-service-brief-${slug(service.name)}`}
-      >
-        <Shapes className="size-3" /> {questions === 0 ? "Build its questions" : questions === 1 ? "1 question in step two" : `${questions} questions in step two`}
-      </button>
-    </div>
-  );
-}
+    <EditorSection
+      className="mt-1 border-foreground/20"
+      testId={`editor-service-panel-${key}`}
+      title={
+        <>
+          <DynamicIcon name={service.icon} className={cn("size-3.5", colorClasses(service.color).text)} />
+          <span className="truncate">{service.name || "Untitled"}</span>
+        </>
+      }
+      aside={
+        <>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" data-testid={`editor-service-look-${key}`}>
+                <Palette /> Look
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 space-y-3 p-3">
+              <ColorPicker value={service.color} onChange={(color) => onPatch({ color: color as ColorToken })} />
+              <div className="scrollbar-thin max-h-52 overflow-y-auto">
+                <IconPicker value={service.icon} onChange={(icon) => onPatch({ icon })} />
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Handle label="Duplicate this service" onClick={onDuplicate} testId={`editor-service-copy-${key}`}>
+            <Copy />
+          </Handle>
+          <Handle label={only ? "The form needs at least one service" : "Remove this service"} onClick={onRemove} disabled={only} destructive testId={`editor-service-remove-${key}`}>
+            <Trash2 />
+          </Handle>
+        </>
+      }
+    >
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
+        <Labeled label="Name">
+          <TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${key}`} />
+        </Labeled>
+        <Labeled label="Bookings go to">
+          <Select value={service.teamId ?? ALLOCATION_TEAM} onValueChange={(v) => onPatch({ teamId: v === ALLOCATION_TEAM ? null : v })}>
+            <SelectTrigger className="h-[30px] text-[13px]" aria-label={`Which team takes ${service.name}`} data-testid={`editor-service-team-${key}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALLOCATION_TEAM}>Task Allocation</SelectItem>
+              {form.teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  <span className="flex items-center gap-2">
+                    <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} />
+                    {team.name}
+                    {team.boardName && <span className="text-muted-foreground">· {team.boardName}</span>}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Labeled>
+      </div>
+      <Labeled label="Description">
+        <TextBox value={service.description ?? ""} onChange={(v) => onPatch({ description: v || null })} ariaLabel="Service description" placeholder="A line on the card (optional)" className="text-[13px] text-muted-foreground" testId={`editor-service-description-${key}`} />
+      </Labeled>
 
-/** The handles for the service being edited: its look, its routing, and its fate. */
-function ServiceChrome({
-  service,
-  form,
-  only,
-  onPatch,
-  onDuplicate,
-  onRemove,
-}: {
-  service: BookingServiceType;
-  form: BookingFormData;
-  only: boolean;
-  onPatch: (patch: Partial<BookingServiceType>) => void;
-  onDuplicate: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Look of ${service.name}`} className="text-muted-foreground" data-testid={`editor-service-look-${slug(service.name)}`}>
-            <Palette />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-72 space-y-3 p-3">
-          <ColorPicker value={service.color} onChange={(color) => onPatch({ color: color as ColorToken })} />
-          <div className="scrollbar-thin max-h-52 overflow-y-auto">
-            <IconPicker value={service.icon} onChange={(icon) => onPatch({ icon })} />
-          </div>
-        </PopoverContent>
-      </Popover>
-      <Select value={service.teamId ?? ALLOCATION_TEAM} onValueChange={(v) => onPatch({ teamId: v === ALLOCATION_TEAM ? null : v })}>
-        <SelectTrigger className="h-6 w-auto gap-1 px-1.5 text-2xs" aria-label={`Which team takes ${service.name}`} data-testid={`editor-service-team-${slug(service.name)}`}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALLOCATION_TEAM}>Task Allocation</SelectItem>
-          {form.teams.map((team) => (
-            <SelectItem key={team.id} value={team.id}>
-              <span className="flex items-center gap-2">
-                <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} />
-                {team.name}
-                {team.boardName && <span className="text-muted-foreground">· {team.boardName}</span>}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button type="button" variant="ghost" size="icon-xs" aria-label="Duplicate this service" title="Duplicate this service" onClick={onDuplicate} className="text-muted-foreground" data-testid={`editor-service-copy-${slug(service.name)}`}>
-        <Copy />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={only ? "The form needs at least one service" : "Remove this service"}
-        title={only ? "The form needs at least one service" : "Remove this service"}
-        onClick={onRemove}
-        disabled={only}
-        className="text-muted-foreground hover:text-destructive"
-        data-testid={`editor-service-remove-${slug(service.name)}`}
-      >
-        <Trash2 />
-      </Button>
-    </>
+      <div className="grid gap-1.5 border-t border-border/60 pt-2.5">
+        <span className="label-quiet">Sub-services, asked once this card is picked</span>
+        <TextBox value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Sub-service question" placeholder="What does it involve?" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
+        <TextBox value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Sub-service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+        <ChoiceChips options={service.subServices} onChange={(subServices) => onPatch({ subServices })} addLabel="Add a sub-service" testIdPrefix={`editor-service-subs-${key}`} />
+      </div>
+
+      <div className="flex justify-end border-t border-border/60 pt-2.5">
+        <Button type="button" variant="outline" size="sm" onClick={onEditBrief} data-testid={`editor-service-brief-${key}`}>
+          <Shapes /> {questions === 0 ? "Build its questions" : questions === 1 ? "1 question in step two" : `${questions} questions in step two`}
+        </Button>
+      </div>
+    </EditorSection>
   );
 }
 
@@ -630,67 +690,60 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
         {step.enabled ? "This step is shown" : "This step is skipped altogether"}
       </label>
 
-      <div className={cn("space-y-5", !step.enabled && "pointer-events-none opacity-50")}>
-        {/* The step as it is met: heading, the way out of it, the rows, the two
-            questions beside them. */}
-        <EditorFrame testId="editor-assets-heading">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <Boxes className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Deliverables title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
-              </span>
-              <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Deliverables hint" placeholder="Explain what to list here (optional)" className="max-w-prose text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
-              <SkipForward className="size-3.5" aria-hidden /> Skip this step
+      <div className={cn("space-y-4", !step.enabled && "pointer-events-none opacity-50")}>
+        <EditorSection
+          title="Heading of this step"
+          aside={
+            <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
+              <SkipForward className="size-3.5" aria-hidden /> Always skippable
             </span>
-          </div>
-          <p className="mt-2 flex items-start gap-1.5 text-2xs text-muted-foreground">
-            <Info className="mt-px size-3 shrink-0" aria-hidden />
-            Nothing here is ever required — the way out is always offered.
-          </p>
-        </EditorFrame>
+          }
+          testId="editor-assets-heading"
+        >
+          <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Deliverables title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
+          <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Deliverables hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
+        </EditorSection>
 
-        <div className="pointer-events-none px-3" aria-hidden>
-          <AssetList rows={[]} onChange={() => {}} preview />
+        <div className="pointer-events-none px-1" aria-hidden>
+          <AssetList rows={[]} onChange={() => {}} options={form.assetTypes} preview />
         </div>
 
-        <EditorFrame
-          testId="editor-assets-types"
-          chrome={
-            <label className="flex items-center gap-1 text-2xs text-muted-foreground">
+        <EditorSection
+          title="Asset types"
+          aside={
+            <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
               <Switch size="sm" checked={step.askAssetTypes} onCheckedChange={(on) => update((t) => (t.assets.askAssetTypes = on))} data-testid="editor-assets-types-toggle" />
               Asked
             </label>
           }
-          className={cn(!step.askAssetTypes && "opacity-40")}
+          className={cn(!step.askAssetTypes && "opacity-50")}
+          testId="editor-assets-types"
         >
           <TextBox value={step.assetTypesLabel} onChange={(v) => update((t) => (t.assets.assetTypesLabel = v))} ariaLabel="Asset types label" placeholder="Asset type" className="text-[13px] font-medium" testId="editor-assets-types-label" />
-          <div className="pointer-events-none mt-1.5" aria-hidden>
+          <div className="pointer-events-none" aria-hidden>
             <AssetTypePicker options={form.assetTypes} value={[]} onChange={() => {}} disabled />
           </div>
-        </EditorFrame>
+        </EditorSection>
 
-        <EditorFrame
-          testId="editor-assets-link"
-          chrome={
-            <label className="flex items-center gap-1 text-2xs text-muted-foreground">
+        <EditorSection
+          title={
+            <>
+              <Link2 className="size-3" aria-hidden /> A link instead
+            </>
+          }
+          aside={
+            <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
               <Switch size="sm" checked={step.askLink} onCheckedChange={(on) => update((t) => (t.assets.askLink = on))} data-testid="editor-assets-link-toggle" />
               Offered
             </label>
           }
-          className={cn(!step.askLink && "opacity-40")}
+          className={cn(!step.askLink && "opacity-50")}
+          testId="editor-assets-link"
         >
-          <div className="rounded-xl border border-border/60 bg-surface/50 p-3.5">
-            <span className="flex items-center gap-1.5">
-              <Link2 className="size-3.5 text-muted-foreground" aria-hidden />
-              <TextBox value={step.linkLabel} onChange={(v) => update((t) => (t.assets.linkLabel = v))} ariaLabel="Link label" placeholder="Already have the list somewhere?" className="text-[13px] font-medium" testId="editor-assets-link-label" />
-            </span>
-            <TextBox value={step.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
-            <Input readOnly placeholder="https://" className="pointer-events-none mt-2 text-muted-foreground/60" tabIndex={-1} aria-hidden />
-          </div>
-        </EditorFrame>
+          <TextBox value={step.linkLabel} onChange={(v) => update((t) => (t.assets.linkLabel = v))} ariaLabel="Link label" placeholder="Already have the list somewhere?" className="text-[13px] font-medium" testId="editor-assets-link-label" />
+          <TextBox value={step.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+          <Input readOnly placeholder="https://" className="pointer-events-none text-muted-foreground/60" tabIndex={-1} aria-hidden />
+        </EditorSection>
       </div>
     </div>
   );
@@ -699,18 +752,17 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
 function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
   return (
     <div className="space-y-4">
-      <EditorFrame testId="editor-review-heading">
+      <EditorSection title="Heading of this step" testId="editor-review-heading">
         <TextBox value={draft.review.title ?? ""} onChange={(v) => update((t) => (t.review.title = v || null))} ariaLabel="Recap title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-review-title" />
         <TextBox value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-review-hint" />
-      </EditorFrame>
+      </EditorSection>
 
-      {/* What the recap looks like. The cards are the step's own, filled with a
-          booking that could have been made, so the heading above is read in
-          the place it will be read. */}
-      <div className="pointer-events-none space-y-3 px-3 opacity-70" aria-hidden>
+      {/* What the recap looks like: the step's own cards, so the heading above
+          is read in the place it will be read. */}
+      <div className="pointer-events-none space-y-2 px-1 opacity-70" aria-hidden>
         {["The request", "The brief", "Deliverables"].map((title) => (
-          <section key={title} className="rounded-xl border border-border/60 bg-surface/40 p-4">
-            <div className="mb-2.5 flex items-center gap-2">
+          <section key={title} className="rounded-xl border border-border/60 bg-surface/40 p-3">
+            <div className="mb-1.5 flex items-center gap-2">
               <h3 className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{title}</h3>
               <span className="text-2xs text-muted-foreground">Change</span>
             </div>
@@ -720,22 +772,25 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
       </div>
 
       {/* The bar at the foot of the wizard, as they meet it. */}
-      <EditorFrame testId="editor-review-bar">
-        <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <EditorSection title="The button" testId="editor-review-bar">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <TextBox value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
-          <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:min-w-44" testId="editor-submit-label" />
+          <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg border-transparent bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:w-44 focus:bg-primary" testId="editor-submit-label" />
         </div>
-      </EditorFrame>
+      </EditorSection>
 
       {/* And the ticket, which is the last thing anybody sees. */}
-      <EditorFrame testId="editor-review-reply">
-        <p className="mb-1.5 text-2xs tracking-wide text-muted-foreground uppercase">On the ticket</p>
-        <div className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-card p-4 text-[13px]">
-          <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="min-w-0 flex-1 text-[13px]" multiline rows={3} testId="editor-auto-reply" />
-        </div>
-        <p className="mt-1.5 text-2xs text-muted-foreground">Shown with the reference once a booking is in. Say what happens next and how long it usually takes.</p>
-      </EditorFrame>
+      <EditorSection
+        title={
+          <>
+            <MessageSquareQuote className="size-3" aria-hidden /> On the ticket
+          </>
+        }
+        testId="editor-review-reply"
+      >
+        <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="text-[13px]" multiline rows={3} testId="editor-auto-reply" />
+        <p className="text-2xs text-muted-foreground">Shown with the reference once a booking is in. Say what happens next and how long it usually takes.</p>
+      </EditorSection>
     </div>
   );
 }

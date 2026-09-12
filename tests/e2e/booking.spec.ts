@@ -108,7 +108,7 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-answer-design-copy-yes-final-and-approved").click();
     await page.getByTestId("booking-next").click();
 
-    // Step three: the deliverables, optional, on the same composer the item panel uses.
+    // Step three: the deliverables, optional, one line each.
     await expect(page.getByTestId("booking-step-assets")).toBeVisible();
     const assets = page.getByTestId("booking-assets");
     await assets.getByTestId("asset-add-input").fill("A1 poster");
@@ -117,8 +117,6 @@ test.describe("task booking", () => {
     await expect(poster.getByTestId("asset-quantity")).toBeVisible({ timeout: 15_000 });
     await poster.getByTestId("asset-quantity").fill("6");
     await poster.getByTestId("asset-notes").fill("594×841 mm, CMYK, print ready");
-    await poster.getByTestId("asset-update").click();
-    await expect(poster.getByTestId("asset-summary")).toContainText("×6", { timeout: 15_000 });
     await assets.getByTestId("asset-add-input").fill("Instagram tile");
     await assets.getByTestId("asset-add-input").press("Enter");
     await expect(assets.getByTestId("asset-line")).toHaveCount(2, { timeout: 15_000 });
@@ -228,12 +226,20 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-edit").click();
     await expect(page.getByTestId("booking-editor")).toBeVisible();
 
-    // A service of the workspace's own, with a question of its own.
+    // A service of the workspace's own, with a question of its own. Adding one
+    // picks it, and its settings open under the cards.
     await page.getByTestId("editor-add-service").click();
-    await page.getByTestId("editor-service-name-new-service").fill("Web");
-    await page.getByTestId("editor-service-subs-web").fill("Landing page, Microsite");
+    const panel = page.getByTestId("editor-service-panel-new-service");
+    await expect(panel).toBeVisible();
+    await panel.getByTestId("editor-service-name-new-service").fill("Web");
+    await page.getByTestId("editor-service-subs-web-add").click();
+    await page.getByLabel("Choice").last().fill("Landing page");
+    await page.keyboard.press("Enter");
+    await page.getByLabel("Choice").last().fill("Microsite");
     await page.getByTestId("editor-service-brief-web").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();
+    // Step two shows the branches as tabs, and Web is the one open.
+    await expect(page.getByTestId("editor-brief-service-web")).toHaveAttribute("aria-selected", "true");
     await page.getByTestId("brief-add-short").click();
     const block = page.locator('[data-testid^="editor-block-"]').first();
     await block.getByLabel("Question").fill("Which page is it?");

@@ -176,7 +176,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, stakehold
       ...request,
       requesterEmail: request.requesterEmail.trim().toLowerCase(),
       department: omit?.includes("department") ? null : (request.department?.trim() || null),
-      assets: template.assets.enabled ? assets.filter((a) => a.name.trim()).map((a) => ({ name: a.name.trim(), quantity: a.quantity, spec: a.notes?.trim() || null })) : [],
+      assets: template.assets.enabled ? assets.filter((a) => a.name.trim()).map((a) => ({ name: a.name.trim(), quantity: a.quantity, spec: a.notes?.trim() || null, assetType: a.assetType?.trim() || null })) : [],
       assetTypes: template.assets.enabled && template.assets.askAssetTypes ? request.assetTypes : [],
       referenceUrl: template.assets.enabled && template.assets.askLink ? (request.referenceUrl?.trim() || null) : null,
       brief: composeBrief(request, template),

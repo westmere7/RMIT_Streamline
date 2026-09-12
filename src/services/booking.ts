@@ -19,8 +19,8 @@ import type {
 } from "@/domain";
 import {
   BOOKING_BLOCK_KINDS,
+  BOOKING_CHOICE_DISPLAYS,
   BOOKING_FIELD_WIDTHS,
-  BOOKING_HINT_MODES,
   BOOKING_LOCKED_KEYS,
   BOOKING_STANDARD_KEYS,
   BOOKING_TEXT_LEVELS,
@@ -85,6 +85,7 @@ export const bookingRequestSchema = z.object({
         name: z.string().trim().min(1, "Say what the asset is").max(160),
         quantity: z.number().int().min(1).max(9999).nullable().default(null),
         spec: z.string().trim().max(500).nullable().default(null),
+        assetType: z.string().trim().max(60).nullable().default(null),
       }),
     )
     .max(50)
@@ -130,19 +131,27 @@ const questionBase = {
   id: z.string().trim().min(1).max(80),
   label: z.string().trim().min(1, "Every question needs a label").max(160),
   description: z.string().trim().max(400).nullable().default(null),
-  hintMode: z.enum(BOOKING_HINT_MODES).default("below"),
   required: z.boolean().default(false),
 };
 
-const blockSchema = z.discriminatedUnion("kind", [
+const choiceOptions = z.array(tagOptionSchema).min(1, "A choice question needs at least one choice").max(40);
+
+/** One block of a brief, which is also the shape a saved block is kept in. */
+export const bookingBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("short"), ...questionBase }),
   z.object({ kind: z.literal("long"), ...questionBase }),
-  z.object({ kind: z.literal("multi"), options: z.array(tagOptionSchema).min(1, "A choice question needs at least one choice").max(40), ...questionBase }),
-  z.object({ kind: z.literal("single"), options: z.array(tagOptionSchema).min(1, "A choice question needs at least one choice").max(40), ...questionBase }),
+  z.object({ kind: z.literal("multi"), options: choiceOptions, display: z.enum(BOOKING_CHOICE_DISPLAYS).default("chips"), ...questionBase }),
+  z.object({ kind: z.literal("single"), options: choiceOptions, display: z.enum(BOOKING_CHOICE_DISPLAYS).default("chips"), ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
   z.object({ kind: z.literal("separator"), id: z.string().trim().min(1).max(80) }),
   z.object({ kind: z.literal("text"), id: z.string().trim().min(1).max(80), level: z.enum(BOOKING_TEXT_LEVELS), text: z.string().trim().max(2000) }),
 ]);
+const blockSchema = bookingBlockSchema;
+
+/** A block as the editor may keep it under a name, or reject it with the reason. */
+export function readBookingBlock(input: unknown): BookingBlock {
+  return bookingBlockSchema.parse(input) as BookingBlock;
+}
 
 const standardFieldSchema = z.object({
   kind: z.literal("standard"),
@@ -150,7 +159,6 @@ const standardFieldSchema = z.object({
   id: z.string().trim().min(1).max(80),
   label: z.string().trim().min(1, "Every question needs a label").max(160),
   description: z.string().trim().max(400).nullable().default(null),
-  hintMode: z.enum(BOOKING_HINT_MODES).default("below"),
   required: z.boolean().default(false),
   width: z.enum(BOOKING_FIELD_WIDTHS).default("full"),
 });
@@ -309,7 +317,6 @@ export function migrateLegacyTemplate(input: unknown): BookingFormTemplate | nul
       kind: "long",
       label: typeof legacyBrief.label === "string" && legacyBrief.label.trim() ? legacyBrief.label.trim() : "Tell us more",
       description: typeof legacyBrief.placeholder === "string" && legacyBrief.placeholder.trim() ? legacyBrief.placeholder.trim() : typeof legacyBrief.hint === "string" && legacyBrief.hint.trim() ? legacyBrief.hint.trim() : null,
-      hintMode: typeof legacyBrief.placeholder === "string" && legacyBrief.placeholder.trim() ? "placeholder" : "below",
       required: legacyBrief.required !== false,
     });
   }
@@ -319,7 +326,7 @@ export function migrateLegacyTemplate(input: unknown): BookingFormTemplate | nul
     const kind = LEGACY_BLOCK_KIND[type] ?? "short";
     const label = typeof f.label === "string" && f.label.trim() ? f.label.trim() : `Question ${index + 1}`;
     const description = typeof f.hint === "string" && f.hint.trim() ? f.hint.trim() : null;
-    const base = { id: typeof f.id === "string" && f.id ? f.id : `legacy-${index}`, label, description, hintMode: "below" as const, required: f.required === true };
+    const base = { id: typeof f.id === "string" && f.id ? f.id : `legacy-${index}`, label, description, required: f.required === true };
     if (kind === "multi" || kind === "single") {
       const options: TagOption[] = Array.isArray(f.options)
         ? (f.options as Array<{ name?: unknown; color?: unknown }>).flatMap((o) => (typeof o?.name === "string" && o.name.trim() ? [{ name: o.name.trim(), color: (typeof o.color === "string" ? o.color : "blue") as ColorToken }] : []))

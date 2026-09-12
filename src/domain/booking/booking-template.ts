@@ -26,23 +26,11 @@ import type { TagOption } from "@/domain/board/column";
 
 // ---- the blocks a brief is built from ---------------------------------------
 
-/**
- * Where a question's description is shown.
- *
- * The same words serve three jobs and the right one depends on the question.
- * A rule that has to be read before answering belongs under the label; an
- * aside belongs behind a question mark, out of the way of the eye running down
- * the form; an example of a good answer belongs inside the empty box, where it
- * disappears the moment it is no longer wanted.
- */
-export const BOOKING_HINT_MODES = ["below", "icon", "placeholder"] as const;
-export type BookingHintMode = (typeof BOOKING_HINT_MODES)[number];
+/** How a single-choice question is answered: a row of chips, or a dropdown for choices too long to sit in one. */
+export const BOOKING_CHOICE_DISPLAYS = ["chips", "dropdown"] as const;
+export type BookingChoiceDisplay = (typeof BOOKING_CHOICE_DISPLAYS)[number];
 
-export const BOOKING_HINT_MODE_LABELS: Record<BookingHintMode, string> = {
-  below: "Under the question",
-  icon: "Behind a question mark",
-  placeholder: "Inside the box",
-};
+export const BOOKING_CHOICE_DISPLAY_LABELS: Record<BookingChoiceDisplay, string> = { chips: "Chips", dropdown: "Dropdown" };
 
 /** How loud a block of the team's own prose is. */
 export const BOOKING_TEXT_LEVELS = ["heading", "subheading", "body"] as const;
@@ -60,9 +48,8 @@ interface BookingBlockBase {
 /** Everything a block that expects an answer has in common. */
 interface BookingQuestionBase extends BookingBlockBase {
   label: string;
-  /** The explaining line, shown wherever `hintMode` says. Null when there is nothing to explain. */
+  /** The explaining line under the question. Null when there is nothing to explain. */
   description: string | null;
-  hintMode: BookingHintMode;
   required: boolean;
 }
 
@@ -74,10 +61,16 @@ export interface BookingLongBlock extends BookingQuestionBase {
   kind: "long";
 }
 
-/** One of a list, or several of it. Both wear the same chips; only the arithmetic differs. */
+/**
+ * One of a list, or several of it.
+ *
+ * Both wear chips by default; a single choice whose options are sentences
+ * rather than words can ask to be a dropdown instead. Absent means chips.
+ */
 export interface BookingChoiceBlock extends BookingQuestionBase {
   kind: "multi" | "single";
   options: TagOption[];
+  display?: BookingChoiceDisplay;
 }
 
 /** A URL the requester supplies, with their own words for it. */
@@ -269,7 +262,6 @@ export interface BookingStandardField {
   key: BookingStandardKey;
   label: string;
   description: string | null;
-  hintMode: BookingHintMode;
   required: boolean;
   width: BookingFieldWidth;
 }
@@ -365,6 +357,27 @@ export type BookingTemplateInput = Pick<BookingTemplate, "workspaceId" | "name" 
 export const MAX_BOOKING_TEMPLATE_NAME = 80;
 export const MAX_BOOKING_TEMPLATE_DESCRIPTION = 280;
 
+/**
+ * One block kept under a name, to be dropped into any brief later.
+ *
+ * The same question turns up in most briefs — "where are the assets?", "has this
+ * been through brand?" — and rebuilding it choice by choice each time is how
+ * the copies drift apart. Saving it once keeps the wording and the choices
+ * together; inserting it gives the brief a copy with an id of its own, so the
+ * saved block and the brief can go their separate ways afterwards.
+ */
+export interface BookingSavedBlock extends Timestamps {
+  id: EntityId;
+  workspaceId: EntityId;
+  name: string;
+  block: BookingBlock;
+  createdBy: EntityId;
+}
+
+export type BookingSavedBlockInput = Pick<BookingSavedBlock, "workspaceId" | "name" | "block" | "createdBy">;
+
+export const MAX_BOOKING_SAVED_BLOCK_NAME = 80;
+
 // ---- the form every workspace starts with ------------------------------------
 
 const std = (key: BookingStandardKey, label: string, rest: Partial<Omit<BookingStandardField, "kind" | "key" | "id" | "label">> = {}): BookingStandardField => ({
@@ -373,7 +386,6 @@ const std = (key: BookingStandardKey, label: string, rest: Partial<Omit<BookingS
   key,
   label,
   description: null,
-  hintMode: "below",
   required: isLockedStandardKey(key),
   width: "full",
   ...rest,
@@ -388,7 +400,7 @@ export function newBlockId(prefix = "b"): string {
 
 /** A fresh block of `kind`, with sensible blanks, ready for the editor. */
 export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
-  const base = { id: newBlockId(), description: null, hintMode: "below" as const, required: false };
+  const base = { id: newBlockId(), description: null, required: false };
   switch (kind) {
     case "short":
       return { ...base, kind, label: "Short question" };
@@ -449,19 +461,18 @@ function defaultServices(): BookingServiceType[] {
       briefHint: "The more precisely this is answered, the fewer rounds of review it takes.",
       teamId: null,
       blocks: [
-        { id: "brand-what", kind: "long", label: "What are you asking for?", description: "What it is, who it is for, and what it has to achieve.", hintMode: "placeholder", required: true },
-        { id: "brand-audience", kind: "short", label: "Who is the audience?", description: "e.g. prospective students, staff, alumni", hintMode: "placeholder", required: true },
+        { id: "brand-what", kind: "long", label: "What are you asking for?", description: "What it is, who it is for, and what it has to achieve.", required: true },
+        { id: "brand-audience", kind: "short", label: "Who is the audience?", description: "e.g. prospective students, staff, alumni", required: true },
         { id: "brand-sep", kind: "separator" },
         {
           id: "brand-history",
           kind: "single",
           label: "Has this been through brand before?",
           description: null,
-          hintMode: "below",
           required: true,
           options: tags(["First time", "blue"], ["An update to something approved", "green"], ["Not sure", "gray"]),
         },
-        { id: "brand-ref", kind: "link", label: "Anything we should look at first?", description: "A brief, a past campaign, a folder of references.", hintMode: "icon", required: false },
+        { id: "brand-ref", kind: "link", label: "Anything we should look at first?", description: "A brief, a past campaign, a folder of references.", required: false },
       ],
     },
     {
@@ -477,19 +488,18 @@ function defaultServices(): BookingServiceType[] {
       briefHint: "Sizes, formats and copy are what hold a job up. Say what you know.",
       teamId: null,
       blocks: [
-        { id: "design-what", kind: "long", label: "What are you asking for?", description: "What it is, who it is for, and what it has to achieve.", hintMode: "placeholder", required: true },
-        { id: "design-specs", kind: "long", label: "Sizes, formats and where it will run", description: "e.g. A1 portrait for print, plus 1080x1350 for Instagram.", hintMode: "placeholder", required: true },
+        { id: "design-what", kind: "long", label: "What are you asking for?", description: "What it is, who it is for, and what it has to achieve.", required: true },
+        { id: "design-specs", kind: "long", label: "Sizes, formats and where it will run", description: "e.g. A1 portrait for print, plus 1080x1350 for Instagram.", required: true },
         {
           id: "design-copy",
           kind: "single",
           label: "Is the copy written?",
           description: null,
-          hintMode: "below",
           required: true,
           options: tags(["Yes, final and approved", "green"], ["Drafted, not approved", "amber"], ["No — we need help with it", "rose"]),
         },
         { id: "design-sep", kind: "separator" },
-        { id: "design-assets", kind: "link", label: "Where are the assets?", description: "Photography, logos, copy documents — a link to the folder is perfect.", hintMode: "icon", required: false },
+        { id: "design-assets", kind: "link", label: "Where are the assets?", description: "Photography, logos, copy documents — a link to the folder is perfect.", required: false },
       ],
     },
     {
@@ -505,12 +515,12 @@ function defaultServices(): BookingServiceType[] {
       briefHint: "A shoot is booked around a date and a place, so those two matter most.",
       teamId: null,
       blocks: [
-        { id: "prod-what", kind: "long", label: "What needs shooting?", description: "What we are capturing, and what it is for.", hintMode: "placeholder", required: true },
-        { id: "prod-where", kind: "short", label: "Where is it?", description: "Campus, building and room, or the address.", hintMode: "placeholder", required: true },
-        { id: "prod-when", kind: "short", label: "When does it happen?", description: "A shoot cannot be moved the way a layout can — give us the date and time.", hintMode: "below", required: true },
+        { id: "prod-what", kind: "long", label: "What needs shooting?", description: "What we are capturing, and what it is for.", required: true },
+        { id: "prod-where", kind: "short", label: "Where is it?", description: "Campus, building and room, or the address.", required: true },
+        { id: "prod-when", kind: "short", label: "When does it happen?", description: "A shoot cannot be moved the way a layout can — give us the date and time.", required: true },
         { id: "prod-sep", kind: "separator" },
-        { id: "prod-people", kind: "single", label: "Are there people on camera?", description: "If so, we will need their consent before the day.", hintMode: "icon", required: true, options: tags(["Yes", "amber"], ["No", "green"], ["Not sure yet", "gray"]) },
-        { id: "prod-use", kind: "multi", label: "Where will it be used?", description: null, hintMode: "below", required: false, options: tags(["Social", "blue"], ["Website", "cyan"], ["Paid media", "rose"], ["Internal", "gray"], ["Print", "orange"]) },
+        { id: "prod-people", kind: "single", label: "Are there people on camera?", description: "If so, we will need their consent before the day.", required: true, options: tags(["Yes", "amber"], ["No", "green"], ["Not sure yet", "gray"]) },
+        { id: "prod-use", kind: "multi", label: "Where will it be used?", description: null, required: false, options: tags(["Social", "blue"], ["Website", "cyan"], ["Paid media", "rose"], ["Internal", "gray"], ["Print", "orange"]) },
       ],
     },
   ];
@@ -528,7 +538,7 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
         std("requesterName", "Your name", { width: "third" }),
         std("requesterEmail", "Email", { width: "third" }),
         std("department", "School or department", { width: "third" }),
-        std("title", "What should we call this?", { description: "e.g. Open Day 2026 wayfinding posters", hintMode: "placeholder" }),
+        std("title", "What should we call this?", { description: "e.g. Open Day 2026 wayfinding posters" }),
         std("priority", "How urgent?", { required: true, width: "half" }),
         std("dueDate", "Needed by", { required: true, width: "half" }),
       ],

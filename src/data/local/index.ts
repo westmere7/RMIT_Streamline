@@ -4,6 +4,7 @@ import { LocalActivityRepository } from "./repositories/activity-repository";
 import { LocalAdminRepository } from "./repositories/admin-repository";
 import { LocalBoardRepository } from "./repositories/board-repository";
 import { LocalBoardShareRepository } from "./repositories/board-share-repository";
+import { LocalBookingSavedBlockRepository } from "./repositories/booking-saved-block-repository";
 import { LocalBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { LocalCommentRepository } from "./repositories/comment-repository";
 import { LocalDashboardShareRepository } from "./repositories/dashboard-share-repository";
@@ -56,6 +57,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     workspaceLists: new LocalWorkspaceListRepository(connection),
     stakeholderPortals: new LocalStakeholderPortalRepository(connection),
     bookingTemplates: new LocalBookingTemplateRepository(connection),
+    bookingSavedBlocks: new LocalBookingSavedBlockRepository(connection),
     boardShares: new LocalBoardShareRepository(connection),
     itemShares: new LocalItemShareRepository(connection),
     dashboardShares: new LocalDashboardShareRepository(connection),

@@ -16,7 +16,7 @@ import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -45,6 +45,7 @@ interface PortalRow {
   default_view: string;
   allow_booking: boolean;
   show_recap: boolean;
+  show_item_groups: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -101,6 +102,7 @@ function toPortal(row: PortalRow): StakeholderPortal {
     defaultView: isPortalView(row.default_view) ? row.default_view : "table",
     allowBooking: row.allow_booking ?? true,
     showRecap: row.show_recap ?? true,
+    showItemGroups: row.show_item_groups ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -210,7 +212,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     return toPortal(unwrap<PortalRow>(result, "department_portals.create"));
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups">>): Promise<StakeholderPortal> {
     const payload: Record<string, unknown> = {};
     if (patch.enabled !== undefined) payload.enabled = patch.enabled;
     if (patch.token !== undefined) payload.token = patch.token;
@@ -222,6 +224,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.defaultView !== undefined) payload.default_view = patch.defaultView;
     if (patch.allowBooking !== undefined) payload.allow_booking = patch.allowBooking;
     if (patch.showRecap !== undefined) payload.show_recap = patch.showRecap;
+    if (patch.showItemGroups !== undefined) payload.show_item_groups = patch.showItemGroups;
     const result = await db().from("department_portals").update(payload).eq("id", id).select(PORTAL).single();
     return toPortal(unwrap<PortalRow>(result, "department_portals.update"));
   }

@@ -10,21 +10,20 @@ import { cn } from "@/lib/utils";
 import { slug } from "../booking-fields";
 
 /**
- * The choices of a question, edited as the chips they will be.
+ * The choices of a question, edited as what they will be.
  *
- * The list used to be a line of comma-separated text under the question, which
- * read as a sentence somebody had written rather than as a control — it had no
- * label, no border and no placeholder once it held anything, so the one thing
- * on the card that looked least editable was the only part people wanted to
- * change. Here the chip *is* the field: its words are typed in place, its
- * colour is the dot, and the cross takes it off. Nothing has to be counted in
- * commas, and a choice may contain one.
+ * Chips when the form will show chips: the chip *is* the field — its words are
+ * typed in place, its colour is the dot, and the cross takes it off. A list of
+ * rows when the form will show a dropdown: those choices are sentences, and a
+ * sentence in a pill wraps into a paragraph nobody can read.
  */
 
 /** Colours handed to new choices in turn, so a fresh list is not all one shade. */
 const NEXT_COLORS: readonly ColorToken[] = ["blue", "orange", "violet", "green", "sky", "amber", "teal", "pink", "rose", "cyan"];
 
-export function ChoiceChips({ options, onChange, addLabel = "Add a choice", testIdPrefix }: { options: TagOption[]; onChange: (next: TagOption[]) => void; addLabel?: string; testIdPrefix?: string }) {
+export type ChoiceLayout = "chips" | "list";
+
+export function ChoiceChips({ options, onChange, addLabel = "Add a choice", layout = "chips", testIdPrefix }: { options: TagOption[]; onChange: (next: TagOption[]) => void; addLabel?: string; layout?: ChoiceLayout; testIdPrefix?: string }) {
   /** Where the caret should go once a chip has been added; null when nothing is waiting. */
   const [focusAt, setFocusAt] = React.useState<number | null>(null);
 
@@ -34,13 +33,15 @@ export function ChoiceChips({ options, onChange, addLabel = "Add a choice", test
     onChange([...options, { name: "", color: NEXT_COLORS[options.length % NEXT_COLORS.length]! }]);
     setFocusAt(options.length);
   };
+  const list = layout === "list";
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5" data-testid={testIdPrefix}>
+    <div className={cn(list ? "grid gap-1" : "flex flex-wrap items-center gap-1.5")} data-testid={testIdPrefix} data-layout={layout}>
       {options.map((option, index) => (
         <Chip
           key={index}
           option={option}
+          list={list}
           autoFocus={focusAt === index}
           onFocused={() => setFocusAt(null)}
           onName={(name) => patch(index, { name })}
@@ -59,7 +60,10 @@ export function ChoiceChips({ options, onChange, addLabel = "Add a choice", test
       <button
         type="button"
         onClick={add}
-        className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-[13px] text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+        className={cn(
+          "inline-flex h-8 items-center gap-1 border border-dashed border-border text-[13px] text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground",
+          list ? "w-full justify-start rounded-lg px-2.5" : "rounded-full px-2.5",
+        )}
         data-testid={testIdPrefix ? `${testIdPrefix}-add` : undefined}
       >
         <Plus className="size-3.5" /> {addLabel}
@@ -70,6 +74,7 @@ export function ChoiceChips({ options, onChange, addLabel = "Add a choice", test
 
 function Chip({
   option,
+  list,
   autoFocus,
   onFocused,
   onName,
@@ -80,6 +85,8 @@ function Chip({
   testId,
 }: {
   option: TagOption;
+  /** A full-width row rather than a pill. */
+  list: boolean;
   autoFocus: boolean;
   onFocused: () => void;
   onName: (name: string) => void;
@@ -97,7 +104,7 @@ function Chip({
   }, [autoFocus, onFocused]);
 
   return (
-    <span className={cn("inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card pr-1 pl-2 text-[13px] transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20")}>
+    <span className={cn("inline-flex h-8 items-center gap-1 border border-border bg-card pr-1 pl-2 text-[13px] transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", list ? "w-full rounded-lg" : "rounded-full")}>
       <Popover>
         <PopoverTrigger asChild>
           <button type="button" aria-label={`Colour of “${option.name || "this choice"}”`} className="rounded-full p-0.5 transition-transform hover:scale-125">
@@ -123,11 +130,12 @@ function Chip({
           }
         }}
         aria-label="Choice"
-        placeholder="Name it"
-        // Grows with its words. `size` is the fallback where a browser has no
-        // content sizing; neither is exact, and being a little wide is fine.
-        size={Math.max(4, option.name.length)}
-        className="min-w-12 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/60 [field-sizing:content]"
+        placeholder={list ? "Write the choice out in full" : "Name it"}
+        // A pill grows with its words. `size` is the fallback where a browser
+        // has no content sizing; neither is exact, and a little wide is fine.
+        // A row simply takes the width it is given.
+        size={list ? undefined : Math.max(4, option.name.length)}
+        className={cn("bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/60", list ? "min-w-0 flex-1" : "min-w-12 [field-sizing:content]")}
         data-testid={testId}
       />
       <button type="button" aria-label={`Remove “${option.name || "this choice"}”`} onClick={onRemove} className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">

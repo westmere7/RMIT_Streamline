@@ -80,4 +80,6 @@ export const queryKeys = {
   bookingTemplates: (workspaceId: string) => ["booking-templates", workspaceId] as const,
   /** The form an admin is part-way through building; never what a stakeholder is served. */
   bookingDraft: (workspaceId: string) => ["booking-draft", workspaceId] as const,
+  /** Blocks of a brief the workspace keeps by name, for the editor to insert. */
+  bookingSavedBlocks: (workspaceId: string) => ["booking-saved-blocks", workspaceId] as const,
 };

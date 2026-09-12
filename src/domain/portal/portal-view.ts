@@ -194,6 +194,8 @@ export interface PortalContext {
   allowBooking: boolean;
   /** Whether the figures appear in the header. */
   showRecap: boolean;
+  /** Whether the visitor may group the board the way the teams' boards do. Off groups by status. */
+  showItemGroups: boolean;
 }
 
 /** What the portal's own search matches on, and returns. */

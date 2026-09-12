@@ -207,6 +207,12 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       update: readOnly("saving a form"),
       delete: readOnly("deleting a form"),
     },
+    bookingSavedBlocks: {
+      listByWorkspace: async () => [],
+      create: readOnly("saving a block"),
+      update: readOnly("saving a block"),
+      delete: readOnly("deleting a block"),
+    },
     itemShares: {
       getByItem: async () => null,
       getByToken: async () => null,

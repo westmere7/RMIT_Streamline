@@ -599,6 +599,7 @@ export class StakeholderPortalService {
       defaultView: resolved.portal.defaultView,
       allowBooking: resolved.portal.allowBooking,
       showRecap: resolved.portal.showRecap,
+      showItemGroups: resolved.portal.showItemGroups,
     };
   }
 

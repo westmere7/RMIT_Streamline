@@ -93,6 +93,7 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
       defaultView: "table",
       allowBooking: true,
       showRecap: true,
+      showItemGroups: false,
       createdAt: now,
       updatedAt: now,
       ...input,
@@ -101,7 +102,7 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
     return row;
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal> {
+  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups">>): Promise<StakeholderPortal> {
     const db = await this.conn.getDb();
     const existing = await db.get("departmentPortals", id);
     if (!existing) throw new NotFoundError("Portal", id);

@@ -90,6 +90,15 @@ export interface StakeholderPortal extends Timestamps {
   allowBooking: boolean;
   /** Whether the figures appear in the header. */
   showRecap: boolean;
+  /**
+   * Whether the board may be grouped the way each team's board groups it.
+   *
+   * Off by default: a team's groups are its own furniture — sprints, campaigns,
+   * "parked" — and mean little to somebody outside. Off, the portal groups by
+   * status and never offers the boards' own groups; on, it opens grouped by
+   * board and the visitor may switch.
+   */
+  showItemGroups: boolean;
 }
 
 /**
@@ -147,7 +156,7 @@ export function isPortalView(value: unknown): value is PortalView {
 }
 
 /** What an administrator may change about how a portal presents itself. */
-export type PortalPresentation = Partial<Pick<StakeholderPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "defaultTheme">>;
+export type PortalPresentation = Partial<Pick<StakeholderPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups" | "defaultTheme">>;
 
 export type StakeholderPortalInput = Pick<StakeholderPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
 

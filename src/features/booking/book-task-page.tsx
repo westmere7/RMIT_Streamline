@@ -10,7 +10,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { BookingFormTemplate, BookingTemplate } from "@/domain";
+import type { BookingBlock, BookingFormTemplate, BookingSavedBlock, BookingTemplate } from "@/domain";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
@@ -50,6 +50,11 @@ export function BookTaskPage() {
   const templates = useQuery({
     queryKey: queryKeys.bookingTemplates(ws.workspace.id),
     queryFn: () => services.booking.listTemplates(ws.workspace.id),
+    enabled: manager,
+  });
+  const savedBlocks = useQuery({
+    queryKey: queryKeys.bookingSavedBlocks(ws.workspace.id),
+    queryFn: () => services.booking.listSavedBlocks(ws.workspace.id),
     enabled: manager,
   });
   // What the editor opens on. Separate from the form above because they are
@@ -102,6 +107,15 @@ export function BookTaskPage() {
   const deleteTemplate = async (template: BookingTemplate) => {
     await services.booking.deleteTemplate(template.id);
     await templatesChanged();
+  };
+  const savedBlocksChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingSavedBlocks(ws.workspace.id) });
+  const saveBlock = async (input: { name: string; block: BookingBlock }) => {
+    await services.booking.saveBlock(ws.workspace.id, input, ws.currentUser.id);
+    await savedBlocksChanged();
+  };
+  const deleteSavedBlock = async (saved: BookingSavedBlock) => {
+    await services.booking.deleteSavedBlock(saved.id);
+    await savedBlocksChanged();
   };
   // An unpublished draft is worth saying out loud: the question "why is the
   // form not what I edited" has exactly one answer and this is it.
@@ -192,6 +206,7 @@ export function BookTaskPage() {
               live={form.data.template}
               initial={draft.data ?? form.data.template}
               templates={templates.data ?? []}
+              savedBlocks={savedBlocks.data ?? []}
               savingDraft={saveDraft.isPending}
               publishing={publishForm.isPending}
               onSaveDraft={(template) => saveDraft.mutateAsync(template).then(() => undefined)}
@@ -200,6 +215,8 @@ export function BookTaskPage() {
               onClose={() => setEditing(false)}
               onSaveTemplate={saveTemplate}
               onDeleteTemplate={deleteTemplate}
+              onSaveBlock={saveBlock}
+              onDeleteSavedBlock={deleteSavedBlock}
               panelContainer={editorPanel}
             />
           ) : (

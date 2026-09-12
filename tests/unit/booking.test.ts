@@ -47,7 +47,7 @@ const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => {
     brief: "",
     assetTypes: ["Print"],
     assets: [
-      { name: "A1 poster", quantity: 6, spec: "594×841 mm, CMYK, print ready" },
+      { name: "A1 poster", quantity: 6, spec: "594×841 mm, CMYK, print ready", assetType: "Print" },
       { name: "Instagram tile", quantity: null, spec: null },
     ],
     serviceTypeId: "svc-design",
@@ -82,7 +82,7 @@ describe("the brief a service's answers compose", () => {
     design.blocks = [
       { id: "h", kind: "text", level: "heading", text: "The work itself" },
       { id: "note", kind: "text", level: "body", text: "Take your time over this one." },
-      { id: "q", kind: "short", label: "Audience", description: null, hintMode: "below", required: false },
+      { id: "q", kind: "short", label: "Audience", description: null, required: false },
     ];
     const brief = composeBrief(request({ answers: { q: { kind: "text", text: "Prospective students" } } }), template);
     expect(brief).toContain("The work itself");
@@ -93,7 +93,7 @@ describe("the brief a service's answers compose", () => {
 
   it("writes a link with the words that were given for it", () => {
     const template = defaultBookingFormTemplate();
-    serviceById(template, "svc-design")!.blocks = [{ id: "l", kind: "link", label: "Assets", description: null, hintMode: "below", required: false }];
+    serviceById(template, "svc-design")!.blocks = [{ id: "l", kind: "link", label: "Assets", description: null, required: false }];
     expect(composeBrief(request({ answers: { l: { kind: "link", url: "https://x.test/a", label: "The folder" } } }), template)).toContain("The folder — https://x.test/a");
     expect(composeBrief(request({ answers: { l: { kind: "link", url: "https://x.test/a", label: "" } } }), template)).toContain("https://x.test/a");
   });
@@ -124,7 +124,7 @@ describe("placing a booking's answers on a board", () => {
     expect(byName.get("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     expect(byName.get("Asset type")).toEqual({ type: "TAGS", tags: ["Print"] });
     expect(byName.get("Brief")).toEqual({ type: "LONG_TEXT", text: req.brief });
-    expect(byName.get("Assets & specs")).toEqual({ type: "LONG_TEXT", text: "1. A1 poster ×6 — 594×841 mm, CMYK, print ready\n2. Instagram tile" });
+    expect(byName.get("Assets & specs")).toEqual({ type: "LONG_TEXT", text: "1. A1 poster ×6 (Print) — 594×841 mm, CMYK, print ready\n2. Instagram tile" });
     expect(byName.get("Requested team")).toEqual({ type: "TAGS", tags: ["Brand"] });
     expect(byName.get("Due Date")).toEqual({ type: "DATE", date: "2026-10-01" });
     expect(byName.get("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });
@@ -166,7 +166,7 @@ describe("placing a booking's answers on a board", () => {
     expect(description.startsWith(req.brief)).toBe(true);
     expect(description).toContain("Requester: Priya Nair");
     expect(description).toContain("Service: Design");
-    expect(description).toContain("Assets & specs:\n  1. A1 poster ×6 — 594×841 mm, CMYK, print ready\n  2. Instagram tile");
+    expect(description).toContain("Assets & specs:\n  1. A1 poster ×6 (Print) — 594×841 mm, CMYK, print ready\n  2. Instagram tile");
     expect(description).toContain("Email: priya@rmit.edu.au");
     expect(description).toContain("Reference: https://example.com/brief");
   });
@@ -354,6 +354,10 @@ describe("booking a task", () => {
     const lines = await services.repos.itemAssets.listByItem(item.id);
     expect(lines.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
     expect(lines[0]!.quantity).toBe(6);
+    // The row's own type lands on the deliverable; a row without one takes the
+    // one type the request named as a whole, as it always did.
+    expect(lines[0]!.assetType).toBe("Print");
+    expect(lines[1]!.assetType).toBe("Print");
     expect(receipt.assetCount).toBe(2);
     expect(item.description).toContain("Service: Design");
     expect(item.description).toContain("1. What are you asking for?");
@@ -555,7 +559,7 @@ describe("shaping the booking form", () => {
         name: "Web",
         subServices: [{ name: "Landing page", color: "blue" }],
         blocks: [
-          { id: "url", kind: "link", label: "Which page?", description: "Paste the address", hintMode: "placeholder", required: true },
+          { id: "url", kind: "link", label: "Which page?", description: "Paste the address", required: true },
           { id: "sep", kind: "separator" },
           { ...(newBookingBlock("multi") as BookingChoiceBlock), id: "who", label: "Who is it for?", required: false, options: [{ name: "Students", color: "blue" }] },
         ],
@@ -603,6 +607,28 @@ describe("shaping the booking form", () => {
     await expect(services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: "  ", template: lean }, owner)).rejects.toThrow(/name/);
     await services.booking.deleteTemplate(saved.id);
     expect(await services.booking.listTemplates(SEED_WORKSPACE_ID)).toEqual([]);
+  });
+
+  it("keeps blocks by name, replaces on the same name, and leaves out one that no longer reads", async () => {
+    const block = { ...(newBookingBlock("single") as BookingChoiceBlock), label: "Has this been through brand?", display: "dropdown" as const };
+    const saved = await services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "Brand history", block }, owner);
+    expect(saved.name).toBe("Brand history");
+    expect(saved.block).toMatchObject({ kind: "single", label: "Has this been through brand?", display: "dropdown" });
+
+    const again = await services.booking.saveBlock(SEED_WORKSPACE_ID, { name: " brand history ", block: newBookingBlock("short") }, owner);
+    expect(again.id).toBe(saved.id);
+    expect(again.block.kind).toBe("short");
+    expect((await services.booking.listSavedBlocks(SEED_WORKSPACE_ID)).map((b) => b.name)).toEqual(["brand history"]);
+
+    await expect(services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "  ", block }, owner)).rejects.toThrow(/name/);
+    // A choice question with no choices is not a block anybody can answer.
+    await expect(services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "Broken", block: { ...block, options: [] } }, owner)).rejects.toThrow();
+    // One that got into storage in a shape the app no longer reads is skipped, not fatal.
+    await services.repos.bookingSavedBlocks.create({ workspaceId: SEED_WORKSPACE_ID, name: "Rubbish", block: { kind: "nope" } as never, createdBy: owner });
+    expect((await services.booking.listSavedBlocks(SEED_WORKSPACE_ID)).map((b) => b.name)).toEqual(["brand history"]);
+
+    await services.booking.deleteSavedBlock(saved.id);
+    expect((await services.booking.listSavedBlocks(SEED_WORKSPACE_ID)).map((b) => b.name)).toEqual([]);
   });
 
   it("stores nothing when the form published is the built-in one, so it keeps up with the app", async () => {
@@ -670,7 +696,7 @@ describe("reading whatever a workspace has stored", () => {
     // The old form's one free-text brief leads step two, because step two has
     // no standard questions of its own and it would otherwise be lost.
     expect(migrated.services[0]!.blocks.map((b) => b.id)).toEqual(["legacy-brief", "cost", "campus"]);
-    expect(migrated.services[0]!.blocks[0]).toMatchObject({ kind: "long", label: "Tell us more", description: "What do you need, and what should it achieve?", hintMode: "placeholder", required: true });
+    expect(migrated.services[0]!.blocks[0]).toMatchObject({ kind: "long", label: "Tell us more", description: "What do you need, and what should it achieve?", required: true });
     expect(migrated.services[0]!.blocks[1]).toMatchObject({ kind: "short", label: "Cost centre", description: "Ask your finance officer", required: true });
     expect(migrated.services[0]!.blocks[2]).toMatchObject({ kind: "multi", label: "Campus" });
 

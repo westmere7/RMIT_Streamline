@@ -5,9 +5,17 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** The two controls every part of the form editor is built from. */
+/** The controls every part of the form editor is built from. */
 
-/** Text that stays text until it is clicked: a borderless box that shows its edge on hover and focus. */
+/**
+ * A box for one line of the form's wording.
+ *
+ * It is styled like the text it stands for — a heading's box is heading-sized,
+ * a hint's box is hint-sized — but it is visibly a box: a faint edge at rest, a
+ * firmer one under the cursor, the ring on focus. An earlier version hid the
+ * edge until hovered, which made the page read as the form and made finding
+ * what could be edited a matter of sweeping the cursor over everything.
+ */
 export function TextBox({
   value,
   onChange,
@@ -17,7 +25,6 @@ export function TextBox({
   testId,
   multiline,
   rows,
-  quiet,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -27,19 +34,9 @@ export function TextBox({
   testId?: string;
   multiline?: boolean;
   rows?: number;
-  /**
-   * For a box whose words are not on the form at this spot — an empty hint, or
-   * one that will be shown inside the control or behind a question mark.
-   *
-   * It keeps its place in the layout but stays invisible until the block is
-   * approached, so at rest the page is the form and not a form with its own
-   * scaffolding printed next to it.
-   */
-  quiet?: boolean;
 }) {
   const classes = cn(
-    "-mx-1.5 block w-[calc(100%+0.75rem)] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-inherit outline-none placeholder:text-muted-foreground/60 hover:border-border focus:border-ring focus:bg-background",
-    quiet && "opacity-0 transition-opacity group-hover/frame:opacity-100 focus:opacity-100",
+    "block w-full rounded-md border border-border/50 bg-transparent px-2 py-1 text-inherit outline-none transition-colors placeholder:text-muted-foreground/60 hover:border-border focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20",
     className,
   );
   if (multiline) return <textarea value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} placeholder={placeholder} rows={rows ?? 2} className={cn(classes, "resize-y")} data-testid={testId} />;
@@ -47,61 +44,53 @@ export function TextBox({
 }
 
 /**
- * The frame every editable part of the form wears.
+ * One editable part of the form: a card with a quiet title bar.
  *
- * The form is drawn as the stakeholder will meet it, so the handles that only
- * an editor needs — reorder, duplicate, remove, required, where a description
- * goes — cannot sit in the layout without turning the picture into a
- * description of one. They ride in a strip pinned to the top edge of the frame
- * that appears under the cursor and whenever anything inside has focus, which
- * is also what makes the whole thing reachable from the keyboard.
+ * The bar carries the name of the thing and whatever controls it needs — a
+ * switch, a menu, the duplicate and remove buttons — all of them shown all the
+ * time. Nothing here waits for a hover.
  */
-export function EditorFrame({
-  chrome,
-  handle,
+export function EditorSection({
+  title,
+  aside,
   children,
   className,
+  bodyClassName,
   testId,
   innerRef,
   style,
 }: {
-  chrome?: React.ReactNode;
-  /** A drag handle, placed in the margin so it is beside the form and not in it. */
-  handle?: React.ReactNode;
-  children: React.ReactNode;
+  title?: React.ReactNode;
+  /** Controls on the right of the title bar. */
+  aside?: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
   testId?: string;
   innerRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
 }) {
   return (
-    <div
-      ref={innerRef}
-      style={style}
-      // The top band is empty on purpose: it is where the strip of handles
-      // appears, so it never covers the question it belongs to and nothing
-      // moves when it does.
-      className={cn("group/frame relative rounded-xl border border-transparent px-3 pt-5 pb-2.5 transition-colors hover:border-border/70 hover:bg-surface/30 focus-within:border-border/70", className)}
-      data-testid={testId}
-    >
-      {handle}
-      {chrome && (
-        <div className="pointer-events-none absolute top-0 right-2 z-[2] flex items-center gap-1 rounded-lg border border-border bg-card px-1.5 py-0.5 opacity-0 shadow-xs transition-opacity group-hover/frame:pointer-events-auto group-hover/frame:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
-          {chrome}
-        </div>
+    <section ref={innerRef} style={style} className={cn("rounded-xl border border-border/70 bg-card", className)} data-testid={testId}>
+      {(title || aside) && (
+        <header className="flex min-h-9 items-center gap-2 rounded-t-xl border-b border-border/60 bg-surface/40 px-2.5 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 label-quiet">{title}</div>
+          {aside && <div className="flex shrink-0 items-center gap-1">{aside}</div>}
+        </header>
       )}
-      {children}
-    </div>
+      {children ? <div className={cn("grid gap-2 p-3", bodyClassName)}>{children}</div> : null}
+    </section>
   );
 }
 
-/** The grip that starts a drag, in the frame's left margin. */
+/** The grip that starts a drag. Always visible; quiet until it is wanted. */
 export function DragHandle({
   label,
   testId,
   setRef,
   listeners,
   attributes,
+  className,
 }: {
   label: string;
   testId?: string;
@@ -109,13 +98,14 @@ export function DragHandle({
   /** dnd-kit's own handle props, passed straight through. */
   listeners?: React.DOMAttributes<HTMLElement>;
   attributes?: React.HTMLAttributes<HTMLElement>;
+  className?: string;
 }) {
   return (
     <button
       ref={setRef}
       type="button"
       aria-label={label}
-      className="absolute top-5 -left-5 flex size-5 cursor-grab items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity group-hover/frame:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+      className={cn("flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing", className)}
       data-testid={testId}
       {...attributes}
       {...listeners}
@@ -125,10 +115,32 @@ export function DragHandle({
   );
 }
 
-export function Handle({ label, onClick, disabled, testId, children }: { label: string; onClick: () => void; disabled?: boolean; testId?: string; children: React.ReactNode }) {
+/** A small icon button in a section's title bar. */
+export function Handle({ label, onClick, disabled, destructive, testId, children }: { label: string; onClick: () => void; disabled?: boolean; destructive?: boolean; testId?: string; children: React.ReactNode }) {
   return (
-    <Button type="button" variant="ghost" size="icon-xs" aria-label={label} title={label} onClick={onClick} disabled={disabled} className="text-muted-foreground" data-testid={testId}>
+    <Button type="button" variant="ghost" size="icon-xs" aria-label={label} title={label} onClick={onClick} disabled={disabled} className={cn("text-muted-foreground", destructive && "hover:text-destructive")} data-testid={testId}>
       {children}
     </Button>
+  );
+}
+
+/** A few options, one of them chosen: the pill group used wherever a select would be too much. */
+export function Segmented<T extends string>({ options, value, onChange, label, testId }: { options: ReadonlyArray<{ value: T; label: string }>; value: T; onChange: (value: T) => void; label: string; testId?: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex items-center rounded-full border border-border/70 p-0.5" data-testid={testId}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn("h-6 rounded-full px-2.5 text-2xs font-medium transition-colors", value === option.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          data-testid={testId ? `${testId}-${option.value}` : undefined}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }

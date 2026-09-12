@@ -42,7 +42,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -273,7 +273,7 @@ export interface StakeholderPortalRepository {
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
   getPortalByToken(token: string): Promise<StakeholderPortal | null>;
   createPortal(input: StakeholderPortalInput): Promise<StakeholderPortal>;
-  updatePortal(id: EntityId, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap">>): Promise<StakeholderPortal>;
+  updatePortal(id: EntityId, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups">>): Promise<StakeholderPortal>;
 
   /** A department's requests, newest first, bounded and cursored for stable pagination. */
   listRequests(departmentId: EntityId, options?: { limit?: number; cursor?: string | null }): Promise<{ rows: PortalRequest[]; nextCursor: string | null }>;
@@ -351,6 +351,14 @@ export interface BookingTemplateRepository {
   getById(id: EntityId): Promise<BookingTemplate | null>;
   create(input: BookingTemplateInput): Promise<BookingTemplate>;
   update(id: EntityId, patch: Partial<Pick<BookingTemplate, "name" | "description" | "template">>): Promise<BookingTemplate>;
+  delete(id: EntityId): Promise<void>;
+}
+
+/** Blocks of a brief kept under a name, per workspace, to be dropped into any service's brief. */
+export interface BookingSavedBlockRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<BookingSavedBlock[]>;
+  create(input: BookingSavedBlockInput): Promise<BookingSavedBlock>;
+  update(id: EntityId, patch: Partial<Pick<BookingSavedBlock, "name" | "block">>): Promise<BookingSavedBlock>;
   delete(id: EntityId): Promise<void>;
 }
 
@@ -472,6 +480,7 @@ export interface Repositories {
   workspaceLists: WorkspaceListRepository;
   stakeholderPortals: StakeholderPortalRepository;
   bookingTemplates: BookingTemplateRepository;
+  bookingSavedBlocks: BookingSavedBlockRepository;
   boardShares: BoardShareRepository;
   itemShares: ItemShareRepository;
   dashboardShares: DashboardShareRepository;

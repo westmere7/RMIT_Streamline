@@ -50,6 +50,10 @@ async function portalCard(page: Page) {
   await expect(page.getByRole("heading", { name: "Stakeholder Portal" })).toBeVisible();
   const card = page.getByTestId("portal-card");
   await expect(card).toBeVisible();
+  // The settings fold away under the links; every test here reaches for one of them.
+  const settings = card.getByTestId("portal-settings-toggle");
+  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
+  await expect(card.getByTestId("portal-settings")).toBeVisible();
   return card;
 }
 

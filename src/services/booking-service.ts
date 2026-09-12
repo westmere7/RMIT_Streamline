@@ -1,11 +1,13 @@
 import type {
   Board,
   BoardColumn,
+  BookingBlock,
   BookingForm,
   BookingFormTemplate,
   BookingReceipt,
   BookingRequest,
   BookingTeamOption,
+  BookingSavedBlock,
   BookingTemplate,
   ColumnValue,
   EntityId,
@@ -15,7 +17,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -26,6 +28,7 @@ import {
   isDefaultBookingTemplate,
   mapBookingToColumns,
   normaliseBookingTemplate,
+  readBookingBlock,
   readBookingTemplate,
   resolveBookingDraft,
   resolveBookingTemplate,
@@ -204,9 +207,10 @@ export class BookingService {
     // second time as subitems, which made every booking arrive as a task with a
     // fold-out of rows saying the same thing the Assets tab already said, and
     // doubled what a board counted. A deliverable is not a task.
+    // Each row's own type first; failing that, the one type the whole request named.
     const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
     await this.assets.addMany(
-      request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
+      request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType: asset.assetType?.trim() || assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
       actorId,
     );
 
@@ -311,6 +315,38 @@ export class BookingService {
 
   async deleteTemplate(id: EntityId): Promise<void> {
     await this.repos.bookingTemplates.delete(id);
+  }
+
+  // ---- saved blocks -----------------------------------------------------------
+
+  /** The workspace's saved blocks, each checked against the current shape; one that no longer reads is left out. */
+  async listSavedBlocks(workspaceId: EntityId): Promise<BookingSavedBlock[]> {
+    const rows = await this.repos.bookingSavedBlocks.listByWorkspace(workspaceId);
+    return rows.flatMap((row) => {
+      try {
+        return [{ ...row, block: readBookingBlock(row.block) }];
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  /**
+   * Keeps one block under a name, for the workspace. The same name (whatever
+   * its case) replaces the earlier one, as a template does.
+   */
+  async saveBlock(workspaceId: EntityId, input: { name: string; block: BookingBlock }, actorId: EntityId): Promise<BookingSavedBlock> {
+    const name = input.name.trim();
+    if (!name) throw new Error("Give the block a name.");
+    if (name.length > MAX_BOOKING_SAVED_BLOCK_NAME) throw new Error("Keep the block name under " + MAX_BOOKING_SAVED_BLOCK_NAME + " characters.");
+    const block = readBookingBlock(input.block);
+    const existing = (await this.repos.bookingSavedBlocks.listByWorkspace(workspaceId)).find((b) => b.name.toLowerCase() === name.toLowerCase());
+    if (existing) return this.repos.bookingSavedBlocks.update(existing.id, { name, block });
+    return this.repos.bookingSavedBlocks.create({ workspaceId, name, block, createdBy: actorId });
+  }
+
+  async deleteSavedBlock(id: EntityId): Promise<void> {
+    await this.repos.bookingSavedBlocks.delete(id);
   }
 
   // ---- allocation ----------------------------------------------------------

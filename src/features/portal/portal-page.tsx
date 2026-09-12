@@ -238,6 +238,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
                 payload={page.data}
                 onBook={context?.allowBooking === false ? null : () => setBooking(true)}
                 defaultView={(context?.defaultView ?? "table") as BoardViewKind}
+                showItemGroups={context?.showItemGroups === true}
                 onSearchChange={setSearch}
                 searchingAllYears={searching}
               />
