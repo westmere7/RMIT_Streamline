@@ -16,6 +16,16 @@ import { todayISO } from "@/lib/dates/dates";
  * board on it, so the same movement is read on the task's Activity tab, in the
  * board's activity and in the workspace feed.
  */
+/** What a board needs to know about its deliverables. See `ItemAssetService.loadBoard`. */
+export interface BoardAssets {
+  /** Every line stored on this board. Board totals are counted from these and nothing else. */
+  lines: ItemAsset[];
+  /** What each row shows: its own lines, then anything shared into it through a link. */
+  byItem: Map<EntityId, ItemAsset[]>;
+  /** Other boards holding lines shared into this one, so a subscription can watch them too. */
+  linkedBoardIds: EntityId[];
+}
+
 export class ItemAssetService {
   constructor(private readonly repos: Repositories) {}
 
@@ -34,6 +44,95 @@ export class ItemAssetService {
     // the list reads as "ours, and theirs" rather than interleaved by position
     // numbers that mean nothing across two boards.
     return lists.flat();
+  }
+
+  /**
+   * A whole board's deliverables, as each of its rows actually shows them.
+   *
+   * The board needs two different answers about the same lines, and conflating
+   * them is what made a linked row lie. `lines` is what is *stored here* — the
+   * board's own totals, its chart, its workload, where counting the other
+   * board's lines would be double counting. `byItem` is what each row *shows* —
+   * its own lines plus everything shared into it through a link, which is the
+   * set the item panel has always displayed.
+   *
+   * Before this, the status chip's progress bar and the Kanban card counted
+   * `lines` per row: a task with three deliverables here and one on the board it
+   * is linked to read "2 of 3 done" on the board and "2 of 4 done" in the panel
+   * a few pixels away, and a task whose deliverables all live on the far side
+   * showed no progress at all.
+   *
+   * Four reads whatever the size of the board, and only one of them is new for
+   * a board with no links at all.
+   */
+  async loadBoard(boardId: EntityId, workspaceId: EntityId): Promise<BoardAssets> {
+    const lines = await this.repos.itemAssets.listByBoard(boardId);
+    const byItem = new Map<EntityId, ItemAsset[]>();
+    for (const line of lines) byItem.set(line.itemId, [...(byItem.get(line.itemId) ?? []), line]);
+
+    // Every link in the workspace: a handful of rows, and the only way to reach
+    // the far side without reading this board's items back out of the database.
+    const links = await this.repos.links.listByWorkspace(workspaceId);
+    if (links.length === 0) return { lines, byItem, linkedBoardIds: [] };
+
+    const neighbours = new Map<EntityId, EntityId[]>();
+    for (const link of links) {
+      for (const [from, to] of [
+        [link.itemAId, link.itemBId],
+        [link.itemBId, link.itemAId],
+      ] as const) {
+        neighbours.set(from, [...(neighbours.get(from) ?? []), to]);
+      }
+    }
+
+    // Which of the linked items are on this board. Reading only the items that
+    // appear in a link keeps this off the board's own item table.
+    const linkedItems = await this.repos.items.listByIds([...neighbours.keys()]);
+    const boardOf = new Map(linkedItems.map((item) => [item.id, item.boardId]));
+    const near = linkedItems.filter((item) => item.boardId === boardId).map((item) => item.id);
+    if (near.length === 0) return { lines, byItem, linkedBoardIds: [] };
+
+    // The same walk `sharedWith` does, once for every linked row on the board,
+    // so a chain of three linked tasks reaches the third the way the panel does.
+    const shareSets = new Map<EntityId, EntityId[]>();
+    const far = new Set<EntityId>();
+    const linkedBoards = new Set<EntityId>();
+    for (const itemId of near) {
+      const seen = new Set<EntityId>([itemId]);
+      let frontier = [itemId];
+      while (frontier.length) {
+        const next: EntityId[] = [];
+        for (const id of frontier) {
+          for (const end of neighbours.get(id) ?? []) {
+            if (seen.has(end)) continue;
+            seen.add(end);
+            next.push(end);
+          }
+        }
+        frontier = next;
+      }
+      const others = [...seen].filter((id) => id !== itemId);
+      shareSets.set(itemId, others);
+      for (const id of others) {
+        far.add(id);
+        const board = boardOf.get(id);
+        if (board && board !== boardId) linkedBoards.add(board);
+      }
+    }
+
+    const farLines = await this.repos.itemAssets.listByItems([...far]);
+    const farByItem = new Map<EntityId, ItemAsset[]>();
+    for (const line of farLines) farByItem.set(line.itemId, [...(farByItem.get(line.itemId) ?? []), line]);
+
+    for (const [itemId, others] of shareSets) {
+      const shared = others.flatMap((id) => farByItem.get(id) ?? []);
+      if (shared.length === 0) continue;
+      // The row's own lines first, then the far side's — the order the panel
+      // reads them in.
+      byItem.set(itemId, [...(byItem.get(itemId) ?? []), ...shared]);
+    }
+
+    return { lines, byItem, linkedBoardIds: [...linkedBoards] };
   }
 
   /**

@@ -114,6 +114,80 @@ describe("asset lines on an item", () => {
     await expect(services.assets.update(poster.id, { quantity: -1 }, SEED_USER_IDS.danh)).rejects.toThrow(/zero or more/);
   });
 
+  /**
+   * The deliverables of a linked pair are one set seen from two boards, and
+   * every place that counts them has to reach the same number. The panel always
+   * did — it reads the shared list — but the board read only the lines stored on
+   * it, so the same task said "2 of 3 done" on one board, "0 of 1" on the other
+   * and "2 of 4" in the panel of either.
+   */
+  it("counts the pair's deliverables the same from both boards", async () => {
+    const here = SEED_BOARD_IDS.rmitinerary;
+    const there = SEED_BOARD_IDS.masterclass;
+    const mine = await firstItemOf(here);
+    const theirs = await firstItemOf(there);
+    await services.links.link(mine.id, theirs.id, SEED_USER_IDS.danh);
+
+    const a = await services.assets.add({ itemId: mine.id, boardId: here, name: "A1 poster" }, SEED_USER_IDS.danh);
+    await services.assets.add({ itemId: mine.id, boardId: here, name: "Instagram tile" }, SEED_USER_IDS.danh);
+    const far = await services.assets.add({ itemId: theirs.id, boardId: there, name: "Lecture slides" }, SEED_USER_IDS.danh);
+    await services.assets.update(a.id, { completedAt: new Date().toISOString() }, SEED_USER_IDS.danh);
+
+    // The panel: one list of three, wherever it is opened from.
+    expect((await services.assets.list(mine.id)).map((l) => l.name)).toEqual(["A1 poster", "Instagram tile", "Lecture slides"]);
+    expect((await services.assets.list(theirs.id)).map((l) => l.name).sort()).toEqual(["A1 poster", "Instagram tile", "Lecture slides"]);
+
+    // And the board, from either side. `lines` stays what each board stores —
+    // its own totals must not count the other board's work twice — while
+    // `byItem` is what the row shows.
+    const hereAssets = await services.assets.loadBoard(here, SEED_WORKSPACE_ID);
+    const thereAssets = await services.assets.loadBoard(there, SEED_WORKSPACE_ID);
+    // (The seeded boards carry lines of their own; these are the two items' own.)
+    expect(hereAssets.lines.filter((l) => l.itemId === mine.id)).toHaveLength(2);
+    expect(thereAssets.lines.filter((l) => l.itemId === theirs.id)).toHaveLength(1);
+    expect(hereAssets.byItem.get(mine.id)!.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile", "Lecture slides"]);
+    expect(thereAssets.byItem.get(theirs.id)!.map((l) => l.name).sort()).toEqual(["A1 poster", "Instagram tile", "Lecture slides"]);
+
+    // Which is the number the progress bar is drawn from: 1 of 3, both sides.
+    for (const [assets, itemId] of [
+      [hereAssets, mine.id],
+      [thereAssets, theirs.id],
+    ] as const) {
+      const lines = assets.byItem.get(itemId)!;
+      expect(lines.filter((l) => l.completedAt).length).toBe(1);
+      expect(lines).toHaveLength(3);
+    }
+
+    // Each side is told where the other's lines live, so it can watch that
+    // board for changes it would otherwise never hear about.
+    expect(hereAssets.linkedBoardIds).toContain(there);
+    expect(thereAssets.linkedBoardIds).toContain(here);
+
+    // Ticking the far side off moves both.
+    await services.assets.update(far.id, { completedAt: new Date().toISOString() }, SEED_USER_IDS.danh);
+    const after = await services.assets.loadBoard(here, SEED_WORKSPACE_ID);
+    expect(after.byItem.get(mine.id)!.filter((l) => l.completedAt)).toHaveLength(2);
+
+    // Unlinked, each goes back to its own.
+    const links = await repos.links.listByItem(mine.id);
+    await services.links.unlink(links[0]!.id, SEED_USER_IDS.danh);
+    const apart = await services.assets.loadBoard(here, SEED_WORKSPACE_ID);
+    expect(apart.byItem.get(mine.id)!.map((l) => l.name)).toEqual(["A1 poster", "Instagram tile"]);
+  });
+
+  it("reaches the third task in a chain, the way the panel does", async () => {
+    const first = await firstItemOf(SEED_BOARD_IDS.rmitinerary);
+    const second = await firstItemOf(SEED_BOARD_IDS.masterclass);
+    const third = await firstItemOf(SEED_BOARD_IDS.openday);
+    await services.links.link(first.id, second.id, SEED_USER_IDS.danh);
+    await services.links.link(second.id, third.id, SEED_USER_IDS.danh);
+    await services.assets.add({ itemId: third.id, boardId: third.boardId, name: "Run sheet" }, SEED_USER_IDS.danh);
+
+    const board = await services.assets.loadBoard(SEED_BOARD_IDS.rmitinerary, SEED_WORKSPACE_ID);
+    expect(board.byItem.get(first.id)!.map((l) => l.name)).toEqual(["Run sheet"]);
+    expect(board.linkedBoardIds).toContain(third.boardId);
+  });
+
   it("fills a recap column added later from the lines that already exist, and go when the item goes", async () => {
     const boardId = SEED_BOARD_IDS.masterclass;
     const item = await firstItemOf(boardId);

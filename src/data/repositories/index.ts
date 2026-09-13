@@ -304,6 +304,8 @@ export interface ItemAssetRepository {
   getById(id: EntityId): Promise<ItemAsset | null>;
   /** An item's asset lines in position order. */
   listByItem(itemId: EntityId): Promise<ItemAsset[]>;
+  /** The lines of several items at once, for the far side of a board's links. */
+  listByItems(itemIds: EntityId[]): Promise<ItemAsset[]>;
   /** Every line on a board, for the recap cells. */
   listByBoard(boardId: EntityId): Promise<ItemAsset[]>;
   create(input: ItemAssetInput): Promise<ItemAsset>;

@@ -595,6 +595,8 @@ Comments remain associated with their source item while the linked conversation 
 
 The compact recap formatter shows quantity and people, for example `14 assets · 2 PIC`; type counts still exist in the recap data. `ItemAssetService` updates cached ASSETS_RECAP values when asset lines change.
 
+**Linked tasks share one set of deliverables**, and the board asks two different questions about the same lines. `ItemAssetService.loadBoard()` answers both: `lines` is what is *stored* on the board — its own totals, where counting the other board's lines would be double counting — and `byItem` is what each row *shows*, its own lines plus everything reachable through links (the same walk `list()` does, so a chain of three linked tasks resolves the same way the panel does). The status chip's progress bar, the Kanban card, the recap cell and the chart/workload `assetUnits` measure all read `byItem`, so a linked task reads the same on the board as in the panel a few pixels away. Before this they counted only the lines stored on the board being looked at: a task with three deliverables here and one on the board it was linked to said "2 of 3 done" on the board and "2 of 4 done" in the panel, and a task whose deliverables all lived on the far side showed no progress bar at all. `loadBoard` also returns `linkedBoardIds`, which `useBoardAssets` subscribes to: a shared line is stored on whichever board it was added to, so ticking one off produces an event the near board's own filtered subscription never sees.
+
 Allocation moves the existing item and its asset records to the receiving board and recomputes the recap. Generic linked-field synchronization still does not synchronize the asset-line list or ASSETS_RECAP values.
 
 Assets also carry `previewUrl` and `artworkUrl` (Preview and Final artwork/FA), added in migration 0034. The shared asset composer is reused by item editing and booking. Service mutations record ASSET_ADDED, ASSET_UPDATED, ASSET_REMOVED, ASSET_COMPLETED and ASSET_REOPENED activity (migration 0025). Portal and dashboard projections exclude notes and both URLs; ordinary board and item shares carry their scoped asset records, so that exclusion does not apply to every share type.
@@ -895,6 +897,7 @@ The local synchronization component responds by invalidating queries. The channe
 | --- | --- | --- |
 | `workspace:<ws>:<user>` | `WorkspaceProvider` | workspace row, members, invitations, profiles, teams, team members, board members, boards, favourites, workspace lists, notifications and preferences, direct messages, trackers, item reads |
 | `board:<id>` | board page and board archive page | items, values, groups, columns (filtered by board), plus comments, assets, links and activity |
+| `board-linked-assets:<id>:<boards>` | any board with linked rows | `item_assets` on the boards holding deliverables shared into this one |
 | `dashboard:<ws>` | dashboard page | every table the snapshot is read from |
 | `my-work:<ws>:<user>` | My Work, home, mobile home | values, items, columns, boards |
 | `item-links:<item>` | item panel | values, items, links, assets, columns |
@@ -906,6 +909,8 @@ The local synchronization component responds by invalidating queries. The channe
 The workspace channel carries only low-traffic tables, because it is open on every page; items and their values stay filtered and scoped to the page that reads them. Item values have a denormalized `board_id` (migration 0036), maintained by the integrity trigger and move paths, so value events are filtered to the open board. Comments and links still use broader subscriptions where no board filter is present.
 
 Events are coalesced (**400 ms** by default; 2 s on the dashboard, 1 s on a tracker sheet) so one service operation writing several rows does not force a separate refetch for every event. A `minIntervalMs` option bounds a long run of bursts, which is what a board being worked on steadily looks like.
+
+**Shared channels.** Supabase returns the channel it already has when a topic is asked for twice, and a subscribed channel refuses new `postgres_changes` callbacks — so two components asking for the same subscription would throw in the second. `useRealtime` keeps a ref-counted registry: callers of the same channel share one subscription, and the last one out closes it after a tick, so a remount does not churn the socket. The topic carries a digest of the bindings, so one topic always means one set of listeners. A board asks for its linked-assets channel from every row.
 
 **Deletions.** With RLS on, Postgres has no old row to give Realtime, so a `DELETE` arrives as a primary key alone and a filter such as `board_id=eq.<id>` matches nothing. `useRealtime` therefore adds one unfiltered `DELETE` listener per filtered table, merging the keys of every binding on it. `replica identity full` would make the filter work instead, but deletions are not filtered by RLS, so the whole deleted row would reach every subscriber to the table — which is why it is not used.
 

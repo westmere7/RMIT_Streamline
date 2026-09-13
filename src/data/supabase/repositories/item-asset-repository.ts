@@ -1,6 +1,6 @@
 import type { ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import type { ItemAssetRepository } from "@/data/repositories";
-import { assertOk, db, unwrap, unwrapList } from "../client";
+import { assertOk, chunk, db, unwrap, unwrapList } from "../client";
 
 const ASSET =
   "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, preview_url, artwork_url, position, created_by, created_at, updated_at";
@@ -60,6 +60,19 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
   async listByItem(itemId: string): Promise<ItemAsset[]> {
     const result = await db().from("item_assets").select(ASSET).eq("item_id", itemId).order("position", { ascending: true }).order("created_at", { ascending: true });
     return unwrapList<ItemAssetRow>(result, "item_assets.listByItem").map(toItemAsset);
+  }
+
+  async listByItems(itemIds: string[]): Promise<ItemAsset[]> {
+    if (itemIds.length === 0) return [];
+    const pages = await Promise.all(
+      chunk(itemIds).map(async (part) =>
+        unwrapList<ItemAssetRow>(
+          await db().from("item_assets").select(ASSET).in("item_id", part).order("position", { ascending: true }).order("created_at", { ascending: true }),
+          "item_assets.listByItems",
+        ),
+      ),
+    );
+    return pages.flat().map(toItemAsset);
   }
 
   async listByBoard(boardId: string): Promise<ItemAsset[]> {

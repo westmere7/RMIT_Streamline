@@ -55,7 +55,7 @@ export function WorkloadView() {
   const [offset, setOffset] = React.useState(0);
   const assets = useBoardAssets(board.id);
 
-  const ctx = React.useMemo(() => contextFromModel(model, now, users, assets.data), [model, now, users, assets.data]);
+  const ctx = React.useMemo(() => contextFromModel(model, now, users, assets.data?.byItem), [model, now, users, assets.data]);
   const items = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
   const periodList = React.useMemo(() => periods(now, kind, WINDOW[kind], offset), [now, kind, offset]);
 
@@ -73,7 +73,7 @@ export function WorkloadView() {
     return <ViewEmpty title="Workload needs a People column" description="Add a People column to this board to see who is carrying what, week by week." />;
   }
 
-  const measures = availableMeasures([], (assets.data?.length ?? 0) > 0);
+  const measures = availableMeasures([], (assets.data?.byItem.size ?? 0) > 0);
   const userById = new Map(users.map((u) => [u.id, u]));
   const rows = matrix.unassigned ? [...matrix.rows, matrix.unassigned] : matrix.rows;
 

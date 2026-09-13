@@ -26,18 +26,19 @@ export interface AggregateContext {
   /** The palette of a TAGS column (plus tags in use), for tag colours. */
   tagOptions?: (column: BoardColumn) => TagOption[];
   /** Asset lines per item, for the "assetUnits" measure. */
-  assetsByItem?: Map<string, ReadonlyArray<Pick<ItemAsset, "quantity">>>;
+  assetsByItem?: ReadonlyMap<string, ReadonlyArray<Pick<ItemAsset, "quantity">>>;
 }
 
 /** The context a view builds from its board model. */
-export function contextFromModel(model: Pick<BoardModel, "columns" | "groups" | "getValue" | "snapshot">, now: Date, users: ReadonlyArray<Pick<User, "id" | "displayName">>, assets?: ReadonlyArray<Pick<ItemAsset, "itemId" | "quantity">>): AggregateContext {
+/**
+ * `assetsByItem` is what each row *shows* — its own deliverables plus anything
+ * shared into it through a link — rather than what this board stores, so a
+ * measure counted across the board adds up to what the rows say. The lookup is
+ * only ever read for items that are on the board, so a shared line counts once
+ * per row that shows it and never leaks a far board's items into a total.
+ */
+export function contextFromModel(model: Pick<BoardModel, "columns" | "groups" | "getValue" | "snapshot">, now: Date, users: ReadonlyArray<Pick<User, "id" | "displayName">>, assetsByItem?: ReadonlyMap<string, ReadonlyArray<Pick<ItemAsset, "quantity">>>): AggregateContext {
   const names = new Map(users.map((u) => [u.id, u.displayName]));
-  const assetsByItem = new Map<string, Array<Pick<ItemAsset, "quantity">>>();
-  for (const line of assets ?? []) {
-    const list = assetsByItem.get(line.itemId) ?? [];
-    list.push(line);
-    assetsByItem.set(line.itemId, list);
-  }
   return {
     columns: model.columns,
     groups: model.groups,

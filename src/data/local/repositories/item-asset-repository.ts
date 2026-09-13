@@ -27,6 +27,13 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     return (await db.getAllFromIndex("itemAssets", "byItem", itemId)).map(normalize).sort(byPosition);
   }
 
+  async listByItems(itemIds: string[]): Promise<ItemAsset[]> {
+    if (itemIds.length === 0) return [];
+    const db = await this.conn.getDb();
+    const lists = await Promise.all(itemIds.map((id) => db.getAllFromIndex("itemAssets", "byItem", id)));
+    return lists.flat().map(normalize).sort(byPosition);
+  }
+
   async listByBoard(boardId: string): Promise<ItemAsset[]> {
     const db = await this.conn.getDb();
     return (await db.getAllFromIndex("itemAssets", "byBoard", boardId)).map(normalize).sort(byPosition);

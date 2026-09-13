@@ -6,8 +6,10 @@ import type { Item, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newId, nowIso } from "@/lib/ids";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 
 export function useItemAssets(itemId: string | null) {
   const services = useServices();
@@ -19,15 +21,38 @@ export function useItemAssets(itemId: string | null) {
   });
 }
 
-/** Every line on a board, for the recap cells; shares its key prefix with the per-item query so both refresh together. */
+/**
+ * A board's deliverables, both ways the board needs them: `lines` for its own
+ * totals and `byItem` for what each row shows, links included. Shares its key
+ * prefix with the per-item query so both refresh together.
+ *
+ * It also watches the boards on the far side of this board's links. A shared
+ * line is stored on whichever board it was added to, so ticking one off updates
+ * a row on a board whose own channel never hears about it — the event carries
+ * that other board's id, and this board's subscription is filtered to its own.
+ * One binding per linked board, which is a handful at most.
+ */
 export function useBoardAssets(boardId: string) {
   const services = useServices();
-  return useQuery({
+  const ws = useWorkspace();
+  const query = useQuery({
     queryKey: queryKeys.boardAssets(boardId),
-    queryFn: () => services.assets.listByBoard(boardId),
+    queryFn: () => services.assets.loadBoard(boardId, ws.workspace.id),
     staleTime: 5_000,
   });
+  const linkedBoardIds = query.data?.linkedBoardIds ?? EMPTY_BOARD_IDS;
+  const bindings: RealtimeBinding[] = linkedBoardIds.map((id) => ({
+    table: "item_assets",
+    filter: `board_id=eq.${id}`,
+    // The panel reads the same shared lines, so it follows them too.
+    keys: [queryKeys.boardAssets(boardId), ["item-assets"]],
+  }));
+  useRealtime(linkedBoardIds.length > 0 ? `board-linked-assets:${boardId}:${[...linkedBoardIds].sort().join(",")}` : null, bindings);
+  return query;
 }
+
+/** Stable empty list, so a board with no links does not rebuild its (absent) subscription every render. */
+const EMPTY_BOARD_IDS: string[] = [];
 
 /**
  * How much of an item's asset list is ticked off, counted in lines rather than
@@ -44,32 +69,43 @@ export interface AssetProgress {
 }
 
 /**
- * Cached on the array React Query hands back, so a board of two hundred rows
- * walks its asset lines once rather than once per row. Structural sharing keeps
- * that array identical until the lines actually change.
+ * Cached on the map React Query hands back, so a board of two hundred rows
+ * works its asset lines out once rather than once per row. Structural sharing
+ * keeps that object identical until the lines actually change.
  */
-const progressCache = new WeakMap<readonly ItemAsset[], Map<string, AssetProgress>>();
+const progressCache = new WeakMap<Map<string, ItemAsset[]>, Map<string, AssetProgress>>();
 
-function progressByItem(assets: readonly ItemAsset[]): Map<string, AssetProgress> {
-  const cached = progressCache.get(assets);
+function progressByItem(byItem: Map<string, ItemAsset[]>): Map<string, AssetProgress> {
+  const cached = progressCache.get(byItem);
   if (cached) return cached;
   const map = new Map<string, AssetProgress>();
-  for (const asset of assets) {
-    const entry = map.get(asset.itemId) ?? { lines: 0, done: 0, percent: 0 };
-    entry.lines += 1;
-    if (asset.completedAt) entry.done += 1;
-    map.set(asset.itemId, entry);
+  for (const [itemId, assets] of byItem) {
+    const done = assets.filter((a) => a.completedAt).length;
+    map.set(itemId, { lines: assets.length, done, percent: assets.length > 0 ? Math.round((done / assets.length) * 100) : 0 });
   }
-  for (const entry of map.values()) entry.percent = entry.lines > 0 ? Math.round((entry.done / entry.lines) * 100) : 0;
-  progressCache.set(assets, map);
+  progressCache.set(byItem, map);
   return map;
 }
 
-/** What an item's asset list adds up to, or null while the board's lines load or it has none. */
+/**
+ * What an item's asset list adds up to, or null while the board's lines load or
+ * it has none.
+ *
+ * Counted from what the row shows rather than from what this board stores, so a
+ * linked task's bar says the same thing as the panel behind it.
+ */
 export function useItemAssetProgress(boardId: string, itemId: string): AssetProgress | null {
   const assets = useBoardAssets(boardId);
-  return assets.data ? progressByItem(assets.data).get(itemId) ?? null : null;
+  return assets.data ? progressByItem(assets.data.byItem).get(itemId) ?? null : null;
 }
+
+/** The deliverables one row of a board shows: its own, plus anything shared into it. */
+export function useItemLinesOnBoard(boardId: string, itemId: string): readonly ItemAsset[] | null {
+  const assets = useBoardAssets(boardId);
+  return assets.data ? assets.data.byItem.get(itemId) ?? EMPTY_LINES : null;
+}
+
+const EMPTY_LINES: readonly ItemAsset[] = [];
 
 export type NewAssetLine = Omit<ItemAssetInput, "itemId" | "boardId" | "position" | "createdBy">;
 

@@ -44,10 +44,37 @@ export interface RealtimeOptions {
 const DEFAULT_COALESCE_MS = 400;
 
 /**
+ * Live channels, by the topic they were opened under.
+ *
+ * Supabase hands back the *existing* channel when a topic is asked for twice,
+ * and a channel that has already subscribed refuses new `postgres_changes`
+ * callbacks — so two components asking for the same subscription used to crash
+ * the second one. They share one, counted here: a board's rows all want the
+ * same thing, and one row is as good a place to ask from as any.
+ */
+interface OpenChannel {
+  readonly topic: string;
+  /** How many mounted callers want it. The last one out closes it. */
+  refs: number;
+  close: () => void;
+  /** Pending teardown, so React's mount-cleanup-mount in development does not churn the socket. */
+  closing: ReturnType<typeof setTimeout> | null;
+}
+const open = new Map<string, OpenChannel>();
+
+/** Short, stable digest of the bindings, so one topic always means one set of listeners. */
+function digest(signature: string): string {
+  let hash = 0;
+  for (let i = 0; i < signature.length; i += 1) hash = (Math.imul(31, hash) + signature.charCodeAt(i)) | 0;
+  return (hash >>> 0).toString(36);
+}
+
+/**
  * Subscribes while `channel` is non-null and the provider is Supabase.
  *
  * `bindings` may be rebuilt on every render — the subscription is keyed by what
- * it describes, not by the identity of the array.
+ * it describes, not by the identity of the array. Several components may ask
+ * for the same channel; they share one subscription.
  */
 export function useRealtime(channel: string | null, bindings: readonly RealtimeBinding[], options: RealtimeOptions = {}): void {
   const { providerKind } = useDataContext();
@@ -61,6 +88,20 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
 
   useEffect(() => {
     if (!channel || providerKind !== "supabase" || bindings.length === 0) return;
+
+    // The bindings are part of the topic, not just of the name the caller chose:
+    // the same name with different listeners has to be a different channel, or
+    // the first one to open wins and the second is silently wrong.
+    const topic = `${channel}#${digest(signature)}`;
+    const shared = open.get(topic);
+    if (shared) {
+      shared.refs += 1;
+      if (shared.closing) {
+        clearTimeout(shared.closing);
+        shared.closing = null;
+      }
+      return () => release(topic);
+    }
 
     const supabase = getSupabaseClient();
     // Keyed by the serialised query key so the same key queued twice is read once.
@@ -89,7 +130,7 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       timer = setTimeout(flush, wait);
     };
 
-    const subscription = supabase.channel(channel);
+    const subscription = supabase.channel(topic);
     // Tables whose deletions a filter would hide, and everything those
     // bindings wanted refreshed. See the DELETE listener below.
     const deletes = new Map<string, Map<string, readonly unknown[]>>();
@@ -133,12 +174,36 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       schedule(bindings.flatMap((binding) => binding.keys));
     });
 
-    return () => {
-      if (timer) clearTimeout(timer);
-      pending.clear();
-      void supabase.removeChannel(subscription);
-    };
+    open.set(topic, {
+      topic,
+      refs: 1,
+      closing: null,
+      close: () => {
+        if (timer) clearTimeout(timer);
+        pending.clear();
+        void supabase.removeChannel(subscription);
+      },
+    });
+    return () => release(topic);
     // `signature` stands in for `bindings`: same tables, same filters, same keys, same subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel, providerKind, queryClient, signature, coalesceMs, minIntervalMs]);
+}
+
+/**
+ * One caller has gone. Closing waits a tick: React unmounts and remounts an
+ * effect on the spot in development, and a page that swaps one row component
+ * for another does the same — tearing the socket down and building it again in
+ * between is churn nobody asked for, and `removeChannel` is asynchronous enough
+ * that the rebuild can collide with it.
+ */
+function release(topic: string): void {
+  const shared = open.get(topic);
+  if (!shared) return;
+  shared.refs -= 1;
+  if (shared.refs > 0 || shared.closing) return;
+  shared.closing = setTimeout(() => {
+    open.delete(topic);
+    shared.close();
+  }, 0);
 }

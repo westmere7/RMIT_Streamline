@@ -55,13 +55,20 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
-function subscribe(bindings: RealtimeBinding[], options?: Parameters<typeof useRealtime>[2]) {
+/**
+ * A fresh channel name per test. Channels are shared by name across the whole
+ * app, so a name reused between tests would hand the second one the first's
+ * subscription — which is the sharing this suite is partly here to check.
+ */
+let channelNo = 0;
+
+function subscribe(bindings: RealtimeBinding[], options?: Parameters<typeof useRealtime>[2], name = `test-${(channelNo += 1)}`) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidate = vi.spyOn(client, "invalidateQueries");
   const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  const view = renderHook(({ b }: { b: RealtimeBinding[] }) => useRealtime("test", b, options), { wrapper, initialProps: { b: bindings } });
+  const view = renderHook(({ b }: { b: RealtimeBinding[] }) => useRealtime(name, b, options), { wrapper, initialProps: { b: bindings } });
   invalidate.mockClear();
-  return { ...view, invalidate };
+  return { ...view, invalidate, name };
 }
 
 /** Keys the hook asked to be refetched, flattened for easy assertions. */
@@ -167,6 +174,40 @@ describe("a realtime subscription", () => {
   it("closes the channel when the page it belongs to goes away", () => {
     const { unmount } = subscribe([{ table: "items", keys: [["board-snapshot", "b1"]] }]);
     unmount();
+    // Closing waits a tick, so a component that unmounts and mounts again on
+    // the spot keeps its socket.
+    act(() => void vi.advanceTimersByTime(1));
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Supabase hands back the channel it already has when a topic is asked for
+   * twice, and a subscribed channel refuses new callbacks — so before this, the
+   * second component to ask for the same subscription threw. A board asks from
+   * every row.
+   */
+  it("shares one subscription between everyone who asks for it", () => {
+    const bindings: RealtimeBinding[] = [{ table: "item_assets", filter: "board_id=eq.b2", keys: [["item-assets"]] }];
+    const first = subscribe(bindings);
+    const second = subscribe(bindings, undefined, first.name);
+    const third = subscribe(bindings, undefined, first.name);
+
+    // One channel, one set of listeners: the filtered binding and its deletion companion.
+    expect(live.listeners).toHaveLength(2);
+
+    act(() => {
+      live.emit("item_assets");
+      vi.advanceTimersByTime(500);
+    });
+    expect(refetched(first.invalidate)).toEqual(['["item-assets"]']);
+
+    // And it stays open until the last of them has gone.
+    second.unmount();
+    third.unmount();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(removeChannel).not.toHaveBeenCalled();
+    first.unmount();
+    act(() => void vi.advanceTimersByTime(1));
     expect(removeChannel).toHaveBeenCalledTimes(1);
   });
 });

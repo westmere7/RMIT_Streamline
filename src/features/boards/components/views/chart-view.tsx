@@ -47,12 +47,12 @@ export function ChartView() {
   const setMeasure = (next: Measure) => updateSettings({ measure: next });
   const setType = (next: ChartType) => updateSettings({ type: next });
 
-  const ctx = React.useMemo(() => contextFromModel(model, now, users, assets.data), [model, now, users, assets.data]);
+  const ctx = React.useMemo(() => contextFromModel(model, now, users, assets.data?.byItem), [model, now, users, assets.data]);
   const items = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
 
   // A dimension or measure can vanish when a column is removed; fall back quietly.
   const dimensions = availableDimensions(model.columns);
-  const measures = availableMeasures(model.columns, (assets.data?.length ?? 0) > 0);
+  const measures = availableMeasures(model.columns, (assets.data?.byItem.size ?? 0) > 0);
   const activeDimension = dimensions.includes(dimension) ? dimension : (dimensions[0] ?? "group");
   const activeMeasure = measures.some((m) => m.value === measure) ? measure : "count";
 

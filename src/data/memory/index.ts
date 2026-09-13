@@ -195,6 +195,10 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
     itemAssets: {
       getById: async (id) => payload().assets.find((a) => a.id === id) ?? null,
       listByItem: async (itemId) => payload().assets.filter((a) => a.itemId === itemId).sort((a, b) => a.position - b.position),
+      // Only what the link carries: a public board's payload holds its own
+      // lines, so the far side of a link comes back empty here rather than
+      // reaching across to a board this link does not publish.
+      listByItems: async (ids) => payload().assets.filter((a) => ids.includes(a.itemId)).sort((a, b) => a.position - b.position),
       listByBoard: async (boardId) => (onBoard(boardId) ? payload().assets : []),
       create: readOnly("adding an asset"),
       update: readOnly("editing an asset"),

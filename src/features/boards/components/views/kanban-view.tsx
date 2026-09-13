@@ -369,7 +369,9 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
   });
   const sizeColumn = model.columns.find((c) => c.type === "SIZE" && !c.hidden);
   const size = sizeColumn ? model.getValue(item.id, sizeColumn.id) : undefined;
-  const lines = assets.data?.filter((a) => a.itemId === item.id) ?? [];
+  // What the card shows, links included: a task mirrored on another board has
+  // the same deliverables from either side.
+  const lines = assets.data?.byItem.get(item.id) ?? [];
   const recap = lines.length ? recapAssets(lines, todayISO()) : null;
   const overdue = !done && isOverdue(due);
   const dueToday = !done && isToday(due);
