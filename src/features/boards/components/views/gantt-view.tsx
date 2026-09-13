@@ -1,13 +1,14 @@
 "use client";
 
 import { format } from "date-fns";
-import { ChevronDown, ChevronRight, Crosshair, GitBranch, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Crosshair, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardGroup, Item, User } from "@/domain";
 import { columnLabels } from "@/domain";
+import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { useBoardContext } from "@/features/boards/board-context";
 import { colorClasses } from "@/lib/colors";
 import { formatDateRange, toISODate } from "@/lib/dates/dates";
@@ -223,7 +224,7 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
           <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-left hover:underline" data-testid="gantt-name">
             <span className={cn("truncate text-[13px]", row.depth === 1 && "text-xs", done && "text-muted-foreground line-through")}>{item.name}</span>
             {row.children > 0 && <span className="shrink-0 text-2xs text-muted-foreground tabular">{children.filter((c) => model.isDone(c.id)).length}/{children.length}</span>}
-            {blocked && <GitBranch className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}
+            {blocked && <BlockedDot label="Waiting on a dependency" />}
           </button>
         </div>
         <div className="flex justify-center" style={{ width: OWNER_WIDTH }}>

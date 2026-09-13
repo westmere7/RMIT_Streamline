@@ -989,7 +989,7 @@ export function DependencyCell({ item, column, value, onChange, readOnly, width 
       trigger={
         deps.length > 0 ? (
           <span className={cn("flex items-center gap-1 overflow-hidden px-1 text-xs", blocked ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
-            {blocked && <TriangleAlert className="size-3 shrink-0" />}
+            {blocked && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" />}
             <span className="truncate">{names.slice(0, visibleDeps).join(", ")}</span>
             {names.length > visibleDeps && <MoreCount count={names.length - visibleDeps} />}
           </span>

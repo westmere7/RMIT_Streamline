@@ -2,8 +2,9 @@
 
 import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Lock, SearchX, SquareKanban, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -63,13 +64,19 @@ export function BoardArchivePage() {
  * is the whole reason to come here — and they run against the archive rather
  * than the page, which is why the page is the only thing loaded.
  */
+/** The panel, subscribed to which task is open. Same reasoning as the board's slot. */
+function ArchivePanelSlot({ onClose }: { onClose: (id: string | null) => void }) {
+  const itemId = useBoardUiStore((s) => s.openItemId);
+  if (!itemId) return null;
+  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} />;
+}
+
 function ArchiveScreen({ boardId }: { boardId: string }) {
   const ws = useWorkspace();
   const board = ws.boardById(boardId)!;
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const itemId = searchParams.get("item");
+  const urlItemId = searchParams.get("item");
 
   const [request, setRequest] = React.useState<ArchiveRequest>(EMPTY_ARCHIVE_REQUEST);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -82,7 +89,7 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
   // the board does.
   useBoardRealtime(boardId);
 
-  const page = useArchivePage(boardId, request, itemId);
+  const page = useArchivePage(boardId, request, urlItemId);
   const archive = useArchiveMutations(boardId);
   // The board's own mutations, for the panel: opening a task from the archive
   // shows the same panel, and it expects a board to act on.
@@ -105,17 +112,28 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
         else next.set(k, v);
       }
       const query = next.toString();
-      router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+      // Straight to the history: the open task is read only here, and the
+      // router would fetch the route again for it. See the board for the rest.
+      window.history.replaceState(null, "", `${pathname}${query ? `?${query}` : ""}`);
     },
-    [router, pathname],
+    [pathname],
   );
-  const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
-
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  // Which task is open lives in the store, and the panel subscribes to it: the
+  // click moves it before the handler returns, and the whole page is not
+  // redrawn for it. Same as the board — see `openItem` there.
+  const openItem = React.useCallback(
+    (id: string | null) => {
+      flushSync(() => setOpenItemId(id));
+      requestAnimationFrame(() => replaceParams({ item: id }));
+    },
+    [replaceParams, setOpenItemId],
+  );
+
   React.useEffect(() => {
-    setOpenItemId(itemId);
+    setOpenItemId(urlItemId);
     return () => setOpenItemId(null);
-  }, [itemId, setOpenItemId]);
+  }, [urlItemId, setOpenItemId]);
 
   // The model is built over the page's rows: cells, links and subitem counts
   // resolve against what came back, and nothing else is in memory to resolve
@@ -237,7 +255,7 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
                 onPageSize={(pageSize) => patchRequest({ pageSize })}
               />
             </div>
-            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
+            <ArchivePanelSlot onClose={openItem} />
           </div>
 
           {selectedIds.length > 0 && canManage && (

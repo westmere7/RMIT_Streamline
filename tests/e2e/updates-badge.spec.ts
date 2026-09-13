@@ -28,16 +28,17 @@ test.describe("update badges on items", () => {
     await openBoard(page);
   });
 
-  test("shows the count quietly for your own updates and as new for everyone else until they look", async ({ page }) => {
+  test("says nothing about your own updates and counts what is new for everyone else until they look", async ({ page }) => {
     await expect(badge(page, ITEM)).toHaveCount(0);
     await postUpdate(page, ITEM, "Badge check one");
-    await expect(badge(page, ITEM)).toContainText("1");
-    await expect(badge(page, ITEM)).toHaveAttribute("data-unread", "0");
+    // Your own update is not news to you: nothing on the row.
+    await expect(badge(page, ITEM)).toHaveCount(0);
 
-    // Tuyet has not seen it: the badge reads as new.
+    // Tuyet has not seen it: one new.
     await switchUser(page, /Tuyet Le/);
     await openBoard(page);
     await expect(badge(page, ITEM)).toHaveAttribute("data-unread", "1", { timeout: 15000 });
+    await expect(badge(page, ITEM)).toContainText("1");
 
     // Clicking the badge opens the item; the Updates tab is where catching up happens.
     await badge(page, ITEM).click();
@@ -46,12 +47,11 @@ test.describe("update badges on items", () => {
     await expect(page.getByTestId("item-panel").getByRole("tab", { name: /updates/i })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("comment").filter({ hasText: "Badge check one" })).toBeVisible();
     await page.getByRole("button", { name: "Close panel" }).click();
-    await expect(badge(page, ITEM)).toHaveAttribute("data-unread", "0", { timeout: 15000 });
-    await expect(badge(page, ITEM)).toContainText("1");
+    await expect(badge(page, ITEM)).toHaveCount(0, { timeout: 15000 });
 
     // And it stays read after a reload.
     await page.reload();
-    await expect(badge(page, ITEM)).toHaveAttribute("data-unread", "0", { timeout: 15000 });
+    await expect(badge(page, ITEM)).toHaveCount(0, { timeout: 15000 });
   });
 
   test("reading the notification in the Inbox also clears the new marker", async ({ page }) => {
@@ -70,6 +70,6 @@ test.describe("update badges on items", () => {
     await page.waitForTimeout(500);
 
     await openBoard(page);
-    await expect(badge(page, OTHER)).toHaveAttribute("data-unread", "0", { timeout: 15000 });
+    await expect(badge(page, OTHER)).toHaveCount(0, { timeout: 15000 });
   });
 });

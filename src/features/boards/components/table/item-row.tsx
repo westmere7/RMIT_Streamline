@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2, TriangleAlert } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -16,6 +16,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { ReferenceCell, ReferenceSpacer } from "@/features/boards/components/table/reference-cell";
+import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
@@ -285,13 +286,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 </div>
                 {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
                 <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
-                {blocked && (
-                  <SimpleTooltip label="Blocked: depends on items that are not done">
-                    <span className="shrink-0 text-amber-600 dark:text-amber-400" aria-label="Blocked">
-                      <TriangleAlert className="size-3.5" />
-                    </span>
-                  </SimpleTooltip>
-                )}
+                {blocked && <BlockedDot />}
                 <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   {canEdit && (
                     <SimpleTooltip label="Rename">

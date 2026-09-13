@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CornerDownRight, Link2, MoreHorizontal, TriangleAlert } from "lucide-react";
+import { ChevronDown, CornerDownRight, Link2, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -82,7 +82,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
             )}
             {blocked && (
               <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
-                <TriangleAlert className="size-3" aria-hidden /> Blocked
+                <span aria-hidden className="size-1.5 rounded-full bg-current" /> Blocked
               </span>
             )}
           </span>

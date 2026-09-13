@@ -41,6 +41,7 @@ import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
 import { AssetsRecapStrip } from "@/features/items/item-assets-recap";
+import { useItemLinks } from "@/features/items/link-hooks";
 import { ShareItemDialog, useItemShareStatus } from "@/features/items/share-item-dialog";
 import { ItemAssetsTab } from "@/features/items/item-assets-tab";
 import { useMarkItemSeen } from "@/features/comments/updates";
@@ -74,7 +75,7 @@ function panelClasses(shared: boolean, narrow: boolean, overlay: boolean): strin
   return cn(
     // Reads as a card floating above the board: its own surface and elevation,
     // with the board beside it left untouched so items stay glanceable.
-    "flex flex-col bg-surface",
+    "relative flex flex-col bg-surface",
     shared
       ? "min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70 shadow-sm"
       : narrow
@@ -96,11 +97,29 @@ export function ItemPanelSkeleton({ onClose, overlay = false }: { onClose: () =>
   const narrow = useMediaQuery("(max-width: 1023px)");
   return (
     <aside role="dialog" aria-label="Opening task" aria-busy className={panelClasses(false, narrow, overlay)} data-testid="item-panel-skeleton">
+      <PanelBlocks onClose={onClose} />
+    </aside>
+  );
+}
+
+/**
+ * The panel before it has anything to say: a bar, a name, some chips and a
+ * stack of field rows.
+ *
+ * Enough that it has the proportions it is about to have, and not so particular
+ * that it pretends to know how many columns this board has. The close button is
+ * real, because a task opened by mistake should not have to be waited out.
+ */
+function PanelBlocks({ onClose, hideClose = false }: { onClose: () => void; hideClose?: boolean }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="panel-blocks">
       <div className="flex h-12 items-center justify-between gap-2 border-b px-3">
         <Skeleton className="h-4 w-40" />
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel">
-          <X />
-        </Button>
+        {!hideClose && (
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel">
+            <X />
+          </Button>
+        )}
       </div>
       <div className="space-y-4 p-4">
         <Skeleton className="h-7 w-3/4" />
@@ -110,11 +129,11 @@ export function ItemPanelSkeleton({ onClose, overlay = false }: { onClose: () =>
           ))}
         </div>
         <Skeleton className="h-24 w-full" />
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-9 w-full" />
         ))}
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -133,6 +152,32 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
   };
   const comments = useComments(itemId);
   const assets = useItemAssets(itemId);
+  const links = useItemLinks(itemId);
+  const share = useItemShareStatus(shared ? "" : itemId);
+  /**
+   * Everything the panel reads per task, arriving together or not at all.
+   *
+   * The task itself is in the board's snapshot, so it could be drawn inside the
+   * click — but its updates, deliverables, links and share state are each their
+   * own read, and showing the panel the moment the name was known meant counts
+   * appearing, a recap strip pushing the tabs down, and a share badge turning
+   * up seconds later. A panel that keeps rearranging itself cannot be read. So
+   * the blocks hold until all of it is in, and then the task appears once.
+   *
+   * Each read is cached for long enough that going back to a task just looked
+   * at skips the blocks entirely.
+   */
+  const loading = comments.isLoading || assets.isLoading || links.isLoading || (!shared && share.isLoading);
+  /**
+   * And the reveal itself happens off the click.
+   *
+   * Drawing the fields is the expensive part of the panel — every column of the
+   * board as its own row, each one draggable, measured at around 150ms — and
+   * deferring it means React renders them in a pass it is free to break up
+   * rather than one that holds the frame.
+   */
+  const settledItemId = React.useDeferredValue(loading ? "" : itemId, "");
+  const ready = !!item && settledItemId === itemId;
   // Looking at the Updates tab is catching up: record it, and again whenever
   // another update arrives while the tab stays open.
   const markSeen = useMarkItemSeen();
@@ -162,7 +207,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
       data-testid="item-panel"
       className={panelClasses(shared, narrow, overlay)}
     >
-      {!item ? (
+      {!item && !loading ? (
         <div className="flex h-full flex-col">
           <div className="flex h-12 items-center justify-end border-b px-3">
             <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel">
@@ -171,6 +216,8 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
           </div>
           <EmptyState title="Item not found" description="It may have been deleted or archived." />
         </div>
+      ) : !ready || !item ? (
+        <PanelBlocks onClose={onClose} hideClose={shared} />
       ) : (
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />

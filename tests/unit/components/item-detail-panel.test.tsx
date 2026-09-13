@@ -8,6 +8,15 @@ import { createTestApp, TestBoard } from "../helpers/render-app";
 
 const boardId = SEED_BOARD_IDS.rmitinerary;
 
+/**
+ * The panel holds its loading blocks until every per-task read is in — updates,
+ * deliverables, links, share state — and then shows the task all at once.
+ */
+async function readyPanel(): Promise<HTMLElement> {
+  await waitFor(() => expect(screen.queryByTestId("panel-blocks")).not.toBeInTheDocument());
+  return screen.getByTestId("item-panel");
+}
+
 async function findItemId(app: Awaited<ReturnType<typeof createTestApp>>, name: string): Promise<string> {
   const items = await app.data.services.repos.items.listByBoard(boardId);
   return items.find((i) => i.name === name)!.id;
@@ -22,7 +31,7 @@ describe("ItemDetailPanel", () => {
         <ItemDetailPanel itemId={itemId} onClose={() => undefined} />
       </TestBoard>,
     );
-    const panel = screen.getByTestId("item-panel");
+    const panel = await readyPanel();
     expect(within(panel).getByRole("heading", { name: /RMITinerary High Achiever/ })).toBeInTheDocument();
     expect(within(panel).getByText("Columns")).toBeInTheDocument();
     expect(within(panel).getByRole("gridcell", { name: /Status: Done for RMITinerary High Achiever/ })).toBeInTheDocument();
@@ -39,6 +48,7 @@ describe("ItemDetailPanel", () => {
         <ItemDetailPanel itemId={itemId} onClose={() => undefined} />
       </TestBoard>,
     );
+    await readyPanel();
     await user.click(screen.getByRole("tab", { name: /Updates/ }));
     expect(await screen.findByText("No updates yet")).toBeInTheDocument();
     // Paste rather than type: character-by-character typing can drop keystrokes under CPU load.
@@ -64,7 +74,7 @@ describe("ItemDetailPanel", () => {
         <ItemDetailPanel itemId={itemId} onClose={() => undefined} />
       </TestBoard>,
     );
-    const panel = screen.getByTestId("item-panel");
+    const panel = await readyPanel();
     await user.click(within(panel).getByRole("gridcell", { name: /Status: Not Started/ }));
     await user.click(await screen.findByRole("option", { name: "In Progress" }));
     await waitFor(() => expect(within(panel).getByRole("gridcell", { name: /Status: In Progress/ })).toBeInTheDocument());
@@ -84,6 +94,7 @@ describe("ItemDetailPanel", () => {
         <ItemDetailPanel itemId={itemId} onClose={() => undefined} />
       </TestBoard>,
     );
+    await readyPanel();
     const section = screen.getByTestId("linked-items");
     // Seeded mirror on the Vietnam team's DOOH board, with the columns that flow between them.
     const linked = await within(section).findByTestId("linked-item");

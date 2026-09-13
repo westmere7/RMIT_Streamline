@@ -2,8 +2,9 @@
 
 import { Archive, SquareKanban, Lock } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
@@ -52,6 +53,24 @@ function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
 }
 
+/**
+ * The detail panel, subscribed to which task is open rather than handed it.
+ *
+ * Opening a task used to be state of the page, so every click redrew the whole
+ * board along with the panel. Here, the click redraws the panel and the two
+ * rows whose highlight moved, and nothing else.
+ *
+ * `skeleton` is the board behind it still loading — a link followed to a task
+ * on a board that is not on screen yet — where the frame goes up first and
+ * fills in once the board lands.
+ */
+function ItemPanelSlot({ onClose, overlay, skeleton }: { onClose: (id: string | null) => void; overlay?: boolean; skeleton?: boolean }) {
+  const itemId = useBoardUiStore((s) => s.openItemId);
+  if (!itemId) return null;
+  if (skeleton) return <ItemPanelSkeleton onClose={() => onClose(null)} />;
+  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} overlay={overlay} />;
+}
+
 export function BoardPage() {
   const params = useParams<{ boardSlug: string }>();
   const ws = useWorkspace();
@@ -81,7 +100,6 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const ws = useWorkspace();
   const board = ws.boardById(boardId)!;
   const services = useServices();
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const snapshot = useBoardSnapshot(boardId);
@@ -136,23 +154,34 @@ function BoardScreen({ boardId }: { boardId: string }) {
   }, [boardId, ws.currentUser.id]);
   const view: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
 
-  const itemId = searchParams.get("item");
+  const urlItemId = searchParams.get("item");
 
+  /**
+   * Put the open task and the chosen view in the URL, so both survive a reload
+   * and can be sent to somebody.
+   *
+   * Written straight to the history rather than through `router.replace`: both
+   * are read only on the client, and asking the router for them fetched the
+   * route again — measured at 130-450ms per click for a page that renders the
+   * same thing either way. Next reads the history back into `useSearchParams`,
+   * so a deep link, a reload and the back button all still work.
+   *
+   * The query is read at call time rather than closed over from
+   * `searchParams`: depending on that made this callback — and with it the
+   * board context — change on every navigation, which re-rendered every row and
+   * cell on the board each time the detail panel opened.
+   */
   const replaceParams = React.useCallback(
     (patch: Record<string, string | null>) => {
-      // Read the query at call time rather than closing over `searchParams`:
-      // depending on it made this callback — and with it the board context —
-      // change on every navigation, which re-rendered every row and cell on the
-      // board each time the detail panel opened.
       const next = new URLSearchParams(window.location.search);
       for (const [k, v] of Object.entries(patch)) {
         if (v === null || v === "" || (k === "view" && v === "table")) next.delete(k);
         else next.set(k, v);
       }
       const query = next.toString();
-      router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+      window.history.replaceState(null, "", `${pathname}${query ? `?${query}` : ""}`);
     },
-    [router, pathname],
+    [pathname],
   );
 
   const setView = (next: BoardViewKind) => {
@@ -161,29 +190,52 @@ function BoardScreen({ boardId }: { boardId: string }) {
     void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next).catch(() => undefined);
     replaceParams({ view: next });
   };
-  const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
+  const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  /**
+   * Open a task in the panel, or close it — on screen before the handler returns.
+   *
+   * Which task is open is kept in the store rather than in this component, and
+   * only the panel and the two rows changing highlight subscribe to it. Held
+   * here it was state of the page, so every click redrew the board as well —
+   * measured at ~95ms of blocked main thread for a table that had not changed
+   * by so much as a cell.
+   *
+   * The flush is for the rest of the click: the URL is written in the same
+   * handler, and Next reads it back as a router update, which would otherwise
+   * sweep this along with it and land it a render later than it should.
+   */
+  const openItem = React.useCallback(
+    (id: string | null) => {
+      flushSync(() => setOpenItemId(id));
+      // And the URL is bookkeeping. Writing it here costs ~150ms of router
+      // reconciliation, which would sit between the flush above and the browser
+      // getting a chance to paint it; a frame later it is free.
+      requestAnimationFrame(() => replaceParams({ item: id }));
+    },
+    [replaceParams, setOpenItemId],
+  );
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   const openItemUpdates = React.useCallback(
     (id: string) => {
       setRequestedItemTab({ itemId: id, tab: "updates" });
-      replaceParams({ item: id });
+      openItem(id);
     },
-    [replaceParams, setRequestedItemTab],
+    [openItem, setRequestedItemTab],
   );
 
-  // The URL owns which item is open; the store mirrors it so rows can subscribe
-  // to a boolean rather than re-rendering the whole table on every open.
   const setBoardLoading = useBoardUiStore((s) => s.setBoardLoading);
   React.useEffect(() => {
     setBoardLoading(snapshot.isFetching);
     return () => setBoardLoading(false);
   }, [snapshot.isFetching, setBoardLoading]);
 
-  const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  // The URL is the other way a task opens — a deep link followed in, a back
+  // button — and the one that survives a reload. The click has already set the
+  // store; this is the route catching up with it, or overruling it.
   React.useEffect(() => {
-    setOpenItemId(itemId);
+    setOpenItemId(urlItemId);
     return () => setOpenItemId(null);
-  }, [itemId, setOpenItemId]);
+  }, [urlItemId, setOpenItemId]);
 
   const model = React.useMemo(
     () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),
@@ -233,13 +285,13 @@ function BoardScreen({ boardId }: { boardId: string }) {
         {!snapshot.isError && !contextValue && <BoardSkeleton />}
         {/* Followed a link to a task: the panel is what was asked for, so it
             goes up now and fills in when the board arrives behind it. */}
-        {!snapshot.isError && !contextValue && itemId && <ItemPanelSkeleton onClose={() => openItem(null)} />}
+        {!snapshot.isError && !contextValue && <ItemPanelSlot onClose={openItem} skeleton />}
         {contextValue && (
           <BoardContextProvider value={contextValue}>
             <MobileBoardToolsRow view={view} onViewChange={setView} />
             <MobileBoardViews view={view} tableMode={tableMode} onTableModeChange={setTableMode} />
             {/* Full screen on a phone: the panel already goes fixed inset-0 below 1024. */}
-            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
+            <ItemPanelSlot onClose={openItem} />
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
           </BoardContextProvider>
@@ -282,7 +334,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           </div>
           {/* Followed a link to a task: the panel is what was asked for, so it
               goes up now and fills in when the board arrives behind it. */}
-          {itemId && <ItemPanelSkeleton onClose={() => openItem(null)} />}
+          <ItemPanelSlot onClose={openItem} skeleton />
         </div>
       )}
       {contextValue && (
@@ -299,7 +351,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
               {view === "chart" && <ChartView />}
             </div>
             {/* On the Kanban the panel floats over the lanes rather than squeezing them. */}
-            {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
+            <ItemPanelSlot onClose={openItem} overlay={view === "kanban"} />
           </div>
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />

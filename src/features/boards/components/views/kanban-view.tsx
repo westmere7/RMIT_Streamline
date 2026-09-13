@@ -17,6 +17,7 @@ import { SizePill } from "@/features/boards/components/pickers/size-picker";
 import { formatTag, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { useBoardAssets } from "@/features/items/asset-hooks";
 import { CardCover } from "@/features/items/item-cover";
+import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
@@ -450,7 +451,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
                   <Boxes className="size-3" /> {recap.quantity}
                 </span>
               )}
-              {!compact && blocked && <TriangleAlert className="size-3 text-amber-600 dark:text-amber-400" aria-label="Waiting on a dependency" />}
+              {!compact && blocked && <BlockedDot label="Waiting on a dependency" />}
               {!compact && linked && <RefreshCw className="size-3" aria-label="Linked to an item on another board" />}
               <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                 <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
