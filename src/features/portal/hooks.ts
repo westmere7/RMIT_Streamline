@@ -1,10 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import type { PortalPresentation, PortalTheme } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { routes } from "@/lib/routes";
 
 /**
@@ -20,12 +23,30 @@ export function portalKeys(workspaceId: string) {
   return ["portals", workspaceId] as const;
 }
 
+/**
+ * The portal card: the link, its settings, and how many requests each
+ * stakeholder group has sent.
+ *
+ * Live because the count is the part that moves on its own — a stakeholder
+ * booking a job is the one thing here that happens without anyone in the
+ * workspace doing it, and an admin watching the page should see it arrive.
+ */
 export function usePortalOverview() {
   const ws = useWorkspace();
   const services = useServices();
+  const workspaceId = ws.workspace.id;
+  const bindings = useMemo<RealtimeBinding[]>(() => {
+    const keys = [portalKeys(workspaceId)];
+    return [
+      { table: "department_portals", filter: `workspace_id=eq.${workspaceId}`, keys },
+      { table: "stakeholder_departments", filter: `workspace_id=eq.${workspaceId}`, keys },
+      { table: "portal_requests", filter: `workspace_id=eq.${workspaceId}`, keys },
+    ];
+  }, [workspaceId]);
+  useRealtime(`portal:${workspaceId}`, bindings);
   return useQuery({
-    queryKey: portalKeys(ws.workspace.id),
-    queryFn: () => services.portals.overview(ws.workspace.id),
+    queryKey: portalKeys(workspaceId),
+    queryFn: () => services.portals.overview(workspaceId),
     staleTime: 10_000,
   });
 }
@@ -34,7 +55,10 @@ export function usePortalMutations() {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: portalKeys(ws.workspace.id) });
+  const invalidate = () => {
+    publishDataChange({ kinds: ["settings"] });
+    return queryClient.invalidateQueries({ queryKey: portalKeys(ws.workspace.id) });
+  };
 
   const setEnabled = useMutation({
     mutationFn: (enabled: boolean) => services.portals.setEnabled(ws.workspace.id, enabled),

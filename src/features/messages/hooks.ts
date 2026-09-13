@@ -1,16 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { toast } from "sonner";
 import type { DirectMessage } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useDataContext, useServices } from "@/features/data/data-context";
+import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
-import { getSupabaseClient } from "@/lib/supabase/client";
 
 export function useMessageThreads() {
   const services = useServices();
@@ -100,31 +98,9 @@ export function useMessageMutations(otherUserId: string | null) {
 }
 
 /**
- * Live delivery for messages addressed to this user. Supabase filters the stream
- * by RLS, so only rows the recipient may read arrive; local mode already syncs
- * across tabs through the BroadcastChannel.
+ * Messages arrive through the workspace channel
+ * (src/features/workspace/use-workspace-realtime.ts) rather than a channel of
+ * their own. The badge in the user menu is on screen on every page, and a hook
+ * mounted by the Messages page could only ever keep it current while that page
+ * was the one being looked at.
  */
-export function useMessageRealtime(): void {
-  const { providerKind } = useDataContext();
-  const queryClient = useQueryClient();
-  const ws = useWorkspace();
-  const user = useCurrentUser();
-
-  useEffect(() => {
-    if (providerKind !== "supabase") return;
-    const supabase = getSupabaseClient();
-    const refresh = () => {
-      void queryClient.invalidateQueries({ queryKey: ["message-thread"] });
-      void queryClient.invalidateQueries({ queryKey: ["message-threads"] });
-      void queryClient.invalidateQueries({ queryKey: ["unread-messages"] });
-    };
-    const channel = supabase
-      .channel(`messages:${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "direct_messages", filter: `recipient_id=eq.${user.id}` }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "direct_messages", filter: `sender_id=eq.${user.id}` }, refresh)
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [providerKind, queryClient, user.id, ws.workspace.id]);
-}

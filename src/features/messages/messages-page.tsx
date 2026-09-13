@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useMessageMutations, useMessageRealtime, useMessageThread, useMessageThreads } from "@/features/messages/hooks";
+import { useMessageMutations, useMessageThread, useMessageThreads } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,6 @@ export function MessagesPage() {
   const openWith = params.get("to");
   const [query, setQuery] = React.useState("");
 
-  useMessageRealtime();
   const threads = useMessageThreads();
   const thread = useMessageThread(openWith);
   const { send, markRead, remove } = useMessageMutations(openWith);

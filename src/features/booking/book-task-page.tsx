@@ -17,6 +17,8 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageWorkspace, canSeeSystemEntities } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { PortalAdmin } from "@/features/portal/portal-admin";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,20 @@ export function BookTaskPage() {
   React.useEffect(() => {
     if (!manager) router.replace(routes.bookForm(ws.slug));
   }, [manager, router, ws.slug]);
+
+  // What another admin changes while this page is open: a form published, a
+  // template saved, a block added. The draft is deliberately not on this list —
+  // it is what somebody is part-way through building, and replacing it under
+  // their cursor because the row was touched would lose their work.
+  const bookingBindings = React.useMemo<RealtimeBinding[]>(
+    () => [
+      { table: "workspaces", filter: `id=eq.${ws.workspace.id}`, keys: [["booking-form", ws.slug]] },
+      { table: "booking_templates", filter: `workspace_id=eq.${ws.workspace.id}`, keys: [queryKeys.bookingTemplates(ws.workspace.id)] },
+      { table: "booking_saved_blocks", filter: `workspace_id=eq.${ws.workspace.id}`, keys: [queryKeys.bookingSavedBlocks(ws.workspace.id)] },
+    ],
+    [ws.workspace.id, ws.slug],
+  );
+  useRealtime(manager ? `booking:${ws.workspace.id}` : null, bookingBindings);
 
   const form = useQuery({
     queryKey: queryKeys.bookingForm(ws.slug, null),
@@ -75,6 +91,7 @@ export function BookTaskPage() {
   // link included; the draft by nobody but this page.
   const draftChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingDraft(ws.workspace.id) });
   const formChanged = async () => {
+    publishDataChange({ kinds: ["settings"] });
     await queryClient.invalidateQueries({ queryKey: ["booking-form", ws.slug] });
     await draftChanged();
     await ws.refresh();
@@ -96,7 +113,10 @@ export function BookTaskPage() {
     await services.booking.discardDraft(ws.workspace.id);
     await draftChanged();
   };
-  const templatesChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) });
+  const templatesChanged = () => {
+    publishDataChange({ kinds: ["settings"] });
+    return queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) });
+  };
   const saveTemplate = async (input: { name: string; description: string | null; template: BookingFormTemplate }) => {
     await services.booking.saveTemplate(ws.workspace.id, input, ws.currentUser.id);
     await templatesChanged();
@@ -105,7 +125,10 @@ export function BookTaskPage() {
     await services.booking.deleteTemplate(template.id);
     await templatesChanged();
   };
-  const savedBlocksChanged = () => queryClient.invalidateQueries({ queryKey: queryKeys.bookingSavedBlocks(ws.workspace.id) });
+  const savedBlocksChanged = () => {
+    publishDataChange({ kinds: ["settings"] });
+    return queryClient.invalidateQueries({ queryKey: queryKeys.bookingSavedBlocks(ws.workspace.id) });
+  };
   const saveBlock = async (input: { name: string; block: BookingBlock }) => {
     await services.booking.saveBlock(ws.workspace.id, input, ws.currentUser.id);
     await savedBlocksChanged();

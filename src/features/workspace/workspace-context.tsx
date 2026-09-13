@@ -9,6 +9,7 @@ import { buildPermissionContext, canSeeSystemEntities, isWorkspaceAdmin, type Pe
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useUiStore } from "@/stores/ui-store";
+import { useWorkspaceRealtime } from "./use-workspace-realtime";
 
 export interface WorkspaceContextValue {
   workspace: Workspace;
@@ -55,6 +56,10 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   const services = useServices();
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
+
+  // The shell's own live wiring: members, teams, boards, names, badges. Called
+  // here so it covers every page inside the workspace rather than one of them.
+  useWorkspaceRealtime(workspace.id, currentUser.id);
 
   const contextQuery = useQuery({
     queryKey: queryKeys.workspaceContext(workspace.id),

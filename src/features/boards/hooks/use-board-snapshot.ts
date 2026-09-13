@@ -7,10 +7,9 @@ import { queryKeys } from "@/lib/query/keys";
 /**
  * Loads a board with its groups, columns, items and values in one query.
  *
- * Realtime (future): a Supabase subscription on `items`, `item_column_values`,
- * `comments` and `activities` filtered by board_id would call
- * `queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(boardId) })`.
- * See src/features/boards/hooks/use-board-realtime.ts.
+ * Kept current by `useBoardRealtime`, which subscribes to the tables behind it
+ * filtered by board and invalidates this key — so the 15 seconds below is how
+ * long a *silent* board is trusted, not how far behind an active one runs.
  */
 export function useBoardSnapshot(boardId: string | null) {
   const services = useServices();

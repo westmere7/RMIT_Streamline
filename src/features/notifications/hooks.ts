@@ -13,10 +13,18 @@ export function useNotifications(userId: string) {
     queryKey: queryKeys.notifications(userId),
     queryFn: () => services.repos.notifications.listByUser(userId),
     staleTime: 10_000,
-    refetchInterval: 30_000,
-    // Keep polling while the tab is in the background: that is exactly when an
+    // A safety net under realtime rather than the thing that delivers.
+    // `notifications` is on the workspace channel, filtered to this person
+    // (src/features/workspace/use-workspace-realtime.ts), so a mention lands
+    // within a second of being written wherever in the app the reader is. This
+    // interval is only there for what a websocket cannot cover: a channel that
+    // dropped while nobody was looking, or a row written straight against the
+    // database. Two minutes rather than thirty seconds for that reason.
+    refetchInterval: 120_000,
+    // Still polling while the tab is in the background: that is exactly when an
     // operating-system notification is worth raising, and by default TanStack
-    // Query stops the interval for a hidden page.
+    // Query stops the interval for a hidden page. The read is a page of one
+    // person's notifications, not a workspace, so the background cost is small.
     refetchIntervalInBackground: true,
   });
 }

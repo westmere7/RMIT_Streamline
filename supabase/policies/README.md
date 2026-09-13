@@ -137,8 +137,12 @@ Do both in one request (an RPC or a Postgres function) if you need atomicity.
 - `DELETE` events are not filtered by RLS (Postgres does not have the old row
   to evaluate the policy against). On RLS-enabled tables Realtime therefore
   sends only the primary key of the deleted row, so nothing beyond the id can
-  leak. Prefer soft-deletes (`archived_at`) for anything the UI must react to
-  live; a real delete tells subscribers only *which* id vanished.
+  leak. The consequence for the client is that a *subscription* filter such as
+  `board_id=eq.<id>` cannot match a deletion either, so `useRealtime` pairs
+  every filtered binding with an unfiltered `DELETE` listener and refetches
+  (`src/lib/realtime/use-realtime.ts`). Do not reach for `replica identity full`
+  to make the filter work: the old row it would put on the wire is not filtered
+  by RLS, and would reach every subscriber to the table.
 
 ## Storage
 

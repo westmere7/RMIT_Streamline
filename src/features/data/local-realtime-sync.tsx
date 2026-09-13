@@ -9,6 +9,10 @@ import { subscribeDataChanges, type DataChange } from "@/lib/realtime/local-real
  * for realtime). Mounted once inside the QueryClientProvider; it only marks
  * queries stale, so views that are on screen refetch and hidden ones refetch
  * when they next mount.
+ *
+ * The keys here are the local-mode half of the same map the Supabase channels
+ * describe: whatever one of them refreshes, the matching kind here refreshes
+ * too, so a surface is never live under one provider and stale under the other.
  */
 export function LocalRealtimeSync() {
   const queryClient = useQueryClient();
@@ -28,6 +32,10 @@ export function LocalRealtimeSync() {
         invalidate(["my-work"]);
         invalidate(["activity"]);
         invalidate(["notifications"]);
+        // An item archived, restored or deleted in another tab is a row that has
+        // moved between the board and its archive.
+        invalidate(["board-archive"]);
+        invalidate(["board-archive-count"]);
       }
       if (kinds.has("messages")) {
         invalidate(["message-thread"]);
@@ -38,6 +46,8 @@ export function LocalRealtimeSync() {
         invalidate(["comments"]);
         invalidate(["activity"]);
         invalidate(["notifications"]);
+        // Which updates the reader has caught up on, for the unread dot.
+        invalidate(["item-reads"]);
       }
       if (kinds.has("assets")) {
         invalidate(["item-assets"]);
@@ -48,11 +58,27 @@ export function LocalRealtimeSync() {
         invalidate(["tracker-sheets"]);
       }
       if (kinds.has("workspace")) {
+        invalidate(["workspace"]);
         invalidate(["workspace-context"]);
+        invalidate(["workspace-members"]);
+        invalidate(["workspace-invitations"]);
+        invalidate(["workspace-lists"]);
         invalidate(["boards"]);
         invalidate(["board-members"]);
         invalidate(["favourites"]);
         invalidate(["teams"]);
+        // A name or an avatar, which the shell and every profile page show.
+        invalidate(["current-user"]);
+        invalidate(["profile"]);
+        invalidate(["notification-preferences"]);
+      }
+      if (kinds.has("settings")) {
+        // The portal card and the booking editor: the link, its settings, the
+        // templates and blocks the workspace keeps by name.
+        invalidate(["portals"]);
+        invalidate(["booking-form"]);
+        invalidate(["booking-templates"]);
+        invalidate(["booking-saved-blocks"]);
       }
     });
   }, [queryClient]);

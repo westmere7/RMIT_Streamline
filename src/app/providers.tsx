@@ -17,7 +17,13 @@ function makeQueryClient(): QueryClient {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
         retry: 1,
-        refetchOnWindowFocus: false,
+        // The backstop under realtime. A subscription cannot cover the time a
+        // tab spent asleep or offline — the socket closes, reopens, and the
+        // events in between are simply gone — and coming back to the window is
+        // exactly when somebody is about to trust what is on it. `staleTime`
+        // still gates this, so flicking between two tabs re-reads nothing; a
+        // query that has been sitting there for half a minute does.
+        refetchOnWindowFocus: true,
       },
       mutations: {
         onError: (error) => {

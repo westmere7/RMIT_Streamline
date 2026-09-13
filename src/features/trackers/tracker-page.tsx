@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { TrackerSheet } from "@/domain";
-import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations, useTrackerSheets } from "@/features/trackers/hooks";
+import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
@@ -29,6 +29,7 @@ export function TrackerPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useTrackerRealtime(params.trackerId);
   const tracker = useTracker(params.trackerId);
   const sheets = useTrackerSheets(params.trackerId);
   const mutations = useTrackerMutations();

@@ -18,6 +18,7 @@ import { ArchiveTable } from "@/features/boards/archive/archive-table";
 import { ArchiveToolbar } from "@/features/boards/archive/archive-toolbar";
 import { useArchiveMutations, useArchivePage } from "@/features/boards/archive/use-archive";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
+import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -74,6 +75,12 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = React.useState<string[] | null>(null);
   const [now] = React.useState(() => new Date());
+
+  // The board's channel, which carries the archive too: an item put away or
+  // restored on the board is a row arriving on or leaving this page, and the
+  // panel opened from here reads the same comments, assets and links a panel on
+  // the board does.
+  useBoardRealtime(boardId);
 
   const page = useArchivePage(boardId, request, itemId);
   const archive = useArchiveMutations(boardId);

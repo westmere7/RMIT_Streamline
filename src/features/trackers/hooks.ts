@@ -9,6 +9,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { CreateTrackerInput } from "@/services";
 
@@ -40,6 +41,31 @@ export function useTrackerSheets(trackerId: string | null) {
     enabled: !!trackerId,
     staleTime: 10_000,
   });
+}
+
+/**
+ * Keeps an open tracker in step with whoever else has it open.
+ *
+ * The sheets of one tracker only: a sheet saves as the typing stops, so an
+ * unfiltered subscription would put every tracker in the workspace on the wire
+ * every time anyone touched any of them. The list in the sidebar rides on the
+ * workspace channel instead, which hears about the trackers themselves.
+ *
+ * A remote sheet only replaces what is on screen while nothing local is
+ * pending — `useSheetEditor` holds the draft until its own save lands — so this
+ * cannot take an edit out from under someone mid-keystroke.
+ */
+export function useTrackerRealtime(trackerId: string | null): void {
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!trackerId) return [];
+    return [
+      { table: "trackers", filter: `id=eq.${trackerId}`, keys: [queryKeys.tracker(trackerId), ["trackers"]] },
+      { table: "tracker_sheets", filter: `tracker_id=eq.${trackerId}`, keys: [queryKeys.trackerSheets(trackerId)] },
+    ];
+  }, [trackerId]);
+  // A sheet is saved as one row, and a long edit saves every second or so;
+  // wait out the run rather than re-reading the sheet between keystrokes.
+  useRealtime(trackerId ? `tracker:${trackerId}` : null, bindings, { coalesceMs: 1_000, minIntervalMs: 5_000 });
 }
 
 export function useTrackerMutations() {

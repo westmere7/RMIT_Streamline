@@ -202,7 +202,17 @@ segment>)` if per-board secrecy of attachments becomes a requirement.
 
 ## Realtime
 
-Add the collaborative tables to the `supabase_realtime` publication (see the
-commented block at the end of the policies file). RLS applies to Realtime, so
-subscribers only receive rows they could `select`. Details and caveats are in
-`supabase/policies/README.md`.
+Every table the app shows on screen is in the `supabase_realtime` publication:
+0004 publishes the board tables, 0005/0015/0024/0026/0035 add messages, assets,
+boards, teams, lists and workspaces, and 0049 adds the rest — profiles,
+memberships, invitations, favourites, item reads, booking templates and blocks,
+and the portal tables. RLS applies to Realtime, so subscribers only receive rows
+they could `select`.
+
+Replica identity stays at its default everywhere. That means a `DELETE` reaches
+subscribers as a primary key and nothing else, so a filtered subscription cannot
+match one; the client adds an unfiltered `DELETE` listener per filtered table
+instead (`src/lib/realtime/use-realtime.ts`). `replica identity full` would put
+the whole deleted row on the wire, and deletions are not filtered by RLS.
+
+Details and caveats are in `supabase/policies/README.md`.

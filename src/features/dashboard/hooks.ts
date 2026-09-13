@@ -5,9 +5,9 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { Board } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useDataContext, useServices } from "@/features/data/data-context";
+import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { DashboardShareSettings } from "@/services";
 
 /**
@@ -80,47 +80,29 @@ export function useDashboardSnapshot(workspaceId: string, boards: Board[], { liv
  * invalidates the same key.
  */
 export function useDashboardRealtime(workspaceId: string | null): void {
-  const { providerKind } = useDataContext();
-  const queryClient = useQueryClient();
-  React.useEffect(() => {
-    if (!workspaceId || providerKind !== "supabase") return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastRead = 0;
-    const supabase = getSupabaseClient();
-    const read = () => {
-      lastRead = Date.now();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(workspaceId) });
-    };
-    const schedule = () => {
-      // A read already on its way answers this event too, so it rides with it.
-      // Deliberately not restarted per event: an import or a long drag emits
-      // one every second or so, and a timer that began again each time would
-      // never reach the end of the burst and never read at all.
-      if (timer) return;
-      // Whichever is further off: the end of this burst, or the earliest the
-      // snapshot may be read again.
-      const wait = Math.max(COALESCE_MS, lastRead + MIN_REFETCH_MS - Date.now());
-      timer = setTimeout(() => {
-        timer = null;
-        read();
-      }, wait);
-    };
-    const channel = supabase.channel(`dashboard:${workspaceId}`);
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!workspaceId) return [];
+    const keys = [queryKeys.dashboard(workspaceId)];
     // `workspaces` and `workspace_lists` are here because the dashboard is not
     // drawn from rows alone. The output rates that turn deliverables into hours
     // live on the workspace, and the asset types the effort figure is keyed by
     // live in the list — so renaming a type or correcting a rate changes what
     // the page says without touching a single item. Left out, those two edits
     // waited for the safety refresh to come round.
-    for (const table of ["items", "item_column_values", "item_assets", "board_groups", "board_columns", "boards", "teams", "item_links", "workspaces", "workspace_lists"]) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule);
-    }
-    channel.subscribe();
-    return () => {
-      if (timer) clearTimeout(timer);
-      void supabase.removeChannel(channel);
-    };
-  }, [workspaceId, providerKind, queryClient]);
+    return [
+      { table: "items", keys },
+      { table: "item_column_values", keys },
+      { table: "item_assets", keys },
+      { table: "board_groups", keys },
+      { table: "board_columns", keys },
+      { table: "item_links", keys },
+      { table: "boards", filter: `workspace_id=eq.${workspaceId}`, keys },
+      { table: "teams", filter: `workspace_id=eq.${workspaceId}`, keys },
+      { table: "workspaces", filter: `id=eq.${workspaceId}`, keys },
+      { table: "workspace_lists", filter: `workspace_id=eq.${workspaceId}`, keys },
+    ];
+  }, [workspaceId]);
+  useRealtime(workspaceId ? `dashboard:${workspaceId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
 }
 
 /** The workspace dashboard's link and the mutations that shape it. */

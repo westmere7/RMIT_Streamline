@@ -1,15 +1,24 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
-import { useDataContext, useServices } from "@/features/data/data-context";
+import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 
 /** A safety net under realtime: even a silent channel re-reads this often. */
 const REFRESH_MS = 30_000;
 /** One write often produces several row events; refetch once for the burst. */
 const COALESCE_MS = 250;
+/**
+ * The least time between two reads, however long the burst runs.
+ *
+ * `item_column_values` arrives unfiltered here — an assignment is not keyed by
+ * the person it names — so a colleague working steadily on any board in the
+ * workspace is a stream of events this page has to sit through. Coalescing
+ * bounds one burst; this bounds a run of them.
+ */
+const MIN_REFETCH_MS = 5_000;
 
 /**
  * The work assigned to one person, across every board in the workspace.
@@ -43,27 +52,15 @@ export function useMyWork(workspaceId: string, userId: string) {
  * nothing there.
  */
 function useMyWorkRealtime(workspaceId: string, userId: string): void {
-  const { providerKind } = useDataContext();
-  const queryClient = useQueryClient();
-  React.useEffect(() => {
-    if (!workspaceId || !userId || providerKind !== "supabase") return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const supabase = getSupabaseClient();
-    const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        void queryClient.invalidateQueries({ queryKey: queryKeys.myWork(workspaceId, userId) });
-      }, COALESCE_MS);
-    };
-    const channel = supabase.channel(`my-work:${workspaceId}:${userId}`);
-    for (const table of ["item_column_values", "items", "board_columns", "boards"]) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule);
-    }
-    channel.subscribe();
-    return () => {
-      if (timer) clearTimeout(timer);
-      void supabase.removeChannel(channel);
-    };
-  }, [workspaceId, userId, providerKind, queryClient]);
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!workspaceId || !userId) return [];
+    const keys = [queryKeys.myWork(workspaceId, userId)];
+    return [
+      { table: "item_column_values", keys },
+      { table: "items", keys },
+      { table: "board_columns", keys },
+      { table: "boards", filter: `workspace_id=eq.${workspaceId}`, keys },
+    ];
+  }, [workspaceId, userId]);
+  useRealtime(workspaceId && userId ? `my-work:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
 }

@@ -190,7 +190,12 @@ The memory implementation is a specialized read-only adapter for public board re
 | `staleTime` | 30 seconds |
 | `gcTime` | 5 minutes |
 | Query retry | 1 |
-| Refetch on window focus | Disabled by default |
+| Refetch on window focus | Enabled by default, gated by `staleTime` |
+
+Focus refetching is the backstop under Realtime: a subscription cannot cover the
+time a tab spent asleep or offline, and returning to the window is when somebody
+is about to trust what is on screen. `staleTime` still gates it, so flicking
+between two tabs re-reads nothing.
 
 Individual feature hooks can override these defaults. Mutation failures are logged centrally, while feature-specific mutation paths supply user-facing errors.
 
@@ -816,7 +821,7 @@ NOTIFICATION is the prominent inbox class that can raise an OS notification. UPD
 
 Muted board IDs override event delivery to OFF. Muting does not revoke board access. Browser notification delivery defaults to disabled and additionally requires browser permission. Quiet updates are not OS interruptions.
 
-`countUnread()` splits unread counts by stored delivery. The inbox query polls every 30 seconds and explicitly allows background refetching, in addition to relevant realtime invalidations. Notification read state and item Updates read state are separate concepts.
+`countUnread()` splits unread counts by stored delivery. Notifications arrive on the workspace channel, filtered to the signed-in person, so the bell moves within a second of a write wherever in the app the reader is; the inbox query also polls every **120 seconds** with background refetching allowed, as a backstop for what a websocket cannot cover (a dropped channel, a row written straight against the database). Notification read state and item Updates read state are separate concepts.
 
 Inbox Clear deletes the current user's records for the selected delivery tab (or all deliveries on All), including read records hidden by the unread-only filter. It does not delete tasks/comments and is distinct from Mark all read. The browser title displays only the loud notification count, capped at `99+`; the favicon is unchanged (`use-tab-badge.ts`).
 
@@ -884,11 +889,31 @@ The local synchronization component responds by invalidating queries. The channe
 
 ### Supabase Realtime
 
-`useBoardRealtime()` subscribes to item, value, group, column, comment, asset, link, activity, and notification changes. Item values now have denormalized `board_id` (migration 0036), maintained by the integrity trigger and move paths, so value events are filtered to the open board. Comments and links still use broader subscriptions where no board filter is present. Dashboard and My Work freshness have separate intervals described in their sections.
+`useRealtime()` (`src/lib/realtime/use-realtime.ts`) is the single primitive: a channel name, a list of `{ table, filter?, keys }` bindings, and coalescing options. It opens one channel, invalidates the named query keys once per burst of events, re-reads everything the channel covers when a dropped subscription comes back, and stands down entirely under the local provider. Every subscription below is expressed through it.
 
-Events are coalesced over **400 ms** so one service operation writing several rows does not force a separate refetch for every event. Notification subscriptions are scoped to the current user. Cleanup cancels pending timers and removes the channel.
+| Channel | Mounted by | Covers |
+| --- | --- | --- |
+| `workspace:<ws>:<user>` | `WorkspaceProvider` | workspace row, members, invitations, profiles, teams, team members, board members, boards, favourites, workspace lists, notifications and preferences, direct messages, trackers, item reads |
+| `board:<id>` | board page and board archive page | items, values, groups, columns (filtered by board), plus comments, assets, links and activity |
+| `dashboard:<ws>` | dashboard page | every table the snapshot is read from |
+| `my-work:<ws>:<user>` | My Work, home, mobile home | values, items, columns, boards |
+| `item-links:<item>` | item panel | values, items, links, assets, columns |
+| `tracker:<id>` | tracker page | that tracker and its sheets |
+| `workspace-activity:<ws>` | home page | the workspace activity feed |
+| `portal:<ws>` | portal card | portal settings, stakeholder groups, incoming requests |
+| `booking:<ws>` | booking editor | published form, templates, saved blocks |
 
-Freshness requires the appropriate tables in the realtime publication and permissions that allow the authenticated subscriber to read relevant rows. A working local BroadcastChannel test does not verify Supabase publication or RLS configuration.
+The workspace channel carries only low-traffic tables, because it is open on every page; items and their values stay filtered and scoped to the page that reads them. Item values have a denormalized `board_id` (migration 0036), maintained by the integrity trigger and move paths, so value events are filtered to the open board. Comments and links still use broader subscriptions where no board filter is present.
+
+Events are coalesced (**400 ms** by default; 2 s on the dashboard, 1 s on a tracker sheet) so one service operation writing several rows does not force a separate refetch for every event. A `minIntervalMs` option bounds a long run of bursts, which is what a board being worked on steadily looks like.
+
+**Deletions.** With RLS on, Postgres has no old row to give Realtime, so a `DELETE` arrives as a primary key alone and a filter such as `board_id=eq.<id>` matches nothing. `useRealtime` therefore adds one unfiltered `DELETE` listener per filtered table, merging the keys of every binding on it. `replica identity full` would make the filter work instead, but deletions are not filtered by RLS, so the whole deleted row would reach every subscriber to the table — which is why it is not used.
+
+**What is deliberately not live.** Search results and link candidates (query-driven); share-link dialogs (opened on demand, 60-second stale time); the booking draft, which is what an admin is part-way through building and must not be replaced under their cursor; public portal, share and dashboard pages, which have no session for Realtime to ride on and poll instead.
+
+Publication: 0004 publishes the board tables, 0005/0015/0024/0026/0035 add messages, assets, boards, teams, lists and workspaces, and **0049** adds the rest — profiles, workspace members and invitations, team and board members, favourites, item reads, notification preferences, booking templates and blocks, and the portal tables. Replica identity is left at its default throughout, for the reason above.
+
+Freshness requires the appropriate tables in the realtime publication and permissions that allow the authenticated subscriber to read relevant rows. A working local BroadcastChannel test does not verify Supabase publication or RLS configuration: the BroadcastChannel fires under either provider, so a cross-tab check proves nothing about Supabase. Write a row straight into the database and watch the open page instead.
 
 ### Storage keys and preference scope
 
@@ -1280,6 +1305,7 @@ The following paths are repository-relative source references. Start with the in
 | Where are query identities defined? | `src/lib/query/keys.ts` |
 | How do local tabs refresh? | `src/lib/realtime/local-realtime.ts`, `src/features/data/local-realtime-sync.tsx` |
 | How do Supabase boards refresh? | `src/features/boards/hooks/use-board-realtime.ts` |
+| How does everything else stay live? | `src/lib/realtime/use-realtime.ts`, `src/features/workspace/use-workspace-realtime.ts` |
 | How is pending work guarded? | `src/lib/unsaved-work.ts` |
 | How are media files processed? | `src/features/items/cover-upload.ts`, `src/features/profile/avatar-upload.ts` |
 | What do migration/seed commands actually do? | `scripts/db-migrate.mjs`, `scripts/db-seed.mts`, `scripts/db-seed-topup.mts`, `scripts/db-setup.mjs` |

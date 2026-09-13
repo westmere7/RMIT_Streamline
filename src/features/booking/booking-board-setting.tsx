@@ -10,6 +10,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { STANDARD_BOOKING_FIELDS, STANDARD_FIELD_LABELS, planStandardFields } from "@/services/booking";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,14 @@ export function BookingBoardSetting({ team, value, onChange }: { team: Team; val
   const services = useServices();
   const boards = ws.boardsForTeam(team.id).filter((b) => !b.system);
   const chosen = value ? boards.find((b) => b.id === value) ?? null : null;
+
+  // The preview says which of the standard fields the chosen board has, so a
+  // column added to it elsewhere changes the answer here.
+  // Built inline rather than memoized: useRealtime is keyed by what the
+  // bindings describe, not by the identity of the array they arrive in.
+  const chosenId = chosen?.id ?? null;
+  const bindings: RealtimeBinding[] = chosenId ? [{ table: "board_columns", filter: `board_id=eq.${chosenId}`, keys: [queryKeys.boardColumns(chosenId)] }] : [];
+  useRealtime(chosenId ? `booking-board:${chosenId}` : null, bindings);
 
   const columns = useQuery({
     queryKey: queryKeys.boardColumns(chosen?.id ?? ""),

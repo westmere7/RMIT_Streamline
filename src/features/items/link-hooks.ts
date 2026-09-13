@@ -5,11 +5,11 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { ColumnPair } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useDataContext, useServices } from "@/features/data/data-context";
+import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { LinkOptions } from "@/services";
 
 /** One write often produces several row events; refetch once for the burst. */
@@ -48,37 +48,21 @@ export function useItemLinks(itemId: string | null) {
  * counted from the two boards' columns, so adding one on either side changes it.
  */
 function useItemLinksRealtime(itemId: string | null): void {
-  const { providerKind } = useDataContext();
-  const queryClient = useQueryClient();
-  React.useEffect(() => {
-    if (!itemId || providerKind !== "supabase") return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    // Remembered across the burst rather than read off the last event in it: a
-    // column added and a value written together must still re-count the mapping.
-    let remapped = false;
-    const supabase = getSupabaseClient();
-    const schedule = (mapping: boolean) => () => {
-      remapped ||= mapping;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        const mappingToo = remapped;
-        remapped = false;
-        void queryClient.invalidateQueries({ queryKey: queryKeys.itemLinks(itemId) });
-        if (mappingToo) void queryClient.invalidateQueries({ queryKey: ["link-mapping"] });
-      }, COALESCE_MS);
-    };
-    const channel = supabase.channel(`item-links:${itemId}`);
-    for (const table of ["item_column_values", "items", "item_links", "item_assets"]) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, schedule(false));
-    }
-    channel.on("postgres_changes", { event: "*", schema: "public", table: "board_columns" }, schedule(true));
-    channel.subscribe();
-    return () => {
-      if (timer) clearTimeout(timer);
-      void supabase.removeChannel(channel);
-    };
-  }, [itemId, providerKind, queryClient]);
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!itemId) return [];
+    const links = [queryKeys.itemLinks(itemId)];
+    // A column added and a value written in the same burst must still re-count
+    // the mapping, so the column binding names both keys rather than a flag
+    // remembered across the burst.
+    return [
+      { table: "item_column_values", keys: links },
+      { table: "items", keys: links },
+      { table: "item_links", keys: links },
+      { table: "item_assets", keys: links },
+      { table: "board_columns", keys: [...links, ["link-mapping"]] },
+    ];
+  }, [itemId]);
+  useRealtime(itemId ? `item-links:${itemId}` : null, bindings, { coalesceMs: COALESCE_MS });
 }
 
 /** Items on other boards matching `query`; an empty query lists recent items so the dialog is never blank. */
