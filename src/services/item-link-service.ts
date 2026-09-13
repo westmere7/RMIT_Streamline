@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnPair, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -43,7 +43,7 @@ export interface LinkSearch {
 export type LinkChange =
   | { kind: "name"; name: string }
   | { kind: "description"; description: string | null }
-  | { kind: "reference"; reference: string | null }
+  | { kind: "ticket"; ticket: string | null }
   | { kind: "value"; columnId: EntityId; value: ColumnValue };
 
 export type LinkValidation = { ok: true } | { ok: false; reason: string };
@@ -51,7 +51,7 @@ export type LinkValidation = { ok: true } | { ok: false; reason: string };
 export interface LinkOptions {
   /** Which side's values fill in the other's when the link is created. */
   seedFrom: "item" | "target";
-  /** Fields that must not sync across this link: "name", "description", "reference" or column ids from either board. */
+  /** Fields that must not sync across this link: "name", "description", "ticket" or column ids from either board. */
   excluded?: string[];
   pairs?: ColumnPair[];
 }
@@ -356,6 +356,31 @@ export class ItemLinkService {
   }
 
   /**
+   * Items entitled to hold the same ticket as this one.
+   *
+   * The same walk the Updates thread does, across links that carry the ticket:
+   * those tasks are one piece of work seen from several boards and answering to
+   * one code is the point. A link told not to carry it is not crossed, and
+   * whatever lies beyond is a different task that must have a ticket of its own.
+   */
+  async ticketChainIds(itemId: EntityId): Promise<EntityId[]> {
+    const seen = new Set<EntityId>([itemId]);
+    const queue = [itemId];
+    while (queue.length) {
+      const current = queue.shift()!;
+      for (const link of await this.repos.links.listByItem(current)) {
+        if (link.excluded.includes(LINK_FIELD_TICKET)) continue;
+        const other = otherEndOf(link, current);
+        if (seen.has(other)) continue;
+        seen.add(other);
+        queue.push(other);
+      }
+    }
+    seen.delete(itemId);
+    return [...seen];
+  }
+
+  /**
    * The item plus everything reachable through links, regardless of field
    * exclusions. Each round reads the links of a whole level at once: chains are
    * short but every round-trip costs real time against a remote database.
@@ -385,7 +410,7 @@ export class ItemLinkService {
     const options = { silent: true, cache, collect };
     await this.propagate(item.id, { kind: "name", name: item.name }, actorId, options);
     await this.propagate(item.id, { kind: "description", description: item.description }, actorId, options);
-    await this.propagate(item.id, { kind: "reference", reference: item.reference ?? null }, actorId, options);
+    await this.propagate(item.id, { kind: "ticket", ticket: item.ticket ?? null }, actorId, options);
     for (const v of await this.valuesOf(item.id, cache)) {
       await this.propagate(item.id, { kind: "value", columnId: v.columnId, value: v.value }, actorId, options);
     }
@@ -428,7 +453,7 @@ export class ItemLinkService {
         const excluded = new Set(link.excluded);
         if (change.kind === "name" && excluded.has(LINK_FIELD_NAME)) continue;
         if (change.kind === "description" && excluded.has(LINK_FIELD_DESCRIPTION)) continue;
-        if (change.kind === "reference" && excluded.has(LINK_FIELD_REFERENCE)) continue;
+        if (change.kind === "ticket" && excluded.has(LINK_FIELD_TICKET)) continue;
 
         const next = await this.itemOf(nextId, cache);
         if (!next) continue;
@@ -469,9 +494,9 @@ export class ItemLinkService {
           continue;
         }
 
-        if (change.kind === "reference") {
-          if (!change.reference || (next.reference ?? null) === change.reference) continue;
-          await this.repos.items.update(next.id, { reference: change.reference });
+        if (change.kind === "ticket") {
+          if (!change.ticket || (next.ticket ?? null) === change.ticket) continue;
+          await this.repos.items.update(next.id, { ticket: change.ticket });
           touched.add(next.boardId);
           continue;
         }
@@ -527,11 +552,11 @@ export class ItemLinkService {
    */
   private async fillFrom(source: Item, dest: Item, excluded: ReadonlySet<string>, pairs: readonly ColumnPair[] = []): Promise<void> {
     if (!excluded.has(LINK_FIELD_NAME) && dest.name !== source.name) await this.repos.items.update(dest.id, { name: source.name });
-    if (!excluded.has(LINK_FIELD_REFERENCE)) {
+    if (!excluded.has(LINK_FIELD_TICKET)) {
       // The code travels the way a name does — the source wins — but an empty
       // source never wipes a code the other task already answers to.
-      if (source.reference && dest.reference !== source.reference) await this.repos.items.update(dest.id, { reference: source.reference });
-      else if (!source.reference && dest.reference) await this.repos.items.update(source.id, { reference: dest.reference });
+      if (source.ticket && dest.ticket !== source.ticket) await this.repos.items.update(dest.id, { ticket: source.ticket });
+      else if (!source.ticket && dest.ticket) await this.repos.items.update(source.id, { ticket: dest.ticket });
     }
     if (!excluded.has(LINK_FIELD_DESCRIPTION)) {
       if (source.description && dest.description !== source.description) await this.repos.items.update(dest.id, { description: source.description });

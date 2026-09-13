@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, History, MessageSquare, MoreVertical, Package, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -29,7 +29,7 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item, ItemAsset } from "@/domain";
-import { COLUMN_TYPE_LABELS, ITEM_REFERENCE_MAX, isSystemColumnType, normaliseItemReference } from "@/domain";
+import { COLUMN_TYPE_LABELS, TICKET_MAX, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
@@ -340,7 +340,7 @@ function PanelHeader({
         </div>
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-        <ReferenceField item={item} canEdit={canEdit} onSave={(reference) => void mutations.updateReference(item.id, reference)} />
+        <TicketField item={item} canEdit={canEdit} onSave={(value) => void mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
         {share?.enabled && (
           <SimpleTooltip label={share.access === "PUBLIC" ? "Shared by link with anyone who has it." : "Shared by link with signed-in members."}>
             <button
@@ -375,19 +375,25 @@ function PanelHeader({
 }
 
 /** Long enough to tell a double click from two single ones, short enough that a copy still feels immediate. */
-const REFERENCE_DOUBLE_CLICK_MS = 220;
+const TICKET_DOUBLE_CLICK_MS = 220;
 
 /**
- * The task's ID#.
+ * The task's ticket.
  *
- * Booking hands it out, and the board shows it read-only, but a task that
- * arrived some other way needs a way to be given one — and a code typed wrongly
- * into an email needs a way to be put right. Seven characters, upper case; one
- * click copies it and two open it for editing.
+ * Booking hands one out. Work that arrived some other way starts without one
+ * and is given the next in the series by asking for it here — there is nothing
+ * to type, because the number is the workspace's to give.
+ *
+ * One click copies, two open it for editing: the code quoted wrongly in an
+ * email has to be fixable, and a task taking over from another has to be able
+ * to take its ticket. What is typed is checked against the whole workspace
+ * before it is kept, so this hands the raw text over rather than tidying it
+ * into something that might be a different ticket.
  */
-function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolean; onSave: (reference: string | null) => void }) {
+function TicketField({ item, canEdit, onSave, onAssign }: { item: Item; canEdit: boolean; onSave: (value: string | null) => void; onAssign: () => void }) {
   const [editing, setEditing] = React.useState(false);
-  const code = item.reference ?? null;
+  const [issuing, setIssuing] = React.useState(false);
+  const code = item.ticket ?? null;
   // The first click of a double click has to be held back, or opening the code
   // for editing would copy it twice on the way through.
   const pending = React.useRef<number | null>(null);
@@ -399,10 +405,7 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
   );
 
   const click = () => {
-    if (!code) {
-      if (canEdit) setEditing(true);
-      return;
-    }
+    if (!code) return;
     if (!canEdit) {
       void copyToClipboard(code, `${code} copied`);
       return;
@@ -411,7 +414,7 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
     pending.current = window.setTimeout(() => {
       pending.current = null;
       void copyToClipboard(code, `${code} copied`);
-    }, REFERENCE_DOUBLE_CLICK_MS);
+    }, TICKET_DOUBLE_CLICK_MS);
   };
 
   // Opening the code for editing takes the caret and selects what is there, so
@@ -438,19 +441,19 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
   if (editing) {
     return (
       <span className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-accent-soft pl-2 text-accent-soft-foreground ring-2 ring-ring/30">
-        <span className="text-[10px] font-medium opacity-60">ID#</span>
+        <span className="text-[10px] font-medium opacity-60">Ticket</span>
         <input
           ref={input}
           autoFocus
           defaultValue={code ?? ""}
-          maxLength={ITEM_REFERENCE_MAX}
-          aria-label="ID"
-          data-testid="panel-reference-input"
-          className="h-full w-20 rounded-r-lg bg-transparent pr-2 font-mono text-[13px] font-semibold uppercase tabular outline-none"
+          maxLength={TICKET_MAX}
+          aria-label="Ticket"
+          data-testid="panel-ticket-input"
+          className="h-full w-28 rounded-r-lg bg-transparent pr-2 font-mono text-[13px] font-semibold uppercase tabular outline-none"
           onBlur={(e) => {
             setEditing(false);
-            const next = normaliseItemReference(e.currentTarget.value);
-            if (next !== code) onSave(next);
+            const typed = e.currentTarget.value.trim();
+            if (typed.toUpperCase() !== (code ?? "")) onSave(typed || null);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
@@ -464,24 +467,40 @@ function ReferenceField({ item, canEdit, onSave }: { item: Item; canEdit: boolea
     );
   }
 
+  if (!code) {
+    if (!canEdit) return null;
+    return (
+      <button
+        type="button"
+        disabled={issuing}
+        onClick={() => {
+          setIssuing(true);
+          onAssign();
+        }}
+        onDoubleClick={edit}
+        title="Take the next ticket in the series"
+        data-testid="panel-ticket-add"
+        className="inline-flex h-6 items-center gap-1 rounded-md border border-dashed border-border/70 px-1.5 text-2xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-60"
+      >
+        {issuing ? <LoaderCircle className="size-3 animate-spin" /> : <Hash className="size-3" />} Add a ticket
+      </button>
+    );
+  }
+
   return (
     // The chip is quiet beside the task's name, but inside it the code leads and
     // the label only says what it is.
-    <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60" data-testid="panel-reference-chip">
-      <span className="pl-1.5 text-[10px] font-medium text-muted-foreground/70">ID#</span>
+    <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60" data-testid="panel-ticket-chip">
+      <span className="pl-1.5 text-[10px] font-medium text-muted-foreground/70">Ticket</span>
       <button
         type="button"
         onClick={click}
         onDoubleClick={edit}
-        title={canEdit ? "Click to copy, double click to edit" : "Booking code"}
-        data-testid="panel-reference"
-        className={cn(
-          "h-full pr-1.5 pl-1 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground",
-          canEdit && "hover:bg-foreground/[0.06]",
-          !code && "pl-1.5 text-2xs font-normal text-muted-foreground italic",
-        )}
+        title={canEdit ? "Click to copy, double click to edit" : "Copy this ticket"}
+        data-testid="panel-ticket"
+        className={cn("h-full pr-1.5 pl-1 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground", canEdit && "hover:bg-foreground/[0.06]")}
       >
-        {code ?? (canEdit ? "Add an ID" : "None")}
+        {code}
       </button>
     </span>
   );

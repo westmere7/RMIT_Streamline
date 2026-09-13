@@ -1,4 +1,5 @@
 import type { Board, EntityId, Item, Team, User } from "@/domain";
+import { ticketSearchKey } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
 export interface SearchResults {
@@ -26,14 +27,12 @@ function matches(haystack: string | null | undefined, needle: string): boolean {
 }
 
 /**
- * A booking code, matched the way people quote it: "TA-4F2K", "ta4f2k", or the
- * tail of it. The hyphen is dropped from both sides because nobody remembers
- * whether the code has one.
+ * A ticket, matched the way people quote it: "CP_014", "cp14", "cp-14" or just
+ * "14". Nobody remembers the separator and nobody types the padding.
  */
-function matchesReference(reference: string | null | undefined, needle: string): boolean {
-  if (!reference) return false;
-  const loose = (value: string) => value.toLowerCase().replace(/[\s-]/g, "");
-  return reference.toLowerCase().includes(needle) || loose(reference).includes(loose(needle));
+function matchesTicket(ticket: string | null | undefined, needle: string): boolean {
+  if (!ticket) return false;
+  return ticket.toLowerCase().includes(needle) || ticketSearchKey(ticket).includes(ticketSearchKey(needle));
 }
 
 export class SearchService {
@@ -59,7 +58,7 @@ export class SearchService {
       if (itemMatches.length >= limitPerGroup * 2) break;
       const items = await this.repos.items.listByBoard(board.id, { includeArchived: options.includeArchived });
       for (const item of items) {
-        if (matches(item.name, needle) || matchesReference(item.reference, needle)) itemMatches.push({ item, board, archived: item.archivedAt !== null });
+        if (matches(item.name, needle) || matchesTicket(item.ticket, needle)) itemMatches.push({ item, board, archived: item.archivedAt !== null });
       }
     }
     // Live work first: an archived hit is a different answer to the question,

@@ -15,6 +15,7 @@ import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
 import { StakeholderPortalService, type PortalTransport } from "./stakeholder-portal-service";
+import { TicketService } from "./ticket-service";
 import { WorkspaceListService } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
 
@@ -38,6 +39,7 @@ export interface Services {
   trackers: TrackerService;
   booking: BookingService;
   portals: StakeholderPortalService;
+  tickets: TicketService;
 }
 
 export interface ServiceOptions {
@@ -60,7 +62,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const workspace = new WorkspaceService(repos);
   const items = new ItemService(repos, links, notifications);
   const assets = new ItemAssetService(repos);
-  const booking = new BookingService(repos, workspace, items, assets, notifications, options.bookingTransport ?? null);
+  const tickets = new TicketService(repos, links);
+  const booking = new BookingService(repos, workspace, items, assets, notifications, tickets, options.bookingTransport ?? null);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   return {
     repos,
@@ -76,6 +79,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     links,
     assets,
     booking,
+    tickets,
     comments: new CommentService(repos, notifications, links),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
@@ -88,6 +92,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
 export type { ArchiveSnapshot, BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
 export { resolveArchiveFilters } from "./item-service";
 export type { CreateBoardInput } from "./board-service";
+export { TicketError } from "./ticket-service";
+export type { PrefixChange } from "./ticket-service";
 export type { LinkCandidate, LinkChange, LinkedItemView, LinkOptions, LinkSearch, LinkValidation } from "./item-link-service";
 export type { ColumnMapping, ColumnMappingReport } from "./item-link-sync";
 export type { CellEdit, CreateTrackerInput } from "./tracker-service";

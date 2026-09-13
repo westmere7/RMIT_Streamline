@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { ReferenceCell, ReferenceSpacer } from "@/features/boards/components/table/reference-cell";
+import { TicketCell, TicketSpacer } from "@/features/boards/components/table/ticket-cell";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
@@ -32,7 +32,7 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates, showReference } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates, showTicket } = useBoardContext();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
@@ -199,7 +199,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 selected && "bg-[color-mix(in_srgb,var(--color-accent-soft)_60%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-background))]",
                 viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]",
               )}
-              style={leadingCellStyle(showReference)}
+              style={leadingCellStyle(showTicket)}
               data-testid="item-drag-area"
               {...(dndEnabled ? listeners : {})}
               onPointerDownCapture={() => {
@@ -228,7 +228,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                   disabled={!canEdit}
                 />
               </div>
-              <ReferenceCell code={item.reference} />
+              <TicketCell code={item.ticket} />
               {/* The empty run of the name cell opens the item too, like the name itself. */}
               <div
                 className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"
@@ -400,7 +400,7 @@ function SubitemRows({
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
 }) {
-  const { model, mutations, canEdit, showReference } = useBoardContext();
+  const { model, mutations, canEdit, showTicket } = useBoardContext();
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -422,9 +422,9 @@ function SubitemRows({
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-[color-mix(in_srgb,var(--color-surface)_60%,var(--color-background))]" style={leadingCellStyle(showReference)}>
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-[color-mix(in_srgb,var(--color-surface)_60%,var(--color-background))]" style={leadingCellStyle(showTicket)}>
             <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
-            <ReferenceSpacer />
+            <TicketSpacer />
             <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <input
               ref={inputRef}
@@ -458,7 +458,7 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem, openItemUpdates, updates, showReference } = useBoardContext();
+  const { model, mutations, canEdit, openItem, openItemUpdates, updates, showTicket } = useBoardContext();
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -488,10 +488,10 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
         >
           <div
             className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))] transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]", viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]")}
-            style={leadingCellStyle(showReference)}
+            style={leadingCellStyle(showTicket)}
           >
             <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
-            <ReferenceCell code={item.reference} />
+            <TicketCell code={item.ticket} />
             <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <div
               className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"

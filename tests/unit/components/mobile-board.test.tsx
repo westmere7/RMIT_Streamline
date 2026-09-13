@@ -37,12 +37,12 @@ describe("the mobile board", () => {
   it("shows the booking code on the card", async () => {
     const app = await createTestApp();
     const items = await app.data.services.repos.items.listByBoard(boardId);
-    const coded = items.find((i) => i.reference);
+    const coded = items.find((i) => i.ticket);
     await app.render(<MobileTable />);
 
     const cards = await screen.findAllByTestId("mobile-item-card");
     const card = cards.find((c) => c.textContent?.includes(coded!.name));
-    expect(card).toHaveTextContent(coded!.reference!);
+    expect(card).toHaveTextContent(coded!.ticket!);
   });
 
   it("folds a group and says how many are in it", async () => {

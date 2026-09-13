@@ -11,7 +11,7 @@ import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
-import { ReferenceCell, ReferenceHeaderCell } from "@/features/boards/components/table/reference-cell";
+import { TicketCell, TicketHeaderCell } from "@/features/boards/components/table/ticket-cell";
 import { colorClasses } from "@/lib/colors";
 import { formatDateTime, formatRelative } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ export interface ArchiveTableProps {
  * read-only, so an archived task looks like the task it was.
  */
 export function ArchiveTable({ items, groupsById, selectedIds, onSelectedChange, onRestore, onDelete, busy, canManage }: ArchiveTableProps) {
-  const { model, showReference } = useBoardContext();
+  const { model, showTicket } = useBoardContext();
   const selected = React.useMemo(() => new Set(selectedIds), [selectedIds]);
   const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
 
@@ -64,7 +64,7 @@ export function ArchiveTable({ items, groupsById, selectedIds, onSelectedChange,
 
   const width =
     TABLE_LAYOUT.selectWidth +
-    (showReference ? TABLE_LAYOUT.referenceWidth : 0) +
+    (showTicket ? TABLE_LAYOUT.ticketWidth : 0) +
     TABLE_LAYOUT.nameWidth +
     model.visibleColumns.reduce((sum, c) => sum + c.width, 0) +
     RESTORES_TO_WIDTH +
@@ -75,7 +75,7 @@ export function ArchiveTable({ items, groupsById, selectedIds, onSelectedChange,
     <div className="scrollbar-thin ml-6 min-h-0 flex-1 overflow-auto" data-testid="archive-table">
       <div style={{ minWidth: width }} className={cn("pb-10 transition-opacity", busy && "opacity-60")}>
         <div role="row" className="sticky top-0 z-[6] flex h-9 border-b border-border/70 bg-surface/95 backdrop-blur">
-          <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-surface/95" style={leadingCellStyle(showReference)}>
+          <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-surface/95" style={leadingCellStyle(showTicket)}>
             <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth }}>
               <Checkbox
                 aria-label={allSelected ? "Clear selection" : "Select every item on this page"}
@@ -84,7 +84,7 @@ export function ArchiveTable({ items, groupsById, selectedIds, onSelectedChange,
                 disabled={items.length === 0 || !canManage}
               />
             </div>
-            <ReferenceHeaderCell />
+            <TicketHeaderCell />
             <span className="px-2 text-xs font-medium text-muted-foreground">Item</span>
           </div>
           {model.visibleColumns.map((column) => (
@@ -139,7 +139,7 @@ function ArchiveRow({
   onDelete: () => void;
   canManage: boolean;
 }) {
-  const { model, openItem, showReference } = useBoardContext();
+  const { model, openItem, showTicket } = useBoardContext();
   const viewing = model.itemById.has(item.id);
   const menuFocus = useMenuFocusGuard();
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
@@ -172,13 +172,13 @@ function ArchiveRow({
               "sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors group-hover/row:bg-accent/45",
               selected && "bg-accent-soft/60 group-hover/row:bg-accent-soft/80",
             )}
-            style={leadingCellStyle(showReference)}
+            style={leadingCellStyle(showTicket)}
           >
             <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", group ? colorClasses(group.color).dot : "bg-muted")} />
             <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
               <Checkbox aria-label={`Select ${item.name}`} checked={selected} onCheckedChange={(next) => onToggle(next === true)} disabled={!canManage} />
             </div>
-            <ReferenceCell code={item.reference} />
+            <TicketCell code={item.ticket} />
             <div className="flex h-full min-w-0 flex-1 items-center gap-1 pr-1">
               <button
                 type="button"

@@ -108,13 +108,13 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const ui = useBoardUi(boardId);
   const [editLabelsColumn, setEditLabelsColumn] = React.useState<BoardColumn | null>(null);
   const [now] = React.useState(() => new Date());
-  // The ID# column is the table's own setting: per person, per board.
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(boardId, "table", { showReference: true });
+  // The ticket column is the table's own setting: per person, per board.
+  const [tableSettings, updateTableSettings] = useViewSettingsFor(boardId, "table", { showTicket: true });
   const isMobile = useIsMobile();
   // Cards or the grid on a phone. Its own key: the desktop table has no such
   // choice, and the board's view settings follow the person to another device.
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${boardId}`, "cards");
-  const setShowReference = React.useCallback((showReference: boolean) => updateTableSettings({ showReference }), [updateTableSettings]);
+  const setShowTicket = React.useCallback((showTicket: boolean) => updateTableSettings({ showTicket }), [updateTableSettings]);
   // The archive, offered under the views as well as in the board's menu, with
   // how much is in it. One count for the board being looked at, not one per
   // board in the sidebar.
@@ -260,12 +260,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
             openItemUpdates,
             openEditLabels: setEditLabelsColumn,
             now,
-            showReference: tableSettings.showReference,
-            setShowReference,
+            showTicket: tableSettings.showTicket,
+            setShowTicket,
             updates,
           }
         : null,
-    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showReference, setShowReference],
+    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket],
   );
 
   // Next holds this page on screen until the next one is ready, so a board

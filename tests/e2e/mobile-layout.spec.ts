@@ -77,12 +77,12 @@ test.describe("phone layout", () => {
     await expect(lanes.first()).not.toHaveText(before);
   });
 
-  test("search matches the booking code as well as the name", async ({ page }) => {
+  test("search matches the ticket as well as the name", async ({ page }) => {
     await page.goto("/workspace/rmit/boards/semester-1-campaign");
-    const reference = await page.getByTestId("mobile-item-card").first().locator(".font-mono").first().innerText();
+    const ticket = await page.getByTestId("mobile-item-card").first().locator(".font-mono").first().innerText();
 
     await page.getByTestId("mobile-search-chip").click();
-    await page.getByTestId("mobile-search-input").fill(reference);
+    await page.getByTestId("mobile-search-input").fill(ticket);
     await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
     await expect(page.getByTestId("mobile-item-card")).toHaveCount(1);
   });

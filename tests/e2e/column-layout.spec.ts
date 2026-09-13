@@ -3,8 +3,8 @@ import { openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
-/** The board's own column headers. ID# is a fixed slot in front of the name, not one of them. */
-const headerNames = async (page: Page) => (await page.getByRole("columnheader").allTextContents()).filter((h) => h !== "ID#");
+/** The board's own column headers. Ticket is a fixed slot in front of the name, not one of them. */
+const headerNames = async (page: Page) => (await page.getByRole("columnheader").allTextContents()).filter((h) => h !== "Ticket");
 
 /** Centre of a column header, for dragging. */
 async function headerBox(page: Page, name: string) {

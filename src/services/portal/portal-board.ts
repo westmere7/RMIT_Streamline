@@ -281,7 +281,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
       position,
       createdBy: NOBODY,
       archivedAt: null,
-      reference: task.reference,
+      ticket: task.ticket,
       createdAt: task.bookedAt,
       updatedAt: task.updatedAt,
     });
@@ -354,7 +354,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
         position: index,
         createdBy: NOBODY,
         archivedAt: null,
-        reference: null,
+        ticket: null,
         createdAt: task.bookedAt,
         updatedAt: task.updatedAt,
       });

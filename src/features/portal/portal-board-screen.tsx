@@ -150,7 +150,7 @@ function PortalBoard({
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showReference: true });
+  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showTicket: true });
   const isMobile = useIsMobile();
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
@@ -215,13 +215,13 @@ function PortalBoard({
             openItemUpdates: openItem,
             openEditLabels: () => undefined,
             now,
-            showReference: tableSettings.showReference,
-            setShowReference: (showReference) => updateTableSettings({ showReference }),
+            showTicket: tableSettings.showTicket,
+            setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
             updates: new Map(),
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showReference],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;

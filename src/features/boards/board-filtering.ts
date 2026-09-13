@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
-import { columnLabels, resolveColumnRoles, T_SHIRT_SIZES } from "@/domain";
+import { columnLabels, resolveColumnRoles, ticketSearchKey, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
@@ -38,20 +38,19 @@ export function primaryDueDate(itemId: string, columns: BoardColumn[], getValue:
 }
 
 /**
- * The board's search box: the name, and the booking code.
+ * The board's search box: the name, and the ticket.
  *
- * The code is what people have to hand — it is what an email or a corridor
- * conversation quotes — so typing "TA-4F2K" has to find the task. A hyphen is
- * dropped from both sides, because nobody remembers whether the code has one.
+ * The ticket is what people have to hand — it is what an email or a corridor
+ * conversation quotes — so typing "CP_014" has to find the task, and so does
+ * "cp14", "cp-14" and "14". Nobody remembers a separator, and nobody types the
+ * padding. See `ticketSearchKey`.
  */
 export function matchesSearch(item: Item, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
   if (item.name.toLowerCase().includes(q)) return true;
-  const reference = item.reference?.toLowerCase();
-  if (!reference) return false;
-  const loose = (value: string) => value.replace(/[\s-]/g, "");
-  return reference.includes(q) || loose(reference).includes(loose(q));
+  if (!item.ticket) return false;
+  return item.ticket.toLowerCase().includes(q) || ticketSearchKey(item.ticket).includes(ticketSearchKey(q));
 }
 
 export function matchesFilters(item: Item, filters: BoardFilters, ctx: FilterContext): boolean {

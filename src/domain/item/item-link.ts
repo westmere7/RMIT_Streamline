@@ -42,8 +42,16 @@ export interface ItemLinkInput {
 /** Exclusion keys for the item-level fields (columns use their ids). */
 export const LINK_FIELD_NAME = "name";
 export const LINK_FIELD_DESCRIPTION = "description";
-/** The booking code (ID#). Carried like every other field unless the link excludes it. */
-export const LINK_FIELD_REFERENCE = "reference";
+/**
+ * The ticket.
+ *
+ * Carried like every other field unless the link excludes it, and the one
+ * deliberate way two tasks come to answer to the same code: linked tasks are
+ * one piece of work seen from two boards, so one ticket between them is right.
+ * Excluded, each side keeps its own — and the uniqueness check treats them as
+ * two tasks again.
+ */
+export const LINK_FIELD_TICKET = "ticket";
 /**
  * The Updates thread. Linked items are the same work seen from two boards, so
  * they share one conversation: each comment stays on the item it was written on

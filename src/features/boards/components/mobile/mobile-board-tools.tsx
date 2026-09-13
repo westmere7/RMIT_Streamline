@@ -346,12 +346,12 @@ function MobileFilters() {
   );
 }
 
-/** Which columns the grid shows — the desktop's Hide menu, including the ID# slot. */
+/** Which columns the grid shows — the desktop's Hide menu, including the ticket slot. */
 function MobileColumns() {
-  const { model, mutations, canManage, showReference, setShowReference } = useBoardContext();
+  const { model, mutations, canManage, showTicket, setShowTicket } = useBoardContext();
   return (
     <div className="pb-2">
-      <Option label="ID#" checked={showReference} onChange={() => setShowReference(!showReference)} testId="mobile-toggle-reference" />
+      <Option label="Ticket" checked={showTicket} onChange={() => setShowTicket(!showTicket)} testId="mobile-toggle-ticket" />
       {model.columns.map((column) => (
         <Option
           key={column.id}

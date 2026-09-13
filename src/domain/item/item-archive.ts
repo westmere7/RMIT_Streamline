@@ -151,8 +151,8 @@ export function matchesArchiveQuery(item: ArchivableItem, query: ArchiveQuery, g
   const search = query.search.trim().toLowerCase();
   if (search) {
     const name = item.name.toLowerCase().includes(search);
-    const reference = (item.reference ?? "").toLowerCase().includes(search);
-    if (!name && !reference) return false;
+    const ticket = (item.ticket ?? "").toLowerCase().includes(search);
+    if (!name && !ticket) return false;
   }
   if (query.groupIds.length > 0 && !query.groupIds.includes(item.groupId)) return false;
 
@@ -195,7 +195,7 @@ export interface ArchivableItem {
   id: EntityId;
   groupId: EntityId;
   name: string;
-  reference?: string | null;
+  ticket?: string | null;
   archivedAt: string | null;
 }
 

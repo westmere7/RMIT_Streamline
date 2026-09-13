@@ -192,7 +192,7 @@ export function CommandPalette() {
                     <span className="shrink-0 rounded-full bg-surface-strong px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">Archived</span>
                   )}
                   {/* Searching by booking code should show the code that matched. */}
-                  {item.reference && <span className="shrink-0 font-mono text-2xs text-muted-foreground/70 tabular">{item.reference}</span>}
+                  {item.ticket && <span className="shrink-0 font-mono text-2xs text-muted-foreground/70 tabular">{item.ticket}</span>}
                   <span className="ml-auto truncate text-2xs text-muted-foreground">{board.name}</span>
                 </CommandItem>
               ))}

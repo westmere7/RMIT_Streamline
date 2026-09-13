@@ -20,12 +20,12 @@ export interface BoardContextValue {
   openEditLabels: (column: BoardColumn) => void;
   now: Date;
   /**
-   * Whether the ID# column is on screen. It is not a column of the board — no
+   * Whether the ticket column is on screen. It is not a column of the board — no
    * width, no position, nothing to edit — so it hides through the Hide menu and
    * is remembered per person, like a view's own settings.
    */
-  showReference: boolean;
-  setShowReference: (show: boolean) => void;
+  showTicket: boolean;
+  setShowTicket: (show: boolean) => void;
   /** Update counts per item (subitems included), with how many are new to this person. */
   updates: Map<string, ItemUpdatesSummary>;
 }

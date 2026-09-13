@@ -38,6 +38,24 @@ export interface Workspace extends Timestamps {
    * says so rather than guessing. See `@/domain/workspace/asset-rate`.
    */
   assetRates?: AssetRates | null;
+  /**
+   * What this workspace stamps on its tickets: "CP" gives CP_001, CP_002.
+   *
+   * Absent means nobody has changed it and the default stands. Changing it is a
+   * decision about codes already quoted in emails and spreadsheets, so the
+   * tickets already handed out are left alone unless somebody asks for them to
+   * be rewritten. See `@/domain/item/ticket`.
+   */
+  ticketPrefix?: string | null;
+  /**
+   * How many tickets this workspace has handed out.
+   *
+   * The next one is this plus one. It counts issued tickets rather than tasks,
+   * so it never goes backwards: a task deleted does not free its number, and a
+   * number is not reused — a ticket is what somebody was told, and telling two
+   * people the same one is the fault this whole system exists to avoid.
+   */
+  ticketCounter?: number | null;
 }
 
 export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";

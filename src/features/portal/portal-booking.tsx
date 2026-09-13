@@ -64,7 +64,7 @@ export function PortalBookingScreen({
   const signInHref = `/login?next=${encodeURIComponent(typeof window === "undefined" ? "" : window.location.pathname + window.location.search)}`;
   const [submissionKey, setSubmissionKey] = React.useState(() => newSubmissionKey());
   // Kept so the ticket can offer somewhere to go. The wizard keeps showing its
-  // own ticket; leaving the moment a booking lands would take the reference off
+  // own receipt; leaving the moment a booking lands would take the ticket off
   // the screen just as somebody was reading it.
   const [booked, setBooked] = React.useState<string | null>(null);
   /**

@@ -84,6 +84,8 @@ export interface BookingForm {
   /** Priority labels of the Task Allocation board, in order. */
   priorities: Array<{ name: string; color: ColorToken }>;
   teams: BookingTeamOption[];
+  /** What this workspace stamps on its tickets, for the code the receipt will show. */
+  ticketPrefix: string;
   /** The questions to ask, in the workspace's words. */
   template: BookingFormTemplate;
 }
@@ -137,9 +139,9 @@ export interface BookingRequest {
   /** Answers to the chosen service's brief, keyed by block id. */
   answers: Record<string, BookingAnswer>;
   /**
-   * The id the item should be created with. The form makes one up front so the
-   * reference it shows is the reference the booking gets; nothing is written
-   * until the booking is sent. Ignored when it is already taken.
+   * The id the item should be created with, made up by the form before anything
+   * is sent, so that a submission retried after a dropped connection lands as
+   * one booking rather than two. Ignored when it is already taken.
    */
   itemId?: EntityId | null;
 }
@@ -153,8 +155,8 @@ export interface BookingReceipt {
   boardSlug: string;
   /** The team the booking went to directly, or null when it is waiting on Task Allocation. */
   teamName: string | null;
-  /** Short human reference for follow-up, e.g. "TA-4F2K". */
-  reference: string;
+  /** The ticket to quote when following up, e.g. "CP_014". */
+  ticket: string;
   submittedAt: string;
   /** How many asset lines became subitems. */
   assetCount: number;
@@ -175,22 +177,4 @@ export function isPlausibleBookingKey(value: string): boolean {
   return /^[a-z0-9]{16,64}$/.test(value);
 }
 
-/**
- * The code a booking is known by, and the ID# a board shows.
- *
- * Seven characters — as much as the column has room for and as much as anyone
- * will read back over the phone — and the same code every time for the same
- * task, so the form can show it before the task exists. A digest rather than a
- * slice of the id: ids handed out in order would otherwise turn into codes that
- * read as a counter, and a code is not a position in a queue.
- */
-export function bookingReference(itemId: EntityId): string {
-  // FNV-1a, 32 bits. Not a security hash: it is here to scramble, cheaply and
-  // identically in every browser.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < itemId.length; i++) {
-    hash ^= itemId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `TA-${hash.toString(16).toUpperCase().padStart(8, "0").slice(0, 4)}`;
-}
+

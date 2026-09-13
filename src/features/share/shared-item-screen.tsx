@@ -56,8 +56,8 @@ export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
             openItemUpdates: () => undefined,
             openEditLabels: () => undefined,
             now,
-            showReference: true,
-            setShowReference: () => undefined,
+            showTicket: true,
+            setShowTicket: () => undefined,
             updates,
           }
         : null,

@@ -31,6 +31,27 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     return updated;
   }
 
+  /**
+   * The same bargain as the Supabase provider, inside one IndexedDB
+   * transaction: read the counter, add to it and write it back with nothing
+   * able to interleave. One browser tab is the whole world here, but the rule
+   * this upholds is the same one.
+   */
+  async allocateTicketNumbers(workspaceId: string, count = 1): Promise<number> {
+    if (count < 1) throw new Error("workspaces.allocateTicketNumbers: count must be at least 1");
+    const db = await this.conn.getDb();
+    const tx = db.transaction("workspaces", "readwrite");
+    const existing = await tx.store.get(workspaceId);
+    if (!existing) {
+      await tx.done;
+      throw new NotFoundError("Workspace", workspaceId);
+    }
+    const taken = (existing.ticketCounter ?? 0) + count;
+    await tx.store.put({ ...existing, ticketCounter: taken, updatedAt: nowIso() });
+    await tx.done;
+    return taken - count + 1;
+  }
+
   async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     const db = await this.conn.getDb();
     return db.getAllFromIndex("workspaceMembers", "byWorkspace", workspaceId);

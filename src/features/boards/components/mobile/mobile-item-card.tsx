@@ -87,11 +87,11 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
             )}
           </span>
 
-          {(item.reference || owners.length > 0 || linkCount > 0) && (
+          {(item.ticket || owners.length > 0 || linkCount > 0) && (
             <span className="mt-1.5 flex items-center gap-2.5 text-2xs text-muted-foreground">
               {/* A span, not a button: the card is already one, and nesting is
                   invalid. Copying the code lives in the card's menu. */}
-              {item.reference && <span className="font-mono tracking-tight tabular">{item.reference}</span>}
+              {item.ticket && <span className="font-mono tracking-tight tabular">{item.ticket}</span>}
               <Owners userIds={owners} />
               {linkCount > 0 && (
                 <span className="flex items-center gap-0.5" aria-label={`${linkCount} linked ${linkCount === 1 ? "item" : "items"}`}>
@@ -147,12 +147,12 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [open, setOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const reference = item.reference;
+  const ticket = item.ticket;
   const subitems = model.subitemsByParent.get(item.id) ?? [];
 
   const actions: MenuAction[] = React.useMemo(() => {
     const base: MenuAction[] = [{ type: "item", label: "Open", onSelect: () => openItem(item.id) }];
-    if (reference) base.push({ type: "item", label: `Copy ID ${reference}`, onSelect: () => void copyToClipboard(reference, `${reference} copied`) });
+    if (ticket) base.push({ type: "item", label: `Copy ID ${ticket}`, onSelect: () => void copyToClipboard(ticket, `${ticket} copied`) });
     if (!canEdit) return base;
     return [
       ...base,
@@ -167,7 +167,7 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
       { type: "item", label: "Archive", onSelect: () => setArchiveRequest([item.id]) },
       { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
     ];
-  }, [item.id, item.groupId, reference, group.id, canEdit, model.groups, mutations, openItem, setArchiveRequest]);
+  }, [item.id, item.groupId, ticket, group.id, canEdit, model.groups, mutations, openItem, setArchiveRequest]);
 
   return (
     <>

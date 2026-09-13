@@ -25,9 +25,9 @@ export interface RememberedRequester {
 
 /** A booking this browser has already made, enough of it to start another. */
 export interface PastBooking {
-  /** The item's id, which is also what its reference is made from. */
+  /** The item's id. */
   id: string;
-  reference: string;
+  ticket: string;
   bookedAt: string;
   title: string;
   /** The service it was booked under, so the same brief opens with the same answers in it. */
@@ -150,13 +150,13 @@ export function useBookingMemory(scope: string | null) {
 
   /** Called once a booking is in: who made it, and what it was. */
   const remember = React.useCallback(
-    (request: BookingRequest, reference: string, bookedAt: string) => {
+    (request: BookingRequest, ticket: string, bookedAt: string) => {
       if (!scope) return;
       const current = all()[scope] ?? NO_MEMORY;
       const named = !!request.requesterName.trim() && !!request.requesterEmail.trim();
       const booking: PastBooking = {
-        id: request.itemId ?? reference,
-        reference,
+        id: request.itemId ?? ticket,
+        ticket,
         bookedAt,
         title: request.title.trim(),
         serviceTypeId: request.serviceTypeId,

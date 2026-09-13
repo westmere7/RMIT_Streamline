@@ -26,7 +26,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { bookingReference, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TYPE_DELIVERY, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TICKET_PREFIX, DEFAULT_TYPE_DELIVERY, formatTicket, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { buildSeedArchive } from "./seed-archive";
@@ -1129,9 +1129,9 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
         parentItemId: null,
         name: itemSpec.name,
         description: itemSpec.description ?? null,
-        // Every task in the demo data carries a booking code, the way a real one
-        // would: the demo predates the booking form, so it is derived from the id.
-        reference: bookingReference(itemId),
+        // Ticketed further down, once the links are known: a linked pair is one
+        // piece of work and holds one ticket between them.
+        ticket: null,
         position,
         createdBy: creatorId,
         archivedAt: null,
@@ -1159,7 +1159,9 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
           parentItemId: itemId,
           name: sub.name,
           description: null,
-          reference: bookingReference(subId),
+          // Subitems are steps within a task, not work anybody books: the
+          // ticket people quote is the parent's.
+          ticket: null,
           position: index,
           createdBy: creatorId,
           archivedAt: null,
@@ -1302,6 +1304,32 @@ function buildBaseSeed(now: Date): { base: SeedBundle; lookups: SeedLookups } {
     { id: `${SEED_USER_IDS.tom}:${SEED_BOARD_IDS.website}`, userId: SEED_USER_IDS.tom, boardId: SEED_BOARD_IDS.website, visitedAt: iso(subHours(now, 1)) },
     { id: `${SEED_USER_IDS.minh}:${SEED_BOARD_IDS.video}`, userId: SEED_USER_IDS.minh, boardId: SEED_BOARD_IDS.video, visitedAt: iso(subHours(now, 2)) },
   ];
+
+  // ---- Tickets --------------------------------------------------------------
+  //
+  // In the order the work arrived, the way a real workspace's series reads. A
+  // linked pair takes one number between them, because that is what the seeded
+  // links do — they carry the ticket — and demo data that disagreed with its own
+  // rules would be the first thing to go wrong.
+  const ticketHeads = new Map<string, string>();
+  for (const link of itemLinks) {
+    ticketHeads.set(link.itemAId, link.itemAId);
+    ticketHeads.set(link.itemBId, link.itemAId);
+  }
+  const ticketByHead = new Map<string, string>();
+  let issued = 0;
+  const bookable = items.filter((i) => i.parentItemId === null).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  for (const item of bookable) {
+    const head = ticketHeads.get(item.id) ?? item.id;
+    let ticket = ticketByHead.get(head);
+    if (!ticket) {
+      issued += 1;
+      ticket = formatTicket(DEFAULT_TICKET_PREFIX, issued);
+      ticketByHead.set(head, ticket);
+    }
+    item.ticket = ticket;
+  }
+  workspace.ticketCounter = issued;
 
   const lookups: SeedLookups = {
     groupId: (board, name) => {

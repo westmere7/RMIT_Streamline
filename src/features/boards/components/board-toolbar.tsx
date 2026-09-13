@@ -64,7 +64,7 @@ export function BoardToolbar({
   /** Rendered at the end of the row. */
   actions?: React.ReactNode;
 }) {
-  const { board, model, canEdit, mutations, showReference, setShowReference } = useBoardContext();
+  const { board, model, canEdit, mutations, showTicket, setShowTicket } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
   const filterCount = activeFilterCount(ui.filters);
@@ -73,7 +73,7 @@ export function BoardToolbar({
     if (columnId !== null) return model.columns.find((c) => c.id === columnId)?.name ?? "Column";
     return SORT_LABELS[field as keyof typeof SORT_LABELS];
   };
-  const hiddenCount = model.columns.filter((c) => c.hidden).length + (showReference ? 0 : 1);
+  const hiddenCount = model.columns.filter((c) => c.hidden).length + (showTicket ? 0 : 1);
   const tableTools = view === "table";
 
   return (
@@ -143,8 +143,8 @@ export function BoardToolbar({
                 <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
                 {/* Not a column of the board, but it is one on screen, and this
                     is where anyone would come looking for it. */}
-                <DropdownMenuCheckboxItem checked={showReference} onCheckedChange={(checked) => setShowReference(checked === true)} data-testid="toggle-reference-column">
-                  ID#
+                <DropdownMenuCheckboxItem checked={showTicket} onCheckedChange={(checked) => setShowTicket(checked === true)} data-testid="toggle-ticket-column">
+                  Ticket
                 </DropdownMenuCheckboxItem>
                 {model.columns.map((column) => (
                   <DropdownMenuCheckboxItem

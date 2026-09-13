@@ -15,7 +15,7 @@ const DEPARTMENT: StakeholderDepartment = {
 
 function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
   return {
-    reference: null,
+    ticket: null,
     name: `Task ${overrides.id}`,
     status: null,
     priority: null,

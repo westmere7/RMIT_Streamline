@@ -15,25 +15,22 @@ export interface Item extends Timestamps {
   /** Public URL (or data URL in local mode) of the cover image shown on the panel and kanban card. */
   coverUrl?: string | null;
   /**
-   * The booking code: the short reference people quote in an email or a corridor
-   * ("TA-4F2K"). The booking process hands it out, so a task that was never
-   * booked has none. At most ITEM_REFERENCE_MAX characters, never edited by hand,
-   * and shared deliberately with a linked task when that link carries it.
+   * The ticket: "CP_014", the code people quote in an email or a corridor.
+   *
+   * Booking hands one out, and a task that arrived some other way starts
+   * without one until somebody asks for the next in the series. No two tasks in
+   * a workspace share a ticket, with the one deliberate exception of tasks
+   * linked to each other with the ticket among the fields they sync — they are
+   * two boards' views of one piece of work and answer to one code.
+   *
+   * See `@/domain/item/ticket` for the shape and `TicketService` for who may
+   * hand one out.
    */
-  reference?: string | null;
-}
-
-/** A booking code is short enough to read out and to fit in a narrow column. */
-export const ITEM_REFERENCE_MAX = 7;
-
-/** Trims a code to what may be stored: upper case, no spaces, seven characters. */
-export function normaliseItemReference(value: string | null | undefined): string | null {
-  const trimmed = (value ?? "").trim().toUpperCase().slice(0, ITEM_REFERENCE_MAX);
-  return trimmed.length > 0 ? trimmed : null;
+  ticket?: string | null;
 }
 
 export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy"> &
-  Partial<Pick<Item, "parentItemId" | "description" | "reference">>;
+  Partial<Pick<Item, "parentItemId" | "description" | "ticket">>;
 
 export type ColumnValue =
   | { type: "TEXT"; text: string }

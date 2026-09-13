@@ -56,7 +56,7 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showReference: true });
+  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showTicket: true });
   const isMobile = useIsMobile();
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
@@ -115,13 +115,13 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
             openItemUpdates: openItem,
             openEditLabels: () => undefined,
             now,
-            showReference: tableSettings.showReference,
-            setShowReference: (showReference) => updateTableSettings({ showReference }),
+            showTicket: tableSettings.showTicket,
+            setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
             updates,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showReference],
+    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showTicket],
   );
 
   // The board arrives before anything is drawn, so the wait looks the same as it

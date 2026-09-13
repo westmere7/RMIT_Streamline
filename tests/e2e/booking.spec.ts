@@ -133,16 +133,16 @@ test.describe("task booking", () => {
     await expect(review).toBeVisible();
     await expect(review).toContainText("Design — Print");
     await expect(review).toContainText("Six A1 posters for the Brunswick campus");
-    // The wizard settles the reference before it sends, and the ticket keeps it.
-    const promised = (await page.getByTestId("booking-reference-preview").textContent())?.trim();
-    expect(promised).toMatch(/^TA-[0-9A-F]{4}$/);
+    // The ticket is a number in the team's series, so it cannot be known before
+    // the booking lands. The receipt is where the stakeholder first sees it.
+    await expect(page.getByTestId("booking-ticket-preview")).toHaveCount(0);
     await page.getByTestId("booking-submit").click();
 
     await expect(page.getByTestId("booking-receipt")).toBeVisible();
-    await expect(page.getByTestId("booking-reference")).toHaveText(promised!);
+    await expect(page.getByTestId("booking-ticket")).toHaveText(/^CP_\d{3,}$/);
     await expect(page.getByTestId("booking-receipt")).toContainText("allocation queue");
     await expect(page.getByTestId("booking-receipt")).toContainText("2 assets");
-    // Whatever the team wrote back is on the ticket.
+    // Whatever the team wrote back is on the receipt.
     await expect(page.getByTestId("booking-auto-reply")).toContainText("we have your request");
 
     // Back inside: the request is on Task Allocation with its answers in the columns.

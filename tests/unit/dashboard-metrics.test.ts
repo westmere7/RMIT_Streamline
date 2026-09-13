@@ -32,7 +32,7 @@ function task(overrides: Partial<TaskFact> = {}): TaskFact {
   return {
     id: `t${seq}`,
     name: `Task ${seq}`,
-    reference: null,
+    ticket: null,
     boardId: "b1",
     boardName: "Board",
     team: ALPHA,

@@ -50,12 +50,13 @@ describe("filterItems", () => {
     expect(filterItems(items, "", EMPTY_FILTERS, ctx)).toHaveLength(4);
   });
 
-  it("finds an item by its booking code, with or without the hyphen", () => {
-    const coded = [{ ...items[0]!, reference: "TA-7441" }, ...items.slice(1)];
-    for (const query of ["TA-7441", "ta-7441", "ta7441", "7441"]) {
+  it("finds an item by its ticket, however the person types it", () => {
+    const coded = [{ ...items[0]!, ticket: "CP_074" }, ...items.slice(1)];
+    // The separator, the case and the padding are all things nobody remembers.
+    for (const query of ["CP_074", "cp_074", "cp-74", "cp 74", "cp74", "74"]) {
       expect(filterItems(coded, query, EMPTY_FILTERS, ctx).map((i) => i.id)).toEqual(["a"]);
     }
-    expect(filterItems(coded, "TA-0000", EMPTY_FILTERS, ctx)).toEqual([]);
+    expect(filterItems(coded, "CP_075", EMPTY_FILTERS, ctx)).toEqual([]);
   });
 
   it("filters by any assigned person", () => {

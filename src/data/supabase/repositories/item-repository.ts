@@ -4,7 +4,7 @@ import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from 
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
 
 const ITEM =
-  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, reference, created_at, updated_at";
+  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, ticket, created_at, updated_at";
 const VALUE = "id, item_id, column_id, value_json, updated_at";
 
 /**
@@ -81,7 +81,7 @@ export class SupabaseItemRepository implements ItemRepository {
       .is("parent_item_id", null);
 
     const search = likeTerm(query.search);
-    if (search) request = request.or(`name.ilike.*${search}*,reference.ilike.*${search}*`);
+    if (search) request = request.or(`name.ilike.*${search}*,ticket.ilike.*${search}*`);
     if (query.groupIds.length > 0) request = request.in("group_id", query.groupIds);
 
     if (query.status) {
@@ -123,6 +123,24 @@ export class SupabaseItemRepository implements ItemRepository {
     return result.count ?? 0;
   }
 
+  async listByTicket(boardIds: string[], ticket: string): Promise<Item[]> {
+    if (boardIds.length === 0) return [];
+    const rows = await unwrapAll<ItemRow>(
+      (from, to) => db().from("items").select(ITEM).in("board_id", boardIds).eq("ticket", ticket).order("id", { ascending: true }).range(from, to),
+      "items.listByTicket",
+    );
+    return rows.map(toItem);
+  }
+
+  async listTicketed(boardIds: string[]): Promise<Item[]> {
+    if (boardIds.length === 0) return [];
+    const rows = await unwrapAll<ItemRow>(
+      (from, to) => db().from("items").select(ITEM).in("board_id", boardIds).not("ticket", "is", null).order("id", { ascending: true }).range(from, to),
+      "items.listTicketed",
+    );
+    return rows.map(toItem);
+  }
+
   async listByIds(ids: string[]): Promise<Item[]> {
     if (ids.length === 0) return [];
     const pages = await Promise.all(
@@ -145,7 +163,7 @@ export class SupabaseItemRepository implements ItemRepository {
       parent_item_id: input.parentItemId ?? null,
       name: input.name,
       description: input.description ?? null,
-      reference: input.reference ?? null,
+      ticket: input.ticket ?? null,
       position: input.position,
       created_by: input.createdBy,
     };

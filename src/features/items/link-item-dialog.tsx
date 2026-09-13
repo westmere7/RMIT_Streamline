@@ -205,7 +205,7 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
                     onToggle={toggleField}
                     boardName={board.name}
                     otherBoardName={selected.board.name}
-                    reference={{ self: item.reference ?? null, other: selected.item.reference ?? null, from: seedFrom }}
+                    ticket={{ self: item.ticket ?? null, other: selected.item.ticket ?? null, from: seedFrom }}
                   />
                 )}
               </section>

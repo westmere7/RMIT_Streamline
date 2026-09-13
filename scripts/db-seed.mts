@@ -221,7 +221,7 @@ async function main(): Promise<void> {
           deactivated_at = excluded.deactivated_at
       `;
 
-      await tx`insert into public.workspaces ${tx(seed.workspaces.map((w) => ({ id: w.id, name: w.name, slug: w.slug, logo_url: w.logoUrl, booking_key: w.bookingKey ?? null })))}`;
+      await tx`insert into public.workspaces ${tx(seed.workspaces.map((w) => ({ id: w.id, name: w.name, slug: w.slug, logo_url: w.logoUrl, booking_key: w.bookingKey ?? null, ticket_prefix: w.ticketPrefix ?? null, ticket_counter: w.ticketCounter ?? 0 })))}`;
 
       await tx`insert into public.workspace_members ${tx(
         seed.workspaceMembers.map((m) => ({ id: m.id, workspace_id: m.workspaceId, user_id: m.userId, role: m.role, status: m.status, joined_at: m.joinedAt })),
@@ -323,6 +323,7 @@ async function main(): Promise<void> {
             parent_item_id: i.parentItemId,
             name: i.name,
             description: i.description,
+            ticket: i.ticket ?? null,
             position: i.position,
             created_by: i.createdBy,
             archived_at: i.archivedAt,

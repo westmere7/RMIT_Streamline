@@ -52,13 +52,13 @@ describe("booking through a portal", () => {
 
   it("creates the task, its provenance and a receipt the stakeholder can quote", async () => {
     const receipt = await book("key-000000001");
-    expect(receipt.reference).toMatch(/^TA-/);
+    expect(receipt.ticket).toMatch(/^CP_\d{3,}$/);
     expect(receipt.assetCount).toBe(1);
 
     // Visible in this portal straight away, which is what "submitted" has to mean.
     const page = await services.portals.tasks(resolved);
     expect(page.tasks.map((t) => t.id)).toEqual([receipt.itemId]);
-    expect(page.tasks[0]!.reference).toBe(receipt.reference);
+    expect(page.tasks[0]!.ticket).toBe(receipt.ticket);
   });
 
   it("takes the stakeholder from the id it was given and ignores the word in the body", async () => {

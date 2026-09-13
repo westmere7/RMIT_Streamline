@@ -71,7 +71,7 @@ const collisionDetection: CollisionDetection = (args) => {
  * state it reads changes.
  */
 export const BoardTable = React.memo(function BoardTable() {
-  const { board, model, mutations, canEdit, showReference } = useBoardContext();
+  const { board, model, mutations, canEdit, showTicket } = useBoardContext();
   // Only the two flags this component actually reads: subscribing to the whole
   // per-board slice re-rendered the table (and every row under dnd-kit's
   // context) whenever anything was selected or expanded.
@@ -203,7 +203,7 @@ export const BoardTable = React.memo(function BoardTable() {
 
   const width = tableWidth(
     model.visibleColumns.map((c) => ({ ...c, width: widthOverrides[c.id] ?? c.width })),
-    showReference,
+    showTicket,
   );
   const nothingVisible = model.visibleTopLevel === 0 && model.totalTopLevel > 0;
 

@@ -11,6 +11,7 @@ const formWith = (template: BookingFormTemplate = defaultBookingFormTemplate()):
   workspaceId: "ws-1",
   workspaceName: "RMIT VN MKT",
   workspaceSlug: "rmit",
+  ticketPrefix: "CP",
   assetTypes: [
     { name: "Print assets", color: "red" },
     { name: "Static Designs", color: "blue" },
@@ -26,7 +27,7 @@ const formWith = (template: BookingFormTemplate = defaultBookingFormTemplate()):
 
 const receipt = (): BookingReceipt =>
   ({
-    reference: "TA-7C3F",
+    ticket: "TA-7C3F",
     itemId: "item-1",
     itemName: "Open Day posters",
     boardId: "board-1",
@@ -305,7 +306,7 @@ describe("the booking wizard", () => {
     expect(sent.brief).toContain("Six A1 posters for Brunswick.");
   });
 
-  it("hands back the reference and whatever the team wrote as its reply", async () => {
+  it("hands back the ticket and whatever the team wrote as its reply", async () => {
     const template = defaultBookingFormTemplate();
     template.review.autoReply = "Thanks — a producer reads every booking.";
     const { user } = renderWizard({ form: formWith(template) });
@@ -322,7 +323,7 @@ describe("the booking wizard", () => {
     await user.click(screen.getByTestId("booking-submit"));
 
     const ticket = await screen.findByTestId("booking-receipt");
-    expect(within(ticket).getByTestId("booking-reference")).toHaveTextContent("TA-7C3F");
+    expect(within(ticket).getByTestId("booking-ticket")).toHaveTextContent("TA-7C3F");
     expect(screen.getByTestId("booking-auto-reply")).toHaveTextContent("Thanks — a producer reads every booking.");
   });
 

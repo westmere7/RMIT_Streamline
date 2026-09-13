@@ -124,7 +124,7 @@ export interface DepartmentRef {
 export interface TaskFact {
   id: string;
   name: string;
-  reference: string | null;
+  ticket: string | null;
   boardId: string;
   boardName: string;
   team: TeamRef;
@@ -387,7 +387,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     const fact: TaskFact = {
       id: item.id,
       name: item.name,
-      reference: item.reference ?? null,
+      ticket: item.ticket ?? null,
       boardId: board.id,
       boardName: board.name,
       team,

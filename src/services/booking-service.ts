@@ -18,7 +18,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, bookingReference, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, serviceById, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -40,6 +40,7 @@ import { richTextToPlain } from "@/lib/rich-text";
 import { mapColumns, translateValue } from "./item-link-sync";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
+import type { TicketService } from "./ticket-service";
 import type { WorkspaceService } from "./workspace-service";
 
 /**
@@ -82,6 +83,7 @@ export class BookingService {
     private readonly items: ItemService,
     private readonly assets: ItemAssetService,
     private readonly notifications: NotificationService,
+    private readonly tickets: TicketService,
     private readonly transport: BookingTransport | null,
   ) {}
 
@@ -138,7 +140,7 @@ export class BookingService {
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
     const departments: TagOption[] = (await this.repos.stakeholderPortals.listDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, template: resolveBookingTemplate(workspace) };
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template: resolveBookingTemplate(workspace) };
   }
 
   /**
@@ -190,13 +192,16 @@ export class BookingService {
 
     const placement = mapBookingToColumns(request, columns, { team, template, stakeholder });
     const description = describeBooking(request, placement);
-    // The form works out the reference before anything is written by naming the
-    // id the item will have. Honoured only if it is still free: an id already in
-    // use would fail the insert, and the receipt then carries the real one.
+    // The form names the id the item will have so a submission that is retried
+    // cannot book the same thing twice. Honoured only if it is still free: an id
+    // already in use would fail the insert.
     const proposed = request.itemId && !(await this.repos.items.getById(request.itemId)) ? request.itemId : undefined;
-    // The id is settled before the write so the booking code can be settled with
-    // it: the code is the id's tail, and the stakeholder was shown it already.
     const itemId = proposed ?? newId();
+    // The ticket is taken before the write and belongs to this booking whatever
+    // happens next. It cannot be worked out in the browser the way the old
+    // booking code was — a number in a series is the workspace's to give — so
+    // the form promises one and the receipt is where the stakeholder first sees it.
+    const ticket = await this.tickets.issue(workspaceId);
     const item = await this.items.createItem(
       {
         id: itemId,
@@ -204,7 +209,7 @@ export class BookingService {
         groupId: group.id,
         name: request.title,
         description: description || null,
-        reference: bookingReference(itemId),
+        ticket,
         values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })),
       },
       actorId,
@@ -229,7 +234,7 @@ export class BookingService {
       boardName: board.name,
       boardSlug: board.slug,
       teamName: direct ? team!.name : null,
-      reference: bookingReference(item.id),
+      ticket: item.ticket ?? ticket,
       submittedAt: item.createdAt,
       assetCount: request.assets.length,
     };

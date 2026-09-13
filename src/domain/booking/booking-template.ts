@@ -702,7 +702,7 @@ export function defaultBookingFormTemplate(): BookingFormTemplate {
       title: "Check it over",
       hint: "Anything here can still be changed — step back and edit it.",
       submitLabel: "Book this task",
-      submitNote: "You'll get a reference to quote when following up.",
+      submitNote: "You'll get a ticket to quote when following up.",
       autoReply: "Thanks — we have your request. A producer reads every booking and will come back to you within two working days, sooner if it is urgent.",
     },
   };

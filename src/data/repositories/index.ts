@@ -62,6 +62,15 @@ export interface WorkspaceRepository {
   getById(id: EntityId): Promise<Workspace | null>;
   getBySlug(slug: string): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;
+  /**
+   * Takes the next `count` ticket numbers and returns the first of them.
+   *
+   * The whole of the "no two tasks share a ticket" guarantee rests here: it has
+   * to be one atomic step, so that two bookings landing in the same moment
+   * queue behind each other and leave with different numbers. Numbers taken are
+   * never given back — a ticket is something somebody was told.
+   */
+  allocateTicketNumbers(workspaceId: EntityId, count?: number): Promise<number>;
   listMembers(workspaceId: EntityId): Promise<WorkspaceMember[]>;
   listMembershipsForUser(userId: EntityId): Promise<WorkspaceMember[]>;
   addMember(input: Omit<WorkspaceMember, "id">): Promise<WorkspaceMember>;
@@ -167,6 +176,10 @@ export interface ItemRepository {
   /** How many items sit in a board's archive, filters aside. For the badge on the board. */
   countArchived(boardId: EntityId): Promise<number>;
   listByIds(ids: EntityId[]): Promise<Item[]>;
+  /** Whoever already holds this ticket, across the boards given. For the uniqueness check. */
+  listByTicket(boardIds: EntityId[], ticket: string): Promise<Item[]>;
+  /** Every task on these boards that holds a ticket. For rewriting a workspace's prefix. */
+  listTicketed(boardIds: EntityId[]): Promise<Item[]>;
   getById(id: EntityId): Promise<Item | null>;
   create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;
   update(id: EntityId, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item>;

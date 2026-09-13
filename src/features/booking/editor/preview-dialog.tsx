@@ -4,7 +4,7 @@ import { Eye } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
-import { bookingReference, serviceById } from "@/domain";
+import { formatTicket, serviceById } from "@/domain";
 import { newId } from "@/lib/ids";
 import { BookingWizard } from "../wizard/booking-wizard";
 
@@ -40,12 +40,14 @@ export function PreviewDialog({ open, onOpenChange, form, template }: { open: bo
         boardName: team?.boardName ?? "Task Allocation",
         boardSlug: "preview",
         teamName: team?.boardName ? team.name : null,
-        reference: bookingReference(itemId),
+        // Nothing is written, so nothing is issued: the receipt shows the shape
+        // of a ticket rather than taking a number out of the real series.
+        ticket: formatTicket(form.ticketPrefix, 14),
         submittedAt: new Date().toISOString(),
         assetCount: request.assets.length,
       };
     },
-    [form.teams, template],
+    [form.teams, form.ticketPrefix, template],
   );
 
   return (

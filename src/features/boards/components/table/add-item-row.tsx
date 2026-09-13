@@ -4,12 +4,12 @@ import { Plus } from "lucide-react";
 import * as React from "react";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { ReferenceSpacer } from "@/features/boards/components/table/reference-cell";
+import { TicketSpacer } from "@/features/boards/components/table/ticket-cell";
 import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { cn } from "@/lib/utils";
 
 export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardGroup; emptyHint: boolean; widthOverrides: Record<string, number> }) {
-  const { mutations, model, showReference } = useBoardContext();
+  const { mutations, model, showTicket } = useBoardContext();
   const [draft, setDraft] = React.useState("");
   const [focused, setFocused] = React.useState(false);
 
@@ -22,12 +22,12 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
 
   return (
     <div role="row" className="flex" style={{ height: TABLE_LAYOUT.rowHeight }}>
-      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]")} style={leadingCellStyle(showReference)}>
+      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]")} style={leadingCellStyle(showTicket)}>
         <span aria-hidden className="h-full w-1.5 bg-transparent" />
         <div style={{ width: TABLE_LAYOUT.selectWidth - 6 + TABLE_LAYOUT.handleWidth }} className="flex items-center justify-end pr-1 text-muted-foreground/60">
           <Plus className="size-3.5" />
         </div>
-        <ReferenceSpacer />
+        <TicketSpacer />
         <input
           aria-label={`Add item to ${group.name}`}
           data-testid={`add-item-${group.name}`}

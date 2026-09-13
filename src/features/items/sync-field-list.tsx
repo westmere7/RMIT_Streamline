@@ -4,7 +4,7 @@ import { Boxes, Hash, Link2, Loader2, TriangleAlert, Unlink } from "lucide-react
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_REFERENCE, type BoardColumn, type ColumnPair } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, type BoardColumn, type ColumnPair } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 import { cn } from "@/lib/utils";
 // Straight from the pure mapping rules rather than the services barrel, which
@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 import { compatibleTypes } from "@/services/item-link-sync";
 import type { ColumnMappingReport } from "@/services";
 
-/** The booking code on each side, so the list can say what carrying it would do. */
-export interface SyncReference {
+/** The ticket on each side, so the list can say what carrying it would do. */
+export interface SyncTicket {
   self: string | null;
   other: string | null;
-  /** Which side fills the other in. Only then can a code be overwritten. */
+  /** Which side fills the other in. Only then can a ticket be overwritten. */
   from?: "item" | "target";
 }
 
@@ -34,8 +34,8 @@ export interface SyncFieldListProps {
   onPair?: (columnId: string, otherColumnId: string | null) => void;
   boardName: string;
   otherBoardName: string;
-  /** Omitted where the codes are not known; the ID# row is then left out. */
-  reference?: SyncReference;
+  /** Omitted where the tickets are not known; the row is then left out. */
+  ticket?: SyncTicket;
   className?: string;
 }
 
@@ -48,15 +48,15 @@ export interface SyncFieldListProps {
  */
 const TextIcon = COLUMN_TYPE_ICONS.TEXT;
 
-export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onPair, boardName, otherBoardName, reference, className }: SyncFieldListProps) {
+export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onPair, boardName, otherBoardName, ticket, className }: SyncFieldListProps) {
   const readOnly = !onToggle;
   const nameOn = !excluded.has(LINK_FIELD_NAME) && !excluded.has(LINK_FIELD_DESCRIPTION);
-  const referenceOn = !excluded.has(LINK_FIELD_REFERENCE);
+  const referenceOn = !excluded.has(LINK_FIELD_TICKET);
   // Both sides arrived with a code of their own: carrying one across means the
   // other stops answering to the code people already have for it.
-  const winner = reference?.from === "target" ? reference.other : reference?.self;
-  const loser = reference?.from === "target" ? reference.self : reference?.other;
-  const clash = referenceOn && !!reference && !!winner && !!loser && winner !== loser;
+  const winner = ticket?.from === "target" ? ticket.other : ticket?.self;
+  const loser = ticket?.from === "target" ? ticket.self : ticket?.other;
+  const clash = referenceOn && !!ticket && !!winner && !!loser && winner !== loser;
   const byHand = new Set((pairs ?? []).map((p) => [...p].sort().join(":")));
   const isPending = (keys: string[]) => !!pending && keys.some((k) => pending.has(k));
   return (
@@ -82,22 +82,22 @@ export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onP
         icon={<Boxes className="size-3.5 shrink-0 text-muted-foreground" />}
         label="Assets"
       />
-      {reference && (
+      {ticket && (
         <>
           <FieldRow
             checked={referenceOn}
             readOnly={readOnly}
-            pending={isPending([LINK_FIELD_REFERENCE])}
-            onChange={(on) => onToggle?.([LINK_FIELD_REFERENCE], on)}
+            pending={isPending([LINK_FIELD_TICKET])}
+            onChange={(on) => onToggle?.([LINK_FIELD_TICKET], on)}
             icon={<Hash className="size-3.5 shrink-0 text-muted-foreground" />}
-            label={`ID# ${reference.self ?? reference.other ?? "—"}`}
+            label={`Ticket ${ticket.self ?? ticket.other ?? "—"}`}
           />
           {clash && (
-            <li className="flex items-start gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-2xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-testid="sync-reference-warning">
+            <li className="flex items-start gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-2xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-testid="sync-ticket-warning">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                Both tasks already have an ID. Linking gives them both <strong className="font-semibold tabular">{winner}</strong>, and <span className="tabular">{loser}</span> stops being used.
-                Untick ID# to leave them as they are.
+                Both tasks already have a ticket. Linking gives them both <strong className="font-semibold tabular">{winner}</strong>, and <span className="tabular">{loser}</span> stops being
+                used. Untick Ticket to leave them each their own.
               </span>
             </li>
           )}

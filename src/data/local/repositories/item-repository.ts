@@ -54,6 +54,20 @@ export class LocalItemRepository implements ItemRepository {
     return (itemId, columnId) => byItem.get(itemId)?.get(columnId);
   }
 
+  async listByTicket(boardIds: string[], ticket: string): Promise<Item[]> {
+    return (await this.onBoards(boardIds)).filter((i) => i.ticket === ticket);
+  }
+
+  async listTicketed(boardIds: string[]): Promise<Item[]> {
+    return (await this.onBoards(boardIds)).filter((i) => !!i.ticket);
+  }
+
+  private async onBoards(boardIds: string[]): Promise<Item[]> {
+    const db = await this.conn.getDb();
+    const perBoard = await Promise.all(boardIds.map((id) => db.getAllFromIndex("items", "byBoard", id)));
+    return perBoard.flat();
+  }
+
   async listByIds(ids: string[]): Promise<Item[]> {
     const db = await this.conn.getDb();
     const results = await Promise.all(ids.map((id) => db.get("items", id)));
@@ -75,7 +89,7 @@ export class LocalItemRepository implements ItemRepository {
       parentItemId: input.parentItemId ?? null,
       name: input.name,
       description: input.description ?? null,
-      reference: input.reference ?? null,
+      ticket: input.ticket ?? null,
       position: input.position,
       createdBy: input.createdBy,
       archivedAt: null,

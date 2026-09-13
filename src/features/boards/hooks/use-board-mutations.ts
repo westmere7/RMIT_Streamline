@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, normaliseItemReference } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -154,14 +154,24 @@ export function useBoardMutations(boardId: string) {
     [run, services, user.id],
   );
 
-  const updateReference = useCallback(
-    (itemId: string, reference: string | null) =>
-      run(
-        (s) => patchItem(s, itemId, { reference: normaliseItemReference(reference) }),
-        () => services.items.updateReference(itemId, reference, user.id),
-        "Could not save the ID",
-      ),
-    [run, services, user.id],
+  /**
+   * Sets a task's ticket by hand, or clears it.
+   *
+   * Not patched optimistically the way a rename is: the workspace may already
+   * have given this ticket to something else, and a code shown on the row for
+   * half a second before being taken back is worse than one that takes a moment
+   * to appear. The service's own words say what was wrong, which for a ticket
+   * is always a specific task.
+   */
+  const setTicket = useCallback(
+    (itemId: string, ticket: string | null) => run(null, () => services.tickets.setTicket(ws.workspace.id, itemId, ticket, user.id), "Could not save the ticket"),
+    [run, services, ws.workspace.id, user.id],
+  );
+
+  /** Gives a task the next ticket in the workspace's series. */
+  const assignTicket = useCallback(
+    (itemId: string) => run(null, () => services.tickets.assign(ws.workspace.id, itemId, user.id), "Could not issue a ticket"),
+    [run, services, ws.workspace.id, user.id],
   );
 
   const setCover = useCallback(
@@ -566,7 +576,8 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
-      updateReference,
+      setTicket,
+      assignTicket,
       setCover,
       createItem,
       moveItem,
@@ -591,7 +602,8 @@ export function useBoardMutations(boardId: string) {
       setValue,
       renameItem,
       updateDescription,
-      updateReference,
+      setTicket,
+      assignTicket,
       setCover,
       createItem,
       moveItem,

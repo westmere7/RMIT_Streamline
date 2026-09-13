@@ -798,7 +798,7 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
         testId="editor-review-reply"
       >
         <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="text-[13px]" multiline rows={3} testId="editor-auto-reply" />
-        <p className="text-2xs text-muted-foreground">Shown with the reference once a booking is in. Say what happens next and how long it usually takes.</p>
+        <p className="text-2xs text-muted-foreground">Shown with the ticket once a booking is in. Say what happens next and how long it usually takes.</p>
       </EditorSection>
     </div>
   );

@@ -15,7 +15,7 @@ import type {
   StatusColumnSettings,
   User,
 } from "@/domain";
-import { columnLabels, priorityStrength, statusLabelRole, userInitials } from "@/domain";
+import { columnLabels, priorityStrength, statusLabelRole, ticketSearchKey, userInitials } from "@/domain";
 import { avatarColorFor } from "@/lib/colors";
 import { isOverdue } from "@/lib/dates/dates";
 
@@ -181,7 +181,7 @@ export function projectTask(item: Item, ctx: ProjectionContext, stakeholder: Por
 
   return {
     id: item.id,
-    reference: item.reference ?? null,
+    ticket: item.ticket ?? null,
     name: item.name,
     stakeholder,
     status: projectStatus(columns, values),
@@ -266,8 +266,6 @@ export function matchesPortalSearch(task: PortalTask, brief: string | null, quer
   if (!q) return true;
   if (task.name.toLowerCase().includes(q)) return true;
   if (brief && brief.toLowerCase().includes(q)) return true;
-  const reference = task.reference?.toLowerCase();
-  if (!reference) return false;
-  const loose = (value: string) => value.replace(/[\s-]/g, "");
-  return reference.includes(q) || loose(reference).includes(loose(q));
+  if (!task.ticket) return false;
+  return task.ticket.toLowerCase().includes(q) || ticketSearchKey(task.ticket).includes(ticketSearchKey(q));
 }

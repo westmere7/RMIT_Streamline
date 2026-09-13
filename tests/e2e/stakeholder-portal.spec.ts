@@ -42,7 +42,7 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   await form.getByTestId("booking-skip-assets").click();
   await expect(form.getByTestId("booking-step-review")).toBeVisible();
   await form.getByTestId("booking-submit").click();
-  // The ticket stays on screen with its reference and somewhere to go.
+  // The receipt stays on screen with its ticket and somewhere to go.
   await expect(form.getByTestId("booking-receipt")).toBeVisible({ timeout: 20000 });
   await expect(form.getByTestId("portal-view-request")).toBeVisible();
   return form;

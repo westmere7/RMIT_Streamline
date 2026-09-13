@@ -25,9 +25,23 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {
-    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates });
+    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates, ticket_prefix: patch.ticketPrefix });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
     return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
+  }
+
+  /**
+   * One statement, one row lock: `next_ticket_numbers` bumps the counter and
+   * hands back what it took. The counter is not patchable through `update` on
+   * purpose — writing it from a value read a moment ago is exactly the race
+   * this exists to close.
+   */
+  async allocateTicketNumbers(workspaceId: string, count = 1): Promise<number> {
+    const result = await db().rpc("next_ticket_numbers", { p_workspace: workspaceId, p_count: count });
+    if (result.error) throw new Error(`workspaces.allocateTicketNumbers: ${result.error.message}`);
+    const first = Number(result.data);
+    if (!Number.isFinite(first) || first < 1) throw new Error("workspaces.allocateTicketNumbers: the database returned no number");
+    return first;
   }
 
   async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {

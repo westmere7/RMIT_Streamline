@@ -158,6 +158,7 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
         <div className="flex min-w-0 items-center gap-2 border-t border-border/50 bg-surface/50 px-3.5 py-2 text-xs text-muted-foreground">
           <SyncSummary
             view={view}
+            ticket={{ self: item.ticket ?? null, other: view.item.ticket ?? null }}
             boardName={board.name}
             editable={removable}
             editing={editing}
@@ -197,6 +198,7 @@ function LinkedItemRow({ item, view }: { item: Item; view: LinkedItemView }) {
 /** One line saying which fields flow between the two boards, with a popover to change it. */
 function SyncSummary({
   view,
+  ticket,
   boardName,
   editable,
   editing,
@@ -206,6 +208,12 @@ function SyncSummary({
   onPair,
 }: {
   view: LinkedItemView;
+  /**
+   * The two tickets, so the row can say which one they share. It used to be
+   * offered only while a link was being made, which left a pair that had
+   * started sharing a ticket with no way to stop.
+   */
+  ticket: { self: string | null; other: string | null };
   boardName: string;
   editable: boolean;
   editing: boolean;
@@ -268,6 +276,7 @@ function SyncSummary({
           onPair={onPair}
           boardName={boardName}
           otherBoardName={view.board.name}
+          ticket={ticket}
         />
         <p className="mt-2 text-2xs text-muted-foreground">Fields you switch back on are filled in from this item.</p>
       </PopoverContent>

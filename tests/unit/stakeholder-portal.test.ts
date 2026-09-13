@@ -282,8 +282,8 @@ describe("the stakeholder portal", () => {
     expect((await services.portals.tasks(resolved, { ...mine, search: itemA.name.slice(0, 6) })).tasks).toHaveLength(1);
     expect((await services.portals.tasks(resolved, { ...mine, search: "First brief" })).tasks).toHaveLength(1);
     expect((await services.portals.tasks(resolved, { ...mine, search: "certainly-not-present" })).tasks).toHaveLength(0);
-    if (itemA.reference) {
-      expect((await services.portals.tasks(resolved, { ...mine, search: itemA.reference })).tasks).toHaveLength(1);
+    if (itemA.ticket) {
+      expect((await services.portals.tasks(resolved, { ...mine, search: itemA.ticket })).tasks).toHaveLength(1);
     }
   });
 });

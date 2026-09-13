@@ -20,6 +20,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListsSection } from "@/features/workspace/lists-section";
+import { TicketSettings } from "@/features/workspace/ticket-settings";
 import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -123,7 +124,7 @@ function GeneralSection() {
   });
   return (
     <>
-      <SectionTitle title="General" description="Workspace name and identity." />
+      <SectionTitle title="General" description="Workspace name, identity and the tickets it hands out." />
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -145,6 +146,11 @@ function GeneralSection() {
           </Button>
         )}
       </form>
+      {/* Its own form: changing the prefix asks a question first, and a name
+          being renamed at the same moment has nothing to do with it. */}
+      <div className="mt-6 border-t pt-6">
+        <TicketSettings manage={manage} />
+      </div>
     </>
   );
 }

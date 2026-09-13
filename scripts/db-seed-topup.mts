@@ -164,7 +164,7 @@ async function main(): Promise<void> {
       await insert(tx, "board_columns", planned.boardColumns.map((c) => ({ id: c.id, board_id: c.boardId, name: c.name, type: c.type, settings: json(c.settings), position: c.position, width: c.width, hidden: c.hidden, created_at: c.createdAt })));
       // Subitems reference their parent, so top-level rows go in first.
       for (const batch of [planned.items.filter((i) => i.parentItemId === null), planned.items.filter((i) => i.parentItemId !== null)]) {
-        await insert(tx, "items", batch.map((i) => ({ id: i.id, board_id: i.boardId, group_id: i.groupId, parent_item_id: i.parentItemId, name: i.name, description: i.description, position: i.position, created_by: i.createdBy, archived_at: i.archivedAt, created_at: i.createdAt, updated_at: i.updatedAt })));
+        await insert(tx, "items", batch.map((i) => ({ id: i.id, board_id: i.boardId, group_id: i.groupId, parent_item_id: i.parentItemId, name: i.name, description: i.description, ticket: i.ticket ?? null, position: i.position, created_by: i.createdBy, archived_at: i.archivedAt, created_at: i.createdAt, updated_at: i.updatedAt })));
       }
       await insert(tx, "item_column_values", planned.itemColumnValues.map((v) => ({ id: v.id, item_id: v.itemId, column_id: v.columnId, value_json: json(v.value), updated_at: v.updatedAt })));
       await insert(tx, "item_assets", planned.itemAssets.map((a) => ({ id: a.id, item_id: a.itemId, board_id: a.boardId, name: a.name, asset_type: a.assetType, quantity: a.quantity, assignee_ids: a.assigneeIds, due_date: a.dueDate, completed_at: a.completedAt, notes: a.notes, position: a.position, created_by: a.createdBy, created_at: a.createdAt, updated_at: a.updatedAt })));

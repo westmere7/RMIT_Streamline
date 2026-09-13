@@ -28,7 +28,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     summary: "Submit a clear brief, follow progress, and help the team deliver what you need.",
     audience: "Stakeholders requesting creative or marketing work",
     sections: [
-      { title: "Your part in the process", paragraphs: ["You explain the outcome, supply the inputs, and coordinate feedback. The admin routes requests across teams; the team manager agrees the delivery plan and assigns the people doing the work. Your first milestone is a submitted request with a reference and a clear next contact."] },
+      { title: "Your part in the process", paragraphs: ["You explain the outcome, supply the inputs, and coordinate feedback. The admin routes requests across teams; the team manager agrees the delivery plan and assigns the people doing the work. Your first milestone is a submitted request with a ticket and a clear next contact."] },
       { title: "Before you start", bullets: [
         "Get the current portal or booking link from the team, plus its password if one is required. The external portal does not need a normal workspace account.",
         "Prepare the objective, audience, deliverables and quantities, requested deadline, source copy, and reference links. Check that the team can open the linked files.",
@@ -38,17 +38,17 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Open the portal and choose Book a task. If booking is unavailable there, use the current booking link supplied by the team. Signed-in members can also use the booking tab in Stakeholder Portal.",
         "Follow the published form's service choices and required questions. Give the request a distinctive title and describe the outcome you need.",
         "Specify the deliverables, formats, quantities, source material, contact information, and requested date wherever the form asks for them. Call out an immovable event date and explain why it matters.",
-        "Review the brief and submit once. Keep the confirmation and task reference. If the response is unclear, ask the team whether it received the request before submitting again.",
+        "Review the brief and submit once. Keep the confirmation and its ticket. If the response is unclear, ask the team whether it received the request before submitting again.",
         "Respond to clarification questions and agree the scope and achievable dates with the team manager. The date entered on a form is a request, not a confirmed capacity reservation.",
       ] },
       { title: "Follow progress and review the output", steps: [
         "Return to the portal, choose the relevant stakeholder and date filters, and search for your task. Open it to read the details available to you.",
-        "Send consolidated feedback through the review channel agreed with the manager, including the task reference and which version you reviewed. Ask the team to keep the decision on the task.",
+        "Send consolidated feedback through the review channel agreed with the manager, including the ticket and which version you reviewed. Ask the team to keep the decision on the task.",
         "If scope or timing changes, contact the manager with the change and its impact. Agree the revised plan before treating it as committed.",
         "When the final output arrives, check every requested deliverable and file link, then confirm acceptance or identify what remains outstanding.",
       ] },
       { title: "You are ready when…", bullets: [
-        "You have a request reference and know how to contact the receiving team.",
+        "You have a ticket and know how to contact the receiving team.",
         "The manager has confirmed the scope, dates, and review contact.",
         "You know where to follow progress and provide feedback.",
       ], note: { title: "Getting this guide to external stakeholders", text: "This chapter lives in internal Settings. Admins can use Download guide and pass the stakeholder instructions to external readers; copying this chapter's internal link does not grant them workspace access." } },
@@ -119,7 +119,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "At handover: verify all deliverables and links, mark delivered asset lines complete, and set the task to a done-role status. Record final delivery and any agreed exclusions.",
         "Weekly: give the admin a concise account of upcoming commitments, capacity gaps, blocked decisions, and requests for support, using the same dashboard scope for comparisons.",
       ] },
-      { title: "Escalate with a decision to make", paragraphs: ["When you need the admin's help, include the task reference, the issue, its effect on scope or dates, the options you recommend, and when a decision is needed. Contact the admin through the agreed channel and record the outcome in Updates. For a request still in the administrator-only Task Allocation queue, ask the admin to allocate it to your board; an ordinary manager may not be able to open that queue."] },
+      { title: "Escalate with a decision to make", paragraphs: ["When you need the admin's help, include the ticket, the issue, its effect on scope or dates, the options you recommend, and when a decision is needed. Contact the admin through the agreed channel and record the outcome in Updates. For a request still in the administrator-only Task Allocation queue, ask the admin to allocate it to your board; an ordinary manager may not be able to open that queue."] },
       { title: "You are ready when…", bullets: [
         "Accepted tasks have an owner, an achievable date, and clear deliverables.",
         "Contributors know their next action and the review arrangement.",
@@ -184,12 +184,12 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Requester: open the current booking link, or use Book a task from the Stakeholder Portal area. Describe the purpose, audience, intended channels, and the result you need.",
         "List the deliverables clearly. Distinguish asset types, versions, formats, quantities, dimensions, and any copy or source material the team must use. Supply accessible reference links.",
         "Enter the requested deadline and contact information, then complete the required questions shown by the form. A requested date is a planning input; agree feasibility with the delivery team.",
-        "Review the submission and submit once. Keep the receipt and reference for follow-up. If the response fails or is unclear, check with the team for an existing request before sending another copy.",
+        "Review the submission and submit once. Keep the receipt and its ticket for follow-up. If the response fails or is unclear, check with the team for an existing request before sending another copy.",
       ] },
       { title: "2. Triage the incoming request", steps: [
         "Coordinator: inspect the request on its receiving board. A request can arrive directly on a configured team board; requests without a valid team destination go to the administrator-only Task Allocation board.",
         "Open the task and read the brief, requested date, stakeholder, references, and assets. Resolve unclear scope, missing files, or conflicting deadlines with the requester. Record the decision in Updates.",
-        "Check whether the request duplicates existing work. Agree which task will be maintained before proceeding; use its reference in subsequent discussion.",
+        "Check whether the request duplicates existing work. Agree which task will be maintained before proceeding; use its ticket in subsequent discussion.",
         "Decide which team board should own delivery. If the task is already there, proceed to planning. If it is queued in Task Allocation, use the Allocation section in the item panel.",
       ] },
       { title: "3. Allocate the request", steps: [
@@ -297,7 +297,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Activity shows recorded task events. It complements the conversation rather than replacing an explanation of a decision.",
       ] },
       { title: "What counts as finished", paragraphs: ["A status is complete when its label has the done role configured on that board. Renaming a label to Done, Approved, or Delivered does not by itself give it that role. If My Work or reporting treats a finished-looking task as open, ask the board manager to check label configuration.", "Task completion and asset completion are separate. Review both when closing work. Likewise, a parent task, its subitems, and an asset list should be checked individually; do not infer that every underlying record is complete from a single visible label."] },
-      { title: "References and task links", paragraphs: ["A short ID/reference is a convenient label for follow-up. Ordinary tasks may have no reference; bookings receive one. It is not a password or proof of access. An internal task link opens its board and item panel for people with permission. Use the sharing controls when you intend to create a separately authorized viewing link."] },
+      { title: "Tickets and task links", paragraphs: ["A ticket (CP_014) is a convenient label for follow-up. Bookings receive one; a task added straight to a board can be given the next in the series. It is not a password or proof of access. An internal task link opens its board and item panel for people with permission. Use the sharing controls when you intend to create a separately authorized viewing link."] },
     ],
     related: ["assets", "collaboration", "sharing"],
   },
@@ -369,7 +369,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Explain the working agreement in Updates: where deliverables are tracked, which dates are shared, and who maintains each independent field.",
       ] },
       { title: "Synchronization boundaries", table: { headers: ["Content", "Behavior"], rows: [
-        ["Name, description, reference", "Supported by synchronization unless excluded."],
+        ["Name, description, ticket", "Supported by synchronization unless excluded."],
         ["Compatible column values", "Mapped by compatible types and normalized names, with limited fallback matching."],
         ["Status / priority labels", "Translated by label name; a missing counterpart can prevent a value from translating."],
         ["People", "A single-person destination retains only the first person from a multiple assignment."],
@@ -392,7 +392,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Use the current public booking link, the portal's Book a task control when enabled, or the in-app booking page. Administrators can reach the form from the booking tab in Stakeholder Portal.",
         "Select the relevant service or request options offered by the published form, then complete its brief and required information. Questions and available choices depend on the current form.",
         "Provide enough detail to estimate and deliver the work: objective, audience, copy, channels, deliverables, quantities, specifications, references, contact, and deadline where requested.",
-        "Resolve validation messages and review the information before submitting. Keep the confirmation reference and use it when asking the team about progress.",
+        "Resolve validation messages and review the information before submitting. Keep the ticket and use it when asking the team about progress.",
       ] },
       { title: "Where bookings go", paragraphs: ["If a requested team has a valid active receiving board configured, a booking can go directly to that board. Otherwise it goes to the built-in Task Allocation board. The receiving board's first group is the initial destination. Requesters should use the receipt and team communication to confirm where their work was accepted.", "Task Allocation is restricted to workspace owners and administrators. If a regular team member cannot see that queue, this is expected. They should work from their team's board once the request has been allocated."] },
       { title: "Allocate a queued task", steps: [
@@ -402,7 +402,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "The task leaves the queue. Open the receiving board to verify the brief, mapped fields, assets, and responsibility for next steps.",
       ] },
       { title: "References, errors, and follow-up", bullets: [
-        "The task reference helps people discuss a request. It does not grant access and is not the booking link's credential.",
+        "The ticket helps people discuss a request. It does not grant access and is not the booking link's credential.",
         "If a link is no longer valid, obtain the current one from the team rather than changing its address manually.",
         "If submission appears to fail after sending, ask the coordinator to check for the request before retrying, to avoid duplicate work.",
         "If information cannot map into a receiving column during submission, it may be retained in the task description. Read the full brief when triaging.",
@@ -465,7 +465,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "When access is no longer needed, stop sharing. Regenerating a link invalidates the previous address; distribute the replacement if access should continue.",
       ] },
       { title: "Share the dashboard", paragraphs: ["Workspace administrators can use the dashboard's Share control to create a read-only report link and manage its access settings. The public report carries reporting data rather than the board's complete descriptions, asset notes, emails, and links. Check the report itself and its audience before distributing it. Shared reports refresh periodically, so allow time for a recent board change to appear."] },
-      { title: "Presentation is not access control", paragraphs: ["A hidden column, a selected filter, or a particular view is a display choice. Do not rely on it to remove information from a share payload. If a board contains content that the intended audience should not see, review the sharing scope or use an appropriately scoped alternative before sharing.", "A public link is an access credential. Send the intended link, keep any password distribution appropriate to its audience, and replace or stop it if the audience changes. A short task reference does not provide the same access."] },
+      { title: "Presentation is not access control", paragraphs: ["A hidden column, a selected filter, or a particular view is a display choice. Do not rely on it to remove information from a share payload. If a board contains content that the intended audience should not see, review the sharing scope or use an appropriately scoped alternative before sharing.", "A public link is an access credential. Send the intended link, keep any password distribution appropriate to its audience, and replace or stop it if the audience changes. A ticket does not provide the same access."] },
     ],
     related: ["permissions", "portal", "dashboard"],
   },
@@ -755,7 +755,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "A link or invitation no longer opens", paragraphs: ["Check that the full current link was copied. An invitation can expire, be accepted, or be replaced; a share can expire, be stopped, or be regenerated; a portal can be closed or require a changed password. Ask the administrator or link owner for the current access. A Workspace share also requires a signed-in member account."] },
       { title: "Notifications are missing", paragraphs: ["Check the event's Notify / Update / Off setting, the board subscription, browser notification permission, and whether a Streamline tab remains open. Quiet Updates intentionally avoid operating-system notifications. Use Send a test after changing the browser permission."] },
       { title: "What to include when asking for help", bullets: [
-        "Workspace and board or tracker name, task reference if available, and the action you attempted.",
+        "Workspace and board or tracker name, ticket if available, and the action you attempted.",
         "Expected result, actual result, the exact visible error, and approximate time.",
         "Your role, browser/device, whether the issue persists after a safe refresh, and the app version from Settings → About.",
         "A screenshot of the relevant state if useful. Avoid including passwords or publicly forwarding invitation, portal, or share credentials.",

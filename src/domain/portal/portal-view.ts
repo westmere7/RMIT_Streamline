@@ -97,7 +97,7 @@ export interface PortalStakeholderRef {
 export interface PortalTask {
   id: EntityId;
   /** The short code the stakeholder was given at booking time. */
-  reference: string | null;
+  ticket: string | null;
   name: string;
   status: PortalStatus | null;
   priority: PortalPriority | null;

@@ -187,7 +187,7 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       createdBy: PUBLIC_NOBODY,
       archivedAt: item.archivedAt,
       coverUrl: null,
-      reference: item.reference ?? null,
+      ticket: item.ticket ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     })),

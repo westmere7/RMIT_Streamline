@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { EMPTY_ARCHIVE_LINK_IMPACT, emptyValueFor, normaliseItemReference, otherEndOf } from "@/domain";
+import { EMPTY_ARCHIVE_LINK_IMPACT, emptyValueFor, normaliseTicket, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -69,8 +69,14 @@ export interface CreateItemInput {
    */
   position?: number;
   description?: string | null;
-  /** The booking code (ID#). Only the booking process sets one. */
-  reference?: string | null;
+  /**
+   * The ticket, already taken from the workspace's counter.
+   *
+   * Only booking passes one, and only ever a number it has been given: this is
+   * a write, not a request, and nothing here checks that the ticket is free.
+   * Everywhere else goes through `TicketService`.
+   */
+  ticket?: string | null;
   /** Initial values, e.g. a status when creating from a Kanban lane. */
   values?: Array<{ columnId: EntityId; value: ColumnValue }>;
 }
@@ -177,7 +183,7 @@ export class ItemService {
       parentItemId: input.parentItemId ?? null,
       name,
       description: input.description ?? null,
-      reference: normaliseItemReference(input.reference),
+      ticket: normaliseTicket(input.ticket),
       createdBy: actorId,
       position,
     });
@@ -238,19 +244,6 @@ export class ItemService {
     const next = description?.trim() || null;
     const item = await this.repos.items.update(itemId, { description: next });
     await this.links.propagate(itemId, { kind: "description", description: next }, actorId);
-    return item;
-  }
-
-  /**
-   * Sets the booking code by hand. Booking hands one out on its own, but a task
-   * that arrived another way — or one whose code was mistyped into an email —
-   * can be given the right one here. It travels the links the same way a rename
-   * does, so a task and its copy keep answering to the same code.
-   */
-  async updateReference(itemId: EntityId, reference: string | null, actorId: EntityId): Promise<Item> {
-    const next = normaliseItemReference(reference);
-    const item = await this.repos.items.update(itemId, { reference: next });
-    await this.links.propagate(itemId, { kind: "reference", reference: next }, actorId);
     return item;
   }
 

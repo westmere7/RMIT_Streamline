@@ -42,7 +42,7 @@ import type {
   WorkspaceMemberStatus,
   WorkspaceRole,
 } from "@/domain";
-import { defaultNotificationPreferences, normaliseAssetRates } from "@/domain";
+import { defaultNotificationPreferences, normaliseAssetRates, normaliseTicketPrefix } from "@/domain";
 
 /**
  * Row shapes for `supabase/migrations/*.sql` and the mappers between them and the
@@ -119,14 +119,16 @@ export interface WorkspaceRow {
   booking_form_draft?: BookingFormTemplate | null;
   asset_rates: unknown;
   creative_team_name: string | null;
+  ticket_prefix: string | null;
+  ticket_counter: number | null;
   created_at: string;
   updated_at: string;
 }
 
-export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, creative_team_name, asset_rates, created_at, updated_at";
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, creative_team_name, asset_rates, ticket_prefix, ticket_counter, created_at, updated_at";
 
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {
@@ -373,7 +375,7 @@ export interface ItemRow {
   created_by: string;
   archived_at: string | null;
   cover_url?: string | null;
-  reference?: string | null;
+  ticket?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -390,7 +392,7 @@ export function toItem(row: ItemRow): Item {
     createdBy: row.created_by,
     archivedAt: row.archived_at,
     coverUrl: row.cover_url ?? null,
-    reference: row.reference ?? null,
+    ticket: row.ticket ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -406,7 +408,7 @@ export function fromItemPatch(patch: Partial<Omit<Item, "id" | "boardId" | "crea
     created_by: patch.createdBy,
     archived_at: patch.archivedAt,
     cover_url: patch.coverUrl,
-    reference: patch.reference,
+    ticket: patch.ticket,
     updated_at: patch.updatedAt,
   });
 }

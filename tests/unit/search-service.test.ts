@@ -22,8 +22,8 @@ const board: Board = {
   updatedAt: "",
 };
 
-function item(id: string, name: string, reference: string | null): Item {
-  return { id, boardId: board.id, groupId: "g1", parentItemId: null, name, description: null, position: 0, createdBy: "u1", archivedAt: null, reference, createdAt: "", updatedAt: "" };
+function item(id: string, name: string, ticket: string | null): Item {
+  return { id, boardId: board.id, groupId: "g1", parentItemId: null, name, description: null, position: 0, createdBy: "u1", archivedAt: null, ticket, createdAt: "", updatedAt: "" };
 }
 
 const items = [item("i1", "Radio script – 30s", "TA-7441"), item("i2", "Poster artwork", "TA-9002"), item("i3", "Nothing booked", null)];

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { bookingReference, serviceById } from "@/domain";
+import { serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
@@ -269,7 +269,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       return onSubmit(value);
     },
     onSuccess: (result, value) => {
-      if (!preview) memory.remember(value, result.reference, result.submittedAt);
+      if (!preview) memory.remember(value, result.ticket, result.submittedAt);
       setRestored(false);
       setReceipt(result);
       onBooked?.(result);
@@ -407,12 +407,12 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
           to the bottom to find out it was there. */}
       <div className="sticky bottom-0 -mx-1 mt-auto flex flex-col gap-3 border-t border-border/60 bg-gradient-to-t from-card via-card to-card/85 px-1 pt-3 pb-1 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-0.5">
-          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-            Reference
-            <span className="rounded-md border border-border/60 bg-surface/70 px-1.5 py-0.5 font-medium text-foreground tabular" title="The reference this booking will carry" data-testid="booking-reference-preview">
-              {bookingReference(itemId)}
-            </span>
-          </p>
+          {/* No code here any more. It used to be worked out in the browser from
+              the id the form had made up, which is how it could be shown before
+              anything was written — and is exactly why two bookings could end up
+              with the same one. A ticket is a number in the team's series now,
+              so the team gives it, and the first place it can honestly appear is
+              the receipt. */}
           {last && template.review.submitNote && <p className="text-2xs text-muted-foreground">{template.review.submitNote}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -626,7 +626,7 @@ function Identity({
   );
 }
 
-/** The ticket: the reference to quote, what was booked, and whatever the team wrote back. */
+/** The receipt: the ticket to quote, what was booked, and whatever the team wrote back. */
 function Receipt({ receipt, template, itemHref, onAnother }: { receipt: BookingReceipt; template: BookingFormTemplate; itemHref?: (receipt: BookingReceipt) => string | null; onAnother: () => void }) {
   const href = itemHref?.(receipt) ?? null;
   const reply = template.review.autoReply.trim();
@@ -638,13 +638,13 @@ function Receipt({ receipt, template, itemHref, onAnother }: { receipt: BookingR
         </span>
         <div className="min-w-0">
           <h2 className="text-lg font-semibold tracking-tight">Booked. Thank you.</h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">Quote the reference below if you follow up with the team.</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">Quote the ticket below if you follow up with the team.</p>
         </div>
       </div>
       <dl className="grid gap-2.5 rounded-xl border border-border/60 bg-surface/60 p-4 text-[13px] sm:grid-cols-[120px_minmax(0,1fr)]">
-        <dt className="text-muted-foreground">Reference</dt>
-        <dd className="font-semibold tabular" data-testid="booking-reference">
-          {receipt.reference}
+        <dt className="text-muted-foreground">Ticket</dt>
+        <dd className="font-semibold tabular" data-testid="booking-ticket">
+          {receipt.ticket}
         </dd>
         <dt className="text-muted-foreground">Task</dt>
         <dd className="font-medium">

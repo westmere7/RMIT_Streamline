@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BoardColumn, BookingAnswer, BookingBlock, BookingChoiceBlock, BookingFormTemplate, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
-import { bookingReference, copyBlockWithNewIds, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, flattenBlocks, newBookingBlock, numberedQuestions, questionNumber, renameFollowUpKey, serviceById, standardFieldFor, templateQuestionCount, visibleBlocks } from "@/domain";
+import { copyBlockWithNewIds, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, flattenBlocks, newBookingBlock, numberedQuestions, questionNumber, renameFollowUpKey, serviceById, standardFieldFor, templateQuestionCount, visibleBlocks } from "@/domain";
 import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { richTextToPlain } from "@/lib/rich-text";
 import { createServices } from "@/services";
@@ -576,7 +576,7 @@ describe("booking a task", () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: await keyFor(), request: request() });
     expect(receipt.boardName).toBe("Task Allocation");
     expect(receipt.teamName).toBeNull();
-    expect(receipt.reference).toMatch(/^TA-[0-9A-F]{4}$/);
+    expect(receipt.ticket).toMatch(/^CP_\d{3,}$/);
 
     const { board } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     const items = await services.repos.items.listByBoard(board.id);
@@ -956,12 +956,13 @@ describe("the reference a booking carries", () => {
     const itemId = "1f0a2b3c-4d5e-4f60-8a91-b2c3d4e5f607";
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
     expect(receipt.itemId).toBe(itemId);
-    expect(receipt.reference).toBe(bookingReference(itemId));
+    expect(receipt.ticket).toMatch(/^CP_\d{3,}$/);
 
-    // The same id a second time is already taken, so that booking gets its own.
+    // The same id a second time is already taken, so that booking gets its own —
+    // and its own ticket, because a ticket belongs to one booking.
     const second = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
     expect(second.itemId).not.toBe(itemId);
-    expect(second.reference).toBe(bookingReference(second.itemId));
+    expect(second.ticket).not.toBe(receipt.ticket);
   });
 });
 
