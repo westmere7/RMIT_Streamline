@@ -24,6 +24,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -137,15 +138,27 @@ function PanelBlocks({ onClose, hideClose = false }: { onClose: () => void; hide
   );
 }
 
-export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = false }: { itemId: string; onClose: () => void; overlay?: boolean; shared?: boolean }) {
+/**
+ * @param popup Shown as a pop-up over the middle of the board rather than a
+ * column beside it — wide enough to read the task and its updates at once, so
+ * the tabs stop being a choice between them.
+ */
+export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = false, popup = false }: { itemId: string; onClose: () => void; overlay?: boolean; shared?: boolean; popup?: boolean }) {
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
+  // Two panes need the room for two panes. Below that the pop-up is the panel,
+  // which is already full screen on a phone.
+  const asPopup = popup && !narrow;
   const [localTab, setLocalTab] = React.useState("overview");
   const requestedTab = useBoardUiStore((s) => s.requestedItemTab);
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   // A request (from the updates badge, say) wins until the person picks a tab.
-  const tab = requestedTab?.itemId === itemId ? requestedTab.tab : localTab;
+  const requested = requestedTab?.itemId === itemId ? requestedTab.tab : null;
+  // The pop-up always shows the overview, so its tab state is only ever about
+  // the pane beside it — and "overview" is not one of the answers.
+  const sideTab = asPopup ? (requested && requested !== "overview" ? requested : localTab === "overview" ? "updates" : localTab) : null;
+  const tab = asPopup ? sideTab! : (requested ?? localTab);
   const setTab = (next: string) => {
     if (requestedTab) setRequestedItemTab(null);
     setLocalTab(next);
@@ -189,6 +202,9 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
   }, [tab, itemId, latestUpdate]);
 
   React.useEffect(() => {
+    // The pop-up is a real dialog and closes itself on Escape; two handlers
+    // answering one key is one handler too many.
+    if (asPopup) return;
     const onKey = (e: KeyboardEvent) => {
       // Escape inside a field (or the update composer, a contenteditable) belongs to that field.
       const inField = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLElement && e.target.isContentEditable);
@@ -198,15 +214,10 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, asPopup]);
 
-  return (
-    <aside
-      role="dialog"
-      aria-label={item ? item.name : "Item"}
-      data-testid="item-panel"
-      className={panelClasses(shared, narrow, overlay)}
-    >
+  const body = (
+    <>
       {!item && !loading ? (
         <div className="flex h-full flex-col">
           <div className="flex h-12 items-center justify-end border-b px-3">
@@ -218,6 +229,11 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
         </div>
       ) : !ready || !item ? (
         <PanelBlocks onClose={onClose} hideClose={shared} />
+      ) : asPopup ? (
+        <>
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
+          <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
+        </>
       ) : (
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
@@ -253,7 +269,114 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
           </Tabs>
         </>
       )}
+    </>
+  );
+
+  if (asPopup) {
+    return (
+      <Dialog open onOpenChange={(next) => !next && onClose()}>
+        {/* Its own frame rather than the panel's: centred, none of the dialog's
+            usual padding, and as tall as the screen comfortably allows so the
+            overview and the pane beside it each have somewhere to scroll. */}
+        <DialogContent
+          className="flex h-[calc(100vh-3.5rem)] max-h-[1040px] max-w-[min(1160px,calc(100vw-4rem))] flex-col gap-0 overflow-hidden p-0"
+          aria-describedby={undefined}
+          data-testid="item-popup"
+          /* The header's own close, beside share and the task's menu, rather
+             than the dialog's in the corner above it: two ways out, a row
+             apart, is one more than the reader needs to find. */
+          hideClose
+        >
+          <DialogTitle className="sr-only">{item?.name ?? "Task"}</DialogTitle>
+          {body}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <aside
+      role="dialog"
+      aria-label={item ? item.name : "Item"}
+      data-testid="item-panel"
+      className={panelClasses(shared, narrow, overlay)}
+    >
+      {body}
     </aside>
+  );
+}
+
+/**
+ * The pop-up's body: the overview, and one of the other three beside it.
+ *
+ * The panel stacks four tabs because it is one column wide and a choice is all
+ * it can offer. Given the width of the screen the choice is mostly already
+ * answered — the task is what was opened, and the overview is the task — so
+ * only the second pane still asks a question, and its three answers are the
+ * ones people switch between while reading the same task.
+ */
+function PopupBody({
+  item,
+  canEdit,
+  tab,
+  onTabChange,
+  comments,
+  assets,
+}: {
+  item: Item;
+  canEdit: boolean;
+  tab: string;
+  onTabChange: (tab: string) => void;
+  comments: number;
+  assets: number;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1">
+      <section className="flex min-h-0 flex-1 basis-0 flex-col border-r border-border" aria-label="Overview">
+        {/* Reads as the tab it is, and stays on it: the same height and rule as
+            the strip beside it, so one line runs across both panes. */}
+        <div className="flex shrink-0 items-end border-b border-border/70 px-4">
+          <span className="relative inline-flex h-10 items-center gap-1.5 px-3 text-[13px] font-medium text-foreground after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-ring">
+            <SquarePen className="size-3.5" /> Overview
+          </span>
+        </div>
+        {/* The overview keeps a measure it was drawn for. A field row is a
+            label, a cell of a fixed width and nothing else; stretched much
+            wider it becomes a value marooned in white space, so past this the
+            extra width goes to the margins instead. */}
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[680px]">
+            <Overview key={item.id} item={item} />
+          </div>
+        </div>
+      </section>
+      <section className="flex min-h-0 flex-1 basis-0 flex-col bg-surface-strong/15" aria-label="Updates, assets and activity">
+        <Tabs value={tab} onValueChange={onTabChange} className="flex min-h-0 flex-1 flex-col">
+          <UnderlineTabsList className="shrink-0 px-3">
+            <UnderlineTabsTrigger value="updates">
+              <MessageSquare className="size-3.5" /> Updates
+              {comments > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments}</span>}
+            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
+              <Package className="size-3.5" /> Assets
+              {assets > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets}</span>}
+            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="activity">
+              <History className="size-3.5" /> Activity
+            </UnderlineTabsTrigger>
+          </UnderlineTabsList>
+          <TabsContent value="updates" className="min-h-0 flex-1">
+            <ItemUpdates itemId={item.id} canComment={canEdit} />
+          </TabsContent>
+          <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+            <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
+          </TabsContent>
+          <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
+            <ItemActivity itemId={item.id} />
+          </TabsContent>
+        </Tabs>
+      </section>
+    </div>
   );
 }
 

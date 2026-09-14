@@ -16,6 +16,9 @@ export function sortFieldColumnId(field: SortField): string | null {
 }
 export type SortDirection = "asc" | "desc";
 
+/** Beside the board, or over the middle of it. */
+export type ItemOpenMode = "panel" | "popup";
+
 export interface BoardSort {
   field: SortField;
   direction: SortDirection;
@@ -73,6 +76,16 @@ interface BoardUiStore {
    */
   openItemId: string | null;
   setOpenItemId: (itemId: string | null) => void;
+  /**
+   * How that task is being looked at: beside the board, or as a pop-up over it.
+   *
+   * Not in the URL. The panel is what a link to a task opens, because it is the
+   * shape that survives being arrived at from anywhere; the pop-up is something
+   * asked for from the menu about a task already on screen, and asking again is
+   * one click.
+   */
+  openItemMode: ItemOpenMode;
+  setOpenItemMode: (mode: ItemOpenMode) => void;
   /** A one-off request for the panel to open on a given tab (the updates badge asks for "updates"). */
   requestedItemTab: { itemId: string; tab: string } | null;
   setRequestedItemTab: (request: { itemId: string; tab: string } | null) => void;
@@ -139,6 +152,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   boards: {},
   openItemId: null,
   setOpenItemId: (openItemId) => set({ openItemId }),
+  openItemMode: "panel",
+  setOpenItemMode: (openItemMode) => set({ openItemMode }),
   requestedItemTab: null,
   setRequestedItemTab: (requestedItemTab) => set({ requestedItemTab }),
   boardLoading: false,

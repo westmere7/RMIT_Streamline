@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveRestore, CornerDownRight, Maximize2, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
+import { ArchiveRestore, CornerDownRight, Maximize2, MoreHorizontal, PictureInPicture2, RefreshCw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { renderContext, renderDropdown, useMenuFocusGuard, type MenuAction } from "@/components/layout/row-menu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -147,6 +147,7 @@ function ArchiveRow({
 
   const actions: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+    { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
     ...(canManage
       ? ([
           { type: "separator" },

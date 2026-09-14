@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -116,6 +116,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
     ? [
         ...(allocateAction ? [allocateAction, { type: "separator" } satisfies MenuAction] : []),
         { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+        { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
         { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
         {
           type: "item",
@@ -163,7 +164,10 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
         { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
       ]
-    : [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }];
+    : [
+        { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+        { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
+      ];
 
   return (
     <>
@@ -468,6 +472,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   const menuFocus = useMenuFocusGuard();
   const actions: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
+    { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
     ...(canEdit
       ? ([
           { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },

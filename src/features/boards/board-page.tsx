@@ -47,7 +47,7 @@ import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/pe
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
-import { readRememberedView, rememberView, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { readRememberedView, rememberView, useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 
 function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
@@ -64,11 +64,12 @@ function isViewKind(value: string | null): value is BoardViewKind {
  * on a board that is not on screen yet — where the frame goes up first and
  * fills in once the board lands.
  */
-function ItemPanelSlot({ onClose, overlay, skeleton }: { onClose: (id: string | null) => void; overlay?: boolean; skeleton?: boolean }) {
+function ItemPanelSlot({ onClose, overlay, skeleton, popupAllowed }: { onClose: (id: string | null) => void; overlay?: boolean; skeleton?: boolean; popupAllowed?: boolean }) {
   const itemId = useBoardUiStore((s) => s.openItemId);
+  const popup = useBoardUiStore((s) => s.openItemMode) === "popup" && !!popupAllowed;
   if (!itemId) return null;
   if (skeleton) return <ItemPanelSkeleton onClose={() => onClose(null)} />;
-  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} overlay={overlay} />;
+  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} overlay={overlay} popup={popup} />;
 }
 
 export function BoardPage() {
@@ -191,6 +192,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
     replaceParams({ view: next });
   };
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  const setOpenItemMode = useBoardUiStore((s) => s.setOpenItemMode);
   /**
    * Open a task in the panel, or close it — on screen before the handler returns.
    *
@@ -205,14 +207,22 @@ function BoardScreen({ boardId }: { boardId: string }) {
    * sweep this along with it and land it a render later than it should.
    */
   const openItem = React.useCallback(
-    (id: string | null) => {
-      flushSync(() => setOpenItemId(id));
+    (id: string | null, mode?: ItemOpenMode) => {
+      flushSync(() => {
+        // An explicit mode is the caller asking for one. Without it the way the
+        // task is being looked at carries over — a breadcrumb followed from
+        // inside the pop-up stays a pop-up — and closing puts it back to the
+        // panel, so the next row clicked opens where rows always open.
+        if (id === null) setOpenItemMode("panel");
+        else if (mode) setOpenItemMode(mode);
+        setOpenItemId(id);
+      });
       // And the URL is bookkeeping. Writing it here costs ~150ms of router
       // reconciliation, which would sit between the flush above and the browser
       // getting a chance to paint it; a frame later it is free.
       requestAnimationFrame(() => replaceParams({ item: id }));
     },
-    [replaceParams, setOpenItemId],
+    [replaceParams, setOpenItemId, setOpenItemMode],
   );
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   const openItemUpdates = React.useCallback(
@@ -351,7 +361,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
               {view === "chart" && <ChartView />}
             </div>
             {/* On the Kanban the panel floats over the lanes rather than squeezing them. */}
-            <ItemPanelSlot onClose={openItem} overlay={view === "kanban"} />
+            <ItemPanelSlot onClose={openItem} overlay={view === "kanban"} popupAllowed />
           </div>
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />

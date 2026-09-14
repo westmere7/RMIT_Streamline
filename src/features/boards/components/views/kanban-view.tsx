@@ -3,7 +3,7 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, Plus, RefreshCw, TriangleAlert } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -464,6 +464,9 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
       <ContextMenuContent className="w-44">
         <ContextMenuItem onSelect={open}>
           <Maximize2 /> Open
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => openItem(item.id, "popup")}>
+          <PictureInPicture2 /> Open in pop-up
         </ContextMenuItem>
         {canEdit && (
           <>

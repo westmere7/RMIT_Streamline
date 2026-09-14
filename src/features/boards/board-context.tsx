@@ -5,6 +5,7 @@ import type { Board, BoardColumn, User } from "@/domain";
 import type { BoardModel } from "@/features/boards/board-model";
 import type { BoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import type { ItemUpdatesSummary } from "@/features/comments/updates";
+import type { ItemOpenMode } from "@/stores/board-ui-store";
 
 export interface BoardContextValue {
   board: Board;
@@ -14,7 +15,8 @@ export interface BoardContextValue {
   users: User[];
   canEdit: boolean;
   canManage: boolean;
-  openItem: (itemId: string | null) => void;
+  /** Opens the task beside the board, or — asked for by name — as a pop-up over it. */
+  openItem: (itemId: string | null, mode?: ItemOpenMode) => void;
   /** Opens the item straight on its Updates tab. */
   openItemUpdates: (itemId: string) => void;
   openEditLabels: (column: BoardColumn) => void;

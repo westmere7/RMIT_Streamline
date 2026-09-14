@@ -26,7 +26,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { colorClasses } from "@/lib/colors";
-import { useBoardUiStore } from "@/stores/board-ui-store";
+import { useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 import { cn, pluralize } from "@/lib/utils";
 
 export function BoardArchivePage() {
@@ -67,8 +67,9 @@ export function BoardArchivePage() {
 /** The panel, subscribed to which task is open. Same reasoning as the board's slot. */
 function ArchivePanelSlot({ onClose }: { onClose: (id: string | null) => void }) {
   const itemId = useBoardUiStore((s) => s.openItemId);
+  const popup = useBoardUiStore((s) => s.openItemMode) === "popup";
   if (!itemId) return null;
-  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} />;
+  return <ItemDetailPanel itemId={itemId} onClose={() => onClose(null)} popup={popup} />;
 }
 
 function ArchiveScreen({ boardId }: { boardId: string }) {
@@ -119,15 +120,24 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
     [pathname],
   );
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
+  const setOpenItemMode = useBoardUiStore((s) => s.setOpenItemMode);
   // Which task is open lives in the store, and the panel subscribes to it: the
   // click moves it before the handler returns, and the whole page is not
   // redrawn for it. Same as the board — see `openItem` there.
   const openItem = React.useCallback(
-    (id: string | null) => {
-      flushSync(() => setOpenItemId(id));
+    (id: string | null, mode?: ItemOpenMode) => {
+      flushSync(() => {
+        // An explicit mode is the caller asking for one. Without it the way the
+        // task is being looked at carries over — a breadcrumb followed from
+        // inside the pop-up stays a pop-up — and closing puts it back to the
+        // panel, so the next row clicked opens where rows always open.
+        if (id === null) setOpenItemMode("panel");
+        else if (mode) setOpenItemMode(mode);
+        setOpenItemId(id);
+      });
       requestAnimationFrame(() => replaceParams({ item: id }));
     },
-    [replaceParams, setOpenItemId],
+    [replaceParams, setOpenItemId, setOpenItemMode],
   );
 
   React.useEffect(() => {
