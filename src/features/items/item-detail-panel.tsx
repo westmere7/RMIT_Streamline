@@ -488,17 +488,17 @@ function TicketField({ item, canEdit, onSave, onAssign }: { item: Item; canEdit:
   }
 
   return (
-    // The chip is quiet beside the task's name, but inside it the code leads and
-    // the label only says what it is.
+    // Just the code. "Ticket CP26_041" said the same thing twice — the word is
+    // only worth the space on the button that offers one, where there is no
+    // code yet to speak for itself.
     <span className="inline-flex h-6 items-center overflow-hidden rounded-md bg-surface-strong/60" data-testid="panel-ticket-chip">
-      <span className="pl-1.5 text-[10px] font-medium text-muted-foreground/70">Ticket</span>
       <button
         type="button"
         onClick={click}
         onDoubleClick={edit}
         title={canEdit ? "Click to copy, double click to edit" : "Copy this ticket"}
         data-testid="panel-ticket"
-        className={cn("h-full pr-1.5 pl-1 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground", canEdit && "hover:bg-foreground/[0.06]")}
+        className={cn("h-full px-1.5 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground", canEdit && "hover:bg-foreground/[0.06]")}
       >
         {code}
       </button>
