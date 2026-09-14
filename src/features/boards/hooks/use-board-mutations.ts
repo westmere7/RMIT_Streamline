@@ -164,13 +164,29 @@ export function useBoardMutations(boardId: string) {
    * is always a specific task.
    */
   const setTicket = useCallback(
-    (itemId: string, ticket: string | null) => run(null, () => services.tickets.setTicket(ws.workspace.id, itemId, ticket, user.id), "Could not save the ticket"),
+    (itemId: string, ticket: string | null) =>
+      run(
+        null,
+        () => services.tickets.setTicket(ws.workspace.id, itemId, ticket, user.id),
+        "Could not save the ticket",
+        // Written into the snapshot the moment the workspace accepts it, rather
+        // than waiting for the refetch: the field shows a spinner until this
+        // resolves, and without the reconcile it would come back to the old
+        // code for as long as the refetch takes.
+        (snapshot, saved) => patchItem(snapshot, itemId, { ticket: saved.ticket }),
+      ),
     [run, services, ws.workspace.id, user.id],
   );
 
   /** Gives a task the next ticket in the workspace's series. */
   const assignTicket = useCallback(
-    (itemId: string) => run(null, () => services.tickets.assign(ws.workspace.id, itemId, user.id), "Could not issue a ticket"),
+    (itemId: string) =>
+      run(
+        null,
+        () => services.tickets.assign(ws.workspace.id, itemId, user.id),
+        "Could not issue a ticket",
+        (snapshot, saved) => patchItem(snapshot, itemId, { ticket: saved.ticket }),
+      ),
     [run, services, ws.workspace.id, user.id],
   );
 

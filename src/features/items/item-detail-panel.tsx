@@ -466,7 +466,7 @@ function PanelHeader({
         </div>
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-        <TicketField item={item} canEdit={canEdit} onSave={(value) => void mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
+        <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
         {share?.enabled && (
           <SimpleTooltip label={share.access === "PUBLIC" ? "Shared by link with anyone who has it." : "Shared by link with signed-in members."}>
             <button
@@ -516,10 +516,40 @@ const TICKET_DOUBLE_CLICK_MS = 220;
  * before it is kept, so this hands the raw text over rather than tidying it
  * into something that might be a different ticket.
  */
-function TicketField({ item, canEdit, onSave, onAssign }: { item: Item; canEdit: boolean; onSave: (value: string | null) => void; onAssign: () => void }) {
+function TicketField({
+  item,
+  canEdit,
+  onSave,
+  onAssign,
+}: {
+  item: Item;
+  canEdit: boolean;
+  /** Resolves when the workspace has accepted the ticket or refused it. */
+  onSave: (value: string | null) => Promise<unknown>;
+  onAssign: () => void;
+}) {
   const [editing, setEditing] = React.useState(false);
   const [issuing, setIssuing] = React.useState(false);
+  /**
+   * The code typed in, while the workspace is being asked whether anything else
+   * already holds it.
+   *
+   * That question is a read across every board in the workspace, which from
+   * here is a round trip — and until it came back the chip still said the old
+   * code, so a ticket that was about to be refused looked like one that had
+   * simply not been typed. Null means nothing is in flight.
+   */
+  const [checking, setChecking] = React.useState<string | null>(null);
   const code = item.ticket ?? null;
+
+  const save = async (typed: string) => {
+    setChecking(typed.trim().toUpperCase());
+    try {
+      await onSave(typed.trim() || null);
+    } finally {
+      setChecking(null);
+    }
+  };
   // The first click of a double click has to be held back, or opening the code
   // for editing would copy it twice on the way through.
   const pending = React.useRef<number | null>(null);
@@ -579,7 +609,7 @@ function TicketField({ item, canEdit, onSave, onAssign }: { item: Item; canEdit:
           onBlur={(e) => {
             setEditing(false);
             const typed = e.currentTarget.value.trim();
-            if (typed.toUpperCase() !== (code ?? "")) onSave(typed || null);
+            if (typed.toUpperCase() !== (code ?? "")) void save(typed);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
@@ -589,6 +619,21 @@ function TicketField({ item, canEdit, onSave, onAssign }: { item: Item; canEdit:
             }
           }}
         />
+      </span>
+    );
+  }
+
+  // Asked and not yet answered. The code it will be if the workspace agrees,
+  // so the wait is spent looking at the answer rather than at the question.
+  if (checking !== null) {
+    return (
+      <span
+        className="inline-flex h-6 items-center gap-1.5 rounded-md bg-surface-strong/60 px-1.5 text-[13px] font-medium text-muted-foreground"
+        aria-live="polite"
+        data-testid="panel-ticket-checking"
+      >
+        <LoaderCircle className="size-3 animate-spin" />
+        {checking ? <span className="font-mono font-semibold tabular">{checking}</span> : "Removing…"}
       </span>
     );
   }
