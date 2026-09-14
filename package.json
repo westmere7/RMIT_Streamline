@@ -18,6 +18,7 @@
     "db:seed": "tsx scripts/db-seed.mts",
     "db:seed:topup": "tsx scripts/db-seed-topup.mts",
     "db:setup": "node scripts/db-setup.mjs",
+    "tickets:dedupe": "node scripts/tickets-dedupe.mjs",
     "test:e2e:supabase": "node scripts/e2e-supabase.mjs",
     "test:e2e:deployment": "playwright test --config playwright.deployment.config.ts"
   },
