@@ -120,6 +120,8 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       listByIds: async (ids) => payload().items.filter((i) => ids.includes(i.id)),
       listByTicket: async (boardIds, ticket) => payload().items.filter((i) => boardIds.includes(i.boardId) && i.ticket === ticket),
       listTicketed: async (boardIds) => payload().items.filter((i) => boardIds.includes(i.boardId) && !!i.ticket),
+      countTicketed: async (boardIds) => payload().items.filter((i) => boardIds.includes(i.boardId) && !!i.ticket).length,
+      rewriteTicketPrefix: readOnly("changing the ticket prefix"),
       getById: async (id) => payload().items.find((i) => i.id === id) ?? null,
       create: readOnly("adding an item"),
       update: readOnly("editing an item"),

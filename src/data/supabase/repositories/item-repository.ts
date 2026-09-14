@@ -141,6 +141,25 @@ export class SupabaseItemRepository implements ItemRepository {
     return rows.map(toItem);
   }
 
+  async countTicketed(boardIds: string[]): Promise<number> {
+    if (boardIds.length === 0) return 0;
+    const result = await db().from("items").select("id", { count: "exact", head: true }).in("board_id", boardIds).not("ticket", "is", null);
+    assertOk(result, "items.countTicketed");
+    return result.count ?? 0;
+  }
+
+  /**
+   * One statement in the database, rather than one update per ticket from here.
+   * Every ticket takes a different new value, so `updateMany` has nothing to
+   * group and degenerates into a round trip each.
+   */
+  async rewriteTicketPrefix(boardIds: string[], prefix: string): Promise<number> {
+    if (boardIds.length === 0) return 0;
+    const result = await db().rpc("rewrite_ticket_prefix", { p_boards: boardIds, p_prefix: prefix });
+    if (result.error) throw new Error(`items.rewriteTicketPrefix: ${result.error.message}`);
+    return Number(result.data) || 0;
+  }
+
   async listByIds(ids: string[]): Promise<Item[]> {
     if (ids.length === 0) return [];
     const pages = await Promise.all(

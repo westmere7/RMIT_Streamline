@@ -1,5 +1,5 @@
 import type { EntityId, Item, Workspace } from "@/domain";
-import { formatTicket, normaliseTicket, normaliseTicketPrefix, parseTicket, ticketPrefixOf, withTicketPrefix } from "@/domain";
+import { formatTicket, normaliseTicket, normaliseTicketPrefix, parseTicket, ticketPrefixOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemLinkService } from "./item-link-service";
@@ -137,32 +137,28 @@ export class TicketService {
    * it is asked for rather than assumed. Either way the numbers are untouched:
    * the number is what people count by, and CP_014 becoming PROD_014 is still
    * recognisably the fourteenth thing that came in.
+   *
+   * The tickets are rewritten before the workspace is told its new prefix, and
+   * both steps are one write each. If the rewrite fails nothing has moved and
+   * the workspace is still stamping the prefix its tickets actually carry —
+   * the state to avoid here is half the tickets renamed with no record of which.
    */
   async setPrefix(workspaceId: EntityId, prefix: string, options: { rewriteExisting: boolean }): Promise<PrefixChange> {
     const next = normaliseTicketPrefix(prefix);
     if (!next) throw new TicketError("A ticket prefix is one to eight letters or digits — “CP”, say.");
 
     const current = await this.prefixOf(workspaceId);
-    await this.repos.workspaces.update(workspaceId, { ticketPrefix: next });
-    if (!options.rewriteExisting || next === current) return { prefix: next, rewritten: 0 };
-
-    const patches = (await this.ticketed(workspaceId))
-      .map((item) => ({ item, ticket: withTicketPrefix(item.ticket, next) }))
-      .filter((row): row is { item: Item; ticket: string } => !!row.ticket && row.ticket !== row.item.ticket)
-      .map((row) => ({ id: row.item.id, patch: { ticket: row.ticket } }));
-    if (patches.length === 0) return { prefix: next, rewritten: 0 };
-
-    // Written in one go rather than one at a time through `setTicket`: every
-    // ticket keeps the number it had, so nothing can collide that was not
+    // Every ticket keeps the number it had, so nothing can collide that was not
     // colliding already, and two tasks sharing a ticket across a link move
-    // together because both ends are in this list with the same number.
-    await this.repos.items.updateMany(patches);
-    return { prefix: next, rewritten: patches.length };
+    // together because both are rewritten by the same rule.
+    const rewritten = options.rewriteExisting && next !== current ? await this.repos.items.rewriteTicketPrefix(await this.boardIds(workspaceId), next) : 0;
+    await this.repos.workspaces.update(workspaceId, { ticketPrefix: next });
+    return { prefix: next, rewritten };
   }
 
   /** How many tasks in the workspace hold a ticket, for the sentence before a prefix change. */
   async countTicketed(workspaceId: EntityId): Promise<number> {
-    return (await this.ticketed(workspaceId)).length;
+    return this.repos.items.countTicketed(await this.boardIds(workspaceId));
   }
 
   /**

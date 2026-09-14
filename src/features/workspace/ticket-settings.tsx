@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LoaderCircle } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -80,39 +81,61 @@ export function TicketSettings({ manage }: { manage: boolean }) {
         </div>
       )}
 
-      <Dialog open={asking} onOpenChange={(open) => !open && setAsking(false)}>
-        <DialogContent data-testid="ticket-prefix-dialog">
+      {/* Nothing may close this while the write is out: the buttons go, the
+          escape key and the overlay are refused, and the one line left says
+          what is happening. A prefix change is two writes deep in a database on
+          the other side of the world, and a dialog that looked closable was
+          read as a dialog that had hung. */}
+      <Dialog open={asking} onOpenChange={(open) => !open && !save.isPending && setAsking(false)}>
+        <DialogContent
+          data-testid="ticket-prefix-dialog"
+          hideClose={save.isPending}
+          onEscapeKeyDown={(e) => save.isPending && e.preventDefault()}
+          onPointerDownOutside={(e) => save.isPending && e.preventDefault()}
+          onInteractOutside={(e) => save.isPending && e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>
               Tickets become {next}_
             </DialogTitle>
-            <DialogDescription>
-              {ticketed.data === undefined
-                ? "Counting the tickets already handed out…"
-                : ticketed.data === 0
-                  ? "Nothing has been ticketed yet, so there is nothing to rewrite."
-                  : `${ticketed.data} ${ticketed.data === 1 ? "task is" : "tasks are"} already ${current}_, and that is what people were told. Rewriting keeps their numbers.`}
+            <DialogDescription data-testid="ticket-prefix-status">
+              {save.isPending ? (
+                <span className="flex items-center gap-2">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  {save.variables ? `Rewriting ${ticketed.data ?? 0} ${ticketed.data === 1 ? "ticket" : "tickets"}…` : "Saving the prefix…"}
+                </span>
+              ) : ticketed.data === undefined ? (
+                <span className="flex items-center gap-2">
+                  <LoaderCircle className="size-3.5 animate-spin" /> Counting the tickets already handed out…
+                </span>
+              ) : ticketed.data === 0 ? (
+                "Nothing has been ticketed yet, so there is nothing to rewrite."
+              ) : (
+                `${ticketed.data} ${ticketed.data === 1 ? "task is" : "tasks are"} already ${current}_, and that is what people were told. Rewriting keeps their numbers.`
+              )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button type="button" variant="outline" disabled={save.isPending} onClick={() => setAsking(false)}>
-              Cancel
-            </Button>
-            <span className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={save.isPending || !ticketed.data}
-                onClick={() => save.mutate(true)}
-                data-testid="ticket-prefix-rewrite"
-              >
-                Rewrite {ticketed.data ?? 0}
+          {!save.isPending && (
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button type="button" onClick={() => setAsking(false)} variant="outline">
+                Cancel
               </Button>
-              <Button type="button" disabled={save.isPending} onClick={() => save.mutate(false)} data-testid="ticket-prefix-keep">
-                Use for new tickets
-              </Button>
-            </span>
-          </DialogFooter>
+              <span className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!ticketed.data}
+                  onClick={() => save.mutate(true)}
+                  data-testid="ticket-prefix-rewrite"
+                >
+                  Rewrite {ticketed.data ?? 0}
+                </Button>
+                <Button type="button" onClick={() => save.mutate(false)} data-testid="ticket-prefix-keep">
+                  Use for new tickets
+                </Button>
+              </span>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

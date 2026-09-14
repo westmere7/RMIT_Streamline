@@ -180,6 +180,18 @@ export interface ItemRepository {
   listByTicket(boardIds: EntityId[], ticket: string): Promise<Item[]>;
   /** Every task on these boards that holds a ticket. For rewriting a workspace's prefix. */
   listTicketed(boardIds: EntityId[]): Promise<Item[]>;
+  /** How many of them there are, counted where the rows live: the sentence before a prefix change does not need the rows themselves. */
+  countTicketed(boardIds: EntityId[]): Promise<number>;
+  /**
+   * Puts a new prefix on every ticket these boards hold, keeping each number.
+   * Returns how many changed.
+   *
+   * Not `updateMany`: every ticket takes a different new value, so nothing
+   * batches and a few hundred tickets become a few hundred round trips. This is
+   * one statement, which also means it cannot be left half-applied by somebody
+   * who gave up waiting and closed the tab.
+   */
+  rewriteTicketPrefix(boardIds: EntityId[], prefix: string): Promise<number>;
   getById(id: EntityId): Promise<Item | null>;
   create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;
   update(id: EntityId, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item>;

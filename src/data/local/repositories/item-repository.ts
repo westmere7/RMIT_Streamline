@@ -1,5 +1,5 @@
 import type { ArchivePage, ArchiveQuery, ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
-import { compareArchived, matchesArchiveQuery } from "@/domain";
+import { compareArchived, matchesArchiveQuery, withTicketPrefix } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -60,6 +60,25 @@ export class LocalItemRepository implements ItemRepository {
 
   async listTicketed(boardIds: string[]): Promise<Item[]> {
     return (await this.onBoards(boardIds)).filter((i) => !!i.ticket);
+  }
+
+  async countTicketed(boardIds: string[]): Promise<number> {
+    return (await this.listTicketed(boardIds)).length;
+  }
+
+  /** One transaction, so a rewrite is all of the tickets or none of them. */
+  async rewriteTicketPrefix(boardIds: string[], prefix: string): Promise<number> {
+    const patches = (await this.listTicketed(boardIds))
+      .map((item) => ({ item, ticket: withTicketPrefix(item.ticket, prefix) }))
+      .filter((row) => !!row.ticket && row.ticket !== row.item.ticket);
+    if (patches.length === 0) return 0;
+
+    const db = await this.conn.getDb();
+    const tx = db.transaction("items", "readwrite");
+    const now = nowIso();
+    for (const { item, ticket } of patches) await tx.store.put({ ...item, ticket, updatedAt: now });
+    await tx.done;
+    return patches.length;
   }
 
   private async onBoards(boardIds: string[]): Promise<Item[]> {
