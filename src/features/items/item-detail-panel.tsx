@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -231,7 +231,7 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
         <PanelBlocks onClose={onClose} hideClose={shared} />
       ) : asPopup ? (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup />
           <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
         </>
       ) : (
@@ -387,6 +387,7 @@ function PanelHeader({
   assets,
   hideClose,
   shared,
+  popup,
 }: {
   item: Item;
   onClose: () => void;
@@ -395,6 +396,8 @@ function PanelHeader({
   hideClose?: boolean;
   /** True on the page behind a link: there is nothing to share from inside a share. */
   shared?: boolean;
+  /** Over the middle of the board rather than beside it, so the menu offers the way back. */
+  popup?: boolean;
 }) {
   const { model, mutations, openItem, board, canManage } = useBoardContext();
   const [sharing, setSharing] = React.useState(false);
@@ -454,7 +457,7 @@ function PanelHeader({
               </Button>
             </SimpleTooltip>
           )}
-          <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} />
+          <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />
           {!hideClose && (
             <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
               <X />
@@ -824,7 +827,7 @@ function Overview({ item }: { item: Item }) {
  * this there would be no way back. The restore list is the only place that
  * tells you what the panel is keeping from you.
  */
-function PanelMenu({ item, canEdit, canManage, onShare }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void }) {
+function PanelMenu({ item, canEdit, canManage, onShare, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; shared?: boolean; popup?: boolean }) {
   const { model, mutations, openItem } = useBoardContext();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
@@ -840,6 +843,27 @@ function PanelMenu({ item, canEdit, canManage, onShare }: { item: Item; canEdit:
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
+          {/* Where the task is being shown, and the other answer. Above the
+              rest and open to everyone: it changes nothing about the task, and
+              a reader who cannot edit still chooses how to read it. Not on the
+              page behind a share link, which is the whole page and has no
+              board to sit over. */}
+          {!shared && (
+            <>
+              <DropdownMenuItem onSelect={() => openItem(item.id, popup ? "panel" : "popup")} data-testid="panel-open-mode">
+                {popup ? (
+                  <>
+                    <PanelRight /> Open in side panel
+                  </>
+                ) : (
+                  <>
+                    <PictureInPicture2 /> Open in pop-up
+                  </>
+                )}
+              </DropdownMenuItem>
+              {(canEdit || anythingHidden) && <DropdownMenuSeparator />}
+            </>
+          )}
           {canEdit && (
             <>
               <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
