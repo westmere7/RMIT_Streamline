@@ -25,9 +25,10 @@ where the secret ends up.
 
 ### 2. Vercel's scheduler — Pro plan and above
 
-Add this to `vercel.json` and set `AUTOMATION_SECRET` (or `CRON_SECRET`) in the
-project's environment variables. Vercel signs its own scheduled requests, so the
-endpoint accepts them without the secret being sent from anywhere else.
+Add this to `vercel.json` and set `CRON_SECRET` in the project's environment
+variables. Vercel sends that value as a bearer token on its own scheduled
+requests, which is exactly what the endpoint checks for. There is no header-only
+fallback: with no secret configured the runner refuses every caller.
 
 ```json
 "crons": [{ "path": "/api/automations/run", "schedule": "*/5 * * * *" }]

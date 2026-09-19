@@ -43,19 +43,21 @@ export interface RunOutcome extends DrainReport {
 /**
  * Checks the caller is allowed to set the runner going.
  *
- * `AUTOMATION_SECRET` is the shared one, sent as a bearer token or as
- * `x-automation-secret`; Vercel's own scheduler sends `CRON_SECRET` the same
- * way, so either is accepted and either alone is enough. With no secret
- * configured at all the endpoint answers only to requests carrying Vercel's
- * cron header, because an open drain endpoint is a way to make somebody else's
- * database work for free.
+ * A configured secret, and nothing else. `AUTOMATION_SECRET` is the shared one,
+ * sent as a bearer token or as `x-automation-secret`; `CRON_SECRET` is the name
+ * Vercel's own scheduler uses for the same thing, and it signs its scheduled
+ * requests with it, so either name works and either alone is enough.
+ *
+ * There is deliberately no fallback to Vercel's `x-vercel-cron` header. It is a
+ * header, which means anybody can send one, and it is not documented as being
+ * stripped from requests arriving off the internet — so trusting it would leave
+ * a drain endpoint that any stranger could hold down to make this database work
+ * for free. With no secret configured the runner refuses everybody and says so,
+ * which is a thing an operator notices and fixes.
  */
 export function authoriseRunner(request: Request): void {
   const configured = process.env.AUTOMATION_SECRET || process.env.CRON_SECRET || null;
   if (!configured) {
-    // Vercel sets this on its own scheduled invocations and strips it from
-    // anything arriving off the internet.
-    if (request.headers.get("x-vercel-cron")) return;
     throw new HttpError(503, "Automations are not configured on this deployment: set AUTOMATION_SECRET.");
   }
   const header = request.headers.get("authorization") ?? "";

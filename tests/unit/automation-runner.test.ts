@@ -114,12 +114,13 @@ describe("the automation runner", () => {
       expect(() => authoriseRunner(request({ authorization: "Bearer a-long-enough-secre" }))).toThrow(HttpError);
     });
 
-    it("falls back to Vercel's own cron header when no secret is configured", () => {
+    it("refuses everybody when no secret is configured, forged cron header included", () => {
       delete process.env.AUTOMATION_SECRET;
       delete process.env.CRON_SECRET;
-      expect(() => authoriseRunner(request({ "x-vercel-cron": "1" }))).not.toThrow();
-      // And refuses everything else rather than leaving the drain open to the
-      // internet, which is a way to make somebody else's database work for free.
+      // `x-vercel-cron` is just a header, so a stranger can send one. A drain
+      // endpoint that believed it would be a way to make this database work for
+      // free, held down by anybody who found the URL.
+      expect(() => authoriseRunner(request({ "x-vercel-cron": "1" }))).toThrow(/not configured/);
       expect(() => authoriseRunner(request({}))).toThrow(/not configured/);
     });
 
