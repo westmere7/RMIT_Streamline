@@ -54,7 +54,10 @@ export function AutomationsPage() {
   const [boardFilter, setBoardFilter] = React.useState<string>("all");
   const [editing, setEditing] = React.useState<{ board: Board; rule: AutomationRule | null; preset?: Recipe } | null>(null);
 
-  const all = React.useMemo(() => rules.data ?? [], [rules.data]);
+  // Quick runs are not shown here. They are a thing a person does to a board
+  // while looking at it, so they live on the board's own screen; this page is
+  // about what happens when nobody is looking.
+  const all = React.useMemo(() => (rules.data ?? []).filter((rule) => rule.trigger.kind !== "manual"), [rules.data]);
   const shown = React.useMemo(() => {
     const words = search.trim().toLowerCase();
     return all.filter((rule) => {

@@ -4,7 +4,6 @@ import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/se
 import type { AutomationAction, AutomationRuleInput, AutomationTrigger, BoardColumn } from "@/domain";
 import { MAX_EVENT_DEPTH } from "@/domain";
 import { AutomationEngine } from "@/services/automation-engine";
-import { AutomationService } from "@/services/automation-service";
 import { authoriseRunner } from "@/server/automations";
 import { HttpError } from "@/server/http";
 import { createServices, type Services } from "@/services";
@@ -64,7 +63,7 @@ describe("the automation runner", () => {
       actions,
       createdBy: SEED_USER_IDS.danh,
     };
-    return new AutomationService(repos).create(input, {
+    return services.automations.create(input, {
       columns: await repos.boards.listColumns(BOARD),
       groups: await repos.boards.listGroups(BOARD),
       users: await repos.users.list(),
@@ -168,7 +167,7 @@ describe("the automation runner", () => {
     await setStatus(item.id, "Done");
     expect((await engine().drain(100)).ran).toBe(0);
 
-    await new AutomationService(repos).setEnabled(rule.id, true);
+    await services.automations.setEnabled(rule.id, true);
     await setStatus(item.id, "In Progress");
     expect((await engine().drain(100)).ran).toBe(1);
   });

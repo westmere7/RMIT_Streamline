@@ -3,7 +3,6 @@ import { createLocalRepositories, type LocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { AutomationAction, AutomationCondition, AutomationRuleInput, AutomationTrigger, BoardColumn, ColumnValue } from "@/domain";
 import { AutomationEngine, clockIn, dueNow, shiftDate } from "@/services/automation-engine";
-import { AutomationService } from "@/services/automation-service";
 import { createServices, type Services } from "@/services";
 
 /**
@@ -88,7 +87,7 @@ describe("automations", () => {
       actions,
       createdBy: SEED_USER_IDS.danh,
     };
-    return new AutomationService(repos).create(input, await vocabulary());
+    return services.automations.create(input, await vocabulary());
   }
 
   async function setValue(itemId: string, columnName: string, value: ColumnValue, actor = SEED_USER_IDS.danh) {

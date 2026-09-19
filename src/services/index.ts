@@ -1,6 +1,6 @@
 import type { Repositories } from "@/data/repositories";
 import { AutomationEngine } from "./automation-engine";
-import { AutomationService } from "./automation-service";
+import { AutomationService, type AutomationRunTransport } from "./automation-service";
 import { BoardService } from "./board-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
@@ -61,6 +61,8 @@ export interface ServiceOptions {
   portalTransport?: PortalTransport | null;
   /** The zone every "at 9am" in an automation is read in. The runner sets it; a browser has no use for it. */
   automationTimezone?: string;
+  /** How a quick run reaches the server (Supabase). Null runs the engine in place (local). */
+  automationTransport?: AutomationRunTransport | null;
 }
 
 export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
@@ -74,6 +76,10 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const booking = new BookingService(repos, workspace, items, assets, notifications, tickets, options.bookingTransport ?? null);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   const comments = new CommentService(repos, notifications, links);
+  // Constructed in every set so the local provider can drive it from a test and
+  // run a quick run without a server. The unattended passes are only ever
+  // started from a server: see src/server/automations.ts.
+  const automationEngine = new AutomationEngine(repos, items, comments, notifications, { timezone: options.automationTimezone });
   return {
     repos,
     notifications,
@@ -90,10 +96,8 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     booking,
     tickets,
     comments,
-    automations: new AutomationService(repos),
-    // Constructed in every set so the local provider can drive it from a test,
-    // but only ever called from a server: see src/server/automations.ts.
-    automationEngine: new AutomationEngine(repos, items, comments, notifications, { timezone: options.automationTimezone }),
+    automations: new AutomationService(repos, automationEngine, options.automationTransport ?? null),
+    automationEngine,
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
     myWork,
@@ -105,7 +109,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
 export type { ArchiveSnapshot, BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
 export { resolveArchiveFilters } from "./item-service";
 export { AutomationError, describeAction as describeAutomationAction, describeCondition as describeAutomationCondition, describeRule, describeTrigger } from "./automation-service";
-export type { RuleVocabulary } from "./automation-service";
+export type { AutomationRunTransport, RuleVocabulary } from "./automation-service";
 export type { DrainReport } from "./automation-engine";
 export type { CreateBoardInput } from "./board-service";
 export { TicketError } from "./ticket-service";

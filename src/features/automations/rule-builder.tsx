@@ -18,7 +18,7 @@ import type {
   ConditionOp,
   EntityId,
 } from "@/domain";
-import { CONDITION_OPS, MAX_ACTIONS_PER_RULE, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
+import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
 import type { RuleVocabulary } from "@/services";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +48,11 @@ const TRIGGER_WORDS: Record<AutomationTriggerKind, string> = {
   item_archived: "a task is archived",
   date_arrives: "a date arrives",
   recurring: "on a schedule",
+  manual: "run by hand",
 };
+
+/** What the builder is writing: a rule that fires itself, or a quick run somebody fires. */
+export type RuleBuilderMode = "rule" | "quick";
 
 const ACTION_WORDS: Record<AutomationActionKind, string> = {
   set_value: "set a column",
@@ -88,7 +92,12 @@ const isPeopleColumn = (column: BoardColumn) => column.type === "PERSON" || colu
 const hasLabels = (column: BoardColumn) => column.type === "STATUS" || column.type === "DROPDOWN" || column.type === "PRIORITY";
 
 /** The empty rule a new automation starts from: the one people write most. */
-export function blankDraft(vocabulary: RuleVocabulary): RuleDraft {
+export function blankDraft(vocabulary: RuleVocabulary, mode: RuleBuilderMode = "rule"): RuleDraft {
+  if (mode === "quick") {
+    // A quick run has no trigger to choose and nothing to check; it starts as
+    // one action, which is the thing the person came here to save.
+    return { trigger: { kind: "manual" }, conditionMatch: "all", conditions: [], actions: [defaultAction(AUTOMATION_ACTION_KINDS, vocabulary, "set_value")] };
+  }
   const status = vocabulary.columns.find((c) => c.type === "STATUS") ?? vocabulary.columns[0];
   return {
     trigger: status ? { kind: "column_set_to", columnId: status.id, labelId: columnLabels(status)[0]?.id ?? null } : { kind: "item_created" },
@@ -98,16 +107,31 @@ export function blankDraft(vocabulary: RuleVocabulary): RuleDraft {
   };
 }
 
-export function RuleBuilder({ draft, onChange, vocabulary }: { draft: RuleDraft; onChange: (next: RuleDraft) => void; vocabulary: RuleVocabulary }) {
+export function RuleBuilder({
+  draft,
+  onChange,
+  vocabulary,
+  mode = "rule",
+}: {
+  draft: RuleDraft;
+  onChange: (next: RuleDraft) => void;
+  vocabulary: RuleVocabulary;
+  /** A quick run shows only the actions: it has no trigger and checks nothing. */
+  mode?: RuleBuilderMode;
+}) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...draft, ...patch });
   const allowed = actionsAllowedFor(draft.trigger.kind);
+  const quick = mode === "quick";
 
   return (
     <div className="space-y-4" data-testid="rule-builder">
-      <Section label="When">
-        <TriggerEditor trigger={draft.trigger} onChange={(trigger) => set({ trigger, actions: draft.actions.filter((a) => actionsAllowedFor(trigger.kind).includes(a.kind)) })} vocabulary={vocabulary} />
-      </Section>
+      {!quick && (
+        <Section label="When">
+          <TriggerEditor trigger={draft.trigger} onChange={(trigger) => set({ trigger, actions: draft.actions.filter((a) => actionsAllowedFor(trigger.kind).includes(a.kind)) })} vocabulary={vocabulary} />
+        </Section>
+      )}
 
+      {!quick && (
       <Section
         label="Only if"
         action={
@@ -143,9 +167,10 @@ export function RuleBuilder({ draft, onChange, vocabulary }: { draft: RuleDraft;
           </div>
         )}
       </Section>
+      )}
 
       <Section
-        label="Then"
+        label={quick ? "Do" : "Then"}
         action={
           <Button
             variant="ghost"
@@ -253,7 +278,7 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
         value={trigger.kind}
         label="What happens"
         onChange={(kind) => onChange(defaultTrigger(kind, vocabulary))}
-        options={(Object.keys(TRIGGER_WORDS) as AutomationTriggerKind[]).map((kind) => ({ value: kind, label: TRIGGER_WORDS[kind] }))}
+        options={(Object.keys(TRIGGER_WORDS) as AutomationTriggerKind[]).filter((kind) => kind !== "manual").map((kind) => ({ value: kind, label: TRIGGER_WORDS[kind] }))}
         testId="trigger-kind"
       />
 
@@ -772,6 +797,8 @@ function defaultTrigger(kind: AutomationTriggerKind, vocabulary: RuleVocabulary)
       return { kind, columnId: firstOf(isDateColumn), offsetDays: -1, atHour: 9 };
     case "recurring":
       return { kind, recurrence: "weekly", weekday: 1, atHour: 9 };
+    case "manual":
+      return { kind };
   }
 }
 

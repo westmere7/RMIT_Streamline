@@ -21,6 +21,7 @@ import {
   columnLabels,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
+import type { AutomationEngine, DrainReport } from "./automation-engine";
 
 /** A rule that could not be saved, worded for the person who wrote it. */
 export class AutomationError extends Error {
@@ -50,8 +51,34 @@ export interface RuleVocabulary {
  * trigger has none" is the sort of mistake that is cheap to catch on save and
  * expensive to find in a log a fortnight later.
  */
+/**
+ * How a quick run reaches the server when the browser cannot carry it out
+ * itself. Under Supabase the actions run with the service key, on the same code
+ * path a scheduled firing takes; the local provider has no server and runs the
+ * engine directly, so it passes nothing here.
+ */
+export interface AutomationRunTransport {
+  runNow(input: { ruleId: EntityId; itemIds: EntityId[] }): Promise<DrainReport>;
+}
+
 export class AutomationService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    private readonly engine: AutomationEngine,
+    private readonly transport: AutomationRunTransport | null,
+  ) {}
+
+  /**
+   * Fires a quick run against chosen tasks, now.
+   *
+   * `actorId` is honoured only on the local path. Over the transport the server
+   * takes the actor from the session it was handed, because a browser saying
+   * "I am Danh" is not evidence of anything.
+   */
+  runNow(ruleId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<DrainReport> {
+    if (this.transport) return this.transport.runNow({ ruleId, itemIds });
+    return this.engine.runNow(ruleId, itemIds, actorId);
+  }
 
   listByBoard(boardId: EntityId): Promise<AutomationRule[]> {
     return this.repos.automations.listRulesByBoard(boardId);
@@ -278,6 +305,8 @@ export function describeTrigger(trigger: AutomationTrigger, vocabulary: RuleVoca
           return `on day ${trigger.dayOfMonth ?? 1} of the month at ${hourWord(trigger.atHour)}`;
       }
       return "on a schedule";
+    case "manual":
+      return "run by hand";
   }
 }
 
@@ -405,12 +434,15 @@ export function describeRule(
   match: "all" | "any",
   vocabulary: RuleVocabulary,
 ): string {
+  const then = actions.map((a) => describeAction(a, vocabulary)).join(", and ");
+  // A quick run is not "when" anything. It is the list of what it does, which
+  // is also all a person wants to read off a button they are about to press.
+  if (trigger.kind === "manual") return then.charAt(0).toUpperCase() + then.slice(1);
   const when = TRIGGER_TIMING[trigger.kind] === "schedule" && trigger.kind === "recurring" ? describeTrigger(trigger, vocabulary) : `when ${describeTrigger(trigger, vocabulary)}`;
   const only =
     conditions.length === 0
       ? ""
       : `, only if ${conditions.map((c) => describeCondition(c, vocabulary)).join(match === "all" ? " and " : " or ")}`;
-  const then = actions.map((a) => describeAction(a, vocabulary)).join(", and ");
   const sentence = `${when}${only}, ${then}`;
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }

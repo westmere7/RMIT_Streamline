@@ -257,22 +257,21 @@ export class AutomationEngine {
   // -------------------------------------------------------------------------
 
   private async fire(rule: AutomationRule, context: FiringContext, report: DrainReport): Promise<void> {
-    const runs: AutomationRunInput[] = [];
-
     // The loop breaker. A rule whose action wakes a rule whose action wakes the
     // first would run until the database filled up; past this depth the chain
     // is cut and the log says so, which is the only way anybody would find out.
     if (context.depth >= MAX_EVENT_DEPTH) {
       report.skipped += 1;
-      runs.push({
-        ruleId: rule.id,
-        boardId: rule.boardId,
-        itemId: context.item?.id ?? null,
-        status: "skipped",
-        summary: "Stopped: too many automations in a row",
-        detail: `This change was already ${context.depth} automations deep. Two rules that answer each other will do this.`,
-      });
-      await this.repos.automations.recordRuns(runs);
+      await this.repos.automations.recordRuns([
+        {
+          ruleId: rule.id,
+          boardId: rule.boardId,
+          itemId: context.item?.id ?? null,
+          status: "skipped",
+          summary: "Stopped: too many automations in a row",
+          detail: `This change was already ${context.depth} automations deep. Two rules that answer each other will do this.`,
+        },
+      ]);
       return;
     }
 
@@ -285,9 +284,62 @@ export class AutomationEngine {
       return;
     }
 
-    // The mark is what lets the database stamp a depth onto whatever these
-    // actions raise. Set once around the whole rule rather than per action, so
-    // three actions on one task are one chain rather than three.
+    await this.performActions(rule, context, report);
+  }
+
+  /**
+   * A quick run: a saved group of actions, fired by hand against chosen tasks.
+   *
+   * No trigger is consulted, because there is none; no condition is checked,
+   * because a person pointing at a task and pressing Run has already decided.
+   * Everything else is the ordinary path — depth is marked so anything these
+   * actions wake is a chain of one, the log gains a row per action, and the
+   * rule's tally moves — so a quick run reads in the activity like any other
+   * firing rather than as a hole in it.
+   *
+   * Only ever reached through the server route, which has checked the caller
+   * may edit the board. `actorId` is that person, so the activity feed says who
+   * pressed the button rather than crediting a cron job.
+   */
+  async runNow(ruleId: EntityId, itemIds: readonly EntityId[], actorId: EntityId): Promise<DrainReport> {
+    const report: DrainReport = { events: 0, scheduled: 0, ran: 0, skipped: 0, failed: 0 };
+    const rule = await this.repos.automations.getRule(ruleId);
+    if (!rule) throw new Error("That quick run no longer exists.");
+    if (rule.trigger.kind !== "manual") throw new Error("Only a quick run can be started by hand.");
+    if (!rule.enabled) throw new Error("That quick run is switched off.");
+
+    // A run with no tasks is allowed only when nothing in it needs one; the
+    // actions themselves refuse otherwise, and the refusal lands in the log.
+    const targets: Array<EntityId | null> = itemIds.length > 0 ? [...itemIds] : [null];
+    for (const itemId of targets) {
+      const context = await this.buildContext(rule.boardId, itemId, actorId, null, 0);
+      if (!context) {
+        report.skipped += 1;
+        continue;
+      }
+      // A task from another board is refused rather than acted on: the rule's
+      // actions name this board's columns and would write into the wrong one.
+      if (context.item && context.item.boardId !== rule.boardId) {
+        report.skipped += 1;
+        await this.repos.automations.recordRuns([
+          { ruleId: rule.id, boardId: rule.boardId, itemId: context.item.id, status: "skipped", summary: "Skipped: that task is on another board", detail: null },
+        ]);
+        continue;
+      }
+      await this.performActions(rule, context, report);
+    }
+    return report;
+  }
+
+  /**
+   * Carries a rule's actions out against one task, and writes down what happened.
+   *
+   * The mark is what lets the database stamp a depth onto whatever these
+   * actions raise. Set once around the whole rule rather than per action, so
+   * three actions on one task are one chain rather than three.
+   */
+  private async performActions(rule: AutomationRule, context: FiringContext, report: DrainReport): Promise<void> {
+    const runs: AutomationRunInput[] = [];
     if (context.item) await this.repos.automations.markDepth(context.item.id, context.depth);
     let ran = 0;
     let lastError: string | null = null;

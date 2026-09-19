@@ -1,6 +1,8 @@
-import { EVENT_BATCH_SIZE } from "@/domain";
+import { z } from "zod";
+import { EVENT_BATCH_SIZE, MAX_QUICK_RUN_ITEMS } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
+import { buildPermissionContext, canEditBoard } from "@/lib/permissions/permissions";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServices, type DrainReport } from "@/services";
 import { HttpError } from "./http";
@@ -94,4 +96,56 @@ export async function runAutomations(options: { limit?: number; sweep?: boolean 
   const swept = options.sweep ? await repos.automations.sweep(SWEEP_KEEP_DAYS) : 0;
 
   return { ...report, swept, tookMs: Date.now() - started };
+}
+
+// ---------------------------------------------------------------------------
+// Quick runs: a saved group of actions, fired by hand
+// ---------------------------------------------------------------------------
+
+export const runNowSchema = z.object({
+  ruleId: z.string().min(1),
+  itemIds: z.array(z.string().min(1)).max(MAX_QUICK_RUN_ITEMS),
+});
+
+/**
+ * Fires a quick run for the signed-in person who asked for it.
+ *
+ * Authorisation is the caller's own session, not the runner secret: this is a
+ * thing a member does, not a thing the clock does. The permission check is the
+ * very same `canEditBoard` the browser uses to decide whether to show the Run
+ * button, built from the same three membership lists — so the server and the
+ * screen cannot disagree about who may press it.
+ *
+ * Only a `manual` rule can be run this way. A rule that fires itself has a
+ * trigger with meaning, and "run it now" against an arbitrary task would be a
+ * different feature wearing this one's clothes.
+ */
+export async function runQuickRunForMember(request: Request, body: z.infer<typeof runNowSchema>): Promise<DrainReport> {
+  const header = request.headers.get("authorization") ?? "";
+  const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!jwt) throw new HttpError(401, "Sign in to run this.");
+
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.auth.getUser(jwt);
+  if (error || !data.user) throw new HttpError(401, "Your session has expired. Sign in again.");
+
+  routeRepositoriesThrough(admin);
+  const repos = createSupabaseRepositories();
+  const services = createServices(repos, { automationTimezone: process.env.AUTOMATION_TIMEZONE });
+
+  const rule = await repos.automations.getRule(body.ruleId);
+  if (!rule) throw new HttpError(404, "That quick run no longer exists.");
+  if (rule.trigger.kind !== "manual") throw new HttpError(400, "Only a quick run can be started by hand.");
+  const board = await repos.boards.getById(rule.boardId);
+  if (!board) throw new HttpError(404, "That board no longer exists.");
+
+  const [workspaceMembers, teamMembers, boardMembers] = await Promise.all([
+    repos.workspaces.listMembers(board.workspaceId),
+    repos.teams.listMembersByWorkspace(board.workspaceId),
+    repos.boards.listMembersByWorkspace(board.workspaceId),
+  ]);
+  const permissions = buildPermissionContext({ userId: data.user.id, workspaceMembers, teamMembers, boardMembers });
+  if (!canEditBoard(permissions, board)) throw new HttpError(403, "Only somebody who can edit this board can run its quick runs.");
+
+  return services.automationEngine.runNow(rule.id, body.itemIds, data.user.id);
 }

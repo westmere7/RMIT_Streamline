@@ -1,19 +1,20 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, CircleSlash, ExternalLink, Plus, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, CircleSlash, ExternalLink, Play, Plus, Search, Trash2, X, Zap } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
-import type { AutomationRule, Board, BoardColumn, BoardGroup } from "@/domain";
-import { TRIGGER_TIMING } from "@/domain";
+import type { AutomationRule, Board, BoardColumn, BoardGroup, Item } from "@/domain";
+import { MAX_QUICK_RUN_ITEMS, TRIGGER_TIMING } from "@/domain";
 import { AutomationRuleDialog } from "@/features/automations/automation-rule-dialog";
-import { useAutomationMutations, useAutomationRunnerHealth, useAutomationRuns, useAutomations, useRuleVocabulary } from "@/features/automations/hooks";
+import { useAutomationMutations, useAutomationRunnerHealth, useAutomationRuns, useAutomations, useQuickRun, useRuleVocabulary } from "@/features/automations/hooks";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
@@ -26,17 +27,20 @@ const EMPTY_COLUMNS: readonly BoardColumn[] = [];
 const EMPTY_GROUPS: readonly BoardGroup[] = [];
 
 /**
- * One board's automations: what it does on its own.
+ * One board's automations: what it does on its own, and what it can do on
+ * request.
  *
- * The list writes each rule back out as its two halves — the thing watched for,
- * and the things done — rather than as one long sentence. A list of twenty
- * sentences cannot be scanned; a list of twenty when/then pairs can.
+ * Three tabs. Rules are what the board does when nobody is looking, written as
+ * two coloured halves — the thing watched for and the things done — because a
+ * list of twenty sentences cannot be scanned and a list of twenty when/then
+ * pairs can. Quick runs are saved groups of actions with no trigger at all,
+ * pointed at tasks and fired by hand; they live here and nowhere else, because
+ * they are a thing a person does to a board while looking at it. Activity is
+ * what any of it actually did.
  *
- * Writing a rule opens the shared dialog, the same one the workspace-wide
+ * Writing either kind opens the shared dialog, the same one the workspace-wide
  * manager opens, so there is one builder to keep right rather than two that
- * drift. Everything that is about more than this board — whether the runner is
- * alive at all, the recipes, the log across every board — lives on that page,
- * and this one links to it instead of growing a second copy.
+ * drift.
  */
 export function AutomationsDialog({
   board,
@@ -58,27 +62,39 @@ export function AutomationsDialog({
   const mutations = useAutomationMutations(board.id, vocabulary);
   const [tab, setTab] = React.useState("rules");
   const runs = useAutomationRuns(board.id, open && tab === "log");
-  const health = useAutomationRunnerHealth(open && (rules.data ?? []).length > 0);
-  const [editing, setEditing] = React.useState<{ rule: AutomationRule | null } | null>(null);
+  const health = useAutomationRunnerHealth(open && (rules.data ?? []).some((r) => r.trigger.kind !== "manual"));
+  const [editing, setEditing] = React.useState<{ rule: AutomationRule | null; quick: boolean } | null>(null);
+  const [running, setRunning] = React.useState<AutomationRule | null>(null);
 
-  const list = rules.data ?? [];
+  const all = rules.data ?? [];
+  const automatic = all.filter((r) => r.trigger.kind !== "manual");
+  const quick = all.filter((r) => r.trigger.kind === "manual");
+  const loading = rules.isLoading || snapshot.isLoading;
+
+  const close = (next: boolean) => {
+    if (!next) setRunning(null);
+    onOpenChange(next);
+  };
 
   return (
     <>
-      <Dialog open={open && !editing} onOpenChange={onOpenChange}>
+      <Dialog open={open && !editing} onOpenChange={close}>
         <DialogContent size="xl" className="max-h-[85vh] overflow-hidden" data-testid="automations-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="size-4 text-primary" /> Automations
             </DialogTitle>
-            <DialogDescription>What {board.name} does on its own.</DialogDescription>
+            <DialogDescription>What {board.name} does on its own, and on request.</DialogDescription>
           </DialogHeader>
 
           <Tabs value={tab} onValueChange={setTab} className="min-h-0">
             <div className="flex items-center justify-between gap-3">
               <UnderlineTabsList>
                 <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
-                  Rules {list.length > 0 ? `(${list.length})` : ""}
+                  Rules {automatic.length > 0 ? `(${automatic.length})` : ""}
+                </UnderlineTabsTrigger>
+                <UnderlineTabsTrigger value="quick" data-testid="automations-tab-quick">
+                  Quick runs {quick.length > 0 ? `(${quick.length})` : ""}
                 </UnderlineTabsTrigger>
                 <UnderlineTabsTrigger value="log" data-testid="automations-tab-log">
                   Activity
@@ -90,22 +106,19 @@ export function AutomationsDialog({
                     All automations <ExternalLink className="size-3.5" />
                   </Link>
                 </Button>
-                {canManage && (
-                  <Button size="sm" onClick={() => setEditing({ rule: null })} data-testid="new-automation">
-                    <Plus /> New
+                {canManage && tab !== "log" && (
+                  <Button size="sm" onClick={() => setEditing({ rule: null, quick: tab === "quick" })} data-testid="new-automation">
+                    <Plus /> {tab === "quick" ? "New quick run" : "New"}
                   </Button>
                 )}
               </div>
             </div>
 
+            {/* ---- Rules ---- */}
             <TabsContent value="rules" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
-              {rules.isLoading || snapshot.isLoading ? (
-                <div className="space-y-2 pt-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-20 rounded-xl" />
-                  ))}
-                </div>
-              ) : list.length === 0 ? (
+              {loading ? (
+                <RowSkeletons />
+              ) : automatic.length === 0 ? (
                 <EmptyState
                   icon={Zap}
                   title="This board does nothing on its own yet"
@@ -133,7 +146,7 @@ export function AutomationsDialog({
                       </p>
                     </li>
                   )}
-                  {list.map((rule) => (
+                  {automatic.map((rule) => (
                     <li key={rule.id}>
                       <RuleRow
                         rule={rule}
@@ -141,7 +154,7 @@ export function AutomationsDialog({
                         ready={!!snapshot.data}
                         canManage={canManage}
                         onToggle={(enabled) => mutations.setEnabled.mutate({ id: rule.id, enabled })}
-                        onEdit={() => setEditing({ rule })}
+                        onEdit={() => setEditing({ rule, quick: false })}
                         onRemove={() => mutations.remove.mutate(rule.id)}
                       />
                     </li>
@@ -150,13 +163,52 @@ export function AutomationsDialog({
               )}
             </TabsContent>
 
+            {/* ---- Quick runs ---- */}
+            <TabsContent value="quick" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
+              {loading ? (
+                <RowSkeletons />
+              ) : running ? (
+                <RunPicker
+                  rule={running}
+                  items={snapshot.data?.items ?? []}
+                  groups={snapshot.data?.groups ?? []}
+                  boardId={board.id}
+                  vocabulary={vocabulary}
+                  onDone={() => setRunning(null)}
+                />
+              ) : quick.length === 0 ? (
+                <EmptyState
+                  icon={Play}
+                  title="No quick runs yet"
+                  description={
+                    canManage
+                      ? "A quick run is a group of actions you save once and fire by hand against whichever tasks you pick — no trigger, no conditions."
+                      : "Only somebody who can manage this board can add one."
+                  }
+                />
+              ) : (
+                <ul className="space-y-2 py-2">
+                  {quick.map((rule) => (
+                    <li key={rule.id}>
+                      <QuickRunRow
+                        rule={rule}
+                        vocabulary={vocabulary}
+                        ready={!!snapshot.data}
+                        canManage={canManage}
+                        onRun={() => setRunning(rule)}
+                        onEdit={() => setEditing({ rule, quick: true })}
+                        onRemove={() => mutations.remove.mutate(rule.id)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+
+            {/* ---- Activity ---- */}
             <TabsContent value="log" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
               {runs.isLoading ? (
-                <div className="space-y-2 pt-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 rounded-lg" />
-                  ))}
-                </div>
+                <RowSkeletons height="h-10" count={5} />
               ) : (runs.data ?? []).length === 0 ? (
                 <EmptyState icon={CircleSlash} title="Nothing has run yet" description="Every firing lands here, including the ones a condition held back." compact />
               ) : (
@@ -190,6 +242,7 @@ export function AutomationsDialog({
         <AutomationRuleDialog
           board={board}
           rule={editing.rule}
+          quick={editing.quick}
           open
           onOpenChange={(next) => {
             if (!next) setEditing(null);
@@ -199,6 +252,20 @@ export function AutomationsDialog({
     </>
   );
 }
+
+function RowSkeletons({ height = "h-20", count = 3 }: { height?: string; count?: number }) {
+  return (
+    <div className="space-y-2 pt-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} className={cn(height, "rounded-xl")} />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rows
+// ---------------------------------------------------------------------------
 
 function RuleRow({
   rule,
@@ -234,12 +301,7 @@ function RuleRow({
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-2xs">
             <Chip tone={scheduled ? "clock" : "when"}>{ready ? describeTrigger(rule.trigger, vocabulary) : "…"}</Chip>
             <ArrowRight aria-hidden className="size-3 shrink-0 text-muted-foreground/60" />
-            {rule.actions.slice(0, 3).map((action, i) => (
-              <Chip key={i} tone="then">
-                {ready ? describeAutomationAction(action, vocabulary) : "…"}
-              </Chip>
-            ))}
-            {rule.actions.length > 3 && <span className="text-muted-foreground">+{rule.actions.length - 3} more</span>}
+            <ActionChips rule={rule} vocabulary={vocabulary} ready={ready} />
           </p>
         </button>
         {canManage && (
@@ -248,17 +310,86 @@ function RuleRow({
           </Button>
         )}
       </div>
-      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-12 text-2xs text-muted-foreground">
-        {rule.lastRunAt ? (
-          <span>
-            last ran <RelativeTime iso={rule.lastRunAt} /> · {rule.runCount} {rule.runCount === 1 ? "time" : "times"}
-          </span>
-        ) : (
-          <span>has not run yet</span>
-        )}
-        {rule.lastError && <span className="text-destructive">last time: {rule.lastError}</span>}
-      </p>
+      <Tally rule={rule} />
     </div>
+  );
+}
+
+/**
+ * A quick run has no switch: off would mean "cannot be run", and a thing you
+ * do not want run is a thing you delete. It has a Run button instead, which is
+ * the whole point of it.
+ */
+function QuickRunRow({
+  rule,
+  vocabulary,
+  ready,
+  canManage,
+  onRun,
+  onEdit,
+  onRemove,
+}: {
+  rule: AutomationRule;
+  vocabulary: RuleVocabulary;
+  ready: boolean;
+  canManage: boolean;
+  onRun: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-card p-3 shadow-xs" data-testid="quick-run">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Play className="size-3.5" />
+        </span>
+        <button type="button" onClick={canManage ? onEdit : undefined} className="min-w-0 flex-1 text-left" data-testid="quick-run-open">
+          <p className="text-[13px] font-medium">{rule.name}</p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-2xs">
+            <ActionChips rule={rule} vocabulary={vocabulary} ready={ready} limit={4} />
+          </p>
+        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button size="sm" onClick={onRun} disabled={!ready} data-testid="quick-run-start">
+            <Play /> Run…
+          </Button>
+          {canManage && (
+            <Button variant="ghost" size="icon-sm" onClick={onRemove} aria-label={`Remove ${rule.name}`} data-testid="automation-remove">
+              <Trash2 />
+            </Button>
+          )}
+        </div>
+      </div>
+      <Tally rule={rule} />
+    </div>
+  );
+}
+
+function ActionChips({ rule, vocabulary, ready, limit = 3 }: { rule: AutomationRule; vocabulary: RuleVocabulary; ready: boolean; limit?: number }) {
+  return (
+    <>
+      {rule.actions.slice(0, limit).map((action, i) => (
+        <Chip key={i} tone="then">
+          {ready ? describeAutomationAction(action, vocabulary) : "…"}
+        </Chip>
+      ))}
+      {rule.actions.length > limit && <span className="text-muted-foreground">+{rule.actions.length - limit} more</span>}
+    </>
+  );
+}
+
+function Tally({ rule }: { rule: AutomationRule }) {
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-12 text-2xs text-muted-foreground">
+      {rule.lastRunAt ? (
+        <span>
+          last ran <RelativeTime iso={rule.lastRunAt} /> · {rule.runCount} {rule.runCount === 1 ? "time" : "times"}
+        </span>
+      ) : (
+        <span>has not run yet</span>
+      )}
+      {rule.lastError && <span className="text-destructive">last time: {rule.lastError}</span>}
+    </p>
   );
 }
 
@@ -285,5 +416,148 @@ function Chip({ children, tone }: { children: React.ReactNode; tone: "when" | "t
     >
       {children}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pointing a quick run at tasks
+// ---------------------------------------------------------------------------
+
+/**
+ * Which tasks, then Run.
+ *
+ * The list is the board's own live tasks with a search box over them, because
+ * "the six in Ideas that still say Not Started" is how people actually think
+ * about it, and a picker that made them type ids would not be a picker. Capped
+ * at MAX_QUICK_RUN_ITEMS: past that this stops being a quick run.
+ */
+function RunPicker({
+  rule,
+  items,
+  groups,
+  boardId,
+  vocabulary,
+  onDone,
+}: {
+  rule: AutomationRule;
+  items: readonly Item[];
+  groups: readonly BoardGroup[];
+  boardId: string;
+  vocabulary: RuleVocabulary;
+  onDone: () => void;
+}) {
+  const [search, setSearch] = React.useState("");
+  const [chosen, setChosen] = React.useState<Set<string>>(() => new Set());
+  const run = useQuickRun(boardId);
+
+  const live = React.useMemo(() => items.filter((i) => i.archivedAt === null && i.parentItemId === null), [items]);
+  const groupName = React.useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
+  const shown = React.useMemo(() => {
+    const words = search.trim().toLowerCase();
+    if (!words) return live;
+    return live.filter((i) => i.name.toLowerCase().includes(words) || (i.ticket ?? "").toLowerCase().includes(words) || (groupName.get(i.groupId) ?? "").toLowerCase().includes(words));
+  }, [live, search, groupName]);
+
+  const toggle = (id: string) =>
+    setChosen((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < MAX_QUICK_RUN_ITEMS) next.add(id);
+      return next;
+    });
+  const selectShown = () => setChosen(new Set(shown.slice(0, MAX_QUICK_RUN_ITEMS).map((i) => i.id)));
+  const needsTask = rule.actions.some((a) => a.kind !== "notify" && a.kind !== "create_item");
+  const canRun = !run.isPending && (chosen.size > 0 || !needsTask);
+
+  return (
+    <div className="space-y-3 py-2" data-testid="quick-run-picker">
+      <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+          <Play className="size-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium">{rule.name}</p>
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-2xs">
+            <ActionChips rule={rule} vocabulary={vocabulary} ready limit={6} />
+          </p>
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={onDone} aria-label="Back to quick runs">
+          <X />
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-48 flex-1">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find tasks" aria-label="Find tasks" className="h-8 pl-8" data-testid="quick-run-search" />
+        </div>
+        <Button variant="ghost" size="sm" onClick={selectShown} disabled={shown.length === 0}>
+          Select {shown.length === live.length ? "all" : "shown"}
+        </Button>
+        {chosen.size > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => setChosen(new Set())}>
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {live.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border/80 px-3 py-6 text-center text-[13px] text-muted-foreground">This board has no live tasks to run it on.</p>
+      ) : (
+        <ul className="scrollbar-thin max-h-[32vh] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card" data-testid="quick-run-tasks">
+          {shown.map((item) => {
+            const on = chosen.has(item.id);
+            const full = !on && chosen.size >= MAX_QUICK_RUN_ITEMS;
+            return (
+              <li key={item.id}>
+                {/* The whole row is the control. Not a <label> around a checkbox:
+                    a click on the box then bubbles to the label, which clicks
+                    the box again, and the tick never sticks. One button, one
+                    toggle, and the box inside it is only a picture of the state. */}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={on}
+                  disabled={full}
+                  onClick={() => toggle(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] hover:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-50",
+                    on && "bg-primary/5",
+                  )}
+                  data-testid="quick-run-task"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                      on ? "border-primary bg-primary text-white" : "border-input bg-background",
+                    )}
+                  >
+                    {on && <Check className="size-3" />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  {item.ticket && <span className="shrink-0 text-2xs text-muted-foreground tabular">{item.ticket}</span>}
+                  <span className="hidden shrink-0 text-2xs text-muted-foreground sm:block">{groupName.get(item.groupId)}</span>
+                </button>
+              </li>
+            );
+          })}
+          {shown.length === 0 && <li className="px-3 py-4 text-center text-[13px] text-muted-foreground">Nothing matches.</li>}
+        </ul>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-2xs text-muted-foreground">
+          {chosen.size === 0 ? (needsTask ? "Pick at least one task." : "Runs once, against no task.") : `${chosen.size} of up to ${MAX_QUICK_RUN_ITEMS} tasks.`}
+        </p>
+        <Button
+          onClick={() => run.mutate({ ruleId: rule.id, itemIds: [...chosen] }, { onSuccess: onDone })}
+          disabled={!canRun}
+          data-testid="quick-run-go"
+        >
+          <Check /> Run{chosen.size > 0 ? ` on ${chosen.size} ${chosen.size === 1 ? "task" : "tasks"}` : ""}
+        </Button>
+      </div>
+    </div>
   );
 }

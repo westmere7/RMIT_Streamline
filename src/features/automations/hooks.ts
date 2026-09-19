@@ -99,6 +99,40 @@ export function useRuleEnabled() {
   });
 }
 
+/**
+ * Firing a quick run against chosen tasks.
+ *
+ * The board snapshot is invalidated afterwards because the actions almost
+ * certainly changed cells on it, and the run log because every action wrote a
+ * row. The toast says what the report says rather than "done": a run where two
+ * of five tasks were skipped is not done, and the person should hear so.
+ */
+export function useQuickRun(boardId: EntityId) {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const ws = useWorkspace();
+  return useMutation({
+    mutationFn: ({ ruleId, itemIds }: { ruleId: EntityId; itemIds: EntityId[] }) => services.automations.runNow(ruleId, itemIds, ws.currentUser.id),
+    onSuccess: (report) => {
+      const parts: string[] = [];
+      if (report.ran > 0) parts.push(`${report.ran} ${report.ran === 1 ? "action" : "actions"} ran`);
+      if (report.skipped > 0) parts.push(`${report.skipped} skipped`);
+      if (report.failed > 0) parts.push(`${report.failed} failed`);
+      const line = parts.join(", ") || "Nothing to do";
+      if (report.failed > 0) toast.error(line);
+      else toast.success(line);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "The quick run could not be started"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(boardId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.automations(boardId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.automationRuns(boardId) });
+      void queryClient.invalidateQueries({ queryKey: ["activity"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
 /** Removing a rule from anywhere, board vocabulary not required. */
 export function useRuleRemoved() {
   const services = useServices();

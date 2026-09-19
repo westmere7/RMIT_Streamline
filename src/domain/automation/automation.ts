@@ -31,20 +31,24 @@ export const AUTOMATION_TRIGGER_KINDS = [
   "item_archived",
   "date_arrives",
   "recurring",
+  "manual",
 ] as const;
 
 export type AutomationTriggerKind = (typeof AUTOMATION_TRIGGER_KINDS)[number];
 
 /**
- * The two ways a rule can be woken.
+ * The three ways a rule can be set going.
  *
  * An `event` rule is woken by something that happened, and the queue row says
  * what. A `schedule` rule is woken by the clock, has no event behind it, and so
- * has to go looking for the items it applies to. They are different enough that
- * the runner treats them as two passes, and naming the difference here keeps
- * every `switch` over trigger kinds honest.
+ * has to go looking for the items it applies to. A `manual` rule is never woken
+ * at all: it is a saved group of actions — a quick run — that somebody points
+ * at a task and fires by hand, and neither the queue nor the clock will touch
+ * it. Naming the difference here keeps every `switch` over trigger kinds
+ * honest, and keeps the runner's two unattended passes from ever picking up
+ * the third kind by accident.
  */
-export type AutomationTriggerTiming = "event" | "schedule";
+export type AutomationTriggerTiming = "event" | "schedule" | "manual";
 
 export const TRIGGER_TIMING: Record<AutomationTriggerKind, AutomationTriggerTiming> = {
   item_created: "event",
@@ -56,6 +60,7 @@ export const TRIGGER_TIMING: Record<AutomationTriggerKind, AutomationTriggerTimi
   item_archived: "event",
   date_arrives: "schedule",
   recurring: "schedule",
+  manual: "manual",
 };
 
 /** Which day a recurring rule wakes on. */
@@ -85,7 +90,12 @@ export type AutomationTrigger =
    */
   | { kind: "date_arrives"; columnId: EntityId; offsetDays: number; atHour: number }
   /** The clock, with no item behind it. Actions that need one are refused when the rule is saved. */
-  | { kind: "recurring"; recurrence: RecurrenceKind; weekday?: number; dayOfMonth?: number; atHour: number };
+  | { kind: "recurring"; recurrence: RecurrenceKind; weekday?: number; dayOfMonth?: number; atHour: number }
+  /**
+   * Nothing wakes it. A quick run: a named group of actions somebody fires by
+   * hand against the tasks they choose, with no trigger and no conditions.
+   */
+  | { kind: "manual" };
 
 // ---------------------------------------------------------------------------
 // Conditions
@@ -343,3 +353,13 @@ export function actionsAllowedFor(kind: AutomationTriggerKind): readonly Automat
 export function triggerHasItem(kind: AutomationTriggerKind): boolean {
   return kind !== "recurring";
 }
+
+/**
+ * How many tasks one quick run may be pointed at.
+ *
+ * Fifty is a whole group on most boards. Above that a person is not running a
+ * quick run, they are running a migration, and a migration wants a progress
+ * bar and an undo — neither of which a dialog with a Run button should
+ * pretend to be.
+ */
+export const MAX_QUICK_RUN_ITEMS = 50;

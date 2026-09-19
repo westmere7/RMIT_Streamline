@@ -34,6 +34,7 @@ export function AutomationRuleDialog({
   rule,
   preset,
   boards,
+  quick = false,
   open,
   onOpenChange,
   onBoardChange,
@@ -41,6 +42,8 @@ export function AutomationRuleDialog({
   board: Board;
   rule: AutomationRule | null;
   preset?: Recipe;
+  /** Writing a quick run: no trigger to choose, nothing to check, only what it does. */
+  quick?: boolean;
   /** When given, the board may be changed while creating. Empty means it may not. */
   boards?: Board[];
   open: boolean;
@@ -70,7 +73,7 @@ export function AutomationRuleDialog({
   // before touching the DOM, so the builder never draws once against a draft
   // that belongs to the wrong board.
   const ready = !!snapshot.data;
-  const signature = `${board.id}:${rule?.id ?? preset?.id ?? "blank"}:${ready}`;
+  const signature = `${board.id}:${rule?.id ?? preset?.id ?? (quick ? "quick" : "blank")}:${ready}`;
   const [builtFor, setBuiltFor] = React.useState<string | null>(null);
   if (ready && builtFor !== signature) {
     setBuiltFor(signature);
@@ -86,7 +89,7 @@ export function AutomationRuleDialog({
       );
       setName("");
     } else {
-      setDraft(blankDraft(vocabulary));
+      setDraft(blankDraft(vocabulary, quick ? "quick" : "rule"));
       setName("");
     }
     setError(null);
@@ -120,8 +123,12 @@ export function AutomationRuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl" className="max-h-[88vh] overflow-hidden" data-testid="automation-rule-dialog">
         <DialogHeader>
-          <DialogTitle>{rule ? "Edit automation" : preset ? preset.title : "New automation"}</DialogTitle>
-          <DialogDescription>These run on a server, so they happen whether or not anybody has the app open.</DialogDescription>
+          <DialogTitle>{quick ? (rule ? "Edit quick run" : "New quick run") : rule ? "Edit automation" : preset ? preset.title : "New automation"}</DialogTitle>
+          <DialogDescription>
+            {quick
+              ? "A group of actions you point at tasks and run. No trigger, no conditions — it does what it says the moment you press Run."
+              : "These run on a server, so they happen whether or not anybody has the app open."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="scrollbar-thin max-h-[62vh] space-y-4 overflow-y-auto px-1">
@@ -153,7 +160,7 @@ export function AutomationRuleDialog({
             </div>
           ) : (
             <>
-              <RuleBuilder draft={draft} onChange={setDraft} vocabulary={vocabulary} />
+              <RuleBuilder draft={draft} onChange={setDraft} vocabulary={vocabulary} mode={quick ? "quick" : "rule"} />
               <div>
                 <label htmlFor="automation-name" className="mb-1.5 block text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Name
@@ -181,7 +188,7 @@ export function AutomationRuleDialog({
             Cancel
           </Button>
           <Button onClick={save} disabled={busy || !draft} data-testid="save-automation">
-            <Check /> {rule ? "Save changes" : "Create automation"}
+            <Check /> {rule ? "Save changes" : quick ? "Save quick run" : "Create automation"}
           </Button>
         </DialogFooter>
       </DialogContent>
