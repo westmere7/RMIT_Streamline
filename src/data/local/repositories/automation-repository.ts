@@ -159,6 +159,13 @@ export class LocalAutomationRepository implements AutomationRepository {
     return runs.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   }
 
+  async listRunsForBoards(boardIds: EntityId[], limit: number): Promise<AutomationRun[]> {
+    if (boardIds.length === 0) return [];
+    const db = await this.conn.getDb();
+    const perBoard = await Promise.all(boardIds.map((id) => db.getAllFromIndex("automationRuns", "byBoard", id)));
+    return perBoard.flat().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  }
+
   async listRunsByRule(ruleId: EntityId, limit: number): Promise<AutomationRun[]> {
     const db = await this.conn.getDb();
     const runs = await db.getAllFromIndex("automationRuns", "byRule", ruleId);

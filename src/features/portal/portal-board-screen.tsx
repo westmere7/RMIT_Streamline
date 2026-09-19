@@ -254,7 +254,7 @@ function PortalBoard({
               <OtherView view={view} />
             </div>
           )}
-          {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} />}
+          {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu />}
         </>
       ) : (
         <>
@@ -284,7 +284,7 @@ function PortalBoard({
               {view === "kanban" && <KanbanView />}
               <OtherView view={view} />
             </div>
-            {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
+            {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} hideMenu />}
           </div>
         </>
       )}

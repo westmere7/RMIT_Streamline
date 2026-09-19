@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -259,6 +259,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             badges={unread}
           />
           <NavItem href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" active={isActivePath(routes.dashboard(ws.slug))} collapsed={collapsed} />
+          <NavItem href={routes.automations(ws.slug)} icon={Zap} label="Automations" active={isActivePath(routes.automations(ws.slug))} collapsed={collapsed} />
           <li>
             <SimpleTooltip label="Stakeholder Portal" side="right" disabled={!collapsed}>
               <Link

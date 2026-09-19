@@ -193,6 +193,12 @@ export class SupabaseAutomationRepository implements AutomationRepository {
     return unwrapList<AutomationRunRow>(result, "automation_runs.listByBoard").map(toAutomationRun);
   }
 
+  async listRunsForBoards(boardIds: string[], limit: number): Promise<AutomationRun[]> {
+    if (boardIds.length === 0) return [];
+    const result = await db().from("automation_runs").select(RUN).in("board_id", boardIds).order("created_at", { ascending: false }).limit(limit);
+    return unwrapList<AutomationRunRow>(result, "automation_runs.listForBoards").map(toAutomationRun);
+  }
+
   async listRunsByRule(ruleId: string, limit: number): Promise<AutomationRun[]> {
     const result = await db().from("automation_runs").select(RUN).eq("rule_id", ruleId).order("created_at", { ascending: false }).limit(limit);
     return unwrapList<AutomationRunRow>(result, "automation_runs.listByRule").map(toAutomationRun);

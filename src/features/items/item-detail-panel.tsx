@@ -143,7 +143,27 @@ function PanelBlocks({ onClose, hideClose = false }: { onClose: () => void; hide
  * column beside it — wide enough to read the task and its updates at once, so
  * the tabs stop being a choice between them.
  */
-export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = false, popup = false }: { itemId: string; onClose: () => void; overlay?: boolean; shared?: boolean; popup?: boolean }) {
+export function ItemDetailPanel({
+  itemId,
+  onClose,
+  overlay = false,
+  shared = false,
+  popup = false,
+  hideMenu = false,
+}: {
+  itemId: string;
+  onClose: () => void;
+  overlay?: boolean;
+  shared?: boolean;
+  popup?: boolean;
+  /**
+   * Drops the task's own "…" menu, and with it the choice of where the task is
+   * shown. For the stakeholder portal: everything behind that menu is either a
+   * change to the board a stakeholder has no business making, or a choice about
+   * a board they are not looking at.
+   */
+  hideMenu?: boolean;
+}) {
   const { model, canEdit } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
@@ -231,12 +251,12 @@ export function ItemDetailPanel({ itemId, onClose, overlay = false, shared = fal
         <PanelBlocks onClose={onClose} hideClose={shared} />
       ) : asPopup ? (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup hideMenu={hideMenu} />
           <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
         </>
       ) : (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} hideMenu={hideMenu} />
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
             <UnderlineTabsList className={cn("px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain")}>
               <UnderlineTabsTrigger value="overview">
@@ -388,6 +408,7 @@ function PanelHeader({
   hideClose,
   shared,
   popup,
+  hideMenu,
 }: {
   item: Item;
   onClose: () => void;
@@ -398,6 +419,8 @@ function PanelHeader({
   shared?: boolean;
   /** Over the middle of the board rather than beside it, so the menu offers the way back. */
   popup?: boolean;
+  /** No menu at all — see ItemDetailPanel. */
+  hideMenu?: boolean;
 }) {
   const { model, mutations, openItem, board, canManage } = useBoardContext();
   const [sharing, setSharing] = React.useState(false);
@@ -457,7 +480,7 @@ function PanelHeader({
               </Button>
             </SimpleTooltip>
           )}
-          <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />
+          {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />}
           {!hideClose && (
             <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
               <X />

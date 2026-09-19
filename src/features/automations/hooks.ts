@@ -46,6 +46,75 @@ export function useAutomationRuns(boardId: EntityId, enabled: boolean) {
 }
 
 /**
+ * Every rule on every board the reader can see.
+ *
+ * Not filtered here: `automation_rules_select` only returns rules on boards the
+ * reader could open (supabase/policies/0017), so "limited to your boards" is a
+ * property of the data rather than a filter a component could forget.
+ */
+export function useWorkspaceAutomations(workspaceId: EntityId) {
+  const services = useServices();
+  const bindings = React.useMemo<RealtimeBinding[]>(
+    () => [{ table: "automation_rules", filter: `workspace_id=eq.${workspaceId}`, keys: [queryKeys.workspaceAutomations(workspaceId)] }],
+    [workspaceId],
+  );
+  useRealtime(`automations-workspace:${workspaceId}`, bindings, { coalesceMs: 500, minIntervalMs: 2_000 });
+  return useQuery({
+    queryKey: queryKeys.workspaceAutomations(workspaceId),
+    queryFn: () => services.automations.listByWorkspace(workspaceId),
+    staleTime: 10_000,
+  });
+}
+
+/** What the rules have been doing, across those same boards. */
+export function useWorkspaceAutomationRuns(boardIds: EntityId[]) {
+  const services = useServices();
+  const key = React.useMemo(() => [...boardIds].sort().join(","), [boardIds]);
+  return useQuery({
+    queryKey: ["automation-runs-workspace", key],
+    queryFn: () => services.repos.automations.listRunsForBoards(boardIds, 60),
+    enabled: boardIds.length > 0,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  });
+}
+
+/**
+ * Switching a rule on or off, from anywhere.
+ *
+ * Its own hook rather than part of `useAutomationMutations` because the
+ * workspace screen has no board vocabulary to hand and does not need one:
+ * nothing is being validated, only a boolean flipped.
+ */
+export function useRuleEnabled() {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: EntityId; enabled: boolean }) => services.automations.setEnabled(id, enabled),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change the automation"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["automations"] });
+      void queryClient.invalidateQueries({ queryKey: ["workspace-automations"] });
+    },
+  });
+}
+
+/** Removing a rule from anywhere, board vocabulary not required. */
+export function useRuleRemoved() {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: EntityId) => services.automations.delete(id),
+    onSuccess: () => toast.success("Automation removed"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not remove the automation"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["automations"] });
+      void queryClient.invalidateQueries({ queryKey: ["workspace-automations"] });
+    },
+  });
+}
+
+/**
  * Whether anything is actually driving the runner.
  *
  * The one question the rest of this screen cannot answer. A board with rules

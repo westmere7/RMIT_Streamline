@@ -38,6 +38,8 @@ export const routes = {
   inbox: (slug: string) => `/workspace/${slug}/inbox`,
   /** The workspace dashboard: what every team delivers, live. */
   dashboard: (slug: string) => `/workspace/${slug}/dashboard`,
+  /** Every rule on every board the reader can see, and what they have been doing. */
+  automations: (slug: string) => `/workspace/${slug}/automations`,
   /** The dashboard someone shared by link. Read-only, needs no session, just the token. */
   dashboardShare: (token: string) => `/dashboard/${encodeURIComponent(token)}`,
   /** Booking from inside the app, for members. */

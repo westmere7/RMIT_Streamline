@@ -468,6 +468,8 @@ export interface AutomationRepository {
   claimScheduleFire(ruleId: EntityId, itemId: EntityId | null, fireKey: string): Promise<boolean>;
 
   listRuns(boardId: EntityId, limit: number): Promise<AutomationRun[]>;
+  /** The same log across several boards at once, for the workspace-wide screen. */
+  listRunsForBoards(boardIds: EntityId[], limit: number): Promise<AutomationRun[]>;
   listRunsByRule(ruleId: EntityId, limit: number): Promise<AutomationRun[]>;
   recordRuns(inputs: AutomationRunInput[]): Promise<void>;
 

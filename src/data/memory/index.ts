@@ -308,6 +308,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       clearMark: async () => undefined,
       claimScheduleFire: async () => false,
       listRuns: async () => [],
+      listRunsForBoards: async () => [],
       listRunsByRule: async () => [],
       recordRuns: async () => undefined,
       sweep: async () => 0,
