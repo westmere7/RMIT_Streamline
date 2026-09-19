@@ -49,6 +49,7 @@ declare
   v_secret text := 'PUT-THE-SAME-VALUE-AS-THE-AUTOMATION_SECRET-ENV-VAR-HERE';
   -- ---------------------------------------------------------------------------
   v_missing text[] := '{}';
+  v_net     text;
 begin
   if not exists (select 1 from pg_extension where extname = 'pg_cron') then
     v_missing := v_missing || 'pg_cron';
@@ -64,6 +65,17 @@ begin
     raise exception 'Set v_secret to the deployment''s AUTOMATION_SECRET before running this.';
   end if;
 
+  -- Where pg_net actually put http_post. Supabase has moved it between the
+  -- `net` and `extensions` schemas across versions, and a job that names the
+  -- wrong one fails silently once a minute for ever, which is precisely the
+  -- failure this whole exercise exists to stop happening.
+  select n.nspname into v_net
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where p.proname = 'http_post' limit 1;
+  if v_net is null then
+    raise exception 'pg_net is installed but http_post was not found. Re-enable the extension.';
+  end if;
+
   -- Unschedule first so running this twice replaces the job rather than
   -- raising, and so editing the URL is one paste rather than two steps.
   perform cron.unschedule('streamline-automations')
@@ -74,21 +86,22 @@ begin
     '* * * * *',
     format(
       $job$
-        select net.http_post(
+        select %I.http_post(
           url     := %L,
           headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', %L),
           body    := '{}'::jsonb,
-          -- Fire and forget. pg_net queues the request and the cron job ends;
-          -- a slow drain must never hold a database worker open, and the reply
-          -- is of no interest to anybody here. What the run did is in
-          -- automation_runs, which is where the board reads it from anyway.
+          -- Fire and forget. pg_net queues the request and the cron job ends; a
+          -- slow drain must never hold a database worker open, and the reply is
+          -- of no interest here. What the run did is in automation_runs, and
+          -- whether it ran at all is in automation_heartbeat.
           timeout_milliseconds := 5000
         );
       $job$,
+      v_net,
       v_url,
       'Bearer ' || v_secret
     )
   );
 
-  raise notice 'Scheduled streamline-automations, every minute, against %.', v_url;
+  raise notice 'Scheduled streamline-automations, every minute, against % via %.http_post.', v_url, v_net;
 end $$;
