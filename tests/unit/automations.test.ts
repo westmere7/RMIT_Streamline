@@ -444,6 +444,33 @@ describe("automations", () => {
       ).rejects.toThrow(/no task in hand/);
     });
 
+    /**
+     * The regression this exists for: a rule stored with its hour as the JSON
+     * string "2" rather than the number 2. `2 !== "2"`, so the rule went quiet
+     * for ever and said nothing about why. A schedule that silently never fires
+     * is the worst failure this feature has, because the whole point of it is
+     * that nobody is watching.
+     */
+    it("still fires when the stored hour is a string rather than a number", async () => {
+      const item = await firstItem();
+      await setValue(item.id, "Due Date", { type: "DATE", date: DEADLINE });
+      await drainQuietly();
+      const rule = await reminderRule(-2, 9);
+      // Written past the typed builder, the way an import or a hand edit would.
+      await repos.automations.updateRule(rule.id, {
+        trigger: { kind: "date_arrives", columnId: (await column("Due Date")).id, offsetDays: "-2", atHour: "9" } as never,
+      });
+
+      expect((await engineAt(melbourne(TWO_DAYS_BEFORE, 9)).drain(100)).scheduled).toBe(1);
+    });
+
+    it("still reads a recurring day and hour stored as strings", () => {
+      expect(dueNow({ recurrence: "weekly", weekday: "4" as never, atHour: "9" as never }, { hour: 9, weekday: 4, dayOfMonth: 1 })).toBe(true);
+      expect(dueNow({ recurrence: "monthly", dayOfMonth: "15" as never, atHour: "9" as never }, { hour: 9, weekday: 2, dayOfMonth: 15 })).toBe(true);
+      // And a value that is not a number at all does not match every hour.
+      expect(dueNow({ recurrence: "daily", atHour: "nonsense" as never }, { hour: 9, weekday: 2, dayOfMonth: 1 })).toBe(false);
+    });
+
     it("refuses a monthly rule on a day that does not exist every month", async () => {
       const group = (await groups())[0]!;
       await expect(

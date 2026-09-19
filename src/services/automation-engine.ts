@@ -201,7 +201,7 @@ export class AutomationEngine {
           if (!dueNow(rule.trigger, clock)) continue;
           // The hour is part of the key as well as the day: a rule set to nine
           // and moved to two should still fire twice on the day it moved.
-          if (!(await this.repos.automations.claimScheduleFire(rule.id, null, `${clock.date}T${pad(rule.trigger.atHour)}`))) continue;
+          if (!(await this.repos.automations.claimScheduleFire(rule.id, null, `${clock.date}T${pad(numberOf(rule.trigger.atHour, 9))}`))) continue;
           report.scheduled += 1;
           const context = await this.buildContext(rule.boardId, null, null, null, 0);
           if (context) await this.fire(rule, context, report);
@@ -209,12 +209,12 @@ export class AutomationEngine {
         }
 
         if (rule.trigger.kind !== "date_arrives") continue;
-        if (clock.hour !== rule.trigger.atHour) continue;
         const trigger = rule.trigger;
+        if (clock.hour !== numberOf(trigger.atHour, -1)) continue;
 
         // The date the column would have to hold for the rule to be due today:
         // "two days before" fires when the date is two days from now.
-        const target = shiftDate(clock.date, -trigger.offsetDays);
+        const target = shiftDate(clock.date, -numberOf(trigger.offsetDays, 0));
         const due = await this.itemsWithDate(rule.boardId, trigger.columnId, target);
         for (const item of due) {
           if (!(await this.repos.automations.claimScheduleFire(rule.id, item.id, clock.date))) continue;
@@ -405,13 +405,13 @@ export class AutomationEngine {
         const current = context.values.get(column.id) ?? null;
         let next: string;
         if (action.kind === "set_date_relative") {
-          next = shiftDate(this.clock().date, action.days);
+          next = shiftDate(this.clock().date, numberOf(action.days, 0));
         } else {
           const from = current?.type === "DATE" ? current.date : current?.type === "TIMELINE" ? current.end : null;
           // Nothing to move. Said rather than guessed: a rule that pushes a
           // deadline back a week should not invent one for a task that has none.
           if (!from) return `${column.name} is empty, so there was nothing to move`;
-          next = shiftDate(from, action.days);
+          next = shiftDate(from, numberOf(action.days, 0));
         }
         const value: ColumnValue =
           column.type === "TIMELINE"
@@ -775,21 +775,37 @@ export function clockIn(instant: Date, timezone: string): { date: string; hour: 
   };
 }
 
+/**
+ * A number that came out of a JSON column, whatever it looks like in there.
+ *
+ * The builder always writes these as numbers and the domain types say so, but
+ * the value sits in `jsonb` where nothing enforces that, and a rule can arrive
+ * from somewhere other than the builder — an import, a duplicated board, a hand
+ * edit in the SQL editor. `9 !== "9"` is true, so a quoted hour turns into a
+ * schedule that never fires and never explains itself, which is the worst thing
+ * a feature whose whole point is running unattended can do. Found by exactly
+ * that: a test wrote "2" and the rule went quiet.
+ */
+function numberOf(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /** Whether a recurring rule's day and hour are the ones we are standing in. */
 export function dueNow(
   trigger: { recurrence: string; weekday?: number; dayOfMonth?: number; atHour: number },
   clock: { hour: number; weekday: number; dayOfMonth: number },
 ): boolean {
-  if (clock.hour !== trigger.atHour) return false;
+  if (clock.hour !== numberOf(trigger.atHour, -1)) return false;
   switch (trigger.recurrence) {
     case "daily":
       return true;
     case "weekdays":
       return clock.weekday >= 1 && clock.weekday <= 5;
     case "weekly":
-      return clock.weekday === (trigger.weekday ?? 1);
+      return clock.weekday === numberOf(trigger.weekday, 1);
     case "monthly":
-      return clock.dayOfMonth === (trigger.dayOfMonth ?? 1);
+      return clock.dayOfMonth === numberOf(trigger.dayOfMonth, 1);
     default:
       return false;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Globe, History, MoreHorizontal, Share2, Star, UserPlus } from "lucide-react";
+import { ArrowLeft, Globe, History, MoreHorizontal, Share2, Star, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -141,9 +141,11 @@ export function BoardHeader({ board }: { board: Board }) {
             <AvatarStack users={members} size="sm" max={4} />
           </button>
           {manage && (
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setSettings("members")}>
-              <UserPlus /> Invite
-            </Button>
+            <SimpleTooltip label="Invite people to this board">
+              <Button variant="ghost" size="icon-sm" className="hidden sm:inline-flex" aria-label="Invite people to this board" onClick={() => setSettings("members")} data-testid="board-invite">
+                <UserPlus />
+              </Button>
+            </SimpleTooltip>
           )}
           {manage && (
             <SimpleTooltip label="Share this board by link">
@@ -152,6 +154,14 @@ export function BoardHeader({ board }: { board: Board }) {
               </Button>
             </SimpleTooltip>
           )}
+          {/* After Share, because both are about what the board does beyond the
+              people looking at it. Everyone who can see the board can read its
+              rules; the dialog is what decides who may change them. */}
+          <SimpleTooltip label="Automations">
+            <Button variant="ghost" size="icon-sm" aria-label="Automations" onClick={() => setAutomationsOpen(true)} data-testid="board-automations">
+              <Zap />
+            </Button>
+          </SimpleTooltip>
           <span aria-hidden className="mx-1 h-6 w-px bg-border/70" />
           <SimpleTooltip label="Board activity">
             <Button variant="ghost" size="icon-sm" aria-label="Board activity" onClick={() => setActivityOpen(true)}>
