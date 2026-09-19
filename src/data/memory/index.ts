@@ -288,6 +288,30 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       exportAll: readOnly("exporting data"),
       importAll: readOnly("importing data"),
     },
+    // A shared link is a photograph of a board. It has no rules of its own, and
+    // the runner that would carry them out is on a server this page never
+    // talks to — so every read is empty and every write is refused, like the
+    // rest of this set.
+    automations: {
+      listRulesByBoard: async () => [],
+      listRulesByWorkspace: async () => [],
+      getRule: async () => null,
+      createRule: readOnly("adding an automation"),
+      updateRule: readOnly("changing an automation"),
+      deleteRule: readOnly("removing an automation"),
+      recordRuleOutcome: async () => undefined,
+      listScheduledRules: async () => [],
+      claimEvents: async () => [],
+      finishEvent: async () => undefined,
+      listRecentEvents: async () => [],
+      markDepth: async () => undefined,
+      clearMark: async () => undefined,
+      claimScheduleFire: async () => false,
+      listRuns: async () => [],
+      listRunsByRule: async () => [],
+      recordRuns: async () => undefined,
+      sweep: async () => 0,
+    },
   };
 }
 

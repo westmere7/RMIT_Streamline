@@ -1,0 +1,69 @@
+name: Run automations
+
+# The clock behind the board's automations.
+#
+# Board rules are fired by a server, not by a page: a write raises a row in
+# automation_events from a database trigger, and /api/automations/run drains
+# that queue and does whatever the clock is also due to do. Something has to
+# call that endpoint when nobody has the app open, and this is it.
+#
+# GitHub rather than Vercel's own scheduler for one reason: sub-daily cron is a
+# paid Vercel feature, and a `crons` block in vercel.json fails the deploy on a
+# Hobby plan. This runs on any plan. If the project is on Vercel Pro, prefer its
+# scheduler (see supabase/optional/README.md) and disable this workflow.
+#
+# Two repository secrets, in Settings > Secrets and variables > Actions:
+#   AUTOMATION_URL     https://<your-deployment>/api/automations/run
+#   AUTOMATION_SECRET  the same value as the AUTOMATION_SECRET env var on Vercel
+
+on:
+  schedule:
+    # Every five minutes, which is the shortest GitHub offers. Scheduled runs
+    # are queued rather than guaranteed and can be minutes late under load; the
+    # rules are written so that lateness only ever delays a firing, never
+    # duplicates or skips one. An hour-based rule ("every Monday at 9am") fires
+    # on the first tick inside its hour and the receipt stops the rest.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # Never two runners at once. They would be safe — every event is claimed and
+  # every scheduled firing takes a receipt — but one is enough and a queue of
+  # overlapping ticks helps nobody.
+  group: automations
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Drain the automation queue
+        shell: bash
+        env:
+          AUTOMATION_URL: ${{ secrets.AUTOMATION_URL }}
+          AUTOMATION_SECRET: ${{ secrets.AUTOMATION_SECRET }}
+        run: |
+          if [ -z "$AUTOMATION_URL" ] || [ -z "$AUTOMATION_SECRET" ]; then
+            echo "::error::Set the AUTOMATION_URL and AUTOMATION_SECRET repository secrets in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            # --fail-with-body so a 401 or a 503 shows its message rather than
+            # an empty non-zero exit. The secret travels as a header, never in
+            # the URL, so it stays out of logs and out of any redirect.
+            if body=$(curl --silent --show-error --fail-with-body --max-time 90 \
+                        --header "Authorization: Bearer $AUTOMATION_SECRET" \
+                        "$AUTOMATION_URL" 2>&1); then
+              echo "$body"
+              exit 0
+            fi
+            echo "Attempt $attempt/3 failed: $body"
+            if [ "$attempt" -lt 3 ]; then sleep 15; fi
+          done
+
+          echo "::error::The automation runner could not be reached after 3 attempts. Check AUTOMATION_URL, that AUTOMATION_SECRET matches the deployment, and the Vercel function logs."
+          exit 1

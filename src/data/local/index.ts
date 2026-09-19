@@ -2,6 +2,7 @@ import type { Repositories } from "@/data/repositories";
 import { LocalConnection } from "./connection";
 import { LocalActivityRepository } from "./repositories/activity-repository";
 import { LocalAdminRepository } from "./repositories/admin-repository";
+import { LocalAutomationRepository } from "./repositories/automation-repository";
 import { LocalBoardRepository } from "./repositories/board-repository";
 import { LocalBoardShareRepository } from "./repositories/board-share-repository";
 import { LocalBookingSavedBlockRepository } from "./repositories/booking-saved-block-repository";
@@ -33,6 +34,7 @@ export interface LocalRepositoriesOptions {
 /** The local set carries two extras: its connection, and the password stand-in the auth provider checks. */
 export type LocalRepositories = Repositories & {
   connection: LocalConnection;
+  automations: LocalAutomationRepository;
   onboarding: LocalOnboardingRepository;
 };
 
@@ -42,17 +44,21 @@ export function isLocalRepositories(repos: Repositories): repos is LocalReposito
 
 export function createLocalRepositories(options: LocalRepositoriesOptions = {}): LocalRepositories {
   const connection = new LocalConnection({ name: options.databaseName, seed: options.seed });
+  // Supabase has database triggers to fill the automation queue; IndexedDB has
+  // none, so the item repository is handed the queue and fills it as it writes.
+  const automations = new LocalAutomationRepository(connection);
   return {
     connection,
+    automations,
     users: new LocalUserRepository(connection),
     workspaces: new LocalWorkspaceRepository(connection),
     onboarding: new LocalOnboardingRepository(connection),
     teams: new LocalTeamRepository(connection),
     boards: new LocalBoardRepository(connection),
-    items: new LocalItemRepository(connection),
+    items: new LocalItemRepository(connection, automations),
     links: new LocalItemLinkRepository(connection),
     trackers: new LocalTrackerRepository(connection),
-    comments: new LocalCommentRepository(connection),
+    comments: new LocalCommentRepository(connection, automations),
     itemAssets: new LocalItemAssetRepository(connection),
     workspaceLists: new LocalWorkspaceListRepository(connection),
     stakeholderPortals: new LocalStakeholderPortalRepository(connection),

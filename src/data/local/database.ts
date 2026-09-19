@@ -1,5 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
 import type {
+  AutomationEvent,
+  AutomationRule,
+  AutomationRun,
   Activity,
   Board,
   BoardShare,
@@ -113,6 +116,12 @@ export interface StreamlineDB extends DBSchema {
   portalSubmissions: { key: string; value: PortalSubmission; indexes: { byPortal: string; byKey: [string, string] } };
   itemShares: { key: string; value: ItemShare; indexes: { byItem: string; byToken: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
+  automationRules: { key: string; value: AutomationRule; indexes: { byBoard: string; byWorkspace: string } };
+  automationEvents: { key: string; value: AutomationEvent; indexes: { byBoard: string } };
+  automationRuns: { key: string; value: AutomationRun; indexes: { byBoard: string; byRule: string } };
+  /** The loop breaker and the "already fired" receipts, keyed the way the SQL tables are. */
+  automationMarks: { key: string; value: { itemId: string; depth: number; expiresAt: string } };
+  automationScheduleFires: { key: string; value: { id: string; ruleId: string; itemId: string | null; fireKey: string; createdAt: string } };
   activities: {
     key: string;
     value: Activity;
@@ -163,6 +172,11 @@ export const ALL_STORES: StoreName[] = [
   "itemShares",
   "itemReads",
   "activities",
+  "automationRules",
+  "automationEvents",
+  "automationRuns",
+  "automationMarks",
+  "automationScheduleFires",
   "notifications",
   "notificationPreferences",
   "directMessages",
@@ -172,7 +186,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 15;
+export const DB_VERSION = 16;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -374,6 +388,34 @@ function createBookingSavedBlocksStore(db: IDBPDatabase<StreamlineDB>): void {
   blocks.createIndex("byWorkspace", "workspaceId");
 }
 
+/** v16: automations — the rules, the queue that wakes them, and what they did. */
+function createAutomationStores(db: IDBPDatabase<StreamlineDB>): void {
+  if (!db.objectStoreNames.contains("automationRules")) {
+    const rules = db.createObjectStore("automationRules", { keyPath: "id" });
+    rules.createIndex("byBoard", "boardId");
+    rules.createIndex("byWorkspace", "workspaceId");
+  }
+  if (!db.objectStoreNames.contains("automationEvents")) {
+    // No index on "waiting": IndexedDB leaves a record out of an index when the
+    // key is null, which is precisely the rows a queue wants to find. The local
+    // provider is the demo and the test double, where the queue is a handful of
+    // rows and a scan is the cheaper thing anyway.
+    const events = db.createObjectStore("automationEvents", { keyPath: "id" });
+    events.createIndex("byBoard", "boardId");
+  }
+  if (!db.objectStoreNames.contains("automationRuns")) {
+    const runs = db.createObjectStore("automationRuns", { keyPath: "id" });
+    runs.createIndex("byBoard", "boardId");
+    runs.createIndex("byRule", "ruleId");
+  }
+  if (!db.objectStoreNames.contains("automationMarks")) {
+    db.createObjectStore("automationMarks", { keyPath: "itemId" });
+  }
+  if (!db.objectStoreNames.contains("automationScheduleFires")) {
+    db.createObjectStore("automationScheduleFires", { keyPath: "id" });
+  }
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -391,6 +433,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 13) createItemSharesStore(db);
   if (oldVersion < 14) createPortalStores(db);
   if (oldVersion < 15) createBookingSavedBlocksStore(db);
+  if (oldVersion < 16) createAutomationStores(db);
 }
 
 export interface OpenDatabaseOptions {

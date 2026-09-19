@@ -34,6 +34,9 @@ export const queryKeys = {
   dashboardShare: (workspaceId: string) => ["dashboard-share", workspaceId] as const,
   /** Groups, columns, items and values of a board in one snapshot. */
   boardSnapshot: (boardId: string) => ["board-snapshot", boardId] as const,
+  /** The rules a board runs on its own, and the log of what they did. */
+  automations: (boardId: string) => ["automations", boardId] as const,
+  automationRuns: (boardId: string) => ["automation-runs", boardId] as const,
   /** How many tasks in a workspace hold a ticket. Only read when a prefix change is being weighed up. */
   ticketCount: (workspaceId: string) => ["ticket-count", workspaceId] as const,
   /** One page of a board's archive. The request is part of the key: a different page is a different read. */

@@ -1,4 +1,6 @@
 import type { Repositories } from "@/data/repositories";
+import { AutomationEngine } from "./automation-engine";
+import { AutomationService } from "./automation-service";
 import { BoardService } from "./board-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
@@ -21,6 +23,10 @@ import { WorkspaceService } from "./workspace-service";
 
 export interface Services {
   repos: Repositories;
+  /** Rules, from the side that writes them. */
+  automations: AutomationService;
+  /** The side that carries them out. Server only. */
+  automationEngine: AutomationEngine;
   notifications: NotificationService;
   workspace: WorkspaceService;
   lists: WorkspaceListService;
@@ -53,6 +59,8 @@ export interface ServiceOptions {
   dashboardTransport?: PublicDashboardTransport | null;
   /** How a stakeholder reads their department's portal (Supabase). */
   portalTransport?: PortalTransport | null;
+  /** The zone every "at 9am" in an automation is read in. The runner sets it; a browser has no use for it. */
+  automationTimezone?: string;
 }
 
 export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
@@ -65,6 +73,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const tickets = new TicketService(repos, links);
   const booking = new BookingService(repos, workspace, items, assets, notifications, tickets, options.bookingTransport ?? null);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
+  const comments = new CommentService(repos, notifications, links);
   return {
     repos,
     notifications,
@@ -80,7 +89,11 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     assets,
     booking,
     tickets,
-    comments: new CommentService(repos, notifications, links),
+    comments,
+    automations: new AutomationService(repos),
+    // Constructed in every set so the local provider can drive it from a test,
+    // but only ever called from a server: see src/server/automations.ts.
+    automationEngine: new AutomationEngine(repos, items, comments, notifications, { timezone: options.automationTimezone }),
     messages: new MessageService(repos),
     profiles: new ProfileService(repos, myWork),
     myWork,
@@ -91,6 +104,9 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
 
 export type { ArchiveSnapshot, BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
 export { resolveArchiveFilters } from "./item-service";
+export { AutomationError, describeAction as describeAutomationAction, describeCondition as describeAutomationCondition, describeRule, describeTrigger } from "./automation-service";
+export type { RuleVocabulary } from "./automation-service";
+export type { DrainReport } from "./automation-engine";
 export type { CreateBoardInput } from "./board-service";
 export { TicketError } from "./ticket-service";
 export type { PrefixChange } from "./ticket-service";

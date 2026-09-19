@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -26,6 +26,8 @@ export interface BoardMenuHandlers {
   rename: () => void;
   share: () => void;
   requestDelete: () => void;
+  /** The board's own rules. Absent where a screen has nowhere to put the dialog. */
+  automations?: () => void;
 }
 
 /**
@@ -56,6 +58,7 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
     { type: "item", label: favourite ? "Remove from favourites" : "Add to favourites", icon: <Star />, onSelect: () => actions.toggleFavourite.mutate(!favourite) },
     { type: "separator" },
     { type: "item", label: "Board settings", icon: <Settings2 />, onSelect: () => handlers.openSettings("general") },
+    ...(handlers.automations ? [{ type: "item", label: "Automations", icon: <Zap />, onSelect: handlers.automations, testId: "board-menu-automations" } satisfies MenuAction] : []),
     { type: "item", label: "Manage members", icon: <Users />, onSelect: () => handlers.openSettings("members") },
     ...(manage ? [{ type: "item", label: "Share by link…", icon: <Share2 />, onSelect: handlers.share, testId: "board-menu-share" } satisfies MenuAction] : []),
     { type: "separator" },

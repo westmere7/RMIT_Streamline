@@ -3,6 +3,16 @@ import type {
   Activity,
   ActivityEventType,
   ActivityMetadata,
+  AutomationAction,
+  AutomationCondition,
+  AutomationEvent,
+  AutomationEventKind,
+  AutomationEventPayload,
+  AutomationRule,
+  AutomationRun,
+  AutomationRunStatus,
+  AutomationTrigger,
+  ConditionMatch,
   BookingFormTemplate,
   Board,
   BoardColumn,
@@ -626,4 +636,116 @@ export function pruneUndefined(record: Record<string, unknown>): Record<string, 
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) if (value !== undefined) out[key] = value;
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Automations (migrations/0052_automations.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * `trigger_json` rather than `trigger`: the column would have been legal, but
+ * "trigger" is a keyword in the one language where these rows are also written
+ * by actual triggers, and a table where `trigger` means two things is a table
+ * somebody misreads at two in the morning.
+ *
+ * `trigger_kind` and `trigger_column_id` are generated columns the database
+ * keeps in step with the JSON; they exist so the enqueue check on every cell
+ * edit is an index probe. Nothing reads them here.
+ */
+export interface AutomationRuleRow {
+  id: string;
+  workspace_id: string;
+  board_id: string;
+  name: string;
+  enabled: boolean;
+  trigger_json: AutomationTrigger;
+  condition_match: ConditionMatch;
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  last_run_at: string | null;
+  run_count: number;
+  last_error: string | null;
+}
+
+export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    boardId: row.board_id,
+    name: row.name,
+    enabled: row.enabled,
+    trigger: row.trigger_json,
+    conditionMatch: row.condition_match,
+    conditions: row.conditions ?? [],
+    actions: row.actions ?? [],
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastRunAt: row.last_run_at,
+    runCount: row.run_count,
+    lastError: row.last_error,
+  };
+}
+
+export interface AutomationEventRow {
+  id: number;
+  board_id: string;
+  item_id: string | null;
+  kind: AutomationEventKind;
+  column_id: string | null;
+  actor_id: string | null;
+  payload: AutomationEventPayload;
+  depth: number;
+  created_at: string;
+  claimed_at: string | null;
+  processed_at: string | null;
+  attempts: number;
+  error: string | null;
+}
+
+export function toAutomationEvent(row: AutomationEventRow): AutomationEvent {
+  return {
+    // A bigint identity in Postgres, a string everywhere above it: the id is
+    // only ever passed back to say "this one is done", and numbers that large
+    // stop being exact in JavaScript long before this queue stops being useful.
+    id: String(row.id),
+    boardId: row.board_id,
+    itemId: row.item_id,
+    kind: row.kind,
+    columnId: row.column_id,
+    actorId: row.actor_id,
+    payload: row.payload ?? {},
+    depth: row.depth,
+    createdAt: row.created_at,
+    processedAt: row.processed_at,
+    attempts: row.attempts,
+    error: row.error,
+  };
+}
+
+export interface AutomationRunRow {
+  id: string;
+  rule_id: string;
+  board_id: string;
+  item_id: string | null;
+  status: AutomationRunStatus;
+  summary: string;
+  detail: string | null;
+  created_at: string;
+}
+
+export function toAutomationRun(row: AutomationRunRow): AutomationRun {
+  return {
+    id: row.id,
+    ruleId: row.rule_id,
+    boardId: row.board_id,
+    itemId: row.item_id,
+    status: row.status,
+    summary: row.summary,
+    detail: row.detail,
+    createdAt: row.created_at,
+  };
 }

@@ -14,6 +14,7 @@ import type { Board } from "@/domain";
 import { renderDropdown } from "@/components/layout/row-menu";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
+import { AutomationsDialog } from "@/features/automations/automations-dialog";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
@@ -35,6 +36,7 @@ export function BoardHeader({ board }: { board: Board }) {
   const [activityOpen, setActivityOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
+  const [automationsOpen, setAutomationsOpen] = React.useState(false);
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -49,6 +51,7 @@ export function BoardHeader({ board }: { board: Board }) {
     rename: () => setRenaming(true),
     share: () => setShareOpen(true),
     requestDelete: () => setDeleteOpen(true),
+    automations: () => setAutomationsOpen(true),
   });
   const shareUrl = share ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
 
@@ -170,6 +173,7 @@ export function BoardHeader({ board }: { board: Board }) {
 
       <BoardSettingsDialog board={board} section={settings} onSectionChange={setSettings} onRequestDelete={() => setDeleteOpen(true)} />
       <BoardActivityDialog board={board} open={activityOpen} onOpenChange={setActivityOpen} />
+      <AutomationsDialog board={board} canManage={manage} open={automationsOpen} onOpenChange={setAutomationsOpen} />
       <ShareBoardDialog board={board} open={shareOpen} onOpenChange={setShareOpen} />
       <DeleteBoardDialog board={board} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />
     </header>

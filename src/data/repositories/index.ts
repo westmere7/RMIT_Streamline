@@ -1,6 +1,12 @@
 import type {
   Activity,
   ActivityInput,
+  AutomationEvent,
+  AutomationRule,
+  AutomationRuleInput,
+  AutomationRulePatch,
+  AutomationRun,
+  AutomationRunInput,
   Board,
   BoardColumn,
   BoardColumnInput,
@@ -419,6 +425,55 @@ export interface ActivityRepository {
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
 }
 
+/**
+ * Rules, the queue they are woken by, and the log of what they did.
+ *
+ * Split across three concerns on purpose. The browser only ever touches
+ * `listRulesByBoard` and the four rule mutations; everything with `Event` or
+ * `claim` in the name is the server-side runner's, and the Supabase policies
+ * (policies/0017) make that split real rather than a convention — the queue has
+ * row level security on with no policies, so a browser reading it sees nothing.
+ */
+export interface AutomationRepository {
+  listRulesByBoard(boardId: EntityId): Promise<AutomationRule[]>;
+  listRulesByWorkspace(workspaceId: EntityId): Promise<AutomationRule[]>;
+  getRule(id: EntityId): Promise<AutomationRule | null>;
+  createRule(input: AutomationRuleInput): Promise<AutomationRule>;
+  updateRule(id: EntityId, patch: AutomationRulePatch): Promise<AutomationRule>;
+  deleteRule(id: EntityId): Promise<void>;
+  /** Stamped after a drain: how many times it has fired, and what went wrong last. */
+  recordRuleOutcome(id: EntityId, outcome: { lastRunAt: string | null; ranCount: number; lastError: string | null }): Promise<void>;
+
+  /** Every enabled rule in the workspace whose trigger is woken by the clock. */
+  listScheduledRules(): Promise<AutomationRule[]>;
+
+  /**
+   * Takes the next batch of unprocessed events and marks them claimed, so two
+   * runners overlapping do not both act on the same change.
+   */
+  claimEvents(limit: number): Promise<AutomationEvent[]>;
+  finishEvent(id: string, outcome: { error?: string | null }): Promise<void>;
+  /** Events raised for a board, newest first — what the board's automation log reads. */
+  listRecentEvents(boardId: EntityId, limit: number): Promise<AutomationEvent[]>;
+
+  /** The loop breaker: the depth the runner is about to act at, against one task. */
+  markDepth(itemId: EntityId, depth: number): Promise<void>;
+  clearMark(itemId: EntityId): Promise<void>;
+
+  /**
+   * Claims one scheduled firing, returning false when it has already happened.
+   * The uniqueness is the database's, so two runners racing produce one firing.
+   */
+  claimScheduleFire(ruleId: EntityId, itemId: EntityId | null, fireKey: string): Promise<boolean>;
+
+  listRuns(boardId: EntityId, limit: number): Promise<AutomationRun[]>;
+  listRunsByRule(ruleId: EntityId, limit: number): Promise<AutomationRun[]>;
+  recordRuns(inputs: AutomationRunInput[]): Promise<void>;
+
+  /** Drops processed events, old log rows and expired marks. */
+  sweep(keepDays: number): Promise<number>;
+}
+
 /** A notification with the delivery its recipient's preferences decided. */
 export type DeliverableNotification = NotificationInput & { delivery: StoredDelivery };
 
@@ -514,6 +569,7 @@ export interface Repositories {
   itemReads: ItemReadRepository;
   messages: MessageRepository;
   activities: ActivityRepository;
+  automations: AutomationRepository;
   notifications: NotificationRepository;
   notificationPreferences: NotificationPreferencesRepository;
   admin: DataAdminRepository;

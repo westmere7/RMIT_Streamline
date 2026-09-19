@@ -3,9 +3,14 @@ import type { CommentRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
+import type { LocalAutomationRepository } from "./automation-repository";
 
 export class LocalCommentRepository implements CommentRepository {
-  constructor(private readonly conn: LocalConnection) {}
+  /** @param automations The queue this write announces itself to; see the item repository. */
+  constructor(
+    private readonly conn: LocalConnection,
+    private readonly automations?: LocalAutomationRepository,
+  ) {}
 
   async listByItem(itemId: string): Promise<Comment[]> {
     const db = await this.conn.getDb();
@@ -30,6 +35,18 @@ export class LocalCommentRepository implements CommentRepository {
     const now = nowIso();
     const comment: Comment = { sharedId: null, ...input, id: newId(), createdAt: now, updatedAt: now };
     await db.put("comments", comment);
+    const item = await db.get("items", comment.itemId);
+    if (item) {
+      await this.automations?.raise({
+        boardId: item.boardId,
+        itemId: item.id,
+        kind: "comment_added",
+        columnId: null,
+        actorId: comment.authorId,
+        payload: { commentId: comment.id, body: comment.body },
+        depth: 0,
+      });
+    }
     return comment;
   }
 

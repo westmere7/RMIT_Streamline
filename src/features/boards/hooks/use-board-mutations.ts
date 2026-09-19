@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
+import { useAutomationNudge } from "@/features/automations/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
@@ -29,6 +30,7 @@ export function useBoardMutations(boardId: string) {
   const ws = useWorkspace();
   const key = useMemo(() => queryKeys.boardSnapshot(boardId), [boardId]);
   const pending = useRef(0);
+  const nudgeAutomations = useAutomationNudge();
 
   const invalidateRelated = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: key });
@@ -42,7 +44,15 @@ export function useBoardMutations(boardId: string) {
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     publishDataChange({ boardIds: [boardId], kinds: ["board", "items"] });
-  }, [queryClient, key, boardId, ws.workspace.id, user.id]);
+    // Ask the server to look at the automation queue now.
+    //
+    // An optimisation and nothing more. The write has already raised whatever
+    // it was going to raise, from a database trigger, and the cron driver will
+    // drain it within a few minutes whether or not this call is made or
+    // succeeds. This is only so that somebody watching a board sees their rule
+    // fire while they are still looking at it.
+    nudgeAutomations();
+  }, [queryClient, key, boardId, ws.workspace.id, user.id, nudgeAutomations]);
 
   /**
    * Applies `updater` optimistically and runs `action`.

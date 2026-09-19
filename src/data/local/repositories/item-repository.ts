@@ -4,10 +4,22 @@ import type { ItemRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
+import type { LocalAutomationRepository } from "./automation-repository";
 import { deleteItemsCascade } from "./board-repository";
 
 export class LocalItemRepository implements ItemRepository {
-  constructor(private readonly conn: LocalConnection) {}
+  /**
+   * @param automations The queue, filled as this repository writes.
+   *
+   * Supabase raises these rows from database triggers, which is what makes an
+   * automation fire with nobody watching. IndexedDB has no triggers, so the
+   * writes announce themselves. Optional because the archive and the shared
+   * in-memory copies of this repository have no automations behind them.
+   */
+  constructor(
+    private readonly conn: LocalConnection,
+    private readonly automations?: LocalAutomationRepository,
+  ) {}
 
   async listByBoard(boardId: string, options?: { includeArchived?: boolean }): Promise<Item[]> {
     const db = await this.conn.getDb();
@@ -116,6 +128,15 @@ export class LocalItemRepository implements ItemRepository {
       updatedAt: now,
     };
     await db.put("items", item);
+    await this.automations?.raise({
+      boardId: item.boardId,
+      itemId: item.id,
+      kind: "item_created",
+      columnId: null,
+      actorId: item.createdBy,
+      payload: { toGroupId: item.groupId, parentItemId: item.parentItemId },
+      depth: 0,
+    });
     return item;
   }
 
@@ -125,6 +146,7 @@ export class LocalItemRepository implements ItemRepository {
     if (!existing) throw new NotFoundError("Item", id);
     const updated: Item = { ...existing, ...patch, id, updatedAt: nowIso() };
     await db.put("items", updated);
+    await this.raiseItemChange(existing, updated);
     return updated;
   }
 
@@ -134,16 +156,20 @@ export class LocalItemRepository implements ItemRepository {
     const db = await this.conn.getDb();
     const tx = db.transaction("items", "readwrite");
     const now = nowIso();
-    const results: Item[] = [];
+    const results: Array<{ updated: Item; before: Item }> = [];
     for (const { id, patch } of patches) {
       const existing = await tx.store.get(id);
       if (!existing) continue;
       const updated: Item = { ...existing, ...patch, id, updatedAt: now };
       await tx.store.put(updated);
-      results.push(updated);
+      results.push({ updated, before: existing });
     }
     await tx.done;
-    return results;
+    // After the transaction, not inside it: an IndexedDB transaction closes the
+    // moment it stops being used, and a queue write half-way through the batch
+    // would end the one the batch is still running in.
+    for (const { updated, before } of results) await this.raiseItemChange(before, updated);
+    return results.map((r) => r.updated);
   }
 
   async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
@@ -217,6 +243,7 @@ export class LocalItemRepository implements ItemRepository {
     const tx = db.transaction("itemColumnValues", "readwrite");
     const now = nowIso();
     const results: ItemColumnValue[] = [];
+    const changed: Array<{ itemId: string; columnId: string; before: ColumnValue | null; after: ColumnValue }> = [];
     for (const { itemId, columnId, value } of values) {
       const existing = (await tx.store.index("byItem").getAll(itemId)).find((v) => v.columnId === columnId);
       const record: ItemColumnValue = existing
@@ -224,8 +251,10 @@ export class LocalItemRepository implements ItemRepository {
         : { id: newId(), itemId, columnId, value, updatedAt: now };
       await tx.store.put(record);
       results.push(record);
+      if (!existing || !sameValue(existing.value, value)) changed.push({ itemId, columnId, before: existing?.value ?? null, after: value });
     }
     await tx.done;
+    for (const change of changed) await this.raiseValueChange(change);
     return results;
   }
 
@@ -244,6 +273,48 @@ export class LocalItemRepository implements ItemRepository {
       results.push(record);
     }
     await tx.done;
+    for (const record of results) await this.raiseValueChange({ itemId: record.itemId, columnId: record.columnId, before: null, after: record.value });
     return results;
   }
+
+  /** Which of the two changes a write to an item is, if it is either of them. */
+  private async raiseItemChange(before: Item, after: Item): Promise<void> {
+    if (!this.automations) return;
+    if (before.archivedAt === null && after.archivedAt !== null) {
+      await this.automations.raise({ boardId: after.boardId, itemId: after.id, kind: "item_archived", columnId: null, actorId: null, payload: {}, depth: 0 });
+      return;
+    }
+    if (before.groupId !== after.groupId) {
+      await this.automations.raise({
+        boardId: after.boardId,
+        itemId: after.id,
+        kind: "item_moved",
+        columnId: null,
+        actorId: null,
+        payload: { fromGroupId: before.groupId, toGroupId: after.groupId },
+        depth: 0,
+      });
+    }
+  }
+
+  private async raiseValueChange(change: { itemId: string; columnId: string; before: ColumnValue | null; after: ColumnValue }): Promise<void> {
+    if (!this.automations) return;
+    const db = await this.conn.getDb();
+    const item = await db.get("items", change.itemId);
+    if (!item) return;
+    await this.automations.raise({
+      boardId: item.boardId,
+      itemId: item.id,
+      kind: "value_changed",
+      columnId: change.columnId,
+      actorId: null,
+      payload: { before: change.before, after: change.after },
+      depth: 0,
+    });
+  }
+}
+
+/** The same "did this actually change" test the SQL trigger makes with `is distinct from`. */
+function sameValue(a: ColumnValue, b: ColumnValue): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }

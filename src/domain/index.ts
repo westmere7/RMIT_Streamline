@@ -19,6 +19,7 @@ export * from "./tracker/tracker";
 export * from "./comment/comment";
 export * from "./message/direct-message";
 export * from "./activity/activity";
+export * from "./automation/automation";
 export * from "./notification/notification";
 export * from "./auth/auth";
 export * from "./booking/booking";

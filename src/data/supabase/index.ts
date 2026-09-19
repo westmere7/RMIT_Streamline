@@ -1,4 +1,5 @@
 import type { Repositories } from "@/data/repositories";
+import { SupabaseAutomationRepository } from "./repositories/automation-repository";
 import { SupabaseBoardRepository } from "./repositories/board-repository";
 import { SupabaseBoardShareRepository } from "./repositories/board-share-repository";
 import { SupabaseBookingSavedBlockRepository } from "./repositories/booking-saved-block-repository";
@@ -59,6 +60,7 @@ export function createSupabaseRepositories(): Repositories {
     itemReads: new SupabaseItemReadRepository(),
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),
+    automations: new SupabaseAutomationRepository(),
     notifications: new SupabaseNotificationRepository(),
     notificationPreferences: new SupabaseNotificationPreferencesRepository(),
     admin: new SupabaseAdminRepository(),
