@@ -4,8 +4,9 @@ import { ListTodo } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLine } from "@/components/ui/skeleton";
 import { useMyWork } from "@/features/my-work/hooks";
+import { MyWorkMobileSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MobileTaskList, MobileTaskRow } from "@/features/mobile/task-row";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { cn, groupBy } from "@/lib/utils";
@@ -32,17 +33,13 @@ export function MyWorkMobile() {
     <div className="scrollbar-thin flex-1 overflow-y-auto overscroll-contain">
       <div className="px-4 pt-4 pb-8">
         <h1 className="text-lg font-semibold tracking-tight">My Work</h1>
+        {/* The count waits for the list. Nobody has nought items assigned for
+            the second and a half before the first read comes back. */}
         <p className="mb-4 text-[13px] text-muted-foreground">
-          {openCount} open {openCount === 1 ? "item" : "items"} assigned to you.
+          {myWork.data ? `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you.` : <SkeletonLine className="w-52 max-w-full" />}
         </p>
 
-        {myWork.isLoading && (
-          <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 rounded-xl" />
-            ))}
-          </div>
-        )}
+        {myWork.isLoading && <MyWorkMobileSkeleton />}
         {myWork.isError && <ErrorState title="Could not load your work." error={myWork.error} onRetry={() => myWork.refetch()} />}
         {myWork.data && myWork.data.length === 0 && (
           <EmptyState icon={ListTodo} title="Nothing assigned to you" description="Items where you are set as an owner appear here, grouped by when they are due." />

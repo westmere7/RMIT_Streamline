@@ -10,10 +10,11 @@ import { RelativeTime } from "@/components/shared/relative-time";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLine } from "@/components/ui/skeleton";
 import type { Notification, NotificationType, StoredDelivery } from "@/domain";
 import { countUnread } from "@/domain";
 import { useNotificationMutations, useNotifications } from "@/features/notifications/hooks";
+import { InboxSkeleton } from "@/features/notifications/inbox-skeleton";
 import { NotificationSettingsDialog } from "@/features/notifications/notification-settings-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,10 @@ export function InboxPage() {
     router.push(n.entityType === "ITEM" ? ws.boardPath(board, { itemId: n.entityId }) : ws.boardPath(board));
   };
 
+  // "You are all caught up" is the one thing this line must not say while the
+  // inbox is still being read: it is the answer people act on by leaving.
   const description = () => {
+    if (!notifications.data) return <SkeletonLine className="w-56 max-w-full" />;
     if (counts.notifications === 0 && counts.updates === 0) return "You are all caught up.";
     const parts: string[] = [];
     if (counts.notifications > 0) parts.push(`${counts.notifications} unread notification${counts.notifications === 1 ? "" : "s"}`);
@@ -149,11 +153,7 @@ export function InboxPage() {
       </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-6 pb-8">
         <div className="mx-auto w-full max-w-5xl">
-          {notifications.isLoading && (
-            <div className="space-y-2 pt-2">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
-            </div>
-          )}
+          {notifications.isLoading && <InboxSkeleton />}
           {notifications.isError && <ErrorState title="Could not load notifications." error={notifications.error} onRetry={() => notifications.refetch()} />}
           {notifications.data && list.length === 0 && (
             <EmptyState

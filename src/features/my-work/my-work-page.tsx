@@ -15,12 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLine } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import type { User } from "@/domain";
 import { isStuckLabel } from "@/domain";
 import { EMPTY_MY_WORK_FILTERS, MY_WORK_KINDS, MY_WORK_KIND_LABELS, MY_WORK_SEARCH_KINDS, MY_WORK_SEARCH_KIND_LABELS, activeMyWorkFilterCount, filterMyWork, myWorkLabelNames, type MyWorkFilters, type MyWorkSearchKind } from "@/features/my-work/filters";
 import { useMyWork } from "@/features/my-work/hooks";
+import { MyWorkSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MyWorkMobile } from "@/features/mobile/my-work-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -77,7 +78,9 @@ function MyWorkDesktop() {
       <div className="mx-auto w-full max-w-7xl">
         <PageHeader
           title="My Work"
-          description={`${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`}
+          // Counted, or a blank line waiting to be one. "0 open items"
+          // while the list is still being read is a figure, and it is wrong.
+          description={myWork.data ? `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.` : <SkeletonLine className="w-72 max-w-full" />}
           actions={
             <div className="flex items-center gap-2">
               <Switch id="show-completed" aria-label="Show completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
@@ -138,13 +141,7 @@ function MyWorkDesktop() {
       </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-8 sm:px-6">
         <div className="mx-auto w-full max-w-7xl">
-          {myWork.isLoading && (
-            <div className="space-y-2 pt-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-9" />
-              ))}
-            </div>
-          )}
+          {myWork.isLoading && <MyWorkSkeleton />}
           {myWork.isError && <ErrorState title="Could not load your work." error={myWork.error} onRetry={() => myWork.refetch()} />}
           {myWork.data && all.length === 0 && <EmptyState icon={ListTodo} title="Nothing assigned to you" description="Items where you are set as an owner will appear here, grouped by due date." />}
           {myWork.data && all.length > 0 && shown.length === 0 && (

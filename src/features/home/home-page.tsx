@@ -9,10 +9,11 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
 import { SectionHeading } from "@/components/shared/page-header";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonLine } from "@/components/ui/skeleton";
 import type { Board } from "@/domain";
 import { isStuckLabel } from "@/domain";
 import { ActivityFeed } from "@/features/activity/activity-feed";
+import { ActivitySkeleton } from "@/features/activity/activity-skeleton";
 import { useWorkspaceActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
 import { useMyWork } from "@/features/my-work/hooks";
@@ -47,7 +48,12 @@ export function HomePage() {
 
 function HomeDesktop() {
   const ws = useWorkspace();
-  const trackers = useTrackers().data ?? [];
+  // The board count is already in hand; the tracker count is a read, so the
+  // line waits for both rather than saying "2 boards" and then "2 boards ·
+  // 1 tracker" a moment later.
+  const trackerQuery = useTrackers();
+  const trackers = trackerQuery.data ?? [];
+  const trackersLoaded = !!trackerQuery.data;
   const services = useServices();
   const now = React.useMemo(() => new Date(), []);
 
@@ -87,8 +93,10 @@ function HomeDesktop() {
             <section>
               <SectionHeading>Recently visited</SectionHeading>
               {recent.isLoading ? (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Loading recently visited boards">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 rounded-xl" />
+                  ))}
                 </div>
               ) : recentBoards.length === 0 ? (
                 <EmptyState icon={Clock} title="No boards visited yet" description="Open a board from the sidebar to see it here." compact />
@@ -115,9 +123,7 @@ function HomeDesktop() {
               </SectionHeading>
               <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
                 {myWork.isLoading ? (
-                  <div className="space-y-2 p-3">
-                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
-                  </div>
+                  <HomeWorkSkeleton />
                 ) : importantWork.length === 0 ? (
                   <EmptyState icon={ListTodo} title="Nothing assigned to you right now" compact />
                 ) : (
@@ -196,7 +202,7 @@ function HomeDesktop() {
                               <UserAvatar key={m.id} user={ws.userById(m.userId)} size="xs" />
                             ))}
                           </span>
-                          <span className="text-2xs text-muted-foreground tabular">{teamContentsLabel(ws.boardsForTeam(team.id).length, trackers.filter((t) => t.teamId === team.id).length)}</span>
+                          <span className="text-2xs text-muted-foreground tabular">{trackersLoaded ? teamContentsLabel(ws.boardsForTeam(team.id).length, trackers.filter((t) => t.teamId === team.id).length) : <SkeletonLine className="w-16" />}</span>
                         </Link>
                       </li>
                     );
@@ -208,9 +214,7 @@ function HomeDesktop() {
             <section>
               <SectionHeading>Recent activity</SectionHeading>
               {activity.isLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
-                </div>
+                <ActivitySkeleton rows={5} className="divide-y" />
               ) : (
                 <ActivityFeed activities={(activity.data ?? []).filter((a) => !a.boardId || visible(ws.boardById(a.boardId)))} showItem className="divide-y" />
               )}
@@ -219,6 +223,25 @@ function HomeDesktop() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The My Work card on Home, in the row shape that card uses. */
+function HomeWorkSkeleton() {
+  return (
+    <ul className="divide-y" aria-busy aria-label="Loading your work" data-testid="home-work-skeleton">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li key={i} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1fr)_150px_130px_100px] sm:gap-4">
+          <div className="min-w-0 space-y-1.5">
+            <Skeleton className="h-3.5 w-1/2" />
+            <Skeleton className="h-2.5 w-1/3" />
+          </div>
+          <Skeleton className="hidden h-5 w-24 rounded-full sm:block" />
+          <Skeleton className="hidden h-5 w-16 rounded-full sm:block" />
+          <Skeleton className="ml-auto h-3.5 w-12" />
+        </li>
+      ))}
+    </ul>
   );
 }
 

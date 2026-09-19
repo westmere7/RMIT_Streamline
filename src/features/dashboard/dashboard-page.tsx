@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
+import { DashboardSkeleton } from "@/features/dashboard/dashboard-skeleton";
 import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { useDashboardRealtime, useDashboardSnapshot } from "@/features/dashboard/hooks";
 import { ShareDashboardDialog } from "@/features/dashboard/share-dashboard-dialog";
@@ -84,26 +84,6 @@ export function DashboardPage() {
       )}
 
       {canShare && <ShareDashboardDialog workspaceId={ws.workspace.id} workspaceName={ws.workspace.name} open={shareOpen} onOpenChange={setShareOpen} />}
-    </div>
-  );
-}
-
-export function DashboardSkeleton() {
-  return (
-    <div className="flex-1 space-y-4 p-5" data-testid="dashboard-skeleton">
-      <div className="flex gap-2">
-        <Skeleton className="h-8 w-28 rounded-full" />
-        <Skeleton className="h-8 w-64 rounded-full" />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Skeleton className="h-40 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
-      </div>
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Skeleton className="h-80 rounded-2xl xl:col-span-8" />
-        <Skeleton className="h-80 rounded-2xl xl:col-span-4" />
-      </div>
     </div>
   );
 }

@@ -7,12 +7,14 @@ import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { PublicDashboardPayload } from "@/domain";
 import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
 import { useServices } from "@/features/data/data-context";
 import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
+import { DashboardSkeleton } from "@/features/dashboard/dashboard-skeleton";
 import { formatShortDate } from "@/lib/dates/dates";
 import { resolveTheme, useThemePreference } from "@/lib/theme";
 import { ShareAccessError } from "@/services";
@@ -69,7 +71,26 @@ export function PublicDashboardPage({ token }: { token: string }) {
   const wrongPassword = payload.error instanceof ShareAccessError && payload.error.reason === "password";
   if (needsPassword && (password === null || wrongPassword)) return <PasswordPrompt busy={payload.isFetching} wrong={wrongPassword} onSubmit={setPassword} />;
   if (payload.isError) return <Closed message={payload.error instanceof Error ? payload.error.message : "This dashboard could not be opened."} />;
-  return <FullPageLoader label="Opening the dashboard…" />;
+  // Past the gate the link is known to open a dashboard, so the wait is spent
+  // in the shape of one rather than on a spinner.
+  return <PublicDashboardLoading />;
+}
+
+/** The public page while its figures are being read: the same chrome, blocks below. */
+function PublicDashboardLoading() {
+  return (
+    <div className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard-loading">
+      <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-4 py-3 sm:px-6">
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary opacity-[0.06]" style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
+        <BrandMark className="relative size-9 rounded-xl" />
+        <div className="relative min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-4 w-56 max-w-full" />
+          <Skeleton className="h-3 w-72 max-w-full" />
+        </div>
+      </header>
+      <DashboardSkeleton />
+    </div>
+  );
 }
 
 function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboardPayload; refreshing: boolean }) {
