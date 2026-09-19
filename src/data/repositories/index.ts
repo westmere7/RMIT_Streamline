@@ -2,6 +2,7 @@ import type {
   Activity,
   ActivityInput,
   AutomationEvent,
+  AutomationHeartbeat,
   AutomationRule,
   AutomationRuleInput,
   AutomationRulePatch,
@@ -472,6 +473,10 @@ export interface AutomationRepository {
 
   /** Drops processed events, old log rows and expired marks. */
   sweep(keepDays: number): Promise<number>;
+
+  /** When the runner last looked at all, whether or not it found anything. */
+  readHeartbeat(): Promise<AutomationHeartbeat | null>;
+  recordHeartbeat(report: Omit<AutomationHeartbeat, "lastRunAt">): Promise<void>;
 }
 
 /** A notification with the delivery its recipient's preferences decided. */

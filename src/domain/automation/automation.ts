@@ -254,6 +254,30 @@ export interface AutomationEventPayload {
 // The log
 // ---------------------------------------------------------------------------
 
+/**
+ * When the runner last looked, and what it found.
+ *
+ * Stamped on every pass, including the ones that find nothing, so that "the
+ * scheduler is dead" and "no rule matched anything" stop looking identical.
+ */
+export interface AutomationHeartbeat {
+  lastRunAt: ISODateTime;
+  events: number;
+  scheduled: number;
+  ran: number;
+  skipped: number;
+  failed: number;
+}
+
+/**
+ * How long the runner may be quiet before the board says something.
+ *
+ * The shipped drivers tick every five minutes (GitHub Actions) or every minute
+ * (pg_cron). Twenty is late enough that an ordinary late run says nothing and
+ * early enough that somebody notices the same morning.
+ */
+export const HEARTBEAT_STALE_MINUTES = 20;
+
 export const AUTOMATION_RUN_STATUSES = ["ran", "skipped", "failed"] as const;
 export type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
 

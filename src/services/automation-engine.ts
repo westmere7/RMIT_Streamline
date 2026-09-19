@@ -99,6 +99,11 @@ export class AutomationEngine {
     const report: DrainReport = { events: 0, scheduled: 0, ran: 0, skipped: 0, failed: 0 };
     await this.drainEvents(limit, report);
     await this.runSchedules(report);
+    // Stamped whether or not there was anything to do. A pass that found
+    // nothing is exactly the pass worth recording: without it, "the scheduler
+    // has been dead since Tuesday" and "no rule matched this week" leave the
+    // same evidence, which is none.
+    await this.repos.automations.recordHeartbeat(report);
     return report;
   }
 

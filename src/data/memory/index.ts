@@ -311,6 +311,8 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       listRunsByRule: async () => [],
       recordRuns: async () => undefined,
       sweep: async () => 0,
+      readHeartbeat: async () => null,
+      recordHeartbeat: async () => undefined,
     },
   };
 }

@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { AutomationRule, Board, BoardColumn, BoardGroup } from "@/domain";
 import { TRIGGER_TIMING } from "@/domain";
-import { useAutomationMutations, useAutomationRuns, useAutomations, useRuleVocabulary } from "@/features/automations/hooks";
+import { useAutomationMutations, useAutomationRunnerHealth, useAutomationRuns, useAutomations, useRuleVocabulary } from "@/features/automations/hooks";
 import { RuleBuilder, blankDraft, type RuleDraft } from "@/features/automations/rule-builder";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -52,6 +52,8 @@ export function AutomationsDialog({
   const mutations = useAutomationMutations(board.id, vocabulary);
   const [tab, setTab] = React.useState("rules");
   const runs = useAutomationRuns(board.id, open && tab === "log");
+  // Only worth asking about once the board has a rule that could be going unrun.
+  const health = useAutomationRunnerHealth(open && (rules.data ?? []).length > 0);
   const [editing, setEditing] = React.useState<{ rule: AutomationRule | null; draft: RuleDraft; name: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -187,6 +189,22 @@ export function AutomationsDialog({
                 />
               ) : (
                 <ul className="space-y-2 py-2">
+                  {health.stale && (
+                    <li>
+                      <p
+                        className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[13px] text-amber-700 dark:text-amber-300"
+                        data-testid="automation-runner-stale"
+                      >
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                          {health.beat
+                            ? `Nothing has run these automations for ${Math.round(health.minutesAgo ?? 0)} minutes.`
+                            : "Nothing has ever run these automations."}{" "}
+                          They are carried out by a server on a timer, so a rule cannot fire until something calls it. See supabase/optional/README.md.
+                        </span>
+                      </p>
+                    </li>
+                  )}
                   {(rules.data ?? []).map((rule) => (
                     <li key={rule.id}>
                       <RuleRow

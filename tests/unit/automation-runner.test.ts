@@ -266,6 +266,45 @@ describe("the automation runner", () => {
     expect(runs.filter((r) => r.status === "ran").length).toBeLessThan(12);
   });
 
+  /**
+   * The gap this closes: a board with rules and an empty log looks exactly the
+   * same whether nothing matched or nothing has called the runner in a week,
+   * and only the second needs a person. The heartbeat is the difference.
+   */
+  describe("the heartbeat", () => {
+    it("is stamped even by a pass that finds nothing at all", async () => {
+      expect(await repos.automations.readHeartbeat()).toBeNull();
+
+      const report = await engine().drain(100);
+      expect(report).toMatchObject({ events: 0, ran: 0 });
+
+      const beat = await repos.automations.readHeartbeat();
+      expect(beat).not.toBeNull();
+      expect(beat).toMatchObject({ events: 0, scheduled: 0, ran: 0, skipped: 0, failed: 0 });
+      expect(Date.parse(beat!.lastRunAt)).toBeGreaterThan(0);
+    });
+
+    it("carries what the last pass actually did", async () => {
+      const item = await anItem();
+      await addRule({ kind: "column_changed", columnId: (await column("Status")).id }, [{ kind: "add_comment", body: "beat" }]);
+      await setStatus(item.id, "Done");
+
+      await engine().drain(100);
+
+      const beat = await repos.automations.readHeartbeat();
+      expect(beat?.ran).toBe(1);
+      expect(beat?.events).toBeGreaterThan(0);
+    });
+
+    it("moves on with every pass, so its age is the answer to whether anything is running", async () => {
+      await engine(new Date("2026-09-21T03:00:00Z")).drain(100);
+      const first = await repos.automations.readHeartbeat();
+      await engine(new Date("2026-09-21T04:00:00Z")).drain(100);
+      const second = await repos.automations.readHeartbeat();
+      expect(Date.parse(second!.lastRunAt)).toBeGreaterThanOrEqual(Date.parse(first!.lastRunAt));
+    });
+  });
+
   it("tells the people on a task, and not whoever set the change off", async () => {
     const item = await anItem();
     const status = await column("Status");

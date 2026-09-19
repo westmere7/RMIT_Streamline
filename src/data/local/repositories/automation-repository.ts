@@ -3,6 +3,7 @@ import type {
   AutomationRule,
   AutomationRuleInput,
   AutomationRulePatch,
+  AutomationHeartbeat,
   AutomationRun,
   AutomationRunInput,
   EntityId,
@@ -12,6 +13,8 @@ import type { AutomationRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
+
+const HEARTBEAT_KEY = "automationHeartbeat";
 
 /**
  * Automations in the local provider.
@@ -169,6 +172,23 @@ export class LocalAutomationRepository implements AutomationRepository {
     const now = nowIso();
     await Promise.all(inputs.map((input) => tx.store.put({ ...input, id: newId(), createdAt: now })));
     await tx.done;
+  }
+
+  /** The `meta` store holds strings, so the heartbeat travels as JSON in one. */
+  async readHeartbeat(): Promise<AutomationHeartbeat | null> {
+    const db = await this.conn.getDb();
+    const record = await db.get("meta", HEARTBEAT_KEY);
+    if (!record) return null;
+    try {
+      return JSON.parse(record.value) as AutomationHeartbeat;
+    } catch {
+      return null;
+    }
+  }
+
+  async recordHeartbeat(report: Omit<AutomationHeartbeat, "lastRunAt">): Promise<void> {
+    const db = await this.conn.getDb();
+    await db.put("meta", { key: HEARTBEAT_KEY, value: JSON.stringify({ ...report, lastRunAt: nowIso() }) });
   }
 
   async sweep(keepDays: number): Promise<number> {

@@ -1,5 +1,6 @@
 import type {
   AutomationEvent,
+  AutomationHeartbeat,
   AutomationRule,
   AutomationRuleInput,
   AutomationRulePatch,
@@ -213,6 +214,29 @@ export class SupabaseAutomationRepository implements AutomationRepository {
           })),
         ),
       "automation_runs.record",
+    );
+  }
+
+  /**
+   * One row that says when the runner last looked at anything.
+   *
+   * Readable by anybody signed in; written only here, under the service key. It
+   * is the only thing in the schema that can tell a board "nothing has driven
+   * your automations since yesterday" rather than leaving that indistinguishable
+   * from "no rule matched".
+   */
+  async readHeartbeat(): Promise<AutomationHeartbeat | null> {
+    const result = await db().from("automation_heartbeat").select("last_run_at, report").eq("id", true).maybeSingle();
+    const row = unwrapMaybe<{ last_run_at: string; report: Partial<AutomationHeartbeat> }>(result, "automation_heartbeat.read");
+    if (!row) return null;
+    const r = row.report ?? {};
+    return { lastRunAt: row.last_run_at, events: r.events ?? 0, scheduled: r.scheduled ?? 0, ran: r.ran ?? 0, skipped: r.skipped ?? 0, failed: r.failed ?? 0 };
+  }
+
+  async recordHeartbeat(report: Omit<AutomationHeartbeat, "lastRunAt">): Promise<void> {
+    assertOk(
+      await db().from("automation_heartbeat").upsert({ id: true, last_run_at: new Date().toISOString(), report }, { onConflict: "id" }),
+      "automation_heartbeat.record",
     );
   }
 

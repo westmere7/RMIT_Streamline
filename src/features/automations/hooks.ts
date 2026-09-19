@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import type { AutomationRule, AutomationRuleInput, AutomationRulePatch, EntityId } from "@/domain";
+import { HEARTBEAT_STALE_MINUTES } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { getAppConfig } from "@/lib/config";
@@ -42,6 +43,42 @@ export function useAutomationRuns(boardId: EntityId, enabled: boolean) {
     staleTime: 5_000,
     refetchInterval: enabled ? 15_000 : false,
   });
+}
+
+/**
+ * Whether anything is actually driving the runner.
+ *
+ * The one question the rest of this screen cannot answer. A board with rules
+ * and an empty log looks identical whether no rule has matched or nothing has
+ * called the server since last week, and the second is the one that needs a
+ * person. Only read while the dialog is open, and only when the board has a
+ * rule worth worrying about.
+ */
+export function useAutomationRunnerHealth(enabled: boolean) {
+  const services = useServices();
+  // The age is worked out when the answer is fetched rather than when it is
+  // rendered: reading the clock during render makes a component whose output
+  // depends on when React happened to call it. A refetch every minute keeps the
+  // figure inside a minute of the truth, against a twenty-minute threshold.
+  const query = useQuery({
+    queryKey: ["automation-heartbeat"],
+    queryFn: async () => {
+      const beat = await services.repos.automations.readHeartbeat();
+      return { beat, minutesAgo: beat ? (Date.now() - Date.parse(beat.lastRunAt)) / 60_000 : null };
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: enabled ? 60_000 : false,
+  });
+  const beat = query.data?.beat ?? null;
+  const minutesAgo = query.data?.minutesAgo ?? null;
+  return {
+    beat,
+    loading: query.isLoading,
+    // Never run at all, or not for longer than any shipped driver's interval.
+    stale: enabled && !query.isLoading && query.isSuccess && (beat === null || (minutesAgo ?? 0) > HEARTBEAT_STALE_MINUTES),
+    minutesAgo,
+  };
 }
 
 export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabulary) {
