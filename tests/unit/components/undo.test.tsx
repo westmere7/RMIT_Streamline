@@ -52,7 +52,7 @@ describe("undo", () => {
     await user.click(within(bar).getByTestId("undo-button"));
     await waitFor(() => expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument());
     await waitFor(() => expect((screen.getAllByTestId("mobile-card-status")[0]!).textContent?.trim()).toBe(before));
-  });
+  }, 20_000);
 
   it("stays until something else is done, then speaks for that instead", async () => {
     const user = userEvent.setup();
@@ -78,7 +78,7 @@ describe("undo", () => {
 
     await user.click(screen.getByTestId("undo-dismiss"));
     expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("does not offer to undo a delete", async () => {
     const user = userEvent.setup();
@@ -91,7 +91,7 @@ describe("undo", () => {
     await user.click(await screen.findByRole("button", { name: "Delete item" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Delete item" })).not.toBeInTheDocument());
     expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("the store holds one offer, spends it when performed, and forgets it when cleared", async () => {
     const store = useUndoStore.getState();

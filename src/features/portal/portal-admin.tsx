@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Copy, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
+import { Check, ChevronDown, ClipboardPen, Copy, ExternalLink, Eye, EyeOff, Globe, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -61,13 +61,15 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
   const url = portalUrl(portal.token);
   const bookingUrl = `${url}/book`;
   const booked = rows.reduce((sum, row) => sum + row.requests, 0);
+  const active = rows.filter((row) => row.requests > 0).length;
 
   return (
-    <section className="rounded-xl border border-border/70 bg-card" data-testid="portal-card">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 p-3">
-        <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[15px] font-semibold">
+    <section className="rounded-2xl border border-border/70 bg-card" data-testid="portal-card">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-5 py-4">
+        <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[16px] font-semibold tracking-tight">
           Stakeholder portal
-          <Badge variant={open ? "success" : "muted"} data-testid="portal-state">
+          <Badge variant={open ? "success" : "muted"} className="gap-1.5" data-testid="portal-state">
+            {open && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
             {open ? "Open" : "Closed"}
           </Badge>
           {portal.passwordHash && (
@@ -96,45 +98,55 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
         </div>
       </div>
 
-      {/* Two links, one credential. The portal is where somebody looks at
-          their work; the booking link is the same portal opened on the form,
-          for when what you want from them is a request and not a visit. */}
-      <div className="grid gap-3 p-3 sm:grid-cols-2">
-        <LinkBlock
+      {/* Two doors into the same portal. The first is where somebody looks at
+          the work being done for them; the second opens straight on the form,
+          for when what you want from them is a request rather than a visit.
+          The addresses themselves stay out of sight: nobody reads a token, they
+          copy it, and the two buttons are what they come here for. */}
+      <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+        <LinkTile
+          tone="portal"
+          icon={Globe}
           label="Portal"
-          url={url}
-          testId="portal-link"
-          copyTestId="portal-copy"
-          href={routes.portal(portal.token)}
-          onCopy={() => void copyToClipboard(url, "Link copied")}
-          open={open}
-          note={
+          lead={
             <>
               Where stakeholders see the work being done for them. Opens on the {portal.defaultView} view
               {portal.showRecap ? ", with the figures" : ""}
               {portal.passwordHash ? ", behind the password" : ""}.
             </>
           }
+          figure={rows.length}
+          figureLabel={rows.length === 1 ? "stakeholder group" : "stakeholder groups"}
+          aside={rows.length > 0 ? `${active} of ${rows.length} have booked` : "none set up yet"}
+          url={url}
+          href={routes.portal(portal.token)}
+          testId="portal-link"
+          copyTestId="portal-copy"
+          onCopy={() => void copyToClipboard(url, "Link copied")}
+          open={open}
         >
           <StakeholderList rows={rows} />
-        </LinkBlock>
-        <LinkBlock
+        </LinkTile>
+        <LinkTile
+          tone="booking"
+          icon={ClipboardPen}
           label="Booking form"
-          url={bookingUrl}
-          testId="portal-booking-link"
-          copyTestId="portal-booking-link-copy"
-          href={`${routes.portal(portal.token)}/book`}
-          onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
-          open={open && portal.allowBooking}
-          note={
+          lead={
             portal.allowBooking ? (
-              <>
-                The same portal, opened straight on the form. <span className="tabular">{booked}</span> {booked === 1 ? "request" : "requests"} booked through it so far.
-              </>
+              <>The same portal, opened straight on the form. Stakeholders describe what they need and it lands on the board as a request.</>
             ) : (
               <>This link is not taking requests. Turn on &ldquo;Takes new requests&rdquo; in the settings below.</>
             )
           }
+          figure={booked}
+          figureLabel={booked === 1 ? "request booked" : "requests booked"}
+          aside="through the form so far"
+          url={bookingUrl}
+          href={`${routes.portal(portal.token)}/book`}
+          testId="portal-booking-link"
+          copyTestId="portal-booking-link-copy"
+          onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
+          open={open && portal.allowBooking}
         />
       </div>
 
@@ -143,7 +155,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
         onClick={() => setSettingsOpen((v) => !v)}
         aria-expanded={settingsOpen}
         aria-controls="portal-settings"
-        className="flex w-full items-center gap-2 border-t border-border/60 px-3 py-2.5 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex w-full items-center gap-2 border-t border-border/60 px-5 py-3 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         data-testid="portal-settings-toggle"
       >
         <Settings2 className="size-3.5" aria-hidden />
@@ -171,33 +183,131 @@ function SettingsSummary({ portal }: { portal: StakeholderPortal }) {
   );
 }
 
-/** One of the portal's links, large enough to be the point of the page, with what it opens underneath. */
-function LinkBlock({ label, url, href, testId, copyTestId, onCopy, open, note, children }: { label: string; url: string; href: string; testId: string; copyTestId: string; onCopy: () => void; open: boolean; note: React.ReactNode; children?: React.ReactNode }) {
+/** The two tiles' colourings: the brand red for the portal, indigo for the form, so the pair reads as two things. */
+const TILE_TONES = {
+  portal: {
+    glow: "bg-primary/25",
+    icon: "bg-primary/10 text-primary ring-primary/15",
+    figure: "text-primary",
+    edge: "hover:border-primary/40",
+  },
+  booking: {
+    glow: "bg-accent-soft-foreground/25",
+    icon: "bg-accent-soft text-accent-soft-foreground ring-accent-soft-foreground/15",
+    figure: "text-accent-soft-foreground",
+    edge: "hover:border-accent-soft-foreground/40",
+  },
+} as const;
+
+/**
+ * One of the portal's two doors, as a tile: what it is, one figure that says
+ * how it is doing, and the two things anybody does with it — copy the link,
+ * open it. The address is kept for tests and screen readers and shown to
+ * nobody; a token is not something a person reads.
+ */
+function LinkTile({
+  tone,
+  icon: Icon,
+  label,
+  lead,
+  figure,
+  figureLabel,
+  aside,
+  url,
+  href,
+  testId,
+  copyTestId,
+  onCopy,
+  open,
+  children,
+}: {
+  tone: keyof typeof TILE_TONES;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  lead: React.ReactNode;
+  figure: number;
+  figureLabel: string;
+  aside: string;
+  url: string;
+  href: string;
+  testId: string;
+  copyTestId: string;
+  onCopy: () => void;
+  open: boolean;
+  children?: React.ReactNode;
+}) {
+  const tones = TILE_TONES[tone];
+  const [copied, setCopied] = React.useState(false);
+  React.useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1800);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   return (
-    <div className={cn("flex min-w-0 flex-col gap-2 rounded-xl border border-border/70 bg-surface/40 p-3", !open && "opacity-70")} data-testid={`${testId}-block`}>
-      <div className="flex items-center gap-2">
-        <span className="flex-1 text-[13px] font-semibold">{label}</span>
-        {!open && (
-          <Badge variant="muted" className="gap-1">
-            <EyeOff className="size-3" aria-hidden /> Not serving
-          </Badge>
-        )}
+    <div
+      className={cn(
+        "group/tile relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface/50 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        tones.edge,
+        !open && "opacity-70 saturate-50",
+      )}
+      data-testid={`${testId}-block`}
+    >
+      {/* A wash of the tile's colour in one corner, brighter under the pointer. */}
+      <span aria-hidden className={cn("pointer-events-none absolute -top-16 -right-12 size-48 rounded-full blur-3xl transition-opacity duration-300 opacity-60 group-hover/tile:opacity-100", tones.glow)} />
+
+      <div className="relative flex items-start gap-3">
+        <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl ring-1", tones.icon)}>
+          <Icon className="size-[18px]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="text-[15px] font-semibold tracking-tight">{label}</h4>
+            {!open && (
+              <Badge variant="muted" className="gap-1">
+                <EyeOff className="size-3" aria-hidden /> Not serving
+              </Badge>
+            )}
+          </div>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{lead}</p>
+        </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <code className="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-card px-2.5 py-2 font-mono text-2xs" data-testid={testId}>
-          {url}
-        </code>
-        <Button variant="outline" size="icon-sm" className="size-9 shrink-0" aria-label={`Copy the ${label.toLowerCase()} link`} onClick={onCopy} data-testid={copyTestId}>
-          <Copy />
-        </Button>
-        <Button variant="outline" size="icon-sm" className="size-9 shrink-0" asChild>
-          <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
-            <ExternalLink />
-          </a>
-        </Button>
+
+      <div className="relative mt-5 flex items-end justify-between gap-4">
+        <div>
+          <p className={cn("text-[32px] leading-none font-semibold tracking-tight tabular", tones.figure)} data-testid={`${testId}-figure`}>
+            {figure}
+          </p>
+          <p className="mt-1.5 text-[13px] font-medium">{figureLabel}</p>
+          <p className="text-2xs text-muted-foreground">{aside}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("bg-card transition-colors", copied && "border-green-500/50 text-green-700 dark:text-green-300")}
+            aria-label={`Copy the ${label.toLowerCase()} link`}
+            onClick={() => {
+              onCopy();
+              setCopied(true);
+            }}
+            data-testid={copyTestId}
+          >
+            {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy link"}
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
+              Open <ExternalLink className="size-3.5" />
+            </a>
+          </Button>
+        </div>
       </div>
-      <p className="text-2xs text-muted-foreground">{note}</p>
-      {children}
+      {/* The address, for anything that has to read it: a test, a screen reader. Nobody else. */}
+      <span className="sr-only" data-testid={testId}>
+        {url}
+      </span>
+
+      {children && <div className="relative mt-4 border-t border-border/60 pt-4">{children}</div>}
     </div>
   );
 }
@@ -229,10 +339,15 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label="Departments the portal shows" data-testid="portal-stakeholders">
       {rows.map(({ department, requests }) => (
-        <li key={department.id} className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs" data-testid="portal-stakeholder-row" data-department={department.name}>
+        <li
+          key={department.id}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs transition-colors hover:border-ring/50"
+          data-testid="portal-stakeholder-row"
+          data-department={department.name}
+        >
           <span aria-hidden className={cn("size-2 shrink-0 rounded-full", colorClasses(department.color).dot)} />
           <span className="font-medium">{department.name}</span>
-          <span className="tabular text-muted-foreground">{requests} booked</span>
+          <span className={cn("tabular", requests > 0 ? "text-foreground/70" : "text-muted-foreground/60")}>{requests > 0 ? `${requests} booked` : "none yet"}</span>
         </li>
       ))}
     </ul>
