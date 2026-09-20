@@ -56,6 +56,7 @@ import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { colorClasses } from "@/lib/colors";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -436,13 +437,22 @@ function PanelHeader({
   const creator = ws.userById(item.createdBy);
   const links = useMentionLinks();
   return (
-    // Its own surface under the tabs: what the task is, set apart from the work on it.
-    <div className="border-b border-border bg-card">
-      <ItemCover item={item} canEdit={canEdit} />
-      <div className="px-5 pt-4 pb-4">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1 text-2xs text-muted-foreground">
+    // Its own surface under the tabs: what the task is, set apart from the work
+    // on it. Three lines, in order of weight: where it is (small), what it is
+    // (large, alone), and the facts about it (small, quiet). A wash of the
+    // board's colour across the top marks the band off from the fields below.
+    <div className="relative overflow-hidden border-b border-border bg-card" data-testid="panel-header">
+      <span
+        aria-hidden
+        className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 opacity-[0.09]", colorClasses(board.color).dot)}
+        style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }}
+      />
+      <div className="relative">
+        <ItemCover item={item} canEdit={canEdit} />
+      </div>
+      <div className="relative px-5 pt-3 pb-4">
+        <div className="flex items-center gap-3">
+          <p className="flex min-w-0 flex-1 items-center gap-1 text-2xs text-muted-foreground">
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
               {board.name}
             </Link>
@@ -470,69 +480,74 @@ function PanelHeader({
               </>
             )}
           </p>
+          <div className="-mr-2 flex shrink-0 items-center gap-0.5">
+            {!shared && canManage && (
+              <SimpleTooltip label="Share this task by link">
+                <Button variant="ghost" size="icon-sm" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
+                  <Share2 />
+                </Button>
+              </SimpleTooltip>
+            )}
+            {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />}
+            {!hideClose && (
+              <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
+                <X />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <h2 className="mt-1.5 text-[26px] font-semibold leading-[1.15] tracking-tight">
+          <InlineEdit
+            value={item.name}
+            editing={renaming}
+            onEditingChange={setRenaming}
+            onSubmit={(name) => void mutations.renameItem(item.id, name)}
+            disabled={!canEdit}
+            ariaLabel="Item name"
+            className={cn("-mx-1 break-words whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
+            inputClassName="h-11 text-[26px] font-semibold"
+          />
+        </h2>
+
+        {/* One quiet line of facts. Everything here is a size and a shade below
+            the name, so the name is what the eye lands on. */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-2xs text-muted-foreground">
+          <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
           {item.archivedAt && (
-            <Badge variant="warning" className="mt-2 gap-1" data-testid="panel-archived-badge">
+            <Badge variant="warning" className="gap-1" data-testid="panel-archived-badge">
               <Archive className="size-3" aria-hidden /> Archived <RelativeTime iso={item.archivedAt} />
             </Badge>
           )}
-          <h2 className="mt-1 text-[23px] font-semibold leading-tight tracking-tight">
-            <InlineEdit
-              value={item.name}
-              editing={renaming}
-              onEditingChange={setRenaming}
-              onSubmit={(name) => void mutations.renameItem(item.id, name)}
-              disabled={!canEdit}
-              ariaLabel="Item name"
-              className={cn("-mx-1 break-words whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
-              inputClassName="h-10 text-[23px] font-semibold"
-            />
-          </h2>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {!shared && canManage && (
-            <SimpleTooltip label="Share this task by link">
-              <Button variant="ghost" size="icon-sm" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
-                <Share2 />
-              </Button>
+          {share?.enabled && (
+            <SimpleTooltip label={share.access === "PUBLIC" ? "Shared by link with anyone who has it." : "Shared by link with signed-in members."}>
+              <button
+                type="button"
+                onClick={() => canManage && setSharing(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-2xs font-medium text-emerald-700 dark:text-emerald-300"
+                data-testid="panel-shared-badge"
+              >
+                <Globe className="size-3" /> {share.access === "PUBLIC" ? "Shared" : "Shared inside"}
+              </button>
             </SimpleTooltip>
           )}
-          {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />}
-          {!hideClose && (
-            <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
-              <X />
-            </Button>
+          {/* Only when there is somebody to name. A payload that deliberately
+              withholds the author — a stakeholder portal does — used to render
+              "Created by someone", which reads as a fault rather than a choice. */}
+          {creator ? (
+            <p className="flex items-center gap-1.5">
+              <UserAvatar user={creator} size="xs" tooltip={false} />
+              <span>
+                <Mention href={links.person(item.createdBy)} className="font-normal">{creator.firstName}</Mention> · <RelativeTime iso={item.createdAt} />
+              </span>
+            </p>
+          ) : (
+            <p>
+              Created <RelativeTime iso={item.createdAt} />
+            </p>
           )}
         </div>
-      </div>
-      <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-        <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
-        {share?.enabled && (
-          <SimpleTooltip label={share.access === "PUBLIC" ? "Shared by link with anyone who has it." : "Shared by link with signed-in members."}>
-            <button
-              type="button"
-              onClick={() => canManage && setSharing(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-2xs font-medium text-emerald-700 dark:text-emerald-300"
-              data-testid="panel-shared-badge"
-            >
-              <Globe className="size-3" /> {share.access === "PUBLIC" ? "Shared" : "Shared inside"}
-            </button>
-          </SimpleTooltip>
-        )}
-        {/* Only when there is somebody to name. A payload that deliberately
-            withholds the author — a stakeholder portal does — used to render
-            "Created by someone", which reads as a fault rather than a choice. */}
-        {creator ? (
-          <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-            <UserAvatar user={creator} size="xs" tooltip={false} />
-            Created by <Mention href={links.person(item.createdBy)} className="font-normal">{creator.firstName}</Mention> <RelativeTime iso={item.createdAt} />
-          </p>
-        ) : (
-          <p className="text-2xs text-muted-foreground">
-            Created <RelativeTime iso={item.createdAt} />
-          </p>
-        )}
-      </div>
-      <AssetsRecapStrip assets={assets} />
+        <AssetsRecapStrip assets={assets} />
       </div>
       <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />
     </div>
@@ -708,7 +723,7 @@ function TicketField({
         onDoubleClick={edit}
         title={canEdit ? "Click to copy, double click to edit" : "Copy this ticket"}
         data-testid="panel-ticket"
-        className={cn("h-full px-1.5 font-mono text-[13px] font-semibold text-foreground/90 tabular transition-colors hover:text-foreground", canEdit && "hover:bg-foreground/[0.06]")}
+        className={cn("h-full px-1.5 font-mono text-xs font-medium text-foreground/80 tabular transition-colors hover:text-foreground", canEdit && "hover:bg-foreground/[0.06]")}
       >
         {code}
       </button>

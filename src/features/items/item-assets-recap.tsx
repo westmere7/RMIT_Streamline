@@ -62,7 +62,7 @@ export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
 
   const bar = (
     <div
-      className={cn("h-1.5 overflow-hidden rounded-full bg-surface-strong", expanded ? "w-full" : "min-w-16 flex-1")}
+      className={cn("h-1 overflow-hidden rounded-full bg-surface-strong", expanded ? "w-full" : "min-w-16 max-w-56 flex-1")}
       role="progressbar"
       aria-valuenow={percent}
       aria-valuemin={0}
@@ -83,7 +83,7 @@ export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
           onClick={toggle}
           aria-expanded={expanded}
           aria-label={expanded ? "Hide the asset breakdown" : "Show the asset breakdown"}
-          className="-ml-1 flex min-w-0 shrink-0 items-center gap-1 rounded-md py-0.5 pr-1 pl-1 text-[13px] font-medium tabular transition-colors hover:bg-accent/70"
+          className="-ml-1 flex min-w-0 shrink-0 items-center gap-1 rounded-md py-0.5 pr-1 pl-1 text-xs font-medium text-muted-foreground tabular transition-colors hover:bg-accent/70 hover:text-foreground"
           data-testid="assets-recap-toggle"
         >
           <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
