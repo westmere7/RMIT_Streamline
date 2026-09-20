@@ -21,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardGroup, Item } from "@/domain";
-import { columnLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
 import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
@@ -34,6 +33,7 @@ const NO_OVERRIDES: string[] = [];
 import { GroupRows } from "./virtual-rows";
 import { AddItemRow } from "./add-item-row";
 import { ColumnHeaderRow } from "./column-header-row";
+import { GroupSummaryRow } from "./group-summary-row";
 
 export interface GroupSectionProps {
   group: BoardGroup;
@@ -159,7 +159,6 @@ export function GroupSection({
               />
             </h2>
             <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
-            {collapsed && <StatusSummary itemIds={items.map((i) => i.id)} />}
             {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -223,6 +222,10 @@ export function GroupSection({
         </ContextMenuContent>
       </ContextMenu>
 
+      {/* Folded, the group still answers every column's question, in one row
+          aligned under the columns the open group would have. */}
+      {collapsed && items.length > 0 && <GroupSummaryRow groupName={group.name} items={items} widthOverrides={widthOverrides} />}
+
       {!collapsed && (
         <div
           role="grid"
@@ -267,30 +270,6 @@ export function GroupSection({
         onConfirm={() => mutations.deleteGroup(group.id).then(() => undefined)}
       />
     </section>
-  );
-}
-
-/** Compact status distribution shown for collapsed groups. */
-function StatusSummary({ itemIds }: { itemIds: string[] }) {
-  const { model } = useBoardContext();
-  const column = model.statusColumn;
-  if (!column || itemIds.length === 0) return null;
-  const counts = new Map<string, number>();
-  for (const id of itemIds) {
-    const v = model.getValue(id, column.id);
-    const labelId = v?.type === "STATUS" ? (v.labelId ?? "none") : "none";
-    counts.set(labelId, (counts.get(labelId) ?? 0) + 1);
-  }
-  const labels = columnLabels(column);
-  return (
-    <span className="ml-3 flex h-2 w-40 overflow-hidden rounded-full" aria-hidden>
-      {labels.map((label) => {
-        const count = counts.get(label.id) ?? 0;
-        if (!count) return null;
-        return <span key={label.id} className={colorClasses(label.color).dot} style={{ width: `${(count / itemIds.length) * 100}%` }} title={`${label.name}: ${count}`} />;
-      })}
-      {counts.get("none") ? <span className="bg-surface-strong" style={{ width: `${((counts.get("none") ?? 0) / itemIds.length) * 100}%` }} /> : null}
-    </span>
   );
 }
 
