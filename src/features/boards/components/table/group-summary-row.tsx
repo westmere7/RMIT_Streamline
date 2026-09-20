@@ -5,11 +5,11 @@ import { AvatarStack } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnLabel, Item } from "@/domain";
 import { columnLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
-import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
+import { columnCellStyle } from "@/features/boards/board-model";
+import { useTableLayout } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue } from "@/lib/dates/dates";
-import { cn, pluralize } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /**
  * What a folded group holds, one cell per column.
@@ -23,18 +23,14 @@ import { cn, pluralize } from "@/lib/utils";
  * total. Every cell is aligned under its column, so a board with three groups
  * folded reads as three summary lines down the same columns.
  */
-export function GroupSummaryRow({ groupName, items, widthOverrides }: { groupName: string; items: readonly Item[]; widthOverrides: Record<string, number> }) {
+export function GroupSummaryRow({ leading, items, widthOverrides }: { leading: React.ReactNode; items: readonly Item[]; widthOverrides: Record<string, number> }) {
   const { model } = useBoardContext();
   const layout = useTableLayout();
-  const showTicket = useShowTicket();
   return (
-    <div role="row" aria-label={`Summary of ${groupName}`} className="flex h-11 items-center rounded-xl border border-border/60 bg-background shadow-xs" data-testid="group-summary">
-      <div
-        className="sticky left-0 z-[4] flex h-full items-center rounded-l-xl border-r border-border/60 bg-background px-3 text-2xs font-medium text-muted-foreground"
-        style={leadingCellStyle(showTicket, layout)}
-      >
-        <span className="pl-6 truncate">{pluralize(items.length, "item")} folded away</span>
-      </div>
+    <div role="row" className="flex h-11 items-center rounded-xl border border-border/60 bg-background shadow-xs" data-testid="group-summary">
+      {/* The group's own heading — chevron, name, count — sized as the frozen
+          head of a row, so the name sits where the item names would. */}
+      {leading}
       {model.visibleColumns.map((column) => (
         <div
           key={column.id}
