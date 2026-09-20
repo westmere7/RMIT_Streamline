@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
 import { PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
 import { colorClasses } from "@/lib/colors";
+import { THEME_STORAGE_KEY } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,7 +49,16 @@ export function PortalThemeScope({ token, preferred, children }: { token: string
     () => null,
   );
   const [override, setOverride] = React.useState<PortalTheme | null>(null);
-  const theme = override ?? stored ?? preferred;
+  // A member opening the portal from inside the app has already said which
+  // theme they want, and the app's choice is in this browser's storage. It
+  // outranks the portal's configured default, which is for stakeholders who
+  // have never had a say, and yields to a choice made on this portal itself.
+  const appPreference = React.useSyncExternalStore(
+    (onChange) => subscribeToStorage(THEME_STORAGE_KEY, onChange),
+    readAppTheme,
+    () => null,
+  );
+  const theme = override ?? stored ?? appPreference ?? preferred;
 
   const systemDark = React.useSyncExternalStore(
     (onChange) => {
@@ -81,7 +91,14 @@ export function PortalThemeScope({ token, preferred, children }: { token: string
           are stated, never just the dark one — a portal set to light inside an
           app set to dark has to say so, or it inherits the dark it is sitting
           in (see the `dark` custom variant in globals.css). */}
-      <div className={cn(dark ? "dark" : "light")}>{children}</div>
+      {/* The colour is restated here as well as the class. Text with no
+          colour of its own inherits the page body's, which was computed under
+          the app's theme; naming it again inside the scope makes it resolve
+          under this one, so a dark portal in a light app is not dark text on
+          dark ground. */}
+      <div className={cn("text-foreground", dark ? "dark" : "light")} style={{ colorScheme: dark ? "dark" : "light" }}>
+        {children}
+      </div>
     </PortalThemeContext.Provider>
   );
 }
@@ -176,6 +193,18 @@ function readStoredTheme(key: string): PortalTheme | null {
     return value === "light" || value === "dark" || value === "system" ? value : null;
   } catch {
     // A browser with storage blocked simply gets the configured default.
+    return null;
+  }
+}
+
+/** The app's own theme choice, in the portal's terms. `dim` is a dark theme; nothing stored is no opinion. */
+function readAppTheme(): PortalTheme | null {
+  try {
+    const value = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (value === "light" || value === "system") return value;
+    if (value === "dark" || value === "dim") return "dark";
+    return null;
+  } catch {
     return null;
   }
 }
