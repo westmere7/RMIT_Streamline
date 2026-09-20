@@ -18,7 +18,8 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { TicketCell, TicketSpacer } from "@/features/boards/components/table/ticket-cell";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
-import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,9 @@ export interface ItemRowProps {
 }
 
 export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
-  const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates, showTicket } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
   // subscribing to the slice re-rendered every row whenever anything was
   // selected, expanded or opened.
@@ -175,7 +178,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         <ContextMenuTrigger asChild>
           <div
             ref={setNodeRef}
-            style={{ height: TABLE_LAYOUT.rowHeight }}
+            style={{ height: layout.rowHeight }}
             role="row"
             aria-selected={selected}
             aria-current={viewing ? "true" : undefined}
@@ -203,7 +206,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 selected && "bg-[color-mix(in_srgb,var(--color-accent-soft)_60%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-background))]",
                 viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]",
               )}
-              style={leadingCellStyle(showTicket)}
+              style={leadingCellStyle(showTicket, layout)}
               data-testid="item-drag-area"
               {...(dndEnabled ? listeners : {})}
               onPointerDownCapture={() => {
@@ -214,7 +217,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               }}
             >
               <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", colors.dot)} />
-              <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
+              <div className="flex items-center justify-center" style={{ width: layout.selectWidth - 6 }}>
                 <Checkbox
                   aria-label={`Select ${item.name}`}
                   checked={selected}
@@ -346,7 +349,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 isDone={done}
               />
             ))}
-            <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+            <div style={{ width: layout.trailingWidth }} />
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-52" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
@@ -404,7 +407,9 @@ function SubitemRows({
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
 }) {
-  const { model, mutations, canEdit, showTicket } = useBoardContext();
+  const { model, mutations, canEdit } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -426,8 +431,8 @@ function SubitemRows({
       ))}
       {canEdit && (adding || subitems.length > 0) && (
         <div role="row" className="flex border-b" style={{ height: 32 }}>
-          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-[color-mix(in_srgb,var(--color-surface)_60%,var(--color-background))]" style={leadingCellStyle(showTicket)}>
-            <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
+          <div className="sticky left-0 z-[4] flex h-full items-center border-r bg-[color-mix(in_srgb,var(--color-surface)_60%,var(--color-background))]" style={leadingCellStyle(showTicket, layout)}>
+            <span aria-hidden className="h-full shrink-0" style={{ width: layout.selectWidth }} />
             <TicketSpacer />
             <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <input
@@ -454,7 +459,7 @@ function SubitemRows({
           {model.visibleColumns.map((column) => (
             <div key={column.id} style={columnCellStyle(widthOverrides[column.id] ?? column.width)} />
           ))}
-          <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+          <div style={{ width: layout.trailingWidth }} />
         </div>
       )}
     </div>
@@ -462,7 +467,9 @@ function SubitemRows({
 }
 
 function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Record<string, number> }) {
-  const { model, mutations, canEdit, openItem, openItemUpdates, updates, showTicket } = useBoardContext();
+  const { model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -493,9 +500,9 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
         >
           <div
             className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))] transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]", viewing && "bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))] group-hover/row:bg-[color-mix(in_srgb,var(--color-accent)_80%,var(--color-background))]")}
-            style={leadingCellStyle(showTicket)}
+            style={leadingCellStyle(showTicket, layout)}
           >
-            <span aria-hidden className="h-full shrink-0" style={{ width: TABLE_LAYOUT.selectWidth }} />
+            <span aria-hidden className="h-full shrink-0" style={{ width: layout.selectWidth }} />
             <TicketCell code={item.ticket} />
             <CornerDownRight className="mr-1.5 ml-3 size-3 shrink-0 text-muted-foreground/60" />
             <div
@@ -564,7 +571,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
               isDone={done}
             />
           ))}
-          <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+          <div style={{ width: layout.trailingWidth }} />
           <ConfirmDialog
             open={confirmDelete}
             onOpenChange={setConfirmDelete}

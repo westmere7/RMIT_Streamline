@@ -148,16 +148,44 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
 }
 
 /** Fixed widths for the leading (sticky) part of every table row. */
-export const TABLE_LAYOUT = {
-  selectWidth: 36,
+export interface TableLayout {
+  selectWidth: number;
   /** No separate drag handle: rows are dragged by their name cell. */
+  handleWidth: number;
+  /** The ticket column: wide enough for CP_014, and for a workspace whose prefix is a word. Zero hides the slot. */
+  ticketWidth: number;
+  nameWidth: number;
+  trailingWidth: number;
+  rowHeight: number;
+  /** Whether the name column takes a share of spare width. Not on a phone, where there is none to spare. */
+  stretchName: boolean;
+}
+
+export const TABLE_LAYOUT: TableLayout = {
+  selectWidth: 36,
   handleWidth: 0,
-  /** The ticket column: wide enough for CP_014, and for a workspace whose prefix is a word. */
   ticketWidth: 92,
   nameWidth: 320,
   trailingWidth: 48,
   rowHeight: 40,
-} as const;
+  stretchName: true,
+};
+
+/**
+ * The phone's grid. The frozen head has to leave most of a 375px screen for the
+ * columns, so the name is narrower and the ticket slot is gone (the card view
+ * shows it, and a code is not what a grid on a phone is opened for). Rows are
+ * 48px: tall enough to land a thumb on one cell rather than two.
+ */
+export const TABLE_LAYOUT_COMPACT: TableLayout = {
+  selectWidth: 40,
+  handleWidth: 0,
+  ticketWidth: 0,
+  nameWidth: 156,
+  trailingWidth: 48,
+  rowHeight: 48,
+  stretchName: false,
+};
 
 /**
  * Anything whose value is short — a chip, a date, an icon, a number, a link, a
@@ -177,12 +205,12 @@ export function columnAlign(type: ColumnType): "left" | "center" {
  * item name. Its width is fixed so the header, the rows, the group bars and the
  * add-item row all end at the same place.
  */
-export function leadingWidth(showTicket = true): number {
-  return TABLE_LAYOUT.selectWidth + TABLE_LAYOUT.handleWidth + (showTicket ? TABLE_LAYOUT.ticketWidth : 0) + TABLE_LAYOUT.nameWidth;
+export function leadingWidth(showTicket = true, layout: TableLayout = TABLE_LAYOUT): number {
+  return layout.selectWidth + layout.handleWidth + (showTicket ? layout.ticketWidth : 0) + layout.nameWidth;
 }
 
-export function tableWidth(columns: BoardColumn[], showTicket = true): number {
-  return leadingWidth(showTicket) + columns.reduce((sum, c) => sum + c.width, 0) + TABLE_LAYOUT.trailingWidth;
+export function tableWidth(columns: BoardColumn[], showTicket = true, layout: TableLayout = TABLE_LAYOUT): number {
+  return leadingWidth(showTicket, layout) + columns.reduce((sum, c) => sum + c.width, 0) + layout.trailingWidth;
 }
 
 /**
@@ -193,14 +221,15 @@ export function tableWidth(columns: BoardColumn[], showTicket = true): number {
 export const TABLE_STRETCH = { nameGrow: 3, nameMaxWidth: 720, columnGrow: 1, columnMaxScale: 1.7 } as const;
 
 /** Style for the sticky leading (item name) cell of a table row. */
-export function leadingCellStyle(showTicket = true): CSSProperties {
-  const width = leadingWidth(showTicket);
-  return { width, minWidth: width, maxWidth: TABLE_STRETCH.nameMaxWidth + (showTicket ? TABLE_LAYOUT.ticketWidth : 0), flexGrow: TABLE_STRETCH.nameGrow };
+export function leadingCellStyle(showTicket = true, layout: TableLayout = TABLE_LAYOUT): CSSProperties {
+  const width = leadingWidth(showTicket, layout);
+  if (!layout.stretchName) return { width, minWidth: width, maxWidth: width, flexGrow: 0 };
+  return { width, minWidth: width, maxWidth: TABLE_STRETCH.nameMaxWidth + (showTicket ? layout.ticketWidth : 0), flexGrow: TABLE_STRETCH.nameGrow };
 }
 
 /** Style for the ticket cell: a fixed, unresizable slot in front of the name. */
-export function ticketCellStyle(): CSSProperties {
-  return { width: TABLE_LAYOUT.ticketWidth, minWidth: TABLE_LAYOUT.ticketWidth, maxWidth: TABLE_LAYOUT.ticketWidth };
+export function ticketCellStyle(layout: TableLayout = TABLE_LAYOUT): CSSProperties {
+  return { width: layout.ticketWidth, minWidth: layout.ticketWidth, maxWidth: layout.ticketWidth };
 }
 
 /** Style for a column cell of a table row — data cells, header cells and blank spacers alike. */

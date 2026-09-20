@@ -24,6 +24,7 @@ import type { BoardGroup, Item } from "@/domain";
 import { columnLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TABLE_LAYOUT, leadingWidth } from "@/features/boards/board-model";
+import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
@@ -68,7 +69,9 @@ export function GroupSection({
   dropIndex = null,
   columnDropIndex = null,
 }: GroupSectionProps) {
-  const { board, model, mutations, canEdit, showTicket } = useBoardContext();
+  const { board, model, mutations, canEdit } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   // Folding a group is the board's setting when someone may change the board,
   // and this visit's own business when they may not.
   const overrides = useBoardUiStore((s) => s.boards[board.id]?.collapsedGroupOverrides ?? NO_OVERRIDES);
@@ -116,7 +119,7 @@ export function GroupSection({
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={!canEdit}>
           {/* Opaque: this is pinned to the left, so the row scrolls underneath it. */}
-          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 bg-background pr-4" style={{ minWidth: leadingWidth(showTicket) }}>
+          <div className="group/group sticky left-0 z-[5] flex h-11 w-fit items-center gap-1 bg-background pr-4" style={{ minWidth: leadingWidth(showTicket, layout) }}>
             <div className="flex w-9 items-center justify-center">
               <button
                 type="button"
@@ -242,7 +245,7 @@ export function GroupSection({
             <GroupRows group={group} items={items} dndEnabled={dndEnabled} widthOverrides={widthOverrides} dropIndex={dropIndex} dragging={draggingItem} />
           </SortableContext>
           {items.length === 0 && !canEdit && dropIndex === null && (
-            <div className="sticky left-0 flex h-10 items-center bg-background px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showTicket) }}>
+            <div className="sticky left-0 flex h-10 items-center bg-background px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showTicket, layout) }}>
               This group is empty.
             </div>
           )}

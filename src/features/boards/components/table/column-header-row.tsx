@@ -33,7 +33,8 @@ import { TicketHeaderCell } from "@/features/boards/components/table/ticket-cell
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { TABLE_LAYOUT, columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { columnSortField, useBoardUi, useBoardUiStore, type SortField } from "@/stores/board-ui-store";
 import type { DragData } from "./board-table";
@@ -62,13 +63,15 @@ export function ColumnHeaderRow({
   onWidthOverride,
   dropIndex = null,
 }: ColumnHeaderRowProps) {
-  const { model, canEdit, showTicket } = useBoardContext();
+  const { model, canEdit } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   const colors = colorClasses(group.color);
   return (
-    <div role="row" className="sticky top-0 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground">
-      <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle(showTicket)}>
+    <div role="row" className="sticky top-0 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground max-md:h-11 max-md:text-[13px]">
+      <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle(showTicket, layout)}>
         <span aria-hidden className={cn("my-1.5 h-[calc(100%-12px)] w-1 rounded-full", colors.dot)} />
-        <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.selectWidth - 6 }}>
+        <div className="flex items-center justify-center" style={{ width: layout.selectWidth - 6 }}>
           <Checkbox
             aria-label={`Select all items in ${group.name}`}
             checked={allSelected ? true : someSelected ? "indeterminate" : false}
@@ -76,7 +79,7 @@ export function ColumnHeaderRow({
             disabled={!canEdit}
           />
         </div>
-        <div style={{ width: TABLE_LAYOUT.handleWidth }} />
+        <div style={{ width: layout.handleWidth }} />
         <TicketHeaderCell />
         <ItemHeader />
       </div>
@@ -92,7 +95,7 @@ export function ColumnHeaderRow({
           dropAfter={dropIndex === model.visibleColumns.length && index === model.visibleColumns.length - 1}
         />
       ))}
-      <div className="flex items-center justify-center" style={{ width: TABLE_LAYOUT.trailingWidth }}>
+      <div className="flex items-center justify-center" style={{ width: layout.trailingWidth }}>
         {canEdit && <AddColumnMenu />}
       </div>
     </div>

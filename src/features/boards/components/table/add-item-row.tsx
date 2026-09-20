@@ -5,11 +5,14 @@ import * as React from "react";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TicketSpacer } from "@/features/boards/components/table/ticket-cell";
-import { TABLE_LAYOUT, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { cn } from "@/lib/utils";
 
 export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardGroup; emptyHint: boolean; widthOverrides: Record<string, number> }) {
-  const { mutations, model, showTicket } = useBoardContext();
+  const { mutations, model } = useBoardContext();
+  const layout = useTableLayout();
+  const showTicket = useShowTicket();
   const [draft, setDraft] = React.useState("");
   const [focused, setFocused] = React.useState(false);
 
@@ -21,10 +24,10 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
   };
 
   return (
-    <div role="row" className="flex" style={{ height: TABLE_LAYOUT.rowHeight }}>
-      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]")} style={leadingCellStyle(showTicket)}>
+    <div role="row" className="flex" style={{ height: layout.rowHeight }}>
+      <div className={cn("sticky left-0 z-[4] flex h-full items-center border-r border-border/60 bg-background transition-colors", focused && "bg-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-background))]")} style={leadingCellStyle(showTicket, layout)}>
         <span aria-hidden className="h-full w-1.5 bg-transparent" />
-        <div style={{ width: TABLE_LAYOUT.selectWidth - 6 + TABLE_LAYOUT.handleWidth }} className="flex items-center justify-end pr-1 text-muted-foreground/60">
+        <div style={{ width: layout.selectWidth - 6 + layout.handleWidth }} className="flex items-center justify-end pr-1 text-muted-foreground/60">
           <Plus className="size-3.5" />
         </div>
         <TicketSpacer />
@@ -45,13 +48,13 @@ export function AddItemRow({ group, emptyHint, widthOverrides }: { group: BoardG
               (e.target as HTMLInputElement).blur();
             }
           }}
-          className="h-8 min-w-0 flex-1 rounded-lg bg-transparent px-1.5 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:bg-card focus:ring-2 focus:ring-ring/25"
+          className="h-8 min-w-0 flex-1 rounded-lg bg-transparent px-1.5 text-[13px] max-md:h-10 max-md:text-[15px] outline-none placeholder:text-muted-foreground/70 focus:bg-card focus:ring-2 focus:ring-ring/25"
         />
       </div>
       {model.visibleColumns.map((column) => (
         <div key={column.id} style={columnCellStyle(widthOverrides[column.id] ?? column.width)} />
       ))}
-      <div style={{ width: TABLE_LAYOUT.trailingWidth }} />
+      <div style={{ width: layout.trailingWidth }} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { MobileItemCard } from "@/features/boards/components/mobile/mobile-item-card";
+import { TableLayoutProvider } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
@@ -414,7 +415,13 @@ function MobileGrid() {
   return (
     <div className="min-h-0 flex-1 overflow-hidden p-2" data-testid="mobile-grid">
       <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card">
-        {BoardTable ? <BoardTable /> : <p className="p-4 text-[13px] text-muted-foreground">Loading the grid…</p>}
+        {BoardTable ? (
+          <TableLayoutProvider compact>
+            <BoardTable />
+          </TableLayoutProvider>
+        ) : (
+          <p className="p-4 text-[14px] text-muted-foreground">Loading the grid…</p>
+        )}
       </div>
     </div>
   );

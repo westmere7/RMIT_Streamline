@@ -3,7 +3,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import * as React from "react";
 import type { BoardGroup, Item } from "@/domain";
-import { TABLE_LAYOUT } from "@/features/boards/board-model";
+import { useTableLayout } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { ItemRow } from "./item-row";
@@ -93,11 +93,12 @@ export function GroupRows({ group, items, dndEnabled, widthOverrides, dropIndex,
     return () => observer.disconnect();
   }, [on, scrollRef, items.length]);
 
+  const layout = useTableLayout();
   const virtualizer = useVirtualizer({
     count: items.length,
     enabled: on,
     getScrollElement: () => scrollRef?.current ?? null,
-    estimateSize: () => TABLE_LAYOUT.rowHeight,
+    estimateSize: () => layout.rowHeight,
     overscan: 10,
     scrollMargin,
     getItemKey: (index) => items[index]?.id ?? index,

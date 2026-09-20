@@ -55,7 +55,7 @@ export function CellShell({ width, interactive = true, align = "left", className
       role="gridcell"
       style={style}
       className={cn(
-        "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-[13px]",
+        "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-[13px] max-md:px-1.5 max-md:text-[14px]",
         alignment === "center" && "justify-center",
         interactive && "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
         className,
@@ -108,7 +108,7 @@ export function PopoverCell({ width, trigger, children, disabled, align = "left"
   }
 
   const triggerClassName = cn(
-    "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03]",
+    "flex h-full shrink-0 items-center overflow-hidden border-r border-border/50 px-1 text-left text-[13px] max-md:px-1.5 max-md:text-[14px] transition-colors hover:bg-black/[0.02] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.03]",
     alignment === "center" && "justify-center",
     open && "bg-black/[0.04] dark:bg-white/[0.06]",
   );

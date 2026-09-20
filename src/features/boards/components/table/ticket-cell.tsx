@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ticketCellStyle } from "@/features/boards/board-model";
-import { useBoardContext } from "@/features/boards/board-context";
+import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { copyToClipboard } from "@/features/members/hooks";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +19,14 @@ import { cn } from "@/lib/utils";
  * column still reads as a column.
  */
 export function TicketCell({ code, className }: { code: string | null | undefined; className?: string }) {
-  const { showTicket } = useBoardContext();
+  const showTicket = useShowTicket();
+  const layout = useTableLayout();
   if (!showTicket) return null;
   return (
     <div
       role="gridcell"
       className={cn("flex h-full shrink-0 items-center justify-center border-r border-border/40 px-1", className)}
-      style={ticketCellStyle()}
+      style={ticketCellStyle(layout)}
       data-testid="item-ticket-cell"
     >
       {code ? (
@@ -53,10 +54,11 @@ export function TicketCell({ code, className }: { code: string | null | undefine
 
 /** The ticket header: a label, and nothing to drag, resize or open. */
 export function TicketHeaderCell() {
-  const { showTicket } = useBoardContext();
+  const showTicket = useShowTicket();
+  const layout = useTableLayout();
   if (!showTicket) return null;
   return (
-    <div role="columnheader" className="flex h-full shrink-0 items-center justify-center border-r border-border/40 px-1 text-xs font-medium text-muted-foreground" style={ticketCellStyle()}>
+    <div role="columnheader" className="flex h-full shrink-0 items-center justify-center border-r border-border/40 px-1 text-xs font-medium text-muted-foreground" style={ticketCellStyle(layout)}>
       Ticket
     </div>
   );
@@ -64,7 +66,8 @@ export function TicketHeaderCell() {
 
 /** The same width, holding nothing: for rows that have no ticket of their own. */
 export function TicketSpacer() {
-  const { showTicket } = useBoardContext();
+  const showTicket = useShowTicket();
+  const layout = useTableLayout();
   if (!showTicket) return null;
-  return <div aria-hidden className="h-full shrink-0" style={ticketCellStyle()} />;
+  return <div aria-hidden className="h-full shrink-0" style={ticketCellStyle(layout)} />;
 }

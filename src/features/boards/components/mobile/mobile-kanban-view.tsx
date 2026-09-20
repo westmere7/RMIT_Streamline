@@ -5,6 +5,7 @@ import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
@@ -42,6 +43,12 @@ export function MobileKanbanView() {
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const stripRef = React.useRef<HTMLDivElement>(null);
+  const addInput = React.useRef<HTMLInputElement>(null);
+
+  // The add row lives at the foot of the lane; the floating button brings it up.
+  React.useEffect(() => {
+    if (adding) addInput.current?.scrollIntoView({ block: "center" });
+  }, [adding]);
 
   const index = Math.max(0, lanes.findIndex((l) => l.id === activeId));
   const lane = lanes[index] ?? lanes[0];
@@ -66,8 +73,8 @@ export function MobileKanbanView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-kanban">
       <div className="shrink-0 border-b border-border/60 px-3 py-2">
-        <div role="radiogroup" aria-label="Lanes by" className="mb-2 flex items-center gap-1.5 text-2xs">
-          <span className="shrink-0 text-muted-foreground">Lanes by</span>
+        {/* "Lanes by" is said to screen readers; the chips say it to everyone else. */}
+        <div role="radiogroup" aria-label="Lanes by" className="-mx-3 mb-2 flex items-center gap-1.5 overflow-x-auto px-3 text-[13px]">
           {options.map((option) => (
             <button
               key={option.value}
@@ -78,7 +85,7 @@ export function MobileKanbanView() {
                 setChosen(option.value);
                 setActiveId(null);
               }}
-              className={cn("flex h-9 items-center rounded-full px-3 font-medium", laneBy === option.value ? "bg-foreground text-background" : "border border-border/70 text-muted-foreground")}
+              className={cn("flex h-10 shrink-0 items-center rounded-full px-3.5 font-medium", laneBy === option.value ? "bg-foreground text-background" : "border border-border/70 text-muted-foreground")}
               data-testid={`mobile-kanban-laneby-${option.value}`}
             >
               {option.label}
@@ -99,7 +106,7 @@ export function MobileKanbanView() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setActiveId(l.id)}
-                  className={cn("flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium", active ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "border-border/70 text-muted-foreground")}
+                  className={cn("flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium", active ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "border-border/70 text-muted-foreground")}
                   data-testid={`mobile-lane-tab-${l.id}`}
                 >
                   {l.user ? <UserAvatar user={l.user} size="sm" tooltip={false} /> : tint && <span aria-hidden className={cn("size-2.5 rounded-full", tint.dot)} />}
@@ -112,43 +119,46 @@ export function MobileKanbanView() {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-2xs text-muted-foreground">
-        <button
-          type="button"
-          disabled={index === 0}
-          onClick={() => setActiveId(lanes[index - 1]?.id ?? null)}
-          aria-label="Previous lane"
-          className="flex size-9 items-center justify-center rounded-lg active:bg-accent/70 disabled:opacity-30"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <span className="min-w-0 flex-1 truncate text-center font-medium text-foreground" aria-live="polite">
-          {lane.name} · {lane.items.length} {lane.items.length === 1 ? "item" : "items"}
-          {overdue > 0 && <span className="ml-1.5 text-red-600 dark:text-red-400">{overdue} overdue</span>}
-        </span>
-        <button
-          type="button"
-          disabled={index === lanes.length - 1}
-          onClick={() => setActiveId(lanes[index + 1]?.id ?? null)}
-          aria-label="Next lane"
-          className="flex size-9 items-center justify-center rounded-lg active:bg-accent/70 disabled:opacity-30"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="px-3 pb-8">
+        <div className="px-3 pb-28">
+          {/* The lane's name, count and a way to step: scrolls with the cards
+              rather than sitting above them, so it costs no height once you are
+              reading. */}
+          <div className="flex items-center gap-2 py-2 text-[13px] text-muted-foreground">
+            <button
+              type="button"
+              disabled={index === 0}
+              onClick={() => setActiveId(lanes[index - 1]?.id ?? null)}
+              aria-label="Previous lane"
+              className="flex size-11 items-center justify-center rounded-lg active:bg-accent/70 disabled:opacity-30"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            <span className="min-w-0 flex-1 truncate text-center font-medium text-foreground" aria-live="polite">
+              {lane.name} · {lane.items.length} {lane.items.length === 1 ? "item" : "items"}
+              {overdue > 0 && <span className="ml-1.5 text-red-600 dark:text-red-400">{overdue} overdue</span>}
+            </span>
+            <button
+              type="button"
+              disabled={index === lanes.length - 1}
+              onClick={() => setActiveId(lanes[index + 1]?.id ?? null)}
+              aria-label="Next lane"
+              className="flex size-11 items-center justify-center rounded-lg active:bg-accent/70 disabled:opacity-30"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+          </div>
           <ul className={cn("divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card", colors && `border-l-[3px] ${colors.border}`)}>
             {lane.items.map((item) => (
               <LaneCard key={item.id} item={item} laneId={lane.id} laneBy={laneBy} />
             ))}
-            {lane.items.length === 0 && <li className="px-3 py-4 text-[13px] text-muted-foreground">Nothing in this lane.</li>}
+            {lane.items.length === 0 && <li className="px-3 py-4 text-[14px] text-muted-foreground">Nothing in this lane.</li>}
             {canEdit && lane.initial && (
               <li>
                 {adding ? (
                   <div className="p-2">
                     <Input
+                      ref={addInput}
                       autoFocus
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
@@ -169,7 +179,7 @@ export function MobileKanbanView() {
                     />
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setAdding(true)} className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[13px] text-muted-foreground active:bg-accent/70" data-testid="mobile-kanban-add">
+                  <button type="button" onClick={() => setAdding(true)} className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[14px] text-muted-foreground active:bg-accent/70" data-testid="mobile-kanban-add">
                     <Plus className="size-4" aria-hidden /> Add item
                   </button>
                 )}
@@ -178,6 +188,18 @@ export function MobileKanbanView() {
           </ul>
         </div>
       </div>
+
+      {/* Adds to the lane on screen, without scrolling to its foot: the same
+          button the card list has, so the two views agree on where "new" is. */}
+      {canEdit && lane.initial && !adding && (
+        <Button
+          onClick={() => setAdding(true)}
+          className="fixed right-4 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] z-30 h-12 rounded-full px-4 shadow-lg shadow-primary/25"
+          data-testid="mobile-kanban-new-item"
+        >
+          <Plus /> New item
+        </Button>
+      )}
     </div>
   );
 }
@@ -204,17 +226,17 @@ function LaneCard({ item, laneId, laneBy }: { item: Item; laneId: string; laneBy
     <>
       <MobileItemCard item={item} group={group} selectMode={false} />
       {canEdit && moveActions.length > 0 && (
-        <div className="-mt-1 px-2.5 pb-2">
+        <>
           <button
             type="button"
             onClick={() => setMoveOpen(true)}
-            className="flex min-h-9 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-2xs font-medium text-muted-foreground active:bg-accent/70"
+            className="flex min-h-11 w-full items-center gap-2 border-t border-border/50 px-3 text-left text-[13px] font-medium text-muted-foreground active:bg-accent/70"
             data-testid="mobile-kanban-move"
           >
-            <MoveRight className="size-3.5" aria-hidden /> Move to…
+            <MoveRight className="size-4" aria-hidden /> Move to another lane…
           </button>
           <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title={`Move “${item.name}” to`} actions={moveActions} />
-        </div>
+        </>
       )}
     </>
   );
