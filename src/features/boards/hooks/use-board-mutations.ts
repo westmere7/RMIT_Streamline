@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, emptyValueFor } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -15,6 +15,8 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { BoardSnapshot, CreateItemInput, MoveItemInput } from "@/services";
+import { displayValue } from "@/services/column-display";
+import { clearUndo, offerUndo } from "@/stores/undo-store";
 
 type Updater = (snapshot: BoardSnapshot) => BoardSnapshot;
 
@@ -75,6 +77,9 @@ export function useBoardMutations(boardId: string) {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<BoardSnapshot>(key);
       if (updater && previous) queryClient.setQueryData<BoardSnapshot>(key, updater(previous));
+      // Doing anything retires the last offer to undo, taken or not; the
+      // actions with an inverse make a fresh one once they have succeeded.
+      clearUndo();
       pending.current += 1;
       // Leaving now would cancel the write and lose the change silently.
       const settled = beginUnsavedWork();
@@ -135,7 +140,11 @@ export function useBoardMutations(boardId: string) {
     [queryClient, key],
   );
 
-  const setValue = useCallback(
+  /**
+   * The write itself, with no offer to undo: what an undo runs, so undoing
+   * does not offer to undo the undo. The public `setValue` wraps it.
+   */
+  const writeValue = useCallback(
     (item: Item, column: BoardColumn, value: ColumnValue) => {
       if (completesTask(item, column, value)) celebrate();
       return run(
@@ -147,7 +156,22 @@ export function useBoardMutations(boardId: string) {
     [run, services, ws, boardId, user.id, completesTask],
   );
 
-  const renameItem = useCallback(
+  const setValue = useCallback(
+    async (item: Item, column: BoardColumn, value: ColumnValue) => {
+      // Read before the write: what the cell held is what undo puts back. A
+      // cell with no row yet goes back to empty.
+      const before = queryClient.getQueryData<BoardSnapshot>(key)?.values.find((v) => v.itemId === item.id && v.columnId === column.id)?.value ?? emptyValueFor(column.type);
+      const result = await writeValue(item, column, value);
+      if (result !== undefined) {
+        const shown = displayValue(column, value, ws.users);
+        offerUndo(`${column.name} set to ${shown || "nothing"}`, () => writeValue(item, column, before));
+      }
+      return result;
+    },
+    [writeValue, queryClient, key, ws.users],
+  );
+
+  const writeName = useCallback(
     (itemId: string, name: string) =>
       run(
         (s) => patchItem(s, itemId, { name }),
@@ -155,6 +179,16 @@ export function useBoardMutations(boardId: string) {
         "Could not rename the item",
       ),
     [run, services, user.id],
+  );
+
+  const renameItem = useCallback(
+    async (itemId: string, name: string) => {
+      const before = queryClient.getQueryData<BoardSnapshot>(key)?.items.find((i) => i.id === itemId)?.name;
+      const result = await writeName(itemId, name);
+      if (result !== undefined && before !== undefined && before !== name) offerUndo(`Renamed to “${name}”`, () => writeName(itemId, before));
+      return result;
+    },
+    [writeName, queryClient, key],
   );
 
   const updateDescription = useCallback(
@@ -213,6 +247,24 @@ export function useBoardMutations(boardId: string) {
     [run, services],
   );
 
+  /**
+   * Deletion, with no offer to undo: it asked first and it meant it. Also what
+   * undoing an add or a duplicate runs, since the copy has had nothing happen
+   * to it yet.
+   */
+  const removeItems = useCallback(
+    (itemIds: string[]) =>
+      run(
+        (s) => {
+          const ids = new Set(itemIds);
+          return { ...s, items: s.items.filter((i) => !ids.has(i.id) && !(i.parentItemId && ids.has(i.parentItemId))) };
+        },
+        () => services.items.deleteItems(boardId, itemIds, user.id),
+        "Could not delete items",
+      ),
+    [run, services, boardId, user.id],
+  );
+
   const createItem = useCallback(
     (input: Omit<CreateItemInput, "boardId">) => {
       const tempId = newId();
@@ -251,9 +303,14 @@ export function useBoardMutations(boardId: string) {
           items: s.items.map((i) => (i.id === tempId ? item : i)),
           values: s.values.map((v) => (v.itemId === tempId ? { ...v, itemId: item.id } : v)),
         }),
-      );
+      ).then((item) => {
+        // Nothing has happened to the task yet, so taking it back is a clean
+        // delete rather than an archive; the offer is gone the moment anything does.
+        if (item) offerUndo(`Added “${item.name}”`, () => removeItems([item.id]));
+        return item;
+      });
     },
-    [run, services, boardId, user.id],
+    [run, services, boardId, user.id, removeItems],
   );
 
   const moveItem = useCallback(
@@ -279,7 +336,7 @@ export function useBoardMutations(boardId: string) {
     [run, services, boardId, user.id],
   );
 
-  const moveItemsToGroup = useCallback(
+  const moveToGroup = useCallback(
     (itemIds: string[], toGroupId: string) =>
       run(
         (s) => {
@@ -294,61 +351,73 @@ export function useBoardMutations(boardId: string) {
             }),
           };
         },
-        async () => {
-          await services.items.moveItemsToGroup(boardId, itemIds, toGroupId, user.id);
-          toast.success(itemIds.length === 1 ? "Item moved" : `${itemIds.length} items moved`);
-        },
+        () => services.items.moveItemsToGroup(boardId, itemIds, toGroupId, user.id),
         "Could not move items",
       ),
     [run, services, boardId, user.id],
   );
 
+  const moveItemsToGroup = useCallback(
+    async (itemIds: string[], toGroupId: string) => {
+      // Where each one came from, so a move of items from two groups goes back to two.
+      const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
+      const from = new Map<string, string[]>();
+      for (const id of itemIds) {
+        const groupId = snapshot?.items.find((i) => i.id === id)?.groupId;
+        if (groupId && groupId !== toGroupId) from.set(groupId, [...(from.get(groupId) ?? []), id]);
+      }
+      const result = await moveToGroup(itemIds, toGroupId);
+      if (result !== undefined && from.size > 0) {
+        const groupName = snapshot?.groups.find((g) => g.id === toGroupId)?.name ?? "another group";
+        offerUndo(itemIds.length === 1 ? `Moved to ${groupName}` : `${itemIds.length} items moved to ${groupName}`, async () => {
+          for (const [groupId, ids] of from) await moveToGroup(ids, groupId);
+        });
+      }
+      return result;
+    },
+    [moveToGroup, queryClient, key],
+  );
+
+  /** Puts archived items back, silently: the inverse of archiving, and only ever run as one. */
+  const restoreItems = useCallback(
+    (itemIds: string[]) => run(null, () => services.items.restoreItems(itemIds, user.id), "Could not restore items"),
+    [run, services, user.id],
+  );
+
   const archiveItems = useCallback(
-    (itemIds: string[], options?: { links?: ArchiveLinkPolicy }) =>
-      run(
+    async (itemIds: string[], options?: { links?: ArchiveLinkPolicy }) => {
+      const result = await run(
         (s) => {
           const ids = new Set(itemIds);
           return { ...s, items: s.items.filter((i) => !ids.has(i.id) && !(i.parentItemId && ids.has(i.parentItemId))) };
         },
-        async () => {
-          await services.items.archiveItems(boardId, itemIds, user.id, options);
-          toast.success(itemIds.length === 1 ? "Item archived" : `${itemIds.length} items archived`, {
-            description: "Find it under Archived items.",
-          });
-        },
+        () => services.items.archiveItems(boardId, itemIds, user.id, options),
         "Could not archive items",
-      ),
-    [run, services, boardId, user.id],
+      );
+      // Anything a cascade archived on other boards stays archived: the offer
+      // is about what was chosen here, and Archived items has the rest.
+      if (result !== undefined) offerUndo(itemIds.length === 1 ? "Item archived" : `${itemIds.length} items archived`, () => restoreItems(itemIds));
+      return result;
+    },
+    [run, services, boardId, user.id, restoreItems],
   );
 
   const deleteItems = useCallback(
-    (itemIds: string[]) =>
-      run(
-        (s) => {
-          const ids = new Set(itemIds);
-          return { ...s, items: s.items.filter((i) => !ids.has(i.id) && !(i.parentItemId && ids.has(i.parentItemId))) };
-        },
-        async () => {
-          await services.items.deleteItems(boardId, itemIds, user.id);
-          toast.success(itemIds.length === 1 ? "Item deleted" : `${itemIds.length} items deleted`);
-        },
-        "Could not delete items",
-      ),
-    [run, services, boardId, user.id],
+    async (itemIds: string[]) => {
+      const result = await removeItems(itemIds);
+      if (result !== undefined) toast.success(itemIds.length === 1 ? "Item deleted" : `${itemIds.length} items deleted`);
+      return result;
+    },
+    [removeItems],
   );
 
   const duplicateItem = useCallback(
-    (itemId: string) =>
-      run(
-        null,
-        async () => {
-          const copy = await services.items.duplicateItem(itemId, user.id);
-          toast.success("Item duplicated");
-          return copy;
-        },
-        "Could not duplicate the item",
-      ),
-    [run, services, user.id],
+    async (itemId: string) => {
+      const copy = await run(null, () => services.items.duplicateItem(itemId, user.id), "Could not duplicate the item");
+      if (copy) offerUndo(`Duplicated as “${copy.name}”`, () => removeItems([copy.id]));
+      return copy;
+    },
+    [run, services, user.id, removeItems],
   );
 
   const reorderSubitems = useCallback(

@@ -7,6 +7,7 @@ import { MobileBottomNav, MobileTopBar } from "@/components/layout/mobile-shell"
 import { ViewingAsBanner } from "@/features/workspace/components/viewing-as-banner";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { ConfettiCanvas } from "@/components/shared/confetti";
+import { UndoBar } from "@/features/undo/undo-bar";
 import { useOsNotifications } from "@/features/notifications/use-os-notifications";
 import { tabCountPrefix, useTabBadge } from "@/features/notifications/use-tab-badge";
 import { CommandPalette } from "@/features/search/command-palette";
@@ -79,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const overlays = (
     <>
       <CommandPalette />
+      <UndoBar />
       <ConfettiCanvas />
       <VersionWatcher />
     </>
