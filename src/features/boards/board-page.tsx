@@ -2,7 +2,7 @@
 
 import { Archive, SquareKanban, Lock } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -248,6 +248,27 @@ function BoardScreen({ boardId }: { boardId: string }) {
     setOpenItemId(urlItemId);
     return () => setOpenItemId(null);
   }, [urlItemId, setOpenItemId]);
+
+  // A link to a task that has since been put away lands here, on a board that
+  // no longer holds it. Rather than a panel that says "not found", the archive
+  // opens on it: the task is still there, just somewhere else. Only a task of
+  // this board that is actually archived is sent on; anything else is left to
+  // the panel's own not-found state.
+  const router = useRouter();
+  React.useEffect(() => {
+    if (!urlItemId || !snapshot.data || snapshot.data.items.some((i) => i.id === urlItemId)) return;
+    let cancelled = false;
+    void services.repos.items
+      .getById(urlItemId)
+      .then((found) => {
+        if (cancelled || !found || !found.archivedAt || found.boardId !== board.id) return;
+        router.replace(routes.boardArchive(ws.slug, board.slug, { itemId: urlItemId }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [urlItemId, snapshot.data, services, board.id, board.slug, ws.slug, router]);
 
   const model = React.useMemo(
     () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),

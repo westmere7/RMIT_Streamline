@@ -4,13 +4,14 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Archive, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { RelativeTime } from "@/components/shared/relative-time";
+import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +56,7 @@ import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const FIELD_WIDTH = 260;
@@ -444,6 +446,15 @@ function PanelHeader({
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
               {board.name}
             </Link>
+            {/* Where the task actually is: put away, it is found in the archive rather than in its group. */}
+            {item.archivedAt && (
+              <>
+                <span aria-hidden>/</span>
+                <Link href={routes.boardArchive(ws.slug, board.slug)} className="truncate hover:text-foreground hover:underline" data-testid="panel-archive-link">
+                  Archived
+                </Link>
+              </>
+            )}
             {group && (
               <>
                 <span aria-hidden>/</span>
@@ -459,6 +470,11 @@ function PanelHeader({
               </>
             )}
           </p>
+          {item.archivedAt && (
+            <Badge variant="warning" className="mt-2 gap-1" data-testid="panel-archived-badge">
+              <Archive className="size-3" aria-hidden /> Archived <RelativeTime iso={item.archivedAt} />
+            </Badge>
+          )}
           <h2 className="mt-1 text-[23px] font-semibold leading-tight tracking-tight">
             <InlineEdit
               value={item.name}

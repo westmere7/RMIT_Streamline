@@ -42,7 +42,11 @@ export function ActivityFeed({ activities, showItem = false, emptyTitle = "No ac
                   <>
                     <span aria-hidden>·</span>
                     {activity.itemId ? (
-                      <Link href={ws.boardPath(board, { itemId: activity.itemId })} className="truncate hover:text-foreground hover:underline">
+                      // An archived task is found in the archive, not on the board.
+                      <Link
+                        href={activity.eventType === "ITEM_ARCHIVED" ? (links.archived(board.id, activity.itemId) ?? ws.boardPath(board)) : ws.boardPath(board, { itemId: activity.itemId })}
+                        className="truncate hover:text-foreground hover:underline"
+                      >
                         {board.name}
                       </Link>
                     ) : (

@@ -30,6 +30,8 @@ export interface MentionLinks {
   team: (teamId: string | null | undefined) => string | null;
   /** A board, or one of its items when `itemId` is given. */
   board: (boardId: string | null | undefined, itemId?: string | null) => string | null;
+  /** The board's archive, opened on a task that has been put away. */
+  archived: (boardId: string | null | undefined, itemId?: string | null) => string | null;
 }
 
 /** Where each kind of mention points in this workspace. */
@@ -47,6 +49,12 @@ export function useMentionLinks(): MentionLinks {
       board: (boardId, itemId) => {
         const board = ws.boardById(boardId);
         return board ? ws.boardPath(board, itemId ? { itemId } : undefined) : null;
+      },
+      // A task that has been put away is not on the board any more; a link to
+      // it goes to the board's archive, opened on that task.
+      archived: (boardId, itemId) => {
+        const board = ws.boardById(boardId);
+        return board ? routes.boardArchive(slug, board.slug, itemId ? { itemId } : undefined) : null;
       },
     }),
     [slug, users, ws],

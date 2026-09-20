@@ -92,7 +92,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "ITEM_ARCHIVED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> archived <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> archived <Mention href={links?.archived(activity.boardId, activity.itemId)}>{m.itemName}</Mention>
         </>
       );
     case "ITEM_RESTORED":
