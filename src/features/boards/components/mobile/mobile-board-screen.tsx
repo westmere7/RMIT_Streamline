@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { Board, BoardViewKind } from "@/domain";
+import { AutomationRing } from "@/features/automations/activity-indicator";
+import { AutomationsDialog } from "@/features/automations/automations-dialog";
+import { useAutomationActivity } from "@/features/automations/hooks";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
@@ -45,6 +48,11 @@ export function MobileBoardHeader({ board }: { board: Board }) {
   const [shareOpen, setShareOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [renaming, setRenaming] = React.useState(false);
+  const [automationsOpen, setAutomationsOpen] = React.useState(false);
+  // The header has no room for the desktop's Automations button, so the menu
+  // button stands in for it: the ring turns round that while a rule runs on
+  // this board, and the menu it opens says so beside the Automations item.
+  const automationsRunning = useAutomationActivity().has(board.id);
 
   const favourite = ws.isFavourite(board.id);
   const team = ws.teamById(board.teamId);
@@ -58,7 +66,8 @@ export function MobileBoardHeader({ board }: { board: Board }) {
     rename: () => setRenaming(true),
     share: () => setShareOpen(true),
     requestDelete: () => setDeleteOpen(true),
-  });
+    automations: () => setAutomationsOpen(true),
+  }).map((action) => (action.type === "item" && action.testId === "board-menu-automations" && automationsRunning ? { ...action, hint: "Running" } : action));
 
   // The phone's menu is the board's own actions plus the three the desktop
   // header keeps as separate buttons, which have no room here.
@@ -112,8 +121,17 @@ export function MobileBoardHeader({ board }: { board: Board }) {
           >
             <Star className={cn("size-5", favourite && "fill-amber-400 text-amber-400")} />
           </Button>
-          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label="Board options" onClick={() => setMenuOpen(true)} data-testid="mobile-board-menu">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative size-11 shrink-0"
+            aria-label={automationsRunning ? "Board options, automations running" : "Board options"}
+            aria-busy={automationsRunning || undefined}
+            onClick={() => setMenuOpen(true)}
+            data-testid="mobile-board-menu"
+          >
             <MoreHorizontal className="size-5" />
+            {automationsRunning && <AutomationRing className="-inset-1.5" testId="mobile-board-automations-running" />}
           </Button>
         </div>
       </header>
@@ -133,6 +151,7 @@ export function MobileBoardHeader({ board }: { board: Board }) {
       <RenameSheet board={board} open={renaming} onOpenChange={setRenaming} />
       <BoardSettingsDialog board={board} section={settings} onSectionChange={setSettings} onRequestDelete={() => setDeleteOpen(true)} />
       <BoardActivityDialog board={board} open={activityOpen} onOpenChange={setActivityOpen} />
+      <AutomationsDialog board={board} canManage={manage} open={automationsOpen} onOpenChange={setAutomationsOpen} />
       <ShareBoardDialog board={board} open={shareOpen} onOpenChange={setShareOpen} />
       <DeleteBoardDialog board={board} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />
     </>

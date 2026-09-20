@@ -1,5 +1,5 @@
 import { handleRoute, json } from "@/server/http";
-import { authoriseRunner, runAutomations } from "@/server/automations";
+import { authoriseTick, runAutomations } from "@/server/automations";
 
 export const dynamic = "force-dynamic";
 /**
@@ -10,20 +10,35 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
+ * How much of the queue one nudge may take.
+ *
+ * A nudge is about the change the person just made, which is a handful of
+ * rows; the scheduler takes the full batch. Fifty is room for a paste of a
+ * whole group and still a request that returns before anybody wonders.
+ */
+const NUDGE_LIMIT = 50;
+
+/**
  * The runner's own endpoint: a tick of automations.
  *
  * GET and POST do the same thing. Vercel's scheduler only issues GETs, plain
  * `curl` reaches for one, and a scheduled job is not a mutation anybody browses
- * into by accident — the secret is the gate, not the verb.
+ * into by accident — the credential is the gate, not the verb.
+ *
+ * Two callers, two shapes of tick. The scheduler, with the secret, gets the
+ * whole thing: the queue, the clock, the heartbeat and (unless it says
+ * `sweep=0`) the housekeeping. A member, with their session, gets the queue
+ * alone: their change acted on, and nothing that is the scheduler's job to do
+ * or to be judged by.
  */
 const tick = handleRoute(async (request: Request) => {
-  authoriseRunner(request);
+  const caller = await authoriseTick(request);
   const url = new URL(request.url);
-  // A nudge from the app passes `sweep=0`: it wants its own change acted on,
-  // not thirty days of housekeeping.
-  const sweep = url.searchParams.get("sweep") !== "0";
-  const limit = Number(url.searchParams.get("limit")) || undefined;
-  const outcome = await runAutomations({ limit, sweep });
+  const requestedLimit = Number(url.searchParams.get("limit")) || undefined;
+  const outcome =
+    caller.kind === "runner"
+      ? await runAutomations({ limit: requestedLimit, sweep: url.searchParams.get("sweep") !== "0" })
+      : await runAutomations({ limit: Math.min(requestedLimit ?? NUDGE_LIMIT, NUDGE_LIMIT), sweep: false, schedules: false });
   return json({ ok: true, ...outcome });
 });
 

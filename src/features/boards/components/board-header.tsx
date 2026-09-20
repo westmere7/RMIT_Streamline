@@ -15,6 +15,8 @@ import { renderDropdown } from "@/components/layout/row-menu";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { AutomationsDialog } from "@/features/automations/automations-dialog";
+import { AutomationRing } from "@/features/automations/activity-indicator";
+import { useAutomationActivity } from "@/features/automations/hooks";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
@@ -37,6 +39,9 @@ export function BoardHeader({ board }: { board: Board }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [automationsOpen, setAutomationsOpen] = React.useState(false);
+  // A rule is being carried out on this board right now, on a server the
+  // person cannot see. The icon turning is the only way they would know.
+  const automationsRunning = useAutomationActivity().has(board.id);
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -157,9 +162,21 @@ export function BoardHeader({ board }: { board: Board }) {
           {/* After Share, because both are about what the board does beyond the
               people looking at it. Everyone who can see the board can read its
               rules; the dialog is what decides who may change them. */}
-          <SimpleTooltip label="Automations">
-            <Button variant="ghost" size="icon-sm" aria-label="Automations" onClick={() => setAutomationsOpen(true)} data-testid="board-automations">
+          <SimpleTooltip label={automationsRunning ? "Automations running" : "Automations"}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="relative"
+              aria-label={automationsRunning ? "Automations running" : "Automations"}
+              aria-busy={automationsRunning || undefined}
+              onClick={() => setAutomationsOpen(true)}
+              data-testid="board-automations"
+              data-running={automationsRunning || undefined}
+            >
               <Zap />
+              {/* A ring turning round the button: a spinner, but around the
+                  thing that is working rather than in place of it. */}
+              {automationsRunning && <AutomationRing testId="board-automations-running" />}
             </Button>
           </SimpleTooltip>
           <span aria-hidden className="mx-1 h-6 w-px bg-border/70" />

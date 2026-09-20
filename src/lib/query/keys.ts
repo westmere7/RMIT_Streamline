@@ -38,6 +38,8 @@ export const queryKeys = {
   automations: (boardId: string) => ["automations", boardId] as const,
   workspaceAutomations: (workspaceId: string) => ["workspace-automations", workspaceId] as const,
   automationRuns: (boardId: string) => ["automation-runs", boardId] as const,
+  /** Boards with an unprocessed row in the automation queue. One key: the answer is already scoped to the reader. */
+  automationPending: ["automation-pending"] as const,
   /** How many tasks in a workspace hold a ticket. Only read when a prefix change is being weighed up. */
   ticketCount: (workspaceId: string) => ["ticket-count", workspaceId] as const,
   /** One page of a board's archive. The request is part of the key: a different page is a different read. */

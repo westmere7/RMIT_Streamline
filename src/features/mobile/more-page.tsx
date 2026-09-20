@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Settings2, Sun, SunMoon, UserRound, Users } from "lucide-react";
+import { ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -8,6 +8,8 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { useAuth } from "@/features/auth/auth-context";
+import { AutomationOrbit } from "@/features/automations/activity-indicator";
+import { useAutomationActivity } from "@/features/automations/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageMembers, canManageWorkspace } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
@@ -30,6 +32,7 @@ export function MorePage() {
   const [theme, setTheme] = useThemePreference();
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const user = ws.currentUser;
+  const automationsRunning = useAutomationActivity().size > 0;
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto overscroll-contain">
@@ -51,6 +54,8 @@ export function MorePage() {
 
         <Group title="Work">
           <Row href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" />
+          {/* This page is never a board, so anything running is running out of sight. */}
+          <Row href={routes.automations(ws.slug)} icon={Zap} label="Automations" busy={automationsRunning} testId="more-automations" />
           <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Stakeholder Portal" />
           <Row href={routes.messages(ws.slug)} icon={MessageSquare} label="Messages" />
         </Group>
@@ -124,11 +129,14 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Row({ href, icon: Icon, label }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
+function Row({ href, icon: Icon, label, busy = false, testId }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; busy?: boolean; testId?: string }) {
   return (
     <li>
-      <Link href={href} className="flex min-h-14 items-center gap-3 px-3 py-2 active:bg-accent/70">
-        <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <Link href={href} aria-label={busy ? `${label}, running` : undefined} className="flex min-h-14 items-center gap-3 px-3 py-2 active:bg-accent/70" data-testid={testId}>
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          <Icon aria-hidden className="size-4 text-muted-foreground" />
+          {busy && <AutomationOrbit className="-inset-1.5" />}
+        </span>
         <span className="min-w-0 flex-1 truncate text-[15px]">{label}</span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
       </Link>

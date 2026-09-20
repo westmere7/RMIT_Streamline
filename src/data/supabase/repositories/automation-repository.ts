@@ -144,17 +144,26 @@ export class SupabaseAutomationRepository implements AutomationRepository {
     return unwrapList<AutomationEventRow>(claimed, "automation_events.claim").map(toAutomationEvent);
   }
 
-  async finishEvent(id: string, outcome: { error?: string | null }): Promise<void> {
+  async finishEvent(id: string, outcome: { error?: string | null; attempts?: number }): Promise<void> {
     const numeric = Number(id);
-    const current = await db().from("automation_events").select("attempts").eq("id", numeric).maybeSingle();
-    const attempts = unwrapMaybe<{ attempts: number }>(current, "automation_events.attempts")?.attempts ?? 0;
+    let attempts = outcome.attempts;
+    if (attempts === undefined) {
+      const current = await db().from("automation_events").select("attempts").eq("id", numeric).maybeSingle();
+      attempts = (unwrapMaybe<{ attempts: number }>(current, "automation_events.attempts")?.attempts ?? 0) + 1;
+    }
     assertOk(
-      await db()
-        .from("automation_events")
-        .update({ processed_at: new Date().toISOString(), attempts: attempts + 1, error: outcome.error ?? null })
-        .eq("id", numeric),
+      await db().from("automation_events").update({ processed_at: new Date().toISOString(), attempts, error: outcome.error ?? null }).eq("id", numeric),
       "automation_events.finish",
     );
+  }
+
+  async listPendingBoardIds(): Promise<string[]> {
+    // Under `automation_events_select` (policies/0018) this is the reader's
+    // boards and nobody else's. The backlog on a healthy runner is a handful of
+    // rows; the cap keeps a dead one from handing the browser its whole week.
+    const result = await db().from("automation_events").select("board_id").is("processed_at", null).order("created_at", { ascending: false }).limit(500);
+    const rows = unwrapList<Pick<AutomationEventRow, "board_id">>(result, "automation_events.listPending");
+    return [...new Set(rows.map((row) => row.board_id))];
   }
 
   async listRecentEvents(boardId: string, limit: number): Promise<AutomationEvent[]> {

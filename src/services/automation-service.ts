@@ -59,6 +59,8 @@ export interface RuleVocabulary {
  */
 export interface AutomationRunTransport {
   runNow(input: { ruleId: EntityId; itemIds: EntityId[] }): Promise<DrainReport>;
+  /** Asks the server to look at the queue now, as the signed-in person. Failure is the caller's to ignore. */
+  nudge(): Promise<void>;
 }
 
 export class AutomationService {
@@ -78,6 +80,24 @@ export class AutomationService {
   runNow(ruleId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<DrainReport> {
     if (this.transport) return this.transport.runNow({ ruleId, itemIds });
     return this.engine.runNow(ruleId, itemIds, actorId);
+  }
+
+  /**
+   * Asks the runner to drain the queue now rather than at its next tick.
+   *
+   * Purely so somebody watching a board sees their rule fire in a second
+   * rather than a minute. The write has already raised whatever it was going
+   * to raise, from a database trigger, and the scheduler will get to it
+   * whether or not this call is made or succeeds — so a failure here is
+   * swallowed: a toast saying "could not run automations" after an edit that
+   * saved perfectly well would be a lie about what went wrong.
+   *
+   * Nothing to do without a transport: the local provider has no server, and
+   * no runner, to nudge.
+   */
+  async nudge(): Promise<void> {
+    if (!this.transport) return;
+    await this.transport.nudge().catch(() => undefined);
   }
 
   listByBoard(boardId: EntityId): Promise<AutomationRule[]> {

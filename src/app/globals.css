@@ -585,3 +585,22 @@
 .booking-ground {
   background-color: rgb(0 0 0 / 0.28);
 }
+
+/* ---- Automations at work: one bright segment running round the sidebar tile -- */
+/* The shape carries pathLength="100", so these dash lengths are percentages of
+   its outline and the offset of -100 is exactly one lap, whatever its size. */
+@keyframes automation-orbit {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+.automation-orbit {
+  stroke-dasharray: 32 68;
+  stroke-dashoffset: 0;
+  animation: automation-orbit 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .automation-orbit {
+    animation: none;
+  }
+}

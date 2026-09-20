@@ -40,6 +40,48 @@ import { displayValue } from "./column-display";
 /** The timezone a schedule is read in. Vercel runs in UTC; "9am" does not mean 9am there. */
 const DEFAULT_TIMEZONE = "Australia/Melbourne";
 
+/**
+ * How many lanes of the queue are worked at once.
+ *
+ * Each lane is one task's events in order; the lanes are independent. Eight is
+ * enough that a burst of edits across a board finishes in the time one of them
+ * used to take, and few enough that the runner's connection pool and the
+ * database it shares with everybody else do not notice.
+ */
+const DRAIN_CONCURRENCY = 8;
+
+/**
+ * The queue split into lanes that must stay in order.
+ *
+ * Everything that happened to one task is one lane, oldest first, as the
+ * queue handed it over. An event with no task — a board-level one — gets a
+ * lane per board. Exported for the tests: the promise this makes is about
+ * ordering, and ordering is what a test can check.
+ */
+export function lanesOf(events: readonly AutomationEvent[]): AutomationEvent[][] {
+  const lanes = new Map<string, AutomationEvent[]>();
+  for (const event of events) {
+    const key = event.itemId ? `item:${event.itemId}` : `board:${event.boardId}`;
+    const lane = lanes.get(key);
+    if (lane) lane.push(event);
+    else lanes.set(key, [event]);
+  }
+  return [...lanes.values()];
+}
+
+/** Runs `work` over `inputs`, at most `width` at a time, and waits for all of it. */
+async function inParallel<T>(inputs: readonly T[], work: (input: T) => Promise<void>, width: number): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < inputs.length) {
+      const index = next;
+      next += 1;
+      await work(inputs[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, inputs.length) }, worker));
+}
+
 export interface AutomationEngineOptions {
   /** IANA zone for every "at 9am" and every "today" a rule talks about. */
   timezone?: string;
@@ -92,12 +134,19 @@ export class AutomationEngine {
 
   /**
    * One pass: everything waiting in the queue, then everything the clock is
-   * due to do. Both halves in one call because they are one cron job, and a
-   * caller that could run only half of it would eventually be configured to.
+   * due to do.
+   *
+   * The scheduled half can be left out, and there is exactly one caller that
+   * should: a nudge from a browser, which wants the change somebody just made
+   * acted on and has no business with the clock. The heartbeat goes with the
+   * schedules rather than with the queue, because it answers "is the scheduler
+   * alive?" — and a nudge stamping it would make a dead cron look healthy for
+   * as long as somebody was busy on a board.
    */
-  async drain(limit: number): Promise<DrainReport> {
+  async drain(limit: number, options: { schedules?: boolean } = {}): Promise<DrainReport> {
     const report: DrainReport = { events: 0, scheduled: 0, ran: 0, skipped: 0, failed: 0 };
     await this.drainEvents(limit, report);
+    if (options.schedules === false) return report;
     await this.runSchedules(report);
     // Stamped whether or not there was anything to do. A pass that found
     // nothing is exactly the pass worth recording: without it, "the scheduler
@@ -107,28 +156,44 @@ export class AutomationEngine {
     return report;
   }
 
+  /**
+   * The queue, a batch at a time.
+   *
+   * Events are worked in lanes — one per task, or per board for an event with
+   * no task — and the lanes run side by side. Two edits to the same task have
+   * to be seen in the order they were made, because a rule that reads the
+   * status after another rule set it must see the new one; two edits to
+   * different tasks owe each other nothing, and waiting on one round trip to
+   * Singapore before starting the next was most of what made a drain slow.
+   * Rules are read once per board however many lanes want them.
+   */
   private async drainEvents(limit: number, report: DrainReport): Promise<void> {
     const events = await this.repos.automations.claimEvents(limit);
     report.events = events.length;
-    // Rules are read once per board rather than once per event: a burst of
-    // twenty cells edited on one board is one read, not twenty.
-    const rulesByBoard = new Map<EntityId, AutomationRule[]>();
-
-    for (const event of events) {
-      try {
-        let rules = rulesByBoard.get(event.boardId);
-        if (!rules) {
-          rules = (await this.repos.automations.listRulesByBoard(event.boardId)).filter((r) => r.enabled && TRIGGER_TIMING[r.trigger.kind] === "event");
-          rulesByBoard.set(event.boardId, rules);
-        }
-        const matching = rules.filter((rule) => this.triggerMatches(rule, event));
-        if (matching.length > 0) await this.fireAll(matching, event, report);
-        await this.repos.automations.finishEvent(event.id, {});
-      } catch (error) {
-        report.failed += 1;
-        await this.repos.automations.finishEvent(event.id, { error: messageOf(error) });
+    const rulesByBoard = new Map<EntityId, Promise<AutomationRule[]>>();
+    const rulesFor = (boardId: EntityId): Promise<AutomationRule[]> => {
+      let rules = rulesByBoard.get(boardId);
+      if (!rules) {
+        rules = this.repos.automations.listRulesByBoard(boardId).then((all) => all.filter((r) => r.enabled && TRIGGER_TIMING[r.trigger.kind] === "event"));
+        rulesByBoard.set(boardId, rules);
       }
-    }
+      return rules;
+    };
+
+    const lane = async (queue: AutomationEvent[]) => {
+      for (const event of queue) {
+        try {
+          const rules = await rulesFor(event.boardId);
+          const matching = rules.filter((rule) => this.triggerMatches(rule, event));
+          if (matching.length > 0) await this.fireAll(matching, event, report);
+          await this.repos.automations.finishEvent(event.id, { attempts: event.attempts + 1 });
+        } catch (error) {
+          report.failed += 1;
+          await this.repos.automations.finishEvent(event.id, { error: messageOf(error), attempts: event.attempts + 1 });
+        }
+      }
+    };
+    await inParallel(lanesOf(events), lane, DRAIN_CONCURRENCY);
   }
 
   /**
@@ -367,8 +432,11 @@ export class AutomationEngine {
       if (context.item) await this.repos.automations.clearMark(context.item.id);
     }
 
-    await this.repos.automations.recordRuns(runs);
-    await this.repos.automations.recordRuleOutcome(rule.id, { lastRunAt: this.now().toISOString(), ranCount: ran > 0 ? 1 : 0, lastError });
+    // The log and the tally are two tables with nothing between them.
+    await Promise.all([
+      this.repos.automations.recordRuns(runs),
+      this.repos.automations.recordRuleOutcome(rule.id, { lastRunAt: this.now().toISOString(), ranCount: ran > 0 ? 1 : 0, lastError }),
+    ]);
   }
 
   /** The first condition that does not hold, worded for the log. Null when the rule may run. */
@@ -567,24 +635,25 @@ export class AutomationEngine {
     event: AutomationEvent | null,
     depth: number,
   ): Promise<FiringContext | null> {
-    const board = await this.repos.boards.getById(boardId);
-    if (!board) return null;
-    const [columns, groups, users, members] = await Promise.all([
+    // Seven reads, one round trip: nothing here depends on anything else here,
+    // and the item's values are keyed by the id we were handed rather than by
+    // the item row, so they need not wait for it.
+    const [board, columns, groups, users, members, item, stored] = await Promise.all([
+      this.repos.boards.getById(boardId),
       this.repos.boards.listColumns(boardId),
       this.repos.boards.listGroups(boardId),
       this.repos.users.list(),
       this.repos.boards.listMembers(boardId),
+      itemId ? this.repos.items.getById(itemId) : Promise.resolve(null),
+      itemId ? this.repos.items.listValuesByItem(itemId) : Promise.resolve([] as ItemColumnValue[]),
     ]);
-    const item = itemId ? await this.repos.items.getById(itemId) : null;
+    if (!board) return null;
     // A task deleted between the write and the drain is not an error: the
     // change it is evidence of no longer has anything to act on.
     if (itemId && !item) return null;
 
     const values = new Map<EntityId, ColumnValue>();
-    if (item) {
-      const stored: ItemColumnValue[] = await this.repos.items.listValuesByItem(item.id);
-      for (const value of stored) values.set(value.columnId, value.value);
-    }
+    if (item) for (const value of stored) values.set(value.columnId, value.value);
     const boardOwnerIds = members.filter((m) => m.role === "OWNER").map((m) => m.userId);
     return { board, columns, groups, users, item, values, actorId, event, depth, boardOwnerIds };
   }

@@ -120,11 +120,18 @@ export class LocalAutomationRepository implements AutomationRepository {
       .slice(0, limit);
   }
 
-  async finishEvent(id: string, outcome: { error?: string | null }): Promise<void> {
+  async finishEvent(id: string, outcome: { error?: string | null; attempts?: number }): Promise<void> {
     const db = await this.conn.getDb();
     const existing = await db.get("automationEvents", id);
     if (!existing) return;
-    await db.put("automationEvents", { ...existing, processedAt: nowIso(), attempts: existing.attempts + 1, error: outcome.error ?? null });
+    await db.put("automationEvents", { ...existing, processedAt: nowIso(), attempts: outcome.attempts ?? existing.attempts + 1, error: outcome.error ?? null });
+  }
+
+  async listPendingBoardIds(): Promise<EntityId[]> {
+    // Nothing drains the local queue between explicit runs, so a pending row
+    // here is not "running", it is waiting for a runner this provider does not
+    // have. Saying so would switch the indicator on and never off.
+    return [];
   }
 
   async listRecentEvents(boardId: EntityId, limit: number): Promise<AutomationEvent[]> {

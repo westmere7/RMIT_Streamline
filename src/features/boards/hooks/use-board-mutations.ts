@@ -33,6 +33,17 @@ export function useBoardMutations(boardId: string) {
   const nudgeAutomations = useAutomationNudge();
 
   const invalidateRelated = useCallback(async () => {
+    // Ask the server to look at the automation queue now — first, before the
+    // snapshot below is awaited. The write has already raised whatever it was
+    // going to raise, from a database trigger, so there is nothing to wait for;
+    // and the snapshot refetch is the slowest read on the board, so a nudge
+    // behind it left a rule firing seconds after the edit it answered.
+    //
+    // An optimisation and nothing more. The cron driver drains the queue within
+    // a minute whether or not this call is made or succeeds. This is only so
+    // that somebody watching a board sees their rule fire while they are still
+    // looking at it.
+    nudgeAutomations();
     await queryClient.invalidateQueries({ queryKey: key });
     // A change here may have been mirrored onto linked items on other boards.
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"], predicate: (q) => q.queryKey[1] !== boardId });
@@ -44,14 +55,6 @@ export function useBoardMutations(boardId: string) {
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     publishDataChange({ boardIds: [boardId], kinds: ["board", "items"] });
-    // Ask the server to look at the automation queue now.
-    //
-    // An optimisation and nothing more. The write has already raised whatever
-    // it was going to raise, from a database trigger, and the cron driver will
-    // drain it within a few minutes whether or not this call is made or
-    // succeeds. This is only so that somebody watching a board sees their rule
-    // fire while they are still looking at it.
-    nudgeAutomations();
   }, [queryClient, key, boardId, ws.workspace.id, user.id, nudgeAutomations]);
 
   /**

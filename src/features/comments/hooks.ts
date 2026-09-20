@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Comment } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
+import { useAutomationNudge } from "@/features/automations/hooks";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
@@ -26,8 +27,13 @@ export function useCommentMutations(itemId: string) {
   const user = useCurrentUser();
   const ws = useWorkspace();
   const key = queryKeys.comments(itemId);
+  const nudgeAutomations = useAutomationNudge();
 
   const settle = async () => {
+    // A comment is a trigger too ("when an update is posted"), so the runner
+    // is asked to look now rather than at its next tick — and before the
+    // refetch below is awaited, because nothing about the nudge depends on it.
+    nudgeAutomations();
     await queryClient.invalidateQueries({ queryKey: key });
     // A comment sent to linked items changes their threads as well.
     void queryClient.invalidateQueries({ queryKey: ["comments"] });

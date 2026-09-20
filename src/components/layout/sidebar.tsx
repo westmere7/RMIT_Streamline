@@ -15,6 +15,8 @@ import { RowMenu, type MenuAction } from "@/components/layout/row-menu";
 import { UserMenu } from "@/components/layout/user-menu";
 import type { Board, Team, Tracker } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
+import { AutomationOrbit } from "@/features/automations/activity-indicator";
+import { useAutomationActivity } from "@/features/automations/hooks";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog";
@@ -179,6 +181,11 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const trackersForTeam = (teamId: string) => (trackers.data ?? []).filter((t) => t.teamId === teamId);
   const activeTeamId = pathname.includes("/teams/") ? pathname.split("/teams/")[1]?.split("/")[0] : null;
   const isActivePath = (path: string) => pathname === path;
+  // Automations at work somewhere the person is not looking. The board they
+  // are on shows its own in its header; this is for every other board, and for
+  // every page that is not a board at all.
+  const automationActivity = useAutomationActivity();
+  const automationsBusyElsewhere = [...automationActivity].some((boardId) => ws.boardById(boardId)?.slug !== activeBoardSlug);
 
   return (
     <SidebarActionsContext.Provider value={sidebarActions}>
@@ -259,7 +266,14 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             badges={unread}
           />
           <NavItem href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" active={isActivePath(routes.dashboard(ws.slug))} collapsed={collapsed} />
-          <NavItem href={routes.automations(ws.slug)} icon={Zap} label="Automations" active={isActivePath(routes.automations(ws.slug))} collapsed={collapsed} />
+          <NavItem
+            href={routes.automations(ws.slug)}
+            icon={Zap}
+            label="Automations"
+            active={isActivePath(routes.automations(ws.slug))}
+            collapsed={collapsed}
+            busy={automationsBusyElsewhere}
+          />
           <li>
             <SimpleTooltip label="Stakeholder Portal" side="right" disabled={!collapsed}>
               <Link
@@ -467,8 +481,18 @@ function primaryNavClasses(active: boolean): string {
   );
 }
 
-/** The tile behind a primary item's icon. */
-function PrimaryIcon({ icon: Icon, active, children }: { icon: React.ComponentType<{ className?: string }>; active: boolean; children?: React.ReactNode }) {
+/** The tile behind a primary item's icon. `busy` runs a bright segment round its outline. */
+function PrimaryIcon({
+  icon: Icon,
+  active,
+  busy = false,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+  busy?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <span
       className={cn(
@@ -477,6 +501,7 @@ function PrimaryIcon({ icon: Icon, active, children }: { icon: React.ComponentTy
       )}
     >
       <Icon className="size-4" />
+      {busy && <AutomationOrbit testId="nav-automations-running" />}
       {children}
     </span>
   );
@@ -496,6 +521,7 @@ function NavItem({
   active,
   collapsed,
   badges,
+  busy = false,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -504,23 +530,27 @@ function NavItem({
   collapsed: boolean;
   /** Loud ones in red, quiet ones in grey; both appear when both are waiting. */
   badges?: UnreadCounts;
+  /** Something is happening behind this item right now, and the tile should say so. */
+  busy?: boolean;
 }) {
   const claim = useNavClaim();
   const loud = badges?.notifications ?? 0;
   const quiet = badges?.updates ?? 0;
   const anything = loud + quiet > 0;
+  const spoken = badgeLabel(label, loud, quiet, busy);
   return (
     <li>
-      <SimpleTooltip label={badgeLabel(label, loud, quiet)} side="right" disabled={!collapsed}>
+      <SimpleTooltip label={spoken} side="right" disabled={!collapsed}>
         <Link
           href={href}
           onClick={() => claim(href)}
           aria-current={active ? "page" : undefined}
+          aria-busy={busy || undefined}
           // Collapsed, the icon is all that is visible, so the name has to be spoken.
-          aria-label={anything || collapsed ? badgeLabel(label, loud, quiet) : undefined}
+          aria-label={anything || busy || collapsed ? spoken : undefined}
           className={cn("group", primaryNavClasses(active), collapsed && "justify-center px-0")}
         >
-          <PrimaryIcon icon={Icon} active={active}>
+          <PrimaryIcon icon={Icon} active={active} busy={busy}>
             {collapsed && anything ? (
               // Off the right edge, level with the middle of the icon: above
               // it they sat under the item over them and read as that one's.
@@ -558,11 +588,12 @@ function NavItem({
   );
 }
 
-/** "Inbox, 3 notifications and 2 updates" — the badges read out loud. */
-function badgeLabel(label: string, loud: number, quiet: number): string {
+/** "Inbox, 3 notifications and 2 updates", "Automations, running" — the badges read out loud. */
+function badgeLabel(label: string, loud: number, quiet: number, busy = false): string {
   const parts: string[] = [];
   if (loud > 0) parts.push(`${loud} notification${loud === 1 ? "" : "s"}`);
   if (quiet > 0) parts.push(`${quiet} update${quiet === 1 ? "" : "s"}`);
+  if (busy) parts.push("running");
   return parts.length ? `${label}, ${parts.join(" and ")}` : label;
 }
 

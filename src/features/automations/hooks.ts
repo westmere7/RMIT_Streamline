@@ -5,9 +5,9 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { AutomationRule, AutomationRuleInput, AutomationRulePatch, EntityId } from "@/domain";
 import { HEARTBEAT_STALE_MINUTES } from "@/domain";
-import { useServices } from "@/features/data/data-context";
+import { NO_BUSY_BOARDS, reconcileBusy, type BusySince } from "@/features/automations/activity";
+import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { getAppConfig } from "@/lib/config";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { RuleVocabulary } from "@/services";
@@ -77,6 +77,74 @@ export function useWorkspaceAutomationRuns(boardIds: EntityId[]) {
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
+}
+
+const NO_ACTIVITY: ReadonlySet<EntityId> = new Set();
+
+/**
+ * Boards in this workspace with an automation at work.
+ *
+ * "At work" means a row in `automation_events` for the board that the runner
+ * has not processed yet — the honest signal, because it is the very thing the
+ * runner reads. The queue is in the realtime publication (migrations/0054), so
+ * a row appearing or being finished refreshes the answer within a moment; the
+ * interval underneath is for a channel that dropped. The header and the
+ * sidebar both ask, and share one channel and one query between them.
+ *
+ * A board stays in the set for a short hold after its queue empties
+ * (`reconcileBusy`), because a nudged runner is usually done inside a second
+ * and an indicator that never got a frame on screen told nobody anything.
+ *
+ * Only the Supabase provider has a runner. Anywhere else nothing is ever
+ * running, and the set is empty.
+ */
+export function useAutomationActivity(): ReadonlySet<EntityId> {
+  const services = useServices();
+  const { providerKind } = useDataContext();
+  const ws = useWorkspace();
+  const live = providerKind === "supabase";
+
+  // Unfiltered: the queue has no workspace column, and RLS already narrows it
+  // to boards this person may see. Coalesced briefly, because the row this is
+  // waiting on is often finished within the second it was raised.
+  const bindings = React.useMemo<RealtimeBinding[]>(() => [{ table: "automation_events", keys: [queryKeys.automationPending] }], []);
+  useRealtime(live ? `automation-activity:${ws.workspace.id}` : null, bindings, { coalesceMs: 150 });
+
+  const { data: pending } = useQuery({
+    queryKey: queryKeys.automationPending,
+    queryFn: () => services.repos.automations.listPendingBoardIds(),
+    enabled: live,
+    staleTime: 2_000,
+    refetchInterval: live ? 60_000 : false,
+  });
+
+  // The held set lives in a ref and is mirrored into state, so the timer that
+  // lets a board go can read the current answer without going through React.
+  const held = React.useRef<BusySince>(NO_BUSY_BOARDS);
+  const [busy, setBusy] = React.useState<BusySince>(NO_BUSY_BOARDS);
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = () => {
+      timer = null;
+      const { next, recheckIn } = reconcileBusy(held.current, pending ?? [], Date.now());
+      if (next !== held.current) {
+        held.current = next;
+        setBusy(next);
+      }
+      if (recheckIn !== null) timer = setTimeout(settle, recheckIn);
+    };
+    settle();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [pending]);
+
+  // The policy scopes the answer to boards this person can see, across every
+  // workspace they belong to; the shell only wants this one's.
+  return React.useMemo(() => {
+    if (busy.size === 0) return NO_ACTIVITY;
+    return new Set([...busy.keys()].filter((id) => ws.boardById(id)));
+  }, [busy, ws]);
 }
 
 /**
@@ -232,22 +300,56 @@ export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabu
 }
 
 /**
+ * One nudge at a time, for the whole tab.
+ *
+ * A person dragging three cells in a row would otherwise send three requests
+ * that each drain the same queue. The first waits a moment for the burst to
+ * finish; anything that arrives while a nudge is in flight is folded into one
+ * more nudge after it, so the last edit is never the one that got missed.
+ */
+const NUDGE_SETTLE_MS = 150;
+let nudgeTimer: ReturnType<typeof setTimeout> | null = null;
+let nudgeInFlight: Promise<void> | null = null;
+let nudgeAgain = false;
+
+function nudgeSoon(send: () => Promise<void>): void {
+  if (nudgeTimer) return;
+  nudgeTimer = setTimeout(() => {
+    nudgeTimer = null;
+    if (nudgeInFlight) {
+      nudgeAgain = true;
+      return;
+    }
+    nudgeInFlight = send().finally(() => {
+      nudgeInFlight = null;
+      if (nudgeAgain) {
+        nudgeAgain = false;
+        nudgeSoon(send);
+      }
+    });
+  }, NUDGE_SETTLE_MS);
+}
+
+/**
  * Asks the server to drain the queue now.
  *
  * Purely so somebody watching a board sees their rule fire in a second rather
- * than at the next tick of the cron. It is fire-and-forget and its failure is
- * silent on purpose: the runner is called on a schedule whatever happens here,
- * and a toast saying "could not run automations" after an edit that saved
- * perfectly well would be a lie about what went wrong.
+ * than at the next tick of the cron. Fire-and-forget: `AutomationService.nudge`
+ * swallows failure, and in the local provider it does nothing at all, because
+ * there is no server to nudge.
  *
- * Only in the Supabase provider. In local mode there is no server to nudge.
+ * It also re-reads the pending set at once. The event row was written in the
+ * same transaction as the edit, so it is already there to be found, and the
+ * indicator can come on now rather than when the realtime channel gets round
+ * to saying so. A board with no rule has no row, and stays quiet.
  */
 export function useAutomationNudge(): () => void {
-  const supabase = getAppConfig().dataProvider === "supabase";
+  const services = useServices();
+  const queryClient = useQueryClient();
   return React.useCallback(() => {
-    if (!supabase || typeof fetch !== "function") return;
-    void fetch("/api/automations/run?sweep=0", { method: "POST", keepalive: true }).catch(() => undefined);
-  }, [supabase]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.automationPending });
+    nudgeSoon(() => services.automations.nudge());
+  }, [services, queryClient]);
 }
 
 /** The board's own words, which every picker in the builder is filled from. */

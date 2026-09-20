@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVENT_BATCH_SIZE, MAX_QUICK_RUN_ITEMS } from "@/domain";
+import { EVENT_BATCH_SIZE, MAX_EVENT_DEPTH, MAX_QUICK_RUN_ITEMS } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { buildPermissionContext, canEditBoard } from "@/lib/permissions/permissions";
@@ -24,7 +24,8 @@ import { HttpError } from "./http";
  *   pg_cron            optional, and the best of the three where it is
  *                      available — the database calling the app directly, with
  *                      no third party in the loop. See supabase/optional/.
- *   a signed-in member the app nudges this endpoint after a write, so somebody
+ *   a signed-in member the app nudges this endpoint after a write, with the
+ *                      member's own session (authoriseTick), so somebody
  *                      watching a board sees a rule fire in a second rather
  *                      than at the next tick. A nudge is an optimisation. Take
  *                      it away and everything still happens, just later.
@@ -68,6 +69,44 @@ export function authoriseRunner(request: Request): void {
   if (!offered || !timingSafeEqual(offered, configured)) throw new HttpError(401, "Not allowed.");
 }
 
+/** Who set a tick going: the scheduler with the shared secret, or a member with their session. */
+export type TickCaller = { kind: "runner" } | { kind: "member"; userId: string };
+
+/**
+ * A tick may also be asked for by a signed-in member.
+ *
+ * This is the nudge: the app calling the runner after a write, so the rule
+ * somebody is watching for fires in a second rather than at the next tick of
+ * the cron. It used to send nothing at all and be turned away every time,
+ * which is why a rule took a minute to fire and looked as though the
+ * notification it sent never came. Now it sends the session, the same way a
+ * quick run does, and the server recognises it.
+ *
+ * The secret is tried first, so the scheduler's request costs no round trip.
+ * A member's request costs one — the token is checked against Supabase Auth —
+ * and buys a drain of the queue with no sweep and no schedules (see the route).
+ * Any member of any workspace may ask; the queue holds nothing they are told
+ * about, and a drain they cause is one the cron would have caused a minute
+ * later. The 503 for an unconfigured deployment is kept for the scheduler's
+ * sake: it is what an operator notices.
+ */
+export async function authoriseTick(request: Request): Promise<TickCaller> {
+  let refused: unknown;
+  try {
+    authoriseRunner(request);
+    return { kind: "runner" };
+  } catch (error) {
+    refused = error;
+  }
+  const header = request.headers.get("authorization") ?? "";
+  const jwt = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+  if (jwt) {
+    const { data, error } = await getSupabaseAdminClient().auth.getUser(jwt);
+    if (!error && data.user) return { kind: "member", userId: data.user.id };
+  }
+  throw refused;
+}
+
 /** Constant-time compare, so a wrong secret cannot be found one character at a time. */
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -83,13 +122,29 @@ function timingSafeEqual(a: string, b: string): boolean {
  * role, so an automation setting a value propagates along task links and raises
  * the same notifications a person would have raised doing it by hand.
  */
-export async function runAutomations(options: { limit?: number; sweep?: boolean } = {}): Promise<RunOutcome> {
+export async function runAutomations(options: { limit?: number; sweep?: boolean; schedules?: boolean } = {}): Promise<RunOutcome> {
   const started = Date.now();
   routeRepositoriesThrough(getSupabaseAdminClient());
   const repos = createSupabaseRepositories();
   const services = createServices(repos, { automationTimezone: process.env.AUTOMATION_TIMEZONE });
+  const limit = options.limit ?? EVENT_BATCH_SIZE;
 
-  const report = await services.automationEngine.drain(options.limit ?? EVENT_BATCH_SIZE);
+  const report = await services.automationEngine.drain(limit, { schedules: options.schedules });
+  // An action is a write, and a write raises events of its own: a rule that
+  // sets a status wakes the rule that watches it. Those rows were not in the
+  // batch just drained, and left alone they would wait for the next tick — a
+  // minute per link of the chain. So while a pass fired something, and the
+  // budget allows, go round again. The depth guard bounds the chain, so this
+  // bounds the loop; schedules and the heartbeat ran on the first pass and
+  // are not repeated.
+  for (let pass = 0; pass < MAX_EVENT_DEPTH && report.ran > 0 && Date.now() - started < RUN_BUDGET_MS / 2; pass += 1) {
+    const more = await services.automationEngine.drain(limit, { schedules: false });
+    if (more.events === 0) break;
+    report.events += more.events;
+    report.ran = more.ran;
+    report.skipped += more.skipped;
+    report.failed += more.failed;
+  }
   // Housekeeping on the same tick, but only when asked: the cron driver sweeps,
   // a nudge from a browser does not, so somebody clicking about a board never
   // pays for a delete of thirty days of log rows.

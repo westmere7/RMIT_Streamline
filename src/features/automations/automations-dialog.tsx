@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +18,7 @@ import { AutomationRuleDialog } from "@/features/automations/automation-rule-dia
 import { useAutomationMutations, useAutomationRunnerHealth, useAutomationRuns, useAutomations, useQuickRun, useRuleVocabulary } from "@/features/automations/hooks";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { routes } from "@/lib/routes";
 import type { RuleVocabulary } from "@/services";
 import { describeAutomationAction, describeTrigger } from "@/services";
@@ -54,6 +56,7 @@ export function AutomationsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const ws = useWorkspace();
+  const isMobile = useIsMobile();
   // Read here rather than handed down: the board header that opens this sits
   // above the board's own context, and the snapshot is already in the cache.
   const snapshot = useBoardSnapshot(open ? board.id : null);
@@ -76,167 +79,208 @@ export function AutomationsDialog({
     onOpenChange(next);
   };
 
+  const blurb = `What ${board.name} does on its own, and on request.`;
+  const shown = open && !editing;
+  // On a phone the sheet's own body scrolls; on a desktop each pane does.
+  const paneClass = isMobile ? "pb-2" : "scrollbar-thin max-h-[58vh] overflow-y-auto";
+  const newLabel = tab === "quick" ? "New quick run" : "New automation";
+  const openNew = () => setEditing({ rule: null, quick: tab === "quick" });
+
+  const panes = (
+    <Tabs value={tab} onValueChange={setTab} className="min-h-0">
+      <div className="flex items-center justify-between gap-3">
+        <UnderlineTabsList className={isMobile ? "w-full [&>button]:flex-1 [&>button]:justify-center" : undefined}>
+          <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
+            Rules {automatic.length > 0 ? `(${automatic.length})` : ""}
+          </UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="quick" data-testid="automations-tab-quick">
+            Quick runs {quick.length > 0 ? `(${quick.length})` : ""}
+          </UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="log" data-testid="automations-tab-log">
+            Activity
+          </UnderlineTabsTrigger>
+        </UnderlineTabsList>
+        {!isMobile && (
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+              <Link href={routes.automations(ws.slug)} onClick={() => onOpenChange(false)} data-testid="all-automations">
+                All automations <ExternalLink className="size-3.5" />
+              </Link>
+            </Button>
+            {canManage && tab !== "log" && (
+              <Button size="sm" onClick={openNew} data-testid="new-automation">
+                <Plus /> {tab === "quick" ? "New quick run" : "New"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ---- Rules ---- */}
+      <TabsContent value="rules" className={paneClass}>
+        {loading ? (
+          <RowSkeletons />
+        ) : automatic.length === 0 ? (
+          <EmptyState
+            icon={Zap}
+            title="This board does nothing on its own yet"
+            description={
+              canManage
+                ? "An automation watches for something and then acts. It runs on a server, so it works with nobody signed in."
+                : "Only somebody who can manage this board can add one."
+            }
+          />
+        ) : (
+          <ul className="space-y-2 py-2">
+            {health.stale && (
+              <li>
+                <p
+                  className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[13px] text-amber-700 dark:text-amber-300"
+                  data-testid="automation-runner-stale"
+                >
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    {health.beat
+                      ? `Nothing has run these automations for ${Math.round(health.minutesAgo ?? 0)} minutes.`
+                      : "Nothing has ever run these automations."}{" "}
+                    They are carried out by a server on a timer, so a rule cannot fire until something calls it.
+                  </span>
+                </p>
+              </li>
+            )}
+            {automatic.map((rule) => (
+              <li key={rule.id}>
+                <RuleRow
+                  rule={rule}
+                  vocabulary={vocabulary}
+                  ready={!!snapshot.data}
+                  canManage={canManage}
+                  onToggle={(enabled) => mutations.setEnabled.mutate({ id: rule.id, enabled })}
+                  onEdit={() => setEditing({ rule, quick: false })}
+                  onRemove={() => mutations.remove.mutate(rule.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+
+      {/* ---- Quick runs ---- */}
+      <TabsContent value="quick" className={paneClass}>
+        {loading ? (
+          <RowSkeletons />
+        ) : running ? (
+          <RunPicker
+            rule={running}
+            items={snapshot.data?.items ?? []}
+            groups={snapshot.data?.groups ?? []}
+            boardId={board.id}
+            vocabulary={vocabulary}
+            onDone={() => setRunning(null)}
+          />
+        ) : quick.length === 0 ? (
+          <EmptyState
+            icon={Play}
+            title="No quick runs yet"
+            description={
+              canManage
+                ? "A quick run is a group of actions you save once and fire by hand against whichever tasks you pick — no trigger, no conditions."
+                : "Only somebody who can manage this board can add one."
+            }
+          />
+        ) : (
+          <ul className="space-y-2 py-2">
+            {quick.map((rule) => (
+              <li key={rule.id}>
+                <QuickRunRow
+                  rule={rule}
+                  vocabulary={vocabulary}
+                  ready={!!snapshot.data}
+                  canManage={canManage}
+                  onRun={() => setRunning(rule)}
+                  onEdit={() => setEditing({ rule, quick: true })}
+                  onRemove={() => mutations.remove.mutate(rule.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+
+      {/* ---- Activity ---- */}
+      <TabsContent value="log" className={paneClass}>
+        {runs.isLoading ? (
+          <RowSkeletons height="h-10" count={5} />
+        ) : (runs.data ?? []).length === 0 ? (
+          <EmptyState icon={CircleSlash} title="Nothing has run yet" description="Every firing lands here, including the ones a condition held back." compact />
+        ) : (
+          <ul className="divide-y divide-border/60 py-1">
+            {(runs.data ?? []).map((run) => (
+              <li key={run.id} className="flex items-start gap-3 py-2" data-testid="automation-run">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-1 size-2 shrink-0 rounded-full",
+                    run.status === "ran" ? "bg-green-500" : run.status === "skipped" ? "bg-muted-foreground/50" : "bg-destructive",
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px]">{run.summary}</p>
+                  {run.detail && <p className="text-2xs text-muted-foreground">{run.detail}</p>}
+                </div>
+                <span className="shrink-0 text-2xs text-muted-foreground">
+                  <RelativeTime iso={run.createdAt} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+
   return (
     <>
-      <Dialog open={open && !editing} onOpenChange={close}>
-        <DialogContent size="xl" className="max-h-[85vh] overflow-hidden" data-testid="automations-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="size-4 text-primary" /> Automations
-            </DialogTitle>
-            <DialogDescription>What {board.name} does on its own, and on request.</DialogDescription>
-          </DialogHeader>
-
-          <Tabs value={tab} onValueChange={setTab} className="min-h-0">
-            <div className="flex items-center justify-between gap-3">
-              <UnderlineTabsList>
-                <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
-                  Rules {automatic.length > 0 ? `(${automatic.length})` : ""}
-                </UnderlineTabsTrigger>
-                <UnderlineTabsTrigger value="quick" data-testid="automations-tab-quick">
-                  Quick runs {quick.length > 0 ? `(${quick.length})` : ""}
-                </UnderlineTabsTrigger>
-                <UnderlineTabsTrigger value="log" data-testid="automations-tab-log">
-                  Activity
-                </UnderlineTabsTrigger>
-              </UnderlineTabsList>
-              <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+      {isMobile ? (
+        // A sheet, like every other overlay on the phone. The buttons the
+        // desktop keeps beside the tabs have no room there at 375px; they
+        // become the sheet's footer, where a thumb already is.
+        <Sheet open={shown} onOpenChange={close}>
+          <SheetContent
+            title="Automations"
+            description={blurb}
+            footer={
+              <div className="flex flex-col gap-2">
+                {canManage && tab !== "log" && !running && (
+                  <Button className="h-11 w-full" onClick={openNew} data-testid="new-automation">
+                    <Plus /> {newLabel}
+                  </Button>
+                )}
+                <Button variant="ghost" asChild className="h-11 w-full text-muted-foreground">
                   <Link href={routes.automations(ws.slug)} onClick={() => onOpenChange(false)} data-testid="all-automations">
                     All automations <ExternalLink className="size-3.5" />
                   </Link>
                 </Button>
-                {canManage && tab !== "log" && (
-                  <Button size="sm" onClick={() => setEditing({ rule: null, quick: tab === "quick" })} data-testid="new-automation">
-                    <Plus /> {tab === "quick" ? "New quick run" : "New"}
-                  </Button>
-                )}
               </div>
-            </div>
-
-            {/* ---- Rules ---- */}
-            <TabsContent value="rules" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
-              {loading ? (
-                <RowSkeletons />
-              ) : automatic.length === 0 ? (
-                <EmptyState
-                  icon={Zap}
-                  title="This board does nothing on its own yet"
-                  description={
-                    canManage
-                      ? "An automation watches for something and then acts. It runs on a server, so it works with nobody signed in."
-                      : "Only somebody who can manage this board can add one."
-                  }
-                />
-              ) : (
-                <ul className="space-y-2 py-2">
-                  {health.stale && (
-                    <li>
-                      <p
-                        className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[13px] text-amber-700 dark:text-amber-300"
-                        data-testid="automation-runner-stale"
-                      >
-                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                        <span>
-                          {health.beat
-                            ? `Nothing has run these automations for ${Math.round(health.minutesAgo ?? 0)} minutes.`
-                            : "Nothing has ever run these automations."}{" "}
-                          They are carried out by a server on a timer, so a rule cannot fire until something calls it.
-                        </span>
-                      </p>
-                    </li>
-                  )}
-                  {automatic.map((rule) => (
-                    <li key={rule.id}>
-                      <RuleRow
-                        rule={rule}
-                        vocabulary={vocabulary}
-                        ready={!!snapshot.data}
-                        canManage={canManage}
-                        onToggle={(enabled) => mutations.setEnabled.mutate({ id: rule.id, enabled })}
-                        onEdit={() => setEditing({ rule, quick: false })}
-                        onRemove={() => mutations.remove.mutate(rule.id)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </TabsContent>
-
-            {/* ---- Quick runs ---- */}
-            <TabsContent value="quick" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
-              {loading ? (
-                <RowSkeletons />
-              ) : running ? (
-                <RunPicker
-                  rule={running}
-                  items={snapshot.data?.items ?? []}
-                  groups={snapshot.data?.groups ?? []}
-                  boardId={board.id}
-                  vocabulary={vocabulary}
-                  onDone={() => setRunning(null)}
-                />
-              ) : quick.length === 0 ? (
-                <EmptyState
-                  icon={Play}
-                  title="No quick runs yet"
-                  description={
-                    canManage
-                      ? "A quick run is a group of actions you save once and fire by hand against whichever tasks you pick — no trigger, no conditions."
-                      : "Only somebody who can manage this board can add one."
-                  }
-                />
-              ) : (
-                <ul className="space-y-2 py-2">
-                  {quick.map((rule) => (
-                    <li key={rule.id}>
-                      <QuickRunRow
-                        rule={rule}
-                        vocabulary={vocabulary}
-                        ready={!!snapshot.data}
-                        canManage={canManage}
-                        onRun={() => setRunning(rule)}
-                        onEdit={() => setEditing({ rule, quick: true })}
-                        onRemove={() => mutations.remove.mutate(rule.id)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </TabsContent>
-
-            {/* ---- Activity ---- */}
-            <TabsContent value="log" className="scrollbar-thin max-h-[58vh] overflow-y-auto">
-              {runs.isLoading ? (
-                <RowSkeletons height="h-10" count={5} />
-              ) : (runs.data ?? []).length === 0 ? (
-                <EmptyState icon={CircleSlash} title="Nothing has run yet" description="Every firing lands here, including the ones a condition held back." compact />
-              ) : (
-                <ul className="divide-y divide-border/60 py-1">
-                  {(runs.data ?? []).map((run) => (
-                    <li key={run.id} className="flex items-start gap-3 py-2" data-testid="automation-run">
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "mt-1 size-2 shrink-0 rounded-full",
-                          run.status === "ran" ? "bg-green-500" : run.status === "skipped" ? "bg-muted-foreground/50" : "bg-destructive",
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px]">{run.summary}</p>
-                        {run.detail && <p className="text-2xs text-muted-foreground">{run.detail}</p>}
-                      </div>
-                      <span className="shrink-0 text-2xs text-muted-foreground">
-                        <RelativeTime iso={run.createdAt} />
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+            }
+            data-testid="automations-dialog"
+          >
+            {panes}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={shown} onOpenChange={close}>
+          <DialogContent size="xl" className="max-h-[85vh] overflow-hidden" data-testid="automations-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="size-4 text-primary" /> Automations
+              </DialogTitle>
+              <DialogDescription>{blurb}</DialogDescription>
+            </DialogHeader>
+            {panes}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {editing && (
         <AutomationRuleDialog

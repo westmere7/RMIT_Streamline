@@ -304,6 +304,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       claimEvents: async () => [],
       finishEvent: async () => undefined,
       listRecentEvents: async () => [],
+      listPendingBoardIds: async () => [],
       markDepth: async () => undefined,
       clearMark: async () => undefined,
       claimScheduleFire: async () => false,

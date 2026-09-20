@@ -430,10 +430,11 @@ export interface ActivityRepository {
  * Rules, the queue they are woken by, and the log of what they did.
  *
  * Split across three concerns on purpose. The browser only ever touches
- * `listRulesByBoard` and the four rule mutations; everything with `Event` or
- * `claim` in the name is the server-side runner's, and the Supabase policies
- * (policies/0017) make that split real rather than a convention — the queue has
- * row level security on with no policies, so a browser reading it sees nothing.
+ * `listRulesByBoard`, the four rule mutations and `listPendingBoardIds`;
+ * everything with `Event` or `claim` in the name is the server-side runner's,
+ * and the Supabase policies (policies/0017, 0018) make that split real rather
+ * than a convention — a browser may see which boards have a row waiting in the
+ * queue, and can neither read the rest of the row's business nor write one.
  */
 export interface AutomationRepository {
   listRulesByBoard(boardId: EntityId): Promise<AutomationRule[]>;
@@ -453,9 +454,21 @@ export interface AutomationRepository {
    * runners overlapping do not both act on the same change.
    */
   claimEvents(limit: number): Promise<AutomationEvent[]>;
-  finishEvent(id: string, outcome: { error?: string | null }): Promise<void>;
+  /**
+   * Marks an event processed. `attempts` is the total after this one; the
+   * runner knows it from the row it claimed and passes it so the finish is one
+   * write rather than a read and a write. Left out, it is read first.
+   */
+  finishEvent(id: string, outcome: { error?: string | null; attempts?: number }): Promise<void>;
   /** Events raised for a board, newest first — what the board's automation log reads. */
   listRecentEvents(boardId: EntityId, limit: number): Promise<AutomationEvent[]>;
+  /**
+   * Boards with something still in the queue: the one thing a browser reads
+   * from it, so a board can show its automations at work. Scoped by the
+   * reader's row access, so it answers "any of my boards" without being told
+   * which those are.
+   */
+  listPendingBoardIds(): Promise<EntityId[]>;
 
   /** The loop breaker: the depth the runner is about to act at, against one task. */
   markDepth(itemId: EntityId, depth: number): Promise<void>;

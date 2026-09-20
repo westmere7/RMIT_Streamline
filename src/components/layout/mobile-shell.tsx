@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
 import { Button } from "@/components/ui/button";
+import { AutomationOrbit } from "@/features/automations/activity-indicator";
+import { useAutomationActivity } from "@/features/automations/hooks";
 import { useUnreadCounts } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
@@ -81,6 +83,13 @@ export function MobileTopBar({ title, subtitle }: { title?: string; subtitle?: s
 export function MobileBottomNav() {
   const pathname = usePathname();
   const destinations = useDestinations();
+  const ws = useWorkspace();
+  // Automations live under More on a phone, so More is where "something is
+  // running out of sight" is shown. The board on screen shows its own, on its
+  // menu button; any other board's, or anything while not on a board, lands here.
+  const activity = useAutomationActivity();
+  const activeBoardSlug = pathname.includes("/boards/") ? pathname.split("/boards/")[1]?.split("/")[0] : null;
+  const automationsBusyElsewhere = [...activity].some((boardId) => ws.boardById(boardId)?.slug !== activeBoardSlug);
   return (
     <nav
       aria-label="Main"
@@ -91,11 +100,13 @@ export function MobileBottomNav() {
         {destinations.map((destination) => {
           const current = destination.match(pathname);
           const Icon = destination.icon;
+          const busy = destination.label === "More" && automationsBusyElsewhere;
           return (
             <li key={destination.href} className="flex-1">
               <Link
                 href={destination.href}
                 aria-current={current ? "page" : undefined}
+                aria-label={busy ? `${destination.label}, automations running` : undefined}
                 className={cn(
                   "relative flex h-14 min-w-11 flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors",
                   current ? "text-primary" : "text-muted-foreground",
@@ -104,6 +115,7 @@ export function MobileBottomNav() {
               >
                 <span className="relative">
                   <Icon className="size-5" />
+                  {busy && <AutomationOrbit className="-inset-1.5" testId="mobile-nav-automations-running" />}
                   {!!destination.badge && destination.badge > 0 && (
                     <span
                       className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white tabular"

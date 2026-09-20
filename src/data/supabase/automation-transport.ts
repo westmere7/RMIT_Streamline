@@ -17,4 +17,14 @@ export class HttpAutomationTransport implements AutomationRunTransport {
   runNow(input: { ruleId: string; itemIds: string[] }): Promise<DrainReport> {
     return callApi<DrainReport>("/api/automations/run-now", { method: "POST", body: JSON.stringify(input) }, { auth: "required" });
   }
+
+  /**
+   * The runner's own endpoint, called with the session rather than the runner
+   * secret. The server recognises a member's token, drains the queue and skips
+   * the housekeeping and the clock (src/server/automations.ts, authoriseTick).
+   * `sweep=0` is kept for the log's sake: it says who this call came from.
+   */
+  async nudge(): Promise<void> {
+    await callApi<unknown>("/api/automations/run?sweep=0", { method: "POST" }, { auth: "required" });
+  }
 }
