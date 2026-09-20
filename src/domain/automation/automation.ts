@@ -25,6 +25,9 @@ export const AUTOMATION_TRIGGER_KINDS = [
   "item_created",
   "subitem_created",
   "item_renamed",
+  "name_contains",
+  "comment_contains",
+  "column_contains",
   "column_changed",
   "column_set_to",
   "column_cleared",
@@ -62,6 +65,9 @@ export const TRIGGER_TIMING: Record<AutomationTriggerKind, AutomationTriggerTimi
   item_created: "event",
   subitem_created: "event",
   item_renamed: "event",
+  name_contains: "event",
+  comment_contains: "event",
+  column_contains: "event",
   column_changed: "event",
   column_set_to: "event",
   column_cleared: "event",
@@ -89,6 +95,15 @@ export type AutomationTrigger =
   /** A subitem was added under a task. The subitem is the task in hand. */
   | { kind: "subitem_created" }
   | { kind: "item_renamed" }
+  /**
+   * Keyword triggers. `text` is one phrase, or several separated by commas,
+   * any one of which is enough; the match ignores case. The name is checked
+   * when a task is added and when it is renamed; an update when it is posted;
+   * a text-like column when it changes.
+   */
+  | { kind: "name_contains"; text: string }
+  | { kind: "comment_contains"; text: string }
+  | { kind: "column_contains"; columnId: EntityId; text: string }
   /** A column's value changed, whatever it changed to. */
   | { kind: "column_changed"; columnId: EntityId }
   /** A column that held something now holds nothing. */
@@ -386,9 +401,27 @@ export interface AutomationEventPayload {
   commentId?: EntityId | null;
   body?: string | null;
   parentItemId?: EntityId | null;
-  /** For `item_renamed`: what it was called, and what it is called now. */
+  /** For `item_renamed`: what it was called, and what it is called now. `item_created` carries `toName` too. */
   fromName?: string | null;
   toName?: string | null;
+}
+
+/**
+ * The phrases a keyword trigger is listening for, from what was typed:
+ * split on commas, trimmed, lower-cased, empties dropped.
+ */
+export function keywordsOf(text: string): string[] {
+  return text
+    .split(",")
+    .map((word) => word.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Whether any of the phrases appears in the text, ignoring case. Markup in the text is ignored. */
+export function mentionsAny(haystack: string | null | undefined, keywords: readonly string[]): boolean {
+  if (!haystack || keywords.length === 0) return false;
+  const plain = haystack.replace(/<[^>]*>/g, " ").toLowerCase();
+  return keywords.some((word) => plain.includes(word));
 }
 
 // ---------------------------------------------------------------------------

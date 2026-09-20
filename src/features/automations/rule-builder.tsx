@@ -20,6 +20,7 @@ import type {
 } from "@/domain";
 import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, T_SHIRT_SIZES, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
 import type { RuleVocabulary } from "@/services";
+import { TEXTUAL_COLUMNS } from "@/services";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,6 +43,9 @@ const TRIGGER_WORDS: Record<AutomationTriggerKind, string> = {
   item_created: "a task is added",
   subitem_created: "a subitem is added",
   item_renamed: "a task is renamed",
+  name_contains: "the name contains a word",
+  comment_contains: "an update mentions a word",
+  column_contains: "a column contains a word",
   column_changed: "a column changes",
   column_set_to: "a column becomes a value",
   column_cleared: "a column is cleared",
@@ -326,6 +330,19 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
       )}
 
       {(trigger.kind === "column_changed" || trigger.kind === "column_cleared") && columnPicker(trigger.columnId, () => true, (columnId) => onChange({ ...trigger, columnId }))}
+
+      {trigger.kind === "column_contains" && columnPicker(trigger.columnId, (c) => TEXTUAL_COLUMNS.includes(c.type), (columnId) => onChange({ ...trigger, columnId }))}
+
+      {(trigger.kind === "name_contains" || trigger.kind === "comment_contains" || trigger.kind === "column_contains") && (
+        <Input
+          value={trigger.text}
+          onChange={(e) => onChange({ ...trigger, text: e.target.value })}
+          placeholder="Words to listen for, separated by commas"
+          aria-label="Words to listen for"
+          className="h-8 min-w-56 flex-1"
+          data-testid="trigger-text"
+        />
+      )}
 
       {trigger.kind === "column_set_to" && (
         <>
@@ -1009,6 +1026,11 @@ function defaultTrigger(kind: AutomationTriggerKind, vocabulary: RuleVocabulary)
       return setToDefault(firstOf(SETTABLE_TO), vocabulary);
     case "column_cleared":
       return { kind, columnId: firstOf(() => true) };
+    case "name_contains":
+    case "comment_contains":
+      return { kind, text: "" };
+    case "column_contains":
+      return { kind, columnId: firstOf((c) => TEXTUAL_COLUMNS.includes(c.type)), text: "" };
     case "number_crosses":
       return { kind, columnId: firstOf((c) => c.type === "NUMBER"), direction: "above", threshold: 0 };
     case "person_assigned":

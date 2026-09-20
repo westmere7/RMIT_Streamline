@@ -98,7 +98,7 @@ export function useRuleEditor({ board, rule, preset, quick = false, boards, onBo
       setName(rule.name === describeRule(rule.trigger, rule.conditions, rule.actions, rule.conditionMatch, vocabulary) ? "" : rule.name);
     } else if (preset) {
       const recipe = preset.build({ columns: vocabulary.columns, groups: vocabulary.groups });
-      setDraft(recipe ? { trigger: recipe.trigger, conditionMatch: "all", conditions: [], actions: recipe.actions } : blankDraft(vocabulary));
+      setDraft(recipe ? { trigger: recipe.trigger, conditionMatch: "all", conditions: recipe.conditions ?? [], actions: recipe.actions } : blankDraft(vocabulary));
       setName("");
     } else {
       setDraft(blankDraft(vocabulary, quick ? "quick" : "rule"));

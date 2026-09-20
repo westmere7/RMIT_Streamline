@@ -339,6 +339,45 @@ describe("more triggers and actions", () => {
     expect((await repos.automations.listRuns(BOARD, 10)).some((r) => r.status === "failed" && /500/.test(r.detail ?? ""))).toBe(true);
   });
 
+  // ---- keywords ---------------------------------------------------------------
+
+  it("hears a name that contains one of its words, when a task is added or renamed", async () => {
+    const item = await anItem();
+    await addRule({ kind: "name_contains", text: "urgent, ASAP" }, [{ kind: "add_comment", body: "Flagged" }]);
+    await services.items.createItem({ boardId: BOARD, groupId: item.groupId, name: "Calm and quiet" }, DANH);
+    expect((await engine().drain(100)).ran).toBe(0);
+    await services.items.createItem({ boardId: BOARD, groupId: item.groupId, name: "asap: campus banners" }, DANH);
+    expect((await engine().drain(100)).ran).toBe(1);
+    await services.items.renameItem(item.id, "Urgent reprint", DANH);
+    expect((await engine().drain(100)).ran).toBe(1);
+  });
+
+  it("hears an update that mentions a word, through its markup", async () => {
+    const item = await anItem();
+    const users = await repos.users.list();
+    await addRule({ kind: "comment_contains", text: "invoice" }, [{ kind: "add_comment", body: "Noted" }]);
+    await services.comments.addComment(item.id, "All good here", DANH, users);
+    expect((await engine().drain(100)).ran).toBe(0);
+    await services.comments.addComment(item.id, "Please send the <b>Invoice</b> today", DANH, users);
+    expect((await engine().drain(100)).ran).toBe(1);
+  });
+
+  it("hears a text column that comes to contain a word", async () => {
+    const item = await anItem();
+    const notes = await column("Notes");
+    await addRule({ kind: "column_contains", columnId: notes.id, text: "printer" }, [{ kind: "add_comment", body: "Printer" }]);
+    await setValue(item, notes, { type: "TEXT", text: "Waiting on copy" });
+    expect((await engine().drain(100)).ran).toBe(0);
+    await setValue(item, notes, { type: "TEXT", text: "Call the PRINTER about stock" });
+    expect((await engine().drain(100)).ran).toBe(1);
+  });
+
+  it("refuses a keyword rule with no words, or on a column that holds none", async () => {
+    await expect(addRule({ kind: "name_contains", text: " , " }, [{ kind: "add_comment", body: "x" }])).rejects.toThrow(/word/);
+    const status = await column("Status");
+    await expect(addRule({ kind: "column_contains", columnId: status.id, text: "done" }, [{ kind: "add_comment", body: "x" }])).rejects.toThrow(/words to search/);
+  });
+
   it("lets a recurring rule call a webhook, and nothing else new", async () => {
     await expect(addRule({ kind: "recurring", recurrence: "daily", atHour: 9 }, [{ kind: "send_webhook", url: "https://hooks.example.com/abc" }])).resolves.toBeTruthy();
     await expect(addRule({ kind: "recurring", recurrence: "daily", atHour: 9 }, [{ kind: "set_name", name: "x" }])).rejects.toThrow(/schedule/);

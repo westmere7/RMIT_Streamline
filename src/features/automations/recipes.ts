@@ -1,5 +1,5 @@
 import { AlarmClock, Archive, CalendarPlus, CalendarSync, CalendarX, CircleCheck, Hourglass, ListTree, TriangleAlert, UserPlus, type LucideIcon } from "lucide-react";
-import type { AutomationAction, AutomationTrigger, BoardColumn, BoardGroup, ColumnLabel, StatusLabelRole } from "@/domain";
+import type { AutomationAction, AutomationCondition, AutomationTrigger, BoardColumn, BoardGroup, ColumnLabel, StatusLabelRole } from "@/domain";
 import { columnLabels, resolveColumnRoles, statusLabelRole } from "@/domain";
 
 /**
@@ -30,7 +30,7 @@ export interface Recipe {
    * set. Adding them to it would put a clock in the board icon picker.
    */
   icon: LucideIcon;
-  build: (board: RecipeBoard) => { trigger: AutomationTrigger; actions: AutomationAction[] } | null;
+  build: (board: RecipeBoard) => { trigger: AutomationTrigger; conditions?: AutomationCondition[]; actions: AutomationAction[] } | null;
   /** Why it cannot be offered on this board, when it cannot. */
   unavailable?: (board: RecipeBoard) => string | null;
 }
@@ -198,6 +198,9 @@ export const RECIPES: Recipe[] = [
       if (!it) return null;
       return {
         trigger: { kind: "column_set_to", columnId: it.column.id, labelId: it.label.id },
+        // Top-level tasks only: the subitems it marks done would otherwise wake
+        // it again, each to find it has no subitems of its own.
+        conditions: [{ kind: "item_kind", is: "item" }],
         actions: [{ kind: "set_subitems_value", columnId: it.column.id, value: { type: "STATUS", labelId: it.label.id } }],
       };
     },

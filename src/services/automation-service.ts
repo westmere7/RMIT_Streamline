@@ -8,6 +8,7 @@ import type {
   AutomationTrigger,
   BoardColumn,
   BoardGroup,
+  ColumnType,
   ColumnValue,
   EntityId,
   User,
@@ -19,6 +20,7 @@ import {
   TRIGGER_TIMING,
   actionsAllowedFor,
   columnLabels,
+  keywordsOf,
   webhookUrlProblem,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
@@ -118,7 +120,7 @@ export class AutomationService {
   }
 
   async create(input: AutomationRuleInput, vocabulary: RuleVocabulary): Promise<AutomationRule> {
-    validate({ trigger: input.trigger, conditions: input.conditions, actions: input.actions }, vocabulary);
+    validate({ trigger: input.trigger, conditions: input.conditions, actions: input.actions }, vocabulary, input.boardId);
     const name = input.name.trim() || describeRule(input.trigger, input.conditions, input.actions, input.conditionMatch, vocabulary);
     return this.repos.automations.createRule({ ...input, name: name.slice(0, 200) });
   }
@@ -133,7 +135,7 @@ export class AutomationService {
     };
     // A rule being switched off is the one change that never needs checking —
     // and the one most likely to be reached for when a rule is misbehaving.
-    if (patch.trigger || patch.conditions || patch.actions) validate(merged, vocabulary);
+    if (patch.trigger || patch.conditions || patch.actions) validate(merged, vocabulary, existing.boardId);
     return this.repos.automations.updateRule(id, patch);
   }
 
@@ -158,6 +160,8 @@ export class AutomationService {
 function validate(
   rule: { trigger: AutomationTrigger; conditions: AutomationCondition[]; actions: AutomationAction[] },
   vocabulary: RuleVocabulary,
+  /** The board the rule lives on, for the checks that ask "the same board?". */
+  boardId: EntityId,
 ): void {
   const { trigger, conditions, actions } = rule;
   if (actions.length === 0) throw new AutomationError("An automation needs at least one thing to do.");
@@ -191,6 +195,17 @@ function validate(
     case "item_moved_from_group":
       if (!group(trigger.groupId)) throw new AutomationError("Pick a group for the trigger.");
       break;
+    case "name_contains":
+    case "comment_contains":
+      if (keywordsOf(trigger.text).length === 0) throw new AutomationError("Say which word or phrase to listen for.");
+      break;
+    case "column_contains": {
+      const found = column(trigger.columnId);
+      if (!found) throw new AutomationError("Pick a column for the trigger.");
+      if (!TEXTUAL_COLUMNS.includes(found.type)) throw new AutomationError(`${found.name} does not hold words to search.`);
+      if (keywordsOf(trigger.text).length === 0) throw new AutomationError("Say which word or phrase to listen for.");
+      break;
+    }
     case "column_unchanged_for": {
       if (!column(trigger.columnId)) throw new AutomationError("Pick a column for the trigger.");
       const days = Number(trigger.days);
@@ -302,6 +317,21 @@ function validate(
     if (condition.kind === "group" && !group(condition.groupId)) throw new AutomationError("Pick a group for every condition.");
   }
 
+  // A rule woken by a task arriving that then adds a task to the same board
+  // wakes itself with everything it adds. The depth guard would stop it three
+  // tasks in; refusing it here means the three are never made.
+  if (trigger.kind === "item_created" || trigger.kind === "subitem_created" || trigger.kind === "name_contains") {
+    const addsHere = actions.some(
+      (action) =>
+        action.kind === "create_subitem" ||
+        action.kind === "duplicate_item" ||
+        (action.kind === "create_item" && (!action.boardId || action.boardId === boardId)),
+    );
+    if (addsHere) {
+      throw new AutomationError("A rule that fires when a task is added cannot add tasks to the same board: each one it added would set it off again. Create the task on another board instead.");
+    }
+  }
+
   // A rule that fires on every change to a column and then writes to the same
   // column is the shortest possible loop, and the one people build by accident
   // on their first try. The depth guard would stop it three events in; refusing
@@ -330,6 +360,9 @@ function validate(
   }
 }
 
+/** The column types a keyword can be found in. Exported for the builder's picker. */
+export const TEXTUAL_COLUMNS: readonly ColumnType[] = ["TEXT", "LONG_TEXT", "RICH_TEXT", "LINK", "TAGS"];
+
 function assertHour(hour: number): void {
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new AutomationError("Pick an hour between 0 and 23.");
 }
@@ -339,6 +372,14 @@ function assertHour(hour: number): void {
 // ---------------------------------------------------------------------------
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** “abc”, or “abc” or “def” — the phrases a keyword trigger listens for, quoted. */
+function quoteKeywords(text: string): string {
+  const words = keywordsOf(text).map((word) => `“${word}”`);
+  if (words.length === 0) return "something";
+  if (words.length === 1) return words[0]!;
+  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
+}
 
 function hourWord(hour: number): string {
   if (hour === 0) return "midnight";
@@ -386,6 +427,12 @@ export function describeTrigger(trigger: AutomationTrigger, vocabulary: RuleVoca
       return `a task moves to ${groupName(trigger.groupId)}`;
     case "comment_added":
       return "an update is posted";
+    case "name_contains":
+      return `the name contains ${quoteKeywords(trigger.text)}`;
+    case "comment_contains":
+      return `an update mentions ${quoteKeywords(trigger.text)}`;
+    case "column_contains":
+      return `${columnName(trigger.columnId)} contains ${quoteKeywords(trigger.text)}`;
     case "item_archived":
       return "a task is archived";
     case "date_arrives": {

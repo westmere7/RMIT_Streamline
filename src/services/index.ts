@@ -108,7 +108,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
 
 export type { ArchiveSnapshot, BoardSnapshot, CreateItemInput, MoveItemInput, SetValueContext } from "./item-service";
 export { resolveArchiveFilters } from "./item-service";
-export { AutomationError, describeAction as describeAutomationAction, describeCondition as describeAutomationCondition, describeRule, describeTrigger } from "./automation-service";
+export { AutomationError, TEXTUAL_COLUMNS, describeAction as describeAutomationAction, describeCondition as describeAutomationCondition, describeRule, describeTrigger } from "./automation-service";
 export type { AutomationRunTransport, RuleVocabulary } from "./automation-service";
 export type { DrainReport } from "./automation-engine";
 export type { CreateBoardInput } from "./board-service";

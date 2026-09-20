@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, isEmptyValue, webhookUrlProblem } from "@/domain";
+import { MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { CommentService } from "./comment-service";
 import type { ItemService } from "./item-service";
@@ -214,16 +214,25 @@ export class AutomationEngine {
         return event.kind === "item_created" && !!event.payload.parentItemId;
       case "item_renamed":
         return event.kind === "item_renamed";
+      // A subitem never moves on its own: it follows its parent, and the
+      // parent's move is the one that happened. Firing once per subitem as
+      // well would tell somebody five times about one drag.
       case "item_moved_to_group":
-        return event.kind === "item_moved" && event.payload.toGroupId === trigger.groupId;
+        return event.kind === "item_moved" && !event.payload.parentItemId && event.payload.toGroupId === trigger.groupId;
       case "item_moved_from_group":
-        return event.kind === "item_moved" && event.payload.fromGroupId === trigger.groupId;
+        return event.kind === "item_moved" && !event.payload.parentItemId && event.payload.fromGroupId === trigger.groupId;
       case "item_archived":
         return event.kind === "item_archived";
       case "item_restored":
         return event.kind === "item_restored";
       case "comment_added":
         return event.kind === "comment_added";
+      case "name_contains":
+        return (event.kind === "item_created" || event.kind === "item_renamed") && mentionsAny(event.payload.toName, keywordsOf(trigger.text));
+      case "comment_contains":
+        return event.kind === "comment_added" && mentionsAny(event.payload.body, keywordsOf(trigger.text));
+      case "column_contains":
+        return event.kind === "value_changed" && event.columnId === trigger.columnId && mentionsAny(textIn(event.payload.after ?? null), keywordsOf(trigger.text));
       case "column_changed":
         return event.kind === "value_changed" && event.columnId === trigger.columnId;
       case "column_cleared": {
@@ -571,6 +580,8 @@ export class AutomationEngine {
       case "move_to_group": {
         const group = context.groups.find((g) => g.id === action.groupId);
         if (!group) throw new Error("That group is no longer on this board.");
+        // A subitem lives in its parent's group; moving it alone would tear it away.
+        if (item!.parentItemId) return "Subitems stay with their parent";
         if (item!.groupId === group.id) return `Already in ${group.name}`;
         await this.items.moveItemsToGroup(board.id, [item!.id], group.id, actorFor(context));
         return `Moved to ${group.name}`;
@@ -623,14 +634,20 @@ export class AutomationEngine {
 
       case "archive_item": {
         if (item!.archivedAt) return "Already archived";
-        await this.items.archiveItems(board.id, [item!.id], actorFor(context));
-        return "Archived the task";
+        // Subitems go with their parent: a task put away with live subitems
+        // still under it leaves work nobody can see on a board nobody reads.
+        const children = (await this.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === item!.id && i.archivedAt === null);
+        await this.items.archiveItems(board.id, [item!.id, ...children.map((c) => c.id)], actorFor(context));
+        return children.length > 0 ? `Archived the task and ${children.length} ${children.length === 1 ? "subitem" : "subitems"}` : "Archived the task";
       }
 
       case "restore_item": {
         if (!item!.archivedAt) return "Not archived";
-        await this.items.restoreItems([item!.id], actorFor(context));
-        return "Restored the task";
+        // Only the subitems that went into the archive with it come back with
+        // it; one put away on its own, earlier, stays where somebody left it.
+        const children = (await this.repos.items.listByBoard(board.id, { includeArchived: true })).filter((i) => i.parentItemId === item!.id && i.archivedAt === item!.archivedAt);
+        await this.items.restoreItems([item!.id, ...children.map((c) => c.id)], actorFor(context));
+        return children.length > 0 ? `Restored the task and ${children.length} ${children.length === 1 ? "subitem" : "subitems"}` : "Restored the task";
       }
 
       case "duplicate_item": {
@@ -691,7 +708,11 @@ export class AutomationEngine {
         if (!parent) return "No parent task";
         const column = columns.find((c) => c.id === action.columnId);
         if (!column) throw new Error("That column is no longer on this board.");
-        await this.items.setValue(parent.id, column.id, action.value, { column, item: parent, board, users }, actorFor(context));
+        // The write lands on another task, so the depth mark has to go with
+        // it: without one the parent's event would start a fresh chain at
+        // zero, and a parent and its subitems answering each other would
+        // never be cut.
+        await this.writingTo([parent.id], context.depth, () => this.items.setValue(parent.id, column.id, action.value, { column, item: parent, board, users }, actorFor(context)));
         return `Set ${column.name} on "${parent.name}"`;
       }
 
@@ -700,9 +721,15 @@ export class AutomationEngine {
         if (!column) throw new Error("That column is no longer on this board.");
         const children = (await this.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === item!.id && i.archivedAt === null);
         if (children.length === 0) return "No subitems";
-        for (const child of children) {
-          await this.items.setValue(child.id, column.id, action.value, { column, item: child, board, users }, actorFor(context));
-        }
+        await this.writingTo(
+          children.map((c) => c.id),
+          context.depth,
+          async () => {
+            for (const child of children) {
+              await this.items.setValue(child.id, column.id, action.value, { column, item: child, board, users }, actorFor(context));
+            }
+          },
+        );
         return `Set ${column.name} on ${children.length} ${children.length === 1 ? "subitem" : "subitems"}`;
       }
 
@@ -751,6 +778,8 @@ export class AutomationEngine {
       }
 
       case "create_subitem": {
+        // One level deep is what the board draws; a subitem's subitem would exist and never be seen.
+        if (item!.parentItemId) return "A subitem cannot have subitems of its own";
         const created = await this.items.createItem(
           { boardId: board.id, groupId: item!.groupId, parentItemId: item!.id, name: this.render(action.name, context) },
           actorFor(context),
@@ -760,6 +789,20 @@ export class AutomationEngine {
 
       default:
         throw new Error("Unknown action");
+    }
+  }
+
+  /**
+   * Runs `write` with depth marks on other tasks, so whatever it raises on
+   * them is counted as one more link of this chain rather than the start of a
+   * new one. The marks are cleared afterwards whatever happens.
+   */
+  private async writingTo(itemIds: readonly EntityId[], depth: number, write: () => Promise<unknown>): Promise<void> {
+    for (const id of itemIds) await this.repos.automations.markDepth(id, depth);
+    try {
+      await write();
+    } finally {
+      for (const id of itemIds) await this.repos.automations.clearMark(id);
     }
   }
 
@@ -937,6 +980,23 @@ function peopleIn(value: ColumnValue | null): EntityId[] {
   if (!value) return [];
   if (value.type === "PERSON" || value.type === "PEOPLE") return value.userIds;
   return [];
+}
+
+/** The words a value holds, for a keyword to be found in. Labels are not words: `column_set_to` names those. */
+function textIn(value: ColumnValue | null): string | null {
+  if (!value) return null;
+  switch (value.type) {
+    case "TEXT":
+    case "LONG_TEXT":
+    case "RICH_TEXT":
+      return value.text;
+    case "LINK":
+      return [value.text, value.url].filter(Boolean).join(" ");
+    case "TAGS":
+      return value.tags.join(" ");
+    default:
+      return null;
+  }
 }
 
 /** The number a NUMBER value holds, and null for an empty cell or anything else. */

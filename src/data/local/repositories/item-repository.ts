@@ -134,7 +134,7 @@ export class LocalItemRepository implements ItemRepository {
       kind: "item_created",
       columnId: null,
       actorId: item.createdBy,
-      payload: { toGroupId: item.groupId, parentItemId: item.parentItemId },
+      payload: { toGroupId: item.groupId, parentItemId: item.parentItemId, toName: item.name },
       depth: 0,
     });
     return item;
@@ -306,7 +306,7 @@ export class LocalItemRepository implements ItemRepository {
         kind: "item_moved",
         columnId: null,
         actorId: null,
-        payload: { fromGroupId: before.groupId, toGroupId: after.groupId },
+        payload: { fromGroupId: before.groupId, toGroupId: after.groupId, parentItemId: after.parentItemId },
         depth: 0,
       });
     }
