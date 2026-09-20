@@ -62,7 +62,7 @@ export function MyWorkMobile() {
               data-testid="my-work-toggle-completed"
             >
               {showCompleted ? "Hide completed" : "Show completed"}
-              <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-2xs tabular">{completed.length}</span>
+              <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs tabular">{completed.length}</span>
             </button>
             {showCompleted && <Section section="completed" entries={completed} now={now} />}
           </>
@@ -75,9 +75,9 @@ export function MyWorkMobile() {
 function Section({ section, entries, now }: { section: MyWorkSection; entries: MyWorkItem[]; now: Date }) {
   return (
     <section className="mt-5" data-testid={`my-work-${section}`}>
-      <h2 className="mb-2 flex items-center gap-2 px-1 text-[13px] font-semibold tracking-tight">
+      <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-semibold tracking-tight">
         <span className={cn(section === "overdue" && "text-red-600 dark:text-red-400")}>{MY_WORK_SECTION_LABELS[section]}</span>
-        <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-2xs font-medium text-muted-foreground tabular">{entries.length}</span>
+        <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs font-medium text-muted-foreground tabular">{entries.length}</span>
       </h2>
       <MobileTaskList>
         {entries.map((entry) => (

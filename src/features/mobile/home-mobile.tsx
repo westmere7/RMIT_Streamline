@@ -153,7 +153,7 @@ function Tally({ label, value, tone, href }: { label: string; value: number | nu
       <span className={cn("block text-xl font-semibold tabular", tone === "warn" && (value ?? 0) > 0 && "text-red-600 dark:text-red-400")}>
         {value ?? <SkeletonLine className="w-6" />}
       </span>
-      <span className="block text-2xs text-muted-foreground">{label}</span>
+      <span className="block text-xs text-muted-foreground">{label}</span>
     </Link>
   );
 }
@@ -162,10 +162,10 @@ function Heading({ title, href, action, icon: Icon }: { title: string; href?: st
   return (
     <div className="mt-6 mb-2 flex items-center gap-2 px-1">
       <Icon aria-hidden className="size-4 text-muted-foreground" />
-      <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">{title}</h2>
+      <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">{title}</h2>
       {href && action && (
-        <Link href={href} className="flex h-11 items-center gap-1 px-1 text-2xs font-medium text-muted-foreground">
-          {action} <ArrowRight className="size-3" />
+        <Link href={href} className="flex h-11 items-center gap-1 px-1 text-[13px] font-medium text-muted-foreground">
+          {action} <ArrowRight className="size-3.5" />
         </Link>
       )}
     </div>

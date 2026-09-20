@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, Globe, History, MoreHorizontal, Star, UserPlus, Users } from "lucide-react";
+import { Archive, ArrowLeft, CheckSquare, Globe, History, LayoutList, MoreHorizontal, Star, Table2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
@@ -18,7 +18,8 @@ import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { ShareBoardDialog, useBoardShareStatus } from "@/features/boards/components/dialogs/share-board-dialog";
-import { MobileBoardTools } from "@/features/boards/components/mobile/mobile-board-tools";
+import { useBoardContext } from "@/features/boards/board-context";
+import { MobileBoardTools, ToolChip } from "@/features/boards/components/mobile/mobile-board-tools";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { copyToClipboard } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -202,10 +203,49 @@ function RenameSheet({ board, open, onOpenChange }: { board: Board; open: boolea
 }
 
 /** The tools row, boxed so it sits clear of the header. */
-export function MobileBoardToolsRow({ view, onViewChange }: { view: BoardViewKind; onViewChange: (view: BoardViewKind) => void }) {
+/**
+ * One strip of tools under the board name. The table view's own controls —
+ * cards or grid, and selecting several — ride in the same strip rather than
+ * on a row of their own, so the first card starts two bars down instead of four.
+ */
+export function MobileBoardToolsRow({
+  view,
+  onViewChange,
+  tableMode,
+  onTableModeChange,
+  selectMode,
+  onSelectModeChange,
+}: {
+  view: BoardViewKind;
+  onViewChange: (view: BoardViewKind) => void;
+  tableMode: "cards" | "grid";
+  onTableModeChange: (mode: "cards" | "grid") => void;
+  selectMode: boolean;
+  onSelectModeChange: (on: boolean) => void;
+}) {
+  const { canEdit } = useBoardContext();
+  const table = view === "table";
   return (
     <div className="shrink-0 border-b border-border/70 px-3 py-2">
-      <MobileBoardTools view={view} onViewChange={onViewChange} />
+      <MobileBoardTools
+        view={view}
+        onViewChange={onViewChange}
+        extraChips={
+          table ? (
+            <>
+              <ToolChip
+                onClick={() => onTableModeChange(tableMode === "grid" ? "cards" : "grid")}
+                icon={tableMode === "grid" ? LayoutList : Table2}
+                label={tableMode === "grid" ? "Cards" : "Grid"}
+                testId={`mobile-mode-${tableMode === "grid" ? "cards" : "grid"}`}
+              />
+              {canEdit && tableMode === "cards" && (
+                <ToolChip onClick={() => onSelectModeChange(!selectMode)} icon={CheckSquare} label={selectMode ? "Done" : "Select"} active={selectMode} testId="mobile-select-mode" />
+              )}
+            </>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileBottomNav, MobileTopBar } from "@/components/layout/mobile-shell";
@@ -28,6 +29,8 @@ import { useUiStore } from "@/stores/ui-store";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const isMobile = useIsMobile();
+  const pathname = usePathname();
+  const onBoard = pathname.includes("/boards/");
   const ws = useWorkspace();
 
   // Raises an operating-system notification when something loud arrives while
@@ -87,7 +90,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // browser's own chrome as it grows and shrinks.
       <div className="flex h-dvh w-full flex-col overflow-hidden bg-background" data-testid="mobile-shell">
         <ViewingAsBanner />
-        <MobileTopBar />
+        {/* A board brings its own header, with back, name and menu; the
+            workspace bar above it was a second header saying less, and the
+            two together took a third of the screen before the first card. */}
+        {!onBoard && <MobileTopBar />}
         <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>

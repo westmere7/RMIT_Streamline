@@ -36,11 +36,14 @@ export function MobileBoardTools({
   view,
   onViewChange,
   actions,
+  extraChips,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
   /** Rendered at the end of the row. The portal puts "Book a task" here. */
   actions?: React.ReactNode;
+  /** Chips the current view adds to the strip, after the board's own. */
+  extraChips?: React.ReactNode;
 }) {
   const { board, model } = useBoardContext();
   const ui = useBoardUi(board.id);
@@ -72,6 +75,7 @@ export function MobileBoardTools({
               {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}
             </Chip>
             <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />
+            {extraChips}
           </div>
         </div>
         {actions && <span className="shrink-0">{actions}</span>}
@@ -191,6 +195,10 @@ export function MobileBoardTools({
       </Sheet>
     </>
   );
+}
+
+export function ToolChip(props: React.ComponentProps<typeof Chip>) {
+  return <Chip {...props} />;
 }
 
 function Chip({

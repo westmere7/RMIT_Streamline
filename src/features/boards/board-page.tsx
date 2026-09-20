@@ -115,6 +115,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
   // Cards or the grid on a phone. Its own key: the desktop table has no such
   // choice, and the board's view settings follow the person to another device.
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${boardId}`, "cards");
+  // Ticking several cards at once; switched on from the tools strip, read by the view.
+  const [selectMode, setSelectMode] = React.useState(false);
   const setShowTicket = React.useCallback((showTicket: boolean) => updateTableSettings({ showTicket }), [updateTableSettings]);
   // The archive, offered under the views as well as in the board's menu, with
   // how much is in it. One count for the board being looked at, not one per
@@ -298,8 +300,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
         {!snapshot.isError && !contextValue && <ItemPanelSlot onClose={openItem} skeleton />}
         {contextValue && (
           <BoardContextProvider value={contextValue}>
-            <MobileBoardToolsRow view={view} onViewChange={setView} />
-            <MobileBoardViews view={view} tableMode={tableMode} onTableModeChange={setTableMode} />
+            <MobileBoardToolsRow view={view} onViewChange={setView} tableMode={tableMode} onTableModeChange={setTableMode} selectMode={selectMode} onSelectModeChange={setSelectMode} />
+            <MobileBoardViews view={view} tableMode={tableMode} selectMode={selectMode} onSelectModeChange={setSelectMode} />
             {/* Full screen on a phone: the panel already goes fixed inset-0 below 1024. */}
             <ItemPanelSlot onClose={openItem} />
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
@@ -383,8 +385,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
  * holds them to the screen, not a rewrite that would cost them their
  * capabilities.
  */
-function MobileBoardViews({ view, tableMode, onTableModeChange }: { view: BoardViewKind; tableMode: "cards" | "grid"; onTableModeChange: (mode: "cards" | "grid") => void }) {
-  if (view === "table") return <MobileTableView mode={tableMode} onModeChange={onTableModeChange} />;
+function MobileBoardViews({ view, tableMode, selectMode, onSelectModeChange }: { view: BoardViewKind; tableMode: "cards" | "grid"; selectMode: boolean; onSelectModeChange: (on: boolean) => void }) {
+  if (view === "table") return <MobileTableView mode={tableMode} selectMode={selectMode} onSelectModeChange={onSelectModeChange} />;
   if (view === "kanban") return <MobileKanbanView />;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="mobile-view-frame">

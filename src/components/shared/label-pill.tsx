@@ -8,7 +8,8 @@ export interface LabelPillProps extends React.ComponentProps<"span"> {
   /** "solid" fills the whole cell (status); "soft" is a tinted chip (priority, tags). */
   appearance?: "solid" | "soft";
   emptyText?: string;
-  size?: "sm" | "md";
+  /** `lg` is the phone's: a chip a thumb can read at arm's length, and hit. */
+  size?: "sm" | "md" | "lg";
   /** Stuck statuses wear hazard stripes. */
   striped?: boolean;
   /** Drawn in front of the name — the priority's signal bars. */
@@ -28,7 +29,7 @@ export function LabelPill({ label, appearance = "solid", emptyText = "", size = 
     <span
       className={cn(
         "inline-flex max-w-full items-center truncate rounded-md font-medium",
-        size === "md" ? "h-6.5 px-2.5 text-xs" : "h-5.5 px-2 text-2xs",
+        size === "lg" ? "h-7 px-3 text-[13px]" : size === "md" ? "h-6.5 px-2.5 text-xs" : "h-5.5 px-2 text-2xs",
         appearance === "solid" ? colors.solid : colors.soft,
         striped && "zebra",
         className,

@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { MobileItemCard } from "@/features/boards/components/mobile/mobile-item-card";
@@ -27,47 +28,72 @@ const NO_OVERRIDES: string[] = [];
  * is still reachable (see MobileGrid) for anyone who wants the columns; it
  * scrolls inside its own box so the page never moves sideways.
  */
-export function MobileTableView({ mode, onModeChange }: { mode: "cards" | "grid"; onModeChange: (mode: "cards" | "grid") => void }) {
+export function MobileTableView({
+  mode,
+  onModeChange,
+  selectMode: selectModeProp,
+  onSelectModeChange,
+}: {
+  mode: "cards" | "grid";
+  /**
+   * Given by screens with no tools strip of their own (the portal, a shared
+   * board): the view then draws its own row with the cards/grid toggle and
+   * the Select switch. The board page leaves it out and puts both in its strip.
+   */
+  onModeChange?: (mode: "cards" | "grid") => void;
+  selectMode?: boolean;
+  onSelectModeChange?: (on: boolean) => void;
+}) {
   const { board, model, canEdit } = useBoardContext();
   const ui = useBoardUi(board.id);
   const loading = useBoardUiStore((s) => s.boardLoading);
-  const [selectMode, setSelectMode] = React.useState(false);
   const clearSelection = useBoardUiStore((s) => s.clearSelection);
+  const [ownSelectMode, setOwnSelectMode] = React.useState(false);
+  const selectMode = selectModeProp ?? ownSelectMode;
+  const setSelectMode = onSelectModeChange ?? setOwnSelectMode;
 
   // Leaving selection mode drops the selection with it, so the bar cannot
-  // linger over a board with nothing ticked.
-  const exitSelect = () => {
-    setSelectMode(false);
-    clearSelection(board.id);
-  };
+  // linger over a board with nothing ticked. The switch itself lives in the
+  // tools strip; this is what happens when it is switched off.
+  React.useEffect(() => {
+    if (!selectMode) clearSelection(board.id);
+  }, [selectMode, clearSelection, board.id]);
+  const exitSelect = () => setSelectMode(false);
 
   const nothingMatches = model.isFiltered && model.visibleTopLevel === 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-table">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5">
-        <ModeToggle mode={mode} onChange={onModeChange} />
-        <span className="ml-auto text-2xs text-muted-foreground tabular">
-          {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel}` : pluralize(model.totalTopLevel, "item", "items")}
-        </span>
-        {canEdit && mode === "cards" && (
-          <button
-            type="button"
-            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-            aria-pressed={selectMode}
-            className={cn("flex min-h-9 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-2xs font-medium active:bg-accent/70", selectMode && "border-ring bg-accent-soft/60")}
-            data-testid="mobile-select-mode"
-          >
-            <CheckSquare className="size-3.5" aria-hidden /> {selectMode ? "Done" : "Select"}
-          </button>
-        )}
-      </div>
+      {onModeChange && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-1.5">
+          <ModeToggle mode={mode} onChange={onModeChange} />
+          <span className="ml-auto text-[13px] text-muted-foreground tabular">
+            {model.isFiltered ? `${model.visibleTopLevel} of ${model.totalTopLevel}` : pluralize(model.totalTopLevel, "item", "items")}
+          </span>
+          {canEdit && mode === "cards" && (
+            <button
+              type="button"
+              onClick={() => setSelectMode(!selectMode)}
+              aria-pressed={selectMode}
+              className={cn("flex min-h-11 items-center gap-1.5 rounded-full border border-border/70 px-3 text-[13px] font-medium active:bg-accent/70", selectMode && "border-ring bg-accent-soft/60")}
+              data-testid="mobile-select-mode"
+            >
+              <CheckSquare className="size-4" aria-hidden /> {selectMode ? "Done" : "Select"}
+            </button>
+          )}
+        </div>
+      )}
 
       {mode === "grid" ? (
         <MobileGrid />
       ) : (
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="px-3 pt-3 pb-28">
+            {model.isFiltered && (
+              <p className="mb-2 px-1 text-[13px] text-muted-foreground tabular" data-testid="mobile-filter-count">
+                {model.visibleTopLevel} of {pluralize(model.totalTopLevel, "item", "items")} match
+              </p>
+            )}
             {nothingMatches ? (
               <EmptyState icon={SearchX} title="Nothing matches" description="No item on this board matches the current search and filters." />
             ) : (
@@ -79,6 +105,7 @@ export function MobileTableView({ mode, onModeChange }: { mode: "cards" | "grid"
       )}
 
       {selectMode && ui.selectedItemIds.length > 0 && <MobileBulkBar onDone={exitSelect} />}
+      {canEdit && mode === "cards" && !selectMode && <NewItemButton />}
     </div>
   );
 }
@@ -98,13 +125,93 @@ function ModeToggle({ mode, onChange }: { mode: "cards" | "grid"; onChange: (mod
           role="radio"
           aria-checked={mode === value}
           onClick={() => onChange(value)}
-          className={cn("inline-flex h-11 items-center gap-1.5 rounded-full px-3.5 text-2xs font-medium transition-colors motion-reduce:transition-none", mode === value ? "bg-foreground text-background" : "text-muted-foreground")}
+          className={cn("inline-flex h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition-colors motion-reduce:transition-none", mode === value ? "bg-foreground text-background" : "text-muted-foreground")}
           data-testid={`mobile-mode-${value}`}
         >
-          <Icon className="size-3.5" aria-hidden /> {label}
+          <Icon className="size-4" aria-hidden /> {label}
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Adding a task without scrolling to the foot of a group.
+ *
+ * A floating button above the bottom bar, opening a sheet that asks for a
+ * name and, when the board has more than one group, which group. The per-group
+ * "Add item" rows stay for anyone already at the bottom of one.
+ */
+function NewItemButton() {
+  const { model, mutations } = useBoardContext();
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const groups = model.visibleGroups.length > 0 ? model.visibleGroups : model.groups;
+  const [groupId, setGroupId] = React.useState<string>(groups[0]?.id ?? "");
+  const chosen = groups.find((g) => g.id === groupId) ?? groups[0];
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed || !chosen) return;
+    void mutations.createItem({ groupId: chosen.id, name: trimmed });
+    setName("");
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <Button
+        onClick={() => setOpen(true)}
+        className="fixed right-4 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] z-30 h-12 rounded-full px-4 shadow-lg shadow-primary/25"
+        data-testid="mobile-new-item"
+      >
+        <Plus /> New item
+      </Button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          title="New item"
+          footer={
+            <Button className="h-11 w-full" disabled={!name.trim() || !chosen} onClick={submit} data-testid="mobile-new-item-save">
+              <Plus /> Add to {chosen?.name ?? "the board"}
+            </Button>
+          }
+        >
+          <div className="space-y-3 pb-2">
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="What needs doing?"
+              aria-label="Item name"
+              className="h-12 text-base"
+              data-testid="mobile-new-item-name"
+            />
+            {groups.length > 1 && (
+              <div role="radiogroup" aria-label="Group" className="flex flex-wrap gap-2">
+                {groups.map((group) => {
+                  const colors = colorClasses(group.color);
+                  const on = group.id === chosen?.id;
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setGroupId(group.id)}
+                      className={cn("flex h-11 items-center gap-2 rounded-full border px-3.5 text-[13px] font-medium active:bg-accent/70", on ? "border-ring bg-accent-soft/60" : "border-border/70")}
+                    >
+                      <span aria-hidden className={cn("size-2.5 rounded-full", colors.dot)} />
+                      {group.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
@@ -156,9 +263,9 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left active:bg-accent/70"
           data-testid="mobile-group-toggle"
         >
-          <ChevronDown aria-hidden className={cn("size-4 shrink-0 transition-transform motion-reduce:transition-none", colors.text, collapsed && "-rotate-90")} />
-          <span className={cn("min-w-0 truncate text-[15px] font-semibold tracking-tight", colors.text)}>{group.name}</span>
-          <span className="shrink-0 rounded-full bg-surface-strong/80 px-2 py-0.5 text-2xs font-medium text-muted-foreground tabular">{items.length}</span>
+          <ChevronDown aria-hidden className={cn("size-5 shrink-0 transition-transform motion-reduce:transition-none", colors.text, collapsed && "-rotate-90")} />
+          <span className={cn("min-w-0 truncate text-[16px] font-semibold tracking-tight", colors.text)}>{group.name}</span>
+          <span className="shrink-0 rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs font-medium text-muted-foreground tabular">{items.length}</span>
         </button>
       </div>
 
@@ -167,7 +274,7 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
           {items.map((item) => (
             <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
           ))}
-          {items.length === 0 && <li className="px-3 py-3 text-[13px] text-muted-foreground">Nothing in this group.</li>}
+          {items.length === 0 && <li className="px-3 py-3 text-[14px] text-muted-foreground">Nothing in this group.</li>}
           {canEdit && !selectMode && (
             <li>
               {adding ? (
@@ -197,7 +304,7 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
                 <button
                   type="button"
                   onClick={() => setAdding(true)}
-                  className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[13px] text-muted-foreground active:bg-accent/70"
+                  className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[14px] text-muted-foreground active:bg-accent/70"
                   data-testid="mobile-add-item"
                 >
                   <Plus className="size-4" aria-hidden /> Add item
