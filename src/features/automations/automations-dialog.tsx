@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Check, CircleSlash, ExternalLink, Play, Plus, Search, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CircleSlash, ExternalLink, Play, Plus, Search, Trash2, X, Zap } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { AutomationRule, Board, BoardColumn, BoardGroup, Item } from "@/domain";
 import { MAX_QUICK_RUN_ITEMS, TRIGGER_TIMING } from "@/domain";
-import { AutomationRuleDialog } from "@/features/automations/automation-rule-dialog";
+import { useRuleEditor } from "@/features/automations/automation-rule-dialog";
 import { useAutomationMutations, useAutomationRunnerHealth, useAutomationRuns, useAutomations, useQuickRun, useRuleVocabulary } from "@/features/automations/hooks";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -28,21 +28,30 @@ import { cn } from "@/lib/utils";
 const EMPTY_COLUMNS: readonly BoardColumn[] = [];
 const EMPTY_GROUPS: readonly BoardGroup[] = [];
 
+/** What the panel is showing: the lists, or one rule being written. */
+interface Editing {
+  rule: AutomationRule | null;
+  quick: boolean;
+  /** A new number per edit, so two blank editors in a row do not share a draft. */
+  session: number;
+}
+
 /**
  * One board's automations: what it does on its own, and what it can do on
  * request.
  *
- * Three tabs. Rules are what the board does when nobody is looking, written as
- * two coloured halves — the thing watched for and the things done — because a
- * list of twenty sentences cannot be scanned and a list of twenty when/then
- * pairs can. Quick runs are saved groups of actions with no trigger at all,
- * pointed at tasks and fired by hand; they live here and nowhere else, because
- * they are a thing a person does to a board while looking at it. Activity is
- * what any of it actually did.
+ * One panel, three levels. The header says whose automations these are and
+ * whether the runner behind them is alive. The tabs split rules — what the
+ * board does when nobody is looking, as two coloured halves, the thing watched
+ * for and the things done — from quick runs, saved groups of actions somebody
+ * points at tasks and fires by hand, and from the log of what any of it did.
+ * Within the rules, the ones woken by a change sit apart from the ones woken
+ * by the clock.
  *
- * Writing either kind opens the shared dialog, the same one the workspace-wide
- * manager opens, so there is one builder to keep right rather than two that
- * drift.
+ * Writing a rule happens in this same panel: the builder takes the place of
+ * the lists, the header turns into a back arrow, and the footer offers to
+ * save. Nobody is ever two dialogs deep. The builder itself is shared with the
+ * workspace-wide manager through `useRuleEditor`.
  */
 export function AutomationsDialog({
   board,
@@ -65,55 +74,91 @@ export function AutomationsDialog({
   const mutations = useAutomationMutations(board.id, vocabulary);
   const [tab, setTab] = React.useState("rules");
   const runs = useAutomationRuns(board.id, open && tab === "log");
-  const health = useAutomationRunnerHealth(open && (rules.data ?? []).some((r) => r.trigger.kind !== "manual"));
-  const [editing, setEditing] = React.useState<{ rule: AutomationRule | null; quick: boolean } | null>(null);
+  const [editing, setEditing] = React.useState<Editing | null>(null);
   const [running, setRunning] = React.useState<AutomationRule | null>(null);
 
   const all = rules.data ?? [];
   const automatic = all.filter((r) => r.trigger.kind !== "manual");
+  const eventRules = automatic.filter((r) => TRIGGER_TIMING[r.trigger.kind] === "event");
+  const scheduledRules = automatic.filter((r) => TRIGGER_TIMING[r.trigger.kind] === "schedule");
   const quick = all.filter((r) => r.trigger.kind === "manual");
   const loading = rules.isLoading || snapshot.isLoading;
+  const health = useAutomationRunnerHealth(open && automatic.length > 0);
+
+  const editor = useRuleEditor({
+    board,
+    rule: editing?.rule ?? null,
+    quick: editing?.quick ?? false,
+    active: open && !!editing,
+    session: editing?.session,
+    onSaved: () => setEditing(null),
+  });
 
   const close = (next: boolean) => {
-    if (!next) setRunning(null);
+    if (!next) {
+      setRunning(null);
+      setEditing(null);
+    }
     onOpenChange(next);
   };
+  // Counted rather than clocked: a session only has to differ from the last one.
+  const sessions = React.useRef(0);
+  const startEditing = (rule: AutomationRule | null, asQuick: boolean) => {
+    sessions.current += 1;
+    setEditing({ rule, quick: asQuick, session: sessions.current });
+  };
+  const stopEditing = () => setEditing(null);
+  const openNew = () => startEditing(null, tab === "quick");
 
   const blurb = `What ${board.name} does on its own, and on request.`;
-  const shown = open && !editing;
-  // On a phone the sheet's own body scrolls; on a desktop each pane does.
-  const paneClass = isMobile ? "pb-2" : "scrollbar-thin max-h-[58vh] overflow-y-auto";
   const newLabel = tab === "quick" ? "New quick run" : "New automation";
-  const openNew = () => setEditing({ rule: null, quick: tab === "quick" });
+  // On a phone the sheet's own body scrolls; on a desktop each pane does.
+  const paneClass = isMobile ? "pb-2" : "scrollbar-thin max-h-[52vh] overflow-y-auto px-6 pb-5";
+
+  const ruleRow = (rule: AutomationRule) => (
+    <li key={rule.id}>
+      <RuleRow
+        rule={rule}
+        vocabulary={vocabulary}
+        ready={!!snapshot.data}
+        canManage={canManage}
+        onToggle={(enabled) => mutations.setEnabled.mutate({ id: rule.id, enabled })}
+        onEdit={() => startEditing(rule, false)}
+        onRemove={() => mutations.remove.mutate(rule.id)}
+      />
+    </li>
+  );
 
   const panes = (
     <Tabs value={tab} onValueChange={setTab} className="min-h-0">
-      <div className="flex items-center justify-between gap-3">
-        <UnderlineTabsList className={isMobile ? "w-full [&>button]:flex-1 [&>button]:justify-center" : undefined}>
-          <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
-            Rules {automatic.length > 0 ? `(${automatic.length})` : ""}
-          </UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="quick" data-testid="automations-tab-quick">
-            Quick runs {quick.length > 0 ? `(${quick.length})` : ""}
-          </UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="log" data-testid="automations-tab-log">
-            Activity
-          </UnderlineTabsTrigger>
-        </UnderlineTabsList>
-        {!isMobile && (
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
-              <Link href={routes.automations(ws.slug)} onClick={() => onOpenChange(false)} data-testid="all-automations">
-                All automations <ExternalLink className="size-3.5" />
-              </Link>
-            </Button>
-            {canManage && tab !== "log" && (
-              <Button size="sm" onClick={openNew} data-testid="new-automation">
-                <Plus /> {tab === "quick" ? "New quick run" : "New"}
+      <div className={cn("border-b border-border/70", !isMobile && "px-6")}>
+        <div className="flex items-center justify-between gap-3">
+          <UnderlineTabsList className={cn("border-b-0", isMobile && "w-full [&>button]:flex-1 [&>button]:justify-center")}>
+            <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
+              Rules <Count n={automatic.length} />
+            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="quick" data-testid="automations-tab-quick">
+              Quick runs <Count n={quick.length} />
+            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="log" data-testid="automations-tab-log">
+              Activity
+            </UnderlineTabsTrigger>
+          </UnderlineTabsList>
+          {!isMobile && (
+            <div className="flex items-center gap-1.5">
+              <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+                <Link href={routes.automations(ws.slug)} onClick={() => onOpenChange(false)} data-testid="all-automations">
+                  All automations <ExternalLink className="size-3.5" />
+                </Link>
               </Button>
-            )}
-          </div>
-        )}
+              {canManage && tab !== "log" && (
+                <Button size="sm" onClick={openNew} data-testid="new-automation">
+                  <Plus /> {tab === "quick" ? "New quick run" : "New"}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ---- Rules ---- */}
@@ -131,37 +176,26 @@ export function AutomationsDialog({
             }
           />
         ) : (
-          <ul className="space-y-2 py-2">
+          <div className="space-y-5 pt-4">
             {health.stale && (
-              <li>
-                <p
-                  className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[13px] text-amber-700 dark:text-amber-300"
-                  data-testid="automation-runner-stale"
-                >
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    {health.beat
-                      ? `Nothing has run these automations for ${Math.round(health.minutesAgo ?? 0)} minutes.`
-                      : "Nothing has ever run these automations."}{" "}
-                    They are carried out by a server on a timer, so a rule cannot fire until something calls it.
-                  </span>
-                </p>
-              </li>
+              <p
+                className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[13px] text-amber-700 dark:text-amber-300"
+                data-testid="automation-runner-stale"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {health.beat ? `Nothing has run these automations for ${Math.round(health.minutesAgo ?? 0)} minutes.` : "Nothing has ever run these automations."} They are
+                  carried out by a server on a timer, so a rule cannot fire until something calls it.
+                </span>
+              </p>
             )}
-            {automatic.map((rule) => (
-              <li key={rule.id}>
-                <RuleRow
-                  rule={rule}
-                  vocabulary={vocabulary}
-                  ready={!!snapshot.data}
-                  canManage={canManage}
-                  onToggle={(enabled) => mutations.setEnabled.mutate({ id: rule.id, enabled })}
-                  onEdit={() => setEditing({ rule, quick: false })}
-                  onRemove={() => mutations.remove.mutate(rule.id)}
-                />
-              </li>
-            ))}
-          </ul>
+            <RuleGroup title="When something changes" count={eventRules.length}>
+              {eventRules.map(ruleRow)}
+            </RuleGroup>
+            <RuleGroup title="On the clock" count={scheduledRules.length}>
+              {scheduledRules.map(ruleRow)}
+            </RuleGroup>
+          </div>
         )}
       </TabsContent>
 
@@ -170,14 +204,7 @@ export function AutomationsDialog({
         {loading ? (
           <RowSkeletons />
         ) : running ? (
-          <RunPicker
-            rule={running}
-            items={snapshot.data?.items ?? []}
-            groups={snapshot.data?.groups ?? []}
-            boardId={board.id}
-            vocabulary={vocabulary}
-            onDone={() => setRunning(null)}
-          />
+          <RunPicker rule={running} items={snapshot.data?.items ?? []} groups={snapshot.data?.groups ?? []} boardId={board.id} vocabulary={vocabulary} onDone={() => setRunning(null)} />
         ) : quick.length === 0 ? (
           <EmptyState
             icon={Play}
@@ -189,7 +216,7 @@ export function AutomationsDialog({
             }
           />
         ) : (
-          <ul className="space-y-2 py-2">
+          <ul className="space-y-2 pt-4">
             {quick.map((rule) => (
               <li key={rule.id}>
                 <QuickRunRow
@@ -198,7 +225,7 @@ export function AutomationsDialog({
                   ready={!!snapshot.data}
                   canManage={canManage}
                   onRun={() => setRunning(rule)}
-                  onEdit={() => setEditing({ rule, quick: true })}
+                  onEdit={() => startEditing(rule, true)}
                   onRemove={() => mutations.remove.mutate(rule.id)}
                 />
               </li>
@@ -214,15 +241,12 @@ export function AutomationsDialog({
         ) : (runs.data ?? []).length === 0 ? (
           <EmptyState icon={CircleSlash} title="Nothing has run yet" description="Every firing lands here, including the ones a condition held back." compact />
         ) : (
-          <ul className="divide-y divide-border/60 py-1">
+          <ul className="divide-y divide-border/60 pt-2">
             {(runs.data ?? []).map((run) => (
-              <li key={run.id} className="flex items-start gap-3 py-2" data-testid="automation-run">
+              <li key={run.id} className="flex items-start gap-3 py-2.5" data-testid="automation-run">
                 <span
                   aria-hidden
-                  className={cn(
-                    "mt-1 size-2 shrink-0 rounded-full",
-                    run.status === "ran" ? "bg-green-500" : run.status === "skipped" ? "bg-muted-foreground/50" : "bg-destructive",
-                  )}
+                  className={cn("mt-1.5 size-2 shrink-0 rounded-full", run.status === "ran" ? "bg-green-500" : run.status === "skipped" ? "bg-muted-foreground/50" : "bg-destructive")}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px]">{run.summary}</p>
@@ -239,17 +263,23 @@ export function AutomationsDialog({
     </Tabs>
   );
 
-  return (
-    <>
-      {isMobile ? (
-        // A sheet, like every other overlay on the phone. The buttons the
-        // desktop keeps beside the tabs have no room there at 375px; they
-        // become the sheet's footer, where a thumb already is.
-        <Sheet open={shown} onOpenChange={close}>
-          <SheetContent
-            title="Automations"
-            description={blurb}
-            footer={
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={close}>
+        <SheetContent
+          title={editing ? editor.heading : "Automations"}
+          description={editing ? editor.blurb : blurb}
+          footer={
+            editing ? (
+              <div className="flex flex-col gap-2">
+                <Button className="h-11 w-full" onClick={editor.save} disabled={editor.busy || !editor.ready} data-testid="save-automation">
+                  <Check /> {editor.saveLabel}
+                </Button>
+                <Button variant="ghost" className="h-11 w-full" onClick={stopEditing}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
               <div className="flex flex-col gap-2">
                 {canManage && tab !== "log" && !running && (
                   <Button className="h-11 w-full" onClick={openNew} data-testid="new-automation">
@@ -262,44 +292,108 @@ export function AutomationsDialog({
                   </Link>
                 </Button>
               </div>
-            }
-            data-testid="automations-dialog"
-          >
-            {panes}
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={shown} onOpenChange={close}>
-          <DialogContent size="xl" className="max-h-[85vh] overflow-hidden" data-testid="automations-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Zap className="size-4 text-primary" /> Automations
-              </DialogTitle>
-              <DialogDescription>{blurb}</DialogDescription>
-            </DialogHeader>
-            {panes}
-          </DialogContent>
-        </Dialog>
-      )}
+            )
+          }
+          data-testid="automations-dialog"
+        >
+          {editing ? (
+            <div className="pb-2">
+              <button type="button" onClick={stopEditing} className="mb-3 flex min-h-11 items-center gap-1 text-[13px] font-medium text-muted-foreground active:text-foreground" data-testid="automations-back">
+                <ArrowLeft className="size-4" /> Back to the list
+              </button>
+              {editor.body}
+            </div>
+          ) : (
+            panes
+          )}
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
-      {editing && (
-        <AutomationRuleDialog
-          board={board}
-          rule={editing.rule}
-          quick={editing.quick}
-          open
-          onOpenChange={(next) => {
-            if (!next) setEditing(null);
-          }}
-        />
-      )}
-    </>
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent size="xl" className="max-h-[88vh] gap-0 overflow-hidden p-0" data-testid="automations-dialog">
+        <header className="flex items-start gap-3 border-b border-border/70 px-6 pt-5 pr-14 pb-4">
+          {editing ? (
+            <Button variant="ghost" size="icon-sm" onClick={stopEditing} aria-label="Back to the list" className="-ml-1 mt-0.5" data-testid="automations-back">
+              <ArrowLeft />
+            </Button>
+          ) : (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Zap className="size-4" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-[15px] font-semibold tracking-tight">{editing ? editor.heading : "Automations"}</DialogTitle>
+            <DialogDescription className="mt-0.5 text-[13px] text-muted-foreground">{editing ? editor.blurb : blurb}</DialogDescription>
+          </div>
+          {!editing && <RunnerPill health={health} count={automatic.length} />}
+        </header>
+
+        {editing ? (
+          <>
+            <div className="scrollbar-thin max-h-[56vh] overflow-y-auto px-6 py-5">{editor.body}</div>
+            <footer className="flex items-center justify-end gap-2 border-t border-border/70 px-6 py-4">
+              <Button variant="ghost" onClick={stopEditing}>
+                Cancel
+              </Button>
+              <Button onClick={editor.save} disabled={editor.busy || !editor.ready} data-testid="save-automation">
+                <Check /> {editor.saveLabel}
+              </Button>
+            </footer>
+          </>
+        ) : (
+          panes
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** A tally beside a tab's name, absent when there is nothing to count. */
+function Count({ n }: { n: number }) {
+  if (n === 0) return null;
+  return <span className="rounded-full bg-surface-strong px-1.5 py-px text-[10px] font-semibold tabular text-muted-foreground">{n}</span>;
+}
+
+/**
+ * Whether anything is driving the rules. Green when the runner has been heard
+ * from lately, amber when it has not; nothing at all while there is nothing
+ * for it to run, or until the first answer is in.
+ */
+function RunnerPill({ health, count }: { health: ReturnType<typeof useAutomationRunnerHealth>; count: number }) {
+  if (count === 0 || health.loading) return null;
+  if (health.stale) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-2xs font-medium text-amber-700 dark:text-amber-300" data-testid="runner-pill">
+        <AlertTriangle className="size-3" /> Runner quiet
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs font-medium text-muted-foreground" data-testid="runner-pill">
+      <span aria-hidden className="size-1.5 rounded-full bg-green-500" /> Runner live
+    </span>
+  );
+}
+
+/** A titled run of rules. Absent when it would be empty, so a board with only one kind shows one heading. */
+function RuleGroup({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  if (count === 0) return null;
+  return (
+    <section>
+      <h3 className="mb-2 flex items-center gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {title} <Count n={count} />
+      </h3>
+      <ul className="space-y-2">{children}</ul>
+    </section>
   );
 }
 
 function RowSkeletons({ height = "h-20", count = 3 }: { height?: string; count?: number }) {
   return (
-    <div className="space-y-2 pt-2">
+    <div className="space-y-2 pt-4">
       {Array.from({ length: count }).map((_, i) => (
         <Skeleton key={i} className={cn(height, "rounded-xl")} />
       ))}
@@ -341,12 +435,15 @@ function RuleRow({
           data-testid="automation-toggle"
         />
         <button type="button" onClick={canManage ? onEdit : undefined} className="min-w-0 flex-1 text-left" data-testid="automation-open">
-          <p className="text-[13px] font-medium">{rule.name}</p>
-          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-2xs">
+          <span className="flex items-start justify-between gap-3">
+            <span className="text-[13px] leading-snug font-semibold">{rule.name}</span>
+            <Tally rule={rule} />
+          </span>
+          <span className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs">
             <Chip tone={scheduled ? "clock" : "when"}>{ready ? describeTrigger(rule.trigger, vocabulary) : "…"}</Chip>
             <ArrowRight aria-hidden className="size-3 shrink-0 text-muted-foreground/60" />
             <ActionChips rule={rule} vocabulary={vocabulary} ready={ready} />
-          </p>
+          </span>
         </button>
         {canManage && (
           <Button variant="ghost" size="icon-sm" onClick={onRemove} aria-label={`Remove ${rule.name}`} data-testid="automation-remove">
@@ -354,7 +451,7 @@ function RuleRow({
           </Button>
         )}
       </div>
-      <Tally rule={rule} />
+      {rule.lastError && <p className="mt-2 pl-12 text-2xs text-destructive">Last time: {rule.lastError}</p>}
     </div>
   );
 }
@@ -388,10 +485,13 @@ function QuickRunRow({
           <Play className="size-3.5" />
         </span>
         <button type="button" onClick={canManage ? onEdit : undefined} className="min-w-0 flex-1 text-left" data-testid="quick-run-open">
-          <p className="text-[13px] font-medium">{rule.name}</p>
-          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-2xs">
+          <span className="flex items-start justify-between gap-3">
+            <span className="text-[13px] leading-snug font-semibold">{rule.name}</span>
+            <Tally rule={rule} />
+          </span>
+          <span className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs">
             <ActionChips rule={rule} vocabulary={vocabulary} ready={ready} limit={4} />
-          </p>
+          </span>
         </button>
         <div className="flex shrink-0 items-center gap-1">
           <Button size="sm" onClick={onRun} disabled={!ready} data-testid="quick-run-start">
@@ -404,7 +504,7 @@ function QuickRunRow({
           )}
         </div>
       </div>
-      <Tally rule={rule} />
+      {rule.lastError && <p className="mt-2 pl-10 text-2xs text-destructive">Last time: {rule.lastError}</p>}
     </div>
   );
 }
@@ -422,18 +522,18 @@ function ActionChips({ rule, vocabulary, ready, limit = 3 }: { rule: AutomationR
   );
 }
 
+/** How often it has fired and when it last did: small, and to the right of the name. */
 function Tally({ rule }: { rule: AutomationRule }) {
   return (
-    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-12 text-2xs text-muted-foreground">
+    <span className="shrink-0 text-2xs whitespace-nowrap text-muted-foreground tabular">
       {rule.lastRunAt ? (
-        <span>
-          last ran <RelativeTime iso={rule.lastRunAt} /> · {rule.runCount} {rule.runCount === 1 ? "time" : "times"}
-        </span>
+        <>
+          {rule.runCount}× · <RelativeTime iso={rule.lastRunAt} />
+        </>
       ) : (
-        <span>has not run yet</span>
+        "never run"
       )}
-      {rule.lastError && <span className="text-destructive">last time: {rule.lastError}</span>}
-    </p>
+    </span>
   );
 }
 

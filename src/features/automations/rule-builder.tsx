@@ -18,7 +18,7 @@ import type {
   ConditionOp,
   EntityId,
 } from "@/domain";
-import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
+import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, T_SHIRT_SIZES, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
 import type { RuleVocabulary } from "@/services";
 import { cn } from "@/lib/utils";
 
@@ -40,13 +40,21 @@ export interface RuleDraft {
 
 const TRIGGER_WORDS: Record<AutomationTriggerKind, string> = {
   item_created: "a task is added",
+  subitem_created: "a subitem is added",
+  item_renamed: "a task is renamed",
   column_changed: "a column changes",
   column_set_to: "a column becomes a value",
+  column_cleared: "a column is cleared",
+  number_crosses: "a number crosses a line",
   person_assigned: "somebody is assigned",
+  person_unassigned: "somebody is removed",
   item_moved_to_group: "a task moves to a group",
+  item_moved_from_group: "a task leaves a group",
   comment_added: "an update is posted",
   item_archived: "a task is archived",
+  item_restored: "a task is restored",
   date_arrives: "a date arrives",
+  column_unchanged_for: "a column sits still for days",
   recurring: "on a schedule",
   manual: "run by hand",
 };
@@ -57,17 +65,34 @@ export type RuleBuilderMode = "rule" | "quick";
 const ACTION_WORDS: Record<AutomationActionKind, string> = {
   set_value: "set a column",
   clear_value: "clear a column",
+  copy_value: "copy a column to another",
+  adjust_number: "add to a number",
+  add_tags: "add tags",
+  remove_tags: "remove tags",
   move_to_group: "move it to a group",
   assign_person: "assign somebody",
   unassign_person: "unassign somebody",
   shift_date: "move a date",
   set_date_relative: "set a date from today",
+  set_name: "rename it",
+  set_description: "set its description",
+  set_parent_value: "set a column on the parent",
+  set_subitems_value: "set a column on every subitem",
   notify: "notify somebody",
   add_comment: "post an update",
   create_item: "create a task",
   create_subitem: "add a subitem",
+  duplicate_item: "duplicate it",
   archive_item: "archive it",
+  restore_item: "restore it",
+  send_webhook: "call a webhook",
 };
+
+/** The column types "a column becomes a value" can name a value for. */
+const SETTABLE_TO = (column: BoardColumn) => hasLabels(column) || column.type === "CHECKBOX" || column.type === "SIZE";
+
+/** Actions whose text is a template, so the placeholder hint applies. */
+const TEMPLATED: readonly AutomationActionKind[] = ["notify", "add_comment", "create_item", "create_subitem", "set_name", "set_description", "add_tags", "remove_tags"];
 
 const OP_WORDS: Record<ConditionOp, string> = {
   is: "is",
@@ -291,7 +316,7 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
         />
       )}
 
-      {trigger.kind === "item_moved_to_group" && (
+      {(trigger.kind === "item_moved_to_group" || trigger.kind === "item_moved_from_group") && (
         <Picker
           value={trigger.groupId}
           label="Group"
@@ -300,20 +325,40 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
         />
       )}
 
-      {trigger.kind === "column_changed" && columnPicker(trigger.columnId, () => true, (columnId) => onChange({ ...trigger, columnId }))}
+      {(trigger.kind === "column_changed" || trigger.kind === "column_cleared") && columnPicker(trigger.columnId, () => true, (columnId) => onChange({ ...trigger, columnId }))}
 
       {trigger.kind === "column_set_to" && (
         <>
-          {columnPicker(trigger.columnId, hasLabels, (columnId) => {
-            const column = vocabulary.columns.find((c) => c.id === columnId);
-            onChange({ kind: "column_set_to", columnId, labelId: column ? (columnLabels(column)[0]?.id ?? null) : null });
-          })}
+          {columnPicker(trigger.columnId, SETTABLE_TO, (columnId) => onChange(setToDefault(columnId, vocabulary)))}
           <span className="text-[13px] text-muted-foreground">becomes</span>
-          <LabelPicker columnId={trigger.columnId} value={trigger.labelId ?? ""} onChange={(labelId) => onChange({ ...trigger, labelId })} vocabulary={vocabulary} />
+          <SetToPicker trigger={trigger} onChange={onChange} vocabulary={vocabulary} />
         </>
       )}
 
-      {trigger.kind === "person_assigned" && (
+      {trigger.kind === "number_crosses" && (
+        <>
+          {columnPicker(trigger.columnId, (c) => c.type === "NUMBER", (columnId) => onChange({ ...trigger, columnId }))}
+          <Picker
+            value={trigger.direction}
+            label="Direction"
+            onChange={(direction) => onChange({ ...trigger, direction: direction as "above" | "below" })}
+            options={[
+              { value: "above", label: "goes above" },
+              { value: "below", label: "goes below" },
+            ]}
+          />
+          <Input
+            type="number"
+            value={Number.isFinite(trigger.threshold) ? String(trigger.threshold) : ""}
+            onChange={(e) => onChange({ ...trigger, threshold: e.target.value === "" ? Number.NaN : Number(e.target.value) })}
+            aria-label="The number it has to cross"
+            className="h-8 w-28"
+            data-testid="trigger-threshold"
+          />
+        </>
+      )}
+
+      {(trigger.kind === "person_assigned" || trigger.kind === "person_unassigned") && (
         <>
           {columnPicker(trigger.columnId, isPeopleColumn, (columnId) => onChange({ ...trigger, columnId }))}
           <Picker
@@ -322,6 +367,19 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
             onChange={(userId) => onChange({ ...trigger, userId: userId === "anyone" ? null : userId })}
             options={[{ value: "anyone", label: "anybody" }, ...vocabulary.users.map((u) => ({ value: u.id, label: u.displayName }))]}
           />
+        </>
+      )}
+
+      {trigger.kind === "column_unchanged_for" && (
+        <>
+          {columnPicker(trigger.columnId, () => true, (columnId) => onChange({ ...trigger, columnId }))}
+          <Picker
+            value={String(trigger.days)}
+            label="For how long"
+            onChange={(days) => onChange({ ...trigger, days: Number(days) })}
+            options={[1, 2, 3, 5, 7, 10, 14, 21, 30, 60, 90].map((days) => ({ value: String(days), label: `for ${days} ${days === 1 ? "day" : "days"}` }))}
+          />
+          <HourPicker value={trigger.atHour} onChange={(atHour) => onChange({ ...trigger, atHour })} />
         </>
       )}
 
@@ -377,6 +435,57 @@ function TriggerEditor({ trigger, onChange, vocabulary }: { trigger: AutomationT
       )}
     </Row>
   );
+}
+
+/**
+ * "Becomes what": a label for a status-like column, ticked or not for a
+ * checkbox, a size for a size column. Each writes the field the domain reads
+ * for that type and clears the others, so a trigger never carries two answers.
+ */
+function SetToPicker({
+  trigger,
+  onChange,
+  vocabulary,
+}: {
+  trigger: Extract<AutomationTrigger, { kind: "column_set_to" }>;
+  onChange: (next: AutomationTrigger) => void;
+  vocabulary: RuleVocabulary;
+}) {
+  const column = vocabulary.columns.find((c) => c.id === trigger.columnId);
+  if (column?.type === "CHECKBOX") {
+    return (
+      <Picker
+        value={trigger.checked === false ? "no" : "yes"}
+        label="Value"
+        onChange={(next) => onChange({ kind: "column_set_to", columnId: trigger.columnId, checked: next === "yes" })}
+        options={[
+          { value: "yes", label: "ticked" },
+          { value: "no", label: "unticked" },
+        ]}
+        testId="trigger-value"
+      />
+    );
+  }
+  if (column?.type === "SIZE") {
+    return (
+      <Picker
+        value={trigger.text ?? ""}
+        label="Size"
+        onChange={(text) => onChange({ kind: "column_set_to", columnId: trigger.columnId, text })}
+        options={T_SHIRT_SIZES.map((size) => ({ value: size, label: size }))}
+        testId="trigger-value"
+      />
+    );
+  }
+  return <LabelPicker columnId={trigger.columnId} value={trigger.labelId ?? ""} onChange={(labelId) => onChange({ kind: "column_set_to", columnId: trigger.columnId, labelId })} vocabulary={vocabulary} />;
+}
+
+/** The first value a "becomes" trigger names for a column, by what the column holds. */
+function setToDefault(columnId: EntityId, vocabulary: RuleVocabulary): AutomationTrigger {
+  const column = vocabulary.columns.find((c) => c.id === columnId);
+  if (column?.type === "CHECKBOX") return { kind: "column_set_to", columnId, checked: true };
+  if (column?.type === "SIZE") return { kind: "column_set_to", columnId, text: T_SHIRT_SIZES[0] };
+  return { kind: "column_set_to", columnId, labelId: column ? (columnLabels(column)[0]?.id ?? null) : null };
 }
 
 function HourPicker({ value, onChange }: { value: number; onChange: (hour: number) => void }) {
@@ -543,6 +652,103 @@ function ActionEditor({
 
       {action.kind === "clear_value" && columnPicker(action.columnId, () => true, (columnId) => onChange({ ...action, columnId }))}
 
+      {(action.kind === "set_parent_value" || action.kind === "set_subitems_value") && (
+        <>
+          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "DEPENDENCY"].includes(c.type), (columnId) => {
+            const column = vocabulary.columns.find((c) => c.id === columnId);
+            onChange({ ...action, columnId, value: column ? emptyValueFor(column.type) : action.value });
+          })}
+          <span className="text-[13px] text-muted-foreground">to</span>
+          <ValueEditor columnId={action.columnId} value={action.value} onChange={(value) => value && onChange({ ...action, value })} vocabulary={vocabulary} />
+        </>
+      )}
+
+      {action.kind === "copy_value" && (
+        <>
+          <Picker
+            value={action.fromColumnId}
+            label="From"
+            onChange={(fromColumnId) => onChange({ ...action, fromColumnId })}
+            options={vocabulary.columns.filter((c) => !["ASSETS_RECAP", "DEPENDENCY"].includes(c.type)).map((c) => ({ value: c.id, label: c.name }))}
+            testId="action-column"
+          />
+          <span className="text-[13px] text-muted-foreground">to</span>
+          <Picker
+            value={action.toColumnId}
+            label="To"
+            onChange={(toColumnId) => onChange({ ...action, toColumnId })}
+            // Only columns that hold the same kind of value: a date cannot be
+            // copied into a status, and the save would refuse it anyway.
+            options={vocabulary.columns
+              .filter((c) => c.id !== action.fromColumnId && c.type === vocabulary.columns.find((f) => f.id === action.fromColumnId)?.type)
+              .map((c) => ({ value: c.id, label: c.name }))}
+            testId="action-column-to"
+          />
+        </>
+      )}
+
+      {action.kind === "adjust_number" && (
+        <>
+          {columnPicker(action.columnId, (c) => c.type === "NUMBER", (columnId) => onChange({ ...action, columnId }))}
+          <span className="text-[13px] text-muted-foreground">by</span>
+          <Input
+            type="number"
+            value={Number.isFinite(action.delta) ? String(action.delta) : ""}
+            onChange={(e) => onChange({ ...action, delta: e.target.value === "" ? Number.NaN : Number(e.target.value) })}
+            aria-label="How much to change it by"
+            className="h-8 w-28"
+            data-testid="action-delta"
+          />
+        </>
+      )}
+
+      {(action.kind === "add_tags" || action.kind === "remove_tags") && (
+        <>
+          {columnPicker(action.columnId, (c) => c.type === "TAGS", (columnId) => onChange({ ...action, columnId }))}
+          <Input
+            value={action.tags.join(", ")}
+            onChange={(e) => onChange({ ...action, tags: e.target.value.split(",").map((tag) => tag.trimStart()) })}
+            placeholder="Tags, separated by commas"
+            aria-label="Tags, separated by commas"
+            className="h-8 min-w-48 flex-1"
+            data-testid="action-tags"
+          />
+        </>
+      )}
+
+      {action.kind === "set_name" && (
+        <Input
+          value={action.name}
+          onChange={(e) => onChange({ ...action, name: e.target.value })}
+          placeholder="What to call it"
+          aria-label="The new name"
+          className="h-8 min-w-48 flex-1"
+          data-testid="action-name"
+        />
+      )}
+
+      {action.kind === "set_description" && (
+        <Textarea
+          value={action.text}
+          onChange={(e) => onChange({ ...action, text: e.target.value })}
+          placeholder="The new description (leave empty to clear it)"
+          aria-label="The new description"
+          className="min-h-16 flex-1"
+        />
+      )}
+
+      {action.kind === "send_webhook" && (
+        <Input
+          type="url"
+          value={action.url}
+          onChange={(e) => onChange({ ...action, url: e.target.value })}
+          placeholder="https://…"
+          aria-label="The address to call"
+          className="h-8 min-w-64 flex-1"
+          data-testid="action-url"
+        />
+      )}
+
       {action.kind === "move_to_group" && (
         <Picker
           value={action.groupId}
@@ -556,19 +762,26 @@ function ActionEditor({
         <>
           {columnPicker(action.columnId, isPeopleColumn, (columnId) => onChange({ ...action, columnId }))}
           <Picker
-            value={action.kind === "assign_person" && action.useActor ? "actor" : (action.userIds[0] ?? "")}
+            value={action.kind === "assign_person" && action.useActor ? "actor" : action.kind === "assign_person" && action.useCreator ? "creator" : (action.userIds[0] ?? "")}
             label="Person"
             onChange={(who) =>
               onChange(
                 action.kind === "assign_person"
                   ? who === "actor"
-                    ? { ...action, userIds: [], useActor: true }
-                    : { ...action, userIds: [who], useActor: false }
+                    ? { ...action, userIds: [], useActor: true, useCreator: false }
+                    : who === "creator"
+                      ? { ...action, userIds: [], useActor: false, useCreator: true }
+                      : { ...action, userIds: [who], useActor: false, useCreator: false }
                   : { ...action, userIds: [who], all: false },
               )
             }
             options={[
-              ...(action.kind === "assign_person" ? [{ value: "actor", label: "whoever made the change" }] : []),
+              ...(action.kind === "assign_person"
+                ? [
+                    { value: "actor", label: "whoever made the change" },
+                    { value: "creator", label: "whoever added the task" },
+                  ]
+                : []),
               ...vocabulary.users.map((u) => ({ value: u.id, label: u.displayName })),
             ]}
           />
@@ -606,14 +819,25 @@ function ActionEditor({
           <Picker
             value={action.audience}
             label="Who to tell"
-            onChange={(audience) => onChange({ ...action, audience: audience as typeof action.audience, userIds: [] })}
+            onChange={(audience) =>
+              onChange({
+                ...action,
+                audience: audience as typeof action.audience,
+                userIds: [],
+                columnId: audience === "column" ? (vocabulary.columns.find(isPeopleColumn)?.id ?? null) : null,
+              })
+            }
             options={[
               { value: "people_on_item", label: "everybody on the task" },
-              { value: "board_owners", label: "the board's owners" },
+              { value: "column", label: "everybody in a people column" },
+              { value: "creator", label: "whoever added the task" },
               { value: "actor", label: "whoever made the change" },
+              { value: "board_owners", label: "the board's owners" },
+              { value: "board_members", label: "everybody on the board" },
               { value: "specific", label: "somebody in particular" },
             ]}
           />
+          {action.audience === "column" && columnPicker(action.columnId ?? "", isPeopleColumn, (columnId) => onChange({ ...action, columnId }))}
           {action.audience === "specific" && (
             <Picker
               value={action.userIds?.[0] ?? ""}
@@ -664,7 +888,7 @@ function ActionEditor({
         </>
       )}
 
-      {(action.kind === "notify" || action.kind === "add_comment" || action.kind === "create_item" || action.kind === "create_subitem") && (
+      {TEMPLATED.includes(action.kind) && (
         <p className="w-full text-2xs text-muted-foreground">
           {"{item}, {board}, {group}, {ticket}, {actor}, {today} and {column:Name} are filled in when it runs."}
         </p>
@@ -781,20 +1005,28 @@ function defaultTrigger(kind: AutomationTriggerKind, vocabulary: RuleVocabulary)
       return { kind, groupId: null };
     case "column_changed":
       return { kind, columnId: firstOf(() => true) };
-    case "column_set_to": {
-      const columnId = firstOf(hasLabels);
-      const column = vocabulary.columns.find((c) => c.id === columnId);
-      return { kind, columnId, labelId: column ? (columnLabels(column)[0]?.id ?? null) : null };
-    }
+    case "column_set_to":
+      return setToDefault(firstOf(SETTABLE_TO), vocabulary);
+    case "column_cleared":
+      return { kind, columnId: firstOf(() => true) };
+    case "number_crosses":
+      return { kind, columnId: firstOf((c) => c.type === "NUMBER"), direction: "above", threshold: 0 };
     case "person_assigned":
+    case "person_unassigned":
       return { kind, columnId: firstOf(isPeopleColumn), userId: null };
     case "item_moved_to_group":
+    case "item_moved_from_group":
       return { kind, groupId: vocabulary.groups[0]?.id ?? "" };
+    case "subitem_created":
+    case "item_renamed":
     case "comment_added":
     case "item_archived":
+    case "item_restored":
       return { kind };
     case "date_arrives":
       return { kind, columnId: firstOf(isDateColumn), offsetDays: -1, atHour: 9 };
+    case "column_unchanged_for":
+      return { kind, columnId: firstOf(hasLabels), days: 7, atHour: 9 };
     case "recurring":
       return { kind, recurrence: "weekly", weekday: 1, atHour: 9 };
     case "manual":
@@ -844,6 +1076,34 @@ function defaultAction(allowed: readonly AutomationActionKind[], vocabulary: Rul
       return { kind: "create_subitem", name: "Check {item}" };
     case "archive_item":
       return { kind: "archive_item" };
+    case "restore_item":
+      return { kind: "restore_item" };
+    case "duplicate_item":
+      return { kind: "duplicate_item" };
+    case "set_name":
+      return { kind: "set_name", name: "{item}" };
+    case "set_description":
+      return { kind: "set_description", text: "" };
+    case "copy_value": {
+      const fromColumnId = firstOf(isDateColumn);
+      const from = vocabulary.columns.find((c) => c.id === fromColumnId);
+      const to = vocabulary.columns.find((c) => c.id !== fromColumnId && c.type === from?.type);
+      return { kind: "copy_value", fromColumnId, toColumnId: to?.id ?? "" };
+    }
+    case "adjust_number":
+      return { kind: "adjust_number", columnId: firstOf((c) => c.type === "NUMBER"), delta: 1 };
+    case "add_tags":
+      return { kind: "add_tags", columnId: firstOf((c) => c.type === "TAGS"), tags: [] };
+    case "remove_tags":
+      return { kind: "remove_tags", columnId: firstOf((c) => c.type === "TAGS"), tags: [] };
+    case "set_parent_value":
+    case "set_subitems_value": {
+      const columnId = firstOf(hasLabels);
+      const column = vocabulary.columns.find((c) => c.id === columnId);
+      return { kind: chosen, columnId, value: column ? emptyValueFor(column.type) : { type: "TEXT", text: "" } };
+    }
+    case "send_webhook":
+      return { kind: "send_webhook", url: "" };
     default:
       return { kind: "notify", audience: "people_on_item", message: "{item} needs a look" };
   }

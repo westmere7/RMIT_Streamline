@@ -19,6 +19,7 @@ import {
   TRIGGER_TIMING,
   actionsAllowedFor,
   columnLabels,
+  webhookUrlProblem,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { AutomationEngine, DrainReport } from "./automation-engine";
@@ -169,17 +170,34 @@ function validate(
   switch (trigger.kind) {
     case "column_changed":
     case "column_set_to":
+    case "column_cleared":
       if (!column(trigger.columnId)) throw new AutomationError("Pick a column for the trigger.");
       break;
-    case "person_assigned": {
+    case "number_crosses": {
+      const found = column(trigger.columnId);
+      if (!found) throw new AutomationError("Pick a number column for the trigger.");
+      if (found.type !== "NUMBER") throw new AutomationError(`${found.name} does not hold a number.`);
+      if (!Number.isFinite(Number(trigger.threshold))) throw new AutomationError("Say what number it has to cross.");
+      break;
+    }
+    case "person_assigned":
+    case "person_unassigned": {
       const found = column(trigger.columnId);
       if (!found) throw new AutomationError("Pick a column for the trigger.");
       if (found.type !== "PERSON" && found.type !== "PEOPLE") throw new AutomationError(`${found.name} does not hold people.`);
       break;
     }
     case "item_moved_to_group":
+    case "item_moved_from_group":
       if (!group(trigger.groupId)) throw new AutomationError("Pick a group for the trigger.");
       break;
+    case "column_unchanged_for": {
+      if (!column(trigger.columnId)) throw new AutomationError("Pick a column for the trigger.");
+      const days = Number(trigger.days);
+      if (!Number.isInteger(days) || days < 1 || days > 365) throw new AutomationError("Pick how many days it has to sit still, from 1 to 365.");
+      assertHour(trigger.atHour);
+      break;
+    }
     case "item_created":
       if (trigger.groupId && !group(trigger.groupId)) throw new AutomationError("That group is no longer on this board.");
       break;
@@ -208,7 +226,7 @@ function validate(
   const allowed = actionsAllowedFor(trigger.kind);
   for (const action of actions) {
     if (!allowed.includes(action.kind)) {
-      throw new AutomationError("A rule that runs on a schedule has no task in hand, so it can only create tasks and tell people things.");
+      throw new AutomationError("A rule that runs on a schedule has no task in hand, so it can only create tasks, tell people things and call a webhook.");
     }
     switch (action.kind) {
       case "set_value":
@@ -216,7 +234,12 @@ function validate(
       case "shift_date":
       case "set_date_relative":
       case "assign_person":
-      case "unassign_person": {
+      case "unassign_person":
+      case "adjust_number":
+      case "add_tags":
+      case "remove_tags":
+      case "set_parent_value":
+      case "set_subitems_value": {
         const found = column(action.columnId);
         if (!found) throw new AutomationError("Pick a column for every action.");
         if ((action.kind === "shift_date" || action.kind === "set_date_relative") && found.type !== "DATE" && found.type !== "TIMELINE") {
@@ -225,6 +248,23 @@ function validate(
         if ((action.kind === "assign_person" || action.kind === "unassign_person") && found.type !== "PERSON" && found.type !== "PEOPLE") {
           throw new AutomationError(`${found.name} does not hold people.`);
         }
+        if (action.kind === "adjust_number") {
+          if (found.type !== "NUMBER") throw new AutomationError(`${found.name} does not hold a number.`);
+          const delta = Number(action.delta);
+          if (!Number.isFinite(delta) || delta === 0) throw new AutomationError("Say how much to change it by.");
+        }
+        if (action.kind === "add_tags" || action.kind === "remove_tags") {
+          if (found.type !== "TAGS") throw new AutomationError(`${found.name} does not hold tags.`);
+          if (action.tags.map((tag) => tag.trim()).filter(Boolean).length === 0) throw new AutomationError("Say which tags.");
+        }
+        break;
+      }
+      case "copy_value": {
+        const from = column(action.fromColumnId);
+        const to = column(action.toColumnId);
+        if (!from || !to) throw new AutomationError("Pick both columns to copy between.");
+        if (from.id === to.id) throw new AutomationError("Pick two different columns to copy between.");
+        if (from.type !== to.type) throw new AutomationError(`${from.name} and ${to.name} hold different kinds of value.`);
         break;
       }
       case "move_to_group":
@@ -233,14 +273,27 @@ function validate(
       case "notify":
         if (!action.message.trim()) throw new AutomationError("Say what the notification should read.");
         if (action.audience === "specific" && (action.userIds ?? []).length === 0) throw new AutomationError("Pick who to tell.");
+        if (action.audience === "column") {
+          const found = action.columnId ? column(action.columnId) : undefined;
+          if (!found) throw new AutomationError("Pick which people column to tell.");
+          if (found.type !== "PERSON" && found.type !== "PEOPLE") throw new AutomationError(`${found.name} does not hold people.`);
+        }
         break;
       case "add_comment":
         if (!action.body.trim()) throw new AutomationError("Say what the update should read.");
+        break;
+      case "set_name":
+        if (!action.name.trim()) throw new AutomationError("Say what the task should be called.");
         break;
       case "create_item":
       case "create_subitem":
         if (!action.name.trim()) throw new AutomationError("Give the new task a name.");
         break;
+      case "send_webhook": {
+        const problem = webhookUrlProblem(action.url);
+        if (problem) throw new AutomationError(problem);
+        break;
+      }
     }
   }
 
@@ -253,12 +306,23 @@ function validate(
   // column is the shortest possible loop, and the one people build by accident
   // on their first try. The depth guard would stop it three events in; refusing
   // it here means it never runs at all.
-  if (trigger.kind === "column_changed" || trigger.kind === "column_set_to") {
-    const writesBack = actions.some(
-      (action) =>
-        (action.kind === "set_value" || action.kind === "clear_value" || action.kind === "shift_date" || action.kind === "set_date_relative") &&
-        action.columnId === trigger.columnId,
-    );
+  if (trigger.kind === "column_changed" || trigger.kind === "column_set_to" || trigger.kind === "column_cleared" || trigger.kind === "number_crosses") {
+    const writesBack = actions.some((action) => {
+      switch (action.kind) {
+        case "set_value":
+        case "clear_value":
+        case "shift_date":
+        case "set_date_relative":
+        case "adjust_number":
+        case "add_tags":
+        case "remove_tags":
+          return action.columnId === trigger.columnId;
+        case "copy_value":
+          return action.toColumnId === trigger.columnId;
+        default:
+          return false;
+      }
+    });
     if (writesBack) {
       const name = column(trigger.columnId)?.name ?? "that column";
       throw new AutomationError(`This would set ${name} whenever ${name} changes, which would set it off again. Pick a different column to write to.`);
@@ -288,8 +352,26 @@ export function describeTrigger(trigger: AutomationTrigger, vocabulary: RuleVoca
   switch (trigger.kind) {
     case "item_created":
       return trigger.groupId ? `a task is added to ${groupName(trigger.groupId)}` : "a task is added";
+    case "subitem_created":
+      return "a subitem is added";
+    case "item_renamed":
+      return "a task is renamed";
     case "column_changed":
       return `${columnName(trigger.columnId)} changes`;
+    case "column_cleared":
+      return `${columnName(trigger.columnId)} is cleared`;
+    case "number_crosses":
+      return `${columnName(trigger.columnId)} goes ${trigger.direction} ${trigger.threshold}`;
+    case "person_unassigned":
+      return trigger.userId
+        ? `${vocabulary.users.find((u) => u.id === trigger.userId)?.displayName ?? "someone"} is removed from ${columnName(trigger.columnId)}`
+        : `somebody is removed from ${columnName(trigger.columnId)}`;
+    case "item_moved_from_group":
+      return `a task leaves ${groupName(trigger.groupId)}`;
+    case "item_restored":
+      return "a task is restored";
+    case "column_unchanged_for":
+      return `${columnName(trigger.columnId)} has not changed for ${trigger.days} ${trigger.days === 1 ? "day" : "days"}`;
     case "column_set_to": {
       const column = vocabulary.columns.find((c) => c.id === trigger.columnId);
       const label = column && trigger.labelId ? columnLabels(column).find((l) => l.id === trigger.labelId)?.name : null;
@@ -343,8 +425,39 @@ export function describeAction(action: AutomationAction, vocabulary: RuleVocabul
     case "move_to_group":
       return `move it to ${vocabulary.groups.find((g) => g.id === action.groupId)?.name ?? "a group"}`;
     case "assign_person": {
-      const names = [...action.userIds.map(userName), ...(action.useActor ? ["whoever made the change"] : [])];
+      const names = [...action.userIds.map(userName), ...(action.useActor ? ["whoever made the change"] : []), ...(action.useCreator ? ["whoever added the task"] : [])];
       return `add ${names.join(" and ") || "nobody"} to ${columnName(action.columnId)}`;
+    }
+    case "copy_value":
+      return `copy ${columnName(action.fromColumnId)} to ${columnName(action.toColumnId)}`;
+    case "adjust_number":
+      return action.delta >= 0 ? `add ${action.delta} to ${columnName(action.columnId)}` : `take ${-action.delta} off ${columnName(action.columnId)}`;
+    case "add_tags":
+      return `tag it ${action.tags.filter(Boolean).join(", ")}`;
+    case "remove_tags":
+      return `untag ${action.tags.filter(Boolean).join(", ")}`;
+    case "set_name":
+      return `rename it "${action.name}"`;
+    case "set_description":
+      return action.text.trim() ? "set its description" : "clear its description";
+    case "set_parent_value": {
+      const column = vocabulary.columns.find((c) => c.id === action.columnId);
+      return `set ${columnName(action.columnId)} on the parent to ${labelOrPlain(column, action.value)}`;
+    }
+    case "set_subitems_value": {
+      const column = vocabulary.columns.find((c) => c.id === action.columnId);
+      return `set ${columnName(action.columnId)} on every subitem to ${labelOrPlain(column, action.value)}`;
+    }
+    case "duplicate_item":
+      return "duplicate it";
+    case "restore_item":
+      return "restore it";
+    case "send_webhook": {
+      try {
+        return `call ${new URL(action.url).host}`;
+      } catch {
+        return "call a webhook";
+      }
     }
     case "unassign_person":
       return action.all ? `clear ${columnName(action.columnId)}` : `remove ${action.userIds.map(userName).join(" and ")} from ${columnName(action.columnId)}`;
@@ -358,8 +471,14 @@ export function describeAction(action: AutomationAction, vocabulary: RuleVocabul
           return "tell everybody on the task";
         case "actor":
           return "tell whoever made the change";
+        case "creator":
+          return "tell whoever added the task";
         case "board_owners":
           return "tell the board's owners";
+        case "board_members":
+          return "tell everybody on the board";
+        case "column":
+          return `tell everybody in ${action.columnId ? columnName(action.columnId) : "a column"}`;
         default:
           return `tell ${(action.userIds ?? []).map(userName).join(" and ") || "nobody"}`;
       }

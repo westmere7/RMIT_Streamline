@@ -22,25 +22,18 @@ import { describeRule } from "@/services";
 /**
  * Writing one rule, wherever it was reached from.
  *
- * The board's own screen and the workspace manager both open this. The only
- * difference is whether the board can still be changed: from a board it cannot,
- * and from the manager it is the first thing to pick, because a rule names
- * columns and a column belongs to exactly one board.
+ * The board's own dialog edits in place — the builder takes over the panel the
+ * list was in, so a person is never two dialogs deep — and the workspace
+ * manager opens this as a dialog of its own. Both are built on `useRuleEditor`,
+ * which owns the draft, the name and the save, so there is one builder to keep
+ * right rather than two that drift.
  *
  * A recipe arrives as `preset` and is turned into a draft the moment the board's
  * columns are known — which is also the moment it can be, since a recipe asks
  * for "the status column" and only the board can say which that is.
  */
-export function AutomationRuleDialog({
-  board,
-  rule,
-  preset,
-  boards,
-  quick = false,
-  open,
-  onOpenChange,
-  onBoardChange,
-}: {
+
+export interface RuleEditorOptions {
   board: Board;
   rule: AutomationRule | null;
   preset?: Recipe;
@@ -48,16 +41,37 @@ export function AutomationRuleDialog({
   quick?: boolean;
   /** When given, the board may be changed while creating. Empty means it may not. */
   boards?: Board[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   onBoardChange?: (board: Board) => void;
-}) {
+  /** Whether the editor is on screen; the board is only read while it is. */
+  active: boolean;
+  /**
+   * Changes whenever a fresh edit begins. Two "New automation" clicks in a row
+   * would otherwise share one draft, and the second would start where the
+   * first was abandoned.
+   */
+  session?: string | number;
+  onSaved: () => void;
+}
+
+export interface RuleEditor {
+  heading: string;
+  blurb: string;
+  /** The builder, the name field and any error, ready to drop into a scroller. */
+  body: React.ReactNode;
+  save: () => Promise<void>;
+  saveLabel: string;
+  /** False until the board's columns are in hand and a draft exists. */
+  ready: boolean;
+  busy: boolean;
+}
+
+export function useRuleEditor({ board, rule, preset, quick = false, boards, onBoardChange, active, session, onSaved }: RuleEditorOptions): RuleEditor {
   const ws = useWorkspace();
   const services = useServices();
   const snapshot = useQuery({
     queryKey: queryKeys.boardSnapshot(board.id),
     queryFn: () => services.items.loadBoardSnapshot(board.id),
-    enabled: open,
+    enabled: active,
     staleTime: 30_000,
   });
   const vocabulary = useRuleVocabulary(snapshot.data?.columns ?? EMPTY, snapshot.data?.groups ?? EMPTY);
@@ -75,20 +89,16 @@ export function AutomationRuleDialog({
   // before touching the DOM, so the builder never draws once against a draft
   // that belongs to the wrong board.
   const ready = !!snapshot.data;
-  const signature = `${board.id}:${rule?.id ?? preset?.id ?? (quick ? "quick" : "blank")}:${ready}`;
+  const signature = `${board.id}:${rule?.id ?? preset?.id ?? (quick ? "quick" : "blank")}:${session ?? ""}:${ready}`;
   const [builtFor, setBuiltFor] = React.useState<string | null>(null);
-  if (ready && builtFor !== signature) {
+  if (ready && active && builtFor !== signature) {
     setBuiltFor(signature);
     if (rule) {
       setDraft({ trigger: rule.trigger, conditionMatch: rule.conditionMatch, conditions: rule.conditions, actions: rule.actions });
       setName(rule.name === describeRule(rule.trigger, rule.conditions, rule.actions, rule.conditionMatch, vocabulary) ? "" : rule.name);
     } else if (preset) {
       const recipe = preset.build({ columns: vocabulary.columns, groups: vocabulary.groups });
-      setDraft(
-        recipe
-          ? { trigger: recipe.trigger, conditionMatch: "all", conditions: [], actions: recipe.actions }
-          : blankDraft(vocabulary),
-      );
+      setDraft(recipe ? { trigger: recipe.trigger, conditionMatch: "all", conditions: [], actions: recipe.actions } : blankDraft(vocabulary));
       setName("");
     } else {
       setDraft(blankDraft(vocabulary, quick ? "quick" : "rule"));
@@ -112,7 +122,7 @@ export function AutomationRuleDialog({
           createdBy: ws.currentUser.id,
           ...draft,
         });
-      onOpenChange(false);
+      onSaved();
     } catch (thrown) {
       setError(thrown instanceof Error ? thrown.message : "That automation could not be saved.");
     }
@@ -121,17 +131,14 @@ export function AutomationRuleDialog({
   const busy = mutations.create.isPending || mutations.update.isPending;
   const canPickBoard = !rule && (boards?.length ?? 0) > 1;
 
-  const isMobile = useIsMobile();
   const heading = quick ? (rule ? "Edit quick run" : "New quick run") : rule ? "Edit automation" : preset ? preset.title : "New automation";
   const blurb = quick
     ? "A group of actions you point at tasks and run. No trigger, no conditions — it does what it says the moment you press Run."
     : "These run on a server, so they happen whether or not anybody has the app open.";
   const saveLabel = rule ? "Save changes" : quick ? "Save quick run" : "Create automation";
 
-  // The builder is the same on both; only the frame round it differs. On a
-  // phone the sheet's body is the scroller, so the pane does not cap itself.
   const body = (
-    <div className={isMobile ? "space-y-4 pb-2" : "scrollbar-thin max-h-[62vh] space-y-4 overflow-y-auto px-1"}>
+    <div className="space-y-5">
       {canPickBoard && (
         <div>
           <label htmlFor="automation-board" className="mb-1.5 block text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -184,16 +191,42 @@ export function AutomationRuleDialog({
     </div>
   );
 
+  return { heading, blurb, body, save, saveLabel, ready: ready && !!draft, busy };
+}
+
+/** The editor as a dialog of its own, for the workspace-wide manager. */
+export function AutomationRuleDialog({
+  board,
+  rule,
+  preset,
+  boards,
+  quick = false,
+  open,
+  onOpenChange,
+  onBoardChange,
+}: {
+  board: Board;
+  rule: AutomationRule | null;
+  preset?: Recipe;
+  quick?: boolean;
+  boards?: Board[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onBoardChange?: (board: Board) => void;
+}) {
+  const isMobile = useIsMobile();
+  const editor = useRuleEditor({ board, rule, preset, quick, boards, onBoardChange, active: open, onSaved: () => onOpenChange(false) });
+
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          title={heading}
-          description={blurb}
+          title={editor.heading}
+          description={editor.blurb}
           footer={
             <div className="flex flex-col gap-2">
-              <Button className="h-11 w-full" onClick={save} disabled={busy || !draft} data-testid="save-automation">
-                <Check /> {saveLabel}
+              <Button className="h-11 w-full" onClick={editor.save} disabled={editor.busy || !editor.ready} data-testid="save-automation">
+                <Check /> {editor.saveLabel}
               </Button>
               <Button variant="ghost" className="h-11 w-full" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -202,7 +235,7 @@ export function AutomationRuleDialog({
           }
           data-testid="automation-rule-dialog"
         >
-          {body}
+          <div className="pb-2">{editor.body}</div>
         </SheetContent>
       </Sheet>
     );
@@ -212,16 +245,16 @@ export function AutomationRuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl" className="max-h-[88vh] overflow-hidden" data-testid="automation-rule-dialog">
         <DialogHeader>
-          <DialogTitle>{heading}</DialogTitle>
-          <DialogDescription>{blurb}</DialogDescription>
+          <DialogTitle>{editor.heading}</DialogTitle>
+          <DialogDescription>{editor.blurb}</DialogDescription>
         </DialogHeader>
-        {body}
+        <div className="scrollbar-thin max-h-[62vh] overflow-y-auto px-1">{editor.body}</div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={busy || !draft} data-testid="save-automation">
-            <Check /> {saveLabel}
+          <Button onClick={editor.save} disabled={editor.busy || !editor.ready} data-testid="save-automation">
+            <Check /> {editor.saveLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

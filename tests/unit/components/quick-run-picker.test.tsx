@@ -98,7 +98,7 @@ describe("the quick-run picker", () => {
 
     // The picker closes on success and the row's tally moves.
     await waitFor(() => expect(screen.queryByTestId("quick-run-picker")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("quick-run")).toHaveTextContent(/1 time/));
+    await waitFor(() => expect(screen.getByTestId("quick-run")).toHaveTextContent(/1×/));
 
     // The chosen task is done; its neighbour is not.
     const items = (await repos.items.listByBoard(BOARD)).filter((i) => i.archivedAt === null && i.parentItemId === null);

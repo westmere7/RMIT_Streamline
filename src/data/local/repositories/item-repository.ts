@@ -284,6 +284,21 @@ export class LocalItemRepository implements ItemRepository {
       await this.automations.raise({ boardId: after.boardId, itemId: after.id, kind: "item_archived", columnId: null, actorId: null, payload: {}, depth: 0 });
       return;
     }
+    if (before.archivedAt !== null && after.archivedAt === null) {
+      await this.automations.raise({ boardId: after.boardId, itemId: after.id, kind: "item_restored", columnId: null, actorId: null, payload: {}, depth: 0 });
+      return;
+    }
+    if (before.name !== after.name) {
+      await this.automations.raise({
+        boardId: after.boardId,
+        itemId: after.id,
+        kind: "item_renamed",
+        columnId: null,
+        actorId: null,
+        payload: { fromName: before.name, toName: after.name, parentItemId: after.parentItemId },
+        depth: 0,
+      });
+    }
     if (before.groupId !== after.groupId) {
       await this.automations.raise({
         boardId: after.boardId,

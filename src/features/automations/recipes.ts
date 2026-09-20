@@ -1,4 +1,4 @@
-import { AlarmClock, Archive, CalendarPlus, CalendarSync, CalendarX, CircleCheck, TriangleAlert, UserPlus, type LucideIcon } from "lucide-react";
+import { AlarmClock, Archive, CalendarPlus, CalendarSync, CalendarX, CircleCheck, Hourglass, ListTree, TriangleAlert, UserPlus, type LucideIcon } from "lucide-react";
 import type { AutomationAction, AutomationTrigger, BoardColumn, BoardGroup, ColumnLabel, StatusLabelRole } from "@/domain";
 import { columnLabels, resolveColumnRoles, statusLabelRole } from "@/domain";
 
@@ -169,6 +169,36 @@ export const RECIPES: Recipe[] = [
       return {
         trigger: { kind: "recurring", recurrence: "weekly", weekday: 1, atHour: 9 },
         actions: [{ kind: "create_item", groupId: group.id, name: "Weekly review — {today}" }],
+      };
+    },
+  },
+  {
+    id: "stale-flag",
+    title: "Flag anything that sits still for a week",
+    description: "When a task's status has not moved in seven days, the people on it are asked about it at nine.",
+    icon: Hourglass,
+    unavailable: (board) => (board.columns.some((c) => c.type === "STATUS") ? null : "This board has no status column."),
+    build: (board) => {
+      const status = resolveColumnRoles(board.columns).status ?? board.columns.find((c) => c.type === "STATUS");
+      if (!status) return null;
+      return {
+        trigger: { kind: "column_unchanged_for", columnId: status.id, days: 7, atHour: 9 },
+        actions: [{ kind: "notify", audience: "people_on_item", message: "{item} has not moved in a week — still on track?" }],
+      };
+    },
+  },
+  {
+    id: "subitems-follow-parent",
+    title: "Finish the subitems with the task",
+    description: "When a task is marked done, every subitem under it is marked done too.",
+    icon: ListTree,
+    unavailable: (board) => (done(board) ? null : "This board has no status column with a “done” label."),
+    build: (board) => {
+      const it = done(board);
+      if (!it) return null;
+      return {
+        trigger: { kind: "column_set_to", columnId: it.column.id, labelId: it.label.id },
+        actions: [{ kind: "set_subitems_value", columnId: it.column.id, value: { type: "STATUS", labelId: it.label.id } }],
       };
     },
   },

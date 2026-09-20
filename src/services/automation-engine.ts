@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { MAX_EVENT_DEPTH, TRIGGER_TIMING, emptyValueFor, isEmptyValue } from "@/domain";
+import { MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, isEmptyValue, webhookUrlProblem } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { CommentService } from "./comment-service";
 import type { ItemService } from "./item-service";
@@ -111,6 +111,8 @@ interface FiringContext {
   depth: number;
   /** Board OWNERs, for the notify action's `board_owners` audience. */
   boardOwnerIds: EntityId[];
+  /** Everyone on the board, for `board_members`. */
+  boardMemberIds: EntityId[];
 }
 
 export class AutomationEngine {
@@ -208,14 +210,48 @@ export class AutomationEngine {
     switch (trigger.kind) {
       case "item_created":
         return event.kind === "item_created" && (!trigger.groupId || event.payload.toGroupId === trigger.groupId);
+      case "subitem_created":
+        return event.kind === "item_created" && !!event.payload.parentItemId;
+      case "item_renamed":
+        return event.kind === "item_renamed";
       case "item_moved_to_group":
         return event.kind === "item_moved" && event.payload.toGroupId === trigger.groupId;
+      case "item_moved_from_group":
+        return event.kind === "item_moved" && event.payload.fromGroupId === trigger.groupId;
       case "item_archived":
         return event.kind === "item_archived";
+      case "item_restored":
+        return event.kind === "item_restored";
       case "comment_added":
         return event.kind === "comment_added";
       case "column_changed":
         return event.kind === "value_changed" && event.columnId === trigger.columnId;
+      case "column_cleared": {
+        if (event.kind !== "value_changed" || event.columnId !== trigger.columnId) return false;
+        const before = event.payload.before ?? null;
+        const after = event.payload.after ?? null;
+        return !!before && !isEmptyValue(before) && (!after || isEmptyValue(after));
+      }
+      case "number_crosses": {
+        if (event.kind !== "value_changed" || event.columnId !== trigger.columnId) return false;
+        const line = numberOf(trigger.threshold, Number.NaN);
+        const after = numberIn(event.payload.after ?? null);
+        if (!Number.isFinite(line) || after === null) return false;
+        const before = numberIn(event.payload.before ?? null);
+        // Only the crossing itself: a number already past the line that moves
+        // further past it is not news, and a rule that fired on every edit
+        // beyond a threshold would be "a column changes" with extra steps.
+        if (trigger.direction === "above") return after > line && (before === null || before <= line);
+        return after < line && (before === null || before >= line);
+      }
+      case "person_unassigned": {
+        if (event.kind !== "value_changed" || event.columnId !== trigger.columnId) return false;
+        const before = peopleIn(event.payload.before ?? null);
+        const after = peopleIn(event.payload.after ?? null);
+        const removed = before.filter((id) => !after.includes(id));
+        if (removed.length === 0) return false;
+        return !trigger.userId || removed.includes(trigger.userId);
+      }
       case "column_set_to": {
         if (event.kind !== "value_changed" || event.columnId !== trigger.columnId) return false;
         const after = event.payload.after ?? null;
@@ -278,6 +314,22 @@ export class AutomationEngine {
           continue;
         }
 
+        if (rule.trigger.kind === "column_unchanged_for") {
+          const trigger = rule.trigger;
+          if (clock.hour !== numberOf(trigger.atHour, -1)) continue;
+          const still = await this.itemsUnchangedFor(rule.boardId, trigger.columnId, numberOf(trigger.days, 7));
+          for (const { item, since } of still) {
+            // Keyed to when the value last moved, not to the day: one firing
+            // per stretch of stillness. Touch the task and let it go quiet
+            // again, and it is flagged again.
+            if (!(await this.repos.automations.claimScheduleFire(rule.id, item.id, `still:${since}`))) continue;
+            report.scheduled += 1;
+            const context = await this.buildContext(rule.boardId, item.id, null, null, 0);
+            if (context) await this.fire(rule, context, report);
+          }
+          continue;
+        }
+
         if (rule.trigger.kind !== "date_arrives") continue;
         const trigger = rule.trigger;
         if (clock.hour !== numberOf(trigger.atHour, -1)) continue;
@@ -315,6 +367,26 @@ export class AutomationEngine {
     if (wanted.size === 0) return [];
     const items = await this.repos.items.listByIds([...wanted]);
     return items.filter((item) => item.boardId === boardId && item.archivedAt === null);
+  }
+
+  /**
+   * Live tasks on a board whose column has held the same non-empty value for
+   * at least `days` days, with the moment it last moved.
+   *
+   * A cell that was never set has no row and so no age; "never filled in" is
+   * `column_cleared`'s or a condition's business, not stillness.
+   */
+  private async itemsUnchangedFor(boardId: EntityId, columnId: EntityId, days: number): Promise<Array<{ item: Item; since: string }>> {
+    const cutoff = this.now().getTime() - Math.max(1, days) * 86_400_000;
+    const values = await this.repos.items.listValuesByColumns([columnId]);
+    const stale = new Map<EntityId, string>();
+    for (const v of values) {
+      if (isEmptyValue(v.value)) continue;
+      if (Date.parse(v.updatedAt) <= cutoff) stale.set(v.itemId, v.updatedAt);
+    }
+    if (stale.size === 0) return [];
+    const items = await this.repos.items.listByIds([...stale.keys()]);
+    return items.filter((item) => item.boardId === boardId && item.archivedAt === null).map((item) => ({ item, since: stale.get(item.id)! }));
   }
 
   // -------------------------------------------------------------------------
@@ -480,9 +552,9 @@ export class AutomationEngine {
   private async execute(action: AutomationAction, context: FiringContext): Promise<string> {
     const { board, columns, users } = context;
     const item = context.item;
-    // Every action but these two edits a task, and a recurring rule has none.
-    // The builder refuses to save such a rule; this is the second line.
-    if (!item && action.kind !== "notify" && action.kind !== "create_item") {
+    // Every action but a few edits a task, and a recurring rule has none. The
+    // builder refuses to save such a rule; this is the second line.
+    if (!item && actionNeedsItem(action.kind)) {
       throw new Error("This action needs a task, and the trigger does not have one.");
     }
 
@@ -509,7 +581,10 @@ export class AutomationEngine {
         const column = columns.find((c) => c.id === action.columnId);
         if (!column) throw new Error("That column is no longer on this board.");
         const current = peopleIn(context.values.get(column.id) ?? null);
-        const named = action.kind === "assign_person" && action.useActor && context.actorId ? [...action.userIds, context.actorId] : action.userIds;
+        const named =
+          action.kind === "assign_person"
+            ? [...action.userIds, ...(action.useActor && context.actorId ? [context.actorId] : []), ...(action.useCreator ? [item!.createdBy] : [])]
+            : action.userIds;
         const next =
           action.kind === "assign_person"
             ? [...new Set([...current, ...named])]
@@ -550,6 +625,90 @@ export class AutomationEngine {
         if (item!.archivedAt) return "Already archived";
         await this.items.archiveItems(board.id, [item!.id], actorFor(context));
         return "Archived the task";
+      }
+
+      case "restore_item": {
+        if (!item!.archivedAt) return "Not archived";
+        await this.items.restoreItems([item!.id], actorFor(context));
+        return "Restored the task";
+      }
+
+      case "duplicate_item": {
+        const copy = await this.items.duplicateItem(item!.id, actorFor(context));
+        return `Duplicated as "${copy.name}"`;
+      }
+
+      case "set_name": {
+        const name = this.render(action.name, context).trim();
+        if (!name) throw new Error("The new name came out empty.");
+        if (name === item!.name) return "Name unchanged";
+        await this.items.renameItem(item!.id, name, actorFor(context));
+        return `Renamed to "${name}"`;
+      }
+
+      case "set_description": {
+        const text = this.render(action.text, context).trim();
+        await this.items.updateDescription(item!.id, text || null, actorFor(context));
+        return text ? "Set the description" : "Cleared the description";
+      }
+
+      case "copy_value": {
+        const from = columns.find((c) => c.id === action.fromColumnId);
+        const to = columns.find((c) => c.id === action.toColumnId);
+        if (!from || !to) throw new Error("That column is no longer on this board.");
+        if (from.type !== to.type) throw new Error(`${from.name} and ${to.name} hold different kinds of value.`);
+        const value = context.values.get(from.id) ?? emptyValueFor(to.type);
+        await this.items.setValue(item!.id, to.id, value, { column: to, item: item!, board, users }, actorFor(context));
+        return `Copied ${from.name} to ${to.name}`;
+      }
+
+      case "adjust_number": {
+        const column = columns.find((c) => c.id === action.columnId);
+        if (!column) throw new Error("That column is no longer on this board.");
+        const current = context.values.get(column.id) ?? null;
+        const base = current?.type === "NUMBER" && current.number !== null ? current.number : 0;
+        const next = base + numberOf(action.delta, 0);
+        await this.items.setValue(item!.id, column.id, { type: "NUMBER", number: next }, { column, item: item!, board, users }, actorFor(context));
+        return `Set ${column.name} to ${next}`;
+      }
+
+      case "add_tags":
+      case "remove_tags": {
+        const column = columns.find((c) => c.id === action.columnId);
+        if (!column) throw new Error("That column is no longer on this board.");
+        const current = context.values.get(column.id);
+        const have = current?.type === "TAGS" ? current.tags : [];
+        const wanted = action.tags.map((tag) => this.render(tag, context).trim()).filter(Boolean);
+        const next = action.kind === "add_tags" ? [...new Set([...have, ...wanted])] : have.filter((tag) => !wanted.includes(tag));
+        if (sameIds(have, next)) return `${column.name} unchanged`;
+        await this.items.setValue(item!.id, column.id, { type: "TAGS", tags: next }, { column, item: item!, board, users }, actorFor(context));
+        return action.kind === "add_tags" ? `Tagged ${wanted.join(", ")}` : `Untagged ${wanted.join(", ")}`;
+      }
+
+      case "set_parent_value": {
+        if (!item!.parentItemId) return "No parent task";
+        const parent = await this.repos.items.getById(item!.parentItemId);
+        if (!parent) return "No parent task";
+        const column = columns.find((c) => c.id === action.columnId);
+        if (!column) throw new Error("That column is no longer on this board.");
+        await this.items.setValue(parent.id, column.id, action.value, { column, item: parent, board, users }, actorFor(context));
+        return `Set ${column.name} on "${parent.name}"`;
+      }
+
+      case "set_subitems_value": {
+        const column = columns.find((c) => c.id === action.columnId);
+        if (!column) throw new Error("That column is no longer on this board.");
+        const children = (await this.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === item!.id && i.archivedAt === null);
+        if (children.length === 0) return "No subitems";
+        for (const child of children) {
+          await this.items.setValue(child.id, column.id, action.value, { column, item: child, board, users }, actorFor(context));
+        }
+        return `Set ${column.name} on ${children.length} ${children.length === 1 ? "subitem" : "subitems"}`;
+      }
+
+      case "send_webhook": {
+        await this.sendWebhook(action.url, context);
+        return `Called ${new URL(action.url).host}`;
       }
 
       case "add_comment": {
@@ -617,11 +776,65 @@ export class AutomationEngine {
       }
     } else if (action.audience === "board_owners") {
       for (const id of context.boardOwnerIds) people.add(id);
+    } else if (action.audience === "board_members") {
+      for (const id of context.boardMemberIds) people.add(id);
+    } else if (action.audience === "creator") {
+      if (context.item) people.add(context.item.createdBy);
+    } else if (action.audience === "column") {
+      const column = context.columns.find((c) => c.id === action.columnId);
+      if (column) for (const id of peopleIn(context.values.get(column.id) ?? null)) people.add(id);
     }
     // Telling somebody about their own edit is noise, and nothing else in the
-    // app does it. `actor` is the exception, because that is what it asked for.
-    if (action.audience !== "actor" && context.actorId) people.delete(context.actorId);
+    // app does it. Two exceptions: `actor`, because that is what it asked for,
+    // and `specific`, because a person named by name was named on purpose — a
+    // rule that says "tell me" should tell its author when the author set it off.
+    if (action.audience !== "actor" && action.audience !== "specific" && context.actorId) people.delete(context.actorId);
     return [...people];
+  }
+
+  /**
+   * POSTs what happened to an outside address.
+   *
+   * The body is what a person would want to know and nothing they would not:
+   * the board, the task, its cells in words, who did it and when. No ids of
+   * people, no tokens, no internals. The address is checked again here rather
+   * than trusted from the rule, redirects are refused (a public address that
+   * answers "go to 10.0.0.1" is the classic way round the check), and a slow
+   * endpoint is cut off so it cannot hold the whole tick.
+   */
+  private async sendWebhook(url: string, context: FiringContext): Promise<void> {
+    const problem = webhookUrlProblem(url);
+    if (problem) throw new Error(problem);
+    const { board, item, columns, users } = context;
+    const cells: Record<string, string> = {};
+    if (item) for (const column of columns) cells[column.name] = displayValue(column, context.values.get(column.id), users) ?? "";
+    const body = {
+      event: context.event?.kind ?? (item ? "manual" : "schedule"),
+      at: this.now().toISOString(),
+      board: { id: board.id, name: board.name },
+      item: item
+        ? { id: item.id, name: item.name, ticket: item.ticket ?? null, group: context.groups.find((g) => g.id === item.groupId)?.name ?? null, archived: !!item.archivedAt }
+        : null,
+      cells,
+      actor: users.find((u) => u.id === context.actorId)?.displayName ?? null,
+    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "user-agent": "Streamline-Automations/1" },
+        body: JSON.stringify(body),
+        redirect: "manual",
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`The webhook answered ${response.status}.`);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw new Error(`The webhook did not answer within ${WEBHOOK_TIMEOUT_MS / 1000} seconds.`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -655,7 +868,8 @@ export class AutomationEngine {
     const values = new Map<EntityId, ColumnValue>();
     if (item) for (const value of stored) values.set(value.columnId, value.value);
     const boardOwnerIds = members.filter((m) => m.role === "OWNER").map((m) => m.userId);
-    return { board, columns, groups, users, item, values, actorId, event, depth, boardOwnerIds };
+    const boardMemberIds = members.map((m) => m.userId);
+    return { board, columns, groups, users, item, values, actorId, event, depth, boardOwnerIds, boardMemberIds };
   }
 
   /**
@@ -723,6 +937,13 @@ function peopleIn(value: ColumnValue | null): EntityId[] {
   if (!value) return [];
   if (value.type === "PERSON" || value.type === "PEOPLE") return value.userIds;
   return [];
+}
+
+/** The number a NUMBER value holds, and null for an empty cell or anything else. */
+function numberIn(value: ColumnValue | null): number | null {
+  if (!value || value.type !== "NUMBER" || value.number === null) return null;
+  const n = numberOf(value.number, Number.NaN);
+  return Number.isFinite(n) ? n : null;
 }
 
 function sameIds(a: readonly string[], b: readonly string[]): boolean {
@@ -862,6 +1083,28 @@ function describeAction(action: AutomationAction, context: FiringContext): strin
       return "Add a subitem";
     case "archive_item":
       return "Archive";
+    case "restore_item":
+      return "Restore";
+    case "duplicate_item":
+      return "Duplicate";
+    case "set_name":
+      return "Rename";
+    case "set_description":
+      return "Set the description";
+    case "copy_value":
+      return `Copy ${columnName(action.fromColumnId)} to ${columnName(action.toColumnId)}`;
+    case "adjust_number":
+      return `Change ${columnName(action.columnId)} by ${action.delta}`;
+    case "add_tags":
+      return `Tag ${columnName(action.columnId)}`;
+    case "remove_tags":
+      return `Untag ${columnName(action.columnId)}`;
+    case "set_parent_value":
+      return `Set ${columnName(action.columnId)} on the parent`;
+    case "set_subitems_value":
+      return `Set ${columnName(action.columnId)} on the subitems`;
+    case "send_webhook":
+      return "Call a webhook";
     default:
       return "Act";
   }
