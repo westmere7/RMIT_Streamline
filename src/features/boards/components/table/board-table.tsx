@@ -70,6 +70,9 @@ const collisionDetection: CollisionDetection = (args) => {
  * no props of its own it re-renders exactly when the board data or the view
  * state it reads changes.
  */
+/** Width of the faded strip down the scroller's right edge, where its scrollbar runs. */
+const SCROLL_EDGE = 16;
+
 export const BoardTable = React.memo(function BoardTable() {
   const { board, model, mutations, canEdit, showTicket } = useBoardContext();
   // Only the two flags this component actually reads: subscribing to the whole
@@ -215,10 +218,10 @@ export const BoardTable = React.memo(function BoardTable() {
     <div className="relative flex min-h-0 flex-1 flex-col bg-surface/50">
       {/* Scroll padding clears the pinned group title and column headers, so a
           row focused by keyboard is scrolled into view below them, not under. */}
-      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 scroll-pt-[5.25rem] overflow-auto max-md:scroll-pt-[5.5rem]" data-testid="board-table">
+      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 scroll-pt-[5.25rem] overflow-auto [container-type:size] max-md:scroll-pt-[5.5rem]" data-testid="board-table">
         <CellStretchProvider>
         <TableScrollProvider scrollRef={scrollRef}>
-          <div style={{ minWidth: width }} className="pb-24">
+          <div style={{ minWidth: width + SCROLL_EDGE }} className="pb-24">
             <DndContext
               sensors={sensors}
               collisionDetection={collisionDetection}
@@ -294,6 +297,16 @@ export const BoardTable = React.memo(function BoardTable() {
                 </Button>
               </div>
             )}
+          </div>
+          {/* The scroller's right edge, kept clear for its scrollbar. An overlay
+              scrollbar (Windows 11, macOS) takes no room of its own, so it drew
+              over the cells; here the table fades out under it instead. Last in
+              the scroller, since the rows' virtualiser watches the first child,
+              pinned to the bottom and drawn upwards, which never adds to the
+              scroll height; the scroller being a size container is what makes
+              100cqh its height. */}
+          <div aria-hidden className="pointer-events-none sticky bottom-0 left-0 z-[9] h-0">
+            <div className="absolute right-0 bottom-0 h-[100cqh] bg-linear-to-l from-[color-mix(in_srgb,var(--surface)_50%,var(--background))] from-50% to-transparent" style={{ width: SCROLL_EDGE }} />
           </div>
         </TableScrollProvider>
         </CellStretchProvider>

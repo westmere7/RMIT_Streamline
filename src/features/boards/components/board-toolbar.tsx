@@ -76,8 +76,10 @@ export function BoardToolbar({
   const hiddenCount = model.columns.filter((c) => c.hidden).length + (showTicket ? 0 : 1);
   const tableTools = view === "table";
 
+  // The button labels go by the toolbar's own width rather than the window's:
+  // an open task panel takes a third of the window beside it.
   return (
-    <div className={boardBarClasses} role="toolbar" aria-label="Board tools">
+    <div className={cn(boardBarClasses, "@container")} role="toolbar" aria-label="Board tools">
       {leading}
       {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
       <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} />
@@ -92,7 +94,7 @@ export function BoardToolbar({
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
-                  <Filter /> <span className="hidden xl:inline">Filter</span>
+                  <Filter /> <span className="hidden @5xl:inline">Filter</span>
                   {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
                 </Button>
               </PopoverTrigger>
@@ -103,7 +105,7 @@ export function BoardToolbar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
-                  <ArrowUpDown /> <span className="hidden xl:inline">Sort</span>
+                  <ArrowUpDown /> <span className="hidden @5xl:inline">Sort</span>
                   {ui.sort && (
                     <span className="flex items-center gap-0.5 text-2xs">
                       {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
@@ -135,7 +137,7 @@ export function BoardToolbar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Hide columns" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
-                  <EyeOff /> <span className="hidden xl:inline">Hide</span>
+                  <EyeOff /> <span className="hidden @5xl:inline">Hide</span>
                   {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
                 </Button>
               </DropdownMenuTrigger>
@@ -237,7 +239,7 @@ function PersonFilter() {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" aria-label="Filter by person" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
-          <UserRound /> <span className="hidden xl:inline">Person</span>
+          <UserRound /> <span className="hidden @5xl:inline">Person</span>
           {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>
@@ -309,7 +311,7 @@ function TagFilter() {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" aria-label="Filter by tag" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="tag-filter">
-          <Hash /> <span className="hidden xl:inline">Tags</span>
+          <Hash /> <span className="hidden @5xl:inline">Tags</span>
           {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>

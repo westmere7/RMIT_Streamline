@@ -19,6 +19,9 @@ export interface TrackerViewSettings {
 
 export const DEFAULT_TRACKER_VIEW: TrackerViewSettings = { gridLines: true, stripes: false, wrap: false, density: "default", crosshair: true };
 
+/** The three widths the task panel beside a board comes in; dragging its edge settles on the nearest. */
+export type ItemPanelSize = "compact" | "default" | "wide";
+
 /** Where a "view as" preview is kept: this tab only. */
 const VIEW_AS_KEY = "streamline.view-as";
 
@@ -39,6 +42,9 @@ interface UiState {
   /** Whether the asset recap above an item's tabs is open past its one-line form. */
   assetRecapExpanded: boolean;
   toggleAssetRecap: () => void;
+  /** How wide the task panel beside a board is. */
+  itemPanelSize: ItemPanelSize;
+  setItemPanelSize: (size: ItemPanelSize) => void;
   /**
    * Where a click in the sidebar is trying to get to, until the router agrees.
    *
@@ -92,6 +98,8 @@ export const useUiStore = create<UiState>()(
       setShowTeamCounts: (showTeamCounts) => set({ showTeamCounts }),
       assetRecapExpanded: false,
       toggleAssetRecap: () => set((s) => ({ assetRecapExpanded: !s.assetRecapExpanded })),
+      itemPanelSize: "default",
+      setItemPanelSize: (itemPanelSize) => set({ itemPanelSize }),
       commandPaletteOpen: false,
       searchScope: null,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -141,6 +149,7 @@ export const useUiStore = create<UiState>()(
         favouritesExpanded: s.favouritesExpanded,
         showTeamCounts: s.showTeamCounts,
         assetRecapExpanded: s.assetRecapExpanded,
+        itemPanelSize: s.itemPanelSize,
       }),
     },
   ),

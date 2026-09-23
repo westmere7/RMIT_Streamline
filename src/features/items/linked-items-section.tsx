@@ -16,6 +16,7 @@ import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, type ColumnPair, type Item } f
 import { useBoardContext } from "@/features/boards/board-context";
 import { LinkItemDialog } from "@/features/items/link-item-dialog";
 import { useItemLinks, useLinkMutations } from "@/features/items/link-hooks";
+import { usePanelSize } from "@/features/items/panel-size";
 import { SyncFieldList } from "@/features/items/sync-field-list";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -31,6 +32,8 @@ const EMPTY_KEYS: ReadonlySet<string> = new Set();
 /** Items on other boards this item is kept in sync with. */
 export function LinkedItemsSection({ item }: { item: Item }) {
   const { board, canEdit } = useBoardContext();
+  // The compact panel is a summary: the fact, not the explanation.
+  const compact = usePanelSize() === "compact";
   // A request waiting to be allocated is not work yet, and a link would
   // mirror it onto a team's board while it still sat in the queue. Allocation
   // moves it; the panel says so where the button used to be.
@@ -70,7 +73,7 @@ export function LinkedItemsSection({ item }: { item: Item }) {
         <p className="text-[13px] text-muted-foreground">
           {queued
             ? "Nothing here can be linked while it is waiting to be allocated. Place it with a team and the request moves there — links come after that."
-            : canEdit
+            : canEdit && !compact
               ? "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share."
               : "Not linked to any other item."}
         </p>

@@ -75,7 +75,7 @@ export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
   );
 
   return (
-    <section aria-label="Asset progress" className={cn("mt-3", expanded && "space-y-2")} data-testid="assets-summary">
+    <section aria-label="Asset progress" className={cn("mt-4", expanded && "space-y-2")} data-testid="assets-summary">
       {/* ---- The line that is always there. Folded up, the bar rides beside it. */}
       <div className="flex items-center gap-2.5">
         <button

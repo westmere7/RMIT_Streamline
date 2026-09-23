@@ -354,7 +354,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           )}
         </div>
       )}
-      {!contextValue && (
+      {!contextValue && snapshot.isError && (
         <div className={boardBarClasses}>
           <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} />
         </div>
@@ -363,6 +363,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
       {!snapshot.isError && !contextValue && (
         <div className="relative flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
+            <div className={boardBarClasses}>
+              <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} />
+            </div>
             <BoardSkeleton />
           </div>
           {/* Followed a link to a task: the panel is what was asked for, so it
@@ -372,9 +375,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
       )}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
-          <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} />
+          {/* The panel stands the full height of the toolbar and the board, so
+              the toolbar lives in the column beside it and its tools end where
+              the panel begins, rather than running on underneath it. */}
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
+              <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} />
               {view === "table" && <BoardTable />}
               {view === "kanban" && <KanbanView />}
               {view === "timeline" && <TimelineView />}

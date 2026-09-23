@@ -51,6 +51,7 @@ import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
+import { PANEL_WIDTHS, PanelSizeProvider, usePanelSize, useResizablePanel } from "@/features/items/panel-size";
 import { BriefRowValue, RichTextDocument } from "@/features/items/rich-text-field";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -59,6 +60,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/ui-store";
 
 const FIELD_WIDTH = 260;
 
@@ -85,9 +87,36 @@ function panelClasses(shared: boolean, narrow: boolean, overlay: boolean): strin
       : narrow
         ? "fixed inset-0 z-40"
         : overlay
-          ? "absolute inset-y-2.5 right-2.5 z-30 w-[520px] overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
-          : "m-2.5 w-[520px] shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
+          ? "absolute inset-y-1.5 right-2.5 z-30 overflow-hidden rounded-2xl border border-border/70 shadow-2xl animate-in slide-in-from-right-4 duration-150"
+          : "mx-2.5 my-1.5 shrink-0 overflow-hidden rounded-2xl border border-border/70 shadow-xl animate-in slide-in-from-right-4 duration-150",
   );
+}
+
+/**
+ * The panel's edge in the board's colour: a hairline across the top that runs
+ * round the corners and fades into the ordinary border a short way down each
+ * side, so the panel lifts off the board without a frame around it.
+ *
+ * Drawn on the panel's own border: the panel clips its contents to the inside
+ * of that border, so no layer could sit on it, and the fill is painted twice
+ * instead — the surface inside the border, the gradient under it, showing only
+ * through the border. Two pixels along the top, tapering to one round the
+ * corners, and the extra pixel is taken from inside: the panel's width already
+ * counts its border. A second hairline laid inside the first looked thicker
+ * too, but the two curves never quite met and the corners came out ragged.
+ *
+ * Not over a cover photo: the picture already marks the top of the panel, and
+ * a coloured rule along its edge only frames it.
+ */
+function panelEdgeStyle(hex: string): React.CSSProperties {
+  return {
+    borderColor: "transparent",
+    borderTopWidth: 2,
+    background: [
+      "linear-gradient(var(--surface), var(--surface)) padding-box",
+      `linear-gradient(to bottom, ${hex}, color-mix(in srgb, ${hex} 40%, var(--border)) 40px, color-mix(in srgb, var(--border) 70%, transparent) 150px) border-box`,
+    ].join(", "),
+  };
 }
 
 /**
@@ -99,8 +128,9 @@ function panelClasses(shared: boolean, narrow: boolean, overlay: boolean): strin
  */
 export function ItemPanelSkeleton({ onClose, overlay = false }: { onClose: () => void; overlay?: boolean }) {
   const narrow = useMediaQuery("(max-width: 1023px)");
+  const width = PANEL_WIDTHS[useUiStore((s) => s.itemPanelSize)];
   return (
-    <aside role="dialog" aria-label="Opening task" aria-busy className={panelClasses(false, narrow, overlay)} data-testid="item-panel-skeleton">
+    <aside role="dialog" aria-label="Opening task" aria-busy className={panelClasses(false, narrow, overlay)} style={narrow ? undefined : { width }} data-testid="item-panel-skeleton">
       <PanelBlocks onClose={onClose} />
     </aside>
   );
@@ -167,21 +197,28 @@ export function ItemDetailPanel({
    */
   hideMenu?: boolean;
 }) {
-  const { model, canEdit } = useBoardContext();
+  const { model, canEdit, board } = useBoardContext();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
   // Two panes need the room for two panes. Below that the pop-up is the panel,
   // which is already full screen on a phone.
   const asPopup = popup && !narrow;
+  // Only the panel beside a board takes a width of its own: a shared page fills
+  // the page, a phone fills the screen, and the pop-up has its own frame.
+  const resizable = !narrow && !shared && !asPopup;
+  const panel = useResizablePanel(resizable);
+  // The wide panel reads like the pop-up: the overview, and the other three
+  // tabs in a pane beside it.
+  const twoPane = asPopup || panel.size === "wide";
   const [localTab, setLocalTab] = React.useState("overview");
   const requestedTab = useBoardUiStore((s) => s.requestedItemTab);
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   // A request (from the updates badge, say) wins until the person picks a tab.
   const requested = requestedTab?.itemId === itemId ? requestedTab.tab : null;
-  // The pop-up always shows the overview, so its tab state is only ever about
+  // Two panes always show the overview, so their tab state is only ever about
   // the pane beside it — and "overview" is not one of the answers.
-  const sideTab = asPopup ? (requested && requested !== "overview" ? requested : localTab === "overview" ? "updates" : localTab) : null;
-  const tab = asPopup ? sideTab! : (requested ?? localTab);
+  const sideTab = twoPane ? (requested && requested !== "overview" ? requested : localTab === "overview" ? "updates" : localTab) : null;
+  const tab = twoPane ? sideTab! : (requested ?? localTab);
   const setTab = (next: string) => {
     if (requestedTab) setRequestedItemTab(null);
     setLocalTab(next);
@@ -252,29 +289,32 @@ export function ItemDetailPanel({
         </div>
       ) : !ready || !item ? (
         <PanelBlocks onClose={onClose} hideClose={shared} />
-      ) : asPopup ? (
+      ) : twoPane ? (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup hideMenu={hideMenu} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup={asPopup} hideMenu={hideMenu} />
           <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
         </>
       ) : (
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} hideMenu={hideMenu} />
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-            <UnderlineTabsList className={cn("px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain")}>
-              <UnderlineTabsTrigger value="overview">
-                <SquarePen className="size-3.5" /> Overview
+            {/* Compact, the four tabs are their icons and counts: four words
+                do not fit in 300px beside them. The words stay for anyone
+                reading rather than looking, and as the tooltip. */}
+            <UnderlineTabsList className={cn(panel.size === "compact" ? "justify-between px-2" : "px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain")}>
+              <UnderlineTabsTrigger value="overview" title={panel.size === "compact" ? "Overview" : undefined}>
+                <SquarePen className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Overview</span>
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="updates">
-                <MessageSquare className="size-3.5" /> Updates
+              <UnderlineTabsTrigger value="updates" title={panel.size === "compact" ? "Updates" : undefined}>
+                <MessageSquare className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Updates</span>
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
-                <Package className="size-3.5" /> Assets
+              <UnderlineTabsTrigger value="assets" data-testid="tab-assets" title={panel.size === "compact" ? "Assets" : undefined}>
+                <Package className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Assets</span>
                 {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="activity">
-                <History className="size-3.5" /> Activity
+              <UnderlineTabsTrigger value="activity" title={panel.size === "compact" ? "Activity" : undefined}>
+                <History className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Activity</span>
               </UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -317,14 +357,25 @@ export function ItemDetailPanel({
     );
   }
 
+  const edge = narrow || item?.coverUrl ? null : colorClasses(board.color).hex;
   return (
     <aside
       role="dialog"
       aria-label={item ? item.name : "Item"}
       data-testid="item-panel"
       className={panelClasses(shared, narrow, overlay)}
+      // Full screen on a phone there is no edge to colour. Settling on a width
+      // after a drag, or stepping to one, glides; following the hand does not,
+      // or the edge would trail behind it. Inline, because the slide-in's
+      // duration class otherwise leaves every property easing during a drag.
+      style={{
+        ...(edge ? panelEdgeStyle(edge) : undefined),
+        ...(resizable ? { width: panel.width, transition: panel.dragging ? "none" : "width 200ms ease-out" } : undefined),
+      }}
+      data-panel-size={resizable ? panel.size : undefined}
     >
-      {body}
+      {panel.handle}
+      <PanelSizeProvider value={panel.size}>{body}</PanelSizeProvider>
     </aside>
   );
 }
@@ -436,6 +487,8 @@ function PanelHeader({
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
   const links = useMentionLinks();
+  // The same three lines at every width, set tighter or looser to suit it.
+  const size = usePanelSize();
   return (
     // Its own surface under the tabs: what the task is, set apart from the work
     // on it. Three lines, in order of weight: where it is (small), what it is
@@ -450,7 +503,7 @@ function PanelHeader({
       <div className="relative">
         <ItemCover item={item} canEdit={canEdit} />
       </div>
-      <div className="relative px-5 pt-3 pb-4">
+      <div className={cn("relative", size === "compact" ? "px-4 pt-3 pb-4" : size === "wide" ? "px-8 pt-5 pb-7" : "px-6 pt-4 pb-6")}>
         <div className="flex items-center gap-3">
           <p className="flex min-w-0 flex-1 items-center gap-1 text-2xs text-muted-foreground">
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
@@ -497,7 +550,7 @@ function PanelHeader({
           </div>
         </div>
 
-        <h2 className="mt-1.5 text-[26px] font-semibold leading-[1.15] tracking-tight">
+        <h2 className={cn("font-semibold tracking-tight", size === "compact" ? "mt-2 text-lg leading-snug" : size === "wide" ? "mt-3.5 text-[30px] leading-[1.15]" : "mt-3 text-[26px] leading-[1.2]")}>
           <InlineEdit
             value={item.name}
             editing={renaming}
@@ -506,13 +559,13 @@ function PanelHeader({
             disabled={!canEdit}
             ariaLabel="Item name"
             className={cn("-mx-1 break-words whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
-            inputClassName="h-11 text-[26px] font-semibold"
+            inputClassName={cn("font-semibold", size === "compact" ? "h-8 text-lg" : size === "wide" ? "h-12 text-[30px]" : "h-11 text-[26px]")}
           />
         </h2>
 
         {/* One quiet line of facts. Everything here is a size and a shade below
             the name, so the name is what the eye lands on. */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-2xs text-muted-foreground">
+        <div className={cn("flex flex-wrap items-center gap-y-2 text-2xs text-muted-foreground", size === "compact" ? "mt-2.5 gap-x-3" : "mt-4 gap-x-4")}>
           <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
           {item.archivedAt && (
             <Badge variant="warning" className="gap-1" data-testid="panel-archived-badge">
@@ -748,6 +801,8 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const text = item.description ?? "";
+  // Compact is a summary: the first few lines, and the rest a click away.
+  const compact = usePanelSize() === "compact";
 
   // The draft is filled at the moment editing starts rather than kept in step
   // with the item, so a different task in the panel — or someone else's edit
@@ -795,6 +850,7 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
           aria-label={canEdit ? "Edit description" : undefined}
           className={cn(
             "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left whitespace-pre-wrap text-[13px] text-foreground/90 shadow-xs",
+            compact && "line-clamp-4",
             canEdit && "hover:border-border",
             !canEdit && "cursor-default",
           )}
@@ -838,82 +894,85 @@ function Overview({ item }: { item: Item }) {
     if (from < 0 || to < 0) return;
     void mutations.reorderColumns(arrayMove(ids, from, to));
   };
+  const size = usePanelSize();
+
+  const fields = (
+    <section>
+      <h3 className="mb-1.5 label-quiet">Columns</h3>
+      {/* Every column, in the board's own order, one row each — the brief
+          included, because a document is a field like any other and putting it
+          below the list meant the panel disagreed with the board about what
+          order the columns are in. Dragging a row reorders the board. */}
+      <DndContext sensors={fieldSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onFieldDragEnd}>
+        <SortableContext items={panelColumns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="panel-fields">
+            {panelColumns.map((column) => (
+              <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </section>
+  );
+
+  const subitemsSection = item.parentItemId === null && (
+    <section>
+      <h3 className="mb-1.5 flex items-center justify-between label-quiet">
+        Subitems <span className="tabular">{subitems.length}</span>
+      </h3>
+      <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
+        {subitems.map((sub) => {
+          const done = model.isDone(sub.id);
+          const statusColumn = model.statusColumn;
+          const owners = model.personColumns.flatMap((c) => {
+            const v = model.getValue(sub.id, c.id);
+            return v?.type === "PERSON" ? v.userIds : [];
+          });
+          return (
+            <li key={sub.id} className="flex h-9 items-center gap-2 px-2 text-[13px]">
+              <CornerDownRight className="size-3 text-muted-foreground/60" />
+              <button type="button" onClick={() => openItem(sub.id)} className={cn("min-w-0 flex-1 truncate text-left hover:underline", done && "text-muted-foreground line-through")}>
+                {sub.name}
+              </button>
+              <SubOwners userIds={owners} />
+              {statusColumn && (
+                <div className={cn("h-7 [&>*]:border-r-0", size === "compact" ? "w-24" : "w-32")}>
+                  <CellRenderer item={sub} column={statusColumn} width={size === "compact" ? 96 : 128} value={model.getValue(sub.id, statusColumn.id)} onChange={(value) => void mutations.setValue(sub, statusColumn, value)} readOnly={!canEdit} />
+                </div>
+              )}
+            </li>
+          );
+        })}
+        {canEdit && (
+          <li className="flex h-9 items-center gap-2 px-2">
+            <Plus className="size-3.5 text-muted-foreground/60" />
+            <input
+              value={newSub}
+              onChange={(e) => setNewSub(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newSub.trim()) {
+                  void mutations.createItem({ groupId: item.groupId, parentItemId: item.id, name: newSub });
+                  setNewSub("");
+                }
+              }}
+              placeholder="Add subitem"
+              aria-label="Add subitem"
+              className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+            />
+          </li>
+        )}
+        {subitems.length === 0 && !canEdit && <li className="px-3 py-2 text-[13px] text-muted-foreground">No subitems.</li>}
+      </ul>
+    </section>
+  );
 
   return (
-    <div className="space-y-6 p-4">
+    <div className={cn(size === "compact" ? "space-y-4 p-3" : "space-y-6 p-4")}>
       <DescriptionSection item={item} canEdit={canEdit} />
-
-      <section>
-        <h3 className="mb-1.5 label-quiet">Columns</h3>
-        {/* Every column, in the board's own order, one row each — the brief
-            included, because a document is a field like any other and putting it
-            below the list meant the panel disagreed with the board about what
-            order the columns are in. Dragging a row reorders the board. */}
-        <DndContext sensors={fieldSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onFieldDragEnd}>
-          <SortableContext items={panelColumns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="panel-fields">
-              {panelColumns.map((column) => (
-                <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </section>
-
+      {fields}
       <AllocationSection item={item} />
       <LinkedItemsSection item={item} />
-
-      {item.parentItemId === null && (
-        <section>
-          <h3 className="mb-1.5 flex items-center justify-between label-quiet">
-            Subitems <span className="tabular">{subitems.length}</span>
-          </h3>
-          <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
-            {subitems.map((sub) => {
-              const done = model.isDone(sub.id);
-              const statusColumn = model.statusColumn;
-              const owners = model.personColumns.flatMap((c) => {
-                const v = model.getValue(sub.id, c.id);
-                return v?.type === "PERSON" ? v.userIds : [];
-              });
-              return (
-                <li key={sub.id} className="flex h-9 items-center gap-2 px-2 text-[13px]">
-                  <CornerDownRight className="size-3 text-muted-foreground/60" />
-                  <button type="button" onClick={() => openItem(sub.id)} className={cn("min-w-0 flex-1 truncate text-left hover:underline", done && "text-muted-foreground line-through")}>
-                    {sub.name}
-                  </button>
-                  <SubOwners userIds={owners} />
-                  {statusColumn && (
-                    <div className="h-7 w-32 [&>*]:border-r-0">
-                      <CellRenderer item={sub} column={statusColumn} width={128} value={model.getValue(sub.id, statusColumn.id)} onChange={(value) => void mutations.setValue(sub, statusColumn, value)} readOnly={!canEdit} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-            {canEdit && (
-              <li className="flex h-9 items-center gap-2 px-2">
-                <Plus className="size-3.5 text-muted-foreground/60" />
-                <input
-                  value={newSub}
-                  onChange={(e) => setNewSub(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newSub.trim()) {
-                      void mutations.createItem({ groupId: item.groupId, parentItemId: item.id, name: newSub });
-                      setNewSub("");
-                    }
-                  }}
-                  placeholder="Add subitem"
-                  aria-label="Add subitem"
-                  className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
-                />
-              </li>
-            )}
-            {subitems.length === 0 && !canEdit && <li className="px-3 py-2 text-[13px] text-muted-foreground">No subitems.</li>}
-          </ul>
-        </section>
-      )}
-
+      {subitemsSection}
     </div>
   );
 }
@@ -1131,7 +1190,14 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
 function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: BoardColumn; isMobile: boolean; canEdit: boolean }) {
   const { model, mutations } = useBoardContext();
   const [open, setOpen] = React.useState(false);
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || !canEdit });
+  // Compact, a row is a line of a summary: a small label, the value filling the
+  // rest, and none of the handles — rearranging columns wants the room the
+  // compact panel has given back to the board. Wide, the cell fills its half
+  // of the panel rather than holding the default width inside it.
+  const size = usePanelSize();
+  const compact = size === "compact" && !isMobile;
+  const fill = isMobile || size !== "default";
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || compact || !canEdit });
 
   const value = model.getValue(item.id, column.id);
   const brief = column.type === "RICH_TEXT";
@@ -1139,7 +1205,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
 
   // The handle takes 24px off the left, so the label gives that back out of its
   // own padding rather than out of its words: "Requested team" fits either way.
-  const label = <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : "w-28 shrink-0 pr-2 pl-1")}>{column.name}</span>;
+  const label = <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : compact ? "w-24 shrink-0 pr-2 pl-3 text-xs" : "w-28 shrink-0 pr-2 pl-1")}>{column.name}</span>;
 
   return (
     <div
@@ -1148,8 +1214,8 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
       className={cn("bg-card", isDragging && "relative z-10 rounded-lg opacity-95 shadow-lg")}
       data-testid={`panel-field-${column.id}`}
     >
-      <div className={cn("group/row flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : "h-10 items-center")}>
-        {!isMobile && (
+      <div className={cn("group/row flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : compact ? "h-9 items-center" : "h-10 items-center")}>
+        {!isMobile && !compact && (
           <button
             ref={setActivatorNodeRef}
             type="button"
@@ -1176,7 +1242,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             onSave={(text) => void mutations.setValue(item, column, { type: "RICH_TEXT", text })}
           />
         ) : (
-          <CellStretchProvider mode={isMobile ? "fill" : "none"}>
+          <CellStretchProvider mode={fill ? "fill" : "none"}>
             {/* The cell takes the whole height of the row, so a status chip is
                 a band down the row rather than a small pill floating in it. Its
                 own padding keeps it off the dividers. */}
@@ -1193,7 +1259,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             </div>
           </CellStretchProvider>
         )}
-        {!isMobile && canEdit && <ColumnRowMenu column={column} />}
+        {!isMobile && !compact && canEdit && <ColumnRowMenu column={column} />}
       </div>
       {brief && open && (
         <div className="scrollbar-thin max-h-96 overflow-y-auto border-t border-border/60 px-3 py-2.5" data-testid="rich-text-field-body">

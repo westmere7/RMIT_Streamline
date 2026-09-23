@@ -50,7 +50,7 @@ export function ItemCover({ item, canEdit }: { item: Item; canEdit: boolean }) {
   if (!item.coverUrl) {
     if (!canEdit) return null;
     return (
-      <div className="px-3 pt-3">
+      <div className="px-4 pt-4">
         {input}
         {/* Just the icon at rest; the words slide out on hover so the header stays quiet. */}
         <button
