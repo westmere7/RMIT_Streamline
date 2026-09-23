@@ -213,7 +213,9 @@ export const BoardTable = React.memo(function BoardTable() {
   // frozen column stops, and the rows are clipped there.
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-surface/50">
-      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 overflow-auto" data-testid="board-table">
+      {/* Scroll padding clears the pinned group title and column headers, so a
+          row focused by keyboard is scrolled into view below them, not under. */}
+      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 scroll-pt-[5.25rem] overflow-auto max-md:scroll-pt-[5.5rem]" data-testid="board-table">
         <CellStretchProvider>
         <TableScrollProvider scrollRef={scrollRef}>
           <div style={{ minWidth: width }} className="pb-24">

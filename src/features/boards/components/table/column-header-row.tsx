@@ -68,7 +68,7 @@ export function ColumnHeaderRow({
   const showTicket = useShowTicket();
   const colors = colorClasses(group.color);
   return (
-    <div role="row" className="sticky top-0 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground max-md:h-11 max-md:text-[13px]">
+    <div role="row" className="sticky top-11 z-[6] flex h-10 border-b border-border/60 bg-background text-xs font-medium text-muted-foreground max-md:h-11 max-md:text-[13px]">
       <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle(showTicket, layout)}>
         <span aria-hidden className={cn("my-1.5 h-[calc(100%-12px)] w-1 rounded-full", colors.dot)} />
         <div className="flex items-center justify-center" style={{ width: layout.selectWidth - 6 }}>

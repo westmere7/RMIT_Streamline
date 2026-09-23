@@ -230,7 +230,15 @@ export function GroupSection({
       className={cn("mb-7", isDragging && "opacity-50")}
       data-testid={`group-${group.name}`}
     >
-      {collapsed && items.length > 0 ? <GroupSummaryRow leading={header} items={items} widthOverrides={widthOverrides} /> : header}
+      {/* An open group's title pins to the top of the board while its rows
+          scroll past, and the column headers pin under it (top-11). The band
+          is full width and opaque, in the board's own backdrop, so rows pass
+          behind it rather than showing through beside the title. */}
+      {collapsed && items.length > 0 ? (
+        <GroupSummaryRow leading={header} items={items} widthOverrides={widthOverrides} />
+      ) : (
+        <div className="sticky top-0 z-[8] bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]">{header}</div>
+      )}
 
       {!collapsed && (
         <div

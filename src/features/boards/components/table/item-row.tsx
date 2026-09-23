@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -235,7 +235,29 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                   disabled={!canEdit}
                 />
               </div>
-              <TicketCell code={item.ticket} />
+              {!showTicket && dndEnabled && (
+                <div
+                  className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground active:cursor-grabbing group-hover/row:opacity-100"
+                  aria-hidden="true"
+                  data-testid="item-drag-handle"
+                >
+                  <GripVertical className="size-3.5" />
+                </div>
+              )}
+              <TicketCell
+                code={item.ticket}
+                dragHandle={
+                  dndEnabled ? (
+                    <div
+                      className="absolute -left-0.5 flex h-6 w-4 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground active:cursor-grabbing group-hover/row:opacity-100"
+                      aria-hidden="true"
+                      data-testid="item-drag-handle"
+                    >
+                      <GripVertical className="size-3.5" />
+                    </div>
+                  ) : undefined
+                }
+              />
               {/* The empty run of the name cell opens the item too, like the name itself. */}
               <div
                 className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1 pr-1"

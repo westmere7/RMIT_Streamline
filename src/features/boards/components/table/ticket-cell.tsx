@@ -18,17 +18,26 @@ import { cn } from "@/lib/utils";
  * A task nobody has ticketed shows a dash rather than an empty gap, so the
  * column still reads as a column.
  */
-export function TicketCell({ code, className }: { code: string | null | undefined; className?: string }) {
+export function TicketCell({
+  code,
+  className,
+  dragHandle,
+}: {
+  code: string | null | undefined;
+  className?: string;
+  dragHandle?: React.ReactNode;
+}) {
   const showTicket = useShowTicket();
   const layout = useTableLayout();
   if (!showTicket) return null;
   return (
     <div
       role="gridcell"
-      className={cn("flex h-full shrink-0 items-center justify-center border-r border-border/40 px-1", className)}
+      className={cn("relative flex h-full shrink-0 items-center justify-center border-r border-border/40 px-1", className)}
       style={ticketCellStyle(layout)}
       data-testid="item-ticket-cell"
     >
+      {dragHandle}
       {code ? (
         <button
           type="button"
@@ -38,13 +47,13 @@ export function TicketCell({ code, className }: { code: string | null | undefine
           }}
           title="Copy this ticket"
           aria-label={`Copy ticket ${code}`}
-          className="rounded-md px-1.5 py-0.5 font-mono text-[11px] tracking-tight text-muted-foreground tabular transition-colors hover:bg-accent hover:text-foreground"
+          className="relative z-[1] rounded-md px-1.5 py-0.5 font-mono text-[11px] tracking-tight text-muted-foreground tabular transition-colors hover:bg-accent hover:text-foreground"
           data-testid="item-ticket"
         >
           {code}
         </button>
       ) : (
-        <span aria-hidden className="text-2xs text-muted-foreground/40">
+        <span aria-hidden className="relative z-[1] text-2xs text-muted-foreground/40">
           &mdash;
         </span>
       )}
