@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, ShieldCheck, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -875,9 +875,10 @@ function TeamNode({
  *
  * The app made it, it holds the intake (Task Allocation) and anything else only
  * admins should see, and it is not a team the work is divided between. Listed
- * with the rest it read as one more of them; here it is a panel of its own in
- * the brand red, with its boards always open, since there are only ever a few
- * and they are the ones an admin checks first.
+ * with the rest it read as one more of them; here it is a panel of its own,
+ * tinted in the team's own colour and wearing its own icon, with its boards
+ * always open, since there are only ever a few and they are the ones an admin
+ * checks first.
  */
 function AdminNode({
   team,
@@ -900,6 +901,11 @@ function AdminNode({
   const router = useRouter();
   const sidebar = useSidebarActions();
   const manage = canManageTeam(ws.permissions, team.id);
+  const colors = colorClasses(team.color);
+  // The panel's wash and edge, mixed from the team's colour so a new colour in
+  // Team settings carries through.
+  const panelStyle = { "--team": colors.hex } as React.CSSProperties;
+  const panelClasses = "bg-[color-mix(in_oklab,var(--team)_9%,transparent)] ring-1 ring-[color-mix(in_oklab,var(--team)_22%,transparent)]";
   const actions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
     ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
@@ -921,11 +927,11 @@ function AdminNode({
 
   if (collapsed) {
     return (
-      <div className="mt-3 space-y-0.5 rounded-xl bg-primary/[0.07] py-1 ring-1 ring-primary/15" data-testid="sidebar-admin">
+      <div className={cn("mt-3 space-y-0.5 rounded-xl py-1", panelClasses)} style={panelStyle} data-testid="sidebar-admin">
         <SimpleTooltip label={team.name} side="right">
           <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
-            <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <ShieldCheck className="size-3.5" />
+            <span className={cn("flex size-6 items-center justify-center rounded-md", colors.solid)}>
+              <DynamicIcon name={team.icon} className="size-3.5" />
             </span>
           </Link>
         </SimpleTooltip>
@@ -939,18 +945,21 @@ function AdminNode({
   }
 
   return (
-    <section className="mt-3 rounded-xl bg-primary/[0.07] p-1 ring-1 ring-primary/15" aria-label={team.name} data-testid="sidebar-admin">
+    <section className={cn("mt-3 rounded-xl p-1", panelClasses)} style={panelStyle} aria-label={team.name} data-testid="sidebar-admin">
       <RowMenu label={`Options for ${team.name}`} actions={actions}>
         <Link
           href={routes.team(ws.slug, team.id)}
           aria-current={activeTeam ? "page" : undefined}
-          className={cn("flex h-9 items-center gap-2.5 rounded-lg px-1.5 pr-8 text-[13px] font-semibold transition-colors", activeTeam ? "bg-primary/10" : "hover:bg-primary/10")}
+          className={cn(
+            "flex h-9 items-center gap-2.5 rounded-lg px-1.5 pr-8 text-[13px] font-semibold transition-colors",
+            activeTeam ? "bg-[color-mix(in_oklab,var(--team)_16%,transparent)]" : "hover:bg-[color-mix(in_oklab,var(--team)_14%,transparent)]",
+          )}
         >
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
-            <ShieldCheck className="size-3.5" />
+          <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md shadow-xs", colors.solid)}>
+            <DynamicIcon name={team.icon} className="size-3.5" />
           </span>
           <span className="truncate">{team.name}</span>
-          <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold tracking-wide text-primary uppercase transition-opacity group-hover/menu:opacity-0">Admins</span>
+          <span className={cn("ml-auto rounded-full px-1.5 py-px text-[10px] font-semibold tracking-wide uppercase transition-opacity group-hover/menu:opacity-0", colors.soft)}>Admins</span>
         </Link>
       </RowMenu>
       <ul className="mt-0.5 space-y-0.5">

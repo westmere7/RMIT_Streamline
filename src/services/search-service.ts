@@ -20,19 +20,81 @@ export interface SearchOptions {
    * second read of every board.
    */
   includeArchived?: boolean;
+  /**
+   * Look for items on this board only.
+   *
+   * The palette's "search in this board". Filtering the workspace's results
+   * afterwards lost most of them: the workspace answer was capped first, so
+   * another board's matches could fill it and leave this board's out.
+   */
+  boardId?: EntityId | null;
 }
 
-function matches(haystack: string | null | undefined, needle: string): boolean {
-  return !!haystack && haystack.toLowerCase().includes(needle);
+/**
+ * Text as it is compared: lower case, accents off, "đ" as "d".
+ *
+ * Half the names in this workspace are Vietnamese, and nobody types the
+ * diacritics into a search box.
+ */
+export function foldForSearch(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "d").toLowerCase();
+}
+
+/** A folded query, and the words in it. */
+interface Needle {
+  phrase: string;
+  words: string[];
+}
+
+function needleOf(query: string): Needle {
+  const phrase = foldForSearch(query.trim()).replace(/\s+/g, " ");
+  return { phrase, words: phrase.split(" ").filter(Boolean) };
+}
+
+/**
+ * How well a piece of text answers the query, lower being better, or null for
+ * not at all.
+ *
+ * Every word typed has to be in the text somewhere, in any order: "grad day"
+ * is "Graduation day", and "grad" alone is too. Then the ranking is what a
+ * person expects: the whole thing, then something that starts with what they
+ * typed, then one whose words start with what they typed, then anything that
+ * merely contains it.
+ */
+export function searchScore(text: string | null | undefined, needle: Needle): number | null {
+  if (!text || needle.words.length === 0) return null;
+  const hay = foldForSearch(text);
+  if (!needle.words.every((word) => hay.includes(word))) return null;
+  if (hay === needle.phrase) return 0;
+  if (hay.startsWith(needle.phrase)) return 1;
+  const tokens = hay.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (needle.words.every((word) => tokens.some((token) => token.startsWith(word)))) return 2;
+  return 3;
+}
+
+/** The better of several scores, where null is no match. */
+function best(...scores: Array<number | null>): number | null {
+  const found = scores.filter((s): s is number => s !== null);
+  return found.length ? Math.min(...found) : null;
 }
 
 /**
  * A ticket, matched the way people quote it: "CP_014", "cp14", "cp-14" or just
  * "14". Nobody remembers the separator and nobody types the padding.
  */
-function matchesTicket(ticket: string | null | undefined, needle: string): boolean {
+function matchesTicket(ticket: string | null | undefined, query: string): boolean {
   if (!ticket) return false;
+  const needle = query.trim().toLowerCase();
+  if (!needle) return false;
   return ticket.toLowerCase().includes(needle) || ticketSearchKey(ticket).includes(ticketSearchKey(needle));
+}
+
+/** Best first, then the shorter name, which is nearer to being what was typed. */
+function ranked<T>(rows: Array<{ row: T; score: number; name: string }>, limit: number): T[] {
+  return rows
+    .sort((a, b) => a.score - b.score || a.name.length - b.name.length || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map((entry) => entry.row);
 }
 
 export class SearchService {
@@ -40,8 +102,8 @@ export class SearchService {
 
   async search(workspaceId: EntityId, query: string, options: SearchOptions = {}): Promise<SearchResults> {
     const limitPerGroup = options.limitPerGroup ?? 6;
-    const needle = query.trim().toLowerCase();
-    if (!needle) return { boards: [], items: [], teams: [], users: [] };
+    const needle = needleOf(query);
+    if (needle.words.length === 0) return { boards: [], items: [], teams: [], users: [] };
 
     const [boards, teams, users, members] = await Promise.all([
       this.repos.boards.listByWorkspace(workspaceId),
@@ -52,27 +114,49 @@ export class SearchService {
     // Pending and deactivated people are not searchable: you cannot assign or message them yet.
     const memberIds = new Set(members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     const activeBoards = boards.filter((b) => b.archivedAt === null);
+    const itemBoards = options.boardId ? activeBoards.filter((b) => b.id === options.boardId) : activeBoards;
 
-    const itemMatches: SearchResults["items"] = [];
-    for (const board of activeBoards) {
-      if (itemMatches.length >= limitPerGroup * 2) break;
-      const items = await this.repos.items.listByBoard(board.id, { includeArchived: options.includeArchived });
+    // Every board, read at once, and every match ranked before any is cut. It
+    // used to stop at the first dozen matches in board order, so the task that
+    // matched best could be the one left out.
+    const perBoard = await Promise.all(itemBoards.map(async (board) => ({ board, items: await this.repos.items.listByBoard(board.id, { includeArchived: options.includeArchived }) })));
+    const itemRows: Array<{ row: SearchResults["items"][number]; score: number; name: string }> = [];
+    for (const { board, items } of perBoard) {
       for (const item of items) {
-        if (matches(item.name, needle) || matchesTicket(item.ticket, needle)) itemMatches.push({ item, board, archived: item.archivedAt !== null });
+        // A code that matches is as good as the name itself: whoever typed it
+        // was quoting this task.
+        const score = best(searchScore(item.name, needle), matchesTicket(item.ticket, query) ? 0 : null);
+        if (score === null) continue;
+        const archived = item.archivedAt !== null;
+        // Live work ahead of archived work at the same score: an archived hit is
+        // a different answer to the question.
+        itemRows.push({ row: { item, board, archived }, score: score + (archived ? 0.5 : 0), name: item.name });
       }
     }
-    // Live work first: an archived hit is a different answer to the question,
-    // and it should not push the thing someone is working on off the list.
-    itemMatches.sort((a, b) => Number(a.archived) - Number(b.archived));
+
+    const boardRows = activeBoards.flatMap((board) => {
+      const score = best(searchScore(board.name, needle), searchScore(board.description, needle) === null ? null : 4);
+      return score === null ? [] : [{ row: board, score, name: board.name }];
+    });
+    const teamRows = teams.flatMap((team) => {
+      const score = team.archivedAt === null ? searchScore(team.name, needle) : null;
+      return score === null ? [] : [{ row: team, score, name: team.name }];
+    });
+    const userRows = users
+      .filter((u) => memberIds.has(u.id) && !u.deactivatedAt)
+      .flatMap((user) => {
+        // The name first; an email or a job title that matches is a weaker answer.
+        const byName = searchScore(user.displayName, needle);
+        const other = best(searchScore(user.email, needle), searchScore(user.jobTitle, needle));
+        const score = best(byName, other === null ? null : other + 3);
+        return score === null ? [] : [{ row: user, score, name: user.displayName }];
+      });
 
     return {
-      boards: activeBoards.filter((b) => matches(b.name, needle) || matches(b.description, needle)).slice(0, limitPerGroup),
-      items: itemMatches.slice(0, limitPerGroup * 2),
-      teams: teams.filter((t) => t.archivedAt === null && matches(t.name, needle)).slice(0, limitPerGroup),
-      users: users
-        .filter((u) => memberIds.has(u.id) && !u.deactivatedAt)
-        .filter((u) => matches(u.displayName, needle) || matches(u.email, needle) || matches(u.jobTitle, needle))
-        .slice(0, limitPerGroup),
+      boards: ranked(boardRows, limitPerGroup),
+      items: ranked(itemRows, limitPerGroup * 2),
+      teams: ranked(teamRows, limitPerGroup),
+      users: ranked(userRows, limitPerGroup),
     };
   }
 }

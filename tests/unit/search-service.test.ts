@@ -26,7 +26,7 @@ function item(id: string, name: string, ticket: string | null): Item {
   return { id, boardId: board.id, groupId: "g1", parentItemId: null, name, description: null, position: 0, createdBy: "u1", archivedAt: null, ticket, createdAt: "", updatedAt: "" };
 }
 
-const items = [item("i1", "Radio script – 30s", "TA-7441"), item("i2", "Poster artwork", "TA-9002"), item("i3", "Nothing booked", null)];
+const items = [item("i1", "Radio script – 30s", "TA-7441"), item("i2", "Poster artwork", "TA-9002"), item("i3", "Nothing booked", null), item("i4", "Upgrade the kiosk", null), item("i5", "Graduation day", null), item("i6", "Lễ tốt nghiệp – Đà Nẵng", null)];
 
 /** Only the four reads SearchService makes; everything else would be unused. */
 function repos(): Repositories {
@@ -54,5 +54,26 @@ describe("SearchService", () => {
 
   it("does not match a code that belongs to nothing", async () => {
     expect((await search("TA-0000")).items).toEqual([]);
+  });
+
+  it("finds a task from the start of a word, and ranks the better match first", async () => {
+    // "Upgrade" contains "grad" too, but "Graduation" starts with it.
+    expect((await search("Grad")).items.map((r) => r.item.id)).toEqual(["i5", "i4"]);
+  });
+
+  it("matches every word typed, in any order", async () => {
+    expect((await search("day grad")).items.map((r) => r.item.id)).toEqual(["i5"]);
+    expect((await search("grad night")).items).toEqual([]);
+  });
+
+  it("ignores accents, so a Vietnamese name is found as it is typed on any keyboard", async () => {
+    expect((await search("da nang")).items.map((r) => r.item.id)).toEqual(["i6"]);
+    expect((await search("tot nghiep")).items.map((r) => r.item.id)).toEqual(["i6"]);
+  });
+
+  it("searches one board when asked, whatever the other boards hold", async () => {
+    const service = new SearchService(repos());
+    expect((await service.search(WORKSPACE, "grad", { boardId: "elsewhere" })).items).toEqual([]);
+    expect((await service.search(WORKSPACE, "grad", { boardId: board.id })).items.map((r) => r.item.id)).toEqual(["i5", "i4"]);
   });
 });

@@ -259,6 +259,8 @@ test.describe("an update posted to a linked task", () => {
 
   test("an update posted with the toggle off stays on this task only", async ({ page }) => {
     await openUpdates(page);
+    // The composer rests as one line; its toggle and button appear once somebody goes to write.
+    await composer(page).click();
     await page.getByTestId("comment-also-linked").click();
     await expect(page.getByTestId("comment-also-linked")).toHaveAttribute("aria-checked", "false");
     await composer(page).fill("Only here");

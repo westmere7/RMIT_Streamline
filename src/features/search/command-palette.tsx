@@ -66,9 +66,13 @@ export function CommandPalette() {
   const scopedBoard = scope === "view" ? viewedBoard : null;
   const wants = (option: Exclude<SearchKind, "all">) => kind === "all" || kind === option;
 
+  // A board chosen as the scope is searched as that board, not filtered out of
+  // the workspace's answer afterwards: that answer is capped, and another
+  // board's matches could fill it before this board's were reached.
+  const scopedBoardId = scopedBoard?.id ?? null;
   const results = useQuery({
-    queryKey: [...queryKeys.search(ws.workspace.id, debounced), includeArchived],
-    queryFn: () => services.search.search(ws.workspace.id, debounced, { includeArchived }),
+    queryKey: [...queryKeys.search(ws.workspace.id, debounced), includeArchived, scopedBoardId],
+    queryFn: () => services.search.search(ws.workspace.id, debounced, { includeArchived, boardId: scopedBoardId }),
     enabled: open && debounced.length > 0,
     staleTime: 5_000,
   });
@@ -224,7 +228,7 @@ export function CommandPalette() {
             <CommandSeparator />
             <CommandGroup heading="People">
               {people.map((user) => (
-                <CommandItem key={user.id} value={`user-${user.id}`} onSelect={() => go(`${routes.members(ws.slug)}?q=${encodeURIComponent(user.displayName)}`)}>
+                <CommandItem key={user.id} value={`user-${user.id}`} onSelect={() => go(routes.person(ws.slug, user.id))}>
                   <UserAvatar user={user} size="xs" tooltip={false} />
                   <span className="truncate">{user.displayName}</span>
                   <span className="ml-auto truncate text-2xs text-muted-foreground">{user.jobTitle}</span>
