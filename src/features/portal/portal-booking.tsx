@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LogIn } from "lucide-react";
 import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
@@ -63,6 +63,7 @@ export function PortalBookingScreen({
   onClose: () => void;
 }) {
   const services = useServices();
+  const queryClient = useQueryClient();
   // Some stakeholders do have an account here. If they are signed in the wizard
   // fills their details in, and they can still type over them.
   const auth = useAuth();
@@ -152,6 +153,10 @@ export function PortalBookingScreen({
                 // The booking is in, so the next one is a different booking.
                 setSubmissionKey(newSubmissionKey());
                 setBooked(receipt.itemId);
+                // The board this page read before the booking does not have it.
+                // Read it again now, while the receipt is being read, so that
+                // "View request" opens on a board the new task is already on.
+                void queryClient.invalidateQueries({ queryKey: ["portal-board", credentials.token] });
               }}
             />
             {booked && (

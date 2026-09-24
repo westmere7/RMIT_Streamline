@@ -10,7 +10,6 @@ import {
   dimensionComparison,
   monthlyComparison,
   operations,
-  NO_DEPARTMENT_KEY,
   reportingDate,
   resolvePeriod,
   UNKNOWN_DEPARTMENT,
@@ -271,8 +270,8 @@ describe("volume and comparison", () => {
     const report = volumeReport(data, resolvePeriod(period(), TODAY), "created", null);
     const rows = dimensionComparison(report, "department", "tasks", () => "#000");
     expect(rows.find((r) => r.name === "Communications")).toMatchObject({ current: 1, comparison: 1, delta: 0 });
-    // Work nobody labelled is its own bucket, never folded into a real one.
-    expect(rows.find((r) => r.name === "Unknown")?.current).toBe(1);
+    // Work that names no group on the list is not a row: only the list is tracked.
+    expect(rows.map((r) => r.name)).toEqual(["Communications"]);
   });
 
   it("measures asset types in units, because tasks by type are not additive", () => {
@@ -409,10 +408,11 @@ describe("workload by stakeholder group", () => {
       4,
     );
 
-  it("splits a person's row by the group each task is for, and the parts add up to the whole", () => {
+  it("splits a person's row by the group each task is for", () => {
     const jane = window().find((r) => r.name === "Jane")!;
     expect(jane.tasks).toBe(4);
-    expect(jane.byDepartment.reduce((sum, cell) => sum + cell.tasks, 0)).toBe(jane.tasks);
+    // The fourth task names no group on the list: it is in the row, in no cell.
+    expect(jane.byDepartment.reduce((sum, cell) => sum + cell.tasks, 0)).toBe(3);
     expect(jane.byDepartment.find((c) => c.key === "comm.")).toMatchObject({ name: "Comm.", tasks: 2, overdue: 1, scheduled: 1 });
   });
 
@@ -437,14 +437,15 @@ describe("workload by stakeholder group", () => {
     expect(rows.find((r) => r.name === "Jane")!.byDepartment[0]).toMatchObject({ name: "Comm.", tasks: 2 });
   });
 
-  it("keeps work with no stakeholder group as its own cell rather than dropping it", () => {
+  it("gives work with no stakeholder group no cell: only the groups on the list are tracked", () => {
     const jane = window().find((r) => r.name === "Jane")!;
-    expect(jane.byDepartment.find((c) => c.key === NO_DEPARTMENT_KEY)).toMatchObject({ name: UNKNOWN_DEPARTMENT, tasks: 1 });
+    expect(jane.byDepartment.map((c) => c.name).sort()).toEqual(["Comm.", "Events"]);
+    expect(jane.byDepartment.some((c) => c.name === UNKNOWN_DEPARTMENT)).toBe(false);
   });
 
   it("offers only the groups the window actually holds work for, busiest first", () => {
     const options = workloadDepartments(window());
-    expect(options.map((o) => o.name)).toEqual(["Comm.", "Events", UNKNOWN_DEPARTMENT]);
+    expect(options.map((o) => o.name)).toEqual(["Comm.", "Events"]);
     // Three tasks for Communications, across two of the people.
     expect(options[0]).toMatchObject({ tasks: 3, people: 2 });
   });

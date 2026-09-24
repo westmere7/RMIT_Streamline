@@ -9,7 +9,7 @@ import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { TreemapChart } from "@/features/dashboard/charts/treemap";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
 import { YearComparisonChart } from "@/features/dashboard/components/year-comparison";
-import { departmentHex, UNKNOWN_DEPARTMENT } from "@/features/dashboard/metrics";
+import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { DemandSection } from "./demand-section";
@@ -71,7 +71,9 @@ export function DashboardBody(props: DashboardViewProps) {
   const byDepartment = React.useMemo(() => {
     const rowsByDept = new Map<string, { name: string; value: number; color: string }>();
     for (const task of scoped) {
-      const name = task.department?.name ?? UNKNOWN_DEPARTMENT;
+      // Only the groups on the list; the rest is the coverage line's.
+      if (!task.department) continue;
+      const name = task.department.name;
       const entry = rowsByDept.get(name) ?? { name, value: 0, color: departmentHex(name) };
       entry.value += valueOf(task);
       rowsByDept.set(name, entry);

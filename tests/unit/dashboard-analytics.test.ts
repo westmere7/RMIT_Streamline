@@ -116,7 +116,10 @@ function snapshot(): DashboardSnapshot {
   // a2 is mirrored on Beta's board as b2 (allocated copy): counted once, under the earlier copy.
   const links: ItemLink[] = [{ id: "l1", workspaceId: WS, itemAId: "a2", itemBId: "b2", excluded: [], pairs: [], createdBy: "u-danh", createdAt: now }];
   const users = [user("u-danh", "Danh Nguyen"), user("u-tuyet", "Tuyet Le"), user("u-duc", "Duc Tran"), user("u-grace", "Grace Kim", "Content")];
-  return { workspace: { id: WS, name: "Test", slug: "test" }, teams, boards, groups, columns, items, values, assets, links, users, departments: [], generatedAt: now };
+  // The stakeholder groups on the list (Settings -> Lists). "Retired" was taken off it.
+  const department = (id: string, name: string, status: "ACTIVE" | "DISABLED" = "ACTIVE") => ({ id, workspaceId: WS, name, color: "blue" as const, position: 0, status, createdAt: now, updatedAt: now });
+  const departments = [department("d-business", "School of Business"), department("d-library", "Library"), department("d-content", "Content"), department("d-retired", "Retired", "DISABLED")];
+  return { workspace: { id: WS, name: "Test", slug: "test" }, teams, boards, groups, columns, items, values, assets, links, users, departments, generatedAt: now };
 }
 
 const year2026: DashboardScope = { span: "year", year: 2026, half: 1, quarter: 1, teamIds: null, basis: "due" };
@@ -150,6 +153,18 @@ describe("buildFacts", () => {
     expect(facts.requests.find((r) => r.id === "in2")!.request!.stage).toBe("allocated");
     // A person-column requester carries their own department; the board's team is the requested team.
     expect(facts.requests.find((r) => r.id === "b1")!.request).toMatchObject({ requesterName: "Grace Kim", department: "Content", teamName: "Beta", stage: "closed" });
+  });
+
+  it("tracks only the stakeholder groups on the list", () => {
+    const base = snapshot();
+    // A name nobody put on the list, and one that was taken off it, are no department at all.
+    const values = base.values.map((v) => (v.itemId === "in1" && v.columnId === "c-in-dept" ? { ...v, value: { type: "TEXT" as const, text: "Somewhere Else" } } : v.itemId === "in2" && v.columnId === "c-in-dept" ? { ...v, value: { type: "TEXT" as const, text: "Retired" } } : v));
+    const facts = buildFacts({ ...base, values });
+    expect(facts.requests.find((r) => r.id === "in1")!.request!.department).toBeNull();
+    expect(facts.requests.find((r) => r.id === "in2")!.request!.department).toBeNull();
+    // A list name in other capitals is still that group, spelt the list's way.
+    const shouted = buildFacts({ ...base, values: base.values.map((v) => (v.itemId === "in1" && v.columnId === "c-in-dept" ? { ...v, value: { type: "TEXT" as const, text: "  school of BUSINESS " } } : v)) });
+    expect(shouted.requests.find((r) => r.id === "in1")!.request!.department).toBe("School of Business");
   });
 
   it("keeps asset lines of delivery tasks only", () => {

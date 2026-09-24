@@ -41,7 +41,7 @@ function Reel({ digit, duration }: { digit: number; duration: number }) {
     <span aria-hidden className="relative inline-block overflow-hidden" style={{ height: "1em", WebkitMaskImage: FADE_MASK, maskImage: FADE_MASK }}>
       <span
         className="flex flex-col"
-        style={{ transform: `translateY(-${digit}em)`, transition: reduced ? undefined : `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` }}
+        style={{ transform: `translateY(-${digit}em)`, transition: reduced ? undefined : `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)` }}
       >
         {DIGITS.map((d) => (
           <span key={d} className="flex items-center justify-center" style={{ height: "1em" }}>

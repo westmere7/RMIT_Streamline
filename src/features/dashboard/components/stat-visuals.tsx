@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { compactCount, formatCount } from "@/features/dashboard/charts/chart-utils";
+import { KineticNumber } from "@/features/dashboard/charts/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -61,11 +62,13 @@ export function StatRing({
           stroke={colour}
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - share)}
-          className="transition-[stroke-dashoffset] duration-500 motion-reduce:transition-none"
+          className="transition-[stroke-dashoffset] duration-700 ease-kinetic motion-reduce:transition-none"
         />
       </svg>
       <div className="min-w-0">
-        <p className="text-lg font-semibold leading-none tabular tracking-tight">{format(value)}</p>
+        <p className="text-lg font-semibold leading-none tabular tracking-tight">
+          <KineticNumber value={value} format={format} />
+        </p>
         <p className="mt-1 truncate text-2xs text-muted-foreground">{label}</p>
         {total > 0 && <p className="text-2xs tabular text-muted-foreground/80">{Math.round(share * 100)}% of {format(total)}</p>}
       </div>
@@ -111,12 +114,12 @@ export function StatBar({
       data-testid={testId}
     >
       <span className={cn("text-2xl font-semibold leading-none tabular tracking-tight", tone === "urgent" && value > 0 && "text-destructive", tone === "good" && "text-emerald-600 dark:text-emerald-400")}>
-        {formatCount(value)}
+        <KineticNumber value={value} format={formatCount} />
       </span>
       <span className="mt-1 text-2xs leading-tight text-muted-foreground">{label}</span>
       <span aria-hidden className="mt-2 h-1 w-full overflow-hidden rounded-full bg-border/60">
         <span
-          className={cn("block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/50")}
+          className={cn("block h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/50")}
           style={{ width: `${share * 100}%` }}
         />
       </span>
@@ -266,7 +269,7 @@ export function ShareBar({ data, className, testId }: { data: Array<{ name: stri
     <div className={className} data-testid={testId}>
       <div className="flex h-2.5 w-full overflow-hidden rounded-full">
         {data.map((row) => (
-          <span key={row.name} title={`${row.name}: ${formatCount(row.value)}`} style={{ width: `${(row.value / total) * 100}%`, background: row.color }} className="h-full first:rounded-l-full last:rounded-r-full" />
+          <span key={row.name} title={`${row.name}: ${formatCount(row.value)}`} style={{ width: `${(row.value / total) * 100}%`, background: row.color }} className="h-full transition-[width] duration-700 ease-kinetic first:rounded-l-full last:rounded-r-full motion-reduce:transition-none" />
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-2xs">
@@ -274,7 +277,7 @@ export function ShareBar({ data, className, testId }: { data: Array<{ name: stri
           <li key={row.name} className="flex items-center gap-1.5">
             <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: row.color }} />
             <span className="text-muted-foreground">{row.name}</span>
-            <span className="font-medium tabular">{formatCount(row.value)}</span>
+            <KineticNumber value={row.value} format={formatCount} className="font-medium tabular" />
           </li>
         ))}
       </ul>

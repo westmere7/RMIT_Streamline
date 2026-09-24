@@ -183,6 +183,7 @@ export function ItemDetailPanel({
   shared = false,
   popup = false,
   hideMenu = false,
+  notice,
 }: {
   itemId: string;
   onClose: () => void;
@@ -196,6 +197,8 @@ export function ItemDetailPanel({
    * a board they are not looking at.
    */
   hideMenu?: boolean;
+  /** Something the reader should know about this task before anything else, shown under its header. */
+  notice?: React.ReactNode;
 }) {
   const { model, canEdit, board } = useBoardContext();
   const item = model.itemById.get(itemId);
@@ -292,11 +295,13 @@ export function ItemDetailPanel({
       ) : twoPane ? (
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup={asPopup} hideMenu={hideMenu} />
+          {notice}
           <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
         </>
       ) : (
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} hideMenu={hideMenu} />
+          {notice}
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
             {/* Compact, the four tabs are their icons and counts: four words
                 do not fit in 300px beside them. The words stay for anyone

@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDownUp, ClipboardPen, GripVertical, Rows3 } from "lucide-react";
+import { ArrowDownUp, ClipboardPen, GripVertical, Hourglass, Rows3 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -30,7 +30,7 @@ import { useViewSettingsFor } from "@/features/boards/components/views/view-sett
 import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
-import { ItemDetailPanel } from "@/features/items/item-detail-panel";
+import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
 import { applyPortalGrouping, orderStatusLabels } from "@/features/portal/portal-grouping";
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -61,9 +61,12 @@ export function PortalBoardScreen({
   onSearchChange,
   searchingAllYears,
   showItemGroups,
+  refreshing = false,
 }: {
   token: string;
   payload: PortalBoardPayload;
+  /** True while a newer read of the board is on its way. */
+  refreshing?: boolean;
   /**
    * Whether the boards' own groups are on offer. Off, the portal groups by
    * status and a link asking for "board" is read as status too.
@@ -108,8 +111,37 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
-      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} />
+      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} />
     </ShareGuestProviders>
+  );
+}
+
+/**
+ * Where a request is while nobody has picked it up yet.
+ *
+ * Every booking lands on Task Allocation first and waits there for a manager to
+ * place it with a team. Until then the stakeholder is looking at a task with no
+ * status of its own and nobody on it, which reads as lost; this says it arrived
+ * and who has it, and stands out so it is the first thing read.
+ */
+function AwaitingAllocation({ teamName }: { teamName: string | null }) {
+  return (
+    <div
+      role="status"
+      className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/60 bg-amber-50 px-3.5 py-3 text-[13px] dark:border-amber-400/30 dark:bg-amber-500/10"
+      data-testid="portal-awaiting-allocation"
+    >
+      <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-400/25 text-amber-700 dark:text-amber-300">
+        <Hourglass className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2 font-semibold text-amber-950 dark:text-amber-100">
+          Waiting for allocation
+          <span className="rounded-full bg-amber-500 px-2 py-0.5 text-2xs font-semibold text-white dark:bg-amber-400 dark:text-amber-950">With {teamName ?? "the admins"}</span>
+        </p>
+        <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/80">Received. It moves to a team once a manager picks it up.</p>
+      </div>
+    </div>
   );
 }
 
@@ -131,8 +163,13 @@ function PortalBoard({
   groupings,
   onSearchChange,
   searchingAllYears,
+  refreshing,
+  awaiting,
 }: {
   payload: PortalBoardPayload;
+  refreshing: boolean;
+  /** The requests still waiting on Task Allocation, and the team holding them. */
+  awaiting: PortalBoardPayload["awaiting"] | undefined;
   bookHref: string | null;
   rangePicker?: React.ReactNode;
   /** The status groups in their current order and where a new order goes; null when not grouped by status. */
@@ -226,6 +263,12 @@ function PortalBoard({
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;
 
+  // A task named in the link that this read does not have yet — one booked a
+  // moment ago, opened before the board has read it again — waits in a loading
+  // panel while a newer read is on its way, rather than saying it is not there.
+  const pending = !!openTaskId && refreshing && !model?.itemById.has(openTaskId);
+  const notice = openTaskId && awaiting?.ids.includes(openTaskId) ? <AwaitingAllocation teamName={awaiting.teamName} /> : undefined;
+
   return (
     <BoardContextProvider value={contextValue}>
       {isMobile ? (
@@ -254,7 +297,7 @@ function PortalBoard({
               <OtherView view={view} />
             </div>
           )}
-          {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu />}
+          {openTaskId && (pending ? <ItemPanelSkeleton onClose={() => openItem(null)} /> : <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu notice={notice} />)}
         </>
       ) : (
         <>
@@ -284,7 +327,12 @@ function PortalBoard({
               {view === "kanban" && <KanbanView />}
               <OtherView view={view} />
             </div>
-            {openTaskId && <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} hideMenu />}
+            {openTaskId &&
+              (pending ? (
+                <ItemPanelSkeleton onClose={() => openItem(null)} overlay={view === "kanban"} />
+              ) : (
+                <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} hideMenu notice={notice} />
+              ))}
           </div>
         </>
       )}

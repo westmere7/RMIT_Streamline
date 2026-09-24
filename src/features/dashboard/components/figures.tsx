@@ -3,6 +3,7 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import * as React from "react";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
+import { KineticNumber } from "@/features/dashboard/charts/motion";
 import type { Comparison } from "@/features/dashboard/metrics";
 import { cn } from "@/lib/utils";
 import { StatBar, TrendLine } from "./stat-visuals";
@@ -111,7 +112,7 @@ export function HeadlineFigure({
               className={cn("font-semibold leading-none tracking-tight tabular", accent ? "text-[2.75rem] sm:text-[3.25rem]" : "text-[2.5rem] sm:text-[3rem]")}
               data-testid={testId ? `${testId}-value` : undefined}
             >
-              {valueFormat(current)}
+              <KineticNumber value={current} format={valueFormat} />
             </span>
             <span className="text-[13px] text-muted-foreground">{unitWord}</span>
           </p>
@@ -137,7 +138,7 @@ export function HeadlineFigure({
           <>
             <ChangeChip delta={delta} percent={percent} format={valueFormat} />
             <span className="text-muted-foreground">
-              vs <span className="tabular text-foreground/80">{valueFormat(previous)}</span> in {comparisonLabel}
+              vs <KineticNumber value={previous} format={valueFormat} className="tabular text-foreground/80" /> in {comparisonLabel}
             </span>
           </>
         )}
@@ -163,8 +164,7 @@ export function ChangeChip({ delta, percent, className, format = formatCount }: 
           a magnitude. `formatHours` cannot express a negative — it reads
           anything at or below nothing as "0 h" — and a fall of 2,409 hours
           rendering as "0 h" is worse than no chip at all. */}
-      {delta > 0 ? "+" : delta < 0 ? "-" : ""}
-      {format(Math.abs(delta))}
+      <KineticNumber value={Math.abs(delta)} format={(value) => `${delta > 0 ? "+" : delta < 0 ? "-" : ""}${format(value)}`} />
       {percent === null ? (
         // A zero baseline. "+12 from nothing" is a fact; "+∞%" is not.
         <span className="font-normal text-muted-foreground">· no % comparison</span>

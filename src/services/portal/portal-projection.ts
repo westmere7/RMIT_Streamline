@@ -194,6 +194,7 @@ export function projectTask(item: Item, ctx: ProjectionContext, stakeholder: Por
     deliverables: { total: assets.length, done: assets.filter((a) => a.completedAt !== null).length },
     subitems: { total: subitems.length, done: subitems.filter((s) => projectSubitem(s, ctx).done).length },
     linkedCount: ctx.linkCountByItem.get(item.id) ?? 0,
+    awaitingAllocation: board?.board.system === "TASK_ALLOCATION",
     bookedAt: ctx.bookedAtByItem.get(item.id) ?? item.createdAt,
     updatedAt: item.updatedAt,
   };

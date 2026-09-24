@@ -210,8 +210,16 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   for (const [boardId, list] of columnsByBoard) rolesByBoard.set(boardId, resolveColumnRoles(list));
   const groupsById = new Map(snapshot.groups.map((g) => [g.id, g]));
   // The registry, keyed the way a cell is written: trimmed and case-folded.
+  // Only the groups on the list today (Settings -> Lists). A name that is not
+  // on it (a typo, a profile's own department, a group since taken off the
+  // list) is not a department the team tracks, so the work counts as having
+  // none rather than becoming a category of one.
   const departmentKey = (name: string) => name.trim().toLowerCase();
-  const departmentsByName = new Map((snapshot.departments ?? []).map((d) => [departmentKey(d.name), d]));
+  const departmentsByName = new Map((snapshot.departments ?? []).filter((d) => d.status === "ACTIVE").map((d) => [departmentKey(d.name), d]));
+  const listed = (name: string, inferred: boolean): DepartmentRef | null => {
+    const known = departmentsByName.get(departmentKey(name));
+    return known ? { id: known.id, name: known.name, inferred } : null;
+  };
 
   const values = new Map<string, ColumnValue>();
   for (const v of snapshot.values) values.set(`${v.itemId}:${v.columnId}`, v.value);
@@ -294,10 +302,9 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       const requester = userIds.map((id) => users.get(id)).find(Boolean);
       if (!requester) return;
       requesterName = requester.displayName;
-      // A person's own profile department is a guess about the work.
-      if (department === null && requester.department?.trim()) {
-        department = { id: null, name: requester.department.trim(), inferred: true };
-      }
+      // A person's own profile department is a guess about the work, taken
+      // only when it names a group on the list.
+      if (department === null && requester.department?.trim()) department = listed(requester.department, true);
     };
     let requestedTeam: string | null = null;
     let requestAssetTypes: string[] = [];
@@ -307,10 +314,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       // By type, never by name: a board may call this column "Department",
       // "Requested by" or anything else, and the answer is the same.
       if (v.type === "STAKEHOLDER") {
-        if (department === null && v.group?.trim()) {
-          const known = departmentsByName.get(departmentKey(v.group));
-          department = { id: known?.id ?? null, name: known?.name ?? v.group.trim(), inferred: false };
-        }
+        if (department === null && v.group?.trim()) department = listed(v.group, false);
         continue;
       }
       switch (v.type) {
@@ -344,10 +348,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
           // Only where the board has no STAKEHOLDER column to ask. Kept for
           // boards built before that column type existed, and marked inferred
           // so the page can say the figure rests on a column's name.
-          else if (v.text.trim() && department === null && column.id === roles.department?.id) {
-            const known = departmentsByName.get(departmentKey(v.text));
-            department = { id: known?.id ?? null, name: known?.name ?? v.text.trim(), inferred: true };
-          }
+          else if (v.text.trim() && department === null && column.id === roles.department?.id) department = listed(v.text, true);
           break;
         default:
           break;
@@ -946,8 +947,8 @@ export function summarizeRequests(requests: TaskFact[], year: number, teams: Tea
   for (const r of requests) {
     const req = r.request!;
     byStage.set(req.stage, (byStage.get(req.stage) ?? 0) + 1);
-    const dept = req.department ?? "Not stated";
-    byDepartment.set(dept, (byDepartment.get(dept) ?? 0) + 1);
+    // Only the groups on the list; a request that names none is counted in the coverage line, not as a group.
+    if (req.department) byDepartment.set(req.department, (byDepartment.get(req.department) ?? 0) + 1);
     const team = req.teamName ?? "Unassigned";
     byTeam.set(team, (byTeam.get(team) ?? 0) + 1);
     const urgency = req.urgency ?? "Not stated";

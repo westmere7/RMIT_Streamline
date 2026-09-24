@@ -4,6 +4,7 @@ import * as React from "react";
 import type { NamedCount } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
 import { formatCount, useSize } from "./chart-utils";
+import { KineticNumber, useSprings } from "./motion";
 import { ChartEmpty } from "./ranked-bars";
 
 interface MixProps {
@@ -25,22 +26,26 @@ interface MixProps {
 export function MixChart({ data, totalLabel = "total", onSelect, emptyMessage = "Nothing to split yet.", ringMinWidth = 360, className }: MixProps) {
   const [ref, { width }] = useSize<HTMLDivElement>();
   const [active, setActive] = React.useState<string | null>(null);
+  // The slices move on springs; the figures in the middle count to the real total.
+  const sprung = useSprings(Object.fromEntries(data.map((d) => [d.id ?? d.name, d.value])));
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total <= 0) return <ChartEmpty message={emptyMessage} />;
+  const live = data.map((d) => ({ ...d, value: Math.max(0, sprung[d.id ?? d.name] ?? d.value) }));
+  const liveTotal = Math.max(1e-6, live.reduce((s, d) => s + d.value, 0));
   const narrow = width > 0 && width < ringMinWidth;
   return (
     <div ref={ref} className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3", !narrow && "sm:flex-row sm:items-center sm:gap-5", className)}>
       {narrow ? (
-        <ShareBar data={data} total={total} active={active} setActive={setActive} onSelect={onSelect} totalLabel={totalLabel} />
+        <ShareBar data={live} total={liveTotal} figures={data} active={active} setActive={setActive} onSelect={onSelect} totalLabel={totalLabel} />
       ) : (
-        <Donut data={data} total={total} active={active} setActive={setActive} onSelect={onSelect} totalLabel={totalLabel} />
+        <Donut data={live} total={liveTotal} figures={data} active={active} setActive={setActive} onSelect={onSelect} totalLabel={totalLabel} />
       )}
       <MixLegend data={data} total={total} active={active} setActive={setActive} onSelect={onSelect} />
     </div>
   );
 }
 
-function Donut({ data, total, active, setActive, onSelect, totalLabel }: { data: NamedCount[]; total: number; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; totalLabel: string }) {
+function Donut({ data, total, figures, active, setActive, onSelect, totalLabel }: { data: NamedCount[]; total: number; figures: NamedCount[]; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; totalLabel: string }) {
   const size = 176;
   const stroke = 22;
   const r = (size - stroke) / 2 - 4;
@@ -72,7 +77,7 @@ function Donut({ data, total, active, setActive, onSelect, totalLabel }: { data:
                 strokeDashoffset={-(offsets[index] ?? 0)}
                 strokeLinecap="butt"
                 opacity={active === null || active === (d.id ?? d.name) ? 1 : 0.35}
-                className={cn("transition-all duration-300", onSelect && "cursor-pointer")}
+                className={cn("transition-[r,opacity] duration-200", onSelect && "cursor-pointer")}
                 onMouseEnter={() => setActive(d.id ?? d.name)}
                 onMouseLeave={() => setActive(null)}
                 onClick={onSelect ? () => onSelect(d) : undefined}
@@ -84,18 +89,22 @@ function Donut({ data, total, active, setActive, onSelect, totalLabel }: { data:
         </g>
       </svg>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[26px] font-semibold tracking-tight tabular">{formatCount(active ? (data.find((d) => (d.id ?? d.name) === active)?.value ?? total) : total)}</span>
+        <KineticNumber
+          value={active ? (figures.find((d) => (d.id ?? d.name) === active)?.value ?? 0) : figures.reduce((s, d) => s + d.value, 0)}
+          format={formatCount}
+          className="text-[26px] font-semibold tracking-tight tabular"
+        />
         <span className="max-w-[6rem] truncate text-2xs uppercase tracking-wide text-muted-foreground">{active ? (data.find((d) => (d.id ?? d.name) === active)?.name ?? totalLabel) : totalLabel}</span>
       </div>
     </div>
   );
 }
 
-function ShareBar({ data, total, active, setActive, onSelect, totalLabel }: { data: NamedCount[]; total: number; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; totalLabel: string }) {
+function ShareBar({ data, total, figures, active, setActive, onSelect, totalLabel }: { data: NamedCount[]; total: number; figures: NamedCount[]; active: string | null; setActive: (id: string | null) => void; onSelect?: (row: NamedCount) => void; totalLabel: string }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-[22px] font-semibold tracking-tight tabular">{formatCount(total)}</span>
+        <KineticNumber value={figures.reduce((s, d) => s + d.value, 0)} format={formatCount} className="text-[22px] font-semibold tracking-tight tabular" />
         <span className="text-2xs uppercase tracking-wide text-muted-foreground">{totalLabel}</span>
       </div>
       <div className="flex h-3.5 w-full overflow-hidden rounded-full ring-1 ring-border/60">

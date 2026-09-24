@@ -28,6 +28,7 @@ function task(overrides: Partial<PortalTask> & { id: string }): PortalTask {
     subitems: { total: 0, done: 0 },
     stakeholder: null,
     linkedCount: 0,
+    awaitingAllocation: false,
     bookedAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-02T00:00:00.000Z",
     ...overrides,

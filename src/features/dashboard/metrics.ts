@@ -475,9 +475,9 @@ export function dimensionComparison(
       return out;
     }
     // The task's own STAKEHOLDER cell, resolved against the registry, so a
-    // renamed department stays one row. Never the requester's profile.
-    const departmentOf = (task: TaskFact) => task.department?.name ?? UNKNOWN_DEPARTMENT;
-    for (const task of slice.tasks) add(departmentOf(task), departmentOf(task), valueOf(task));
+    // renamed department stays one row. Only the groups on the list: work that
+    // names none is the coverage line's to report, not a row of its own.
+    for (const task of slice.tasks) if (task.department) add(task.department.name, task.department.name, valueOf(task));
     return out;
   };
 
@@ -673,8 +673,8 @@ export interface WorkloadBands {
 /**
  * One person's share of one stakeholder group's work.
  *
- * `key` is the folded name, and work with no group at all collects under
- * NO_DEPARTMENT_KEY. By name and not by registry id, for the same reason
+ * `key` is the folded name. Only groups on the list have cells: work for none
+ * of them is in the person's row and in no cell. By name and not by registry id, for the same reason
  * `dimensionComparison` groups by name: a group reaches a task two ways — its
  * own STAKEHOLDER cell, which the registry resolves, and the requester's
  * profile, which is inferred and carries no id — and keying by id splits one
@@ -697,17 +697,9 @@ export interface WorkloadRow extends WorkloadBands {
   former: boolean;
 }
 
-/** Work whose task names no stakeholder group. Not a group: the absence of one. */
-export const NO_DEPARTMENT_KEY = "__no_department__";
-
-/** How two cells are decided to name the same group. */
-export function departmentKeyOf(task: TaskFact): string {
-  if (!task.department) return NO_DEPARTMENT_KEY;
-  return task.department.name.trim().toLowerCase();
-}
-
-export function departmentNameOf(task: TaskFact): string {
-  return task.department?.name ?? UNKNOWN_DEPARTMENT;
+/** How two cells are decided to name the same group. Null for work that names no group on the list. */
+export function departmentKeyOf(task: TaskFact): string | null {
+  return task.department ? task.department.name.trim().toLowerCase() : null;
 }
 
 const blankBands = (): WorkloadBands => ({ inProgress: 0, scheduled: 0, overdue: 0, undated: 0, total: 0, tasks: 0 });
@@ -747,7 +739,6 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
     if (!within && !late && !undated) continue;
     const band: BandKey = late ? "overdue" : undated ? "undated" : task.status === "progress" ? "inProgress" : "scheduled";
     const key = departmentKeyOf(task);
-    const name = departmentNameOf(task);
 
     const owners: Array<string | null> = task.owners.length > 0 ? task.owners : [null];
     for (const owner of owners) {
@@ -761,12 +752,15 @@ export function assignedWorkload(facts: DashboardFacts, today: ISODate, teamIds:
       countInto(row, value, band);
       // The same task counted a second time against the group it is for, so
       // the split is the row broken up rather than a second, separate count.
-      let cell = row.byDepartment.find((d) => d.key === key);
-      if (!cell) {
-        cell = { key, name, ...blankBands() };
-        row.byDepartment.push(cell);
+      // Work for no group on the list is in the row and in no cell.
+      if (key !== null) {
+        let cell = row.byDepartment.find((d) => d.key === key);
+        if (!cell) {
+          cell = { key, name: task.department!.name, ...blankBands() };
+          row.byDepartment.push(cell);
+        }
+        countInto(cell, value, band);
       }
-      countInto(cell, value, band);
       if (task.team.id !== NO_TEAM && !row.teamNames.includes(task.team.name)) row.teamNames.push(task.team.name);
     }
   }

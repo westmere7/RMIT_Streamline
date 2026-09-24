@@ -125,6 +125,8 @@ export interface PortalTask {
   deliverables: { total: number; done: number };
   subitems: { total: number; done: number };
   linkedCount: number;
+  /** True while the task is still on Task Allocation: received, not yet placed with a team. */
+  awaitingAllocation: boolean;
   bookedAt: string;
   updatedAt: string;
 }
@@ -215,6 +217,13 @@ export interface PortalSearchResult {
  */
 export interface PortalBoardPayload extends PublicBoardPayload {
   totals: PortalTotals;
+  /**
+   * The requests still waiting to be placed with a team, and the team holding
+   * them meanwhile. A booking lands on Task Allocation first; the portal shows
+   * it at once and says where it is, rather than leaving the stakeholder with a
+   * task that seems to have gone nowhere.
+   */
+  awaiting: { ids: EntityId[]; teamName: string | null };
   /** When the server assembled this. Shown so stale data is visible as stale. */
   servedAt: string;
 }

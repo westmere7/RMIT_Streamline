@@ -246,6 +246,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
                 showItemGroups={context?.showItemGroups === true}
                 onSearchChange={setSearch}
                 searchingAllYears={searching}
+                refreshing={page.isFetching}
               />
           </div>
         ) : (

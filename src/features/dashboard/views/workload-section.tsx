@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Input } from "@/components/ui/input";
 import { formatHours, type User } from "@/domain";
 import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
+import { KineticNumber } from "@/features/dashboard/charts/motion";
 import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
@@ -206,14 +207,14 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
                   column can be read down as a shape. The fill is this person's
                   share of the busiest load, split by the state the work is in. */}
               <span className="relative h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/40 ring-1 ring-border/40 ring-inset">
-                <span className="absolute inset-y-0 left-0 flex overflow-hidden rounded-full transition-[width] duration-500" style={{ width: `${Math.max(row.tasks > 0 ? 2 : 0, share * 100)}%` }}>
+                <span className="absolute inset-y-0 left-0 flex overflow-hidden rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none" style={{ width: `${Math.max(row.tasks > 0 ? 2 : 0, share * 100)}%` }}>
                   {BANDS.map((band) => {
                     const value = row[band.key];
                     if (value <= 0) return null;
                     return (
                       <span
                         key={band.key}
-                        className={cn("h-full", band.className)}
+                        className={cn("h-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none", band.className)}
                         style={{ width: `${(value / Math.max(1, row.tasks)) * 100}%` }}
                         title={`${band.label}: ${formatCount(value)}`}
                       />
@@ -223,7 +224,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
               </span>
 
               <span className="flex w-[8.5rem] shrink-0 items-center justify-end gap-2 whitespace-nowrap tabular">
-                <span className="text-[13px] font-semibold">{formatCount(row.tasks)}</span>
+                <KineticNumber value={row.tasks} format={formatCount} className="text-[13px] font-semibold" />
                 <span className="text-2xs text-muted-foreground">tasks</span>
                 {/* The one figure on this panel that is bad news, so it is the
                     one thing wearing a colour of its own. */}
@@ -235,7 +236,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
                     )}
                     title={`${formatCount(row.overdue)} of ${formatCount(row.tasks)} already past their due date`}
                   >
-                    {formatCount(row.overdue)} late
+                    <KineticNumber value={row.overdue} format={(value) => `${formatCount(value)} late`} />
                   </span>
                 )}
               </span>
@@ -450,10 +451,15 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
   const columns = groups.slice(0, shown);
   const rest = groups.slice(shown);
   const restKeys = new Set(rest.map((g) => g.key));
-  const people = rows.filter((row) => row.tasks > 0);
+  // Each row totals its groups, so it adds up across the grid; work for no
+  // group on the list belongs to the person but not to this table.
+  const people = rows
+    .map((row) => ({ row, total: row.byDepartment.reduce((sum, cell) => sum + cell.total, 0) }))
+    .filter((entry) => entry.total > 0)
+    .sort((a, b) => (a.row.userId === null ? -1 : b.row.userId === null ? 1 : b.total - a.total || a.row.name.localeCompare(b.row.name)));
   if (people.length === 0) return null;
   // The busiest cell in the grid, so the tints are comparable across it.
-  const hottest = Math.max(1, ...people.flatMap((row) => row.byDepartment.map((cell) => cell.total)));
+  const hottest = Math.max(1, ...people.flatMap(({ row }) => row.byDepartment.map((cell) => cell.total)));
 
   return (
     <Panel
@@ -500,7 +506,7 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
             </tr>
           </thead>
           <tbody>
-            {people.map((row) => {
+            {people.map(({ row, total }) => {
               const byKey = new Map(row.byDepartment.map((cell) => [cell.key, cell.total]));
               const other = row.byDepartment.filter((cell) => restKeys.has(cell.key)).reduce((sum, cell) => sum + cell.total, 0);
               const user = row.userId ? users.get(row.userId) : undefined;
@@ -533,7 +539,7 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
                     );
                   })}
                   {rest.length > 0 && <Cell value={other} format={format} onHover={() => readout.setOver({ row, group: null })} />}
-                  <Cell value={row.total} format={format} strong last onHover={() => readout.setOver({ row, group: null })} />
+                  <Cell value={total} format={format} strong last onHover={() => readout.setOver({ row, group: null })} />
                 </tr>
               );
             })}
@@ -634,8 +640,8 @@ function Cell({
       className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}
       onMouseEnter={onHover}
     >
-      {background && <span aria-hidden className="pointer-events-none absolute inset-y-px right-1 left-0 rounded-sm" style={{ background }} />}
-      <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : format(value)}</span>
+      {background && <span aria-hidden className="pointer-events-none absolute inset-y-px right-1 left-0 rounded-sm transition-[background] duration-700 ease-kinetic motion-reduce:transition-none" style={{ background }} />}
+      <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : <KineticNumber value={value} format={format} />}</span>
     </td>
   );
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import type { StackedRow } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
 import { ChartTooltip, formatCount, useSize } from "./chart-utils";
+import { useSpring, useSprings } from "./motion";
 import { ChartEmpty } from "./ranked-bars";
 
 /**
@@ -30,7 +31,13 @@ export function StackedColumns({
   const [ref, { width, height }] = useSize<HTMLDivElement>();
   const [hover, setHover] = React.useState<{ row: StackedRow; key: string; x: number; y: number } | null>(null);
   const shown = rows.filter((r) => r.total > 0);
+  // Each segment's height springs to its new value, so a change of measure or
+  // filter restacks the columns instead of redrawing them.
+  const sprung = useSprings(Object.fromEntries(shown.flatMap((r) => r.segments.map((s) => [`${r.name}\u0000${s.key}`, s.value]))));
+  const sprungMax = useSpring(mode === "count" ? Math.max(1, ...shown.map((r) => r.total)) : 1);
   if (shown.length === 0) return <ChartEmpty message={emptyMessage} />;
+  const segmentValue = (row: StackedRow, key: string, fallback: number) => Math.max(0, sprung[`${row.name}\u0000${key}`] ?? fallback);
+  const rowTotal = (row: StackedRow) => row.segments.reduce((sum, s) => sum + segmentValue(row, s.key, s.value), 0);
 
   const entries =
     legend ??
@@ -43,7 +50,7 @@ export function StackedColumns({
   const pad = { top: 8, right: 8, bottom: 34, left: mode === "count" ? 30 : 34 };
   const plotW = Math.max(0, width - pad.left - pad.right);
   const plotH = Math.max(0, height - pad.top - pad.bottom);
-  const max = mode === "count" ? Math.max(1, ...shown.map((r) => r.total)) : 1;
+  const max = Math.max(1e-6, sprungMax);
   const slot = shown.length ? plotW / shown.length : 0;
   const barW = Math.max(6, Math.min(56, slot * 0.68));
   const ticks = mode === "share" ? [0, 25, 50, 75, 100] : undefined;
@@ -72,11 +79,11 @@ export function StackedColumns({
             {shown.map((row, i) => {
               const x = pad.left + slot * i + (slot - barW) / 2;
               let y = pad.top + plotH;
-              const scale = mode === "share" ? plotH / row.total : plotH / max;
+              const scale = mode === "share" ? plotH / Math.max(1e-6, rowTotal(row)) : plotH / max;
               return (
                 <g key={row.name}>
                   {row.segments.map((s) => {
-                    const h = s.value * scale;
+                    const h = segmentValue(row, s.key, s.value) * scale;
                     y -= h;
                     const dim = hover && !(hover.row === row && hover.key === s.key);
                     return (
@@ -107,8 +114,8 @@ export function StackedColumns({
                     {truncateLabel(row.name, Math.max(4, Math.floor(slot / 6.2)))}
                   </text>
                   {mode === "count" && (
-                    <text x={x + barW / 2} y={pad.top + plotH - row.total * scale - 4} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--foreground)">
-                      {formatCount(row.total)}
+                    <text x={x + barW / 2} y={pad.top + plotH - rowTotal(row) * scale - 4} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--foreground)">
+                      {formatCount(rowTotal(row))}
                     </text>
                   )}
                 </g>

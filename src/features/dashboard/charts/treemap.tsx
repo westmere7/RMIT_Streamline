@@ -184,7 +184,7 @@ export function TreemapChart({
             // value earned and the gutter is taken out of the inside.
             <div
               key={tile.key}
-              className={cn("absolute p-[2px] transition-opacity duration-200", onSelect && "cursor-pointer", active === tile.key && "z-10")}
+              className={cn("absolute p-[2px] transition-[left,top,width,height,opacity] duration-700 ease-kinetic motion-reduce:transition-none", onSelect && "cursor-pointer", active === tile.key && "z-10")}
               style={{ left: `${tile.x}%`, top: `${tile.y}%`, width: `${tile.w}%`, height: `${tile.h}%`, opacity: dim ? 0.35 : 1 }}
               onMouseEnter={() => setActive(tile.key)}
               onClick={onSelect ? () => onSelect(row) : undefined}

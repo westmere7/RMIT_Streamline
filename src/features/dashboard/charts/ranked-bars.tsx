@@ -4,6 +4,7 @@ import * as React from "react";
 import type { NamedCount } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
 import { formatCount } from "./chart-utils";
+import { KineticNumber } from "./motion";
 
 /**
  * A ranked list of proportional bars — axis-free, one line per row: label, a
@@ -80,11 +81,15 @@ export function RankedBars({
                 binds in the narrow composition column either, where the track is
                 a couple of hundred pixels wide anyway. */}
             <div className={cn("max-w-[34rem] flex-1 overflow-hidden rounded-full bg-surface-strong/80", fill ? "h-3" : "h-2")}>
-              <div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${width}%`, background: row.color }} />
+              <div className="h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none" style={{ width: `${width}%`, background: row.color }} />
             </div>
             <span className={cn("flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem] justify-start" : "w-[4.25rem] justify-end")}>
-              <span className="font-semibold text-foreground">{formatCount(row.value)}</span>
-              {row.secondary != null && <span className="text-2xs text-muted-foreground">· {formatCount(row.secondary)}</span>}
+              <KineticNumber value={row.value} format={formatCount} className="font-semibold text-foreground" />
+              {row.secondary != null && (
+                <span className="text-2xs text-muted-foreground">
+                  · <KineticNumber value={row.secondary} format={formatCount} />
+                </span>
+              )}
             </span>
           </div>
         );

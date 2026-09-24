@@ -4,6 +4,7 @@ import * as React from "react";
 import type { MonthPoint, TeamRef, YearDot } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
 import { BRAND_RED, ChartTooltip, compactCount, formatCount, MONTH_LABELS, niceScale, smoothPath, useMounted, usePrefersReducedMotion, useSize } from "./chart-utils";
+import { useSpring, useSprings } from "./motion";
 import { ChartEmpty } from "./ranked-bars";
 
 const MONTH_MID = Array.from({ length: 12 }, (_, i) => (i + 0.5) / 12);
@@ -46,6 +47,14 @@ export function YearChart({
   const svgRef = React.useRef<SVGSVGElement>(null);
   const gradientId = React.useId();
 
+  // Every height in the drawing rides a spring, and so does the scale, so a new
+  // period or measure moves the curve and the dots rather than redrawing them.
+  const sprungMonths = useSprings(Object.fromEntries(months.flatMap((m) => [[`v${m.month}`, m.value], [`d${m.month}`, m.done]])));
+  const sprungDots = useSprings(Object.fromEntries(dots.map((d) => [d.id, d.value])));
+  const lastForScale = nowMonth ?? 11;
+  const targetPeak = Math.max(...months.slice(0, lastForScale + 1).map((m) => m.value), ...dots.map((d) => d.value), 0);
+  const sprungTop = useSpring(niceScale(targetPeak).top);
+
   const setHot = (dot: YearDot | null) => {
     setHover(dot);
     onHoverDot?.(dot);
@@ -58,21 +67,24 @@ export function YearChart({
   const plotW = Math.max(0, width - pad.left - pad.right);
   const plotH = Math.max(0, height - pad.top - pad.bottom);
   const lastMonth = nowMonth ?? 11;
-  const peak = Math.max(...months.slice(0, lastMonth + 1).map((m) => m.value), ...dots.map((d) => d.value), 0);
-  const { top, ticks } = niceScale(peak);
+  const { ticks } = niceScale(targetPeak);
+  const top = Math.max(1e-6, sprungTop);
   const xOf = (frac: number) => pad.left + frac * plotW;
   const yOf = (v: number) => pad.top + plotH - (v / top) * plotH;
+  const valueOf = (m: MonthPoint) => Math.max(0, sprungMonths[`v${m.month}`] ?? m.value);
+  const doneOf = (m: MonthPoint) => Math.max(0, sprungMonths[`d${m.month}`] ?? m.done);
+  const dotValue = (d: YearDot) => Math.max(0, sprungDots[d.id] ?? d.value);
 
   const shownMonths = months.slice(0, lastMonth + 1);
-  const linePoints = shownMonths.map((m) => ({ x: xOf(MONTH_MID[m.month]!), y: yOf(m.value) }));
+  const linePoints = shownMonths.map((m) => ({ x: xOf(MONTH_MID[m.month]!), y: yOf(valueOf(m)) }));
   const endX = nowMonth !== null ? xOf(MONTH_MID[nowMonth]!) : xOf(1);
-  const startPoint = shownMonths.length ? { x: xOf(0), y: yOf(shownMonths[0]!.value) } : null;
-  const endPoint = shownMonths.length && nowMonth === null ? { x: xOf(1), y: yOf(shownMonths[shownMonths.length - 1]!.value) } : null;
+  const startPoint = shownMonths.length ? { x: xOf(0), y: yOf(valueOf(shownMonths[0]!)) } : null;
+  const endPoint = shownMonths.length && nowMonth === null ? { x: xOf(1), y: yOf(valueOf(shownMonths[shownMonths.length - 1]!)) } : null;
   const curvePoints = [startPoint, ...linePoints, endPoint].filter((p): p is { x: number; y: number } => !!p);
   const line = smoothPath(curvePoints);
   const area = curvePoints.length ? `${line} L${curvePoints[curvePoints.length - 1]!.x},${yOf(0)} L${curvePoints[0]!.x},${yOf(0)} Z` : "";
-  const donePoints = shownMonths.map((m) => ({ x: xOf(MONTH_MID[m.month]!), y: yOf(m.done) }));
-  const doneCurve = [startPoint ? { x: xOf(0), y: yOf(shownMonths[0]!.done) } : null, ...donePoints, endPoint ? { x: xOf(1), y: yOf(shownMonths[shownMonths.length - 1]!.done) } : null].filter((p): p is { x: number; y: number } => !!p);
+  const donePoints = shownMonths.map((m) => ({ x: xOf(MONTH_MID[m.month]!), y: yOf(doneOf(m)) }));
+  const doneCurve = [startPoint ? { x: xOf(0), y: yOf(doneOf(shownMonths[0]!)) } : null, ...donePoints, endPoint ? { x: xOf(1), y: yOf(doneOf(shownMonths[shownMonths.length - 1]!)) } : null].filter((p): p is { x: number; y: number } => !!p);
   const doneLine = smoothPath(doneCurve);
   const peakMonth = shownMonths.reduce<MonthPoint | null>((best, m) => (m.value > 0 && (!best || m.value > best.value) ? m : best), null);
 
@@ -86,7 +98,7 @@ export function YearChart({
     let bestDist = 18;
     for (const d of visibleDots) {
       const dx = xOf(d.x) - px;
-      const dy = yOf(d.value) - py;
+      const dy = yOf(dotValue(d)) - py;
       const dist = Math.hypot(dx, dy);
       if (dist < bestDist) {
         bestDist = dist;
@@ -143,13 +155,13 @@ export function YearChart({
               // Anchored away from the NOW marker and the plot's right edge so the label never sits on either.
               <text
                 x={xOf(MONTH_MID[peakMonth.month]!) + (peakMonth.month === nowMonth || peakMonth.month >= 10 ? -8 : 0)}
-                y={yOf(peakMonth.value) - 8}
+                y={yOf(valueOf(peakMonth)) - 8}
                 textAnchor={peakMonth.month === nowMonth || peakMonth.month >= 10 ? "end" : "middle"}
                 fontSize={10}
                 fontWeight={700}
                 fill={BRAND_RED}
               >
-                Peak · {formatCount(peakMonth.value)}
+                Peak · {formatCount(valueOf(peakMonth))}
               </text>
             )}
             {nowMonth !== null && (
@@ -166,7 +178,7 @@ export function YearChart({
                 <circle
                   key={d.id}
                   cx={xOf(d.x)}
-                  cy={yOf(d.value)}
+                  cy={yOf(dotValue(d))}
                   r={hot ? DOT_R_HOT : DOT_R}
                   fill={d.color}
                   fillOpacity={hover && !hot ? 0.35 : 0.95}
@@ -180,7 +192,7 @@ export function YearChart({
           </svg>
         )}
         {hover && width > 0 && (
-          <ChartTooltip x={xOf(hover.x)} y={yOf(hover.value) - 6} width={width}>
+          <ChartTooltip x={xOf(hover.x)} y={yOf(dotValue(hover)) - 6} width={width}>
             <p className="truncate font-semibold">{hover.name}</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-muted-foreground">
               <span className="size-2 rounded-full" style={{ background: hover.color }} />

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChartTooltip, compactCount, formatCount, niceScale, useMounted, usePrefersReducedMotion, useSize } from "@/features/dashboard/charts/chart-utils";
+import { useSpring, useSprings } from "@/features/dashboard/charts/motion";
 import type { MonthlyComparisonRow } from "@/features/dashboard/metrics";
 import { ChangeChip } from "./figures";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,12 @@ export function YearComparisonChart({
   const height = Math.max(size.height, 168);
   const roomy = height >= 260;
   const generous = height >= 340;
-  const { top, ticks } = niceScale(peak, generous ? 8 : roomy ? 6 : 4);
+  const { top: targetTop, ticks } = niceScale(peak, generous ? 8 : roomy ? 6 : 4);
+  // The bars and the scale ride springs: a new period or measure grows and
+  // shrinks the columns in place, with a little overshoot, instead of redrawing.
+  const top = Math.max(1e-6, useSpring(targetTop));
+  const sprung = useSprings(Object.fromEntries(rows.flatMap((r) => [[`c${r.month}`, r.current ?? 0], [`p${r.month}`, r.comparison ?? 0], [`o${r.month}`, r.outlook ?? 0]])));
+  const live = (key: "c" | "p" | "o", row: MonthlyComparisonRow, fallback: number) => Math.max(0, sprung[`${key}${row.month}`] ?? fallback);
 
   const lastAnswered = rows.reduce((last, row, index) => (row.current === null ? last : index), -1);
   const peakIndex = rows.reduce((best, row, index) => (row.current !== null && row.current > (rows[best]?.current ?? -1) ? index : best), -1);
@@ -140,9 +146,9 @@ export function YearComparisonChart({
                 {row.comparison === null && row.outlook !== null && (
                   <rect
                     x={centre - barWidth - 1}
-                    y={y(row.outlook)}
+                    y={y(live("o", row, row.outlook))}
                     width={barWidth}
-                    height={Math.max(0, plot - y(row.outlook))}
+                    height={Math.max(0, plot - y(live("o", row, row.outlook)))}
                     rx={3}
                     fill="var(--chart-comparison)"
                     opacity={0.4}
@@ -152,9 +158,9 @@ export function YearComparisonChart({
                 {row.comparison !== null && (
                   <rect
                     x={centre - barWidth - 1}
-                    y={y(row.comparison)}
+                    y={y(live("p", row, row.comparison))}
                     width={barWidth}
-                    height={Math.max(0, plot - y(row.comparison))}
+                    height={Math.max(0, plot - y(live("p", row, row.comparison)))}
                     rx={2}
                     fill="var(--chart-comparison)"
                     fillOpacity={hover !== null && !on ? 0.5 : 0.85}
@@ -164,9 +170,9 @@ export function YearComparisonChart({
                 {row.current !== null && (
                   <rect
                     x={centre + 1}
-                    y={y(row.current)}
+                    y={y(live("c", row, row.current))}
                     width={barWidth}
-                    height={Math.max(0, plot - y(row.current))}
+                    height={Math.max(0, plot - y(live("c", row, row.current)))}
                     rx={2}
                     fill="var(--chart-current)"
                     fillOpacity={hover !== null && !on ? 0.55 : 1}
@@ -177,18 +183,18 @@ export function YearComparisonChart({
                 )}
 
                 {roomy && row.current !== null && row.current > 0 && index !== peakIndex && (
-                  <text x={centre + 1 + barWidth / 2} y={y(row.current) - 4} textAnchor="middle" className="fill-foreground text-[9px] font-medium tabular">
-                    {formatCount(row.current)}
+                  <text x={centre + 1 + barWidth / 2} y={y(live("c", row, row.current)) - 4} textAnchor="middle" className="fill-foreground text-[9px] font-medium tabular">
+                    {formatCount(live("c", row, row.current))}
                   </text>
                 )}
                 {generous && row.comparison === null && row.outlook !== null && row.outlook > 0 && (
-                  <text x={centre - barWidth / 2 - 1} y={y(row.outlook) - 4} textAnchor="middle" className="fill-muted-foreground/70 text-[9px] tabular">
-                    {formatCount(row.outlook)}
+                  <text x={centre - barWidth / 2 - 1} y={y(live("o", row, row.outlook)) - 4} textAnchor="middle" className="fill-muted-foreground/70 text-[9px] tabular">
+                    {formatCount(live("o", row, row.outlook))}
                   </text>
                 )}
                 {generous && row.comparison !== null && row.comparison > 0 && (
-                  <text x={centre - barWidth / 2 - 1} y={y(row.comparison) - 4} textAnchor="middle" className="fill-muted-foreground text-[9px] tabular">
-                    {formatCount(row.comparison)}
+                  <text x={centre - barWidth / 2 - 1} y={y(live("p", row, row.comparison)) - 4} textAnchor="middle" className="fill-muted-foreground text-[9px] tabular">
+                    {formatCount(live("p", row, row.comparison))}
                   </text>
                 )}
 
@@ -211,11 +217,11 @@ export function YearComparisonChart({
             {roomy && peakIndex >= 0 && (rows[peakIndex]?.current ?? 0) > 0 && (
               <text
                 x={centreOf(peakIndex) + 1 + barWidth / 2 + (peakIndex >= rows.length - 2 ? -6 : 0)}
-                y={y(rows[peakIndex]!.current!) - 5}
+                y={y(live("c", rows[peakIndex]!, rows[peakIndex]!.current!)) - 5}
                 textAnchor={peakIndex >= rows.length - 2 ? "end" : "middle"}
                 className="fill-[color:var(--chart-current)] text-[9px] font-bold tabular"
               >
-                Peak · {formatCount(rows[peakIndex]!.current!)}
+                Peak · {formatCount(live("c", rows[peakIndex]!, rows[peakIndex]!.current!))}
               </text>
             )}
 

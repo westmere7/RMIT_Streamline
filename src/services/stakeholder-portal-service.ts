@@ -426,13 +426,17 @@ export class StakeholderPortalService {
     });
     // Over the whole set, and computed here: which statuses mean done is a
     // property of the boards, not something a visitor should have to infer.
+    // Requests still on Task Allocation, and whose team that board belongs to.
+    const awaitingIds = tasks.filter((entry) => entry.task.awaitingAllocation).map((entry) => entry.task.id);
+    const intake = [...ctx.projection.boards.values()].find((entry) => entry.board.system === "TASK_ALLOCATION")?.board ?? null;
+    const intakeTeam = awaitingIds.length > 0 && intake?.teamId ? await this.repos.teams.getById(intake.teamId) : null;
     const types = new Set(tasks.flatMap((entry) => [...entry.task.assetTypes, ...entry.deliverables.map((d) => d.assetType)]).filter(Boolean));
     const totals = summarise(
       tasks.map((entry) => entry.task),
       ctx.projection.today,
       types.size,
     );
-    return { ...payload, totals, servedAt: new Date().toISOString() };
+    return { ...payload, totals, awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null }, servedAt: new Date().toISOString() };
   }
 
   /** The workspace's portal, made on first use. Created switched off. */
