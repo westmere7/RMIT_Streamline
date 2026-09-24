@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, ShieldCheck, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -169,16 +169,24 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   // Keep the settings dialog's board fresh after renames/moves.
   const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
 
+  const trackersForTeamOf = (teamId: string) => (trackers.data ?? []).filter((t) => t.teamId === teamId);
   const accessibleBoards = ws.boards.filter((b) => canViewBoard(ws.permissions, b));
   const visibleBoards = accessibleBoards.filter((b) => b.archivedAt === null);
   const favouriteBoards = visibleBoards.filter((b) => ws.isFavourite(b.id));
-  const teams = ws.teams.filter((t) => t.archivedAt === null);
-  const hasTeam = (b: Board) => !!b.teamId && teams.some((t) => t.id === b.teamId);
+  const allTeams = ws.teams.filter((t) => t.archivedAt === null);
+  // The Admin team is the app's own, not one of the teams the work is divided
+  // between, so it is not listed with them: it has a place of its own under the
+  // primary items, shown to whoever can see what is in it.
+  const adminTeam = allTeams.find((t) => t.system === "ADMIN") ?? null;
+  const teams = allTeams.filter((t) => t !== adminTeam);
+  const adminBoards = adminTeam ? ws.boardsForTeam(adminTeam.id).filter((b) => canViewBoard(ws.permissions, b)) : [];
+  const adminTrackers = adminTeam ? trackersForTeamOf(adminTeam.id) : [];
+  const hasTeam = (b: Board) => !!b.teamId && allTeams.some((t) => t.id === b.teamId);
   const boardsWithoutTeam = visibleBoards.filter((b) => !hasTeam(b));
   const archivedWithoutTeam = accessibleBoards.filter((b) => b.archivedAt !== null && !hasTeam(b));
   const activeBoardSlug = pathname.includes("/boards/") ? pathname.split("/boards/")[1]?.split("/")[0] : null;
   const activeTrackerId = pathname.includes("/trackers/") ? pathname.split("/trackers/")[1]?.split("/")[0] : null;
-  const trackersForTeam = (teamId: string) => (trackers.data ?? []).filter((t) => t.teamId === teamId);
+  const trackersForTeam = trackersForTeamOf;
   const activeTeamId = pathname.includes("/teams/") ? pathname.split("/teams/")[1]?.split("/")[0] : null;
   const isActivePath = (path: string) => pathname === path;
   // Automations at work somewhere the person is not looking. The board they
@@ -289,6 +297,18 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             </SimpleTooltip>
           </li>
         </ul>
+
+        {adminTeam && (adminBoards.length > 0 || adminTrackers.length > 0) && (
+          <AdminNode
+            team={adminTeam}
+            boards={adminBoards}
+            trackers={adminTrackers}
+            collapsed={collapsed}
+            activeBoardSlug={activeBoardSlug}
+            activeTrackerId={activeTrackerId}
+            activeTeam={activeTeamId === adminTeam.id}
+          />
+        )}
 
         <Section title="Favourites" icon={Star} collapsed={collapsed} storeKey="favourites">
           {favouriteBoards.length === 0 ? (
@@ -847,6 +867,101 @@ function TeamNode({
         </ul>
       )}
     </li>
+  );
+}
+
+/**
+ * The Admin team, set apart.
+ *
+ * The app made it, it holds the intake (Task Allocation) and anything else only
+ * admins should see, and it is not a team the work is divided between. Listed
+ * with the rest it read as one more of them; here it is a panel of its own in
+ * the brand red, with its boards always open, since there are only ever a few
+ * and they are the ones an admin checks first.
+ */
+function AdminNode({
+  team,
+  boards,
+  trackers,
+  collapsed,
+  activeBoardSlug,
+  activeTrackerId,
+  activeTeam,
+}: {
+  team: Team;
+  boards: Board[];
+  trackers: Tracker[];
+  collapsed: boolean;
+  activeBoardSlug: string | null | undefined;
+  activeTrackerId: string | null | undefined;
+  activeTeam: boolean;
+}) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const sidebar = useSidebarActions();
+  const manage = canManageTeam(ws.permissions, team.id);
+  const actions: MenuAction[] = [
+    { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
+    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
+      ? [
+          {
+            type: "sub",
+            label: "Add new",
+            icon: <Plus />,
+            items: [
+              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+            ],
+          } satisfies MenuAction,
+        ]
+      : []),
+    { type: "separator" },
+    { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+  ];
+
+  if (collapsed) {
+    return (
+      <div className="mt-3 space-y-0.5 rounded-xl bg-primary/[0.07] py-1 ring-1 ring-primary/15" data-testid="sidebar-admin">
+        <SimpleTooltip label={team.name} side="right">
+          <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
+            <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <ShieldCheck className="size-3.5" />
+            </span>
+          </Link>
+        </SimpleTooltip>
+        <ul className="space-y-0.5">
+          {boards.map((board) => (
+            <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <section className="mt-3 rounded-xl bg-primary/[0.07] p-1 ring-1 ring-primary/15" aria-label={team.name} data-testid="sidebar-admin">
+      <RowMenu label={`Options for ${team.name}`} actions={actions}>
+        <Link
+          href={routes.team(ws.slug, team.id)}
+          aria-current={activeTeam ? "page" : undefined}
+          className={cn("flex h-9 items-center gap-2.5 rounded-lg px-1.5 pr-8 text-[13px] font-semibold transition-colors", activeTeam ? "bg-primary/10" : "hover:bg-primary/10")}
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
+            <ShieldCheck className="size-3.5" />
+          </span>
+          <span className="truncate">{team.name}</span>
+          <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-semibold tracking-wide text-primary uppercase transition-opacity group-hover/menu:opacity-0">Admins</span>
+        </Link>
+      </RowMenu>
+      <ul className="mt-0.5 space-y-0.5">
+        {boards.map((board) => (
+          <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} />
+        ))}
+        {trackers.map((tracker) => (
+          <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
+        ))}
+      </ul>
+    </section>
   );
 }
 

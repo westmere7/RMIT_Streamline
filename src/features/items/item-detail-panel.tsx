@@ -410,8 +410,13 @@ function PopupBody({
   assets: number;
 }) {
   return (
-    <div className="flex min-h-0 flex-1">
-      <section className="flex min-h-0 flex-1 basis-0 flex-col border-r border-border" aria-label="Overview">
+    // Two equal columns, whatever either one holds. As flex items the two asked
+    // for equal shares, but a flex item will not shrink below its content, and
+    // the overview's rows are wide enough that it took three quarters of the
+    // panel and left the updates a sliver. A grid track of minmax(0, 1fr) has
+    // no such floor.
+    <div className="grid min-h-0 flex-1 grid-cols-2">
+      <section className="flex min-h-0 min-w-0 flex-col border-r border-border" aria-label="Overview">
         {/* Reads as the tab it is, and stays on it: the same height and rule as
             the strip beside it, so one line runs across both panes. */}
         <div className="flex shrink-0 items-end border-b border-border/70 px-4">
@@ -419,17 +424,13 @@ function PopupBody({
             <SquarePen className="size-3.5" /> Overview
           </span>
         </div>
-        {/* The overview keeps a measure it was drawn for. A field row is a
-            label, a cell of a fixed width and nothing else; stretched much
-            wider it becomes a value marooned in white space, so past this the
-            extra width goes to the margins instead. */}
+        {/* Half the panel, and the field rows fill it: label, then the cell
+            to the edge. */}
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[680px]">
-            <Overview key={item.id} item={item} />
-          </div>
+          <Overview key={item.id} item={item} />
         </div>
       </section>
-      <section className="flex min-h-0 flex-1 basis-0 flex-col bg-surface-strong/15" aria-label="Updates, assets and activity">
+      <section className="flex min-h-0 min-w-0 flex-col bg-surface-strong/15" aria-label="Updates, assets and activity">
         <Tabs value={tab} onValueChange={onTabChange} className="flex min-h-0 flex-1 flex-col">
           <UnderlineTabsList className="shrink-0 px-3">
             <UnderlineTabsTrigger value="updates">

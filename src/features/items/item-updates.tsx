@@ -17,6 +17,7 @@ import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
+import { cn } from "@/lib/utils";
 
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
@@ -27,6 +28,11 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   // Default on: if a task is linked, an update usually concerns both sides.
   const [alsoLinked, setAlsoLinked] = React.useState(true);
   const [draft, setDraft] = React.useState("");
+  // The composer rests as one line with nothing around it, and opens into the
+  // full editor, with its toolbar and its button, the moment somebody goes to
+  // write. Anything already written keeps it open.
+  const [writing, setWriting] = React.useState(false);
+  const open = writing || draft.trim().length > 0;
   const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
 
   const submit = () => {
@@ -39,16 +45,26 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
     <div className="flex h-full flex-col">
       {canComment && (
         <form
-          className="border-b p-4"
+          className={cn("border-b transition-[padding] duration-200", open ? "p-4" : "px-4 py-3")}
           onSubmit={(e) => {
             e.preventDefault();
             submit();
           }}
+          onFocus={() => setWriting(true)}
+          onBlur={(e) => {
+            // Leaving for something inside the composer (the toolbar, the
+            // switch) is still writing; leaving it altogether with nothing
+            // written puts it back to rest.
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setWriting(false);
+          }}
+          data-open={open || undefined}
+          data-testid="comment-composer"
         >
-          <div className="flex gap-2.5">
-            <UserAvatar user={ws.currentUser} size="md" tooltip={false} />
-            <div className="min-w-0 flex-1 space-y-2">
+          <div className={cn("flex gap-2.5", !open && "items-center")}>
+            <UserAvatar user={ws.currentUser} size={open ? "md" : "sm"} tooltip={false} />
+            <div className={cn("min-w-0 flex-1", open && "space-y-2")}>
               <RichTextEditor
+                compact={!open}
                 value={draft}
                 onChange={setDraft}
                 onSubmit={submit}
@@ -57,7 +73,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
                 ariaLabel="New update"
                 testId="comment-input"
               />
-              <div className="flex flex-wrap items-center justify-end gap-2.5">
+              <div className={cn("flex flex-wrap items-center justify-end gap-2.5", !open && "hidden")}>
                 {linkedCount > 0 && (
                   <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground" title="Post this update on the linked task too">
                     <Link2 className="size-3.5" />

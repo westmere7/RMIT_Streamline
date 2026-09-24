@@ -52,6 +52,11 @@ export interface RichTextEditorProps {
    * Save button off the top of a dialog is how you end up hunting for them.
    */
   fill?: boolean;
+  /**
+   * A one-line box with no toolbar: the resting state of a composer nobody is
+   * writing in yet. The parent decides when it opens up.
+   */
+  compact?: boolean;
 }
 
 /** Text colour from the fixed palette, stored as {c:red}…{/c}. */
@@ -160,7 +165,7 @@ type LinkCardState = { href: string; from: number; to: number; left: number; top
  * as soon as you type "@". What is stored is still the plain markup that
  * ./rich-text.ts reads, so nothing about posted updates changes.
  */
-export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill, compact = false }: RichTextEditorProps) {
   const [mention, setMention] = React.useState<MentionState | null>(null);
   const [highlighted, setHighlighted] = React.useState(0);
   const [colorsOpen, setColorsOpen] = React.useState(false);
@@ -281,8 +286,10 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
       onUpdate: ({ editor }) => onChange(docToRichText(editor.getJSON())),
       editorProps: {
         attributes: {
-          class: "min-h-16 w-full px-3 py-2.5 text-[13px] focus:outline-none",
-          style: `min-height: ${rows * 1.5 + 1.25}rem`,
+          class: "w-full px-3 py-2.5 text-[13px] transition-[min-height] duration-200 ease-out focus:outline-none motion-reduce:transition-none",
+          // Through a variable, so a compact composer can take the height down
+          // to one line without rebuilding the editor.
+          style: `min-height: var(--rte-min-height, ${rows * 1.5 + 1.25}rem)`,
           role: "textbox",
           "aria-multiline": "true",
           "aria-label": ariaLabel,
@@ -419,9 +426,9 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
   };
 
   return (
-    <div ref={rootRef} className={cn("rich-text-editor relative", fill && "flex min-h-0 flex-col", className)}>
+    <div ref={rootRef} className={cn("rich-text-editor relative", fill && "flex min-h-0 flex-col", className)} style={compact ? ({ "--rte-min-height": "2.5rem" } as React.CSSProperties) : undefined} data-compact={compact || undefined}>
       <div className={cn("overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", fill && "flex min-h-0 flex-1 flex-col")}>
-      <div className={cn("flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-surface/50 px-1.5 py-1", fill && "shrink-0")} role="toolbar" aria-label="Formatting">
+      <div className={cn("flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-surface/50 px-1.5 py-1", fill && "shrink-0", compact && "hidden")} role="toolbar" aria-label="Formatting">
         <ToolButton label="Bold" pressed={state.bold} onClick={() => editor?.chain().focus().toggleBold().run()} testId="format-bold">
           <Bold className="size-3.5" />
         </ToolButton>
