@@ -1,4 +1,5 @@
 import type {
+  PortalPatch,
   StakeholderPortal,
   StakeholderPortalInput,
   DepartmentStatus,
@@ -10,13 +11,13 @@ import type {
   StakeholderDepartment,
   StakeholderDepartmentInput,
 } from "@/domain";
-import { asColor, isPortalColumnKey, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
+import { asColor, isPortalColumnKey, isPortalDefaultRange, isPortalTheme, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
 import type { StakeholderPortalRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -46,6 +47,13 @@ interface PortalRow {
   allow_booking: boolean;
   show_recap: boolean;
   show_item_groups: boolean | null;
+  default_range: string | null;
+  theme_switch: boolean | null;
+  booking_theme: string | null;
+  booking_theme_switch: boolean | null;
+  booking_headline: string | null;
+  booking_lead: string | null;
+  booking_sign_in: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,7 +102,7 @@ function toPortal(row: PortalRow): StakeholderPortal {
     token: row.token,
     passwordHash: row.password_hash,
     credentialVersion: row.credential_version,
-    defaultTheme: row.default_theme as PortalTheme,
+    defaultTheme: isPortalTheme(row.default_theme) ? row.default_theme : "system",
     description: row.description,
     // Read defensively: these arrived in migration 0031 and a row written by an
     // older deployment, or by hand, may carry anything or nothing.
@@ -103,6 +111,14 @@ function toPortal(row: PortalRow): StakeholderPortal {
     allowBooking: row.allow_booking ?? true,
     showRecap: row.show_recap ?? true,
     showItemGroups: row.show_item_groups ?? false,
+    // Migration 0058. Read defensively for the same reason as the rest.
+    defaultRange: isPortalDefaultRange(row.default_range) ? row.default_range : "3m",
+    themeSwitch: row.theme_switch ?? true,
+    bookingTheme: isPortalTheme(row.booking_theme) ? (row.booking_theme as PortalTheme) : "system",
+    bookingThemeSwitch: row.booking_theme_switch ?? true,
+    bookingHeadline: row.booking_headline,
+    bookingLead: row.booking_lead,
+    bookingSignIn: row.booking_sign_in ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -212,7 +228,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     return toPortal(unwrap<PortalRow>(result, "department_portals.create"));
   }
 
-  async updatePortal(id: string, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups">>): Promise<StakeholderPortal> {
+  async updatePortal(id: string, patch: PortalPatch): Promise<StakeholderPortal> {
     const payload: Record<string, unknown> = {};
     if (patch.enabled !== undefined) payload.enabled = patch.enabled;
     if (patch.token !== undefined) payload.token = patch.token;
@@ -225,6 +241,13 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.allowBooking !== undefined) payload.allow_booking = patch.allowBooking;
     if (patch.showRecap !== undefined) payload.show_recap = patch.showRecap;
     if (patch.showItemGroups !== undefined) payload.show_item_groups = patch.showItemGroups;
+    if (patch.defaultRange !== undefined) payload.default_range = patch.defaultRange;
+    if (patch.themeSwitch !== undefined) payload.theme_switch = patch.themeSwitch;
+    if (patch.bookingTheme !== undefined) payload.booking_theme = patch.bookingTheme;
+    if (patch.bookingThemeSwitch !== undefined) payload.booking_theme_switch = patch.bookingThemeSwitch;
+    if (patch.bookingHeadline !== undefined) payload.booking_headline = patch.bookingHeadline;
+    if (patch.bookingLead !== undefined) payload.booking_lead = patch.bookingLead;
+    if (patch.bookingSignIn !== undefined) payload.booking_sign_in = patch.bookingSignIn;
     const result = await db().from("department_portals").update(payload).eq("id", id).select(PORTAL).single();
     return toPortal(unwrap<PortalRow>(result, "department_portals.update"));
   }

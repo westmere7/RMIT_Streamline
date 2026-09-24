@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { resetLocalData, signInAs } from "./helpers";
 
 /**
@@ -25,11 +25,23 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
   // Signed in, the account answers the name and email; booking for a stakeholder brings the boxes back.
   const someoneElse = form.getByTestId("booking-not-you");
-  if (await someoneElse.isVisible().catch(() => false)) await someoneElse.click();
+  await expect(form.getByTestId("booking-name").or(someoneElse)).toBeVisible({ timeout: 20000 });
+  if (await someoneElse.isVisible()) await someoneElse.click();
   await form.getByTestId("booking-name").fill("Priya Nair");
   await form.getByTestId("booking-email").fill("priya@rmit.edu.vn");
   await form.getByTestId("booking-title").fill(title);
+  // The form opens on the department the portal was showing; with everybody on show it asks.
+  const department = form.getByTestId("booking-department");
+  if (!(await department.getAttribute("data-department"))) {
+    await department.click();
+    await form.getByRole("option").first().click();
+  }
+  // Urgency and a date are required on step one.
+  await form.getByTestId("booking-priority").click();
+  await form.getByTestId("booking-priority-high").click();
+  await form.getByTestId("booking-due").fill("2026-12-01");
   await form.getByTestId("booking-service-design").click();
+  await form.getByTestId("booking-sub-print").click();
   await form.getByTestId("booking-next").click();
 
   await expect(form.getByTestId("booking-step-brief")).toBeVisible();
@@ -63,11 +75,26 @@ async function portalCard(page: Page) {
   await expect(page.getByRole("heading", { name: "Stakeholder Portal" })).toBeVisible();
   const card = page.getByTestId("portal-card");
   await expect(card).toBeVisible();
-  // The settings fold away under the links; every test here reaches for one of them.
-  const settings = card.getByTestId("portal-settings-toggle");
-  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
-  await expect(card.getByTestId("portal-settings")).toBeVisible();
   return card;
+}
+
+/**
+ * Opens one link's settings panel, lets `edit` change it, and saves.
+ *
+ * The panel is a draft until Save, so the helper waits for the panel to close,
+ * which only happens once the write has landed.
+ */
+async function editSettings(page: Page, link: "portal" | "booking", edit: (panel: Locator) => Promise<void>): Promise<void> {
+  const card = page.getByTestId("portal-card");
+  await card.getByTestId(link === "portal" ? "portal-link-settings" : "portal-booking-link-settings").click();
+  const panel = page.getByTestId(`portal-${link}-settings`);
+  await expect(panel).toBeVisible();
+  await edit(panel);
+  const save = panel.getByTestId("portal-settings-save");
+  // Already set that way: nothing to save, so the panel just closes.
+  if (await save.isDisabled()) await page.keyboard.press("Escape");
+  else await save.click();
+  await expect(panel).toHaveCount(0);
 }
 
 /** Opens the portal from the management screen and returns its link. */
@@ -235,8 +262,8 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
     const card = await portalCard(page);
     await card.getByTestId("portal-password-toggle").click();
-    await card.getByTestId("portal-password-input").fill("open sesame");
-    await card.getByRole("button", { name: "Set password" }).click();
+    await page.getByTestId("portal-password-input").fill("open sesame");
+    await page.getByRole("button", { name: "Set password" }).click();
     // The badge is the evidence the write landed, not the form closing.
     await expect(card.getByText("Password", { exact: true })).toBeVisible();
 
@@ -261,18 +288,76 @@ test.describe("the stakeholder portal", () => {
     await page.goto(portalPath);
     await bookThroughPortal(page, "Settings ride along", "One request, to see the board with.");
 
-    const card = await portalCard(page);
+    await portalCard(page);
     // Hiding a column is about clutter on the page, not about access.
-    await card.getByTestId("portal-column-priority").click();
-    await expect(card.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
+    await editSettings(page, "portal", async (panel) => {
+      await panel.getByTestId("portal-column-priority").click();
+      await expect(panel.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
+    });
     // And a link can be set to reading only.
-    await card.getByTestId("portal-allow-booking").click();
-    await expect(card.getByTestId("portal-allow-booking")).toHaveAttribute("aria-checked", "false");
+    await editSettings(page, "booking", async (panel) => {
+      await panel.getByTestId("portal-allow-booking").click();
+      await expect(panel.getByTestId("portal-allow-booking")).toHaveAttribute("aria-checked", "false");
+    });
 
     await page.goto(portalPath);
     await expect(page.getByRole("columnheader", { name: "Priority" })).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
     await expect(page.getByTestId("portal-book-button")).toHaveCount(0);
+  });
+
+  test("a settings panel writes nothing until Save, and Discard puts it back", async ({ page }) => {
+    await portalCard(page);
+    await page.getByTestId("portal-link-settings").click();
+    const panel = page.getByTestId("portal-portal-settings");
+    const figures = panel.getByTestId("portal-show-recap");
+    const before = await figures.getAttribute("aria-checked");
+    await figures.click();
+    await expect(panel.getByTestId("portal-settings-save")).toBeEnabled();
+    await panel.getByTestId("portal-settings-discard").click();
+    await expect(figures).toHaveAttribute("aria-checked", before!);
+    await expect(panel.getByTestId("portal-settings-save")).toBeDisabled();
+
+    // Closing with a change pending asks first.
+    await figures.click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
+    await expect(panel).toHaveCount(0);
+    await page.getByTestId("portal-link-settings").click();
+    await expect(page.getByTestId("portal-portal-settings").getByTestId("portal-show-recap")).toHaveAttribute("aria-checked", before!);
+  });
+
+  test("each link opens in the theme the team set, over an earlier visitor choice", async ({ page }) => {
+    const portalPath = await openPortal(page);
+    await editSettings(page, "portal", async (panel) => {
+      await panel.getByTestId("portal-default-theme-light").click();
+    });
+    await editSettings(page, "booking", async (panel) => {
+      await panel.getByTestId("portal-booking-theme-dark").click();
+    });
+
+    // A visitor switches the board to dark; the choice holds while the setting stands.
+    await page.goto(portalPath);
+    await page.getByTestId("portal-theme-dark").click();
+    await expect(page.locator("html.dark")).toHaveCount(1);
+    await page.reload();
+    await expect(page.locator("html.dark")).toHaveCount(1);
+
+    // The booking form keeps its own theme, and dark reaches <html>, so menus match.
+    await page.goto(`${portalPath}/book`);
+    await expect(page.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
+    await expect(page.locator("html.dark")).toHaveCount(1);
+
+    // The team changes the board's theme: the old visitor choice lapses, and
+    // "system" on this light-scheme browser is light.
+    await portalCard(page);
+    await editSettings(page, "portal", async (panel) => {
+      await panel.getByTestId("portal-default-theme-system").click();
+    });
+    await page.goto(portalPath);
+    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
+    await expect(page.locator("html.dark")).toHaveCount(0);
   });
 
   test("keeps its theme to itself", async ({ page }) => {

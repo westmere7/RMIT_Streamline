@@ -99,7 +99,39 @@ export interface StakeholderPortal extends Timestamps {
    * board and the visitor may switch.
    */
   showItemGroups: boolean;
+  /** How far back the board reads when the link names no period of its own: "1w", "3m" and so on. */
+  defaultRange: PortalDefaultRange;
+  /** Whether a visitor may switch the portal's theme for themselves. */
+  themeSwitch: boolean;
+  /** The booking form's own theme: it is a separate page with a separate look. */
+  bookingTheme: PortalTheme;
+  /** Whether a visitor may switch the booking form's theme for themselves. */
+  bookingThemeSwitch: boolean;
+  /** The booking page's big line. Null uses the built-in one. */
+  bookingHeadline: string | null;
+  /** The line under it. Null uses the built-in one. */
+  bookingLead: string | null;
+  /** Whether the booking form offers staff a sign-in that fills their details in. */
+  bookingSignIn: boolean;
 }
+
+/** The periods a portal may open on. "All time" and single years are the visitor's to pick, never a default. */
+export const PORTAL_DEFAULT_RANGES = ["1w", "2w", "1m", "3m", "6m"] as const;
+export type PortalDefaultRange = (typeof PORTAL_DEFAULT_RANGES)[number];
+
+export function isPortalDefaultRange(value: unknown): value is PortalDefaultRange {
+  return typeof value === "string" && (PORTAL_DEFAULT_RANGES as readonly string[]).includes(value);
+}
+
+export function isPortalTheme(value: unknown): value is PortalTheme {
+  return typeof value === "string" && (PORTAL_THEMES as readonly string[]).includes(value);
+}
+
+/** What the booking page says when the team has not written its own words. */
+export const DEFAULT_BOOKING_HEADLINE = "Book a task with the creative team.";
+export const DEFAULT_BOOKING_LEAD = "Tell us what you need and when. We route it to the right people and keep you posted — no account needed.";
+export const MAX_BOOKING_HEADLINE = 80;
+export const MAX_BOOKING_LEAD = 240;
 
 /**
  * The columns the portal's board can carry.
@@ -156,7 +188,28 @@ export function isPortalView(value: unknown): value is PortalView {
 }
 
 /** What an administrator may change about how a portal presents itself. */
-export type PortalPresentation = Partial<Pick<StakeholderPortal, "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups" | "defaultTheme">>;
+export type PortalPresentation = Partial<
+  Pick<
+    StakeholderPortal,
+    | "description"
+    | "hiddenColumns"
+    | "defaultView"
+    | "allowBooking"
+    | "showRecap"
+    | "showItemGroups"
+    | "defaultTheme"
+    | "defaultRange"
+    | "themeSwitch"
+    | "bookingTheme"
+    | "bookingThemeSwitch"
+    | "bookingHeadline"
+    | "bookingLead"
+    | "bookingSignIn"
+  >
+>;
+
+/** Everything a repository may write to a portal row. */
+export type PortalPatch = PortalPresentation & Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "credentialVersion">>;
 
 export type StakeholderPortalInput = Pick<StakeholderPortal, "workspaceId" | "departmentId" | "enabled" | "token" | "passwordHash" | "defaultTheme">;
 
@@ -259,6 +312,17 @@ export interface PortalGate {
   /** The workspace's editable display name, falling back to the workspace's own. */
   creativeTeamName: string;
   defaultTheme: PortalTheme;
+  /** Whether the portal offers the visitor a theme switch. */
+  themeSwitch: boolean;
+  /** The booking form's theme, and whether its visitor may switch it. */
+  bookingTheme: PortalTheme;
+  bookingThemeSwitch: boolean;
+  /** The period the board opens on when the link names none. */
+  defaultRange: PortalDefaultRange;
+  /** The booking page's own words; null where the built-in ones stand. */
+  bookingHeadline: string | null;
+  bookingLead: string | null;
+  bookingSignIn: boolean;
   /** Rises whenever the link or password changes; a grant issued under an older one is dead. */
   credentialVersion: number;
 }

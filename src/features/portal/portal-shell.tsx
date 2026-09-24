@@ -5,9 +5,9 @@ import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
-import { PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
+import { isPortalTheme, PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
 import { colorClasses } from "@/lib/colors";
-import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { applyThemePreference, readThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,39 +26,56 @@ export function PortalShell({ children, fill = false }: { children: React.ReactN
 }
 
 /**
- * A theme the visitor chooses, remembered for this portal alone.
+ * The theme a portal page is shown in.
  *
- * It must not touch the internal app's preference — a stakeholder and a member
- * of staff may well be the same person on the same browser, and choosing dark
- * for a portal is not choosing dark for their workspace. The key is scoped to
- * the token for the same reason.
+ * The team sets one per link (the board and the booking form each have their
+ * own) and that setting is what a visitor sees. A visitor may switch it for
+ * themselves when the link allows it, and the choice is remembered for this
+ * link alone; it never touches the internal app's own preference, because a
+ * stakeholder and a member of staff may well be the same person on the same
+ * browser.
  *
- * Applied on the first commit rather than during render, and the server default
- * is used until then, so there is no flash of the wrong theme and no hydration
- * mismatch.
+ * A visitor's choice is stored with the setting it overrode, and it only holds
+ * while that setting stands. When the team changes the link's theme, every
+ * earlier choice lapses and the new setting is what everybody sees; otherwise
+ * a single click on the switch, months ago, would make the setting look broken
+ * on that machine forever. The app's own theme is deliberately not consulted:
+ * the link's setting is the team's decision about how the link looks.
+ *
+ * Applied to the whole document while the page is up, not only to this
+ * subtree: menus, dialogs and the task panel render in a portal at the foot of
+ * <body>, and a scope around the page never reached them. The app's own theme
+ * is put back when the page goes.
  */
-export function PortalThemeScope({ token, preferred, children }: { token: string; preferred: PortalTheme; children: React.ReactNode }) {
-  const storageKey = `streamline.portal-theme:${token}`;
+export function PortalThemeScope({
+  token,
+  surface = "board",
+  preferred,
+  allowSwitch = true,
+  children,
+}: {
+  token: string;
+  /** Which of the portal's pages this is. Each keeps its own choice. */
+  surface?: "board" | "booking";
+  /** The link's theme as the team set it. */
+  preferred: PortalTheme;
+  /** Whether the visitor may switch it. Off, the setting is final and nothing stored is read. */
+  allowSwitch?: boolean;
+  children: React.ReactNode;
+}) {
+  const storageKey = `streamline.portal-theme:${token}:${surface}`;
   // Read through useSyncExternalStore so the server snapshot is "nothing
-  // stored" — the configured default paints first, the visitor's own choice
-  // arrives on the first commit, and neither a hydration mismatch nor a flash
-  // of the wrong theme is possible.
+  // stored": the link's setting paints first and a visitor's own choice
+  // arrives on the first commit, with no hydration mismatch.
   const stored = React.useSyncExternalStore(
     (onChange) => subscribeToStorage(storageKey, onChange),
-    () => readStoredTheme(storageKey),
+    () => readStorage(storageKey),
     () => null,
   );
-  const [override, setOverride] = React.useState<PortalTheme | null>(null);
-  // A member opening the portal from inside the app has already said which
-  // theme they want, and the app's choice is in this browser's storage. It
-  // outranks the portal's configured default, which is for stakeholders who
-  // have never had a say, and yields to a choice made on this portal itself.
-  const appPreference = React.useSyncExternalStore(
-    (onChange) => subscribeToStorage(THEME_STORAGE_KEY, onChange),
-    readAppTheme,
-    () => null,
-  );
-  const theme = override ?? stored ?? appPreference ?? preferred;
+  // This visit's choice, for a browser that will not store it.
+  const [override, setOverride] = React.useState<string | null>(null);
+  const choice = allowSwitch ? parseThemeChoice(override ?? stored) : null;
+  const theme = choice && choice.over === preferred ? choice.theme : preferred;
 
   const systemDark = React.useSyncExternalStore(
     (onChange) => {
@@ -72,34 +89,89 @@ export function PortalThemeScope({ token, preferred, children }: { token: string
 
   const dark = theme === "dark" || (theme === "system" && systemDark);
 
+  React.useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", dark);
+    // "Dim" is the app's own in-between theme; a portal is light or dark.
+    root.classList.remove("dim");
+    root.style.colorScheme = dark ? "dark" : "light";
+  }, [dark]);
+  // Leaving the portal for the app within the same tab gives the app its own theme back.
+  React.useEffect(() => () => applyThemePreference(readThemePreference()), []);
+
   const set = React.useCallback(
     (next: PortalTheme) => {
-      setOverride(next);
+      const raw = JSON.stringify({ theme: next, over: preferred } satisfies ThemeChoice);
+      setOverride(raw);
       try {
-        window.localStorage.setItem(storageKey, next);
+        // Choosing the link's own setting is choosing to follow it.
+        if (next === preferred) window.localStorage.removeItem(storageKey);
+        else window.localStorage.setItem(storageKey, raw);
       } catch {
         // The choice then lasts this visit, which is better than failing.
       }
     },
-    [storageKey],
+    [storageKey, preferred],
   );
 
   return (
-    <PortalThemeContext.Provider value={{ theme, set }}>
-      {/* Scoped to this subtree: the class goes here, never on <html>, so the
-          application's own theme is untouched even in another tab. Both classes
-          are stated, never just the dark one — a portal set to light inside an
-          app set to dark has to say so, or it inherits the dark it is sitting
-          in (see the `dark` custom variant in globals.css). */}
-      {/* The colour is restated here as well as the class. Text with no
-          colour of its own inherits the page body's, which was computed under
-          the app's theme; naming it again inside the scope makes it resolve
-          under this one, so a dark portal in a light app is not dark text on
-          dark ground. */}
+    <PortalThemeContext.Provider value={{ theme, set, allowSwitch }}>
+      {/* The class is stated here as well as on <html>, for the first paint
+          before the layout effect has run. Both classes are stated, never just
+          the dark one: a light portal has to say so, or it inherits a dark it
+          is sitting in (see the `dark` custom variant in globals.css). The
+          colour is restated so text with none of its own resolves under this
+          theme rather than the body's. */}
       <div className={cn("text-foreground", dark ? "dark" : "light")} style={{ colorScheme: dark ? "dark" : "light" }}>
         {children}
       </div>
     </PortalThemeContext.Provider>
+  );
+}
+
+/** A visitor's theme, and the link setting it was chosen over. */
+interface ThemeChoice {
+  theme: PortalTheme;
+  over: PortalTheme;
+}
+
+function parseThemeChoice(raw: string | null): ThemeChoice | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<ThemeChoice>;
+    return isPortalTheme(value.theme) && isPortalTheme(value.over) ? { theme: value.theme, over: value.over } : null;
+  } catch {
+    // A bare word from before choices carried their setting. It overrode an
+    // unknown setting, so it lapses like any other stale choice.
+    return null;
+  }
+}
+
+/** The visitor's own theme switch, for whichever portal page is showing. Nothing when the link does not allow it. */
+export function PortalThemeSwitch({ className }: { className?: string }) {
+  const themeContext = React.useContext(PortalThemeContext);
+  if (!themeContext?.allowSwitch) return null;
+  return (
+    <div role="radiogroup" aria-label="Theme" className={cn("inline-flex shrink-0 items-center rounded-full border border-border/70 p-0.5", className)}>
+      {(["light", "dark", "system"] as const).map((option) => {
+        const Icon = THEME_ICONS[option];
+        const active = themeContext.theme === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={`${option} theme`}
+            onClick={() => themeContext.set(option)}
+            className={cn("flex size-11 items-center justify-center rounded-full transition-colors sm:size-9", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+            data-testid={`portal-theme-${option}`}
+          >
+            <Icon className="size-4" />
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -185,26 +257,13 @@ function Figure({ value, label, tone }: { value: number; label: string; tone?: s
   );
 }
 
-const PortalThemeContext = React.createContext<{ theme: PortalTheme; set: (theme: PortalTheme) => void } | null>(null);
+const PortalThemeContext = React.createContext<{ theme: PortalTheme; set: (theme: PortalTheme) => void; allowSwitch: boolean } | null>(null);
 
-function readStoredTheme(key: string): PortalTheme | null {
+function readStorage(key: string): string | null {
   try {
-    const value = window.localStorage.getItem(key);
-    return value === "light" || value === "dark" || value === "system" ? value : null;
+    return window.localStorage.getItem(key);
   } catch {
-    // A browser with storage blocked simply gets the configured default.
-    return null;
-  }
-}
-
-/** The app's own theme choice, in the portal's terms. `dim` is a dark theme; nothing stored is no opinion. */
-function readAppTheme(): PortalTheme | null {
-  try {
-    const value = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (value === "light" || value === "system") return value;
-    if (value === "dark" || value === "dim") return "dark";
-    return null;
-  } catch {
+    // A browser with storage blocked simply gets the link's setting.
     return null;
   }
 }
@@ -322,7 +381,6 @@ export function PortalHeader({
   onStakeholder?: (id: EntityId | null) => void;
 }) {
   const selected = stakeholders?.find((row) => row.id === stakeholderId) ?? null;
-  const themeContext = React.useContext(PortalThemeContext);
   return (
     <header className="border-b border-border/70 bg-background">
       {/* One row: whose work, the figures, and the tools at the far end. How far
@@ -380,28 +438,7 @@ export function PortalHeader({
         <div className="flex flex-1 items-center justify-end gap-3">
           <FreshnessMark stale={stale} servedAt={servedAt} />
 
-        {themeContext && (
-          <div role="radiogroup" aria-label="Theme" className="inline-flex shrink-0 items-center rounded-full border border-border/70 p-0.5">
-            {(["light", "dark", "system"] as const).map((option) => {
-              const Icon = THEME_ICONS[option];
-              const active = themeContext.theme === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={`${option} theme`}
-                  onClick={() => themeContext.set(option)}
-                  className={cn("flex size-11 items-center justify-center rounded-full transition-colors sm:size-9", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-                  data-testid={`portal-theme-${option}`}
-                >
-                  <Icon className="size-4" />
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <PortalThemeSwitch />
 
         {viewerName ? (
           <span className="shrink-0 rounded-full bg-surface-strong/70 px-2.5 py-1 text-2xs font-medium" data-testid="portal-viewer">

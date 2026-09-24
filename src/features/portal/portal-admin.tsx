@@ -1,16 +1,34 @@
 "use client";
 
-import { Check, ChevronDown, ClipboardPen, Copy, ExternalLink, Eye, EyeOff, Globe, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
+import { Check, ClipboardPen, Copy, ExternalLink, Eye, EyeOff, Globe, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { PORTAL_COLUMN_LABELS, PORTAL_COLUMNS, PORTAL_THEMES, PORTAL_VIEWS, type PortalTheme, type PortalView, type StakeholderPortal } from "@/domain";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  DEFAULT_BOOKING_HEADLINE,
+  DEFAULT_BOOKING_LEAD,
+  MAX_BOOKING_HEADLINE,
+  MAX_BOOKING_LEAD,
+  MAX_CREATIVE_TEAM_NAME,
+  PORTAL_COLUMN_LABELS,
+  PORTAL_COLUMNS,
+  PORTAL_DEFAULT_RANGES,
+  PORTAL_THEMES,
+  PORTAL_VIEWS,
+  parsePortalRange,
+  portalRangeLabel,
+  type PortalPresentation,
+  type StakeholderPortal,
+} from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -23,12 +41,10 @@ import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
 /**
  * The management side of the portal.
  *
- * One portal, one link, and the page is built around handing that link out:
- * the two addresses sit at the top with a line each saying what they open and
- * who they show, and everything that tunes the portal — its name, what it
- * opens on, which columns, the theme, the password — folds away under them.
- * The settings are set once and then left alone; the links are copied every
- * week.
+ * One portal, two links, and the page is built around handing them out: each
+ * link is a tile with its figure, its copy and open buttons, and its own
+ * settings behind a button of its own. What belongs to both links at once —
+ * the password and the token itself — sits in the card's header.
  */
 export function PortalAdmin() {
   const ws = useWorkspace();
@@ -53,10 +69,10 @@ export function PortalAdmin() {
   );
 }
 
-/** The portal: its links, whether it is open, and — folded away — how it presents itself. */
+/** The portal: whether it is open, its credentials, and its two links. */
 function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: DepartmentOverview[] }) {
   const { setEnabled } = usePortalMutations();
-  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
   const open = portal.enabled;
   const url = portalUrl(portal.token);
   const bookingUrl = `${url}/book`;
@@ -79,10 +95,14 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           )}
         </h3>
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* Both links share one credential, so what guards it is here rather
+              than in either link's settings. */}
+          <PasswordButton portal={portal} />
+          <RegenerateButton />
           {/* A switch, not a button: this is a state the portal is in. The
               spinner is here because the write is slow enough to look like
               nothing happened. */}
-          <span className="flex items-center gap-2 pl-1 text-[13px]">
+          <span className="flex items-center gap-2 border-l border-border/60 pl-3 text-[13px]">
             {setEnabled.isPending && <Loader2 aria-hidden className="size-3.5 animate-spin text-muted-foreground" />}
             <span aria-hidden className="text-muted-foreground">
               Open
@@ -123,6 +143,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           testId="portal-link"
           copyTestId="portal-copy"
           onCopy={() => void copyToClipboard(url, "Link copied")}
+          onSettings={() => setEditing("portal")}
           open={open}
         >
           <StakeholderList rows={rows} />
@@ -135,7 +156,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
             portal.allowBooking ? (
               <>The same portal, opened straight on the form. Stakeholders describe what they need and it lands on the board as a request.</>
             ) : (
-              <>This link is not taking requests. Turn on &ldquo;Takes new requests&rdquo; in the settings below.</>
+              <>This link is not taking requests. Turn on &ldquo;Takes new requests&rdquo; in its settings.</>
             )
           }
           figure={booked}
@@ -146,40 +167,99 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           testId="portal-booking-link"
           copyTestId="portal-booking-link-copy"
           onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
+          onSettings={() => setEditing("booking")}
           open={open && portal.allowBooking}
         />
       </div>
 
-      <button
-        type="button"
-        onClick={() => setSettingsOpen((v) => !v)}
-        aria-expanded={settingsOpen}
-        aria-controls="portal-settings"
-        className="flex w-full items-center gap-2 border-t border-border/60 px-5 py-3 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-        data-testid="portal-settings-toggle"
-      >
-        <Settings2 className="size-3.5" aria-hidden />
-        Settings
-        <span className="ml-auto flex items-center gap-2 text-2xs font-normal">
-          {!settingsOpen && <SettingsSummary portal={portal} />}
-          <ChevronDown className={cn("size-4 transition-transform", settingsOpen && "rotate-180")} aria-hidden />
-        </span>
-      </button>
-      <div id="portal-settings" hidden={!settingsOpen}>
-        <PortalSettings portal={portal} />
-      </div>
+      <SettingsDialog kind="portal" portal={portal} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
+      <SettingsDialog kind="booking" portal={portal} open={editing === "booking"} onOpenChange={(next) => setEditing(next ? "booking" : null)} />
     </section>
   );
 }
 
-/** What the folded settings say about themselves, so nobody has to open them to check. */
-function SettingsSummary({ portal }: { portal: StakeholderPortal }) {
-  const ws = useWorkspace();
-  const hidden = portal.hiddenColumns.length;
+/** Sets, changes or removes the password both links ask for. */
+function PasswordButton({ portal }: { portal: StakeholderPortal }) {
+  const { setPassword } = usePortalMutations();
+  const [open, setOpen] = React.useState(false);
+  const [value, setValue] = React.useState("");
   return (
-    <span className="hidden truncate text-muted-foreground sm:inline" data-testid="portal-settings-summary">
-      {ws.workspace.creativeTeamName || ws.workspace.name} · {portal.defaultTheme} theme{hidden > 0 ? ` · ${hidden} ${hidden === 1 ? "column" : "columns"} hidden` : ""}
-    </span>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setValue("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" data-testid="portal-password-toggle">
+          <KeyRound /> {portal.passwordHash ? "Change password" : "Add password"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72">
+        <form
+          className="grid gap-2"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (!value.trim()) return;
+            // Closed only once the write has landed. Hashing is deliberately
+            // slow, and closing first made the form look finished while it
+            // was not; navigate in that window and the password was lost.
+            await setPassword.mutateAsync({ password: value });
+            setValue("");
+            setOpen(false);
+          }}
+        >
+          <p className="text-[13px] font-medium">{portal.passwordHash ? "Change the password" : "Ask for a password"}</p>
+          <Input type="password" value={value} onChange={(e) => setValue(e.target.value)} placeholder="New password" aria-label="Portal password" autoComplete="new-password" autoFocus data-testid="portal-password-input" />
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={!value.trim() || setPassword.isPending}>
+              {setPassword.isPending ? "Setting…" : "Set password"}
+            </Button>
+            {portal.passwordHash && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={setPassword.isPending}
+                onClick={async () => {
+                  await setPassword.mutateAsync({ password: null });
+                  setOpen(false);
+                }}
+                data-testid="portal-password-remove"
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A new token for both links. The old one stops working at once, so it asks first. */
+function RegenerateButton() {
+  const { regenerate } = usePortalMutations();
+  const [confirm, setConfirm] = React.useState(false);
+  return (
+    <>
+      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirm(true)} data-testid="portal-regenerate">
+        <RefreshCw /> New link
+      </Button>
+      <ConfirmDialog
+        open={confirm}
+        onOpenChange={setConfirm}
+        title="Issue a new link?"
+        description="Both links stop working straight away, including for anyone reading the portal right now. Their requests are untouched."
+        confirmLabel="Issue new link"
+        destructive
+        onConfirm={async () => {
+          await regenerate.mutateAsync();
+        }}
+      />
+    </>
   );
 }
 
@@ -201,8 +281,8 @@ const TILE_TONES = {
 
 /**
  * One of the portal's two doors, as a tile: what it is, one figure that says
- * how it is doing, and the two things anybody does with it — copy the link,
- * open it. The address is kept for tests and screen readers and shown to
+ * how it is doing, and the things anybody does with it — copy the link, open
+ * it, tune it. The address is kept for tests and screen readers and shown to
  * nobody; a token is not something a person reads.
  */
 function LinkTile({
@@ -218,6 +298,7 @@ function LinkTile({
   testId,
   copyTestId,
   onCopy,
+  onSettings,
   open,
   children,
 }: {
@@ -233,6 +314,7 @@ function LinkTile({
   testId: string;
   copyTestId: string;
   onCopy: () => void;
+  onSettings: () => void;
   open: boolean;
   children?: React.ReactNode;
 }) {
@@ -249,18 +331,17 @@ function LinkTile({
       className={cn(
         "group/tile relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface/50 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         tones.edge,
-        !open && "opacity-70 saturate-50",
       )}
       data-testid={`${testId}-block`}
     >
       {/* A wash of the tile's colour in one corner, brighter under the pointer. */}
-      <span aria-hidden className={cn("pointer-events-none absolute -top-16 -right-12 size-48 rounded-full blur-3xl transition-opacity duration-300 opacity-60 group-hover/tile:opacity-100", tones.glow)} />
+      <span aria-hidden className={cn("pointer-events-none absolute -top-16 -right-12 size-48 rounded-full blur-3xl transition-opacity duration-300 opacity-60 group-hover/tile:opacity-100", tones.glow, !open && "opacity-20")} />
 
-      <div className="relative flex items-start gap-3">
+      <div className={cn("relative flex items-start gap-3", !open && "opacity-70 saturate-50")}>
         <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl ring-1", tones.icon)}>
           <Icon className="size-[18px]" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-8">
           <div className="flex items-center gap-2">
             <h4 className="text-[15px] font-semibold tracking-tight">{label}</h4>
             {!open && (
@@ -272,8 +353,13 @@ function LinkTile({
           <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{lead}</p>
         </div>
       </div>
+      {/* Always at full strength, even on a link that is not serving: its
+          settings are how it gets turned back on. */}
+      <Button variant="ghost" size="icon" className="absolute top-4 right-4 size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
+        <Settings2 className="size-4" />
+      </Button>
 
-      <div className="relative mt-5 flex items-end justify-between gap-4">
+      <div className={cn("relative mt-5 flex items-end justify-between gap-4", !open && "opacity-70 saturate-50")}>
         <div>
           <p className={cn("text-[32px] leading-none font-semibold tracking-tight tabular", tones.figure)} data-testid={`${testId}-figure`}>
             {figure}
@@ -307,7 +393,7 @@ function LinkTile({
         {url}
       </span>
 
-      {children && <div className="relative mt-4 border-t border-border/60 pt-4">{children}</div>}
+      {children && <div className={cn("relative mt-4 border-t border-border/60 pt-4", !open && "opacity-70 saturate-50")}>{children}</div>}
     </div>
   );
 }
@@ -354,23 +440,246 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
   );
 }
 
-// ---- the settings, folded away ------------------------------------------------
+// ---- each link's settings ------------------------------------------------------
 
-/** A labelled row of controls, with the reason for them underneath. */
-function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: React.ReactNode }) {
+/** The settings a panel edits. A draft of these is what Save writes and Discard throws away. */
+type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn">> & {
+  bookingHeadline: string;
+  bookingLead: string;
+  teamName: string;
+};
+
+/** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
+const PANEL_FIELDS = {
+  portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "hiddenColumns", "showRecap", "showItemGroups"],
+  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn"],
+} as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
+
+function draftOf(portal: StakeholderPortal, teamName: string): Draft {
+  return {
+    defaultView: portal.defaultView,
+    defaultRange: portal.defaultRange,
+    defaultTheme: portal.defaultTheme,
+    themeSwitch: portal.themeSwitch,
+    hiddenColumns: portal.hiddenColumns,
+    showRecap: portal.showRecap,
+    showItemGroups: portal.showItemGroups,
+    allowBooking: portal.allowBooking,
+    bookingTheme: portal.bookingTheme,
+    bookingThemeSwitch: portal.bookingThemeSwitch,
+    bookingSignIn: portal.bookingSignIn,
+    bookingHeadline: portal.bookingHeadline ?? "",
+    bookingLead: portal.bookingLead ?? "",
+    teamName,
+  };
+}
+
+function same(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((value) => b.includes(value));
+  return typeof a === "string" && typeof b === "string" ? a.trim() === b.trim() : a === b;
+}
+
+/**
+ * One link's settings, as a panel over the page.
+ *
+ * Edits are a draft until Save, which writes everything that changed at once.
+ * Every control used to write the moment it was touched, which made a panel of
+ * them slow to use and put half-finished changes in front of stakeholders.
+ * Closing with changes unsaved asks before it throws them away.
+ */
+function SettingsDialog({ kind, portal, open, onOpenChange }: { kind: keyof typeof PANEL_FIELDS; portal: StakeholderPortal; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const ws = useWorkspace();
+  const { saveSettings } = usePortalMutations();
+  const storedName = ws.workspace.creativeTeamName ?? "";
+  const initial = React.useMemo(() => draftOf(portal, storedName), [portal, storedName]);
+  const [draft, setDraft] = React.useState(initial);
+  const [confirmDiscard, setConfirmDiscard] = React.useState(false);
+
+  // Each opening starts from what is saved. Noticed during render, so the
+  // panel never paints a moment of the previous draft.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setDraft(initial);
+  }
+
+  const fields = PANEL_FIELDS[kind];
+  const changed = fields.filter((field) => !same(draft[field], initial[field]));
+  const dirty = changed.length > 0;
+
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
+
+  const save = async () => {
+    const patch: PortalPresentation = {};
+    let teamName: string | undefined;
+    for (const field of changed) {
+      if (field === "teamName") teamName = draft.teamName;
+      else (patch as Record<string, unknown>)[field] = draft[field];
+    }
+    await saveSettings.mutateAsync({ patch, teamName });
+    onOpenChange(false);
+  };
+
+  const requestClose = (next: boolean) => {
+    if (next) return onOpenChange(true);
+    if (dirty && !saveSettings.isPending) setConfirmDiscard(true);
+    else onOpenChange(false);
+  };
+
   return (
-    <div className={className}>
+    <>
+      <Dialog open={open} onOpenChange={requestClose}>
+        <DialogContent
+          size="lg"
+          className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0"
+          // Focus the panel, not its first field: landing in the team name with
+          // the text selected made one stray keystroke replace it.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement).focus();
+          }}
+          data-testid={`portal-${kind}-settings`}
+        >
+          <DialogHeader className="border-b border-border/60 px-6 pt-5 pb-4">
+            <DialogTitle className="flex items-center gap-2.5">
+              {kind === "portal" ? <Globe className="size-4 text-primary" aria-hidden /> : <ClipboardPen className="size-4 text-accent-soft-foreground" aria-hidden />}
+              {kind === "portal" ? "Portal settings" : "Booking form settings"}
+            </DialogTitle>
+            <DialogDescription>{kind === "portal" ? "How the portal looks to stakeholders." : "How the booking form looks, and whether it takes requests."}</DialogDescription>
+          </DialogHeader>
+
+          <div className="scrollbar-thin grid content-start gap-5 overflow-y-auto px-6 py-5">
+            {kind === "portal" ? <PortalFields draft={draft} set={set} placeholder={ws.workspace.name} /> : <BookingFields draft={draft} set={set} />}
+          </div>
+
+          <DialogFooter className="items-center border-t border-border/60 px-6 py-3.5">
+            <span className="mr-auto text-2xs text-muted-foreground" aria-live="polite">
+              {dirty ? `${changed.length} unsaved ${changed.length === 1 ? "change" : "changes"}` : "No changes"}
+            </span>
+            <Button variant="ghost" size="sm" disabled={!dirty || saveSettings.isPending} onClick={() => setDraft(initial)} data-testid="portal-settings-discard">
+              Discard
+            </Button>
+            <Button size="sm" disabled={!dirty || saveSettings.isPending} onClick={() => void save()} data-testid="portal-settings-save">
+              {saveSettings.isPending ? <Loader2 className="animate-spin" /> : <Check />} Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        title="Discard your changes?"
+        description="They have not been saved."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        destructive
+        onConfirm={() => {
+          setDraft(initial);
+          onOpenChange(false);
+        }}
+      />
+    </>
+  );
+}
+
+type SetField = <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+
+function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField; placeholder: string }) {
+  return (
+    <>
+      <Field label="Team name">
+        <Input value={draft.teamName} onChange={(e) => set("teamName", e.target.value)} maxLength={MAX_CREATIVE_TEAM_NAME} placeholder={placeholder} aria-label="Creative team name" className="h-9" data-testid="portal-team-name" />
+      </Field>
+      <Field label="Opens on">
+        <Choice options={PORTAL_VIEWS.map((view) => ({ value: view, label: view }))} value={draft.defaultView} onChange={(value) => set("defaultView", value as Draft["defaultView"])} name="View the portal opens on" testId="portal-view" />
+      </Field>
+      <Field label="Period">
+        <Choice
+          options={PORTAL_DEFAULT_RANGES.map((range) => ({ value: range, label: portalRangeLabel(parsePortalRange(range)!) }))}
+          value={draft.defaultRange}
+          onChange={(value) => set("defaultRange", value as Draft["defaultRange"])}
+          name="Period the portal opens on"
+          testId="portal-range"
+          plain
+        />
+      </Field>
+      <ThemeField theme={draft.defaultTheme} onTheme={(value) => set("defaultTheme", value)} allowSwitch={draft.themeSwitch} onAllowSwitch={(value) => set("themeSwitch", value)} testId="portal-default-theme" />
+      <Field label="Columns">
+        <div className="flex flex-wrap gap-1.5">
+          {PORTAL_COLUMNS.map((key) => {
+            const on = !draft.hiddenColumns.includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                role="switch"
+                aria-checked={on}
+                onClick={() => set("hiddenColumns", on ? [...draft.hiddenColumns, key] : draft.hiddenColumns.filter((c) => c !== key))}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
+                  on ? "border-transparent bg-foreground text-background" : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+                data-testid={`portal-column-${key}`}
+              >
+                {on ? <Eye className="size-3" aria-hidden /> : <EyeOff className="size-3" aria-hidden />}
+                {PORTAL_COLUMN_LABELS[key]}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+      <Field label="Shows">
+        <div className="grid gap-2.5">
+          <Toggle label="The figures" checked={draft.showRecap} onChange={(value) => set("showRecap", value)} testId="portal-show-recap" />
+          <Toggle label="The boards' own groups" checked={draft.showItemGroups} onChange={(value) => set("showItemGroups", value)} testId="portal-show-item-groups" />
+        </div>
+      </Field>
+    </>
+  );
+}
+
+function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
+  return (
+    <>
+      <Toggle label="Takes new requests" checked={draft.allowBooking} onChange={(value) => set("allowBooking", value)} testId="portal-allow-booking" />
+      <ThemeField theme={draft.bookingTheme} onTheme={(value) => set("bookingTheme", value)} allowSwitch={draft.bookingThemeSwitch} onAllowSwitch={(value) => set("bookingThemeSwitch", value)} testId="portal-booking-theme" />
+      <Field label="Headline">
+        <Input value={draft.bookingHeadline} onChange={(e) => set("bookingHeadline", e.target.value)} maxLength={MAX_BOOKING_HEADLINE} placeholder={DEFAULT_BOOKING_HEADLINE} aria-label="Booking page headline" className="h-9" data-testid="portal-booking-headline" />
+      </Field>
+      <Field label="Intro">
+        <Textarea value={draft.bookingLead} onChange={(e) => set("bookingLead", e.target.value)} maxLength={MAX_BOOKING_LEAD} placeholder={DEFAULT_BOOKING_LEAD} aria-label="Booking page intro" rows={2} className="min-h-0 resize-none" data-testid="portal-booking-lead" />
+      </Field>
+      <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
+    </>
+  );
+}
+
+/** A link's theme, and whether its visitors may switch it for themselves. */
+function ThemeField({ theme, onTheme, allowSwitch, onAllowSwitch, testId }: { theme: Draft["defaultTheme"]; onTheme: (theme: Draft["defaultTheme"]) => void; allowSwitch: boolean; onAllowSwitch: (value: boolean) => void; testId: string }) {
+  return (
+    <Field label="Theme">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <Choice options={PORTAL_THEMES.map((value) => ({ value, label: value }))} value={theme} onChange={(value) => onTheme(value as Draft["defaultTheme"])} name="Theme" testId={testId} />
+        <Toggle label="Visitors can switch" checked={allowSwitch} onChange={onAllowSwitch} testId={`${testId}-switch`} />
+      </div>
+    </Field>
+  );
+}
+
+/** A labelled control. The label says it; nothing underneath explains it. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
       <p className="mb-1.5 label-quiet">{label}</p>
       {children}
-      {hint && <p className="mt-1 text-2xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
 
 /** The pill group used for anything with a few options. */
-function Choice({ options, value, onChange, name }: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void; name: string }) {
+function Choice({ options, value, onChange, name, testId, plain }: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void; name: string; testId?: string; plain?: boolean }) {
   return (
-    <div role="radiogroup" aria-label={name} className="inline-flex flex-wrap items-center rounded-full border border-border/70 p-0.5">
+    <div role="radiogroup" aria-label={name} className="inline-flex flex-wrap items-center rounded-full border border-border/70 p-0.5" data-testid={testId}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -378,7 +687,8 @@ function Choice({ options, value, onChange, name }: { options: Array<{ value: st
           role="radio"
           aria-checked={value === option.value}
           onClick={() => onChange(option.value)}
-          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium capitalize transition-colors", value === option.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          className={cn("h-7 rounded-full px-2.5 text-2xs font-medium transition-colors", !plain && "capitalize", value === option.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+          data-testid={testId ? `${testId}-${option.value}` : undefined}
         >
           {option.label}
         </button>
@@ -395,145 +705,9 @@ function Choice({ options, value, onChange, name }: { options: Array<{ value: st
  */
 function Toggle({ label, checked, onChange, testId }: { label: string; checked: boolean; onChange: (next: boolean) => void; testId: string }) {
   return (
-    <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+    <span className="inline-flex items-center gap-2 text-[13px] text-foreground/85">
       <Switch size="sm" checked={checked} onCheckedChange={onChange} aria-label={label} data-testid={testId} />
       {label}
     </span>
-  );
-}
-
-/** What the portal calls the team. Presentation only — the workspace keeps its name. */
-function TeamNameField() {
-  const ws = useWorkspace();
-  const { setTeamName } = usePortalMutations();
-  const stored = ws.workspace.creativeTeamName ?? "";
-  const [value, setValue] = React.useState(stored);
-  const [wasStored, setWasStored] = React.useState(stored);
-  if (wasStored !== stored) {
-    setWasStored(stored);
-    setValue(stored);
-  }
-
-  const dirty = value.trim() !== stored.trim();
-  return (
-    <Field label="What the portal calls you" hint={`Shown in the portal's header. The workspace keeps its own name, ${ws.workspace.name}.`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={value} onChange={(e) => setValue(e.target.value)} maxLength={60} placeholder={ws.workspace.name} aria-label="Creative team name" className="h-9 min-w-0 flex-1" data-testid="portal-team-name" />
-        {dirty && (
-          <Button size="sm" variant="outline" disabled={setTeamName.isPending} onClick={() => setTeamName.mutate(value)}>
-            {setTeamName.isPending ? <Loader2 className="animate-spin" /> : <Check />} Save
-          </Button>
-        )}
-      </div>
-    </Field>
-  );
-}
-
-/** Everything that tunes the portal. Set once, then left alone, which is why it folds. */
-function PortalSettings({ portal }: { portal: StakeholderPortal }) {
-  const { setTheme, setPresentation, regenerate, setPassword } = usePortalMutations();
-  const [confirmRegenerate, setConfirmRegenerate] = React.useState(false);
-  const [passwordOpen, setPasswordOpen] = React.useState(false);
-  const [password, setPasswordValue] = React.useState("");
-
-  return (
-    <div className="grid gap-x-8 gap-y-4 border-t border-border/60 p-3 lg:grid-cols-2" data-testid="portal-settings">
-      {/* Words on the left, the board on the right; the switches and the
-          credentials span the row. Two columns because none of these needs
-          the width, and one long column read as a form to be filled in. */}
-      <div className="grid gap-4">
-        <TeamNameField />
-      </div>
-
-      <div className="grid gap-4">
-        <Field label="Opens on" hint="The view the link lands on. Anyone can switch once they are in.">
-          <Choice options={PORTAL_VIEWS.map((view) => ({ value: view, label: view }))} value={portal.defaultView} onChange={(defaultView) => setPresentation.mutate({ defaultView: defaultView as PortalView })} name="View the portal opens on" />
-        </Field>
-        <Field label="Opens in" hint="Light or dark, or whatever the visitor's device says.">
-          <Choice options={PORTAL_THEMES.map((theme) => ({ value: theme, label: theme }))} value={portal.defaultTheme} onChange={(theme) => setTheme.mutate(theme as PortalTheme)} name="Default theme" />
-        </Field>
-      </div>
-
-      <Field label="Columns" hint="What the portal's board shows. Hiding one tidies the page; it does not restrict anything." className="lg:col-span-2">
-        <div className="flex flex-wrap gap-1.5">
-          {PORTAL_COLUMNS.map((key) => {
-            const on = !portal.hiddenColumns.includes(key);
-            return (
-              <button
-                key={key}
-                type="button"
-                role="switch"
-                aria-checked={on}
-                onClick={() => setPresentation.mutate({ hiddenColumns: on ? [...portal.hiddenColumns, key] : portal.hiddenColumns.filter((c) => c !== key) })}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
-                  on ? "border-transparent bg-foreground text-background" : "border-border/70 text-muted-foreground hover:text-foreground",
-                )}
-                data-testid={`portal-column-${key}`}
-              >
-                {on ? <Eye className="size-3" aria-hidden /> : <EyeOff className="size-3" aria-hidden />}
-                {PORTAL_COLUMN_LABELS[key]}
-              </button>
-            );
-          })}
-        </div>
-      </Field>
-
-      <Field label="This link" hint={portal.showItemGroups ? "Grouped by board, the way each team runs it; visitors can switch." : "Grouped by status. The teams' own groups stay in the team."} className="lg:col-span-2">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Toggle label="Takes new requests" checked={portal.allowBooking} onChange={(allowBooking) => setPresentation.mutate({ allowBooking })} testId="portal-allow-booking" />
-          <Toggle label="Shows the figures" checked={portal.showRecap} onChange={(showRecap) => setPresentation.mutate({ showRecap })} testId="portal-show-recap" />
-          <Toggle label="Shows the boards' own groups" checked={portal.showItemGroups} onChange={(showItemGroups) => setPresentation.mutate({ showItemGroups })} testId="portal-show-item-groups" />
-        </div>
-      </Field>
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 lg:col-span-2">
-        <Button variant="ghost" size="sm" onClick={() => setPasswordOpen((v) => !v)} data-testid="portal-password-toggle">
-          <KeyRound /> {portal.passwordHash ? "Change password" : "Add password"}
-        </Button>
-        {portal.passwordHash && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setPassword.mutate({ password: null })}>
-            Remove password
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive" onClick={() => setConfirmRegenerate(true)} data-testid="portal-regenerate">
-          <RefreshCw /> New link
-        </Button>
-      </div>
-
-      {passwordOpen && (
-        <form
-          className="flex flex-wrap items-center gap-2 lg:col-span-2"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!password.trim()) return;
-            // Closed only once the write has landed. Hashing is deliberately
-            // slow, and closing first made the form look finished while it
-            // was not — navigate in that window and the password was lost.
-            await setPassword.mutateAsync({ password });
-            setPasswordValue("");
-            setPasswordOpen(false);
-          }}
-        >
-          <Input type="password" value={password} onChange={(e) => setPasswordValue(e.target.value)} placeholder="New password" aria-label="Portal password" className="max-w-xs" autoComplete="new-password" data-testid="portal-password-input" />
-          <Button type="submit" size="sm" disabled={!password.trim() || setPassword.isPending}>
-            {setPassword.isPending ? "Setting…" : "Set password"}
-          </Button>
-          <span className="text-2xs text-muted-foreground">Anyone already inside is asked for it again.</span>
-        </form>
-      )}
-
-      <ConfirmDialog
-        open={confirmRegenerate}
-        onOpenChange={setConfirmRegenerate}
-        title="Issue a new link?"
-        description="The current link stops working straight away, including for anyone reading the portal right now. Their requests are untouched."
-        confirmLabel="Issue new link"
-        destructive
-        onConfirm={async () => {
-          await regenerate.mutateAsync();
-        }}
-      />
-    </div>
   );
 }

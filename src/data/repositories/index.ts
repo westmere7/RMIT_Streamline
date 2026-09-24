@@ -49,7 +49,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -305,7 +305,7 @@ export interface StakeholderPortalRepository {
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
   getPortalByToken(token: string): Promise<StakeholderPortal | null>;
   createPortal(input: StakeholderPortalInput): Promise<StakeholderPortal>;
-  updatePortal(id: EntityId, patch: Partial<Pick<StakeholderPortal, "enabled" | "token" | "passwordHash" | "defaultTheme" | "credentialVersion" | "description" | "hiddenColumns" | "defaultView" | "allowBooking" | "showRecap" | "showItemGroups">>): Promise<StakeholderPortal>;
+  updatePortal(id: EntityId, patch: PortalPatch): Promise<StakeholderPortal>;
 
   /** A department's requests, newest first, bounded and cursored for stable pagination. */
   listRequests(departmentId: EntityId, options?: { limit?: number; cursor?: string | null }): Promise<{ rows: PortalRequest[]; nextCursor: string | null }>;

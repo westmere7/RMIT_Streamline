@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import type { PortalPresentation, PortalTheme } from "@/domain";
+import type { PortalPresentation } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
@@ -75,9 +75,22 @@ export function usePortalMutations() {
     onSuccess: invalidate,
   });
 
-  const setTheme = useMutation({
-    mutationFn: (theme: PortalTheme) => services.portals.setTheme(ws.workspace.id, theme),
-    onSuccess: invalidate,
+  /**
+   * A settings panel's Save: everything that changed, in one go.
+   *
+   * The team's name lives on the workspace rather than the portal, so it is a
+   * second write, made only when it changed.
+   */
+  const saveSettings = useMutation({
+    mutationFn: async ({ patch, teamName }: { patch: PortalPresentation; teamName?: string }) => {
+      if (Object.keys(patch).length > 0) await services.portals.setPresentation(ws.workspace.id, patch);
+      if (teamName !== undefined) await services.repos.workspaces.update(ws.workspace.id, { creativeTeamName: teamName.trim() || null });
+    },
+    onSuccess: async (_result, { teamName }) => {
+      await (teamName !== undefined ? queryClient.invalidateQueries() : invalidate());
+      if (teamName !== undefined) publishDataChange({ kinds: ["settings"] });
+      toast.success("Settings saved");
+    },
   });
 
   const regenerate = useMutation({
@@ -96,15 +109,7 @@ export function usePortalMutations() {
     },
   });
 
-  const setTeamName = useMutation({
-    mutationFn: (creativeTeamName: string) => services.repos.workspaces.update(ws.workspace.id, { creativeTeamName: creativeTeamName.trim() || null }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-      toast.success("Saved");
-    },
-  });
-
-  return { setEnabled, setTheme, setPresentation, regenerate, setPassword, setTeamName };
+  return { setEnabled, setPresentation, saveSettings, regenerate, setPassword };
 }
 
 /** The address to hand out. Absolute, because it is going into an email. */

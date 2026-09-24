@@ -34,7 +34,11 @@ import {
   generatePortalToken,
   isPlausiblePortalToken,
   isPortalColumnKey,
+  isPortalDefaultRange,
+  isPortalTheme,
   isPortalView,
+  MAX_BOOKING_HEADLINE,
+  MAX_BOOKING_LEAD,
   MAX_PORTAL_DESCRIPTION,
   MAX_PUBLIC_BRIEF,
   PORTAL_PAGE_SIZE,
@@ -464,6 +468,13 @@ export class StakeholderPortalService {
     }
     if (patch.hiddenColumns !== undefined) cleaned.hiddenColumns = [...new Set(patch.hiddenColumns.filter(isPortalColumnKey))];
     if (patch.defaultView !== undefined && !isPortalView(patch.defaultView)) delete cleaned.defaultView;
+    if (patch.defaultTheme !== undefined && !isPortalTheme(patch.defaultTheme)) delete cleaned.defaultTheme;
+    if (patch.bookingTheme !== undefined && !isPortalTheme(patch.bookingTheme)) delete cleaned.bookingTheme;
+    if (patch.defaultRange !== undefined && !isPortalDefaultRange(patch.defaultRange)) delete cleaned.defaultRange;
+    // Blank means "use the built-in words", which is stored as nothing.
+    if (patch.bookingHeadline !== undefined) cleaned.bookingHeadline = patch.bookingHeadline?.trim().slice(0, MAX_BOOKING_HEADLINE) || null;
+    if (patch.bookingLead !== undefined) cleaned.bookingLead = patch.bookingLead?.trim().slice(0, MAX_BOOKING_LEAD) || null;
+    if (Object.keys(cleaned).length === 0) return portal;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
 
@@ -512,6 +523,13 @@ export class StakeholderPortalService {
       portalName: "",
       creativeTeamName: "",
       defaultTheme: "system",
+      themeSwitch: true,
+      bookingTheme: "system",
+      bookingThemeSwitch: true,
+      defaultRange: "3m",
+      bookingHeadline: null,
+      bookingLead: null,
+      bookingSignIn: true,
       credentialVersion: 0,
     };
     const portal = isPlausiblePortalToken(token) ? await this.repos.stakeholderPortals.getPortalByToken(token) : null;
@@ -531,6 +549,13 @@ export class StakeholderPortalService {
       portalName: teamName,
       creativeTeamName: teamName,
       defaultTheme: portal.defaultTheme,
+      themeSwitch: portal.themeSwitch,
+      bookingTheme: portal.bookingTheme,
+      bookingThemeSwitch: portal.bookingThemeSwitch,
+      defaultRange: portal.defaultRange,
+      bookingHeadline: portal.bookingHeadline,
+      bookingLead: portal.bookingLead,
+      bookingSignIn: portal.bookingSignIn,
       credentialVersion: portal.credentialVersion,
     };
   }

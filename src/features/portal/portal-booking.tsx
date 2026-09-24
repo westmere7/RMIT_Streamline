@@ -6,11 +6,13 @@ import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/domain";
+import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
 import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newSubmissionKey, type PortalCredentials } from "@/features/portal/portal-client";
+import { PortalThemeSwitch } from "@/features/portal/portal-shell";
 
 /**
  * Booking from the portal, on the booking page.
@@ -37,6 +39,9 @@ export function PortalBookingScreen({
   creativeTeamName,
   stakeholder,
   stakeholders,
+  headline,
+  lead,
+  offerSignIn = true,
   onView,
   onClose,
 }: {
@@ -47,6 +52,11 @@ export function PortalBookingScreen({
   stakeholder: PortalStakeholderOption | null;
   /** Every department this link serves, for step one's own question. Null until the portal has read them. */
   stakeholders: PortalStakeholderOption[] | null;
+  /** The team's own words for the brand panel; null keeps the built-in ones. */
+  headline?: string | null;
+  lead?: string | null;
+  /** Whether staff are offered a sign-in that fills their details in. */
+  offerSignIn?: boolean;
   /** Opens the request that was just booked, on the board. */
   onView: (itemId: string) => void;
   /** Back to the board without booking, or once the ticket has been read. */
@@ -84,13 +94,14 @@ export function PortalBookingScreen({
   });
 
   return (
-    <AuthShell headline="Book a task with the creative team." lead="Tell us what you need and when. We route it to the right people and keep you posted — no account needed." footnote={`${creativeTeamName} · Streamline`} cardTestId="portal-book" progress={form.isLoading || stakeholders === null} width="2xl" fill>
+    <AuthShell headline={headline || DEFAULT_BOOKING_HEADLINE} lead={lead || DEFAULT_BOOKING_LEAD} footnote={`${creativeTeamName} · Streamline`} cardTestId="portal-book" progress={form.isLoading || stakeholders === null} width="2xl" fill>
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
         <BrandMark className="size-9 rounded-lg text-sm" />
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-[15px] font-semibold tracking-tight">{portalName}</p>
           <p className="text-xs text-muted-foreground">Task booking{account ? ` · signed in as ${account.name}` : ""}</p>
         </div>
+        <PortalThemeSwitch />
         <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
           <ArrowLeft /> Back to our tasks
         </Button>
@@ -109,7 +120,7 @@ export function PortalBookingScreen({
           <>
             {/* No account is needed to book. One just saves answering the
                 questions the app can answer for itself. */}
-            {!account && (
+            {!account && offerSignIn && (
               <p className="mb-4 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground" data-testid="portal-signin-hint">
                 <LogIn className="size-3.5 shrink-0" aria-hidden />
                 Work here and have a Streamline account?
@@ -122,7 +133,7 @@ export function PortalBookingScreen({
             <BookingWizard
               form={form.data}
               account={account}
-              signInHref={account ? null : signInHref}
+              signInHref={account || !offerSignIn ? null : signInHref}
               // Opens on the department the portal was showing; the visitor may change it.
               defaults={{ department: stakeholder?.name ?? "" }}
               // Scoped to the link, not to the browser: one machine may be

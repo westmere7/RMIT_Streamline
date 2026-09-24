@@ -62,7 +62,6 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // range falls back to the default rather than to everything: the fallback for
   // a bad address must be the cheap read, not the expensive one.
   const stakeholderId = searchParams.get("for") || null;
-  const chosenRange = parsePortalRange(searchParams.get("range")) ?? DEFAULT_PORTAL_RANGE;
 
   // What the board's own search box holds, lifted so the request can widen to
   // every year while it is set.
@@ -77,6 +76,9 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   });
 
   const needsPassword = gate.data?.needsPassword ?? false;
+  // The period the link opens on is the team's setting; one named in the
+  // address wins, so a link somebody passes on keeps what they were looking at.
+  const chosenRange = parsePortalRange(searchParams.get("range")) ?? parsePortalRange(gate.data?.defaultRange) ?? DEFAULT_PORTAL_RANGE;
   // Who is asking, for the local provider only. Under Supabase the transport
   // drops this and the server resolves the viewer from a bearer token it
   // verifies itself — a browser claiming to be somebody proves nothing.
@@ -149,7 +151,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
 
   if (needsPassword && password === null) {
     return (
-      <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+      <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
         <PortalShell>
           <PasswordPrompt gate={gate.data} onSubmit={setPassword} />
         </PortalShell>
@@ -162,7 +164,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   const wrongPassword = page.isError && page.error instanceof PortalAccessError && page.error.reason === "password";
   if (wrongPassword) {
     return (
-      <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+      <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
         <PortalShell>
           <PasswordPrompt gate={gate.data} onSubmit={setPassword} error="That password does not open this portal." />
         </PortalShell>
@@ -174,7 +176,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // gone the closed state takes over on the next tick.
   if (page.isError) {
     return (
-      <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+      <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
         <PortalShell>
           <Closed refusal="unknown" onRetry={() => void gate.refetch()} />
         </PortalShell>
@@ -188,7 +190,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   if (startOnBooking) {
     const leave = () => router.push(`/portal/${encodeURIComponent(token)}`);
     return (
-      <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+      <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
         <PortalBookingScreen
           credentials={credentials}
           portalName={context?.portalName ?? gate.data.portalName}
@@ -197,6 +199,9 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           // Chosen inside step one; null until the portal has read them, so the
           // form does not appear and then grow a question.
           stakeholders={context?.stakeholders ?? null}
+          headline={gate.data.bookingHeadline}
+          lead={gate.data.bookingLead}
+          offerSignIn={gate.data.bookingSignIn}
           onView={(itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
           onClose={leave}
         />
@@ -205,7 +210,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   }
 
   return (
-    <PortalThemeScope token={token} preferred={gate.data.defaultTheme}>
+    <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
       {/* One window tall: the board scrolls its own rows under a header that stays put. */}
       <PortalShell fill>
         <PortalHeader
@@ -252,6 +257,13 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
       </PortalShell>
     </PortalThemeScope>
   );
+}
+
+/** The theme settings of whichever page this is: the board and the booking form each have their own. */
+function themeFor(gate: PortalGate, booking: boolean) {
+  return booking
+    ? { surface: "booking" as const, preferred: gate.bookingTheme, allowSwitch: gate.bookingThemeSwitch }
+    : { surface: "board" as const, preferred: gate.defaultTheme, allowSwitch: gate.themeSwitch };
 }
 
 /** Everything that is not "this link opens". Deliberately one message. */
