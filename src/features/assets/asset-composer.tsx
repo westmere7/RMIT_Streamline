@@ -125,7 +125,10 @@ export function AssetComposer({
   };
 
   return (
-    <div>
+    // Laid out against its own width rather than the window's: the same list sits
+    // in a 300px task panel, half of the wide one, a booking form and a phone. Under 28rem a
+    // row keeps its name to itself and puts its details on a second line.
+    <div className="@container/assets">
       {/* ---- Add one. Above the list: it stays put however long the list gets. */}
       {/* Not a <form>: the booking page already is one, and a form inside a form
           is invalid — Enter is handled on the field instead. */}
@@ -144,7 +147,7 @@ export function AssetComposer({
             aria-label="Add an asset item"
             disabled={disabled}
             data-testid="asset-add-input"
-            className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+            className="h-8 min-w-0 flex-1 truncate bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
           />
           <Button type="button" onClick={add} size="sm" className="h-7 shrink-0" disabled={disabled || !newName.trim()} data-testid="asset-add-submit">
             Add
@@ -348,7 +351,7 @@ function AssetRowCard({
     <li className="flex items-stretch gap-1.5" data-testid="asset-line" data-asset-name={row.name} data-asset-done={done ? "true" : "false"}>
       {/* The count is about the list, not about the deliverable, so it is kept
           out of the card and set in the margin the list reads down. */}
-      <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60" aria-hidden data-testid="asset-number">
+      <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden data-testid="asset-number">
         {number}
       </span>
 
@@ -415,7 +418,7 @@ function AssetRowCard({
 
             {/* What the deliverable is, against its name: how many, and of what. */}
             {!open && !renaming && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground" data-testid="asset-summary">
+              <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-summary">
                 {/* A count only when there is more than one: "×1" down every row
                     of the list is a column of noise. */}
                 {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular text-muted-foreground">×{count}</span>}
@@ -429,7 +432,7 @@ function AssetRowCard({
               a date already looks like one — and a warning only once it has gone
               by. */}
           {!open && !renaming && (showPeople || showDue) && (
-            <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground" data-testid="asset-meta">
+            <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-meta">
               {showPeople && (
                 <span className="flex -space-x-1">
                   {assignees.slice(0, 3).map((u) => (
@@ -452,7 +455,11 @@ function AssetRowCard({
               opens on hover shifts the row out from under the finger aiming at
               it. */}
           <div className="flex shrink-0 items-center gap-0.5 pl-1.5">
-            {showLinks && !renaming && <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />}
+            {showLinks && !renaming && (
+              <span className="flex @max-[28rem]/assets:hidden">
+                <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />
+              </span>
+            )}
 
             {canEdit && !renaming && (
               <DropdownMenu>
@@ -475,10 +482,37 @@ function AssetRowCard({
           </div>
         </div>
 
+        {/* ---- Narrow: the same details, on a line of their own under the name.
+            Squeezed onto the name's line they ran into it and each other. */}
+        {!open && !renaming && (count > 1 || (fields.type && typeLabel) || showPeople || showDue || showLinks) && (
+          <div className={cn("hidden flex-wrap items-center gap-x-2 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground @max-[28rem]/assets:flex", fields.done ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-summary-compact">
+            {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{count}</span>}
+            {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
+            {showPeople && (
+              <span className="flex -space-x-1">
+                {assignees.slice(0, 3).map((u) => (
+                  <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                ))}
+              </span>
+            )}
+            {showDue && (
+              <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+                {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                {formatShortDate(shown.dueDate)}
+              </span>
+            )}
+            {showLinks && (
+              <span className="ml-auto">
+                <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} idPrefix="asset-compact-link-chip" />
+              </span>
+            )}
+          </div>
+        )}
+
         {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
         {open && (
           <div
-            className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5"
+            className="grid grid-cols-2 gap-x-2.5 gap-y-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5 @max-[28rem]/assets:grid-cols-1"
             onFocusCapture={() => setTyping(true)}
             onBlurCapture={(event) => setTyping(event.currentTarget.contains(event.relatedTarget as Node | null))}
             data-testid="asset-details"
@@ -597,7 +631,7 @@ function AssetRowCard({
               </Detail>
             )}
 
-            <Detail label="Specs / notes" className={cn("col-span-2", !canEdit && !draft.notes && "hidden")}>
+            <Detail label="Specs / notes" stacked className={cn("col-span-2 @max-[28rem]/assets:col-span-1", !canEdit && !draft.notes && "hidden")}>
               <TextField
                 value={draft.notes ?? ""}
                 placeholder={canEdit ? "Size, format, finish…" : ""}
@@ -613,13 +647,13 @@ function AssetRowCard({
                 order: something to review, then the artwork that was signed off.
                 The switch says which one the box is holding, and each side shows
                 a tick once it has a link, so both are visible without toggling. */}
-            <Detail label="Link" className={cn("col-span-2", (!fields.links || (!canEdit && !draft.previewUrl && !draft.artworkUrl)) && "hidden")}>
+            <Detail label="Link" stacked className={cn("col-span-2 @max-[28rem]/assets:col-span-1", (!fields.links || (!canEdit && !draft.previewUrl && !draft.artworkUrl)) && "hidden")}>
               <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
             </Detail>
 
             {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
             {canEdit && (
-              <div className="col-span-2 flex items-center gap-1.5 pt-0.5">
+              <div className="col-span-2 flex items-center gap-1.5 pt-0.5 @max-[28rem]/assets:col-span-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -663,9 +697,9 @@ const LINK_ICON: Record<AssetLinkKind, typeof Eye> = { preview: Eye, artwork: Fi
  * thing itself — and is stopped from reaching the row, which would open the
  * editor.
  */
-function LinkChips({ preview, artwork, name }: { preview: string | null; artwork: string | null; name: string }) {
+function LinkChips({ preview, artwork, name, idPrefix = "asset-link-chip" }: { preview: string | null; artwork: string | null; name: string; idPrefix?: string }) {
   return (
-    <span className="flex shrink-0 items-center gap-0.5" data-testid="asset-link-chips">
+    <span className="flex shrink-0 items-center gap-0.5" data-testid={`${idPrefix}s`}>
       {ASSET_LINK_KINDS.map((kind) => {
         const Icon = LINK_ICON[kind];
         const href = kind === "preview" ? preview : artwork;
@@ -680,13 +714,13 @@ function LinkChips({ preview, artwork, name }: { preview: string | null; artwork
             title={`${label} for ${name}`}
             aria-label={`${label} for ${name}`}
             className={cn(rowActionClass, "p-0.5 text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400")}
-            data-testid={`asset-link-chip-${kind}`}
+            data-testid={`${idPrefix}-${kind}`}
             data-filled="true"
           >
             <Icon className="size-3" />
           </a>
         ) : (
-          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-0.5 text-muted-foreground/30" data-testid={`asset-link-chip-${kind}`} data-filled="false">
+          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-0.5 text-muted-foreground/30" data-testid={`${idPrefix}-${kind}`} data-filled="false">
             <Icon className="size-3" />
           </span>
         );
@@ -769,16 +803,16 @@ function LinkRow({
           target="_blank"
           rel="noreferrer noopener"
           title={`Open the ${label.toLowerCase()}`}
-          className="flex w-[4.5rem] shrink-0 items-center gap-1 rounded-md px-1 py-1 text-2xs font-medium text-emerald-600 hover:bg-accent dark:text-emerald-400"
+          className="flex w-[4.5rem] shrink-0 items-center gap-1 rounded-md px-1 py-1 text-2xs font-medium text-emerald-600 hover:bg-accent dark:text-emerald-400 @max-[28rem]/assets:w-auto"
           data-testid={`asset-link-open-${kind}`}
         >
           <Icon className="size-3.5 shrink-0" />
-          {ASSET_LINK_LABELS[kind].short}
+          <span className="@max-[28rem]/assets:sr-only">{ASSET_LINK_LABELS[kind].short}</span>
         </a>
       ) : (
-        <span className="flex w-[4.5rem] shrink-0 items-center gap-1 px-1 py-1 text-2xs font-medium text-muted-foreground/60">
+        <span className="flex w-[4.5rem] shrink-0 items-center gap-1 px-1 py-1 text-2xs font-medium text-muted-foreground/60 @max-[28rem]/assets:w-auto" title={label}>
           <Icon className="size-3.5 shrink-0" />
-          {ASSET_LINK_LABELS[kind].short}
+          <span className="@max-[28rem]/assets:sr-only">{ASSET_LINK_LABELS[kind].short}</span>
         </span>
       )}
 
@@ -834,10 +868,16 @@ function LinkRow({
   );
 }
 
-/** One labelled field of the open row's form. */
-function Detail({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+/**
+ * One labelled field of the open row's form.
+ *
+ * Narrow, a short field puts its label beside it, so the form is one column of
+ * rows rather than two columns of truncated boxes. `stacked` keeps the label
+ * above for the long ones — the notes and the links — which want the width.
+ */
+function Detail({ label, className, stacked = false, children }: { label: string; className?: string; stacked?: boolean; children: React.ReactNode }) {
   return (
-    <div className={cn("grid min-w-0 gap-1", className)}>
+    <div className={cn("grid min-w-0 gap-1", !stacked && "@max-[28rem]/assets:grid-cols-[5.5rem_minmax(0,1fr)] @max-[28rem]/assets:items-center @max-[28rem]/assets:gap-2", className)}>
       <span className="label-quiet">{label}</span>
       {children}
     </div>

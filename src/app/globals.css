@@ -441,6 +441,20 @@
   height: 0;
   pointer-events: none;
 }
+/* A one-line composer keeps its prompt on the one line: in a narrow panel the
+   words wrapped and the second line was cut in half by the box. */
+.rich-text-editor[data-compact] .ProseMirror p.is-editor-empty:first-child {
+  position: relative;
+}
+.rich-text-editor[data-compact] .ProseMirror p.is-editor-empty:first-child::before {
+  position: absolute;
+  inset-inline: 0;
+  float: none;
+  height: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* A thin bar sweeping along the top of the sign-in card while it works. */
 @keyframes auth-sweep {

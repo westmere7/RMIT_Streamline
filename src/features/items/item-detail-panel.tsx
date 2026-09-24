@@ -218,13 +218,23 @@ export function ItemDetailPanel({
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   // A request (from the updates badge, say) wins until the person picks a tab.
   const requested = requestedTab?.itemId === itemId ? requestedTab.tab : null;
-  // Two panes always show the overview, so their tab state is only ever about
-  // the pane beside it — and "overview" is not one of the answers.
-  const sideTab = twoPane ? (requested && requested !== "overview" ? requested : localTab === "overview" ? "updates" : localTab) : null;
-  const tab = twoPane ? sideTab! : (requested ?? localTab);
+  // Two panes, two pairs of tabs: the overview and the updates on the left, the
+  // deliverables and the history on the right. They open on the updates and the
+  // deliverables, the two that change while a task is being worked on.
+  const [wideLeft, setWideLeft] = React.useState<WideLeftTab>("updates");
+  const [wideRight, setWideRight] = React.useState<WideRightTab>("assets");
+  const leftTab: WideLeftTab = requested === "overview" || requested === "updates" ? requested : wideLeft;
+  const rightTab: WideRightTab = requested === "assets" || requested === "activity" ? requested : wideRight;
+  // What is on screen, for anything that has to know whether the updates are.
+  const tab = twoPane ? (leftTab === "updates" ? "updates" : rightTab) : (requested ?? localTab);
   const setTab = (next: string) => {
     if (requestedTab) setRequestedItemTab(null);
     setLocalTab(next);
+  };
+  const pickWide = (side: "left" | "right", next: string) => {
+    if (requestedTab) setRequestedItemTab(null);
+    if (side === "left") setWideLeft(next as WideLeftTab);
+    else setWideRight(next as WideRightTab);
   };
   const comments = useComments(itemId);
   const assets = useItemAssets(itemId);
@@ -296,7 +306,16 @@ export function ItemDetailPanel({
         <>
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup={asPopup} hideMenu={hideMenu} />
           {notice}
-          <PopupBody item={item} canEdit={canEdit} tab={tab} onTabChange={setTab} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} />
+          <PopupBody
+            item={item}
+            canEdit={canEdit}
+            leftTab={leftTab}
+            rightTab={rightTab}
+            onLeftChange={(next) => pickWide("left", next)}
+            onRightChange={(next) => pickWide("right", next)}
+            comments={comments.data?.length ?? 0}
+            assets={assets.data?.length ?? 0}
+          />
         </>
       ) : (
         <>
@@ -385,27 +404,33 @@ export function ItemDetailPanel({
   );
 }
 
+type WideLeftTab = "overview" | "updates";
+type WideRightTab = "assets" | "activity";
+
 /**
- * The pop-up's body: the overview, and one of the other three beside it.
+ * The two-pane body of the wide panel and the pop-up.
  *
- * The panel stacks four tabs because it is one column wide and a choice is all
- * it can offer. Given the width of the screen the choice is mostly already
- * answered — the task is what was opened, and the overview is the task — so
- * only the second pane still asks a question, and its three answers are the
- * ones people switch between while reading the same task.
+ * Left, what the task is and what is being said about it; right, what it is
+ * delivering and what has happened to it. Two equal columns, each with its own
+ * pair of tabs, so the conversation and the deliverables can be read side by
+ * side, which is what the width is for.
  */
 function PopupBody({
   item,
   canEdit,
-  tab,
-  onTabChange,
+  leftTab,
+  rightTab,
+  onLeftChange,
+  onRightChange,
   comments,
   assets,
 }: {
   item: Item;
   canEdit: boolean;
-  tab: string;
-  onTabChange: (tab: string) => void;
+  leftTab: WideLeftTab;
+  rightTab: WideRightTab;
+  onLeftChange: (tab: string) => void;
+  onRightChange: (tab: string) => void;
   comments: number;
   assets: number;
 }) {
@@ -413,30 +438,31 @@ function PopupBody({
     // Two equal columns, whatever either one holds. As flex items the two asked
     // for equal shares, but a flex item will not shrink below its content, and
     // the overview's rows are wide enough that it took three quarters of the
-    // panel and left the updates a sliver. A grid track of minmax(0, 1fr) has
-    // no such floor.
+    // panel and left the other side a sliver. A grid track of minmax(0, 1fr)
+    // has no such floor.
     <div className="grid min-h-0 flex-1 grid-cols-2">
-      <section className="flex min-h-0 min-w-0 flex-col border-r border-border" aria-label="Overview">
-        {/* Reads as the tab it is, and stays on it: the same height and rule as
-            the strip beside it, so one line runs across both panes. */}
-        <div className="flex shrink-0 items-end border-b border-border/70 px-4">
-          <span className="relative inline-flex h-10 items-center gap-1.5 px-3 text-[13px] font-medium text-foreground after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-ring">
-            <SquarePen className="size-3.5" /> Overview
-          </span>
-        </div>
-        {/* Half the panel, and the field rows fill it: label, then the cell
-            to the edge. */}
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-          <Overview key={item.id} item={item} />
-        </div>
-      </section>
-      <section className="flex min-h-0 min-w-0 flex-col bg-surface-strong/15" aria-label="Updates, assets and activity">
-        <Tabs value={tab} onValueChange={onTabChange} className="flex min-h-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-col border-r border-border" aria-label="Overview and updates">
+        <Tabs value={leftTab} onValueChange={onLeftChange} className="flex min-h-0 flex-1 flex-col">
           <UnderlineTabsList className="shrink-0 px-3">
+            <UnderlineTabsTrigger value="overview">
+              <SquarePen className="size-3.5" /> Overview
+            </UnderlineTabsTrigger>
             <UnderlineTabsTrigger value="updates">
               <MessageSquare className="size-3.5" /> Updates
               {comments > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments}</span>}
             </UnderlineTabsTrigger>
+          </UnderlineTabsList>
+          <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+            <Overview key={item.id} item={item} />
+          </TabsContent>
+          <TabsContent value="updates" className="min-h-0 flex-1">
+            <ItemUpdates itemId={item.id} canComment={canEdit} />
+          </TabsContent>
+        </Tabs>
+      </section>
+      <section className="flex min-h-0 min-w-0 flex-col bg-surface-strong/15" aria-label="Assets and activity">
+        <Tabs value={rightTab} onValueChange={onRightChange} className="flex min-h-0 flex-1 flex-col">
+          <UnderlineTabsList className="shrink-0 px-3">
             <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
               <Package className="size-3.5" /> Assets
               {assets > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets}</span>}
@@ -445,9 +471,6 @@ function PopupBody({
               <History className="size-3.5" /> Activity
             </UnderlineTabsTrigger>
           </UnderlineTabsList>
-          <TabsContent value="updates" className="min-h-0 flex-1">
-            <ItemUpdates itemId={item.id} canComment={canEdit} />
-          </TabsContent>
           <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
             <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
           </TabsContent>
