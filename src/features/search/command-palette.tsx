@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Archive, FileSpreadsheet, Globe, Home, Inbox, ListTodo, LoaderCircle, Settings, SquareKanban, UserRound, Users } from "lucide-react";
+import { Archive, FileSpreadsheet, Globe, Home, Inbox, Layers, ListTodo, LoaderCircle, Settings, SquareKanban, UserRound, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -18,13 +18,17 @@ import { routes } from "@/lib/routes";
 import { useUiStore } from "@/stores/ui-store";
 
 /**
- * What a search is for. Picked before the words, because a name typed into a
- * box that matched items, boards, teams and people at once found things for
- * the wrong reason — "Linh" is a person, a team and part of several task names.
+ * What a search is for.
+ *
+ * Everything by default, so a search can start the moment the palette opens,
+ * with the results grouped by kind. One kind narrows it when a word means
+ * several things at once — "Linh" is a person, a team and part of several
+ * task names.
  */
-const SEARCH_KINDS = ["items", "boards", "teams", "people"] as const;
+const SEARCH_KINDS = ["all", "items", "boards", "teams", "people"] as const;
 type SearchKind = (typeof SEARCH_KINDS)[number];
 const SEARCH_KIND_LABELS: Record<SearchKind, { label: string; placeholder: string; icon: React.ComponentType<{ className?: string }> }> = {
+  all: { label: "All", placeholder: "Search items, boards, teams and people…", icon: Layers },
   items: { label: "Items", placeholder: "Search items by name or booking code…", icon: ListTodo },
   boards: { label: "Boards", placeholder: "Search boards…", icon: SquareKanban },
   teams: { label: "Teams", placeholder: "Search teams…", icon: Users },
@@ -39,9 +43,8 @@ export function CommandPalette() {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = React.useState("");
-  // Null until the reader says what the words are for; nothing is searched before that.
-  const [kind, setKind] = React.useState<SearchKind | null>(null);
-  const debounced = useDebouncedValue(kind ? query.trim() : "", 150);
+  const [kind, setKind] = React.useState<SearchKind>("all");
+  const debounced = useDebouncedValue(query.trim(), 150);
   // Off every time search opens. The archive is where finished work goes, so
   // including it by default would answer a question nobody asked - and it costs
   // a second read of every board.
@@ -57,9 +60,11 @@ export function CommandPalette() {
   const chosenScope = useUiStore((s) => s.searchScope);
   const setScope = useUiStore((s) => s.setSearchScope);
   const scope = chosenScope ?? (viewedBoard ? "view" : "workspace");
-  // Inside one board only items are worth asking about, so the kind is settled.
+  // A board chosen as the scope narrows the items to that board. Boards, teams
+  // and people are the workspace's whichever scope is on, so the kind stays the
+  // reader's to pick either way.
   const scopedBoard = scope === "view" ? viewedBoard : null;
-  const activeKind: SearchKind | null = scopedBoard ? "items" : kind;
+  const wants = (option: Exclude<SearchKind, "all">) => kind === "all" || kind === option;
 
   const results = useQuery({
     queryKey: [...queryKeys.search(ws.workspace.id, debounced), includeArchived],
@@ -74,10 +79,10 @@ export function CommandPalette() {
   };
 
   const data = results.data;
-  const visibleBoards = activeKind === "boards" ? (data?.boards.filter((b) => canViewBoard(ws.permissions, b)) ?? []) : [];
-  const visibleItems = activeKind === "items" ? (data?.items.filter(({ board }) => canViewBoard(ws.permissions, board) && (!scopedBoard || board.id === scopedBoard.id)) ?? []) : [];
-  const teams = activeKind === "teams" ? (data?.teams ?? []) : [];
-  const people = activeKind === "people" ? (data?.users ?? []) : [];
+  const visibleBoards = wants("boards") ? (data?.boards.filter((b) => canViewBoard(ws.permissions, b)) ?? []) : [];
+  const visibleItems = wants("items") ? (data?.items.filter(({ board }) => canViewBoard(ws.permissions, board) && (!scopedBoard || board.id === scopedBoard.id)) ?? []) : [];
+  const teams = wants("teams") ? (data?.teams ?? []) : [];
+  const people = wants("people") ? (data?.users ?? []) : [];
   const hasResults = visibleBoards.length + visibleItems.length + teams.length + people.length > 0;
 
   return (
@@ -88,32 +93,30 @@ export function CommandPalette() {
         setOpen(next);
         if (!next) {
           setQuery("");
-          setKind(null);
+          setKind("all");
           setIncludeArchived(false);
         }
       }}
     >
       <CommandInput
-        placeholder={scopedBoard ? `Search items in ${scopedBoard.name}…` : activeKind ? SEARCH_KIND_LABELS[activeKind].placeholder : "Pick what you are looking for first"}
+        placeholder={scopedBoard && kind === "items" ? `Search items in ${scopedBoard.name}…` : scopedBoard && kind === "all" ? `Search ${scopedBoard.name}, and boards, teams and people…` : SEARCH_KIND_LABELS[kind].placeholder}
         value={query}
         onValueChange={setQuery}
-        disabled={!activeKind}
         data-testid="palette-input"
       />
-      {/* What first, then where. Inside one board the what is items. */}
-      {!scopedBoard && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5" data-testid="palette-kinds">
-          <span className="text-2xs text-muted-foreground">Looking for</span>
-          {SEARCH_KINDS.map((option) => {
-            const Icon = SEARCH_KIND_LABELS[option].icon;
-            return (
-              <ScopeChip key={option} active={kind === option} onClick={() => setKind(option)} testId={`palette-kind-${option}`}>
-                <Icon className="size-3" /> {SEARCH_KIND_LABELS[option].label}
-              </ScopeChip>
-            );
-          })}
-        </div>
-      )}
+      {/* What, then where. Both rows are always there: choosing a board to
+          search in used to take the kinds away with it. */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5" data-testid="palette-kinds">
+        <span className="text-2xs text-muted-foreground">Looking for</span>
+        {SEARCH_KINDS.map((option) => {
+          const Icon = SEARCH_KIND_LABELS[option].icon;
+          return (
+            <ScopeChip key={option} active={kind === option} onClick={() => setKind(option)} testId={`palette-kind-${option}`}>
+              <Icon className="size-3" /> {SEARCH_KIND_LABELS[option].label}
+            </ScopeChip>
+          );
+        })}
+      </div>
       <div className="flex items-center gap-1.5 border-b px-3 py-1.5">
         <span className="text-2xs text-muted-foreground">Search in</span>
         {viewedBoard && (
@@ -136,10 +139,14 @@ export function CommandPalette() {
             <LoaderCircle className="size-3.5 animate-spin" /> Searching…
           </p>
         )}
-        {debounced.length > 0 && !results.isFetching && !hasResults && <CommandEmpty>No {activeKind ?? "results"} for “{debounced}”.</CommandEmpty>}
-        {debounced.length === 0 && scopedBoard && <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">Type to search items in this board.</p>}
-        {debounced.length === 0 && !scopedBoard && activeKind && <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">Type to search {SEARCH_KIND_LABELS[activeKind].label.toLowerCase()}.</p>}
-        {debounced.length === 0 && !scopedBoard && !activeKind && (
+        {debounced.length > 0 && !results.isFetching && !hasResults && <CommandEmpty>No {kind === "all" ? "results" : SEARCH_KIND_LABELS[kind].label.toLowerCase()} for “{debounced}”.</CommandEmpty>}
+        {debounced.length === 0 && kind !== "all" && (
+          <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
+            Type to search {SEARCH_KIND_LABELS[kind].label.toLowerCase()}
+            {kind === "items" && scopedBoard ? ` in ${scopedBoard.name}` : ""}.
+          </p>
+        )}
+        {debounced.length === 0 && kind === "all" && (
           <CommandGroup heading="Go to">
             <CommandItem onSelect={() => go(routes.workspace(ws.slug))}>
               <Home /> Home

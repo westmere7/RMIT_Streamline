@@ -147,8 +147,9 @@ test.describe("views, routing and error states", () => {
     await page.keyboard.press("Control+f");
     const input = page.getByTestId("palette-input");
     await expect(input).toBeVisible({ timeout: 15000 });
-    // Nothing is searched until the reader says what for.
-    await expect(input).toBeDisabled();
+    // Everything is searched by default, so the box is ready at once; one kind narrows it.
+    await expect(input).toBeEnabled();
+    await expect(page.getByTestId("palette-kind-all")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("palette-kind-items").click();
 
     await input.fill("zzzzzz");
