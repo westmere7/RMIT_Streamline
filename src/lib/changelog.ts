@@ -18,11 +18,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.41.3",
+    version: "0.41.4",
     date: "2026-09-25",
     title: "Quicker scroll, roomier rename",
     changes: [
-      "A long name starts scrolling after half a second of hover.",
+      "A long name starts moving half a second after the hover.",
       "When you rename a task, the name field spans the whole cell. Its badges and buttons step aside until you finish.",
       "The logo at the top of the sidebar sits a little further in.",
     ],

@@ -681,7 +681,9 @@ html[data-booking-zoom] [data-radix-select-viewport] {
 }
 
 .group\/row:hover .name-marquee {
-  animation: name-marquee var(--marquee-duration, 6s) ease-in-out 0.5s infinite;
+  animation: name-marquee var(--marquee-duration, 6s) ease-in-out infinite;
+  /* Each loop opens on a pause (0-15%); starting that far in, the first move comes half a second after the hover. */
+  animation-delay: calc(0.5s - var(--marquee-duration, 6s) * 0.15);
 }
 
 @media (prefers-reduced-motion: reduce) {
