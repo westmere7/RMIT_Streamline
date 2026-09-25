@@ -80,4 +80,19 @@ describe("task journey", () => {
     expect(formatSpan(52 * HOUR)).toBe("2d 4h");
     expect(formatSpan(23 * 24 * HOUR)).toBe("3w 2d");
   });
+
+  it("makes deliverables ticked off one after another one step, counted against the lines the task came with", () => {
+    const burst = [
+      event("ITEM_CREATED", 0, { via: "booking", boardName: "Task Allocation" }),
+      ...["Arch banner", "Pull-up", "Table talker", "Event map", "Teaser"].map((assetName, i) => event("ASSET_COMPLETED", 5 + i * 0.0003, { assetName })),
+    ];
+    const journey = buildJourney(burst, { statuses, now: new Date(T0 + 10 * HOUR), assetCount: 7 });
+    const done = journey.milestones.filter((m) => m.kind === "asset-done" || m.kind === "assets-complete");
+    expect(done).toHaveLength(1);
+    expect(done[0]!.title).toBe("5 deliverables done");
+    expect(done[0]!.detail).toBe("Arch banner, Pull-up, Table talker and 2 more");
+    // Seven lines came with the booking, none logged as added.
+    expect(done[0]!.progress).toEqual({ done: 5, total: 7 });
+    expect(journey.milestones[0]!.detail).toContain("7 deliverables");
+  });
 });

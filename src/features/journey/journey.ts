@@ -85,6 +85,12 @@ export interface JourneyContext {
   queueBoardName?: string | null;
   /** "Now", for a journey still going. */
   now?: Date;
+  /**
+   * How many deliverables the task has now. A booking writes its lines with the
+   * task and logs no "added" for them, so without this the journey counted from
+   * nothing and every deliverable read "1 of 1 delivered".
+   */
+  assetCount?: number;
 }
 
 /** Deliverables added within this long of the task being created arrived with it. */
@@ -110,13 +116,20 @@ export function buildJourney(activities: readonly Activity[], ctx: JourneyContex
   let total = 0;
   let done = 0;
   let batch: (Omit<Milestone, "sinceStart" | "sincePrev"> & { count: number }) | null = null;
-  let arrivedWith = 0;
+  // Deliverables ticked off one after another are one step, as adding them is.
+  let doneBatch: (Omit<Milestone, "sinceStart" | "sincePrev"> & { count: number; names: string[]; actor: string | null }) | null = null;
+  // The lines the task has had from the start, with no "added" of their own.
+  const added = events.filter((e) => e.eventType === "ASSET_ADDED").length;
+  const removed = events.filter((e) => e.eventType === "ASSET_REMOVED").length;
+  total = Math.max(0, (ctx.assetCount ?? 0) - added + removed);
+  let arrivedWith = total;
 
   for (const event of events) {
     const at = new Date(event.createdAt).getTime();
     const meta = event.metadata ?? {};
     if (ended && event.eventType !== "ITEM_RESTORED") continue;
     if (event.eventType !== "ASSET_ADDED") batch = null;
+    if (event.eventType !== "ASSET_COMPLETED") doneBatch = null;
 
     switch (event.eventType) {
       case "ITEM_CREATED": {
@@ -176,7 +189,30 @@ export function buildJourney(activities: readonly Activity[], ctx: JourneyContex
       case "ASSET_COMPLETED": {
         done = Math.min(total || done + 1, done + 1);
         const all = total > 0 && done >= total;
-        raw.push({ id: event.id, kind: all ? "assets-complete" : "asset-done", at: event.createdAt, actorId: event.actorId, title: all ? (total === 1 ? "Deliverable done" : `All ${total} deliverables done`) : "Deliverable done", detail: meta.assetName, progress: { done, total: Math.max(total, done) } });
+        const progress = { done, total: Math.max(total, done) };
+        const name = meta.assetName ?? null;
+        if (doneBatch && doneBatch.actor === event.actorId && at - new Date(doneBatch.at).getTime() <= BATCH_MS) {
+          doneBatch.count += 1;
+          if (name) doneBatch.names.push(name);
+          doneBatch.kind = all ? "assets-complete" : "asset-done";
+          doneBatch.title = all ? `All ${progress.total} deliverables done` : `${doneBatch.count} deliverables done`;
+          doneBatch.detail = listNames(doneBatch.names);
+          doneBatch.progress = progress;
+          break;
+        }
+        doneBatch = {
+          id: event.id,
+          kind: all ? "assets-complete" : "asset-done",
+          at: event.createdAt,
+          actorId: event.actorId,
+          title: all && progress.total > 1 ? `All ${progress.total} deliverables done` : "Deliverable done",
+          detail: name ?? undefined,
+          progress,
+          count: 1,
+          names: name ? [name] : [],
+          actor: event.actorId,
+        };
+        raw.push(doneBatch);
         break;
       }
       case "ASSET_REOPENED": {
@@ -267,6 +303,13 @@ export function buildJourney(activities: readonly Activity[], ctx: JourneyContex
     booking,
     statusChanges: milestones.filter((m) => m.kind === "status" || m.kind === "done").length,
   };
+}
+
+/** "Hero, Banner and Poster", or the first three and how many more. */
+function listNames(names: readonly string[]): string | undefined {
+  if (names.length === 0) return undefined;
+  if (names.length <= 3) return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`;
 }
 
 /** "45s", "12m", "3h 20m", "2d 4h", "3w 2d": two units at most, the larger first. */

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.5",
+    date: "2026-09-25",
+    title: "A tidier task journey",
+    changes: [
+      "Deliverables ticked off one after another show as one step, naming them, instead of a card each.",
+      "Deliverables that came with a booking now count, so the journey says 5 of 8 delivered rather than 1 of 1.",
+      "Time in each status is one bar with a segment per status. A segment too thin to label points to its label with a line.",
+    ],
+  },
+  {
     version: "0.47.4",
     date: "2026-09-25",
     title: "Tidier Task Allocation",

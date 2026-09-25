@@ -1,5 +1,6 @@
 "use client";
 
+import { useItemAssets } from "@/features/items/asset-hooks";
 import { useQuery } from "@tanstack/react-query";
 import { format, isSameYear } from "date-fns";
 import {
@@ -88,8 +89,10 @@ function JourneyBody({ item }: { item: Item }) {
     [columns.data],
   );
   const queueBoardName = ws.boards.find((b) => b.system === "TASK_ALLOCATION")?.name ?? null;
-  const journey = React.useMemo(() => buildJourney(activity.data ?? [], { statuses, queueBoardName, now }), [activity.data, statuses, queueBoardName, now]);
-  const loading = activity.isLoading || columns.isLoading;
+  const assets = useItemAssets(item.id);
+  const assetCount = assets.data?.length;
+  const journey = React.useMemo(() => buildJourney(activity.data ?? [], { statuses, queueBoardName, now, assetCount }), [activity.data, statuses, queueBoardName, now, assetCount]);
+  const loading = activity.isLoading || columns.isLoading || assets.isLoading;
 
   return (
     <>
@@ -161,52 +164,99 @@ function Header({ item, journey, loading }: { item: Item; journey: Journey; load
 // ---- time in each status ----------------------------------------------------------
 
 /**
- * How long the task spent in each status, longest first: a row per status with
- * its share drawn as a bar, the time itself large enough to read at a glance,
- * and the status it is in now marked as still running.
+ * How long the task spent in each status, as one bar: a segment per status,
+ * longest first, its width its share of the whole. A segment wide enough
+ * carries its label underneath; one too thin to label points to its label
+ * with a line, each on a lane of its own so two slivers side by side never
+ * write over each other. The status it is in now is striped and marked.
  */
 function StatusTime({ journey }: { journey: Journey }) {
   if (journey.inStatus.length === 0) return null;
   const total = Math.max(1, journey.inStatus.reduce((sum, s) => sum + s.ms, 0));
-  const longest = Math.max(1, ...journey.inStatus.map((s) => s.ms));
-  const rows = [...journey.inStatus].sort((a, b) => b.ms - a.ms);
   const current = journey.ongoing ? journey.current?.name.toLowerCase() : undefined;
+  const ordered = [...journey.inStatus].sort((a, b) => b.ms - a.ms);
+  const segments = ordered.map((status, index) => {
+    const share = status.ms / total;
+    // Where it starts: the shares of the longer ones before it.
+    const start = ordered.slice(0, index).reduce((sum, s) => sum + s.ms / total, 0);
+    return { status, share, mid: start + share / 2, color: statusHex(status), now: current === status.name.toLowerCase() };
+  });
+  // Wide enough for a name and a time underneath; anything thinner gets a line.
+  const WIDE = 0.16;
+  const wide = segments.filter((s) => s.share >= WIDE);
+  const thin = segments.filter((s) => s.share < WIDE);
+  const BAR = 14;
+  const LABELS = BAR + 10;
+  const LANES = LABELS + (wide.length ? 42 : 0) + 6;
+  const LANE = 24;
+  const height = LANES + thin.length * LANE;
+  const percent = (share: number) => (share > 0 && share < 0.01 ? "<1%" : `${Math.round(share * 100)}%`);
+
   return (
     <section className="border-b border-border/70 px-6 py-5" data-testid="journey-status-time">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">Time in each status</h3>
         <p className="text-2xs text-muted-foreground tabular">{formatSpan(total)} in total</p>
       </div>
-      <ul className="mt-3 overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-        {rows.map((status) => {
-          const color = statusHex(status);
-          const share = status.ms / total;
-          const now = current === status.name.toLowerCase();
-          return (
-            <li key={status.name} className="grid grid-cols-[minmax(7rem,10rem)_1fr_7rem] items-center gap-4 border-b border-border/50 px-4 py-3 last:border-b-0" data-testid="journey-status-row">
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden className="relative flex size-2.5 shrink-0">
-                  {now && <span className="absolute inline-flex size-full animate-ping rounded-full opacity-60" style={{ background: color }} />}
-                  <span className="relative inline-flex size-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 0 3px ${color}26` }} />
-                </span>
-                <span className="truncate text-[13px] font-medium">{status.name}</span>
-                {now && <span className="shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tracking-wide uppercase" style={{ background: `${color}1f`, color }}>Now</span>}
-              </span>
-              <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-strong/80">
-                <span
-                  className={cn("block h-full rounded-full", now && "progress-stripes")}
-                  style={{ width: `${Math.max(2, (status.ms / longest) * 100)}%`, background: `linear-gradient(90deg, ${color}b3, ${color})` }}
-                />
-              </span>
-              <span className="flex items-baseline justify-end gap-2 text-right">
-                <span className="text-[15px] font-semibold tracking-tight tabular">{formatSpan(status.ms)}</span>
-                <span className="w-9 text-2xs text-muted-foreground tabular">{Math.round(share * 100)}%</span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="mt-3 rounded-xl border border-border/70 bg-card px-5 pt-5 pb-3 shadow-xs">
+        <div className="relative" style={{ height }}>
+          <div className="absolute inset-x-0 top-0 flex gap-px overflow-hidden rounded-full bg-surface-strong/80" style={{ height: BAR }}>
+            {segments.map((s) => (
+              <span
+                key={s.status.name}
+                className={cn("h-full first:rounded-l-full last:rounded-r-full", s.now && "progress-stripes")}
+                // A sliver still shows: a status held for seconds is still a status it was in.
+                style={{ width: `${Math.max(s.share * 100, 0.6)}%`, background: s.color }}
+                title={`${s.status.name}: ${formatSpan(s.status.ms)}`}
+                data-testid="journey-status-segment"
+              />
+            ))}
+          </div>
+
+          {wide.map((s) => (
+            <div key={s.status.name} className="absolute -translate-x-1/2 px-1 text-center" style={{ left: `${s.mid * 100}%`, top: LABELS, maxWidth: `${s.share * 100}%` }} data-testid="journey-status-row">
+              <StatusLabel name={s.status.name} color={s.color} now={s.now} />
+              <p className="mt-0.5 text-[12px] tabular">
+                <span className="font-semibold">{formatSpan(s.status.ms)}</span> <span className="text-muted-foreground">{percent(s.share)}</span>
+              </p>
+            </div>
+          ))}
+
+          {thin.map((s, lane) => {
+            const x = s.mid * 100;
+            const toLeft = x > 55;
+            const top = LANES + lane * LANE;
+            return (
+              <React.Fragment key={s.status.name}>
+                <span aria-hidden className="absolute w-px bg-muted-foreground/45" style={{ left: `${x}%`, top: BAR + 2, height: top + 9 - (BAR + 2) }} />
+                <span aria-hidden className="absolute size-1.5 -translate-x-1/2 rounded-full" style={{ left: `${x}%`, top: top + 6, background: s.color }} />
+                <div
+                  className="absolute flex items-center gap-2 whitespace-nowrap"
+                  style={{ top, ...(toLeft ? { right: `calc(${100 - x}% + 10px)` } : { left: `calc(${x}% + 10px)` }) }}
+                  data-testid="journey-status-row"
+                >
+                  <StatusLabel name={s.status.name} color={s.color} now={s.now} />
+                  <span className="text-[12px] tabular">
+                    <span className="font-semibold">{formatSpan(s.status.ms)}</span> <span className="text-muted-foreground">{percent(s.share)}</span>
+                  </span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
     </section>
+  );
+}
+
+/** A status's name in its colour, and "Now" when the task is in it. */
+function StatusLabel({ name, color, now }: { name: string; color: string; now: boolean }) {
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+      <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: color }} />
+      <span className="truncate text-[12px] font-medium">{name}</span>
+      {now && <span className="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold tracking-wide uppercase" style={{ background: `${color}1f`, color }}>Now</span>}
+    </span>
   );
 }
 
