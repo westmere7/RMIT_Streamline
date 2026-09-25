@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.40.1",
+    date: "2026-09-25",
+    title: "Threads read as threads",
+    changes: [
+      "An update's text sits further left, under its author.",
+      "Replies and the reply box hang off the update by a thread line, so they read as its conversation.",
+    ],
+  },
+  {
     version: "0.40.0",
     date: "2026-09-25",
     title: "Snapshots",

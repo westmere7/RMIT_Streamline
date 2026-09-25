@@ -242,7 +242,7 @@ function CommentItem({
     <li className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="comment">
       <div className="group/comment px-4 pt-3.5 pb-1.5">
         <CommentHeader comment={comment} size="md" onEdit={() => setEditing(true)} onDelete={onDelete} leading={toggleButton} />
-        <CommentBody comment={comment} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-2 pl-[2.625rem]" />
+        <CommentBody comment={comment} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-2 pl-1" />
         {/* The actions under an update, as monday has them: a rule, then Reply, then how many there are. */}
         <div className="mt-2.5 flex flex-wrap items-center gap-1 border-t border-border/50 pt-1.5">
           {canReply && (
@@ -259,34 +259,39 @@ function CommentItem({
         </div>
       </div>
 
-      {replies.length > 0 && (
-        <ul className="space-y-3 border-t border-border/60 bg-surface/50 px-4 py-3" data-testid="comment-replies">
-          {hidden > 0 && (
-            <li>
-              <button type="button" onClick={() => setShowAll(true)} className="text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="comment-earlier-replies">
-                Show {hidden} earlier {hidden === 1 ? "reply" : "replies"}
-              </button>
-            </li>
-          )}
-          {shown.map((reply) => (
-            <ReplyRow key={reply.id} reply={reply} names={names} onEdit={(body) => onEditReply?.(reply.id, body)} onDelete={() => onDeleteReply?.(reply)} onReact={onReact} />
-          ))}
-        </ul>
-      )}
-
-      {canReply && (
-        <div className="border-t border-border/60 bg-surface/50 px-4 py-2.5">
-          {replying ? (
-            <ReplyComposer
-              onCancel={() => setReplying(false)}
-              onSubmit={(body) => {
-                onReply?.(body);
-                setReplying(false);
-              }}
-            />
-          ) : (
-            <ReplyPrompt onOpen={() => setReplying(true)} />
-          )}
+      {/* The replies and the box to add one hang off the update by a thread line
+          under its avatar, so they read as its conversation rather than as more
+          updates on the same card. */}
+      {(replies.length > 0 || canReply) && (
+        <div className="border-t border-border/60 bg-surface/50 py-3 pr-4 pl-[1.9rem]">
+          <div className="space-y-3 border-l-2 border-border/70 pl-4">
+            {replies.length > 0 && (
+              <ul className="space-y-3" data-testid="comment-replies">
+                {hidden > 0 && (
+                  <li>
+                    <button type="button" onClick={() => setShowAll(true)} className="text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="comment-earlier-replies">
+                      Show {hidden} earlier {hidden === 1 ? "reply" : "replies"}
+                    </button>
+                  </li>
+                )}
+                {shown.map((reply) => (
+                  <ReplyRow key={reply.id} reply={reply} names={names} onEdit={(body) => onEditReply?.(reply.id, body)} onDelete={() => onDeleteReply?.(reply)} onReact={onReact} />
+                ))}
+              </ul>
+            )}
+            {canReply &&
+              (replying ? (
+                <ReplyComposer
+                  onCancel={() => setReplying(false)}
+                  onSubmit={(body) => {
+                    onReply?.(body);
+                    setReplying(false);
+                  }}
+                />
+              ) : (
+                <ReplyPrompt onOpen={() => setReplying(true)} />
+              ))}
+          </div>
         </div>
       )}
     </li>
