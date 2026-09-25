@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Comment } from "@/domain";
+import { withReaction, type Comment } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useAutomationNudge } from "@/features/automations/hooks";
 import { useServices } from "@/features/data/data-context";
@@ -104,5 +104,24 @@ export function useCommentMutations(itemId: string) {
     onSettled: settle,
   });
 
-  return { add, edit, reply, remove };
+  // Shown at once and settled quietly: a reaction is not a trigger, and it is nobody's news.
+  const react = useMutation({
+    mutationFn: ({ comment, emoji, on }: { comment: Pick<Comment, "id" | "itemId">; emoji: string; on: boolean }) => services.comments.setReaction(comment, emoji, user.id, on),
+    onMutate: async ({ comment, emoji, on }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Comment[]>(key);
+      queryClient.setQueryData<Comment[]>(key, (old) => old?.map((c) => (c.id === comment.id ? { ...c, reactions: withReaction(c.reactions, user.id, emoji, on, nowIso()) } : c)));
+      return { previous };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      toast.error(error instanceof Error ? error.message : "Could not save the reaction");
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: key });
+      publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
+    },
+  });
+
+  return { add, edit, reply, remove, react };
 }

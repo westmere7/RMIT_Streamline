@@ -522,6 +522,7 @@ export interface CommentRow {
   parent_id?: string | null;
   created_at: string;
   updated_at: string;
+  comment_reactions?: Array<{ user_id: string; emoji: string; created_at: string }> | null;
 }
 
 export function toComment(row: CommentRow): Comment {
@@ -533,6 +534,7 @@ export function toComment(row: CommentRow): Comment {
     mentionUserIds: row.mention_user_ids ?? [],
     sharedId: row.shared_id ?? null,
     parentId: row.parent_id ?? null,
+    reactions: (row.comment_reactions ?? []).map((r) => ({ userId: r.user_id, emoji: r.emoji, createdAt: r.created_at })).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

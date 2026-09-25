@@ -51,6 +51,7 @@ export function useBoardRealtime(boardId: string | null): void {
       // are a small read, and a board's updates are not a stream anyone edits
       // at speed.
       { table: "comments", keys: [["comments"]] },
+      { table: "comment_reactions", keys: [["comments"]] },
       { table: "item_assets", filter: board, keys: [["item-assets"], snapshot] },
       { table: "item_links", keys: [["item-links"], snapshot] },
       { table: "activities", filter: board, keys: [["activity"]] },

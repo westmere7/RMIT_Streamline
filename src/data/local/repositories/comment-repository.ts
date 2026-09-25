@@ -1,4 +1,4 @@
-import type { Comment, CommentInput } from "@/domain";
+import { withReaction, type Comment, type CommentInput } from "@/domain";
 import type { CommentRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -62,5 +62,13 @@ export class LocalCommentRepository implements CommentRepository {
   async delete(id: string): Promise<void> {
     const db = await this.conn.getDb();
     await db.delete("comments", id);
+  }
+
+  // Kept on the comment record itself: nothing here needs them apart.
+  async setReaction(comment: Pick<Comment, "id" | "itemId">, userId: string, emoji: string, on: boolean): Promise<void> {
+    const db = await this.conn.getDb();
+    const existing = await db.get("comments", comment.id);
+    if (!existing) throw new NotFoundError("Comment", comment.id);
+    await db.put("comments", { ...existing, reactions: withReaction(existing.reactions, userId, emoji, on, nowIso()) });
   }
 }

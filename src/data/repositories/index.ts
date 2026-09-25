@@ -411,6 +411,8 @@ export interface CommentRepository {
   create(input: CommentInput): Promise<Comment>;
   update(id: EntityId, patch: Pick<Comment, "body" | "mentionUserIds">): Promise<Comment>;
   delete(id: EntityId): Promise<void>;
+  /** Gives (`on`) or takes back one person's emoji on a comment. Giving one twice is a no-op. */
+  setReaction(comment: Pick<Comment, "id" | "itemId">, userId: EntityId, emoji: string, on: boolean): Promise<void>;
 }
 
 export interface MessageRepository {

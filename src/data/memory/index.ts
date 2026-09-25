@@ -168,6 +168,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       create: readOnly("posting an update"),
       update: readOnly("editing an update"),
       delete: readOnly("deleting an update"),
+      setReaction: readOnly("reacting to an update"),
     },
     workspaceLists: {
       // A shared board is read with the built-in lists; nobody is signed in to edit them.

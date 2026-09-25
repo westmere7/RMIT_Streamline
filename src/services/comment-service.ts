@@ -1,4 +1,4 @@
-import type { Comment, EntityId, NotificationType, User } from "@/domain";
+import { COMMENT_REACTIONS, type Comment, type EntityId, type NotificationType, type User } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -26,6 +26,12 @@ export class CommentService {
 
   listByItem(itemId: EntityId): Promise<Comment[]> {
     return this.repos.comments.listByItem(itemId);
+  }
+
+  /** Gives or takes back the actor's emoji on an update or a reply. Only the offered set is accepted. */
+  async setReaction(comment: Pick<Comment, "id" | "itemId">, emoji: string, actorId: EntityId, on: boolean): Promise<void> {
+    if (!(COMMENT_REACTIONS as readonly string[]).includes(emoji)) throw new Error("That reaction is not one on offer");
+    await this.repos.comments.setReaction(comment, actorId, emoji, on);
   }
 
 

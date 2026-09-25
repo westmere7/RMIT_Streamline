@@ -33,7 +33,8 @@ import {
   type NotificationRow,
 } from "../rows";
 
-const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at";
+// The reactions come embedded, so a thread is still one request.
+const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at, comment_reactions(user_id, emoji, created_at)";
 const ACTIVITY = "id, workspace_id, board_id, item_id, actor_id, event_type, metadata, created_at";
 const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, actor_id, read_at, created_at";
 const NOTIFICATION_PREFERENCES = "user_id, types, muted_board_ids, browser_enabled, updated_at";
@@ -74,6 +75,16 @@ export class SupabaseCommentRepository implements CommentRepository {
     };
     const result = await db().from("comments").insert(payload).select(COMMENT).single();
     return toComment(unwrap<CommentRow>(result, "comments.create"));
+  }
+
+  async setReaction(comment: Pick<Comment, "id" | "itemId">, userId: string, emoji: string, on: boolean): Promise<void> {
+    if (on) {
+      const result = await db().from("comment_reactions").upsert({ comment_id: comment.id, item_id: comment.itemId, user_id: userId, emoji }, { onConflict: "comment_id,user_id,emoji", ignoreDuplicates: true });
+      if (result.error) throw new Error(`comment_reactions.add: ${result.error.message}`);
+    } else {
+      const result = await db().from("comment_reactions").delete().eq("comment_id", comment.id).eq("user_id", userId).eq("emoji", emoji);
+      if (result.error) throw new Error(`comment_reactions.remove: ${result.error.message}`);
+    }
   }
 
   async update(id: string, patch: Pick<Comment, "body" | "mentionUserIds">): Promise<Comment> {

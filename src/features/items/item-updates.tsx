@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, SmilePlus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
@@ -8,10 +8,11 @@ import { RichText } from "@/components/shared/rich-text";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import type { Comment } from "@/domain";
+import { COMMENT_REACTIONS, groupReactions, type Comment } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils";
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
   const comments = useComments(itemId);
-  const { add, edit, reply, remove } = useCommentMutations(itemId);
+  const { add, edit, reply, remove, react } = useCommentMutations(itemId);
   const links = useItemLinks(itemId);
   const linkedCount = links.data?.length ?? 0;
   // Default on: if a task is linked, an update usually concerns both sides.
@@ -152,6 +153,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
               onDeleteReply={(target) => remove.mutate(target)}
               collapsed={collapsed.has(comment.id)}
               onToggle={() => toggle(comment.id)}
+              onReact={canComment ? (target, emoji, on) => react.mutate({ comment: target, emoji, on }) : undefined}
             />
           ))}
         </ul>
@@ -180,6 +182,7 @@ function CommentItem({
   onDeleteReply,
   collapsed = false,
   onToggle,
+  onReact,
 }: {
   comment: Comment;
   names: string[];
@@ -193,6 +196,8 @@ function CommentItem({
   /** Folded to one line: who, the start of what they said, and how many replied. */
   collapsed?: boolean;
   onToggle?: () => void;
+  /** Gives or takes back the viewer's emoji on this update or one of its replies. Absent where nobody may react. */
+  onReact?: ReactHandler;
 }) {
   const [replying, setReplying] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
@@ -222,6 +227,7 @@ function CommentItem({
           <ChevronDown className="size-3.5 shrink-0 -rotate-90 text-muted-foreground" />
           <CommentAuthorName comment={comment} />
           <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{richTextToPlain(comment.body)}</span>
+          <ReactionSummary comment={comment} />
           {replies.length > 0 && (
             <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-muted-foreground tabular">
               <MessageSquare className="size-3" /> {replies.length}
@@ -238,12 +244,13 @@ function CommentItem({
         <CommentHeader comment={comment} size="md" onEdit={() => setEditing(true)} onDelete={onDelete} leading={toggleButton} />
         <CommentBody comment={comment} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-2 pl-[2.625rem]" />
         {/* The actions under an update, as monday has them: a rule, then Reply, then how many there are. */}
-        <div className="mt-2.5 flex items-center gap-1 border-t border-border/50 pt-1.5">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1 border-t border-border/50 pt-1.5">
           {canReply && (
             <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-2xs text-muted-foreground" onClick={() => setReplying(true)} data-testid="comment-reply-open">
               <Reply className="size-3.5" /> Reply
             </Button>
           )}
+          <Reactions comment={comment} onReact={onReact} />
           {replies.length > 0 && (
             <span className="ml-auto inline-flex items-center gap-1 px-1 text-2xs text-muted-foreground tabular" data-testid="comment-reply-count">
               <MessageSquare className="size-3" /> {replies.length} {replies.length === 1 ? "reply" : "replies"}
@@ -262,7 +269,7 @@ function CommentItem({
             </li>
           )}
           {shown.map((reply) => (
-            <ReplyRow key={reply.id} reply={reply} names={names} onEdit={(body) => onEditReply?.(reply.id, body)} onDelete={() => onDeleteReply?.(reply)} />
+            <ReplyRow key={reply.id} reply={reply} names={names} onEdit={(body) => onEditReply?.(reply.id, body)} onDelete={() => onDeleteReply?.(reply)} onReact={onReact} />
           ))}
         </ul>
       )}
@@ -287,13 +294,125 @@ function CommentItem({
 }
 
 /** One reply inside an update's card: smaller, on the card's quieter ground. */
-function ReplyRow({ reply, names, onEdit, onDelete }: { reply: Comment; names: string[]; onEdit: (body: string) => void; onDelete: () => void }) {
+function ReplyRow({ reply, names, onEdit, onDelete, onReact }: { reply: Comment; names: string[]; onEdit: (body: string) => void; onDelete: () => void; onReact?: ReactHandler }) {
   const [editing, setEditing] = React.useState(false);
   return (
     <li className="group/comment" data-testid="comment-reply">
       <CommentHeader comment={reply} size="sm" onEdit={() => setEditing(true)} onDelete={onDelete} />
       <CommentBody comment={reply} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-1 pl-8" />
+      <Reactions comment={reply} onReact={onReact} compact className="mt-1 pl-8" />
     </li>
+  );
+}
+
+type ReactHandler = (comment: Comment, emoji: string, on: boolean) => void;
+
+/** "You, Linh Tran and 2 others" — who gave one emoji. */
+function reactorNames(userIds: readonly string[], meId: string, nameOf: (id: string) => string): string {
+  const names = [...userIds].sort((a, b) => (a === meId ? -1 : b === meId ? 1 : 0)).map((id) => (id === meId ? "You" : nameOf(id)));
+  if (names.length <= 3) return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} others`;
+}
+
+/**
+ * The reactions on an update or a reply: one chip per emoji with how many gave
+ * it, the viewer's own marked, and a button to add one. Clicking a chip gives
+ * that emoji too, or takes the viewer's back.
+ *
+ * On a reply the add button waits for the pointer, as the edit and delete
+ * buttons do, so a thread of replies does not carry a row of smileys; an
+ * update always shows it, beside Reply.
+ */
+function Reactions({ comment, onReact, compact = false, className }: { comment: Comment; onReact?: ReactHandler; compact?: boolean; className?: string }) {
+  const ws = useWorkspace();
+  const me = ws.currentUser.id;
+  const groups = groupReactions(comment.reactions);
+  if (groups.length === 0 && (!onReact || compact)) {
+    // A reply with none yet: only the hover button, on a line of its own.
+    return onReact ? (
+      <div className={cn("flex h-6 items-center opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100", className)}>
+        <ReactionPicker comment={comment} onReact={onReact} compact />
+      </div>
+    ) : null;
+  }
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1", className)} data-testid="comment-reactions">
+      {groups.map(({ emoji, userIds }) => {
+        const mine = userIds.includes(me);
+        return (
+          <SimpleTooltip key={emoji} label={`${reactorNames(userIds, me, (id) => ws.userById(id)?.displayName ?? "Someone")} reacted ${emoji}`}>
+            <button
+              type="button"
+              disabled={!onReact}
+              onClick={() => onReact?.(comment, emoji, !mine)}
+              aria-pressed={mine}
+              aria-label={`${emoji} ${userIds.length}${mine ? ", including you" : ""}`}
+              className={cn(
+                "inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs tabular transition-colors disabled:cursor-default",
+                mine ? "border-primary/40 bg-primary/10 text-primary" : "border-border/70 bg-background text-muted-foreground enabled:hover:border-border enabled:hover:bg-accent/60",
+              )}
+              data-testid="comment-reaction"
+            >
+              <span className="text-[13px] leading-none">{emoji}</span>
+              <span className="text-2xs font-medium">{userIds.length}</span>
+            </button>
+          </SimpleTooltip>
+        );
+      })}
+      {onReact && <ReactionPicker comment={comment} onReact={onReact} compact={compact} />}
+    </div>
+  );
+}
+
+/** The six reactions on offer, in a small popover. One already given is marked, and choosing it takes it back. */
+function ReactionPicker({ comment, onReact, compact }: { comment: Comment; onReact: ReactHandler; compact?: boolean }) {
+  const ws = useWorkspace();
+  const [open, setOpen] = React.useState(false);
+  const mine = new Set((comment.reactions ?? []).filter((r) => r.userId === ws.currentUser.id).map((r) => r.emoji));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <SimpleTooltip label="Add reaction">
+        <PopoverTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-xs" aria-label="Add reaction" className={cn("text-muted-foreground", compact ? "size-6" : "size-7")} data-testid="comment-reaction-add">
+            <SmilePlus className="size-3.5" />
+          </Button>
+        </PopoverTrigger>
+      </SimpleTooltip>
+      <PopoverContent align="start" side="top" className="flex w-auto gap-0.5 rounded-full p-1" data-testid="comment-reaction-picker">
+        {COMMENT_REACTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => {
+              onReact(comment, emoji, !mine.has(emoji));
+              setOpen(false);
+            }}
+            aria-label={mine.has(emoji) ? `Remove ${emoji}` : `React ${emoji}`}
+            aria-pressed={mine.has(emoji)}
+            className={cn("flex size-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-accent", mine.has(emoji) && "bg-primary/10")}
+          >
+            {emoji}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A collapsed update's reactions, as a quiet tally beside its reply count. */
+function ReactionSummary({ comment }: { comment: Comment }) {
+  const groups = groupReactions(comment.reactions);
+  if (groups.length === 0) return null;
+  const total = groups.reduce((sum, g) => sum + g.userIds.length, 0);
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 text-2xs text-muted-foreground tabular">
+      {groups.slice(0, 3).map((g) => (
+        <span key={g.emoji} className="text-xs leading-none">
+          {g.emoji}
+        </span>
+      ))}
+      <span className="ml-0.5">{total}</span>
+    </span>
   );
 }
 
