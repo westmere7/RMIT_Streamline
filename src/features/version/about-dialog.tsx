@@ -1,11 +1,12 @@
 "use client";
 
-import { Boxes, Inbox, LayoutList, ShoppingBag, Table2 } from "lucide-react";
+import { Boxes, ChevronRight, Inbox, LayoutList, ShoppingBag, Sparkles, Table2 } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/features/auth/components/auth-shell";
 import { useDataContext } from "@/features/data/data-context";
+import { ChangelogDialog } from "@/features/version/changelog-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { BACKEND_REGION, DEPLOY_ENV, getAppConfig, supabaseProjectRef } from "@/lib/config";
 import { CURRENT_VERSION, shortBuildId } from "@/lib/version";
@@ -22,6 +23,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const { providerKind } = useDataContext();
   const built = CURRENT_VERSION.builtAt ? new Date(CURRENT_VERSION.builtAt) : null;
   const projectRef = providerKind === "supabase" ? supabaseProjectRef(getAppConfig().supabaseUrl) : null;
+  const [changelogOpen, setChangelogOpen] = React.useState(false);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,6 +57,16 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Feature icon={Inbox}>Updates, mentions and approvals gathered in one inbox</Feature>
           </ul>
 
+          <button
+            type="button"
+            onClick={() => setChangelogOpen(true)}
+            className="group flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-border hover:bg-surface-strong/60"
+            data-testid="about-changelog"
+          >
+            <Sparkles className="size-4 text-primary" />
+            <span className="flex-1 font-medium">What&apos;s new</span>
+            <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </button>
         </div>
 
         {/* The small print: which build this is and where it runs. */}
@@ -70,6 +82,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
           <p className="mt-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">Built by Nguyen Tuan Danh</p>
         </footer>
       </DialogContent>
+      <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
     </Dialog>
   );
 }

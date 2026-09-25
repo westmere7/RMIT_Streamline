@@ -37,23 +37,23 @@ test.describe("version check", () => {
     await expect(page.getByTestId("about-version")).toHaveText(/^v\d+\.\d+\.\d+$/);
   });
 
-  test("a newer build on the server raises a notice that does not force a reload", async ({ page }) => {
+  test("a newer build on the server raises a pop-up that does not force a reload", async ({ page }) => {
     await serveNewerBuild(page);
     await signInAs(page, "Danh");
-    const notice = page.getByText("A new version of Streamline is ready");
-    await expect(notice).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("button", { name: "Reload" })).toBeVisible();
+    const popup = page.getByTestId("update-dialog");
+    await expect(popup).toBeVisible({ timeout: 15000 });
+    await expect(popup).toContainText("v9.9.9 is ready");
+    await expect(page.getByTestId("changelog-entries").locator("li").first()).toBeVisible();
+    await expect(page.getByTestId("update-refresh")).toHaveText(/Refresh/);
 
-    // Still the same page, still usable.
-    await page.waitForTimeout(1500);
+    // Still the same page underneath.
     await expect(page).toHaveURL(/\/workspace\/rmit$/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Danh");
 
-    // "Later" puts the notice away and it stays away for this build.
-    await page.getByRole("button", { name: "Later" }).click();
-    await expect(notice).toHaveCount(0);
+    // "Later" puts it away and it stays away for this build.
+    await page.getByTestId("update-later").click();
+    await expect(popup).toHaveCount(0);
     await page.goto("/workspace/rmit/my-work");
     await page.waitForTimeout(1500);
-    await expect(page.getByText("A new version of Streamline is ready")).toHaveCount(0);
+    await expect(page.getByTestId("update-dialog")).toHaveCount(0);
   });
 });

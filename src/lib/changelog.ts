@@ -1,0 +1,290 @@
+/**
+ * What changed in each release, newest first.
+ *
+ * Add an entry whenever package.json's version is bumped: the update pop-up
+ * reads this from the new build (/api/changelog) and shows every entry between
+ * the version a page is running and the one the server has.
+ */
+
+export interface ChangelogEntry {
+  /** package.json version, e.g. "0.32.0". */
+  version: string;
+  /** Release day, YYYY-MM-DD. */
+  date: string;
+  /** The release in a few words. */
+  title: string;
+  changes: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "0.32.0",
+    date: "2026-09-25",
+    title: "Departments, calmer motion, and a changelog",
+    changes: [
+      "New versions are announced in a pop-up with everything that changed since yours, to refresh now or later.",
+      "Stakeholder groups are now called Departments, and each person has one Department.",
+      "Dashboard motion starts once the page has loaded: shapes grow in and the headline figures count up; small numbers stay still.",
+      "Automations: board automations, recipes and activity each have their own tab.",
+      "Search ranks every match, and the Admin panel follows the team's colours.",
+      "A more compact task panel; the wide view pairs Overview with Updates and Assets with Activity.",
+      "The folded asset progress bar spans the full width of the panel.",
+    ],
+  },
+  {
+    version: "0.31.0",
+    date: "2026-09-24",
+    title: "Portal link settings",
+    changes: ["Each portal link has its own settings dialog, with Save and Discard.", "The portal header and booking follow the link's settings."],
+  },
+  {
+    version: "0.30.0",
+    date: "2026-09-23",
+    title: "Resizable sidebar",
+    changes: ["The sidebar can be dragged wider or narrower.", "Ticket numbers sit more neatly in the board table."],
+  },
+  {
+    version: "0.29.2",
+    date: "2026-09-20",
+    title: "Task name first",
+    changes: ["The task panel leads with the task's name, then everything else."],
+  },
+  {
+    version: "0.29.1",
+    date: "2026-09-20",
+    title: "Folded groups on one line",
+    changes: ["A folded group collapses to a single line."],
+  },
+  {
+    version: "0.29.0",
+    date: "2026-09-20",
+    title: "Folded group summaries",
+    changes: ["A folded group still shows a summary for every column."],
+  },
+  {
+    version: "0.28.1",
+    date: "2026-09-20",
+    title: "Portal theming",
+    changes: ["The portal follows the app's light or dark theme, with all of its own colours."],
+  },
+  {
+    version: "0.28.0",
+    date: "2026-09-20",
+    title: "Two ways into the portal",
+    changes: ["Booking and browsing the portal are shown as two clearly separate entry points."],
+  },
+  {
+    version: "0.27.0",
+    date: "2026-09-20",
+    title: "Archived tasks in search",
+    changes: ["An archived task is found where it lives, and is marked as archived."],
+  },
+  {
+    version: "0.26.0",
+    date: "2026-09-20",
+    title: "Undo",
+    changes: ["One standing offer to undo the last thing you did."],
+  },
+  {
+    version: "0.25.0",
+    date: "2026-09-20",
+    title: "Grid and kanban on phones",
+    changes: ["The card grid and kanban views fit a phone screen."],
+  },
+  {
+    version: "0.24.0",
+    date: "2026-09-20",
+    title: "Boards on phones",
+    changes: ["Boards work one-handed: card list, quick status, priority and date sheets, and a floating New item button."],
+  },
+  {
+    version: "0.23.0",
+    date: "2026-09-20",
+    title: "Automations that listen for words",
+    changes: ["Rules can trigger on words in an update.", "Subitems are kept out of actions that do not apply to them."],
+  },
+  {
+    version: "0.22.0",
+    date: "2026-09-20",
+    title: "More triggers and actions",
+    changes: ["Eighteen triggers and twenty-three actions, written in one panel."],
+  },
+  {
+    version: "0.21.0",
+    date: "2026-09-20",
+    title: "Automations page",
+    changes: [
+      "A workspace Automations page with recipes, every rule and what they have done.",
+      "Quick runs: a group of actions you point at tasks and fire by hand.",
+      "Automations fire within a second, and a running rule is marked on the board.",
+      "A heartbeat shows when the automation runner has stopped.",
+    ],
+  },
+  {
+    version: "0.20.0",
+    date: "2026-09-20",
+    title: "Tickets, pop-up tasks and automations",
+    changes: [
+      "Every task gets a ticket number, like CP_014, with a prefix set in Settings.",
+      "Pop-up mode opens a task over the board, and two tasks can be open at once.",
+      "Board automations: a rule watches for something and acts on it, even with nobody signed in.",
+      "Loading placeholders for My Work, Inbox, Activity and the Dashboard.",
+    ],
+  },
+  {
+    version: "0.19.0",
+    date: "2026-09-13",
+    title: "Columns, links and live updates",
+    changes: [
+      "A Dropdown column, and a column type picker split into board fields and workspace fields.",
+      "Column roles: a board says which column does which job.",
+      "Linked tasks share their assets, and column pairs can be matched by hand.",
+      "The task panel shows every column as a draggable row, with per-column menus.",
+      "Changes appear live everywhere, not only on boards.",
+    ],
+  },
+  {
+    version: "0.18.0",
+    date: "2026-09-12",
+    title: "Rich-text brief and My Work",
+    changes: ["The booking brief is one rich-text document, with branching questions.", "A reworked My Work page with filters.", "The portal shows its work as a board."],
+  },
+  {
+    version: "0.17.0",
+    date: "2026-09-12",
+    title: "Booking editor upgrades",
+    changes: ["Saved blocks, choice chips and a preview in the booking form editor.", "Portal settings can group the work shown."],
+  },
+  {
+    version: "0.16.0",
+    date: "2026-09-12",
+    title: "Four-step booking",
+    changes: ["Booking is a four-step wizard, driven by service types.", "The editor saves a draft; publishing is a separate step.", "A built-in guide in Settings."],
+  },
+  {
+    version: "0.15.0",
+    date: "2026-09-11",
+    title: "One portal link",
+    changes: ["One stakeholder portal link per workspace, with a department selector."],
+  },
+  {
+    version: "0.14.0",
+    date: "2026-09-11",
+    title: "Archive and workload",
+    changes: ["An Archive page to find and restore archived tasks.", "A workload section on the Dashboard, and a treemap of the asset mix.", "The booking form remembers past answers."],
+  },
+  {
+    version: "0.13.0",
+    date: "2026-09-11",
+    title: "Workload by department",
+    changes: ["A person's workload is split by department.", "The version shows on the sign-in screens."],
+  },
+  {
+    version: "0.12.1",
+    date: "2026-09-10",
+    title: "Lists carry their values",
+    changes: ["Workspace lists carry their values, and renaming an entry updates the work that uses it."],
+  },
+  {
+    version: "0.11.0",
+    date: "2026-09-10",
+    title: "Effort",
+    changes: ["Asset rates turn deliverables into hours, and the Dashboard can report in effort."],
+  },
+  {
+    version: "0.10.0",
+    date: "2026-09-10",
+    title: "Stakeholder portal and Dashboard views",
+    changes: [
+      "The stakeholder portal: a link, a page, and booking without an account.",
+      "The Dashboard gets three views and a public share link.",
+      "A mobile layout, ID search, and only the rows in view are drawn.",
+      "Share a single task, and a people page showing what someone is carrying.",
+    ],
+  },
+  {
+    version: "0.9.0",
+    date: "2026-09-08",
+    title: "Dashboard",
+    changes: ["A workspace Dashboard: output this year, who is carrying it, and what needs attention."],
+  },
+  {
+    version: "0.8.0",
+    date: "2026-09-08",
+    title: "Board sharing",
+    changes: ["Share a board with a read-only link.", "Tasks get a reference number."],
+  },
+  {
+    version: "0.7.0",
+    date: "2026-09-08",
+    title: "Booking form editor",
+    changes: ["The team shapes its own booking form.", "Work under way shows how far its deliverables have got."],
+  },
+  {
+    version: "0.6.0",
+    date: "2026-09-07",
+    title: "Asset lines and branding",
+    changes: ["Asset lines tick off, take several people, and open one at a time.", "The real Streamline logo, and About in a dialog."],
+  },
+  {
+    version: "0.5.0",
+    date: "2026-09-07",
+    title: "Faster in production",
+    changes: ["The app now runs next to its database in Singapore, so pages load faster."],
+  },
+  {
+    version: "0.4.0",
+    date: "2026-09-07",
+    title: "Assets on every task",
+    changes: ["Asset lines per task, with an Assets tab and an Assets recap column.", "A faster booking form."],
+  },
+  {
+    version: "0.3.1",
+    date: "2026-09-07",
+    title: "Reliability fixes",
+    changes: ["Fixed a status mix-up when creating tasks, and allocation subitems."],
+  },
+  {
+    version: "0.3.0",
+    date: "2026-09-07",
+    title: "Covers and sizes",
+    changes: ["Update badges, task covers and T-shirt sizes.", "Status labels follow linked tasks.", "A new sign-in screen."],
+  },
+  {
+    version: "0.2.0",
+    date: "2026-09-06",
+    title: "Updates, trackers and profiles",
+    changes: [
+      "Formatted updates with mentions, notifications and OS toasts.",
+      "Profiles, direct messages and avatars.",
+      "Trackers with views, summaries, fill-down and Excel export.",
+      "The app notices when a new version is live.",
+    ],
+  },
+  {
+    version: "0.1.0",
+    date: "2026-09-04",
+    title: "First release",
+    changes: ["Boards, groups, columns and views for the team's work."],
+  },
+];
+
+/** Negative when `a` is older than `b`. Compares dotted numbers, so 0.10.0 is after 0.9.0. */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * The entries a page on `since` has not seen, newest first. When nothing is
+ * newer (the same version, rebuilt), the latest entry is what there is to say.
+ */
+export function changesSince(since: string, entries: readonly ChangelogEntry[] = CHANGELOG): ChangelogEntry[] {
+  const newer = entries.filter((entry) => compareVersions(entry.version, since) > 0);
+  return newer.length > 0 ? newer : entries.slice(0, 1);
+}
