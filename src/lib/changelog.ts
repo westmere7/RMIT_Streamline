@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.45.1",
+    date: "2026-09-25",
+    title: "Shorter column notes",
+    changes: [
+      "The notes on the special column types in the column picker are one short line each.",
+    ],
+  },
+  {
     version: "0.45.0",
     date: "2026-09-25",
     title: "A quieter update notice",
