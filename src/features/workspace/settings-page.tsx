@@ -9,6 +9,7 @@ import {
   Building2,
   Check,
   Database,
+  DatabaseBackup,
   Download,
   Hash,
   Info,
@@ -47,6 +48,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
+import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { TicketSettings } from "@/features/workspace/ticket-settings";
 import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -58,7 +60,7 @@ import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "documentation", "data"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "data", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -87,7 +89,8 @@ const SECTION_META: Record<Section, SectionMeta> = {
   permissions: { label: "Roles", icon: ShieldCheck, description: "What each workspace role can do. Board roles refine it board by board.", width: "narrow" },
   view: { label: "Appearance", icon: Palette, description: "How the app looks for you, on this device.", width: "narrow" },
   documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true },
-  data: { label: "Data", icon: Database, description: "Where the workspace is kept, and how to back it up.", width: "narrow" },
+  snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Everything the workspace holds, saved in one file. Download it, or restore to it.", width: "wide" },
+  data: { label: "Storage", icon: Database, description: "Where the workspace is kept.", width: "narrow" },
 };
 
 /** The side list, in groups of what the sections are about. */
@@ -96,7 +99,8 @@ const NAV_GROUPS: Array<{ label: string; sections: Section[]; members?: boolean;
   { label: "Lists", sections: ["departments", "asset-types"] },
   { label: "People", sections: ["permissions"], members: true },
   { label: "You", sections: ["view"] },
-  { label: "Help", sections: ["documentation", "data"], about: true },
+  { label: "Data", sections: ["snapshots", "data"] },
+  { label: "Help", sections: ["documentation"], about: true },
 ];
 
 const WIDTH_CLASSES: Record<SectionMeta["width"], string> = { narrow: "max-w-2xl", wide: "max-w-4xl", full: "max-w-6xl" };
@@ -107,8 +111,13 @@ export function SettingsPage() {
   const router = useRouter();
   const raw = searchParams.get("section") ?? "";
   const asked = SECTION_ALIASES[raw] ?? raw;
-  const section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
+  let section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  const { providerKind } = useDataContext();
+  // Snapshots are the shared database's, and an admin's alone.
+  const snapshotsOn = providerKind === "supabase" && canManageWorkspace(ws.permissions);
+  const visible = (s: Section) => s !== "snapshots" || snapshotsOn;
+  if (!visible(section)) section = "general";
   const meta = SECTION_META[section];
   const go = (s: Section) => router.replace(routes.settings(ws.slug, s));
   const itemClass = (active: boolean) =>
@@ -128,7 +137,7 @@ export function SettingsPage() {
               <div key={group.label} className="max-md:contents">
                 <p className="mb-1 px-2 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase max-md:hidden">{group.label}</p>
                 <ul className="space-y-0.5 max-md:contents">
-                  {group.sections.map((s) => {
+                  {group.sections.filter(visible).map((s) => {
                     const Icon = SECTION_META[s].icon;
                     return (
                       <li key={s} className="max-md:shrink-0">
@@ -173,6 +182,7 @@ export function SettingsPage() {
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}
+            {section === "snapshots" && <SnapshotsSection />}
             {section === "data" && <DataSection />}
           </div>
         </div>
@@ -521,7 +531,14 @@ function DataSection() {
       </p>
       {providerKind === "supabase" ? (
         <SettingsCard title="Backups">
-          <p className="text-[13px] text-muted-foreground">Export, import and reset work on the copy in one browser. A shared workspace is backed up as a Postgres dump of its Supabase project.</p>
+          <p className="text-[13px] text-muted-foreground">A snapshot keeps a copy of everything, to download or to restore.</p>
+          {manage && (
+            <Button asChild variant="outline" size="sm" className="mt-3">
+              <Link href={routes.settings(ws.slug, "snapshots")}>
+                <DatabaseBackup /> Snapshots
+              </Link>
+            </Button>
+          )}
         </SettingsCard>
       ) : (
         <div className="space-y-4">

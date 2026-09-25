@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.40.0",
+    date: "2026-09-25",
+    title: "Snapshots",
+    changes: [
+      "Admins can take a snapshot of everything the workspace holds, saved as one file in the database: boards, tasks, comments, people and settings.",
+      "Download any snapshot, or upload one downloaded before.",
+      "Restoring a snapshot asks for your password, and saves the current state as a snapshot first, so a restore can be undone.",
+      "Settings has a Data group for Snapshots and Storage.",
+    ],
+  },
+  {
     version: "0.39.1",
     date: "2026-09-25",
     title: "Reactions on updates",
