@@ -10,7 +10,7 @@ import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
-import { useAllocation } from "@/features/booking/use-allocation";
+import { useAllocation, useMovingItems } from "@/features/booking/use-allocation";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
@@ -80,6 +80,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   // panel offers, on the row, because a morning's queue is twenty one-word
   // decisions and twenty panels is nineteen too many.
   const allocation = useAllocation();
+  const movingTo = useMovingItems().get(item.id);
+  const movingBoard = movingTo ? allocation.targets.flatMap((t) => t.boards).find((b) => b.id === movingTo) : undefined;
   const allocating = selected ? selectedIds : [item.id];
   const allocateAction: MenuAction | null =
     allocation.available && item.parentItemId === null
@@ -190,7 +192,11 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               viewing && "bg-accent/80 ring-1 ring-inset ring-ring/35 hover:bg-accent/80",
               isDragging && "opacity-40",
               done && "text-muted-foreground",
+              // On its way to a team's board: a light sweep until it has gone.
+              movingTo && "row-moving pointer-events-none",
             )}
+            data-moving={movingTo ? "true" : undefined}
+            aria-busy={movingTo ? true : undefined}
           >
             <div
               ref={setActivatorNodeRef}
@@ -316,6 +322,15 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
                 <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
                 {blocked && <BlockedDot />}
+                {movingTo && (
+                  <span
+                    className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary"
+                    title={`Moving to ${movingBoard?.name ?? "the team's board"}`}
+                    data-testid="item-moving"
+                  >
+                    <LoaderCircle className="size-3 animate-spin" /> Moving…
+                  </span>
+                )}
                 <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
                   {canEdit && (
                     <SimpleTooltip label="Rename">

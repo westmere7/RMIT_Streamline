@@ -17,6 +17,7 @@ import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { cn } from "@/lib/utils";
+import { ALLOCATE_KEY } from "./use-allocation";
 
 /**
  * On the Task Allocation board only: the manager's control for placing a
@@ -36,7 +37,8 @@ export function AllocationSection({ item }: { item: Item }) {
   const queryClient = useQueryClient();
   const [targetId, setTargetId] = React.useState<string>("");
   const allocate = useMutation({
-    mutationFn: () => services.booking.allocate(item.id, targetId, user.id),
+    mutationKey: ALLOCATE_KEY,
+    mutationFn: ({ itemIds, boardId }: { itemIds: string[]; boardId: string }) => services.booking.allocate(itemIds[0]!, boardId, user.id),
     onSuccess: async ({ board: target }) => {
       // The item is no longer on this board, so the panel showing it has
       // nothing left to show.
@@ -99,7 +101,7 @@ export function AllocationSection({ item }: { item: Item }) {
                 )}
               </SelectContent>
             </Select>
-            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate()} data-testid="allocation-submit">
+            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate({ itemIds: [item.id], boardId: targetId })} data-testid="allocation-submit">
               {allocate.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} Allocate
             </Button>
           </div>

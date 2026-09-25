@@ -23,6 +23,7 @@ import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
+import { useMovingItems } from "@/features/booking/use-allocation";
 import { useKanbanLanes, useLaneOptions, type Lane, type LaneBy } from "./kanban-lanes";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
@@ -385,6 +386,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
   const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
   const shownTags = tags.slice(0, detailed ? 6 : 2);
   const open = () => openItem(item.id);
+  const moving = useMovingItems().has(item.id);
 
   return (
     <ContextMenu>
@@ -396,6 +398,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
           className={cn(
             "relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card shadow-xs transition-shadow hover:shadow-md",
+            moving && "row-moving pointer-events-none",
             compact ? "px-2.5 py-2" : "p-3",
             overlay && "rotate-1 shadow-xl",
             done && "opacity-70",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Board } from "@/domain";
@@ -12,6 +12,29 @@ import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import type { ColorToken } from "@/domain";
+
+/** Every allocation, from the row, the selection or the panel, carries this key and `{ itemIds, boardId }`. */
+export const ALLOCATE_KEY = ["allocate"] as const;
+
+/**
+ * The requests on their way to another board, and where each is going.
+ *
+ * Allocating takes a moment — the task is moved, its values carried and the
+ * board read again — and until it lands the row would sit there as if nothing
+ * had been asked of it. Read off the mutation cache rather than one row's own
+ * mutation, so every row a bulk allocation touches knows it is moving.
+ */
+export function useMovingItems(): ReadonlyMap<string, string> {
+  const pending = useMutationState({
+    filters: { mutationKey: ALLOCATE_KEY, status: "pending" },
+    select: (mutation) => mutation.state.variables as { itemIds: string[]; boardId: string } | undefined,
+  });
+  return React.useMemo(() => {
+    const moving = new Map<string, string>();
+    for (const vars of pending) if (vars) for (const id of vars.itemIds) moving.set(id, vars.boardId);
+    return moving;
+  }, [pending]);
+}
 
 /** A board a request can be sent to, under the team that owns it. */
 export interface AllocationTarget {
@@ -40,6 +63,7 @@ export function useAllocation() {
   const queryClient = useQueryClient();
 
   const allocate = useMutation({
+    mutationKey: ALLOCATE_KEY,
     mutationFn: async ({ itemIds, boardId }: { itemIds: string[]; boardId: string }) => {
       // One request at a time: the service moves an item and rewrites its
       // group, and a failure halfway through should leave the ones that

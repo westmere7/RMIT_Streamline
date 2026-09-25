@@ -608,3 +608,41 @@
     animation: none;
   }
 }
+
+/* ---- A request on its way to a team's board ---------------------------------
+ *
+ * Allocating takes a moment, and until the row has gone it should say it heard.
+ * A soft band of the brand colour passes along it, over a faint tint.
+ * No opacity: the pinned name cell would let the scrolled cells show through.
+ * Moved by background position, not transform, so nothing widens the table.
+ */
+@keyframes row-moving-sweep {
+  from {
+    background-position: -45% 0;
+  }
+  to {
+    background-position: 145% 0;
+  }
+}
+.row-moving {
+  position: relative;
+}
+.row-moving::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background-color: color-mix(in oklab, var(--color-primary) 4%, transparent);
+  background-image: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent);
+  background-size: 45% 100%;
+  background-repeat: no-repeat;
+  animation: row-moving-sweep 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-moving::after {
+    animation: none;
+    background-image: none;
+    background-color: color-mix(in oklab, var(--color-primary) 7%, transparent);
+  }
+}
