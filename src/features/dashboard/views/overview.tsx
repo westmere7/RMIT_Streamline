@@ -46,7 +46,7 @@ export function DashboardBody(props: DashboardViewProps) {
   // Destructured for the body, and kept whole for the sections that take the
   // lot — they are handed the same figures this page is drawn from, so the two
   // cannot disagree about the period they describe.
-  const { report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, measure, valueOf } = props;
+  const { report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, measure, valueOf, links } = props;
   const unitWord = MEASURE_UNITS[measure];
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${report.period.label}${report.period.partial ? " · partial actuals" : ""}`;
 
@@ -166,7 +166,7 @@ export function DashboardBody(props: DashboardViewProps) {
             underneath for that reason. */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
           <Panel title="By team" subtitle={unitWord} className="p-4" testId="dashboard-by-team">
-            <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." />
+            <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." hrefOf={links ? (row) => (row.id ? links.team(row.id) : null) : undefined} />
           </Panel>
           <Panel title="By department" subtitle={unitWord} className="p-4" testId="dashboard-by-department">
             <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />

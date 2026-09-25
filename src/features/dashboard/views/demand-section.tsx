@@ -34,7 +34,7 @@ const DIMENSIONS: Array<{ key: ComparisonDimension; label: string; column: strin
  * already on the bars, the change was already on the year chart above, and it
  * left the panel taller than the one beside it for a table nobody opened.
  */
-export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf }: DashboardViewProps) {
+export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf, links }: DashboardViewProps) {
   const [dimension, setDimension] = React.useState<ComparisonDimension>("team");
   const unitWord = MEASURE_UNITS[measure];
 
@@ -109,6 +109,8 @@ export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf
         <RankedBars
           data={rows.slice(0, 8).map((r) => ({ id: r.key, name: r.name, value: r.current, color: r.color }))}
           valueLabel={measured}
+          // A team has a page; a department does not.
+          hrefOf={links && dimension === "team" ? (row) => (row.id ? links.team(row.id) : null) : undefined}
           emptyMessage="Nothing in this period."
           fill
         />

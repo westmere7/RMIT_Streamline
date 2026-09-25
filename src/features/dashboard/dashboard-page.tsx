@@ -13,6 +13,7 @@ import { useDashboardRealtime, useDashboardSnapshot } from "@/features/dashboard
 import { ShareDashboardDialog } from "@/features/dashboard/share-dashboard-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageDashboardShare } from "@/lib/permissions/permissions";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,6 +51,8 @@ export function DashboardPage() {
   };
 
   const canShare = canManageDashboardShare(ws.permissions);
+  const slug = ws.workspace.slug;
+  const links = React.useMemo(() => ({ person: (userId: string) => routes.person(slug, userId), team: (teamId: string) => routes.team(slug, teamId) }), [slug]);
 
   return (
     <div ref={rootRef} className={cn("flex h-full min-h-0 flex-col bg-background", fullscreen && "overflow-hidden")} data-testid="dashboard-page">
@@ -59,6 +62,7 @@ export function DashboardPage() {
           viewerId={ws.currentUser.id}
           onOpenTask={openTask}
           onOpenBoard={openBoard}
+          links={links}
           // A refresh that failed while a good snapshot is still on screen is
           // "not updating", never "Live".
           freshness={<Freshness refreshing={snapshot.isFetching} failed={snapshot.isError} />}

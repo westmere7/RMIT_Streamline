@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { formatHours, type User } from "@/domain";
 import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
 import { useRevealed } from "@/features/dashboard/charts/motion";
+import { DashLink } from "@/features/dashboard/components/dash-link";
 import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,8 @@ const BANDS = [
  * is why effort in hours leads the page — but hours of work is not hours
  * available, and the difference is the whole point.
  */
-export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: DashboardViewProps) {
+export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, links }: DashboardViewProps) {
+  const personHref = (userId: string | null) => (links && userId ? links.person(userId) : null);
   const [query, setQuery] = React.useState("");
   // Which row the cursor is over, and where it is inside the list.
   const [hovered, setHovered] = React.useState<string | null>(null);
@@ -191,9 +193,9 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
               <span className="flex w-[15rem] shrink-0 items-center gap-2.5">
                 {user ? <UserAvatar user={user as User} size="sm" /> : <span aria-hidden className="size-6 shrink-0 rounded-full border border-dashed border-border" />}
                 <span className="min-w-0">
-                  <span className="block truncate font-medium" title={row.name}>
-                    {row.name}
-                  </span>
+                  <DashLink href={personHref(row.userId)} className="block truncate font-medium">
+                    <span title={row.name}>{row.name}</span>
+                  </DashLink>
                   {(row.teamNames.length > 0 || row.former) && (
                     <span className="block truncate text-2xs text-muted-foreground" title={row.teamNames.join(", ")}>
                       {row.former ? "No longer a member · " : ""}
@@ -356,9 +358,9 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
                         ) : (
                           <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />
                         )}
-                        <span className="max-w-[12rem] truncate" title={row.name}>
-                          {row.name}
-                        </span>
+                        <DashLink href={personHref(row.userId)} className="max-w-[12rem] truncate">
+                          <span title={row.name}>{row.name}</span>
+                        </DashLink>
                       </span>
                     </th>
                     {BANDS.map((band) => (
@@ -381,7 +383,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
         </div>
       </Panel>
 
-      {showMatrix && <DepartmentMatrix rows={measuredPeople} groups={measuredGroups} users={facts.users} measure={measure} format={format} />}
+      {showMatrix && <DepartmentMatrix rows={measuredPeople} groups={measuredGroups} users={facts.users} measure={measure} format={format} personHref={personHref} onPickGroup={(stakeholderGroup) => set({ stakeholderGroup })} />}
     </div>
     </>
   );
@@ -439,7 +441,24 @@ const MATRIX_COLUMNS_FALLBACK = 8;
  * It is the same projection the filter uses, read across instead of down, so
  * a row's total is that person's total and nothing here is counted twice.
  */
-function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: WorkloadRow[]; groups: DepartmentLoadOption[]; users: Map<string, User>; measure: MeasureKind; format: (value: number) => string }) {
+function DepartmentMatrix({
+  rows,
+  groups,
+  users,
+  measure,
+  format,
+  personHref,
+  onPickGroup,
+}: {
+  rows: WorkloadRow[];
+  groups: DepartmentLoadOption[];
+  users: Map<string, User>;
+  measure: MeasureKind;
+  format: (value: number) => string;
+  personHref: (userId: string | null) => string | null;
+  /** A department has no page, so its name narrows the panel to it instead. */
+  onPickGroup: (key: string) => void;
+}) {
   const readout = useTableReadout<{ row: WorkloadRow; group: DepartmentLoadOption | null }>();
   const width = readout.box.width;
   // As many groups as the panel can hold rather than a fixed eight: on a wide
@@ -490,10 +509,15 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
               </th>
               {columns.map((group) => (
                 <th key={group.key} scope="col" className="py-2 pr-3 text-right font-medium" title={`${group.name} · ${format(group.total)} ${MEASURE_UNITS[measure]}`}>
-                  <span className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onPickGroup(group.key)}
+                    className="ml-auto flex max-w-full items-center justify-end gap-1.5 underline-offset-2 hover:text-foreground hover:underline"
+                    aria-label={`Show ${group.name} only`}
+                  >
                     <span aria-hidden className="size-1.5 shrink-0 rounded-sm" style={{ background: departmentHex(group.name) }} />
                     <span className="truncate">{group.name}</span>
-                  </span>
+                  </button>
                 </th>
               ))}
               {rest.length > 0 && (
@@ -519,9 +543,9 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
                   <th scope="row" className="py-1.5 pr-3 font-normal" onMouseEnter={() => readout.setOver({ row, group: null })}>
                     <span className="flex items-center gap-2">
                       {user ? <UserAvatar user={user as User} size="xs" /> : <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />}
-                      <span className="max-w-[12rem] truncate" title={row.name}>
-                        {row.name}
-                      </span>
+                      <DashLink href={personHref(row.userId)} className="max-w-[12rem] truncate">
+                        <span title={row.name}>{row.name}</span>
+                      </DashLink>
                     </span>
                   </th>
                   {/* Tinted in the group's own colour, deeper where the figure

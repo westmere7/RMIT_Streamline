@@ -1,5 +1,6 @@
 import type { AssetRates } from "@/domain";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
+import type { DashboardLinks } from "@/features/dashboard/components/dash-link";
 import type { Coverage, MeasureKind, MonthlyComparisonRow, OperationsSnapshot, TaskValue, VolumeReport } from "@/features/dashboard/metrics";
 import type { DashboardPrefs } from "@/features/dashboard/prefs";
 
@@ -39,4 +40,6 @@ export interface DashboardViewProps {
   today: string;
   onOpenTask?: (taskId: string, boardId: string) => void;
   onOpenBoard?: (boardId: string) => void;
+  /** Where a person's or a team's name leads; absent on the public link. */
+  links?: DashboardLinks;
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { NamedCount } from "@/features/dashboard/analytics";
+import { DashLink } from "@/features/dashboard/components/dash-link";
 import { cn } from "@/lib/utils";
 import { formatCount } from "./chart-utils";
 import { useRevealed } from "./motion";
@@ -19,6 +20,7 @@ export function RankedBars({
   valueLabel,
   max: maxOverride,
   leading,
+  hrefOf,
   className,
   compact,
   fill,
@@ -32,6 +34,8 @@ export function RankedBars({
   max?: number;
   /** A small element rendered before each label (an avatar, an icon). */
   leading?: (row: NamedCount) => React.ReactNode;
+  /** Where a row's name leads, for a row that has a page of its own. */
+  hrefOf?: (row: NamedCount) => string | null | undefined;
   className?: string;
   compact?: boolean;
   /** Spread the rows down the panel and thicken the tracks, for a tall column. */
@@ -71,7 +75,9 @@ export function RankedBars({
           >
             <span className="flex w-[7.5rem] shrink-0 items-center gap-1.5 truncate text-foreground" title={row.name}>
               {leading?.(row)}
-              <span className="truncate">{row.name}</span>
+              <DashLink href={hrefOf?.(row)} className="truncate">
+                {row.name}
+              </DashLink>
             </span>
             {/* Capped, because a bar is a comparison and not a progress meter:
                 given the full width of the page the track ran to nearly 900px,

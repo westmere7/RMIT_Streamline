@@ -5,6 +5,7 @@ import type { DashboardSnapshot } from "@/domain";
 import { hasAnyRate, normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { DashboardReveal } from "@/features/dashboard/charts/motion";
+import type { DashboardLinks } from "@/features/dashboard/components/dash-link";
 import { MeasureToggle, ScopeToolbar } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
 import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport, BUSINESS_TIMEZONE, MEASURE_UNITS, type ReportingPeriod } from "@/features/dashboard/metrics";
@@ -19,6 +20,8 @@ export interface DashboardScreenProps {
   viewerId: string;
   onOpenTask?: (taskId: string, boardId: string) => void;
   onOpenBoard?: (boardId: string) => void;
+  /** Where a person's or a team's name leads. Left out on the public link. */
+  links?: DashboardLinks;
   /** Rendered at the right of the header: Share, full screen, theme. */
   toolbarExtras?: React.ReactNode;
   /** When the snapshot was read, and whether a newer read is in flight. */
@@ -41,7 +44,7 @@ export interface DashboardScreenProps {
  * public visitor gets no task callbacks, so nothing on the page leads anywhere
  * they cannot go.
  */
-export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, toolbarExtras, freshness, className }: DashboardScreenProps) {
+export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, links, toolbarExtras, freshness, className }: DashboardScreenProps) {
   const today = useToday();
   const facts = React.useMemo(() => buildFacts(snapshot), [snapshot]);
   const teamIds = React.useMemo(() => facts.teams.map((t) => t.id), [facts.teams]);
@@ -89,7 +92,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard, links };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">
