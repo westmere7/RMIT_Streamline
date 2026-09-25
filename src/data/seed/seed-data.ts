@@ -26,7 +26,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TICKET_PREFIX, DEFAULT_TYPE_DELIVERY, formatTicket, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
+import { COLUMN_TYPE_LABELS, SPECIAL_BOARD_COLUMN_TYPES, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, DEFAULT_TICKET_PREFIX, DEFAULT_TYPE_DELIVERY, formatTicket, INVITATION_TTL_DAYS, normaliseLinkPair } from "@/domain";
 import type { BoardVisit } from "@/data/local/database";
 import { buildDemoTracker } from "./seed-tracker";
 import { buildSeedArchive } from "./seed-archive";
@@ -115,6 +115,8 @@ const ID_NAMESPACES = {
   archiveValue: "fb",
   archiveActivity: "fc",
   archiveAsset: "fd",
+  // The special columns a board was built without (see specialColumnsFor).
+  specialColumn: "fe",
 } as const;
 
 type IdNamespace = keyof typeof ID_NAMESPACES;
@@ -859,7 +861,39 @@ export interface SeedLookups {
 /** The complete demo workspace: base seed plus extras, as one bundle. */
 export function buildSeed(now: Date = new Date()): SeedBundle {
   const { base, extras } = buildSeedParts(now);
-  return mergeSeedBundles(base, extras);
+  const merged = mergeSeedBundles(base, extras);
+  return mergeSeedBundles(merged, specialColumnsFor(merged));
+}
+
+/**
+ * The special columns each seeded board is missing, empty and showing, at the
+ * end: every board holds one of each (BoardService.ensureSpecialColumns does
+ * the same for a live one). Numbered in a namespace of their own, after every
+ * other id is settled, so adding them shifts nothing.
+ */
+function specialColumnsFor(bundle: SeedBundle): SeedBundle {
+  const out = emptySeedBundle();
+  for (const board of bundle.boards) {
+    const columns = bundle.boardColumns.filter((c) => c.boardId === board.id);
+    let position = columns.reduce((max, c) => Math.max(max, c.position), -1) + 1;
+    for (const type of SPECIAL_BOARD_COLUMN_TYPES) {
+      if (columns.some((c) => c.type === type)) continue;
+      const label = COLUMN_TYPE_LABELS[type];
+      const taken = columns.some((c) => c.name.trim().toLowerCase() === label.toLowerCase());
+      out.boardColumns.push({
+        id: sid("specialColumn"),
+        boardId: board.id,
+        name: taken ? `${label} (special)` : label,
+        type,
+        settings: defaultSettingsFor(type),
+        position: position++,
+        width: DEFAULT_COLUMN_WIDTHS[type],
+        hidden: false,
+        createdAt: board.createdAt,
+      });
+    }
+  }
+  return out;
 }
 
 export function mergeSeedBundles(...bundles: SeedBundle[]): SeedBundle {

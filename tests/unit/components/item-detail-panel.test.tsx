@@ -101,9 +101,10 @@ describe("ItemDetailPanel", () => {
     expect(within(linked).getByRole("link", { name: "Sem 1 DOOH adaptation" })).toBeInTheDocument();
     expect(linked).toHaveTextContent("DOOH Production");
     // Assets are always shared, then name and description count as two fields,
-    // then Owner, Status, Priority and Due Date.
-    expect(linked).toHaveTextContent("Syncs 7 fields");
-    expect(within(linked).getByTitle(/Syncs assets, name, description, Owner, Status, Priority, Due Date/)).toBeInTheDocument();
+    // then Owner, Status, Priority and Due Date, and the special columns every
+    // board holds: Timeline, Department, Size and Brief.
+    expect(linked).toHaveTextContent("Syncs 11 fields");
+    expect(within(linked).getByTitle(/Syncs assets, name, description, Owner, Status, Priority, Timeline, Due Date, Department, Size, Brief/)).toBeInTheDocument();
 
     await user.click(within(section).getByTestId("link-item-button"));
     const dialog = await screen.findByTestId("link-item-dialog");

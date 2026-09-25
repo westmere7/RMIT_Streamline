@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { BoardColumn, BoardGroup, ColumnRoleMap, ColumnType, ColumnValue, Item, ItemLink } from "@/domain";
-import { resolveColumnRoles } from "@/domain";
+import { resolveColumnRoles, shownColumns } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
 import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
@@ -8,7 +8,10 @@ import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./boar
 export interface BoardModel {
   snapshot: BoardSnapshot;
   groups: BoardGroup[];
+  /** The columns on the board, hidden ones included; special ones taken off it are not. */
   columns: BoardColumn[];
+  /** Special columns taken off the board: kept, and not shown anywhere. */
+  removedColumns: BoardColumn[];
   visibleColumns: BoardColumn[];
   statusColumn: BoardColumn | null;
   /** Which column does which job for the workspace. */
@@ -64,7 +67,11 @@ export function buildValueLookup(snapshot: Pick<BoardSnapshot, "values">): {
 
 export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOptions): BoardModel {
   const { getValue } = buildValueLookup(snapshot);
-  const columns = [...snapshot.columns].sort((a, b) => a.position - b.position);
+  const ordered = [...snapshot.columns].sort((a, b) => a.position - b.position);
+  // Everything the board shows, it shows from these. A special column taken off
+  // the board still holds its values, but not for anything drawn here.
+  const columns = shownColumns(ordered);
+  const removedColumns = ordered.filter((c) => c.removed);
   const groups = [...snapshot.groups].sort((a, b) => a.position - b.position);
   // Which column does which job, as the board said, or as it always used to be
   // guessed where it has not.
@@ -125,6 +132,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     // put the next item.
     visibleGroups: isFiltered ? groups.filter((group) => (itemsByGroup.get(group.id) ?? []).length > 0) : groups,
     columns,
+    removedColumns,
     visibleColumns: columns.filter((c) => !c.hidden),
     statusColumn,
     priorityColumn: roles.priority,

@@ -180,11 +180,25 @@ export interface BoardColumn {
    * roles existed — see `resolveColumnRoles`.
    */
   role?: ColumnRole | null;
+  /**
+   * Taken off the board: a special column somebody deleted. Every board keeps
+   * one of each special type (SPECIAL_BOARD_COLUMN_TYPES), so deleting one only
+   * takes it out of sight — the table, the task panel, filters, views and
+   * shared links all leave it out — while its values stay, for the dashboard
+   * to count and for the column to show again when it is added back. Unlike
+   * `hidden`, which keeps a column on the board and one click from showing.
+   */
+  removed?: boolean;
   createdAt: string;
 }
 
 export type BoardColumnInput = Pick<BoardColumn, "boardId" | "name" | "type"> &
-  Partial<Pick<BoardColumn, "settings" | "width" | "hidden" | "hiddenInPanel" | "role">>;
+  Partial<Pick<BoardColumn, "settings" | "width" | "hidden" | "hiddenInPanel" | "role" | "removed">>;
+
+/** The columns a board shows anywhere at all: everything but the special ones taken off it. */
+export function shownColumns<T extends Pick<BoardColumn, "removed">>(columns: readonly T[]): T[] {
+  return columns.filter((column) => !column.removed);
+}
 
 export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   TEXT: "Text",
@@ -395,6 +409,12 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own.",
   BOOKED_AT: "When the task was booked. Filled in by itself and never edited. Task Allocation only.",
 };
+
+/**
+ * The special types every board holds one of, whether it shows them or not.
+ * Booking time is the exception: it belongs on Task Allocation alone.
+ */
+export const SPECIAL_BOARD_COLUMN_TYPES: readonly ColumnType[] = SYSTEM_COLUMN_TYPES.filter((type) => type !== "BOOKED_AT");
 
 /** True for the types the workspace reads meaning out of. */
 export function isSystemColumnType(type: ColumnType): boolean {

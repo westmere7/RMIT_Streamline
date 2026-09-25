@@ -41,7 +41,8 @@ interface MenuItemProps {
  *
  * A special type the board already has is greyed out: a board holds one of
  * each (see ONE_PER_BOARD_COLUMN_TYPES). Picking it moves the one
- * the board has to where the new column would have gone.
+ * the board has to where the new column would have gone. One taken off the
+ * board is offered as usual, and picking it puts that one back.
  *
  * `variant` picks the menu primitive, since Radix items only work inside their
  * own menu type.
@@ -73,6 +74,8 @@ export function ColumnTypePicker({
       {types.map((type) => {
         const Icon = COLUMN_TYPE_ICONS[type];
         const existing = columnTypeTaken(type, model.columns) ? model.columns.find((c) => c.type === type) : undefined;
+        // Taken off this board: picking it puts that one back, values and all.
+        const off = existing ? undefined : model.removedColumns.find((c) => c.type === type);
         // What the type is for, then, set apart under a rule, the one-per-board
         // rule and what a click does about it.
         const label = ONE_PER_BOARD_COLUMN_TYPES.includes(type) ? (
@@ -81,6 +84,7 @@ export function ColumnTypePicker({
             <span className="mt-1.5 block border-t border-current/20 pt-1.5 text-2xs">
               <span className="opacity-70">One per board.</span>
               {existing && <span className="font-semibold"> Click to move &ldquo;{existing.name}&rdquo; here.</span>}
+              {off && <span className="font-semibold"> Click to put &ldquo;{off.name}&rdquo; back, with what it held.</span>}
             </span>
           </span>
         ) : (

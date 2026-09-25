@@ -1,5 +1,5 @@
 import type { BoardShareGate, EntityId, ItemShare, PublicItemPayload } from "@/domain";
-import { generateShareToken, isPlausibleShareToken, refuseShare, toPublicUser, type ShareLike } from "@/domain";
+import { generateShareToken, isPlausibleShareToken, refuseShare, shownColumns, toPublicUser, type ShareLike } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt } from "@/lib/auth/password-hash";
@@ -118,7 +118,7 @@ export async function loadSharedItem(repos: Repositories, token: string, passwor
   const board = await repos.boards.getById(item.boardId);
   if (!board) throw new NotFoundError("Board", item.boardId);
 
-  const [workspace, groups, columns, boardItems, assets, activities, users] = await Promise.all([
+  const [workspace, groups, allColumns, boardItems, assets, activities, users] = await Promise.all([
     repos.workspaces.getById(board.workspaceId),
     repos.boards.listGroups(board.id),
     repos.boards.listColumns(board.id),
@@ -127,6 +127,9 @@ export async function loadSharedItem(repos: Repositories, token: string, passwor
     repos.activities.listByItem(item.id),
     repos.users.list(),
   ]);
+  // A special column taken off the board does not travel, nor what it holds.
+  const columns = shownColumns(allColumns);
+  const columnIds = new Set(columns.map((c) => c.id));
 
   // The task and whatever hangs off it; nothing beside it on the board.
   const items = boardItems.filter((candidate) => candidate.id === item.id || candidate.parentItemId === item.id);
@@ -153,7 +156,7 @@ export async function loadSharedItem(repos: Repositories, token: string, passwor
     groups,
     columns,
     items,
-    values: values.filter((value) => itemIds.has(value.itemId)),
+    values: values.filter((value) => itemIds.has(value.itemId) && columnIds.has(value.columnId)),
     // A link to another task would name something the visitor cannot see.
     links: [],
     assets: shownAssets,

@@ -81,9 +81,15 @@ describe("asset lines on an item", () => {
     return items.find((i) => i.parentItemId === null)!;
   }
 
+  /** A board from before every board held a recap: its seeded one taken out at the data level. */
+  async function withoutRecap(boardId: string) {
+    for (const c of await repos.boards.listColumns(boardId)) if (c.type === "ASSETS_RECAP") await repos.boards.deleteColumn(c.id);
+  }
+
   it("are listed per item in order, edited, removed, and keep the board's recap column in step", async () => {
     const boardId = SEED_BOARD_IDS.rmitinerary;
     const item = await firstItemOf(boardId);
+    await withoutRecap(boardId);
     const column = await services.boards.addColumn({ boardId, name: "Assets recap", type: "ASSETS_RECAP" });
 
     const poster = await services.assets.add({ itemId: item.id, boardId, name: "A1 poster", assetType: "Print", quantity: 6, dueDate: "2026-09-20" }, SEED_USER_IDS.danh);
@@ -192,6 +198,7 @@ describe("asset lines on an item", () => {
     const boardId = SEED_BOARD_IDS.masterclass;
     const item = await firstItemOf(boardId);
     await services.assets.add({ itemId: item.id, boardId, name: "Hero", assetType: "Digital", quantity: 2 }, SEED_USER_IDS.danh);
+    await withoutRecap(boardId);
     const column = await services.boards.addColumn({ boardId, name: "Deliverables", type: "ASSETS_RECAP" });
     const stored = (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
     expect(stored).toMatchObject({ type: "ASSETS_RECAP", lines: 1, quantity: 2 });

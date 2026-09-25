@@ -1,6 +1,6 @@
 {
   "name": "rmit-streamline",
-  "version": "0.43.1",
+  "version": "0.44.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,6 +17,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "tsx scripts/db-seed.mts",
     "db:seed:topup": "tsx scripts/db-seed-topup.mts",
+    "db:special-columns": "tsx scripts/ensure-special-columns.mts",
     "db:snapshot:rehearse": "tsx scripts/snapshot-rehearsal.mts",
     "db:setup": "node scripts/db-setup.mjs",
     "tickets:dedupe": "node scripts/tickets-dedupe.mjs",

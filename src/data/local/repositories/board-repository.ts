@@ -235,6 +235,7 @@ export class LocalBoardRepository implements BoardRepository {
       hidden: input.hidden ?? false,
       hiddenInPanel: input.hiddenInPanel ?? false,
       role: input.role ?? null,
+      removed: input.removed ?? false,
       createdAt: nowIso(),
     };
     await db.put("boardColumns", column);

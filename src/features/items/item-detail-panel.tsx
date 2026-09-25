@@ -1200,16 +1200,16 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
           </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)} data-testid="panel-column-remove">
-            <Trash2 /> Remove column
+            <Trash2 /> {isSystemColumnType(column.type) ? "Remove from board" : "Remove column"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title={`Remove “${column.name}”?`}
-        description="The column and everything every task has in it go, on this board and on the panel. This cannot be undone."
-        confirmLabel="Remove column"
+        title={isSystemColumnType(column.type) ? `Remove “${column.name}” from the board?` : `Remove “${column.name}”?`}
+        description={isSystemColumnType(column.type) ? "What the tasks have in it is kept, and comes back if you add the column again." : "The column and everything every task has in it go, on this board and on the panel. This cannot be undone."}
+        confirmLabel={isSystemColumnType(column.type) ? "Remove from board" : "Remove column"}
         destructive
         onConfirm={() => void mutations.deleteColumn(column.id)}
       />

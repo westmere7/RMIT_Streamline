@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.44.0",
+    date: "2026-09-25",
+    title: "Special columns on every board",
+    changes: [
+      "Every board has Status, PIC, Due date, Timeline, Priority, Department, Size, Assets recap and Brief. Boards that were missing some have them now, empty until filled.",
+      "Deleting a special column only removes it from the board. What the tasks had in it is kept, and comes back when you add the column again. Plain columns still delete for good.",
+      "Allocating or linking a task always carries its brief, due date, department and the rest, so the brief no longer lands in the description.",
+    ],
+  },
+  {
     version: "0.43.1",
     date: "2026-09-25",
     title: "Selecting text while renaming",

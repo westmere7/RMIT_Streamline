@@ -345,6 +345,8 @@ export interface BoardColumnRow {
   /** Added by migration 0044; absent on a row read before it ran. */
   hidden_in_panel?: boolean;
   role?: string | null;
+  /** Added by migration 0075. */
+  removed?: boolean;
   created_at: string;
 }
 
@@ -360,6 +362,7 @@ export function toBoardColumn(row: BoardColumnRow): BoardColumn {
     hidden: row.hidden,
     hiddenInPanel: row.hidden_in_panel ?? false,
     role: (COLUMN_ROLES as readonly string[]).includes(row.role ?? "") ? (row.role as ColumnRole) : null,
+    removed: row.removed ?? false,
     createdAt: row.created_at,
   };
 }
@@ -374,6 +377,7 @@ export function fromBoardColumnPatch(patch: Partial<Omit<BoardColumn, "id" | "bo
     hidden: patch.hidden,
     hidden_in_panel: patch.hiddenInPanel,
     role: patch.role,
+    removed: patch.removed,
   });
 }
 

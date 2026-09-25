@@ -533,9 +533,8 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Requester", type: "TEXT" },
     { name: "Email", type: "TEXT" },
     { name: "Requester department", type: "TEXT" },
-    // Who the work is for, as the portal knows it. "Department" above is free
-    // text a public requester types about themselves; this one is only ever
-    // written from a portal token, so it can be trusted and filtered on.
+    // Who the work is for: one of Settings → Departments, checked on every
+    // booking, so it can be trusted and filtered on.
     { name: "Department", type: "STAKEHOLDER" },
     // What kind of work it is, as step one of the form asked it. One tag: the
     // sub-services answer a different question and live in the brief.
@@ -557,6 +556,10 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Allocated to", type: "TEXT" },
     // When it was booked: the task's own creation time, never stored or edited.
     { name: "Booking time", type: "BOOKED_AT" },
+    // The special columns every board holds, here like anywhere else.
+    { name: "PIC", type: "PERSON" },
+    { name: "Timeline", type: "TIMELINE" },
+    { name: "Size", type: "SIZE" },
   ];
 }
 

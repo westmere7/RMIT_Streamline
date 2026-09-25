@@ -16,7 +16,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, generateBookingKey, invitationStatus } from "@/domain";
+import { defaultSettingsFor, generateBookingKey, invitationStatus, isSystemColumnType } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -322,7 +322,8 @@ export class WorkspaceService {
     for (const wanted of taskAllocationColumns(teamNames)) {
       // A rich-text "Brief" from before the Brief type counts as the Brief column, so it is never doubled.
       const sameKind = (type: ColumnType) => type === wanted.type || (wanted.type === "BRIEF" && type === "RICH_TEXT");
-      const present = columns.some((c) => sameKind(c.type) && (c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
+      // A special column is one per board, so any of its type is the one, whatever it is called.
+      const present = columns.some((c) => sameKind(c.type) && (isSystemColumnType(wanted.type) || c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
       if (present) continue;
       const created = await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
       if (created.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, board.id, created.id);

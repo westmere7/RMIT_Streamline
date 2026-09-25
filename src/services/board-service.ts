@@ -13,7 +13,7 @@ import type {
   EntityId,
   Item,
 } from "@/domain";
-import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, columnTypeTaken, portalBriefMarkdown } from "@/domain";
+import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, isSystemColumnType, portalBriefMarkdown } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap } from "./item-asset-service";
@@ -115,7 +115,31 @@ export class BoardService {
       metadata: { boardName: board.name },
     });
 
+    // Whatever the template left out of the special columns, every board has.
+    columns.push(...(await this.ensureSpecialColumns(board.id)));
     return { board, groups, columns };
+  }
+
+  /**
+   * Gives a board every special column it is missing, at the end and showing,
+   * through `addColumn` so a Brief or an Assets recap arrives already filled
+   * from the bookings and deliverables the board holds. An empty column is
+   * normal; one the board took off stays off. A plain column already using the
+   * name leaves the special one called "… (special)", to be renamed at will.
+   * Returns what it added.
+   */
+  async ensureSpecialColumns(boardId: EntityId): Promise<BoardColumn[]> {
+    const board = await this.repos.boards.getById(boardId);
+    if (!board) throw new NotFoundError("Board", boardId);
+    const columns = await this.repos.boards.listColumns(boardId);
+    const added: BoardColumn[] = [];
+    for (const type of SPECIAL_BOARD_COLUMN_TYPES) {
+      if (columns.some((c) => c.type === type)) continue;
+      const label = COLUMN_TYPE_LABELS[type];
+      const taken = [...columns, ...added].some((c) => c.name.trim().toLowerCase() === label.toLowerCase());
+      added.push(await this.addColumn({ boardId, name: taken ? `${label} (special)` : label, type }));
+    }
+    return added;
   }
 
   async updateBoard(
@@ -225,6 +249,7 @@ export class BoardService {
         settings: column.settings,
         width: column.width,
         hidden: column.hidden,
+        removed: column.removed,
         position: column.position,
       });
       columnMap.set(column.id, copy.id);
@@ -446,8 +471,12 @@ export class BoardService {
     if (input.type === "BOOKED_AT" && (await this.repos.boards.getById(input.boardId))?.system !== "TASK_ALLOCATION") {
       throw new Error("A Booking time column belongs on Task Allocation only.");
     }
-    if (ONE_PER_BOARD_COLUMN_TYPES.includes(input.type) && columnTypeTaken(input.type, await this.repos.boards.listColumns(input.boardId))) {
-      throw new Error(`This board already has a ${COLUMN_TYPE_LABELS[input.type]} column.`);
+    if (ONE_PER_BOARD_COLUMN_TYPES.includes(input.type)) {
+      const existing = (await this.repos.boards.listColumns(input.boardId)).find((c) => c.type === input.type);
+      // Taken off the board, not gone: adding it again puts it back, with what
+      // every task had in it, rather than starting a second one.
+      if (existing?.removed) return this.repos.boards.updateColumn(existing.id, { removed: false, hidden: false, ...(input.position !== undefined ? { position: input.position } : {}) });
+      if (existing && columnTypeTaken(input.type, [existing])) throw new Error(`This board already has a ${COLUMN_TYPE_LABELS[input.type]} column.`);
     }
     const column = await this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
     // A recap column summarises lines that may already exist; fill it in straight away.
@@ -587,7 +616,17 @@ export class BoardService {
     return this.repos.boards.reorderColumns(boardId, orderedIds);
   }
 
+  /**
+   * A plain column is deleted with its values. A special one is only taken off
+   * the board: every board keeps one of each, so its values stay for the
+   * dashboard and for the column to come back with when it is added again.
+   */
   async deleteColumn(columnId: EntityId): Promise<void> {
+    const column = await this.repos.boards.getColumn(columnId);
+    if (column && isSystemColumnType(column.type)) {
+      await this.repos.boards.updateColumn(columnId, { removed: true, hidden: false });
+      return;
+    }
     await this.repos.boards.deleteColumn(columnId);
   }
 }

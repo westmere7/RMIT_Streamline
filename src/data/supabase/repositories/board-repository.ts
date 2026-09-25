@@ -24,7 +24,7 @@ const BOARD = BOARD_COLUMNS;
 const MEMBER = "id, board_id, user_id, role";
 const FAVOURITE = "id, board_id, user_id, created_at";
 const GROUP = "id, board_id, name, color, position, collapsed, created_at";
-const COLUMN = "id, board_id, name, type, settings, position, width, hidden, hidden_in_panel, role, created_at";
+const COLUMN = "id, board_id, name, type, settings, position, width, hidden, hidden_in_panel, role, removed, created_at";
 
 /**
  * Boards and everything under them. Deletes rely on `on delete cascade` in
@@ -211,6 +211,7 @@ export class SupabaseBoardRepository implements BoardRepository {
       position,
       width: input.width ?? DEFAULT_COLUMN_WIDTHS[input.type],
       hidden: input.hidden ?? false,
+      removed: input.removed ?? false,
     };
     const result = await db().from("board_columns").insert(payload).select(COLUMN).single();
     return toBoardColumn(unwrap<BoardColumnRow>(result, "board_columns.createColumn"));

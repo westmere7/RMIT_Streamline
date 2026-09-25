@@ -6,6 +6,7 @@ import {
   isPlausibleShareToken,
   type PublicBoardPayload,
   refuseShare,
+  shownColumns,
   type ShareAccess,
   type ShareLike,
   type ShareRefusal,
@@ -203,7 +204,7 @@ export async function loadSharedBoard(repos: Repositories, token: string, passwo
   const board = await repos.boards.getById(share.boardId);
   if (!board) throw new NotFoundError("Board", share.boardId);
 
-  const [workspace, groups, columns, items, values, assets, activities, users] = await Promise.all([
+  const [workspace, groups, allColumns, items, allValues, assets, activities, users] = await Promise.all([
     repos.workspaces.getById(board.workspaceId),
     repos.boards.listGroups(board.id),
     repos.boards.listColumns(board.id),
@@ -213,6 +214,10 @@ export async function loadSharedBoard(repos: Repositories, token: string, passwo
     repos.activities.listByBoard(board.id, PUBLIC_ACTIVITY_LIMIT),
     repos.users.list(),
   ]);
+  // A special column taken off the board does not travel, nor what it holds.
+  const columns = shownColumns(allColumns);
+  const columnIds = new Set(columns.map((c) => c.id));
+  const values = allValues.filter((value) => columnIds.has(value.columnId));
   const itemIds = items.map((i) => i.id);
   const [allLinks, comments] = await Promise.all([repos.links.listByItems(itemIds), repos.comments.listByItems(itemIds)]);
   // A link to a task on another board would name something the visitor has no

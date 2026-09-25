@@ -14,7 +14,7 @@ import { Skeleton, SkeletonLine } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { AutomationRule, AutomationRun, Board } from "@/domain";
-import { TRIGGER_TIMING } from "@/domain";
+import { TRIGGER_TIMING, shownColumns } from "@/domain";
 import { AutomationRuleDialog } from "@/features/automations/automation-rule-dialog";
 import { useAutomationRunnerHealth, useRuleEnabled, useRuleRemoved, useWorkspaceAutomationRuns, useWorkspaceAutomations } from "@/features/automations/hooks";
 import { RECIPES, type Recipe } from "@/features/automations/recipes";
@@ -315,7 +315,7 @@ function RecipeGrid({ boards, onPick }: { boards: Board[]; onPick: (board: Board
     staleTime: 30_000,
   });
   const shape = React.useMemo(
-    () => ({ columns: snapshot.data?.columns ?? [], groups: snapshot.data?.groups ?? [] }),
+    () => ({ columns: shownColumns(snapshot.data?.columns ?? []), groups: snapshot.data?.groups ?? [] }),
     [snapshot.data],
   );
 
@@ -409,7 +409,7 @@ function RuleCard({ rule, board, canManage, onEdit }: { rule: AutomationRule; bo
     staleTime: 60_000,
   });
   const vocabulary = React.useMemo(
-    () => ({ columns: snapshot.data?.columns ?? [], groups: snapshot.data?.groups ?? [], users: ws.users }),
+    () => ({ columns: shownColumns(snapshot.data?.columns ?? []), groups: snapshot.data?.groups ?? [], users: ws.users }),
     [snapshot.data, ws.users],
   );
   const setEnabled = useRuleEnabled();

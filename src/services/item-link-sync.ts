@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnLabel, ColumnSettings, ColumnType, ColumnValue, DropdownColumnSettings, PriorityColumnSettings, StatusColumnSettings } from "@/domain";
-import { STATUS_LABEL_ROLES, columnLabels, statusLabelRole } from "@/domain";
+import { STATUS_LABEL_ROLES, columnLabels, isSystemColumnType, statusLabelRole } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 
 /**
@@ -88,6 +88,21 @@ export function mapColumns(source: readonly BoardColumn[], target: readonly Boar
     const mateId = byHand.get(s.id);
     if (!mateId) continue;
     const match = tgt.find((t) => t.id === mateId && !taken.has(t.id) && compatibleTypes(s.type, t.type));
+    if (!match) continue;
+    taken.add(match.id);
+    placed.add(s.id);
+    mapped.push({ source: s, target: match });
+  }
+
+  // Then the special columns, by type alone: every board holds one of each, so
+  // the Brief is the Brief and the Due date the Due date, whatever each board
+  // calls it — and whether or not the board is showing it. Only where each side
+  // has just the one: a board from before the rule may keep two people columns,
+  // and guessing between them is what the name pass below is for.
+  const onlyOne = (columns: readonly BoardColumn[], type: ColumnType) => columns.filter((c) => c.type === type).length === 1;
+  for (const s of src) {
+    if (placed.has(s.id) || !isSystemColumnType(s.type) || !onlyOne(src, s.type) || !onlyOne(tgt, s.type)) continue;
+    const match = tgt.find((t) => !taken.has(t.id) && t.type === s.type);
     if (!match) continue;
     taken.add(match.id);
     placed.add(s.id);

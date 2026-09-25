@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BOARD_ROLES, COLUMN_TYPE_LABELS, isSystemColumnType, type Board, type BoardRole } from "@/domain";
+import { BOARD_ROLES, COLUMN_TYPE_LABELS, isSystemColumnType, shownColumns, type Board, type BoardRole } from "@/domain";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { BoardSharePanel } from "@/features/boards/components/dialogs/share-board-dialog";
@@ -268,7 +268,7 @@ function ColumnsSection({ board, manage }: { board: Board; manage: boolean }) {
   // The dialog is mounted from the header, outside the board context, so load columns directly.
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
-  const columns = [...(snapshot.data?.columns ?? [])].sort((a, b) => a.position - b.position);
+  const columns = shownColumns(snapshot.data?.columns ?? []).sort((a, b) => a.position - b.position);
   return (
     <div className="space-y-2">
       <p className="text-[13px] text-muted-foreground">The Item name column is always shown. Hide, show or delete the others.</p>

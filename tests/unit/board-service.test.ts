@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_TEAM_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import { BOARD_TEMPLATES } from "@/features/boards/templates";
+import { SPECIAL_BOARD_COLUMN_TYPES } from "@/domain";
 import { createServices } from "@/services";
 
 let counter = 0;
@@ -22,7 +23,10 @@ describe("BoardService", () => {
     expect(board.slug).toBe("open-day-2027");
     expect(board.ownerId).toBe(SEED_USER_IDS.danh);
     expect(groups.map((g) => g.name)).toEqual(BOARD_TEMPLATES["creative-production"].groups.map((g) => g.name));
-    expect(columns.map((c) => c.type)).toEqual(BOARD_TEMPLATES["creative-production"].columns.map((c) => c.type));
+    // The template's columns, in order, then whichever special columns it left out: every board holds one of each.
+    const template = BOARD_TEMPLATES["creative-production"].columns.map((c) => c.type);
+    expect(columns.slice(0, template.length).map((c) => c.type)).toEqual(template);
+    for (const type of SPECIAL_BOARD_COLUMN_TYPES) expect(columns.filter((c) => c.type === type)).toHaveLength(1);
     expect(columns.find((c) => c.type === "STATUS")?.settings.kind).toBe("status");
     const members = await services.repos.boards.listMembers(board.id);
     expect(members).toEqual([expect.objectContaining({ userId: SEED_USER_IDS.danh, role: "OWNER" })]);
@@ -34,7 +38,8 @@ describe("BoardService", () => {
     expect(first.board.slug).toBe("brief");
     expect(second.board.slug).toBe("brief-2");
     expect(first.groups).toHaveLength(1);
-    expect(first.columns.map((c) => c.name)).toEqual(["Owner", "Status", "Due Date"]);
+    expect(first.columns.slice(0, 3).map((c) => c.name)).toEqual(["Owner", "Status", "Due Date"]);
+    for (const type of SPECIAL_BOARD_COLUMN_TYPES) expect(first.columns.filter((c) => c.type === type)).toHaveLength(1);
   });
 
   it("marks private boards with the PRIVATE type", async () => {

@@ -474,7 +474,7 @@ function ColumnHeaderCell({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                    <Trash2 /> Delete column
+                    <Trash2 /> {isSystemColumnType(column.type) ? "Remove from board" : "Delete column"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -493,9 +493,10 @@ function ColumnHeaderCell({
           <ConfirmDialog
             open={confirmDelete}
             onOpenChange={setConfirmDelete}
-            title={`Delete the “${column.name}” column?`}
-            description="All values stored in this column are permanently removed from every item on the board."
-            confirmLabel="Delete column"
+            // A special column is kept: every board holds one, so it only leaves the board.
+            title={isSystemColumnType(column.type) ? `Remove “${column.name}” from the board?` : `Delete the “${column.name}” column?`}
+            description={isSystemColumnType(column.type) ? "What the tasks have in it is kept, and comes back if you add the column again." : "All values stored in this column are permanently removed from every item on the board."}
+            confirmLabel={isSystemColumnType(column.type) ? "Remove from board" : "Delete column"}
             destructive
             onConfirm={() => mutations.deleteColumn(column.id).then(() => undefined)}
           />
@@ -550,7 +551,7 @@ function ColumnHeaderCell({
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-          <Trash2 /> Delete column
+          <Trash2 /> {isSystemColumnType(column.type) ? "Remove from board" : "Delete column"}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

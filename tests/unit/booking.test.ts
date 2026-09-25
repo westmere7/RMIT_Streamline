@@ -527,6 +527,9 @@ describe("the built-in Admin team and Task Allocation board", () => {
       "Assets recap",
       "Allocated to",
       "Booking time",
+      "PIC",
+      "Timeline",
+      "Size",
     ]);
     const serviceTags = columns.find((c) => c.name === "Service")!.settings as TagsColumnSettings;
     expect(serviceTags.options.map((o) => o.name)).toEqual(["Brand", "Design", "Production"]);
@@ -721,6 +724,8 @@ describe("booking a task", () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
     const target = boards.find((b) => b.slug === "rmitinerary-2026")!;
+    // A board from before every board held a Brief: its seeded one taken out at the data level.
+    for (const c of await services.repos.boards.listColumns(target.id)) if (c.type === "BRIEF") await services.repos.boards.deleteColumn(c.id);
     expect((await services.repos.boards.listColumns(target.id)).some((c) => c.type === "BRIEF")).toBe(false);
 
     const { item } = await services.booking.allocate(receipt.itemId, target.id, owner);

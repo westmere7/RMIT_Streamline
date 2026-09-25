@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import type { AutomationRule, AutomationRuleInput, AutomationRulePatch, EntityId } from "@/domain";
-import { HEARTBEAT_STALE_MINUTES } from "@/domain";
+import { HEARTBEAT_STALE_MINUTES, shownColumns } from "@/domain";
 import { NO_BUSY_BOARDS, reconcileBusy, type BusySince } from "@/features/automations/activity";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -355,5 +355,6 @@ export function useAutomationNudge(): () => void {
 /** The board's own words, which every picker in the builder is filled from. */
 export function useRuleVocabulary(columns: RuleVocabulary["columns"], groups: RuleVocabulary["groups"]): RuleVocabulary {
   const ws = useWorkspace();
-  return React.useMemo(() => ({ columns, groups, users: ws.users }), [columns, groups, ws.users]);
+  // A special column taken off the board is not something to build a rule on.
+  return React.useMemo(() => ({ columns: shownColumns(columns), groups, users: ws.users }), [columns, groups, ws.users]);
 }

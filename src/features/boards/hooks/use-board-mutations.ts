@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -511,7 +511,10 @@ export function useBoardMutations(boardId: string) {
       const optimisticId = newId();
       return run(
         (s) => {
-          const draft: BoardColumn = {
+          // A special column taken off the board comes back, the one it had,
+          // rather than a second one being started (see BoardService.addColumn).
+          const off = isSystemColumnType(type) ? s.columns.find((c) => c.type === type && c.removed) : undefined;
+          const draft: BoardColumn = off ? { ...off, removed: false, hidden: false } : {
             id: optimisticId,
             boardId,
             name,
@@ -522,7 +525,7 @@ export function useBoardMutations(boardId: string) {
             hidden: false,
             createdAt: nowIso(),
           };
-          const ordered = [...s.columns].sort((a, b) => a.position - b.position);
+          const ordered = [...s.columns].filter((c) => c.id !== off?.id).sort((a, b) => a.position - b.position);
           const at = afterId ? ordered.findIndex((c) => c.id === afterId) : -1;
           if (at === -1) ordered.push(draft);
           else ordered.splice(at + 1, 0, draft);
@@ -541,7 +544,7 @@ export function useBoardMutations(boardId: string) {
           return created;
         },
         "Could not add the column",
-        (s, column) => ({ ...s, columns: s.columns.map((c) => (c.id === optimisticId ? { ...column, position: c.position } : c)) }),
+        (s, column) => ({ ...s, columns: s.columns.map((c) => (c.id === optimisticId || c.id === column.id ? { ...column, position: c.position } : c)) }),
       );
     },
     [run, services, boardId, queryClient, key],
@@ -644,14 +647,20 @@ export function useBoardMutations(boardId: string) {
   const deleteColumn = useCallback(
     (columnId: string) =>
       run(
-        (s) => ({ ...s, columns: s.columns.filter((c) => c.id !== columnId), values: s.values.filter((v) => v.columnId !== columnId) }),
+        (s) => {
+          // A special column only leaves the board: its values stay for when it comes back.
+          const special = s.columns.some((c) => c.id === columnId && isSystemColumnType(c.type));
+          if (special) return { ...s, columns: s.columns.map((c) => (c.id === columnId ? { ...c, removed: true, hidden: false } : c)) };
+          return { ...s, columns: s.columns.filter((c) => c.id !== columnId), values: s.values.filter((v) => v.columnId !== columnId) };
+        },
         async () => {
+          const special = queryClient.getQueryData<BoardSnapshot>(key)?.columns.some((c) => c.id === columnId && isSystemColumnType(c.type));
           await services.boards.deleteColumn(columnId);
-          toast.success("Column deleted");
+          toast.success(special ? "Column removed from the board" : "Column deleted");
         },
         "Could not delete the column",
       ),
-    [run, services],
+    [run, services, queryClient, key],
   );
 
   return useMemo(

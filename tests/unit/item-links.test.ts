@@ -76,8 +76,9 @@ describe("Task Linking", () => {
 
     const views = await services.links.listForItem(sem1.id);
     expect(views[0]?.board.id).toBe(SEED_BOARD_IDS.dooh);
-    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Due Date"]);
-    expect(views[0]?.mapping.unmapped.map((c) => c.name)).toEqual(["Timeline", "Channel"]);
+    // Every board holds the special columns, so those always line up; a plain one only by name.
+    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Timeline", "Due Date", "Department", "Size", "Brief"]);
+    expect(views[0]?.mapping.unmapped.map((c) => c.name)).toEqual(["Channel"]);
   });
 
   it("links items across teams, seeds the other side and mirrors later changes", async () => {
@@ -124,14 +125,13 @@ describe("Task Linking", () => {
       syncedFrom: "Open day messaging matrix",
     });
 
-    // A column the other board lacks changes nothing there.
-    const before = await services.repos.items.listValuesByItem(target.id);
+    // A special column is on every board, so it travels even where the other board never had one of its own.
     await setValue(source.id, SEED_BOARD_IDS.sem1, "Timeline", {
       type: "TIMELINE",
       start: "2026-09-01",
       end: "2026-09-10",
     });
-    expect(await services.repos.items.listValuesByItem(target.id)).toEqual(before);
+    expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Timeline")).toEqual({ type: "TIMELINE", start: "2026-09-01", end: "2026-09-10" });
 
     await services.items.updateDescription(source.id, "Shared brief", SEED_USER_IDS.danh);
     expect((await services.repos.items.getById(target.id))?.description).toBe("Shared brief");
