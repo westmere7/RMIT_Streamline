@@ -150,7 +150,7 @@ export function BookTaskPage() {
           rather than a card pinned left and an aside pinned right with a hole
           between them. The header shares the column, and its button lines up
           with the aside's right edge. */}
-      <div className="mx-auto w-full max-w-[66rem] shrink-0">
+      <div className="mx-auto w-full max-w-[80rem] shrink-0">
         <PageHeader
           title="Portal and Booking"
           // Held to a reading width: at full width the line pushes the button onto one of its own.
@@ -196,14 +196,14 @@ export function BookTaskPage() {
 
       {tab === "portals" && (
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7">
-          <div className="mx-auto w-full max-w-[66rem]">
+          <div className="mx-auto w-full max-w-[80rem]">
             <PortalAdmin />
           </div>
         </div>
       )}
       {/* On a desktop the editor card scrolls by itself under the header; on a phone the whole page scrolls. */}
       <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", tab !== "book" && "hidden")}>
-        <div className="mx-auto grid w-full max-w-[66rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,44rem)_minmax(16rem,20rem)]">
+        <div className="mx-auto grid w-full max-w-[80rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
           <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
             {form.isLoading || draft.isLoading ? (
               <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
