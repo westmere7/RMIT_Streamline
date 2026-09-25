@@ -37,7 +37,7 @@ function ContextMenuSubTrigger({ className, children, ...props }: React.Componen
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none focus:bg-accent/70 data-[state=open]:bg-accent/70 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none focus:bg-accent/70 data-[state=open]:bg-accent/70 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg:not([class*='_text-'])]:text-muted-foreground",
         className,
       )}
       {...props}
@@ -76,7 +76,7 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none focus:bg-accent/70 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "relative flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none focus:bg-accent/70 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg:not([class*='_text-'])]:text-muted-foreground",
         variant === "destructive" && "text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive",
         className,
       )}

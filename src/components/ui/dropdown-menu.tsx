@@ -92,7 +92,7 @@ function DropdownMenuItem({
     <DropdownMenuPrimitive.Item
       data-variant={variant}
       className={cn(
-        "relative flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none max-md:min-h-11 max-md:text-[15px] focus:bg-accent/70 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "relative flex cursor-default items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] outline-none select-none max-md:min-h-11 max-md:text-[15px] focus:bg-accent/70 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg:not([class*='_text-'])]:text-muted-foreground",
         variant === "destructive" && "text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive",
         inset && "pl-8",
         className,
