@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Item, StatusColumnSettings } from "@/domain";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
+import { useItemAssets } from "@/features/items/asset-hooks";
 import { buildJourney, formatSpan, type Journey, type JourneyPhase, type JourneyStatus, type Milestone, type MilestoneKind } from "@/features/journey/journey";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -63,7 +64,7 @@ const PHASE_COLOR: Record<JourneyPhase["key"], string> = { queue: "#f59e0b", tea
 export function TaskJourneyDialog({ item, open, onOpenChange }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl" className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 shadow-[0_30px_90px_-20px_rgba(0,0,84,0.6)]" data-testid="task-journey">
+      <DialogContent size="xl" className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0" data-testid="task-journey">
         {open && <JourneyBody item={item} />}
       </DialogContent>
     </Dialog>
@@ -74,6 +75,7 @@ function JourneyBody({ item }: { item: Item }) {
   const ws = useWorkspace();
   const services = useServices();
   const activity = useItemActivity(item.id);
+  const assets = useItemAssets(item.id);
   const columns = useQuery({ queryKey: queryKeys.boardColumns(item.boardId), queryFn: () => services.repos.boards.listColumns(item.boardId), staleTime: 60_000 });
   // "Now" moves on while the pop-up is open, so a journey still going keeps counting.
   const [now, setNow] = React.useState(() => new Date());
@@ -112,7 +114,7 @@ function JourneyBody({ item }: { item: Item }) {
           <p className="p-10 text-center text-[13px] text-muted-foreground">Nothing recorded for this task yet.</p>
         ) : (
           <>
-            <Figures journey={journey} />
+            <Figures journey={journey} deliverables={assets.data ? { done: assets.data.filter((a) => a.completedAt !== null).length, total: assets.data.length } : null} />
             <TimeRibbon journey={journey} now={now} />
             <Timeline journey={journey} now={now} />
           </>
@@ -129,54 +131,48 @@ function Header({ item, journey, loading }: { item: Item; journey: Journey; load
     ? [journey.booking.via === "portal" ? "Booked through the portal" : "Booked", journey.booking.requesterName ? `by ${journey.booking.requesterName}` : null, journey.booking.department ? `for ${journey.booking.department}` : null].filter(Boolean).join(" ")
     : "Created";
   return (
-    <div className="relative shrink-0 overflow-hidden bg-navy px-6 pt-6 pb-5 text-white">
-      <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-primary/35 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-32 left-1/4 size-64 rounded-full bg-sky-400/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:28px_28px] [mask-image:radial-gradient(ellipse_at_top_right,black_20%,transparent_75%)]" />
-      <div className="relative flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pr-8">
-        <div className="min-w-0 flex-1">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/85 uppercase backdrop-blur">
-            <Route className="size-3 text-amber-300" /> Task journey
-          </span>
-          <DialogTitle className="mt-3 flex min-w-0 items-center gap-2.5 text-[22px] leading-tight font-semibold tracking-tight text-white">
-            {item.ticket && <span className="shrink-0 rounded-md bg-white/12 px-1.5 py-0.5 font-mono text-[13px] font-medium text-white/85 ring-1 ring-white/15">{item.ticket}</span>}
-            <span className="truncate">{item.name}</span>
-          </DialogTitle>
-          <DialogDescription className="mt-1 text-[13px] text-white/65">
-            {loading || !journey.start ? " " : `${lead} · ${stamp(journey.start)}`}
-          </DialogDescription>
-        </div>
-        {!loading && journey.start && (
-          <div className="text-right" data-testid="journey-total">
-            <p className="text-[34px] leading-none font-semibold tracking-tight tabular">{formatSpan(journey.totalMs)}</p>
-            <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-white/70">
-              {journey.ongoing ? (
-                <>
-                  <span className="relative flex size-2">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
-                  </span>
-                  so far{journey.current ? ` · ${journey.current.name}` : ""}
-                </>
-              ) : (
-                <>
-                  <Flag className="size-3" /> end to end · archived
-                </>
-              )}
-            </p>
-          </div>
-        )}
+    <div className="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border/70 px-6 pt-5 pb-4 pr-14">
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          <Route className="size-3.5 text-primary" /> Task journey
+        </p>
+        <DialogTitle className="mt-1.5 flex min-w-0 items-center gap-2.5 text-[20px] leading-tight font-semibold tracking-tight">
+          {item.ticket && <span className="shrink-0 rounded-md bg-surface-strong px-1.5 py-0.5 font-mono text-[12px] font-medium text-muted-foreground">{item.ticket}</span>}
+          <span className="truncate">{item.name}</span>
+        </DialogTitle>
+        <DialogDescription className="mt-1 text-[13px]">{loading || !journey.start ? " " : `${lead} · ${stamp(journey.start)}`}</DialogDescription>
       </div>
+      {!loading && journey.start && (
+        <div className="text-right" data-testid="journey-total">
+          <p className="text-[30px] leading-none font-semibold tracking-tight tabular">{formatSpan(journey.totalMs)}</p>
+          <p className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            {journey.ongoing ? (
+              <>
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                </span>
+                so far{journey.current ? ` · ${journey.current.name}` : ""}
+              </>
+            ) : (
+              <>
+                <Flag className="size-3" /> end to end · archived
+              </>
+            )}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 // ---- the four figures ----------------------------------------------------------
 
-function Figures({ journey }: { journey: Journey }) {
+function Figures({ journey, deliverables }: { journey: Journey; deliverables: { done: number; total: number } | null }) {
   const queue = journey.phases.find((p) => p.key === "queue");
   const team = journey.phases.find((p) => p.key === "team");
-  const lastProgress = [...journey.milestones].reverse().find((m) => m.progress)?.progress ?? null;
+  // The task's deliverables as they stand, which the log may not have seen arrive.
+  const lastProgress = deliverables && deliverables.total > 0 ? deliverables : ([...journey.milestones].reverse().find((m) => m.progress)?.progress ?? null);
   return (
     <div className="grid grid-cols-2 gap-px border-b border-border/70 bg-border/60 sm:grid-cols-4" data-testid="journey-figures">
       <FigureCell icon={Hourglass} color={PHASE_COLOR.queue} label="In the queue" value={queue ? formatSpan(queue.ms) : "—"} hint={queue ? (queue.open ? "waiting to be allocated" : "booking to allocation") : "went straight to a team"} />

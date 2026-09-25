@@ -513,6 +513,7 @@ function PanelHeader({
   const share = useItemShareStatus(shared ? "" : item.id).data ?? null;
   const ws = useWorkspace();
   const [renaming, setRenaming] = React.useState(false);
+  const [journeyOpen, setJourneyOpen] = React.useState(false);
   const group = model.groups.find((g) => g.id === item.groupId);
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
@@ -563,17 +564,25 @@ function PanelHeader({
               </>
             )}
           </p>
-          <div className="-mr-2 flex shrink-0 items-center gap-0.5">
+          <div className="-mr-1.5 flex shrink-0 items-center">
+            {/* The task's story, booking to archive. Not on a shared link: its log is not a visitor's to read. */}
+            {!shared && (
+              <SimpleTooltip label="Task journey">
+                <Button variant="ghost" size="icon-xs" onClick={() => setJourneyOpen(true)} aria-label="Task journey" data-testid="open-task-journey">
+                  <Route />
+                </Button>
+              </SimpleTooltip>
+            )}
             {!shared && canManage && (
               <SimpleTooltip label="Share this task by link">
-                <Button variant="ghost" size="icon-sm" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
+                <Button variant="ghost" size="icon-xs" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
                   <Share2 />
                 </Button>
               </SimpleTooltip>
             )}
             {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />}
             {!hideClose && (
-              <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
+              <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
                 <X />
               </Button>
             )}
@@ -633,6 +642,7 @@ function PanelHeader({
         <AssetsRecapStrip assets={assets} />
       </div>
       <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />
+      {!shared && <TaskJourneyDialog item={item} open={journeyOpen} onOpenChange={setJourneyOpen} />}
     </div>
   );
 }
@@ -1026,7 +1036,7 @@ function PanelMenu({ item, canEdit, canManage, onShare, shared, popup }: { item:
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label="More actions for this task" data-testid="panel-menu">
+          <Button variant="ghost" size="icon-xs" aria-label="More actions for this task" data-testid="panel-menu">
             <MoreVertical />
           </Button>
         </DropdownMenuTrigger>
@@ -1315,31 +1325,12 @@ function SubOwners({ userIds }: { userIds: string[] }) {
 
 function ItemActivity({ item }: { item: Item }) {
   const activity = useItemActivity(item.id);
-  const [journeyOpen, setJourneyOpen] = React.useState(false);
-  return (
-    <>
-      {/* The story of the task, cut down to its milestones, one click away from the full log. */}
-      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-b border-border/60 bg-card/95 px-4 py-2.5 backdrop-blur">
-        <p className="text-2xs text-muted-foreground">{activity.data ? `${activity.data.length} ${activity.data.length === 1 ? "event" : "events"}` : " "}</p>
-        <button
-          type="button"
-          onClick={() => setJourneyOpen(true)}
-          className="group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-navy px-3 py-1.5 text-[12px] font-medium text-white shadow-sm ring-1 ring-white/10 transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-ring"
-          data-testid="open-task-journey"
-        >
-          <span aria-hidden className="pointer-events-none absolute -top-6 -right-4 size-12 rounded-full bg-primary/60 blur-xl transition-opacity group-hover:opacity-100 sm:opacity-80" />
-          <Route className="relative size-3.5 text-amber-300" />
-          <span className="relative">Task journey</span>
-        </button>
+  if (activity.isLoading) {
+    return (
+      <div className="space-y-2 py-4">
+        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
       </div>
-      {activity.isLoading ? (
-        <div className="space-y-2 py-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
-        </div>
-      ) : (
-        <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." />
-      )}
-      <TaskJourneyDialog item={item} open={journeyOpen} onOpenChange={setJourneyOpen} />
-    </>
-  );
+    );
+  }
+  return <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." />;
 }
