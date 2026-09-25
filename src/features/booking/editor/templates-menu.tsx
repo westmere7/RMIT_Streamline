@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { BookingFormTemplate, BookingTemplate } from "@/domain";
 import { MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, templateQuestionCount } from "@/domain";
-import { formatShortDate } from "@/lib/dates/dates";
+import { format, isSameYear } from "date-fns";
 
 export interface TemplatesMenuProps {
   templates: BookingTemplate[];
@@ -149,7 +149,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
                   <p className="truncate text-[13px] font-medium">{t.name}</p>
                   {t.description && <p className="mt-0.5 text-2xs text-muted-foreground">{t.description}</p>}
                   <p className="mt-0.5 text-2xs text-muted-foreground">
-                    {t.template.services?.length ?? 0} services · {templateQuestionCount(t.template)} questions · saved {formatShortDate(t.updatedAt.slice(0, 10))}
+                    {t.template.services?.length ?? 0} services · {templateQuestionCount(t.template)} questions · saved {savedAt(t.updatedAt)}
                   </p>
                 </div>
                 <Button
@@ -211,4 +211,11 @@ function PanelRow({ icon: Icon, onClick, disabled, testId, children }: { icon: R
       <span className="min-w-0 truncate">{children}</span>
     </button>
   );
+}
+
+/** "Sep 25, 14:32", in the reader's own time; the year only when it is not this one. */
+function savedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return format(date, isSameYear(date, new Date()) ? "MMM d, HH:mm" : "MMM d yyyy, HH:mm");
 }
