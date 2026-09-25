@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronDown, FileCheck2, LayoutTemplate, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
+import { FileCheck2, FolderOpen, LayoutTemplate, LoaderCircle, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,10 +26,12 @@ export interface TemplatesMenuProps {
   onLoadLive: () => void;
   /** The editor already holds the published form. */
   showingLive: boolean;
+  /** Shown at the top of the panel: the template the editor was filled from, and the way back into it. */
+  children?: React.ReactNode;
 }
 
 /**
- * Saved forms. A template belongs to the workspace: anyone who can shape the
+ * Saved forms, in a panel of their own under the editing controls. A template belongs to the workspace: anyone who can shape the
  * form sees the same list, whoever saved each one. It carries a description
  * because a name alone stops saying anything once there are five of them —
  * "Summer" tells the next person nothing about what is different about it.
@@ -38,7 +39,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [loadOpen, setLoadOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -71,29 +72,27 @@ export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDe
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" data-testid="booking-editor-templates">
-            <LayoutTemplate /> Templates <ChevronDown className="opacity-60" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuItem onSelect={() => setSaveOpen(true)} data-testid="template-save">
-            Save this form as a template…
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setLoadOpen(true)} disabled={templates.length === 0} data-testid="template-load">
+      <section className="space-y-2.5 rounded-2xl border border-border/70 bg-card p-4 shadow-xs" data-testid="booking-editor-templates">
+        <h3 className="flex items-center gap-2 text-[13px] font-medium">
+          <LayoutTemplate className="size-4 text-muted-foreground" /> Templates
+          {templates.length > 0 && <span className="text-2xs text-muted-foreground tabular">{templates.length}</span>}
+        </h3>
+        {children}
+        <div className="grid gap-0.5">
+          <PanelRow icon={Save} onClick={() => setSaveOpen(true)} testId="template-save">
+            Save as a template…
+          </PanelRow>
+          <PanelRow icon={FolderOpen} onClick={() => setLoadOpen(true)} disabled={templates.length === 0} testId="template-load">
             Load a template…
-            {templates.length > 0 && <span className="ml-auto text-2xs text-muted-foreground tabular">{templates.length}</span>}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onLoadLive} disabled={showingLive} data-testid="booking-editor-load-live">
-            <FileCheck2 /> Load the published form
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onReset} data-testid="booking-editor-reset">
-            <RotateCcw /> Start from the built-in form
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </PanelRow>
+          <PanelRow icon={FileCheck2} onClick={onLoadLive} disabled={showingLive} testId="booking-editor-load-live">
+            Load the published form
+          </PanelRow>
+          <PanelRow icon={RotateCcw} onClick={onReset} testId="booking-editor-reset">
+            Start from the built-in form
+          </PanelRow>
+        </div>
+      </section>
 
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
         <DialogContent size="sm" data-testid="template-save-dialog">
@@ -195,5 +194,21 @@ export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDe
         }}
       />
     </>
+  );
+}
+
+/** One action in the panel: a quiet full-width row. */
+function PanelRow({ icon: Icon, onClick, disabled, testId, children }: { icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; testId: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent/70 disabled:pointer-events-none disabled:opacity-45"
+      data-testid={testId}
+    >
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 truncate">{children}</span>
+    </button>
   );
 }

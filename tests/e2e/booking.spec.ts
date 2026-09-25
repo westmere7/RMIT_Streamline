@@ -297,7 +297,6 @@ test.describe("task booking", () => {
   test("an admin keeps forms as templates, with a word about what each is for", async ({ page }) => {
     await signInAs(page, "Danh");
     await openBookPage(page);
-    await page.getByTestId("booking-editor-templates").click();
     await page.getByTestId("template-save").click();
     await page.getByTestId("template-name").fill("Built-in copy");
     await page.getByTestId("template-description").fill("The form as it shipped.");
@@ -306,14 +305,12 @@ test.describe("task booking", () => {
 
     // Change the form, then load the template back over it.
     await page.getByTestId("editor-basics-title").fill("Your request");
-    await page.getByTestId("booking-editor-templates").click();
     await page.getByTestId("template-load").click();
     await expect(page.getByText("The form as it shipped.")).toBeVisible();
     await page.getByRole("button", { name: "Load", exact: true }).first().click();
     await expect(page.getByTestId("editor-basics-title")).toHaveValue("About you and your request");
 
     // And delete it again.
-    await page.getByTestId("booking-editor-templates").click();
     await page.getByTestId("template-load").click();
     await page.getByRole("button", { name: "Delete template Built-in copy" }).click();
     await page.getByRole("button", { name: "Delete template", exact: true }).click();

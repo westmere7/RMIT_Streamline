@@ -36,7 +36,7 @@ import { ChoiceChips } from "./choice-chips";
 import { PreviewDialog } from "./preview-dialog";
 import { PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EditorSection, Handle, TextBox } from "./editor-controls";
-import { TemplatesMenu } from "./templates-menu";
+import { TemplatesPanel } from "./templates-menu";
 
 /**
  * The form editor: four steps, edited in the order a stakeholder meets them.
@@ -184,85 +184,99 @@ export function BookingFormEditor({
 
   // The controls: beside the form when the page offers a place for them, above it otherwise.
   const panel = (
-    <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
-      <PublishedFormCard info={{ ...published, template: live }} />
-      <div>
-        <p className="text-[13px] font-medium">Editing the form</p>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {matchesLive ? "This matches the form people are using." : "These changes are yours alone until you publish them."}
-        </p>
-      </div>
-      {problem && (
-        <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
-          {problem}
-        </p>
-      )}
-      <div className="grid gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() =>
-            void onSaveDraft(draft).then(() => {
-              setSaved(clone(draft));
-              toast.success("Draft saved", { description: "Nothing has changed for stakeholders yet." });
-            })
-          }
-          disabled={savingDraft || publishing || !check.success || savedHere}
-          title={problem ?? undefined}
-          data-testid="booking-editor-save-draft"
-        >
-          {savingDraft ? <LoaderCircle className="animate-spin" /> : <Save />} {savedHere ? "Draft saved" : "Save draft"}
-        </Button>
-        <Button type="button" onClick={() => setConfirmPublish(true)} disabled={publishing || savingDraft || !check.success || matchesLive} title={problem ?? undefined} data-testid="booking-editor-publish">
-          {publishing ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish the form
-        </Button>
-        {/* The draft, run as the real thing. Nothing it does is sent or kept. */}
-        <Button type="button" variant="outline" onClick={() => setPreviewing(true)} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
-          <Eye /> Preview the form
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || savingDraft || publishing} data-testid="booking-editor-revert">
-            <Undo2 /> Undo changes
-          </Button>
-          {onClose && (
-            <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={savingDraft || publishing} data-testid="booking-editor-close">
-              Done
-            </Button>
-          )}
+    <div className="space-y-3">
+      <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
+        <PublishedFormCard info={{ ...published, template: live }} />
+        <div>
+          <p className="text-[13px] font-medium">Editing the form</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {matchesLive ? "This matches the form people are using." : "These changes are yours alone until you publish them."}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <TemplatesMenu
-            templates={templates}
-            current={draft}
-            onLoad={(t) => {
-              setDraft(clone(t.template));
-              setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
-              setSelectedService(t.template.services[0]?.id ?? null);
-              toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
-            }}
-            onSaveTemplate={onSaveTemplate}
-            onDeleteTemplate={onDeleteTemplate}
-            onReset={() => {
-              const fresh = defaultBookingFormTemplate();
-              setDraft(fresh);
-              setFromTemplate(null);
-              setSelectedService(fresh.services[0]?.id ?? null);
-            }}
-            onLoadLive={() => {
-              setDraft(clone(live));
-              setFromTemplate(null);
-              setSelectedService(live.services[0]?.id ?? null);
-              toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
-            }}
-            showingLive={matchesLive}
-          />
-          {/* Back into the slot it came from, name and description kept. */}
-          {template && (
+        {problem && (
+          <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
+            {problem}
+          </p>
+        )}
+        <div className="grid gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              void onSaveDraft(draft).then(() => {
+                setSaved(clone(draft));
+                toast.success("Draft saved", { description: "Nothing has changed for stakeholders yet." });
+              })
+            }
+            disabled={savingDraft || publishing || !check.success || savedHere}
+            title={problem ?? undefined}
+            data-testid="booking-editor-save-draft"
+          >
+            {savingDraft ? <LoaderCircle className="animate-spin" /> : <Save />} {savedHere ? "Draft saved" : "Save draft"}
+          </Button>
+          <Button type="button" onClick={() => setConfirmPublish(true)} disabled={publishing || savingDraft || !check.success || matchesLive} title={problem ?? undefined} data-testid="booking-editor-publish">
+            {publishing ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish the form
+          </Button>
+          {/* The draft, run as the real thing. Nothing it does is sent or kept. */}
+          <Button type="button" variant="outline" onClick={() => setPreviewing(true)} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
+            <Eye /> Preview the form
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || savingDraft || publishing} data-testid="booking-editor-revert">
+              <Undo2 /> Undo changes
+            </Button>
+            {onClose && (
+              <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={savingDraft || publishing} data-testid="booking-editor-close">
+                Done
+              </Button>
+            )}
+          </div>
+        </div>
+        {draftWaiting && (
+          <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-editor-draft-waiting">
+            A saved draft is waiting to be published.
+            <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={() => setConfirmDrop(true)} data-testid="booking-editor-drop-draft">
+              Throw it away and start from the live form
+            </button>
+          </p>
+        )}
+      </section>
+      {/* Saved forms, in their own panel: what the editor was filled from, and the ways to fill it. */}
+      <TemplatesPanel
+        templates={templates}
+        current={draft}
+        onLoad={(t) => {
+          setDraft(clone(t.template));
+          setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
+          setSelectedService(t.template.services[0]?.id ?? null);
+          toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
+        }}
+        onSaveTemplate={onSaveTemplate}
+        onDeleteTemplate={onDeleteTemplate}
+        onReset={() => {
+          const fresh = defaultBookingFormTemplate();
+          setDraft(fresh);
+          setFromTemplate(null);
+          setSelectedService(fresh.services[0]?.id ?? null);
+        }}
+        onLoadLive={() => {
+          setDraft(clone(live));
+          setFromTemplate(null);
+          setSelectedService(live.services[0]?.id ?? null);
+          toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
+        }}
+        showingLive={matchesLive}
+      >
+        {template && (
+          <div className="rounded-xl border border-border/60 bg-surface/50 p-2.5" data-testid="booking-editor-loaded-template">
+            <p className="mb-2 truncate text-2xs text-muted-foreground">
+              Loaded <span className="font-medium text-foreground">{template.name}</span>
+            </p>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="min-w-0 flex-1"
+              className="w-full min-w-0"
               disabled={!templateChanged || updatingTemplate || !check.success}
               title={templateChanged ? `Overwrite the template “${template.name}” with the form as it is now` : `Matches the template “${template.name}”`}
               onClick={async () => {
@@ -278,22 +292,14 @@ export function BookingFormEditor({
                 }
               }}
               data-testid="booking-editor-update-template"
-            >
+    >
               {updatingTemplate ? <LoaderCircle className="animate-spin" /> : <Save />}
-              <span className="truncate">{templateChanged ? `Update “${template.name}”` : `“${template.name}” saved`}</span>
+              <span className="min-w-0 truncate">{templateChanged ? `Update “${template.name}”` : `“${template.name}” saved`}</span>
             </Button>
-          )}
-        </div>
-      </div>
-      {draftWaiting && (
-        <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-editor-draft-waiting">
-          A saved draft is waiting to be published.
-          <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={() => setConfirmDrop(true)} data-testid="booking-editor-drop-draft">
-            Throw it away and start from the live form
-          </button>
-        </p>
-      )}
-    </section>
+          </div>
+        )}
+      </TemplatesPanel>
+    </div>
   );
 
   return (
