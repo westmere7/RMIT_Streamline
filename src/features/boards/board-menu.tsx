@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, LayoutTemplate, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -9,6 +9,7 @@ import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { IconPicker } from "@/components/shared/icon-picker";
 import type { Board } from "@/domain";
 import { isBoardMuted } from "@/domain";
+import { useSaveTemplateDialog } from "@/features/boards/board-templates";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -49,6 +50,7 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
   const manage = canManageBoard(ws.permissions, board);
   const favourite = ws.isFavourite(board.id);
   const teams = ws.teams.filter((t) => t.archivedAt === null);
+  const showSaveTemplate = useSaveTemplateDialog((s) => s.show);
 
   const list: MenuAction[] = [
     // From the sidebar these open the board; from its own header they put the
@@ -94,6 +96,7 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
       ],
     },
     { type: "item", label: "Duplicate board", icon: <Copy />, onSelect: () => actions.duplicateBoard.mutate() },
+    { type: "item", label: "Save as template…", icon: <LayoutTemplate />, onSelect: () => showSaveTemplate(board.id), testId: "board-menu-save-template" },
     {
       type: "item",
       label: muted ? "Resume notifications" : "Mute notifications",

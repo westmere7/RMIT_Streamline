@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.0",
+    date: "2026-09-25",
+    title: "Board templates",
+    changes: [
+      "Save any board's layout as a template, from its menu or from Create board. Choose what comes with it: groups, column settings, widths and hidden columns, automations, task names, and its colour and icon.",
+      "Create board offers your saved templates beside the built-in ones. Whoever saved a template, or an admin, can delete it.",
+    ],
+  },
+  {
     version: "0.46.2",
     date: "2026-09-25",
     title: "Start tickets again after a wipe",

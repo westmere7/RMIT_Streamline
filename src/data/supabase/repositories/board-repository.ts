@@ -211,7 +211,9 @@ export class SupabaseBoardRepository implements BoardRepository {
       position,
       width: input.width ?? DEFAULT_COLUMN_WIDTHS[input.type],
       hidden: input.hidden ?? false,
+      hidden_in_panel: input.hiddenInPanel ?? false,
       removed: input.removed ?? false,
+      role: input.role ?? null,
     };
     const result = await db().from("board_columns").insert(payload).select(COLUMN).single();
     return toBoardColumn(unwrap<BoardColumnRow>(result, "board_columns.createColumn"));

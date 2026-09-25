@@ -49,7 +49,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -394,6 +394,15 @@ export interface BookingTemplateRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+/** Board layouts saved under a name, per workspace, for new boards to start from. */
+export interface BoardTemplateRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<SavedBoardTemplate[]>;
+  getById(id: EntityId): Promise<SavedBoardTemplate | null>;
+  create(input: SavedBoardTemplateInput): Promise<SavedBoardTemplate>;
+  update(id: EntityId, patch: Partial<Pick<SavedBoardTemplate, "name" | "description" | "spec">>): Promise<SavedBoardTemplate>;
+  delete(id: EntityId): Promise<void>;
+}
+
 /** Blocks of a brief kept under a name, per workspace, to be dropped into any service's brief. */
 export interface BookingSavedBlockRepository {
   listByWorkspace(workspaceId: EntityId): Promise<BookingSavedBlock[]>;
@@ -590,6 +599,7 @@ export interface Repositories {
   workspaceLists: WorkspaceListRepository;
   stakeholderPortals: StakeholderPortalRepository;
   bookingTemplates: BookingTemplateRepository;
+  boardTemplates: BoardTemplateRepository;
   bookingSavedBlocks: BookingSavedBlockRepository;
   boardShares: BoardShareRepository;
   itemShares: ItemShareRepository;

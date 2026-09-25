@@ -229,6 +229,13 @@ export function createMemoryRepositories(
       update: readOnly("saving a form"),
       delete: readOnly("deleting a form"),
     },
+    boardTemplates: {
+      listByWorkspace: async () => [],
+      getById: async () => null,
+      create: readOnly("saving a board template"),
+      update: readOnly("saving a board template"),
+      delete: readOnly("deleting a board template"),
+    },
     bookingSavedBlocks: {
       listByWorkspace: async () => [],
       create: readOnly("saving a block"),

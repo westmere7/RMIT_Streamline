@@ -2,6 +2,7 @@ import type { Repositories } from "@/data/repositories";
 import { AutomationEngine } from "./automation-engine";
 import { AutomationService, type AutomationRunTransport } from "./automation-service";
 import { BoardService } from "./board-service";
+import { BoardTemplateService } from "./board-template-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { CommentService } from "./comment-service";
@@ -31,6 +32,8 @@ export interface Services {
   workspace: WorkspaceService;
   lists: WorkspaceListService;
   boards: BoardService;
+  /** Board layouts saved under a name, for new boards to start from. */
+  boardTemplates: BoardTemplateService;
   shares: BoardShareService;
   itemShares: ItemShareService;
   dashboard: DashboardService;
@@ -81,13 +84,15 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   // run a quick run without a server. The unattended passes are only ever
   // started from a server: see src/server/automations.ts.
   const automationEngine = new AutomationEngine(repos, items, comments, notifications, { timezone: options.automationTimezone });
+  const boards = new BoardService(repos, notifications);
   return {
     repos,
     notifications,
     workspace,
     lists: new WorkspaceListService(repos, portals),
     portals,
-    boards: new BoardService(repos, notifications),
+    boards,
+    boardTemplates: new BoardTemplateService(repos, boards, items),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
     itemShares: new ItemShareService(repos, options.itemShareTransport ?? null),
     dashboard: new DashboardService(repos, options.dashboardTransport ?? null),

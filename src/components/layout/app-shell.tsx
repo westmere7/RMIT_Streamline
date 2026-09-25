@@ -12,6 +12,7 @@ import { useOsNotifications } from "@/features/notifications/use-os-notification
 import { tabCountPrefix, useTabBadge } from "@/features/notifications/use-tab-badge";
 import { CommandPalette } from "@/features/search/command-palette";
 import { VersionWatcher } from "@/features/version/version-watcher";
+import { SaveBoardTemplateHost } from "@/features/boards/board-templates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -83,6 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <UndoBar />
       <ConfettiCanvas />
       <VersionWatcher />
+      <SaveBoardTemplateHost />
     </>
   );
 

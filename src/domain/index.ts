@@ -11,6 +11,7 @@ export * from "./board/column-role";
 export * from "./board/date-time-format";
 export * from "./board/countdown";
 export * from "./board/board-share";
+export * from "./board/board-template";
 export * from "./dashboard/dashboard";
 export * from "./item/item";
 export * from "./item/ticket";

@@ -15,10 +15,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { COLOR_TOKENS, type ColorToken } from "@/domain";
+import { COLOR_TOKENS, describeTemplateSpec, type ColorToken, type SavedBoardTemplate } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { BOARD_TEMPLATE_IDS, BOARD_TEMPLATE_LIST } from "@/features/boards/templates";
+import { useDeleteBoardTemplate, useSaveTemplateDialog, useSavedBoardTemplates } from "@/features/boards/board-templates";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { isWorkspaceAdmin } from "@/lib/permissions/permissions";
+import { LayoutTemplate, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
@@ -73,20 +77,26 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
     },
   });
 
+  // A saved template, when one is picked; the built-in choice otherwise.
+  const [savedId, setSavedId] = React.useState<string | null>(null);
+  const saved = useSavedBoardTemplates();
+  const removeTemplate = useDeleteBoardTemplate();
+  const [deleting, setDeleting] = React.useState<SavedBoardTemplate | null>(null);
+  const showSaveTemplate = useSaveTemplateDialog((s) => s.show);
+  const canRemove = (t: SavedBoardTemplate) => t.createdBy === user.id || isWorkspaceAdmin(ws.permissions);
+
   const create = useMutation({
-    mutationFn: (values: FormValues) =>
-      services.boards.createBoard(
-        {
-          workspaceId: ws.workspace.id,
-          name: values.name,
-          teamId: values.teamId === NO_TEAM ? null : values.teamId,
-          visibility: values.visibility,
-          templateId: values.templateId,
-          color: values.color,
-          icon: values.icon,
-        },
-        user.id,
-      ),
+    mutationFn: (values: FormValues) => {
+      const input = {
+        workspaceId: ws.workspace.id,
+        name: values.name,
+        teamId: values.teamId === NO_TEAM ? null : values.teamId,
+        visibility: values.visibility,
+        color: values.color,
+        icon: values.icon,
+      };
+      return savedId ? services.boardTemplates.createBoard(savedId, input, user.id) : services.boards.createBoard({ ...input, templateId: values.templateId }, user.id);
+    },
     onSuccess: async ({ board }) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.boards(ws.workspace.id) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.boardMembersAll(ws.workspace.id) });
@@ -105,7 +115,7 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
     <>
         <DialogHeader>
           <DialogTitle>Create board</DialogTitle>
-          <DialogDescription>Boards hold groups of items. Pick a template to start with sensible columns.</DialogDescription>
+          <DialogDescription>Boards hold groups of items. Start from a template, or one you saved.</DialogDescription>
         </DialogHeader>
         <form id="create-board-form" className="grid gap-4" onSubmit={form.handleSubmit((v) => create.mutate(v))}>
           <div className="grid gap-1.5">
@@ -171,14 +181,17 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
               render={({ field }) => (
                 <div role="radiogroup" className="grid gap-2 sm:grid-cols-3">
                   {BOARD_TEMPLATE_LIST.map((template) => {
-                    const selected = field.value === template.id;
+                    const selected = !savedId && field.value === template.id;
                     return (
                       <button
                         key={template.id}
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        onClick={() => field.onChange(template.id)}
+                        onClick={() => {
+                          setSavedId(null);
+                          field.onChange(template.id);
+                        }}
                         className={cn(
                           "rounded-xl border border-border/70 p-3.5 text-left transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring",
                           selected ? "border-ring bg-accent" : "border-border",
@@ -192,9 +205,49 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
                       </button>
                     );
                   })}
+                  {(saved.data ?? []).map((template) => {
+                    const selected = savedId === template.id;
+                    return (
+                      <div key={template.id} className="relative">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => {
+                            setSavedId(template.id);
+                            // The look it was saved with, as a starting point.
+                            if (template.spec.board) {
+                              form.setValue("color", template.spec.board.color);
+                              form.setValue("icon", template.spec.board.icon);
+                            }
+                          }}
+                          className={cn(
+                            "h-full w-full rounded-xl border border-border/70 p-3.5 pr-8 text-left transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring",
+                            selected ? "border-ring bg-accent" : "border-border",
+                          )}
+                          data-testid="saved-template"
+                        >
+                          <p className="flex items-center gap-1.5 text-[13px] font-medium">
+                            <LayoutTemplate className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{template.name}</span>
+                          </p>
+                          {template.description && <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">{template.description}</p>}
+                          <p className="mt-2 text-2xs text-muted-foreground">{describeTemplateSpec(template.spec)}</p>
+                        </button>
+                        {canRemove(template) && (
+                          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Delete ${template.name}`} className="absolute top-2 right-2 text-muted-foreground" onClick={() => setDeleting(template)} data-testid="saved-template-delete">
+                            <Trash2 />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             />
+            <button type="button" onClick={() => showSaveTemplate(null)} className="justify-self-start text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="save-board-as-template">
+              Save a board as a template…
+            </button>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
@@ -221,6 +274,19 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
             {create.isPending ? "Creating…" : "Create Board"}
           </Button>
         </DialogFooter>
+        <ConfirmDialog
+          open={deleting !== null}
+          onOpenChange={(open) => !open && setDeleting(null)}
+          title={`Delete “${deleting?.name ?? ""}”?`}
+          description="Boards already made from it stay as they are."
+          confirmLabel="Delete template"
+          destructive
+          onConfirm={async () => {
+            if (!deleting) return;
+            if (savedId === deleting.id) setSavedId(null);
+            await removeTemplate.mutateAsync(deleting.id);
+          }}
+        />
     </>
   );
 }

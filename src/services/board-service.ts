@@ -5,6 +5,7 @@ import type {
   BoardGroup,
   BoardInput,
   BoardRole,
+  BoardTemplateSpec,
   ColorToken,
   ColumnRole,
   ColumnSettings,
@@ -42,6 +43,8 @@ export interface BoardBundle {
   board: Board;
   groups: BoardGroup[];
   columns: BoardColumn[];
+  /** For a board made from a saved template: each template key (the id it had on the board it came from), as the id it has here. */
+  ids?: Map<EntityId, EntityId>;
 }
 
 const GROUP_COLORS: ColorToken[] = ["blue", "orange", "violet", "green", "sky", "amber", "teal", "pink", "gray"];
@@ -67,8 +70,14 @@ export class BoardService {
     return this.repos.boards.getBySlug(workspaceId, slug);
   }
 
-  async createBoard(input: CreateBoardInput, actorId: EntityId): Promise<BoardBundle> {
+  /**
+   * A new board, from one of the built-in templates or, given `saved`, from a
+   * saved one's groups and columns (BoardTemplateService puts the automations
+   * and tasks on afterwards, through the ids this returns).
+   */
+  async createBoard(input: CreateBoardInput, actorId: EntityId, saved?: BoardTemplateSpec): Promise<BoardBundle> {
     const template = BOARD_TEMPLATES[input.templateId];
+    const ids = new Map<EntityId, EntityId>();
     const existing = await this.repos.boards.listByWorkspace(input.workspaceId);
     const slug = uniqueSlug(slugify(input.name), existing.map((b) => b.slug));
 
@@ -88,22 +97,35 @@ export class BoardService {
     await this.repos.boards.setMember(board.id, actorId, "OWNER");
 
     const groups: BoardGroup[] = [];
-    for (const [index, group] of template.groups.entries()) {
-      groups.push(
-        await this.repos.boards.createGroup({
-          boardId: board.id,
-          name: group.name,
-          color: group.color,
-          position: index,
-          collapsed: false,
-        }),
-      );
+    // A saved template without its groups still needs one to put tasks in.
+    const groupSpecs = saved ? (saved.groups.length ? saved.groups : [{ key: "", name: "Group 1", color: "blue" as const }]) : template.groups.map((g) => ({ ...g, key: "" }));
+    for (const [index, group] of groupSpecs.entries()) {
+      const created = await this.repos.boards.createGroup({ boardId: board.id, name: group.name, color: group.color, position: index, collapsed: false });
+      if (group.key) ids.set(group.key, created.id);
+      groups.push(created);
     }
     const columns: BoardColumn[] = [];
-    for (const [index, column] of template.columns.entries()) {
-      columns.push(
-        await this.repos.boards.createColumn({ boardId: board.id, name: column.name, type: column.type, position: index }),
-      );
+    if (saved) {
+      for (const [index, column] of saved.columns.entries()) {
+        const created = await this.repos.boards.createColumn({
+          boardId: board.id,
+          name: column.name,
+          type: column.type,
+          position: index,
+          ...(column.settings ? { settings: column.settings } : {}),
+          ...(column.width !== undefined ? { width: column.width } : {}),
+          ...(column.hidden !== undefined ? { hidden: column.hidden } : {}),
+          ...(column.hiddenInPanel !== undefined ? { hiddenInPanel: column.hiddenInPanel } : {}),
+          ...(column.removed !== undefined ? { removed: column.removed } : {}),
+          role: column.role ?? null,
+        });
+        ids.set(column.key, created.id);
+        columns.push(created);
+      }
+    } else {
+      for (const [index, column] of template.columns.entries()) {
+        columns.push(await this.repos.boards.createColumn({ boardId: board.id, name: column.name, type: column.type, position: index }));
+      }
     }
 
     await this.repos.activities.create({
@@ -117,7 +139,7 @@ export class BoardService {
 
     // Whatever the template left out of the special columns, every board has.
     columns.push(...(await this.ensureSpecialColumns(board.id)));
-    return { board, groups, columns };
+    return { board, groups, columns, ...(saved ? { ids } : {}) };
   }
 
   /**
