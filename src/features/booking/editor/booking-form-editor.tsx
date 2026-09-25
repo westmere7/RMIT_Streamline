@@ -132,6 +132,13 @@ export function BookingFormEditor({
   const [confirmDrop, setConfirmDrop] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
+  /**
+   * The template the editor was last filled from, as it was saved, so its slot
+   * can be written over in one click. Forgotten when the editor is filled from
+   * anywhere else, or when that template is deleted.
+   */
+  const [fromTemplate, setFromTemplate] = React.useState<{ id: string; name: string; description: string | null; template: BookingFormTemplate } | null>(null);
+  const [updatingTemplate, setUpdatingTemplate] = React.useState(false);
 
   const check = bookingFormTemplateSchema.safeParse(draft);
   const problem = check.success ? null : (check.error.issues[0]?.message ?? "Something in the form is not right yet");
@@ -141,6 +148,9 @@ export function BookingFormEditor({
   // and what was last saved against what is live says whether a draft is
   // sitting there waiting, which is the one worth offering to throw away.
   const savedHere = JSON.stringify(draft) === JSON.stringify(saved);
+  // Still in the list: a template deleted since it was loaded has no slot to write back to.
+  const template = fromTemplate && templates.some((t) => t.id === fromTemplate.id) ? fromTemplate : null;
+  const templateChanged = !!template && JSON.stringify(draft) !== JSON.stringify(template.template);
   const matchesLive = JSON.stringify(draft) === JSON.stringify(live);
   const draftWaiting = JSON.stringify(saved) !== JSON.stringify(live);
 
@@ -226,6 +236,7 @@ export function BookingFormEditor({
             current={draft}
             onLoad={(t) => {
               setDraft(clone(t.template));
+              setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
               setSelectedService(t.template.services[0]?.id ?? null);
               toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
             }}
@@ -234,15 +245,44 @@ export function BookingFormEditor({
             onReset={() => {
               const fresh = defaultBookingFormTemplate();
               setDraft(fresh);
+              setFromTemplate(null);
               setSelectedService(fresh.services[0]?.id ?? null);
             }}
             onLoadLive={() => {
               setDraft(clone(live));
+              setFromTemplate(null);
               setSelectedService(live.services[0]?.id ?? null);
               toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
             }}
             showingLive={matchesLive}
           />
+          {/* Back into the slot it came from, name and description kept. */}
+          {template && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-w-0 flex-1"
+              disabled={!templateChanged || updatingTemplate || !check.success}
+              title={templateChanged ? `Overwrite the template “${template.name}” with the form as it is now` : `Matches the template “${template.name}”`}
+              onClick={async () => {
+                setUpdatingTemplate(true);
+                try {
+                  await onSaveTemplate({ name: template.name, description: template.description, template: draft });
+                  setFromTemplate({ ...template, template: clone(draft) });
+                  toast.success(`Template “${template.name}” updated`);
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Could not update the template");
+                } finally {
+                  setUpdatingTemplate(false);
+                }
+              }}
+              data-testid="booking-editor-update-template"
+            >
+              {updatingTemplate ? <LoaderCircle className="animate-spin" /> : <Save />}
+              <span className="truncate">{templateChanged ? `Update “${template.name}”` : `“${template.name}” saved`}</span>
+            </Button>
+          )}
         </div>
       </div>
       {draftWaiting && (
