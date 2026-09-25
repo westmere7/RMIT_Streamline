@@ -158,18 +158,43 @@ export const MAX_BOOKING_LEAD = 240;
  * A column with nothing in it is left out whatever this says — hiding is a
  * choice about clutter, not a way to make an empty column appear.
  */
-export const PORTAL_COLUMNS = ["requested", "priority", "people", "due", "timeline", "assets", "asset-types"] as const;
+export const PORTAL_COLUMNS = ["requested", "priority", "people", "due", "timeline", "assets", "asset-types", "brief"] as const;
 export type PortalColumnKey = (typeof PORTAL_COLUMNS)[number];
 
 export const PORTAL_COLUMN_LABELS: Record<PortalColumnKey, string> = {
   requested: "Requested",
   priority: "Priority",
-  people: "Working on it",
-  due: "Due",
+  people: "PIC",
+  due: "Due date",
   timeline: "Timeline",
-  assets: "Deliverables",
-  "asset-types": "Asset types",
+  assets: "Assets recap",
+  "asset-types": "Asset type",
+  brief: "Brief",
 };
+
+/**
+ * The portal's copy of a brief, drawn the way the app draws the Brief column.
+ *
+ * The copy is kept as plain text (it is what portal search matches against),
+ * which loses the brief's shape: the service lines lose their bold, the
+ * numbered questions stop being headings, and the rules become runs of blank
+ * lines. This puts the shape back, line by line, adding only the marks a
+ * line is missing — a copy may keep its bold and lose its headings.
+ */
+export function portalBriefMarkdown(brief: string): string {
+  return brief
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => {
+      const t = line.trim();
+      if (/^(Service|Involves):/.test(t)) return t.replace(/^(Service|Involves):/, "**$1:**");
+      if (/^\d+\.\s+\S/.test(t)) return `## ${t}`;
+      return t;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
 export type PortalView = (typeof PORTAL_VIEWS)[number];

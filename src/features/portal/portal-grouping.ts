@@ -98,7 +98,7 @@ const NO_STAKEHOLDER = "No department";
 /**
  * Re-dividing the board by the stakeholder each request is for.
  *
- * Read off the "For" column the projection writes, for the same reason the
+ * Read off the Department column the projection writes (found by its key, not its name), for the same reason the
  * status arrangement is read off the STATUS column: the payload already holds
  * the answer, reconciled, so there is no second request and no flash of a
  * loading board between two arrangements of the same rows.
@@ -108,7 +108,7 @@ const NO_STAKEHOLDER = "No department";
  * exactly as it arrived.
  */
 export function groupPortalBoardByStakeholder<T extends PublicBoardPayload>(payload: T): T {
-  const column = payload.columns.find((c) => c.type === "TAGS" && c.name === "For");
+  const column = payload.columns.find((c) => c.type === "TAGS" && c.id.endsWith(":stakeholder"));
   if (!column) return payload;
 
   const boardId = payload.board.id;

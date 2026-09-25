@@ -180,7 +180,7 @@ test.describe("the stakeholder portal", () => {
     await page.getByTestId("portal-stakeholder-picker").click();
     await page.getByTestId("portal-stakeholder-all").click();
     await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "For" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Department" })).toBeVisible();
   });
 
   test("opens on the last three months, and offers the windows either side of it", async ({ page }) => {

@@ -20,7 +20,7 @@ import type {
   PublicBoardPayload,
   User,
 } from "@/domain";
-import { ASSET_TYPE_OPTIONS, DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH } from "@/domain";
+import { ASSET_TYPE_OPTIONS, DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH, PORTAL_COLUMN_LABELS, portalBriefMarkdown } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 
@@ -214,7 +214,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // Tags rather than a stakeholder column: the portal has no workspace lists
   // behind it to resolve one against, and a tag carries its own colour.
   if (showStakeholder) {
-    column("stakeholder", "For", "TAGS", { kind: "tags", options: stakeholderNames.map(({ name, color }) => ({ name, color })) }, 150);
+    column("stakeholder", "Department", "TAGS", { kind: "tags", options: stakeholderNames.map(({ name, color }) => ({ name, color })) }, 150);
   }
   column(
     "status",
@@ -235,13 +235,17 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // whatever the column has stored, so a made-up label id renders as nothing at
   // all — which is exactly what an invented `pr-high` did.
   column("priority", "Priority", "PRIORITY", { kind: "priority", labels: DEFAULT_PRIORITY_LABELS.map((label) => ({ ...label })) }, 120);
-  column("people", "Working on it", "PERSON", { kind: "person", allowMultiple: true }, 150);
-  column("due", "Due", "DATE", { kind: "none" }, 130);
+  column("people", PORTAL_COLUMN_LABELS.people, "PERSON", { kind: "person", allowMultiple: true }, 150);
+  column("due", PORTAL_COLUMN_LABELS.due, "DATE", { kind: "none" }, 130);
   if (hasTimeline) column("timeline", "Timeline", "TIMELINE", { kind: "none" }, 190);
-  if (hasDeliverables) column("assets", "Deliverables", "ASSETS_RECAP", { kind: "none" }, 150);
+  if (hasDeliverables) column("assets", PORTAL_COLUMN_LABELS.assets, "ASSETS_RECAP", { kind: "none" }, 150);
   if (assetTypes.length > 0) {
-    column("asset-types", "Asset types", "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
+    column("asset-types", PORTAL_COLUMN_LABELS["asset-types"], "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
   }
+  // The brief as a Brief row, the way the app shows it, rather than a block of
+  // plain text in the description.
+  const hasBrief = tasks.some(({ brief }) => !!brief?.trim());
+  if (hasBrief) column("brief", PORTAL_COLUMN_LABELS.brief, "RICH_TEXT", { kind: "none" }, 220);
   // ---- groups: the board each request is being run on --------------------------
   // The canonical arrangement. A visitor who would rather see the work by
   // status switches that on in the toolbar, and the payload is regrouped in the
@@ -276,8 +280,8 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
       groupId,
       parentItemId: null,
       name: task.name,
-      // The brief, or nothing. Never the internal description.
-      description: brief,
+      // Never the internal description. The requester's brief is its own row below.
+      description: null,
       position,
       createdBy: NOBODY,
       archivedAt: null,
@@ -296,6 +300,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
       const kinds = [...new Set([...task.assetTypes, ...deliverables.map((d) => d.assetType)].filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
       value(task.id, "asset-types", { type: "TAGS", tags: kinds }, task.updatedAt);
     }
+    if (hasBrief && shown("brief") && brief?.trim()) value(task.id, "brief", { type: "RICH_TEXT", text: portalBriefMarkdown(brief) }, task.updatedAt);
     if (hasTimeline && shown("timeline")) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
     if (hasDeliverables && shown("assets")) {
       const outstanding = deliverables.filter((d) => !d.done);

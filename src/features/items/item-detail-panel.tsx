@@ -863,6 +863,9 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
     if (next !== (item.description ?? null)) void mutations.updateDescription(item.id, next);
   };
 
+  // Nothing to read and no way to add it: no section, rather than an invitation that does nothing.
+  if (!text && !editing && !canEdit) return null;
+
   return (
     <section>
       <h3 className="mb-1.5 label-quiet">Description</h3>

@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.35.4",
+    date: "2026-09-25",
+    title: "Portal tasks read like the app",
+    changes: [
+      "On the portal, a task's brief is a Brief row with its headings, the same as in the app, instead of a block of plain text.",
+      "Portal columns use the app's names: Department, PIC, Due date, Assets recap and Asset type.",
+      "Read-only viewers no longer see an empty description box.",
+      "Removed a duplicate, empty Department column that appeared on Task Allocation.",
+    ],
+  },
+  {
     version: "0.35.3",
     date: "2026-09-25",
     title: "Wider form editor",

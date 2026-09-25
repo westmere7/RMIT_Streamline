@@ -142,7 +142,7 @@ describe("a department's requests as a board", () => {
 
   it("leaves out the columns nothing would fill", () => {
     const bare = build([entry(task({ id: "a" }))]);
-    expect(bare.columns.map((c) => c.name)).toEqual(["Requested", "Status", "Priority", "Working on it", "Due"]);
+    expect(bare.columns.map((c) => c.name)).toEqual(["Requested", "Status", "Priority", "PIC", "Due date"]);
 
     const rich = build([
       entry(task({ id: "a", timeline: { start: "2026-09-01", end: "2026-09-30" }, deliverables: { total: 2, done: 1 } }), {
@@ -153,8 +153,8 @@ describe("a department's requests as a board", () => {
       }),
     ]);
     expect(rich.columns.map((c) => c.name)).toContain("Timeline");
-    expect(rich.columns.map((c) => c.name)).toContain("Deliverables");
-    const types = rich.columns.find((c) => c.name === "Asset types")!;
+    expect(rich.columns.map((c) => c.name)).toContain("Assets recap");
+    const types = rich.columns.find((c) => c.name === "Asset type")!;
     expect(types.type).toBe("TAGS");
     if (types.settings.kind !== "tags") throw new Error("unreachable");
     expect(types.settings.options.map((o) => o.name)).toEqual(["Print", "Social"]);
@@ -174,12 +174,17 @@ describe("a department's requests as a board", () => {
     expect(value.text).toMatch(/Sep/);
   });
 
-  it("carries the requester's brief as the description, and nothing else", () => {
-    const payload = build([entry(task({ id: "a" }), { brief: "Six A1 posters, print ready." }), entry(task({ id: "b" }))]);
-    expect(payload.items.find((i) => i.id === "a")!.description).toBe("Six A1 posters, print ready.");
+  it("carries the requester's brief as a Brief row, the way the app shows it, and nothing else", () => {
+    const payload = build([entry(task({ id: "a" }), { brief: "Service: Brand\n\n\n\n1. What are you asking for?\nSix A1 posters, print ready." }), entry(task({ id: "b" }))]);
+    const brief = payload.columns.find((c) => c.name === "Brief")!;
+    expect(brief.type).toBe("RICH_TEXT");
+    const valueOf = (id: string) => payload.values.find((v) => v.itemId === id && v.columnId === brief.id)?.value;
+    // The shape the plain copy lost: bold service line, the question as a heading, no runs of blank lines.
+    expect(valueOf("a")).toEqual({ type: "RICH_TEXT", text: "**Service:** Brand\n\n## 1. What are you asking for?\nSix A1 posters, print ready." });
     // A labelled task was never booked here, so it has no brief and must not
-    // borrow items.description for one.
-    expect(payload.items.find((i) => i.id === "b")!.description).toBeNull();
+    // borrow items.description for one; no task's description is published.
+    expect(valueOf("b")).toBeUndefined();
+    expect(payload.items.every((i) => i.description === null)).toBe(true);
   });
 
   it("publishes nothing internal", () => {
@@ -249,8 +254,8 @@ describe("a department's requests as a board", () => {
     });
     expect(trimmed.columns.map((c) => c.name)).not.toContain("Priority");
     expect(trimmed.columns.map((c) => c.name)).not.toContain("Requested");
-    expect(trimmed.columns.map((c) => c.name)).not.toContain("Asset types");
-    expect(trimmed.columns.map((c) => c.name)).toContain("Due");
+    expect(trimmed.columns.map((c) => c.name)).not.toContain("Asset type");
+    expect(trimmed.columns.map((c) => c.name)).toContain("Due date");
     // A value with no column is dead weight, and the panel reads its fields
     // from the columns, so the two have to agree.
     const columnIds = new Set(trimmed.columns.map((c) => c.id));
@@ -276,7 +281,7 @@ describe("a department's requests as a board", () => {
       }),
     ]);
 
-    const column = payload.columns.find((c) => c.name === "Asset types")!;
+    const column = payload.columns.find((c) => c.name === "Asset type")!;
     expect(column).toBeDefined();
     if (column.settings.kind !== "tags") throw new Error("unreachable");
     expect(column.settings.options.map((o) => o.name)).toEqual(["Digital", "Print", "Social"]);
