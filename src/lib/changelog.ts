@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.13",
+    date: "2026-09-25",
+    title: "Column types say which group is which",
+    changes: [
+      "The column type picker names its two groups: Board fields, for this board only, and Workspace fields, read by the dashboard and the portal.",
+    ],
+  },
+  {
     version: "0.41.12",
     date: "2026-09-25",
     title: "A leaner Task journey",

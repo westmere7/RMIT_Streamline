@@ -35,9 +35,8 @@ interface MenuItemProps {
  * still has to answer one question across all of them, so it finds what it
  * needs by these types rather than by the names boards give them.
  *
- * The green icon marks them, with one small line under the group saying why.
- * A heading over it was tried and dropped: it pushed the types down the menu
- * to explain something nobody needs before they have seen them.
+ * Each group is named, with a word on why: without the names nobody could tell
+ * why Date sits above and Due date below. The green icon marks the second group.
  *
  * A special type the board already has is greyed out: a board holds one of
  * each (Date aside, see ONE_PER_BOARD_COLUMN_TYPES). Picking it moves the one
@@ -97,14 +96,18 @@ export function ColumnTypePicker({
       })}
     </div>
   );
+  const heading = (name: string, why: string) => (
+    <p className="px-2 pt-1 pb-1 text-2xs text-muted-foreground">
+      <span className="font-semibold text-foreground">{name}</span> · {why}
+    </p>
+  );
   return (
     <div>
+      {heading("Board fields", "this board only")}
       {group(PLAIN_TYPES, false)}
       <div className="mt-1 border-t pt-1">
+        {heading("Workspace fields", "read by dashboard & portal")}
         {group(systemTypes, true)}
-        {/* Under the group rather than over it: the types are what you came for,
-            and this only explains why they are set apart. */}
-        <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Read by the dashboard, portal and booking.</p>
       </div>
     </div>
   );
