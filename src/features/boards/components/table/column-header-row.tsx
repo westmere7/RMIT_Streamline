@@ -34,7 +34,8 @@ import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from
 import { useSortable } from "@dnd-kit/sortable";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
-import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
+import { ITEM_COLUMN_MAX, ITEM_COLUMN_MIN, useItemColumnResizable, useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
+import { useUiStore } from "@/stores/ui-store";
 import { colorClasses } from "@/lib/colors";
 import { columnSortField, useBoardUi, useBoardUiStore, type SortField } from "@/stores/board-ui-store";
 import type { DragData } from "./board-table";
@@ -123,10 +124,37 @@ function SortIcon({ active, direction }: { active: boolean; direction: "asc" | "
   return <Icon aria-hidden className={cn("absolute top-1/2 -right-3.5 size-3 -translate-y-1/2", active ? "opacity-100" : "opacity-0 group-hover/sort:opacity-60")} />;
 }
 
+/**
+ * The Item column's header. Dragging its right edge widens the column on this
+ * board; it never goes narrower than the default, which is already as narrow as
+ * a name can be and still be read.
+ */
 function ItemHeader() {
   const { active, direction, toggle, ariaSort } = useHeaderSort("name");
+  const { board } = useBoardContext();
+  const layout = useTableLayout();
+  const resizable = useItemColumnResizable();
+  const setWidth = useUiStore((s) => s.setItemColumnWidth);
+  const header = React.useRef<HTMLDivElement>(null);
+  const startResize = (event: React.PointerEvent) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    // From the width it is drawn at, which the spare space on a wide screen can
+    // make wider than the one it was given, so the edge moves the moment it is dragged.
+    const startWidth = Math.max(layout.nameWidth, header.current?.offsetWidth ?? 0);
+    const onMove = (e: PointerEvent) => {
+      const next = Math.min(ITEM_COLUMN_MAX, Math.max(ITEM_COLUMN_MIN, startWidth + (e.clientX - startX)));
+      setWidth(board.id, next <= ITEM_COLUMN_MIN ? null : next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
   return (
-    <div role="columnheader" aria-sort={ariaSort} className="flex flex-1 items-center px-1">
+    <div ref={header} role="columnheader" aria-sort={ariaSort} className="group/col relative flex h-full flex-1 items-center px-1">
       <button
         type="button"
         onClick={toggle}
@@ -137,6 +165,17 @@ function ItemHeader() {
         Item
         <SortIcon active={active} direction={direction} />
       </button>
+      {resizable && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize Item"
+          onPointerDown={startResize}
+          onDoubleClick={() => setWidth(board.id, null)}
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize rounded-full opacity-0 transition-opacity hover:bg-ring/70 group-hover/col:opacity-100"
+          data-testid="resize-item-column"
+        />
+      )}
     </div>
   );
 }

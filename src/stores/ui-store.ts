@@ -44,6 +44,9 @@ interface UiState {
   toggleAssetRecap: () => void;
   /** How wide the task panel beside a board is. */
   itemPanelSize: ItemPanelSize;
+  /** The Item column widened on a board, by board id. Only ever wider than the default. */
+  itemColumnWidths: Record<string, number>;
+  setItemColumnWidth: (boardId: string, width: number | null) => void;
   setItemPanelSize: (size: ItemPanelSize) => void;
   /**
    * Where a click in the sidebar is trying to get to, until the router agrees.
@@ -100,6 +103,14 @@ export const useUiStore = create<UiState>()(
       toggleAssetRecap: () => set((s) => ({ assetRecapExpanded: !s.assetRecapExpanded })),
       itemPanelSize: "default",
       setItemPanelSize: (itemPanelSize) => set({ itemPanelSize }),
+      itemColumnWidths: {},
+      setItemColumnWidth: (boardId, width) =>
+        set((s) => {
+          const next = { ...s.itemColumnWidths };
+          if (width === null) delete next[boardId];
+          else next[boardId] = Math.round(width);
+          return { itemColumnWidths: next };
+        }),
       commandPaletteOpen: false,
       searchScope: null,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -150,6 +161,7 @@ export const useUiStore = create<UiState>()(
         showTeamCounts: s.showTeamCounts,
         assetRecapExpanded: s.assetRecapExpanded,
         itemPanelSize: s.itemPanelSize,
+        itemColumnWidths: s.itemColumnWidths,
       }),
     },
   ),

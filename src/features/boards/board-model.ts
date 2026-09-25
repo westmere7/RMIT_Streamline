@@ -224,7 +224,7 @@ export const TABLE_STRETCH = { nameGrow: 3, nameMaxWidth: 720, columnGrow: 1, co
 export function leadingCellStyle(showTicket = true, layout: TableLayout = TABLE_LAYOUT): CSSProperties {
   const width = leadingWidth(showTicket, layout);
   if (!layout.stretchName) return { width, minWidth: width, maxWidth: width, flexGrow: 0 };
-  return { width, minWidth: width, maxWidth: TABLE_STRETCH.nameMaxWidth + (showTicket ? layout.ticketWidth : 0), flexGrow: TABLE_STRETCH.nameGrow };
+  return { width, minWidth: width, maxWidth: Math.max(width, TABLE_STRETCH.nameMaxWidth + (showTicket ? layout.ticketWidth : 0)), flexGrow: TABLE_STRETCH.nameGrow };
 }
 
 /** Style for the ticket cell: a fixed, unresizable slot in front of the name. */

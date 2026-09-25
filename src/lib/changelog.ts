@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.37.1",
+    date: "2026-09-25",
+    title: "A wider Item column",
+    changes: [
+      "Drag the Item column's edge to widen it. It never goes narrower than the default. Double-click the edge to reset it.",
+    ],
+  },
+  {
     version: "0.37.0",
     date: "2026-09-25",
     title: "Download a brief as Word",
