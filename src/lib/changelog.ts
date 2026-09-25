@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.46.2",
+    date: "2026-09-25",
+    title: "Start tickets again after a wipe",
+    changes: [
+      "Wiping all board data can also start the ticket numbers again, so the next task is number 001.",
+    ],
+  },
+  {
     version: "0.46.1",
     date: "2026-09-25",
     title: "A dashboard that says when there is nothing yet",

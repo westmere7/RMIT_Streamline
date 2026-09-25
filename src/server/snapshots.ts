@@ -48,7 +48,12 @@ export const restoreSnapshotSchema = z.object({ workspaceId: z.uuid(), password:
 /** Held for the length of a restore or a wipe, so two of them never run over each other. */
 const RESTORE_LOCK = 7_441_902;
 
-export const wipeBoardsSchema = z.object({ workspaceId: z.uuid(), password: z.string({ error: "Enter your password." }).min(1, "Enter your password.").max(200) });
+export const wipeBoardsSchema = z.object({
+  workspaceId: z.uuid(),
+  password: z.string({ error: "Enter your password." }).min(1, "Enter your password.").max(200),
+  /** Start the ticket series again, so the next task is number 1. Safe only because the wipe leaves no task to clash with. */
+  resetTickets: z.boolean().optional().default(false),
+});
 
 export interface SnapshotSummary {
   id: string;
@@ -390,6 +395,7 @@ export interface WipeResult {
   safetySnapshot: SnapshotSummary;
   boards: number;
   tasks: number;
+  ticketsReset: boolean;
 }
 
 /**
@@ -403,11 +409,14 @@ export interface WipeResult {
  * form and portals, trackers, direct messages and snapshots. Task Allocation is
  * built in, so it keeps its columns, groups and rules and loses only its tasks.
  *
+ * With `resetTickets`, the ticket counter goes back to nothing as well, so the
+ * next task is number 1.
+ *
  * Always behind the admin's password, whatever RESTORE_NEEDS_PASSWORD says, and
  * snapshotted first, so it can be undone from Settings → Snapshots. One
  * transaction: all of it goes, or none of it.
  */
-export async function wipeBoardData(workspaceId: string, caller: Caller, password: string): Promise<WipeResult> {
+export async function wipeBoardData(workspaceId: string, caller: Caller, password: string, options: { resetTickets?: boolean } = {}): Promise<WipeResult> {
   await verifyPassword(caller, password);
   const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
   if (!lock?.ok) throw new HttpError(409, "A restore or a wipe is already running. Try again once it has finished.");
@@ -431,7 +440,9 @@ export async function wipeBoardData(workspaceId: string, caller: Caller, passwor
       await tx`delete from public.boards where id = any(${others}::uuid[])`;
       // And any notice already pointing at nothing — a task or board removed before this, whose notice outlived it.
       await tx`delete from public.notifications where (entity_type = 'ITEM' and not exists (select 1 from public.items i where i.id = entity_id)) or (entity_type = 'BOARD' and not exists (select 1 from public.boards b where b.id = entity_id))`;
-      return { boards: others.length, tasks: items?.n ?? 0 };
+      // The one time the series may go backwards: there is no task left to carry a number it would hand out again.
+      if (options.resetTickets) await tx`update public.workspaces set ticket_counter = 0 where id = ${workspaceId}`;
+      return { boards: others.length, tasks: items?.n ?? 0, ticketsReset: !!options.resetTickets };
     });
     return { safetySnapshot, ...counts };
   } finally {

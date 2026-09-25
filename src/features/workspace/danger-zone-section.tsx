@@ -6,10 +6,12 @@ import * as React from "react";
 import { toast } from "sonner";
 import { BlockingScreen } from "@/components/shared/blocking-screen";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { callApi } from "@/data/supabase/api-call";
+import { formatTicket } from "@/domain";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
 const GOES = ["Every board, with its groups and columns", "Every task and subitem, and what is in them", "Deliverables, updates, comments and links", "Board shares and automations", "The activity and notifications about them"];
@@ -66,9 +68,12 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ws = useWorkspace();
   const queryClient = useQueryClient();
   const [password, setPassword] = React.useState("");
-  const [done, setDone] = React.useState<{ boards: number; tasks: number } | null>(null);
+  const [resetTickets, setResetTickets] = React.useState(false);
+  const [done, setDone] = React.useState<{ boards: number; tasks: number; ticketsReset: boolean } | null>(null);
+  const firstTicket = formatTicket(ws.workspace.ticketPrefix, 1);
   const wipe = useMutation({
-    mutationFn: () => callApi<{ boards: number; tasks: number }>("/api/snapshots/wipe-boards", { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, password }) }, { auth: "required" }),
+    mutationFn: () =>
+      callApi<{ boards: number; tasks: number; ticketsReset: boolean }>("/api/snapshots/wipe-boards", { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, password, resetTickets }) }, { auth: "required" }),
     onSuccess: (result) => {
       setPassword("");
       setDone(result);
@@ -80,6 +85,7 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   // The password never outlives the dialog.
   const close = () => {
     setPassword("");
+    setResetTickets(false);
     onClose();
   };
   const busy = wipe.isPending || done !== null;
@@ -104,6 +110,10 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
           >
             <Label htmlFor="danger-wipe-password">Your password</Label>
             <Input id="danger-wipe-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus data-testid="danger-wipe-password" />
+            <label className="mt-2 flex items-center gap-2 text-[13px]">
+              <Checkbox checked={resetTickets} onCheckedChange={(checked) => setResetTickets(checked === true)} data-testid="danger-wipe-reset-tickets" />
+              Start tickets again from <span className="font-mono">{firstTicket}</span>
+            </label>
           </form>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={close}>
@@ -119,7 +129,7 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
         <BlockingScreen
           title="Wiping board data"
           detail="Saving a snapshot, then removing every board and task. Keep this tab open."
-          done={done ? { title: "Board data wiped", detail: `${done.boards} boards and ${done.tasks.toLocaleString()} tasks removed. Reloading…` } : null}
+          done={done ? { title: "Board data wiped", detail: `${done.boards} boards and ${done.tasks.toLocaleString()} tasks removed.${done.ticketsReset ? ` Tickets start again from ${firstTicket}.` : ""} Reloading…` } : null}
         />
       )}
     </>
