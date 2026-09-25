@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.9",
+    date: "2026-09-25",
+    title: "Status bars line up",
+    changes: [
+      "In Time in each status, every bar ends at the same point, whatever the length of the time beside it.",
+    ],
+  },
+  {
     version: "0.41.8",
     date: "2026-09-25",
     title: "Names sit still",

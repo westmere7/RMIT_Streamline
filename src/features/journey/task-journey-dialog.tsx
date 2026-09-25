@@ -235,7 +235,7 @@ function StatusTime({ journey }: { journey: Journey }) {
           const share = status.ms / total;
           const now = current === status.name.toLowerCase();
           return (
-            <li key={status.name} className="grid grid-cols-[minmax(7rem,10rem)_1fr_auto] items-center gap-4 border-b border-border/50 px-4 py-3 last:border-b-0" data-testid="journey-status-row">
+            <li key={status.name} className="grid grid-cols-[minmax(7rem,10rem)_1fr_7rem] items-center gap-4 border-b border-border/50 px-4 py-3 last:border-b-0" data-testid="journey-status-row">
               <span className="flex min-w-0 items-center gap-2">
                 <span aria-hidden className="relative flex size-2.5 shrink-0">
                   {now && <span className="absolute inline-flex size-full animate-ping rounded-full opacity-60" style={{ background: color }} />}
