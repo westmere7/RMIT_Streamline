@@ -140,6 +140,24 @@ export class LocalItemRepository implements ItemRepository {
     return item;
   }
 
+  // Kept on the stored row beside the item's fields, as Postgres keeps it in its own column.
+  async setBookingBrief(itemId: string, brief: string | null): Promise<void> {
+    const db = await this.conn.getDb();
+    const existing = await db.get("items", itemId);
+    if (!existing) throw new NotFoundError("Item", itemId);
+    await db.put("items", { ...existing, bookingBrief: brief } as Item);
+  }
+
+  async listBookingBriefs(itemIds: string[]): Promise<Map<string, string>> {
+    const db = await this.conn.getDb();
+    const out = new Map<string, string>();
+    for (const id of itemIds) {
+      const row = (await db.get("items", id)) as (Item & { bookingBrief?: string | null }) | undefined;
+      if (row?.bookingBrief?.trim()) out.set(id, row.bookingBrief);
+    }
+    return out;
+  }
+
   async update(id: string, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item> {
     const db = await this.conn.getDb();
     const existing = await db.get("items", id);

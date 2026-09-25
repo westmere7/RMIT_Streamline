@@ -716,6 +716,30 @@ describe("booking a task", () => {
     expect(receipt.teamName).toBeNull();
   });
 
+  it("keeps the booking's brief on the task, and a Brief column added later fills itself with it", async () => {
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
+    const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
+    const target = boards.find((b) => b.slug === "rmitinerary-2026")!;
+    expect((await services.repos.boards.listColumns(target.id)).some((c) => c.type === "BRIEF")).toBe(false);
+
+    const { item } = await services.booking.allocate(receipt.itemId, target.id, owner);
+    // No Brief column to carry it to: the flattened brief went on top of the description.
+    const flattened = (await services.repos.items.getById(item.id))!.description ?? "";
+    expect(flattened).toContain("Service: Design");
+    const kept = (await services.repos.items.listBookingBriefs([item.id])).get(item.id)!;
+    expect(kept).toContain("**Service:** Design");
+
+    // Adding a Brief column brings the brief back, formatting and all, and the duplicate leaves the description.
+    const brief = await services.boards.addColumn({ boardId: target.id, name: "Brief", type: "BRIEF" });
+    const values = await services.repos.items.listValuesByItem(item.id);
+    expect(values.find((v) => v.columnId === brief.id)?.value).toEqual({ type: "RICH_TEXT", text: kept });
+    expect((await services.repos.items.getById(item.id))!.description ?? "").not.toContain("Service: Design");
+
+    // A task nobody booked gets nothing: its Brief cell is an ordinary rich-text field.
+    const other = (await services.repos.items.listByBoard(target.id)).find((i) => i.id !== item.id)!;
+    expect((await services.repos.items.listValuesByItem(other.id)).some((v) => v.columnId === brief.id)).toBe(false);
+  });
+
   it("moves an allocated request onto the team board rather than copying it", async () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);

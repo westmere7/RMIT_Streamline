@@ -173,6 +173,10 @@ export interface BoardRepository {
 
 export interface ItemRepository {
   listByBoard(boardId: EntityId, options?: { includeArchived?: boolean }): Promise<Item[]>;
+  /** Keeps the brief a booking composed on its task, for any Brief column to show. */
+  setBookingBrief(itemId: EntityId, brief: string | null): Promise<void>;
+  /** The booking briefs of those of these tasks that have one, by task id. */
+  listBookingBriefs(itemIds: EntityId[]): Promise<Map<EntityId, string>>;
   /**
    * One page of a board's archive, filtered and counted where the rows live.
    *

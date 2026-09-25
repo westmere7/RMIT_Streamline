@@ -9,8 +9,12 @@ import type {
   ColumnRole,
   ColumnSettings,
   ColumnType,
+  ColumnValue,
   EntityId,
+  Item,
 } from "@/domain";
+import { portalBriefMarkdown } from "@/domain";
+import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap } from "./item-asset-service";
 import { NotFoundError } from "@/data/repositories";
@@ -442,7 +446,34 @@ export class BoardService {
     const column = await this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
     // A recap column summarises lines that may already exist; fill it in straight away.
     if (column.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, column.boardId, column.id);
+    if (column.type === "BRIEF") await this.fillBriefColumn(column);
     return column;
+  }
+
+  /**
+   * A Brief column added to a board arrives already holding every booked
+   * task's brief. The flattened copy allocation left at the top of a
+   * description, for want of a column to put it in, is taken out again so the
+   * brief is not there twice. A task that was never booked gets nothing: its
+   * Brief cell is a rich-text field like any other.
+   */
+  private async fillBriefColumn(column: BoardColumn): Promise<void> {
+    const items = await this.repos.items.listByBoard(column.boardId, { includeArchived: true });
+    const briefs = await this.repos.items.listBookingBriefs(items.map((i) => i.id));
+    if (briefs.size === 0) return;
+    const values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
+    const patches: Array<{ id: EntityId; patch: Partial<Item> }> = [];
+    for (const item of items) {
+      const brief = briefs.get(item.id);
+      if (!brief) continue;
+      values.push({ itemId: item.id, columnId: column.id, value: { type: "RICH_TEXT", text: portalBriefMarkdown(brief) } });
+      const flat = richTextToPlain(brief).trim();
+      const description = item.description?.trim() ?? "";
+      if (flat && description.startsWith(flat)) patches.push({ id: item.id, patch: { description: description.slice(flat.length).trim() || null } });
+      else if (description.startsWith(brief.trim())) patches.push({ id: item.id, patch: { description: description.slice(brief.trim().length).trim() || null } });
+    }
+    if (values.length) await this.repos.items.setValues(values);
+    if (patches.length) await this.repos.items.updateMany(patches);
   }
 
   /**

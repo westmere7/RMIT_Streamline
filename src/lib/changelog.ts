@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.36.1",
+    date: "2026-09-25",
+    title: "Briefs follow the task",
+    changes: [
+      "A booked task keeps its brief, so adding a Brief column to any board fills it in straight away for every booked task there.",
+      "The plain copy of the brief that allocation left at the top of a description is removed once the Brief column holds it.",
+    ],
+  },
+  {
     version: "0.36.0",
     date: "2026-09-25",
     title: "A Brief column",

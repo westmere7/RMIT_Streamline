@@ -190,6 +190,22 @@ export class SupabaseItemRepository implements ItemRepository {
     return toItem(unwrap<ItemRow>(result, "items.create"));
   }
 
+  async setBookingBrief(itemId: string, brief: string | null): Promise<void> {
+    assertOk(await db().from("items").update({ booking_brief: brief }).eq("id", itemId), "items.setBookingBrief");
+  }
+
+  async listBookingBriefs(itemIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (const ids of chunk(itemIds, 200)) {
+      if (ids.length === 0) continue;
+      const result = await db().from("items").select("id, booking_brief").in("id", ids).not("booking_brief", "is", null);
+      for (const row of unwrapList<{ id: string; booking_brief: string | null }>(result, "items.listBookingBriefs")) {
+        if (row.booking_brief?.trim()) out.set(row.id, row.booking_brief);
+      }
+    }
+    return out;
+  }
+
   async update(id: string, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item> {
     const result = await db().from("items").update(fromItemPatch(patch)).eq("id", id).select(ITEM).single();
     return toItem(unwrap<ItemRow>(result, "items.update"));

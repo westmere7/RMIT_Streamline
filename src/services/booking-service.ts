@@ -228,6 +228,8 @@ export class BookingService {
       actorId,
     );
 
+    // The brief on the task itself, so a Brief column on whichever board it ends up on can show it.
+    if (request.brief.trim()) await this.repos.items.setBookingBrief(item.id, request.brief);
     await this.notifyAdmins(members, board, item, request, team, actorId);
     // A figure for the form editor. The booking has landed either way, so a
     // counter that cannot be bumped is not a reason to tell the stakeholder no.
