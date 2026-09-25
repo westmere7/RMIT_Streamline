@@ -56,7 +56,7 @@ export type ColumnValue =
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
   | { type: "TAGS"; tags: string[] }
-  /** Who the work is for. The name of one of the workspace's stakeholder groups (Settings → Lists). */
+  /** Who the work is for. The name of one of the workspace's stakeholder groups (Settings → Departments). */
   | { type: "STAKEHOLDER"; group: string | null }
   | { type: "SIZE"; size: TShirtSize | null }
   /** A cached summary of the item's asset lines (src/domain/item/item-asset.ts), rewritten whenever they change. */

@@ -226,7 +226,7 @@ const MEASURE_HELP: Array<{ measure: MeasureKind; icon: React.ComponentType<{ cl
     measure: "effort",
     icon: Timer,
     line: "How much work it is",
-    counts: "Every deliverable weighed by its output rate — “8 photo edits a day”, “1 film a fortnight” — set in Settings → Lists.",
+    counts: "Every deliverable weighed by its output rate — “8 photo edits a day”, “1 film a fortnight” — set in Settings → Asset types.",
     tells: "The closest this page gets to how much work something is, and the only measure you can talk about capacity with.",
     blind: "A type with no rate counts as nought hours, so the total is a floor rather than the whole.",
   },
@@ -317,7 +317,7 @@ function MeasureHelp({ measure, onChange, effortAvailable }: { measure: MeasureK
 
         {!effortAvailable && (
           <p className="rounded-xl border border-border/60 bg-surface/60 px-3.5 py-2.5 text-[13px] text-muted-foreground" data-testid="dashboard-measure-help-norates">
-            Effort is not offered yet: no output rates are recorded, so hours would read as nought for everything. Settings → Lists → Asset types.
+            Effort is not offered yet: no output rates are recorded, so hours would read as nought for everything. Settings → Asset types.
           </p>
         )}
 

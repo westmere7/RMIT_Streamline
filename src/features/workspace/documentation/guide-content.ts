@@ -69,7 +69,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Open each team and add its manager and contributors to the team membership. Review the team's boards and grant the manager the board access needed to run them; board ownership or workspace administration is needed for board management controls.",
         "With each manager, check the receiving board's groups, People field, dates, priorities, department, and status meanings. Keep compatible fields for information that must survive allocation.",
         "In the team's settings, review its booking destination. Choose a valid receiving board for direct intake when appropriate, or use Task Allocation for central triage. Ensure the receiving board has a group.",
-        "Maintain shared department names, asset types, and output rates in Settings → Lists. Preview the portal and review its audience before enabling or distributing its link.",
+        "Maintain department names in Settings → Departments, and asset types with their output rates in Settings → Asset types. Preview the portal and review its audience before enabling or distributing its link.",
       ], note: { title: "Manager is a responsibility, not a workspace role", text: "Streamline's workspace roles are Owner, Admin, Member, and Guest. Team membership and board roles determine a manager's access. Grant Admin when the person needs workspace-wide administration; managing a team alone does not require that role." } },
       { title: "Route work and hand it to a manager", steps: [
         "Review Task Allocation for requests needing a team. Clarify incomplete briefs and agree the receiving team with its manager, considering existing workload and deadlines.",
@@ -350,7 +350,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Update the line as scope changes and mark it complete when delivered. Check that final quantities match what was actually supplied.",
       ] },
       { title: "Read the recap", paragraphs: ["Assets recap is derived from the asset list. It can summarize quantities, people, types, and date-related information. A missing quantity counts as one unit. Completed lines are excluded from overdue and next-due calculations; the next due date represents outstanding work on or after today.", "If the recap is unexpected, open Assets and inspect the individual lines. Editing a separate Number or Tags column does not necessarily change the deliverable list that the recap measures."] },
-      { title: "Estimated effort", paragraphs: ["Administrators maintain output rates with asset types in Settings → Lists. The dashboard uses those configured rates and recorded quantities for its Effort measure. These are estimates based on standard output assumptions, not timesheets or hours actually worked. Missing types or rates reduce what can be estimated, so review coverage before comparing teams."], note: { title: "Linked items have their own asset lists", text: "Generic linked-task synchronization does not synchronize asset lines or their derived recap values. Decide where deliverables are maintained and verify each item's list when several teams use linked work." } },
+      { title: "Estimated effort", paragraphs: ["Administrators maintain output rates with asset types in Settings → Asset types. The dashboard uses those configured rates and recorded quantities for its Effort measure. These are estimates based on standard output assumptions, not timesheets or hours actually worked. Missing types or rates reduce what can be estimated, so review coverage before comparing teams."], note: { title: "Linked items have their own asset lists", text: "Generic linked-task synchronization does not synchronize asset lines or their derived recap values. Decide where deliverables are maintained and verify each item's list when several teams use linked work." } },
     ],
     related: ["tasks", "settings", "dashboard"],
   },
@@ -420,7 +420,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     sections: [
       { title: "One portal with department filters", paragraphs: ["The portal provides an external view of department work without requiring a normal workspace account. Administrators manage one portal link and its presentation from Portal and Booking. Visitors can use department and date filters, search, grouping, and the available board views to find work.", "A department filter is a browsing control within that portal. It is not a separate private link for each department. Review the overall audience and visible work before distributing the shared link."] },
       { title: "Prepare the portal", steps: [
-        "Maintain department names in Settings → Lists. Use the Department column on tasks to classify work consistently.",
+        "Maintain department names in Settings → Departments. Use the Department column on tasks to classify work consistently.",
         "Open Portal and Booking as a workspace administrator. Set the creative team name and description used in the portal header.",
         "Choose the initial view, visible columns, default theme, whether figures are shown, and whether the link takes new requests.",
         "Set or update the portal password when needed. Open or preview the portal and inspect its tasks, details, and department filters from the intended visitor's perspective.",
@@ -665,7 +665,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["About", "Application version and environment information in a dialog."],
       ] } },
       { title: "Edit shared lists", steps: [
-        "Open Settings → Lists as a workspace owner or administrator and select the list you want to maintain.",
+        "Open Settings → Departments or Settings → Asset types as a workspace owner or administrator.",
         "Add or rename options and choose their colors. Prefer a consistent vocabulary that everyone can understand and use in booking, boards, assets, and reports.",
         "When removing an option, review its existing usage and the offered replacement or keep behavior. Decide what should happen to work already carrying that value.",
         "Review the full draft, then Save. Changes remain a draft until saved; use Discard to abandon them.",

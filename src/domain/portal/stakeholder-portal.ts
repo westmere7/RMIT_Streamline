@@ -5,14 +5,14 @@ import type { ColorToken, EntityId, Timestamps } from "@/domain/common/types";
  *
  * A department is one of the workspace's stakeholder groups — Comm., Event,
  * Contents and so on — given a life of its own. The groups themselves live in
- * Settings → Lists as plain words with colours, and that list is rewritten whole
+ * Settings → Departments as plain words with colours, and that list is rewritten whole
  * on every save: the rows are deleted and re-inserted, so nothing about a list
  * row survives being edited. A portal cannot hang off something that forgets
  * itself every time somebody reorders the list, and neither can a request's
  * provenance.
  *
  * So a department is a row of its own with a durable id, reconciled against the
- * list whenever the list is saved. Settings → Lists stays the only place these
+ * list whenever the list is saved. Settings → Departments stays the only place these
  * words are edited, which is what keeps the two from drifting apart; the
  * reconciliation reads the rename map the editor already produces, so a rename
  * is something the person said rather than something a name match guessed.
@@ -490,7 +490,7 @@ export interface PortalStakeholderOption {
 
 // ---- reconciling departments with the stakeholder-groups list ---------------
 
-/** One option as Settings → Lists holds it: a word and a colour, with no id. */
+/** One option as Settings → Departments holds it: a word and a colour, with no id. */
 export interface DepartmentOption {
   name: string;
   color: ColorToken;

@@ -128,7 +128,7 @@ export class BookingService {
 
     const priorityColumn = columns.find((c) => c.type === "PRIORITY");
     const priorities = priorityColumn ? (priorityColumn.settings as PriorityColumnSettings).labels.map((l) => ({ name: l.name, color: l.color })) : [];
-    // The workspace's own list first (Settings → Lists), then the receiving
+    // The workspace's own list first (Settings → Departments), then the receiving
     // column's palette, then the built-in words.
     const assetColumn = columns.find((c) => c.type === "TAGS" && c.settings.kind === "tags" && c.name.toLowerCase().includes("asset"));
     const columnTypes = assetColumn && assetColumn.settings.kind === "tags" && assetColumn.settings.options.length ? assetColumn.settings.options : BOOKING_ASSET_TYPES;

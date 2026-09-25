@@ -406,7 +406,7 @@ function LinkTile({
  * Who the portal carries work for.
  *
  * Read-only on purpose: these words come from the stakeholder groups in
- * Settings → Lists, which stays the one place they are written. Shown under
+ * Settings → Departments, which stays the one place they are written. Shown under
  * the link because "which stakeholders does this link show" is the first thing
  * anyone asks of it, and the counts say which of them have ever booked anything.
  */
@@ -418,8 +418,8 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
         <Users className="mt-px size-3 shrink-0" aria-hidden />
         <span>
           No departments yet. Add them in{" "}
-          <a href={routes.settings(ws.slug, "lists")} className="font-medium text-foreground underline-offset-2 hover:underline">
-            Settings → Lists
+          <a href={routes.settings(ws.slug, "departments")} className="font-medium text-foreground underline-offset-2 hover:underline">
+            Settings → Departments
           </a>{" "}
           and the portal offers each as a filter.
         </span>

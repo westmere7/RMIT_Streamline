@@ -12,7 +12,7 @@ export interface User extends Timestamps {
   timezone: string;
   /**
    * Added after the first accounts were made, so absent on a row nobody has
-   * edited since: which stakeholder group they sit with (Settings → Lists), and
+   * edited since: which stakeholder group they sit with (Settings → Departments), and
    * when their day starts and ends in their own timezone ("09:00").
    */
   stakeholderGroup?: string | null;

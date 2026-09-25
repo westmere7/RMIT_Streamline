@@ -87,7 +87,7 @@ export function AssetComposer({
 }: {
   rows: readonly AssetComposerRow[];
   fields?: AssetComposerFields;
-  /** The workspace's asset types (Settings → Lists). Needed only when `fields.type` is on. */
+  /** The workspace's asset types (Settings → Asset types). Needed only when `fields.type` is on. */
   assetTypes?: readonly TagOption[];
   /** Needed only when `fields.people` is on. */
   users?: User[];

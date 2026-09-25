@@ -337,7 +337,7 @@ export class StakeholderPortalService {
   /**
    * The workspace's departments, materialised.
    *
-   * A workspace that has never opened Settings → Lists has stakeholder groups
+   * A workspace that has never opened Settings → Departments has stakeholder groups
    * only in the domain's defaults, so the first time anything needs a department
    * with an id, the defaults are written out.
    */

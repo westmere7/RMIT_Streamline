@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.38.0",
+    date: "2026-09-25",
+    title: "Settings, regrouped",
+    changes: [
+      "Settings sections are grouped (Workspace, Lists, People, You, Help) and each has an icon.",
+      "Tickets has its own section. Lists is split into Departments and Asset types.",
+      "Overview shows teams, boards, people and tickets issued. Each figure opens what it counts.",
+      "Appearance includes the theme. Roles shows ticks and dashes. Members is linked from People.",
+    ],
+  },
+  {
     version: "0.37.2",
     date: "2026-09-25",
     title: "A wider Item column, and quieter edits",

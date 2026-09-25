@@ -79,7 +79,7 @@ export interface BookingForm {
   workspaceName: string;
   workspaceSlug: string;
   assetTypes: TagOption[];
-  /** The stakeholder groups (Settings → Lists), offered as the answer to "school or department". */
+  /** The stakeholder groups (Settings → Departments), offered as the answer to "school or department". */
   departments: TagOption[];
   /** Priority labels of the Task Allocation board, in order. */
   priorities: Array<{ name: string; color: ColorToken }>;

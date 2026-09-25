@@ -11,9 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { AssetRate, AssetRates, ColorToken, RatePer, TagOption, WorkspaceListKey } from "@/domain";
-import { hoursPerUnit, MAX_LIST_OPTION_NAME, normaliseAssetRates, perUnitHint, RATE_UNITS, rateUnitLabel, WORKSPACE_LIST_KEYS, WORKSPACE_LIST_META } from "@/domain";
+import { hoursPerUnit, MAX_LIST_OPTION_NAME, normaliseAssetRates, perUnitHint, RATE_UNITS, rateUnitLabel, WORKSPACE_LIST_META } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { addRow, describeDraft, draftCommit, listChanged, liveRows, ratesChangedFrom, removeRow, renameRow, rowsFromOptions, type DraftRow } from "@/features/workspace/list-draft";
 import { useListOptionUsage, useWorkspaceLists, useWorkspaceListMutations } from "@/features/workspace/list-hooks";
@@ -29,9 +28,9 @@ const KEEP = "__keep__";
 /**
  * The lists this workspace standardises, and what each word is worth.
  *
- * One tab per list — the asset types a deliverable can be, the stakeholder
- * groups a request comes from — because they are separate vocabularies and
- * reading one should not mean scrolling past the other.
+ * One settings section per list — the asset types a deliverable can be, the
+ * departments a request comes from — because they are separate vocabularies
+ * and reading one should not mean scrolling past the other.
  *
  * A list row is a word *and its values*. Asset types carry an output rate, and
  * the rate belongs on the row rather than in a section of its own: rates are
@@ -45,40 +44,18 @@ const KEEP = "__keep__";
  * draft, so a half-finished thought can be abandoned with Discard, and one
  * commit writes the list, the renames and the rates together.
  */
-export function ListsSection() {
+export function ListSection({ listKey }: { listKey: WorkspaceListKey }) {
   const ws = useWorkspace();
   const lists = useWorkspaceLists(ws.workspace.id);
   const manage = canManageWorkspace(ws.permissions);
-
   return (
     <>
-      <div className="mb-4">
-        <h2 className="text-base font-semibold">Lists</h2>
-        <p className="text-[13px] text-muted-foreground">
-          The words everyone picks from, and what each one is worth. {manage ? "Editing one changes it for the whole workspace." : "Only workspace owners and admins can change them."}
-        </p>
-      </div>
-
-      <Tabs defaultValue={WORKSPACE_LIST_KEYS[0]}>
-        <UnderlineTabsList className="mb-5">
-          {WORKSPACE_LIST_KEYS.map((key) => (
-            <UnderlineTabsTrigger key={key} value={key} data-testid={`lists-tab-${key}`}>
-              {WORKSPACE_LIST_META[key].label}
-              <span className="text-2xs font-normal text-muted-foreground tabular">{lists.data ? lists.data[key].length : ""}</span>
-            </UnderlineTabsTrigger>
-          ))}
-        </UnderlineTabsList>
-
-        {WORKSPACE_LIST_KEYS.map((key) => (
-          <TabsContent key={key} value={key}>
-            {lists.data ? (
-              <ListEditor key={key} listKey={key} options={lists.data[key].map((o) => ({ ...o }))} canEdit={manage} />
-            ) : (
-              <div className="h-48 animate-pulse rounded-xl border border-border/70 bg-card" aria-hidden />
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+      {!manage && <p className="-mt-3 mb-4 text-2xs text-muted-foreground">Only owners and admins can change it.</p>}
+      {lists.data ? (
+        <ListEditor key={listKey} listKey={listKey} options={lists.data[listKey].map((o) => ({ ...o }))} canEdit={manage} />
+      ) : (
+        <div className="h-48 animate-pulse rounded-xl border border-border/70 bg-card" aria-hidden />
+      )}
     </>
   );
 }
