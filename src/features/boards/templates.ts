@@ -51,7 +51,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplateId, BoardTemplate> = {
       { name: "Briefing", color: "gray" },
       { name: "Design", color: "violet" },
       { name: "Internal Review", color: "sky" },
-      { name: "Stakeholder Review", color: "amber" },
+      { name: "Department Review", color: "amber" },
       { name: "Approved", color: "green" },
       { name: "Delivered", color: "teal" },
     ],

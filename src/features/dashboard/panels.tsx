@@ -149,7 +149,7 @@ export function TeamsPanel({ rows, unit, onSelect, action }: { rows: TeamDeliver
 
 export function RequestsPanel({ requests, nowMonth, year, action }: { requests: RequestsSummary; nowMonth: number | null; year: number; action?: React.ReactNode }) {
   return (
-    <Panel title="Stakeholder requests" subtitle="Bookings received" info="Tasks booked by stakeholders: everything on the Task Allocation board plus tasks whose board records who asked. Counted by the day they were booked." action={action} testId="dashboard-requests-panel">
+    <Panel title="Department requests" subtitle="Bookings received" info="Tasks booked by departments: everything on the Task Allocation board plus tasks whose board records who asked. Counted by the day they were booked." action={action} testId="dashboard-requests-panel">
       <div className="flex items-end justify-between gap-3">
         <div>
           <AnimatedNumber value={requests.total} className="text-[40px] font-semibold tracking-tight" />
@@ -183,7 +183,7 @@ export function RequestsPanel({ requests, nowMonth, year, action }: { requests: 
 
 export function RequestDetailPanel({ requests }: { requests: RequestsSummary }) {
   return (
-    <Panel title="Request breakdown" subtitle="Who asked which team for what" info="Requested team is what the stakeholder chose on the form, or the team whose board took the booking directly." testId="dashboard-request-detail">
+    <Panel title="Request breakdown" subtitle="Who asked which team for what" info="Requested team is what the requester chose on the form, or the team whose board took the booking directly." testId="dashboard-request-detail">
       {/* Three lists of different lengths: they keep one rhythm and stay top-aligned so
           the eye can read across them. Spreading each to the card's height gave every
           column a different row pitch. */}

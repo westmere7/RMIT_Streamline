@@ -87,7 +87,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
     <section className="rounded-2xl border border-border/70 bg-card" data-testid="portal-card">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-5 py-4">
         <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[16px] font-semibold tracking-tight">
-          Stakeholder portal
+          Portal
           <Badge variant={open ? "success" : "muted"} className="gap-1.5" data-testid="portal-state">
             {open && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
             {open ? "Open" : "Closed"}
@@ -134,7 +134,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           label="Portal"
           lead={
             <>
-              Where stakeholders see the work being done for them. Opens on the {portal.defaultView} view
+              Where departments see the work being done for them. Opens on the {portal.defaultView} view
               {portal.showRecap ? ", with the figures" : ""}
               {portal.passwordHash ? ", behind the password" : ""}.
             </>
@@ -158,7 +158,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           label="Booking form"
           lead={
             portal.allowBooking ? (
-              <>The same portal, opened straight on the form. Stakeholders describe what they need and it lands on the board as a request.</>
+              <>The same portal, opened straight on the form. Departments describe what they need and it lands on the board as a request.</>
             ) : (
               <>This link is not taking requests. Turn on &ldquo;Takes new requests&rdquo; in its settings.</>
             )
@@ -551,7 +551,7 @@ function SettingsDialog({ kind, portal, open, onOpenChange }: { kind: keyof type
               {kind === "portal" ? <Globe className="size-4 text-primary" aria-hidden /> : <ClipboardPen className="size-4 text-accent-soft-foreground" aria-hidden />}
               {kind === "portal" ? "Portal settings" : "Booking form settings"}
             </DialogTitle>
-            <DialogDescription>{kind === "portal" ? "How the portal looks to stakeholders." : "How the booking form looks, and whether it takes requests."}</DialogDescription>
+            <DialogDescription>{kind === "portal" ? "How the portal looks to departments." : "How the booking form looks, and whether it takes requests."}</DialogDescription>
           </DialogHeader>
 
           <div className="scrollbar-thin grid content-start gap-5 overflow-y-auto px-6 py-5">

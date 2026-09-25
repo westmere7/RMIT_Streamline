@@ -79,7 +79,7 @@ export function PublishDialog({
       <DialogContent size="sm" data-testid="booking-publish-dialog">
         <DialogHeader>
           <DialogTitle>Publish this form?</DialogTitle>
-          <DialogDescription>Stakeholders get it straight away. Anyone mid-booking finishes on the form they started.</DialogDescription>
+          <DialogDescription>Everyone booking gets it straight away. Anyone mid-booking finishes on the form they started.</DialogDescription>
         </DialogHeader>
         {/* Mounted with the dialog, so the default name carries the time of opening. */}
         <PublishForm

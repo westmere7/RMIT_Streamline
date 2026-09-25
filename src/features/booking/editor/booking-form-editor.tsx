@@ -205,7 +205,7 @@ export function BookingFormEditor({
             onClick={() =>
               void onSaveDraft(draft).then(() => {
                 setSaved(clone(draft));
-                toast.success("Draft saved", { description: "Nothing has changed for stakeholders yet." });
+                toast.success("Draft saved", { description: "Nothing has changed on the live form yet." });
               })
             }
             disabled={savingDraft || publishing || !check.success || savedHere}

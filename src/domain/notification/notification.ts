@@ -107,7 +107,7 @@ export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = 
   STATUS_CHANGED: "The status of an item you own changes.",
   DUE_DATE_CHANGED: "A date on an item you own moves.",
   ITEM_LINKED: "A change reaches your item through a link.",
-  TASK_BOOKED: "A stakeholder books a task (admins only).",
+  TASK_BOOKED: "A task is booked through the form (admins only).",
 };
 
 export function defaultNotificationPreferences(userId: EntityId): NotificationPreferences {

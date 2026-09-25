@@ -348,7 +348,7 @@ function PortalBoard({
  * is the question most visitors arrive with. The choice is in the URL beside
  * the view, so a link a stakeholder forwards opens the same way it looked.
  */
-const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status", stakeholder: "Stakeholder" };
+const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status", stakeholder: "Department" };
 
 /**
  * Says that the search has left the year behind.

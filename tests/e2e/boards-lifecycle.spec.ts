@@ -26,7 +26,7 @@ test.describe("board lifecycle", () => {
         columns: ["Owner", "Status", "Priority", "Timeline", "Channel"],
       },
       "Creative Production": {
-        groups: ["Briefing", "Design", "Internal Review", "Stakeholder Review", "Approved", "Delivered"],
+        groups: ["Briefing", "Design", "Internal Review", "Department Review", "Approved", "Delivered"],
         columns: ["Designer", "Status", "Priority", "Due Date", "Format", "Market"],
       },
     };

@@ -347,7 +347,7 @@ function ArchiveSection({ board, manage }: { board: Board; manage: boolean }) {
 function BuiltInNote({ board }: { board: Board }) {
   return (
     <p className="rounded-xl border border-border/60 bg-surface/60 p-4 text-[13px] text-muted-foreground" data-testid="board-built-in">
-      <span className="font-medium text-foreground">{board.name}</span> is built into the workspace: every task booked by a stakeholder lands here. It can be renamed and recoloured, but not archived, moved or deleted, and only workspace admins can see it.
+      <span className="font-medium text-foreground">{board.name}</span> is built into the workspace: every task booked through the form lands here. It can be renamed and recoloured, but not archived, moved or deleted, and only workspace admins can see it.
     </p>
   );
 }

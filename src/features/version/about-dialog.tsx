@@ -51,7 +51,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Feature icon={LayoutList}>
               One board, seven views: table, kanban, timeline, calendar, gantt, workload and chart, with subitems, dependencies and items linked across boards
             </Feature>
-            <Feature icon={ShoppingBag}>Task booking on a form the team shapes itself, saved as templates and open to stakeholders without an account</Feature>
+            <Feature icon={ShoppingBag}>Task booking on a form the team shapes itself, saved as templates and open to departments without an account</Feature>
             <Feature icon={Boxes}>Deliverables listed line by line on every task, ticked off as they land and summed up on the board</Feature>
             <Feature icon={Table2}>Trackers that replace the spreadsheets, in and out as .xlsx</Feature>
             <Feature icon={Inbox}>Updates, mentions and approvals gathered in one inbox</Feature>

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.35.2",
+    date: "2026-09-25",
+    title: "One word: Department",
+    changes: [
+      "\"Department\" is the only word used for who the work is for: the column type, board columns, portal grouping, dashboard and the guide.",
+      "Existing Stakeholder columns are now called Department; on Task Allocation the typed-in department is \"Requester department\".",
+    ],
+  },
+  {
     version: "0.35.1",
     date: "2026-09-25",
     title: "Quicker delete for updates",
@@ -76,7 +85,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Task journey: from a task's Activity tab, see its story from booking to archive: allocation, moves, status changes and deliverables, with how long each leg took.",
       "Where the time went: time in the queue, with the team and from done to archive, plus time spent in each status.",
       "Profiles read like a dashboard: headline figures, open work by due date, board and department, and tabbed lists.",
-      "Stakeholder Portal is now called Portal and Booking; the form editor's side panel is down to Copy link, Open form and Open Task Allocation.",
+      "The portal area is now called Portal and Booking; the form editor's side panel is down to Copy link, Open form and Open Task Allocation.",
     ],
   },
   {
@@ -96,7 +105,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Departments, calmer motion, and a changelog",
     changes: [
       "New versions are announced in a pop-up with everything that changed since yours, to refresh now or later.",
-      "Stakeholder groups are now called Departments, and each person has one Department.",
+      "The workspace's groups are now called Departments, and each person has one Department.",
       "Dashboard motion starts once the page has loaded: shapes grow in and the headline figures count up; small numbers stay still.",
       "Automations: board automations, recipes and activity each have their own tab.",
       "Search ranks every match, and the Admin panel follows the team's colours.",
@@ -238,7 +247,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "0.15.0",
     date: "2026-09-11",
     title: "One portal link",
-    changes: ["One stakeholder portal link per workspace, with a department selector."],
+    changes: ["One portal link per workspace, with a department selector."],
   },
   {
     version: "0.14.0",
@@ -267,9 +276,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "0.10.0",
     date: "2026-09-10",
-    title: "Stakeholder portal and Dashboard views",
+    title: "Portal and Dashboard views",
     changes: [
-      "The stakeholder portal: a link, a page, and booking without an account.",
+      "The portal: a link, a page, and booking without an account.",
       "The Dashboard gets three views and a public share link.",
       "A mobile layout, ID search, and only the rows in view are drawn.",
       "Share a single task, and a people page showing what someone is carrying.",

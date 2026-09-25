@@ -23,10 +23,10 @@ export interface GuideArticle {
 export const GUIDE_ARTICLES: GuideArticle[] = [
   {
     id: "quick-start-stakeholder",
-    title: "Quick start: stakeholder",
+    title: "Quick start: department",
     category: "Quick start guides",
     summary: "Submit a clear brief, follow progress, and help the team deliver what you need.",
-    audience: "Stakeholders requesting creative or marketing work",
+    audience: "Departments requesting creative or marketing work",
     sections: [
       { title: "Your part in the process", paragraphs: ["You explain the outcome, supply the inputs, and coordinate feedback. The admin routes requests across teams; the team manager agrees the delivery plan and assigns the people doing the work. Your first milestone is a submitted request with a ticket and a clear next contact."] },
       { title: "Before you start", bullets: [
@@ -42,7 +42,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Respond to clarification questions and agree the scope and achievable dates with the team manager. The date entered on a form is a request, not a confirmed capacity reservation.",
       ] },
       { title: "Follow progress and review the output", steps: [
-        "Return to the portal, choose the relevant stakeholder and date filters, and search for your task. Open it to read the details available to you.",
+        "Return to the portal, choose the relevant department and date filters, and search for your task. Open it to read the details available to you.",
         "Send consolidated feedback through the review channel agreed with the manager, including the ticket and which version you reviewed. Ask the team to keep the decision on the task.",
         "If scope or timing changes, contact the manager with the change and its impact. Agree the revised plan before treating it as committed.",
         "When the final output arrives, check every requested deliverable and file link, then confirm acceptance or identify what remains outstanding.",
@@ -51,7 +51,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "You have a ticket and know how to contact the receiving team.",
         "The manager has confirmed the scope, dates, and review contact.",
         "You know where to follow progress and provide feedback.",
-      ], note: { title: "Getting this guide to external stakeholders", text: "This chapter lives in internal Settings. Admins can use Download guide and pass the stakeholder instructions to external readers; copying this chapter's internal link does not grant them workspace access." } },
+      ], note: { title: "Getting this guide to departments", text: "This chapter lives in internal Settings. Admins can use Download guide and pass the department instructions to external readers; copying this chapter's internal link does not grant them workspace access." } },
     ],
     related: ["booking", "portal", "workflow"],
   },
@@ -67,9 +67,9 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Open Members and invite each manager with the appropriate workspace role. Send the generated invitation link yourself and confirm onboarding is complete; the app does not automatically email it.",
         "Open Settings → Teams to create or review the teams. Agree a named manager, the work each team owns, and who provides cover when its manager is absent. Record those responsibilities in team or board descriptions where useful.",
         "Open each team and add its manager and contributors to the team membership. Review the team's boards and grant the manager the board access needed to run them; board ownership or workspace administration is needed for board management controls.",
-        "With each manager, check the receiving board's groups, People field, dates, priorities, stakeholder classification, and status meanings. Keep compatible fields for information that must survive allocation.",
+        "With each manager, check the receiving board's groups, People field, dates, priorities, department, and status meanings. Keep compatible fields for information that must survive allocation.",
         "In the team's settings, review its booking destination. Choose a valid receiving board for direct intake when appropriate, or use Task Allocation for central triage. Ensure the receiving board has a group.",
-        "Maintain shared stakeholder names, asset types, and output rates in Settings → Lists. Preview the stakeholder portal and review its audience before enabling or distributing its link.",
+        "Maintain shared department names, asset types, and output rates in Settings → Lists. Preview the portal and review its audience before enabling or distributing its link.",
       ], note: { title: "Manager is a responsibility, not a workspace role", text: "Streamline's workspace roles are Owner, Admin, Member, and Guest. Team membership and board roles determine a manager's access. Grant Admin when the person needs workspace-wide administration; managing a team alone does not require that role." } },
       { title: "Route work and hand it to a manager", steps: [
         "Review Task Allocation for requests needing a team. Clarify incomplete briefs and agree the receiving team with its manager, considering existing workload and deadlines.",
@@ -103,7 +103,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Complete your invitation and sign in. Open your team and its boards; ask the admin to resolve missing access before planning work there.",
         "Confirm you can edit tasks. If you need to configure board membership or other management controls, confirm the appropriate ownership or administration access with the admin. A manager title alone does not grant those controls.",
         "Agree with the admin which work your team receives, which board it belongs on, and whether bookings arrive directly or are allocated centrally.",
-        "Review the board's groups, status meanings, People field, dates, and stakeholder field. Set up the views you use for planning and check your Inbox notification preferences.",
+        "Review the board's groups, status meanings, People field, dates, and department field. Set up the views you use for planning and check your Inbox notification preferences.",
       ] },
       { title: "Plan the first incoming task", steps: [
         "Open the request on your team's board and read the full brief, reference links, requested date, and asset list. Check with the requester if the outcome or inputs are unclear.",
@@ -136,8 +136,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     audience: "Everyone",
     sections: [
       { title: "What Streamline is for", paragraphs: [
-        "Streamline brings the RMIT creative and marketing team's requests, planning, deliverables, and conversations into one workspace. Stakeholders submit briefs; the team reviews and assigns the work; contributors record progress on boards; managers use the dashboard to understand demand, output, and resourcing.",
-        "The board is where work is maintained. My Work, board views, the dashboard, and shared pages present that work for different audiences. Keeping owners, dates, statuses, stakeholders, and asset quantities accurate makes those views useful.",
+        "Streamline brings the RMIT creative and marketing team's requests, planning, deliverables, and conversations into one workspace. Departments submit briefs; the team reviews and assigns the work; contributors record progress on boards; managers use the dashboard to understand demand, output, and resourcing.",
+        "The board is where work is maintained. My Work, board views, the dashboard, and shared pages present that work for different audiences. Keeping owners, dates, statuses, departments, and asset quantities accurate makes those views useful.",
       ] },
       { title: "Your first visit", steps: [
         "If you received an invitation, open its link, set your password, and complete your profile before trying normal sign-in. If the link has expired, ask your workspace administrator for a replacement.",
@@ -157,7 +157,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Members / Settings", "Manage people and workspace configuration; read this guide."],
       ] } },
       { title: "Read this guide by role", bullets: [
-        "Stakeholders, admins overseeing managers, and team managers: choose your Quick start guide at the top of this page for your first steps, responsibilities, and handoffs.",
+        "Departments, admins overseeing managers, and team managers: choose your Quick start guide at the top of this page for your first steps, responsibilities, and handoffs.",
         "Contributors: start with the end-to-end workflow, tasks, assets, and My Work.",
         "Team leads: add boards, views, allocation, linked work, and reporting.",
         "Administrators: read permissions, members, the portal, sharing, lists, and data management.",
@@ -188,12 +188,12 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       ] },
       { title: "2. Triage the incoming request", steps: [
         "Coordinator: inspect the request on its receiving board. A request can arrive directly on a configured team board; requests without a valid team destination go to the administrator-only Task Allocation board.",
-        "Open the task and read the brief, requested date, stakeholder, references, and assets. Resolve unclear scope, missing files, or conflicting deadlines with the requester. Record the decision in Updates.",
+        "Open the task and read the brief, requested date, department, references, and assets. Resolve unclear scope, missing files, or conflicting deadlines with the requester. Record the decision in Updates.",
         "Check whether the request duplicates existing work. Agree which task will be maintained before proceeding; use its ticket in subsequent discussion.",
         "Decide which team board should own delivery. If the task is already there, proceed to planning. If it is queued in Task Allocation, use the Allocation section in the item panel.",
       ] },
       { title: "3. Allocate the request", steps: [
-        "Administrator: confirm the destination board is active and has a receiving group. Check that its columns can represent the information you need to keep, especially stakeholder, dates, status, and priority.",
+        "Administrator: confirm the destination board is active and has a receiving group. Check that its columns can represent the information you need to keep, especially department, dates, status, and priority.",
         "In the queued task's Allocation section, choose the team board and select Allocate. The existing task moves to the destination's first group and leaves the allocation queue.",
         "Open the destination board and verify the task, its brief, assets, and mapped field values. Compatible columns are translated; a source field without a matching destination is not carried as a structured value. Preserve essential unmatched details in the description before allocation.",
         "Tell the receiving lead that the task is ready to plan. Allocation chooses the board; confirm the person responsible separately in the task's People field.",
@@ -228,7 +228,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Use Resourcing to check the next planning window and identify unassigned or overloaded work. Make the resulting assignment and date changes on the boards.",
         "Agree next actions with named owners and dates. Repeat the review regularly; the dashboard becomes more useful as the underlying board records improve.",
       ] },
-      { title: "Example: a campaign launch", paragraphs: ["A stakeholder requests one poster and six social assets. The coordinator confirms the copy and deadline, then allocates the request to the creative team's board. The lead assigns a task owner and creates asset lines with quantities 1 and 6, separate assignees, and review dates. Contributors post drafts in Updates, record feedback, and link the final versions. After handover, both asset lines are marked complete and the task receives a done-role status. The request is one task with seven asset units; it is not seven tasks."], bullets: [
+      { title: "Example: a campaign launch", paragraphs: ["A department requests one poster and six social assets. The coordinator confirms the copy and deadline, then allocates the request to the creative team's board. The lead assigns a task owner and creates asset lines with quantities 1 and 6, separate assignees, and review dates. Contributors post drafts in Updates, record feedback, and link the final versions. After handover, both asset lines are marked complete and the task receives a done-role status. The request is one task with seven asset units; it is not seven tasks."], bullets: [
         "If the deadline changes: update the task and affected assets, then explain the impact in Updates.",
         "If the receiving board is wrong: involve the board owner or administrator and verify destination fields before moving work.",
         "If another team needs its own task: use an explicit linked-task workflow and decide which fields should synchronize.",
@@ -249,7 +249,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Create a board from an available template or starting structure. Give it a descriptive name, assign its team where appropriate, and add a description explaining what belongs there.",
         "Review visibility and board members. Choose workspace, team, or private visibility for the intended audience, then assign explicit board roles where needed.",
         "Create or rename groups and put them in a sensible order. The first group matters when this board receives bookings or allocated requests.",
-        "Configure the columns needed for the work. A useful starting point is People, Status, Date or Timeline, Priority, and Stakeholder; add Assets recap if the team tracks deliverables.",
+        "Configure the columns needed for the work. A useful starting point is People, Status, Date or Timeline, Priority, and Department; add Assets recap if the team tracks deliverables.",
         "Check status label meanings, add a sample task, and inspect the views your team will use. Confirm that an ordinary editor and viewer have the access you intend.",
       ] },
       { title: "Maintain the board", bullets: [
@@ -285,7 +285,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Date / Timeline", "A date, or a start and end span. Views use their selected date settings."],
         ["Number / Checkbox", "A numeric value with display settings, or a checked/unchecked value."],
         ["Link", "A URL with optional display text. Check the file or site is accessible to its intended readers."],
-        ["Tags / Stakeholder", "Classification tags, or a stakeholder selected from the workspace list."],
+        ["Tags / Department", "Classification tags, or a department selected from the workspace list."],
         ["Size", "A relative estimate using XS, S, M, L, or XL."],
         ["Assets recap", "A calculated summary of the task's asset lines; edit Assets to change it."],
         ["Dependency", "References to other items on the same board."],
@@ -413,27 +413,27 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
   },
   {
     id: "portal",
-    title: "The stakeholder portal",
+    title: "The portal",
     category: "Requests and sharing",
-    summary: "Manage the shared portal and help external stakeholders follow work and book requests.",
-    audience: "Administrators and stakeholder coordinators",
+    summary: "Manage the shared portal and help departments follow work and book requests.",
+    audience: "Administrators and department coordinators",
     sections: [
-      { title: "One portal with stakeholder filters", paragraphs: ["The portal provides an external view of stakeholder work without requiring a normal workspace account. Administrators manage one portal link and its presentation from Portal and Booking. Visitors can use stakeholder and date filters, search, grouping, and the available board views to find work.", "A stakeholder filter is a browsing control within that portal. It is not a separate private link for each department. Review the overall audience and visible work before distributing the shared link."] },
+      { title: "One portal with department filters", paragraphs: ["The portal provides an external view of department work without requiring a normal workspace account. Administrators manage one portal link and its presentation from Portal and Booking. Visitors can use department and date filters, search, grouping, and the available board views to find work.", "A department filter is a browsing control within that portal. It is not a separate private link for each department. Review the overall audience and visible work before distributing the shared link."] },
       { title: "Prepare the portal", steps: [
-        "Maintain stakeholder names in Settings → Lists. Use the Stakeholder column on tasks to classify work consistently.",
+        "Maintain department names in Settings → Lists. Use the Department column on tasks to classify work consistently.",
         "Open Portal and Booking as a workspace administrator. Set the creative team name and description used in the portal header.",
         "Choose the initial view, visible columns, default theme, whether figures are shown, and whether the link takes new requests.",
-        "Set or update the portal password when needed. Open or preview the portal and inspect its tasks, details, and stakeholder filters from the intended visitor's perspective.",
-        "Enable the portal and distribute the current link to its intended audience. Recheck the visible work after changing stakeholder labels or presentation settings.",
+        "Set or update the portal password when needed. Open or preview the portal and inspect its tasks, details, and department filters from the intended visitor's perspective.",
+        "Enable the portal and distribute the current link to its intended audience. Recheck the visible work after changing department labels or presentation settings.",
       ] },
-      { title: "Help a stakeholder find work", steps: [
+      { title: "Help a department find work", steps: [
         "Open the current portal link and enter its password if requested.",
-        "Choose the relevant stakeholder and date range, or search for the task. Portal search can widen the read across years, so wait for its refreshed results.",
+        "Choose the relevant department and date range, or search for the task. Portal search can widen the read across years, so wait for its refreshed results.",
         "Switch view or grouping to inspect the work in a useful format, then open the task for the details available through the portal.",
         "Use Book a task for another request if the administrator has enabled it. If the action is absent, ask the team for its preferred request channel.",
       ] },
       { title: "Visibility and maintenance", bullets: [
-        "Stakeholder labeling affects which work is associated with a department. Check the Stakeholder field when a task is missing or appears under the wrong group.",
+        "Department labelling affects which work is associated with a department. Check the Department field when a task is missing or appears under the wrong group.",
         "Archived tasks and subitems are not presented as ordinary top-level portal requests. Linked copies can be collapsed to avoid repeated rows.",
         "Hiding columns tidies the page; the portal management screen explicitly does not treat that control as an access restriction.",
         "Close the portal to stop access, or regenerate its link when the old credential should stop working. Give visitors the new link after regeneration.",
@@ -454,7 +454,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Board share", "Give read-only access to the selected board and its supported content."],
         ["Task share", "Give read-only access to a particular task through its sharing controls."],
         ["Dashboard share", "Share a read-only reporting screen; managed by workspace administrators."],
-        ["Stakeholder portal", "Provide the configured external request overview and optional booking entry point."],
+        ["Portal", "Provide the configured external request overview and optional booking entry point."],
         ["Invitation", "Onboard a member; this is separate from sharing work for viewing."],
       ] } },
       { title: "Share a board or task", steps: [
@@ -550,7 +550,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "Run an operational review", steps: [
         "Start with Overview's overdue, upcoming, awaiting-allocation, and blocked work. These operational figures describe the current situation rather than simply reusing the historical reporting period.",
         "Open the underlying task or board from an available drill-down and verify the owner, date, status meaning, and outstanding assets.",
-        "In Resourcing, select the planning window and stakeholder scope where needed. Review missing owners and dates alongside assigned work.",
+        "In Resourcing, select the planning window and department where needed. Review missing owners and dates alongside assigned work.",
         "Make assignment, status, quantity, and date corrections on the source tasks. Return to the dashboard after the data refreshes.",
       ] },
       { title: "Compare responsibly", paragraphs: ["Year-to-date comparisons align elapsed dates. A full-year figure and a partial year answer different questions, so read the displayed ranges before interpreting a percentage. A zero baseline and unavailable history are also different cases.", "The dashboard reflects the boards available to the signed-in user. Two people with different board access can see different totals. Task counts, asset units, estimated effort, board row counts, and active-work counts measure different things; they should not be expected to match.", "For a repeatable reporting routine, record the period, team scope, measure, and Requested/Scheduled basis alongside the findings. Review missing dates, types, rates, and assignees before treating a change in totals as a change in performance."] },
@@ -658,7 +658,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["General", "Workspace name and identity; authorized administrators can save changes."],
         ["Teams", "Create, edit, archive, or restore teams and inspect their people and boards."],
         ["Permissions", "A quick overview of workspace and board role concepts."],
-        ["Lists", "Shared asset types, stakeholder vocabulary, and output rates."],
+        ["Lists", "Shared asset types, department names, and output rates."],
         ["View", "Personal display preferences, including team item counts, stored on this device."],
         ["Data", "Storage information and, in local mode, JSON export, import, and demo reset."],
         ["Documentation", "This searchable user guide and the complete request-to-delivery workflow."],
@@ -669,7 +669,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Add or rename options and choose their colors. Prefer a consistent vocabulary that everyone can understand and use in booking, boards, assets, and reports.",
         "When removing an option, review its existing usage and the offered replacement or keep behavior. Decide what should happen to work already carrying that value.",
         "Review the full draft, then Save. Changes remain a draft until saved; use Discard to abandon them.",
-        "Check affected task values, asset types, and stakeholder classifications after a rename or removal. Stakeholder identity and portal visibility make those changes operationally significant.",
+        "Check affected task values, asset types, and departments after a rename or removal. Department identity and portal visibility make those changes operationally significant.",
       ] },
       { title: "Configure output rates", paragraphs: ["Output rates belong to asset-type rows in Lists. Set the rate and its unit using the controls on the row, then save the draft. A rename moves the associated rate with that asset type; removing a type also requires reviewing its rate and existing use.", "These rates translate recorded deliverable quantities into estimated effort for reporting. Agree a realistic standard with the team and review it when production expectations change. A missing rate means incomplete estimation coverage, not free work or zero time spent."] },
       { title: "Personal preferences and other controls", paragraphs: ["View settings stay on the current device and affect your own display. Theme choices are available through the app's appearance controls, including More on phones. Notification settings live in Inbox, board-specific controls live with the board, and portal management lives in Portal and Booking.", "Use General to change the workspace name; the displayed workspace URL identifies the workspace separately. Use About when an administrator needs the app version to investigate a problem."] },
@@ -734,7 +734,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Check the workspace, board, account, and whether you are in a View as preview.",
         "Clear search and filters, return to Main Table, expand relevant groups or parents, and inspect the archive.",
         "For bookings, check the receipt: the task may have arrived directly on a team board or moved out of Task Allocation.",
-        "For My Work, check task-level assignment and linked copies. For the portal, check stakeholder labels and date filters.",
+        "For My Work, check task-level assignment and linked copies. For the portal, check department labels and date filters.",
         "Ask the board owner to verify access before creating a replacement task.",
       ] },
       { title: "I can open the board but cannot edit", paragraphs: ["Workspace visibility commonly grants Viewer access. Check your explicit board role and team visibility with the owner. An explicit Viewer seat can override inherited editing. Shared boards and portal boards are read-only viewing experiences; use the internal workspace and an appropriate editing role to make changes."] },
@@ -778,7 +778,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Subitem", "A child task underneath a parent task."],
         ["Asset line / asset unit", "A deliverable record / its quantity. A missing quantity counts as one unit."],
         ["PIC / assignee", "The person or people responsible for a task or deliverable."],
-        ["Stakeholder", "The group the work is for, selected from shared workspace vocabulary."],
+        ["Department", "The group the work is for, selected from shared workspace vocabulary."],
         ["Booking / brief", "An incoming request / the context and requirements supplied for it."],
         ["Task Allocation", "The administrator-only incoming queue for requests without a valid direct destination."],
         ["Allocation", "Moving a queued request onto the board responsible for delivery."],
@@ -788,12 +788,12 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Requested / Scheduled", "Reporting by arrival/creation date / due date."],
         ["Effort / output rate", "Estimated production hours / the configured rate used to estimate them from asset quantities."],
         ["Archive", "Remove work from active views while retaining the ability to find or restore it."],
-        ["Share / portal", "A separately authorized viewing link / the external stakeholder work overview."],
+        ["Share / portal", "A separately authorized viewing link / the external department work overview."],
       ] } },
       { title: "Recommended team conventions", bullets: [
         "Give each task a clear outcome, an agreed responsible person, and a useful date.",
         "Maintain task fields for planning, Assets for deliverables, and Updates for decisions.",
-        "Use standard stakeholder and asset-type vocabulary so filters and reporting remain coherent.",
+        "Use standard department and asset-type vocabulary so filters and reporting remain coherent.",
         "Record scope and deadline changes where the next contributor can find them.",
         "Check deliverables and task status before closing work, and archive deliberately after handover.",
         "When quoting a report, include its date range, team scope, measure, and reporting basis.",

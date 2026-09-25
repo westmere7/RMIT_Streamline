@@ -491,11 +491,11 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
   return [
     { name: "Requester", type: "TEXT" },
     { name: "Email", type: "TEXT" },
-    { name: "Department", type: "TEXT" },
+    { name: "Requester department", type: "TEXT" },
     // Who the work is for, as the portal knows it. "Department" above is free
     // text a public requester types about themselves; this one is only ever
     // written from a portal token, so it can be trusted and filtered on.
-    { name: "Stakeholder", type: "STAKEHOLDER" },
+    { name: "Department", type: "STAKEHOLDER" },
     // What kind of work it is, as step one of the form asked it. One tag: the
     // sub-services answer a different question and live in the brief.
     { name: "Service", type: "TAGS", settings: { kind: "tags", options: DEFAULT_SERVICE_TAGS.map((o) => ({ ...o })) } },

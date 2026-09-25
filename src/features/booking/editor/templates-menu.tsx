@@ -140,7 +140,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         <DialogContent size="md" data-testid="template-load-dialog">
           <DialogHeader>
             <DialogTitle>Load a template</DialogTitle>
-            <DialogDescription>The template fills the editor. Nothing changes for stakeholders until you publish it.</DialogDescription>
+            <DialogDescription>The template fills the editor. Nothing changes on the live form until you publish it.</DialogDescription>
           </DialogHeader>
           <ul className="scrollbar-thin max-h-[60vh] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70">
             {templates.map((t) => (

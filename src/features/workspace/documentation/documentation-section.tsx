@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { articleText, GUIDE_ARTICLES, guideMarkdown, searchGuide, type GuideArticle, type GuideSection } from "./guide-content";
 
 const QUICK_STARTS = [
-  { id: "quick-start-stakeholder", label: "For stakeholders", hint: "Submit a brief and follow your request" },
+  { id: "quick-start-stakeholder", label: "For departments", hint: "Submit a brief and follow your request" },
   { id: "quick-start-admin", label: "For admins", hint: "Set up managers and oversee the teams" },
   { id: "quick-start-manager", label: "For team managers", hint: "Plan, assign, and deliver your team's work" },
 ];

@@ -651,7 +651,8 @@ export function columnForField(field: StandardBookingField, columns: readonly Bo
   const free = columns.filter((c) => !taken.has(c.id));
   for (const type of rule.types) {
     const ofType = free.filter((c) => c.type === type);
-    const named = ofType.find((c) => rule.hints.some((hint) => norm(c.name).includes(hint)));
+    // A name that is exactly the word first, so "Requester" beats "Requester department" wherever it sits.
+    const named = ofType.find((c) => rule.hints.includes(norm(c.name))) ?? ofType.find((c) => rule.hints.some((hint) => norm(c.name).includes(hint)));
     if (named) return named;
     if (rule.loneFallback && ofType.length === 1) return ofType[0]!;
     if (rule.hints.length === 0 && ofType.length > 0) return ofType[0]!;

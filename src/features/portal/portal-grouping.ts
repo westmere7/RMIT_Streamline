@@ -93,7 +93,7 @@ export function orderStatusLabels<L extends { name: string }>(labels: readonly L
 const NO_STATUS = "No status";
 
 /** The heading for requests nobody has said a stakeholder for. */
-const NO_STAKEHOLDER = "No stakeholder";
+const NO_STAKEHOLDER = "No department";
 
 /**
  * Re-dividing the board by the stakeholder each request is for.

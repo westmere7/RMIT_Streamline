@@ -49,7 +49,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
     >
       {needsSignIn ? (
         <div className="p-7 sm:p-8">
-          <Unusable title="Sign in to book from the workspace" message="This address is for people with an account. Stakeholders use the link the team sent them." action={{ href: `/login?next=${encodeURIComponent(here)}`, label: "Sign in" }} />
+          <Unusable title="Sign in to book from the workspace" message="This address is for people with an account. Departments use the link the team sent them." action={{ href: `/login?next=${encodeURIComponent(here)}`, label: "Sign in" }} />
         </div>
       ) : form.isLoading || (bookingKey === null && !signedIn) ? (
         <div className="flex items-center gap-2 p-8 text-[13px] text-muted-foreground" role="status">

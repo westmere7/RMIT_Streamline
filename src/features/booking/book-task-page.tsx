@@ -157,7 +157,7 @@ export function BookTaskPage() {
           description={
             <span className="block max-w-[44rem]">
               {tab === "portals"
-                ? "One link for every stakeholder. They pick whose work to look at once they are in, and book new work from the same place."
+                ? "One link for every department. They pick whose work to look at once they are in, and book new work from the same place."
                 : "Shape the form everybody books through. Save as you go; nothing changes for anyone until you publish."}
             </span>
           }

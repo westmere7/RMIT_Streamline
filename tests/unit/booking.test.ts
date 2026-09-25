@@ -178,7 +178,7 @@ describe("placing a booking's answers on a board", () => {
     const plan = planStandardFields(columns);
     expect(plan.requesterName?.name).toBe("Requester");
     expect(plan.requesterEmail?.name).toBe("Email");
-    expect(plan.department?.name).toBe("Department");
+    expect(plan.department?.name).toBe("Requester department");
     expect(plan.service?.name).toBe("Service");
     expect(plan.assetTypes?.name).toBe("Asset type");
     expect(plan.brief?.name).toBe("Brief");
@@ -504,8 +504,8 @@ describe("the built-in Admin team and Task Allocation board", () => {
     expect(columns.map((c) => c.name)).toEqual([
       "Requester",
       "Email",
+      "Requester department",
       "Department",
-      "Stakeholder",
       "Service",
       "Asset type",
       "Brief",

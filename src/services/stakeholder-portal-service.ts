@@ -848,7 +848,7 @@ export class StakeholderPortalService {
     if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
 
     const department = await this.requireDepartment(resolved.workspaceId, input.departmentId);
-    if (department.status !== "ACTIVE") throw new Error("That stakeholder is no longer taking requests.");
+    if (department.status !== "ACTIVE") throw new Error("That department is no longer taking requests.");
 
     // The stakeholder is written over whatever arrived in the body: the name on
     // the request is the one belonging to the id that was just checked, never a

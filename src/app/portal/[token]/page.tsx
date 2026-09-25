@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PortalPage } from "@/features/portal/portal-page";
 
 export const metadata: Metadata = {
-  title: "Stakeholder Portal",
+  title: "Portal",
   // A portal link is a credential: it must not travel to anywhere the visitor
   // clicks through to, and it must not be indexed.
   robots: { index: false, follow: false },
