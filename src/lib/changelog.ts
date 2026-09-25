@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.48.0",
+    date: "2026-09-25",
+    title: "Requester, as a person",
+    changes: [
+      "Every board has a Requester column: who asked for the work, shown as an avatar like any people column.",
+      "A booking fills it in. Signed in, it is you. Through a public link, a known email is that person and a new one becomes a pending member, with a join link an admin can pass on.",
+      "The booking form fills in the name for an email the workspace knows. You can still change it, and the name you book with is saved.",
+    ],
+  },
+  {
     version: "0.47.5",
     date: "2026-09-25",
     title: "A tidier task journey",

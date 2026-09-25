@@ -53,6 +53,62 @@ import type { WorkspaceService } from "./workspace-service";
 export interface BookingTransport {
   getForm(input: { workspaceSlug: string; key: string | null }): Promise<BookingForm>;
   submit(input: BookingSubmission): Promise<BookingReceipt>;
+  /** The name the workspace has for this email, for the form to fill in. */
+  lookupRequester(input: { workspaceSlug: string; key: string | null; email: string }): Promise<string | null>;
+}
+
+/**
+ * Who asked, as a person the workspace knows.
+ *
+ * A booking's requester is a person, shown in the board's Requester column
+ * like anyone else in a people column. Someone signed in is who they are; for
+ * the public form, the email says who: somebody the workspace already has is
+ * that person (and their name is kept as they typed it this time), and
+ * somebody new becomes a pending member, as an admin's "Add member" makes one.
+ * Pending members cannot sign in or see anything until they onboard.
+ *
+ * The browser's copy works on the local repositories; the server hands in one
+ * that uses the service role (src/server/requesters.ts).
+ */
+export interface RequesterDirectory {
+  /** This workspace's person with this email, whatever their status. */
+  find(workspaceId: EntityId, email: string): Promise<{ userId: EntityId; name: string } | null>;
+  /** The person for this name and email: found and renamed, or added as a pending member. */
+  ensure(workspaceId: EntityId, person: { name: string; email: string }, invitedBy: EntityId): Promise<EntityId>;
+}
+
+/** "Priya Nair" as a first and last name, for the profile. */
+export function splitPersonName(name: string): { firstName: string; lastName: string; displayName: string } {
+  const displayName = name.trim().replace(/\s+/g, " ");
+  const [first = "", ...rest] = displayName.split(" ");
+  return { firstName: first, lastName: rest.join(" "), displayName };
+}
+
+function localRequesterDirectory(repos: Repositories): RequesterDirectory {
+  const inWorkspace = async (workspaceId: EntityId, email: string) => {
+    const user = await repos.users.getByEmail(email.trim().toLowerCase());
+    if (!user) return { user: null, member: null };
+    const member = (await repos.workspaces.listMembers(workspaceId)).find((m) => m.userId === user.id) ?? null;
+    return { user, member };
+  };
+  return {
+    async find(workspaceId, email) {
+      const { user, member } = await inWorkspace(workspaceId, email);
+      return user && member ? { userId: user.id, name: user.displayName } : null;
+    },
+    async ensure(workspaceId, person, invitedBy) {
+      const email = person.email.trim().toLowerCase();
+      const name = splitPersonName(person.name);
+      const { user, member } = await inWorkspace(workspaceId, email);
+      if (user && member) {
+        if (name.displayName && name.displayName !== user.displayName) await repos.users.update(user.id, name);
+        return user.id;
+      }
+      const invited = await repos.onboarding.invite({ workspaceId, invitedBy, email, firstName: name.firstName || email, lastName: name.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
+      if (user && name.displayName && name.displayName !== user.displayName) await repos.users.update(user.id, name);
+      return invited.user.id;
+    },
+  };
 }
 
 export interface BookingSubmission {
@@ -77,6 +133,35 @@ export class BookingAccessError extends Error {
 }
 
 export class BookingService {
+  private requesterDirectory: RequesterDirectory | null = null;
+
+  /** The server's directory, which can add people through the service role. */
+  useRequesters(directory: RequesterDirectory): void {
+    this.requesterDirectory = directory;
+  }
+
+  /** The directory handed in, or the local one. */
+  private get requesters(): RequesterDirectory {
+    return (this.requesterDirectory ??= localRequesterDirectory(this.repos));
+  }
+
+  /** This workspace's name for an email, by whichever directory is in use (the portal's lookup, in local mode). */
+  async requesterNameFor(workspaceId: EntityId, email: string): Promise<string | null> {
+    return (await this.requesters.find(workspaceId, email.trim().toLowerCase()))?.name ?? null;
+  }
+
+  /**
+   * The name the workspace has for this email, for the booking form to fill in
+   * as someone types. Nothing for an email it does not know.
+   */
+  async lookupRequester(input: { workspaceSlug: string; key: string | null; email: string }): Promise<string | null> {
+    const email = input.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
+    if (this.transport) return this.transport.lookupRequester({ ...input, email });
+    const workspace = await this.requireWorkspace(input.workspaceSlug, input.key);
+    return (await this.requesters.find(workspace.id, email))?.name ?? null;
+  }
+
   /**
    * The workspace's active departments, written out from Settings' list the
    * first time anything asks (see StakeholderPortalService.ensureDepartments).
@@ -229,7 +314,20 @@ export class BookingService {
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
-    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department });
+    // Who asked, as a person. A member signed in is themselves; anyone else is
+    // found or added by their email. A booking is never refused over this: if the
+    // person cannot be recorded, their name still travels in the description.
+    const signedIn = memberId && members.some((m) => m.userId === memberId && m.status === "ACTIVE") ? memberId : null;
+    let requesterId: EntityId | null = signedIn;
+    if (!requesterId && request.requesterEmail.trim()) {
+      try {
+        requesterId = await this.requesters.ensure(workspaceId, { name: request.requesterName, email: request.requesterEmail }, actorId);
+      } catch (error) {
+        console.error("Could not record the requester as a person", error);
+      }
+    }
+
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department, requesterId });
     const description = describeBooking(request, placement);
     // The form names the id the item will have so a submission that is retried
     // cannot book the same thing twice. Honoured only if it is still free: an id
@@ -530,7 +628,8 @@ export class BookingService {
 /** Columns the Task Allocation board is created with. Kept here so the form and the board agree. */
 export function taskAllocationColumns(_teamNames: readonly string[] = []): Array<Pick<BoardColumn, "name" | "type"> & { settings?: BoardColumn["settings"] }> {
   return [
-    { name: "Requester", type: "TEXT" },
+    // Who asked, as a person: the member who booked, or the pending member a public booking made of them.
+    { name: "Requester", type: "REQUESTER" },
     { name: "Email", type: "TEXT" },
     // Who the work is for: one of Settings → Departments, checked on every
     // booking, so it can be trusted and filtered on.

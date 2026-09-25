@@ -173,6 +173,7 @@ export function PortalBookingScreen({
               // used to book for two departments, and the person doing it is
               // not always the same one. Nothing of this leaves the machine.
               remember={account ? null : `portal:${credentials.token}`}
+              lookupRequester={account ? undefined : (email) => services.portals.publicLookupRequester(credentials, email, services.booking)}
               onSubmit={async (request) => {
                 const forStakeholder = stakeholderFor(request.department);
                 if (!forStakeholder) throw new Error("Pick which department this is for.");

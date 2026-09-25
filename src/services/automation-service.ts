@@ -582,6 +582,7 @@ function labelOrPlain(column: BoardColumn | undefined, value: ColumnValue): stri
       return value.url ?? "";
     case "PERSON":
     case "PEOPLE":
+    case "REQUESTER":
       return `${value.userIds.length} ${value.userIds.length === 1 ? "person" : "people"}`;
     default:
       return "a value";

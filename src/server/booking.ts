@@ -7,6 +7,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServices, type Services } from "@/services";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
+import { serverRequesterDirectory } from "./requesters";
 
 /**
  * Task booking for the Supabase provider.
@@ -27,6 +28,19 @@ export async function loadBookingForm(request: Request, slug: string, key: strin
   return serverServices().booking.buildForm(workspaceId);
 }
 
+export const requesterLookupSchema = z.object({
+  key: z.string().max(80).nullable().optional(),
+  email: z.string().trim().max(254),
+});
+
+/** The name the workspace has for an email, for the form to fill in. Same access as booking. */
+export async function lookupRequester(request: Request, slug: string, key: string | null, email: string): Promise<{ name: string | null }> {
+  const { workspaceId } = await authorise(request, slug, key);
+  const clean = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return { name: null };
+  return { name: (await serverRequesterDirectory().find(workspaceId, clean))?.name ?? null };
+}
+
 export async function submitBooking(request: Request, slug: string, key: string | null, booking: BookingRequest): Promise<BookingReceipt> {
   const { workspaceId, memberId } = await authorise(request, slug, key);
   return serverServices().booking.book(workspaceId, booking, memberId);
@@ -35,7 +49,10 @@ export async function submitBooking(request: Request, slug: string, key: string 
 /** The services, pointed at the service-role client. Built per call; the client underneath is a singleton. */
 function serverServices(): Services {
   routeRepositoriesThrough(getSupabaseAdminClient());
-  return createServices(createSupabaseRepositories());
+  const services = createServices(createSupabaseRepositories());
+  // A requester the workspace does not have yet is added as a pending member, which needs the service role.
+  services.booking.useRequesters(serverRequesterDirectory());
+  return services;
 }
 
 /**

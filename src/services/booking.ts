@@ -701,6 +701,8 @@ export interface PlacementContext {
    * department on the list ever reaches a STAKEHOLDER column.
    */
   stakeholder?: string | null;
+  /** The person who asked, for the board's Requester column. */
+  requesterId?: string | null;
 }
 
 /** Works out what to write into which column of the receiving board. */
@@ -719,7 +721,10 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
     else leftover.push({ field, label: STANDARD_FIELD_LABELS[field], text });
   };
 
-  place("requesterName", request.requesterName, () => ({ type: "TEXT", text: request.requesterName }));
+  // The Requester column holds the person; a board without one takes the name as text.
+  const requesterColumn = ctx.requesterId ? columns.find((c) => c.type === "REQUESTER") : undefined;
+  if (requesterColumn) values.push({ columnId: requesterColumn.id, value: { type: "REQUESTER", userIds: [ctx.requesterId!] } });
+  else place("requesterName", request.requesterName, () => ({ type: "TEXT", text: request.requesterName }));
   place("requesterEmail", request.requesterEmail, (column) =>
     column.type === "LINK" ? { type: "LINK", url: `mailto:${request.requesterEmail}`, text: request.requesterEmail } : { type: "TEXT", text: request.requesterEmail },
   );

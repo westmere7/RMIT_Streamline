@@ -36,6 +36,11 @@ export class HttpPortalTransport implements PortalTransport {
     return call<BookingForm>(`/api/portal/${encodeURIComponent(grant.token)}/book`, { method: "PUT", body: JSON.stringify(body(grant)) });
   }
 
+  async lookupRequester(grant: PortalGrant, email: string): Promise<string | null> {
+    const found = await call<{ name: string | null }>(`/api/portal/${encodeURIComponent(grant.token)}/requester`, { method: "POST", body: JSON.stringify({ ...body(grant), email }) });
+    return found.name;
+  }
+
   async book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: string): Promise<BookingReceipt> {
     return call<BookingReceipt>(`/api/portal/${encodeURIComponent(grant.token)}/book`, {
       method: "POST",

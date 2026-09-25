@@ -16,6 +16,15 @@ export class HttpBookingTransport implements BookingTransport {
     return callApi<BookingForm>(`/api/book/${encodeURIComponent(input.workspaceSlug)}${query}`, { method: "GET" }, { auth: "optional" });
   }
 
+  async lookupRequester(input: { workspaceSlug: string; key: string | null; email: string }): Promise<string | null> {
+    const found = await callApi<{ name: string | null }>(
+      `/api/book/${encodeURIComponent(input.workspaceSlug)}/requester`,
+      { method: "POST", body: JSON.stringify({ key: input.key, email: input.email }) },
+      { auth: "optional" },
+    );
+    return found.name;
+  }
+
   async submit(input: BookingSubmission): Promise<BookingReceipt> {
     return callApi<BookingReceipt>(
       `/api/book/${encodeURIComponent(input.workspaceSlug)}`,

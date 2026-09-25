@@ -10,6 +10,7 @@ export const COLUMN_TYPES = [
   "STATUS",
   "DROPDOWN",
   "PERSON",
+  "REQUESTER",
   "PEOPLE",
   "DATE",
   "TIMELINE",
@@ -208,6 +209,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   DROPDOWN: "Dropdown",
   PERSON: "PIC",
   PEOPLE: "People",
+  REQUESTER: "Requester",
   DATE: "Due date",
   TIMELINE: "Timeline",
   NUMBER: "Number",
@@ -235,6 +237,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   DROPDOWN: 150,
   PERSON: 130,
   PEOPLE: 130,
+  REQUESTER: 130,
   DATE: 130,
   TIMELINE: 190,
   NUMBER: 110,
@@ -306,6 +309,9 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
     case "PERSON":
     case "PEOPLE":
       return { kind: "person", allowMultiple: true };
+    // One person asked for it.
+    case "REQUESTER":
+      return { kind: "person", allowMultiple: false };
     case "NUMBER":
       return { kind: "number", unit: null, decimals: 0 };
     case "TAGS":
@@ -374,7 +380,7 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  * Naming is still the board's business: a team that calls its PIC column
  * "Designer" is understood perfectly well.
  */
-export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF", "BOOKED_AT"];
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "REQUESTER", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF", "BOOKED_AT"];
 
 /**
  * What each type is for, shown when the type is hovered in the picker.
@@ -388,7 +394,8 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   LONG_TEXT: "Several lines of plain text.",
   RICH_TEXT: "A document — headings, bullets, links. The cell shows the start of it and opens the rest.",
   DROPDOWN: "One of a list of choices the board defines, with colours. A status without the meanings.",
-  PEOPLE: "People with no bearing on the work — a requester, a contact. For who is doing it, use PIC.",
+  PEOPLE: "People with no bearing on the work — a contact, a reviewer. For who is doing it, use PIC.",
+  REQUESTER: "Who asked for the work. Bookings fill it in.",
   NUMBER: "A number, with a unit if it needs one.",
   PLAIN_DATE: "A calendar day, with no bearing on deadlines. For when it is due, use Due date.",
   TIME: "A time of day.",

@@ -337,6 +337,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
         // moving a "Requester" column off PIC would quietly empty the requester
         // and department figures.
         case "PEOPLE":
+        case "REQUESTER":
           if (column.id === roles.requester?.id) takeRequester(v.userIds);
           break;
         case "TAGS":

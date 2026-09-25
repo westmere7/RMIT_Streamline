@@ -1,4 +1,4 @@
-import { AlignLeft, Boxes, Building2, Calendar, CalendarCheck2, CalendarClock, CalendarDays, Clock, ChevronDownCircle, CircleDot, ClipboardList, FileText, Flag, GanttChart, GitBranch, Hash, Hourglass, Link2, Shirt, SquareCheck, Tag, Type, UserRound, Users } from "lucide-react";
+import { AlignLeft, Boxes, Building2, Calendar, CalendarCheck2, CalendarClock, CalendarDays, Clock, ChevronDownCircle, CircleDot, ClipboardList, FileText, Flag, GanttChart, GitBranch, Hash, Hourglass, Link2, Shirt, SquareCheck, Tag, Type, UserRound, UserRoundPlus, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import type { ColumnType } from "@/domain";
 
@@ -12,6 +12,7 @@ export const COLUMN_TYPE_ICONS: Record<ColumnType, ComponentType<{ className?: s
   DROPDOWN: ChevronDownCircle,
   PERSON: UserRound,
   PEOPLE: Users,
+  REQUESTER: UserRoundPlus,
   DATE: CalendarDays,
   TIMELINE: GanttChart,
   NUMBER: Hash,

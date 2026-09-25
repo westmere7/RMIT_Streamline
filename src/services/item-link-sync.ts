@@ -156,7 +156,8 @@ export function translateValue(value: ColumnValue, source: BoardColumn, target: 
       return { kind: "value", value: { type: value.type, labelId: match.id } };
     }
     case "PERSON":
-    case "PEOPLE": {
+    case "PEOPLE":
+    case "REQUESTER": {
       const single = target.settings.kind === "person" && !target.settings.allowMultiple;
       return {
         kind: "value",

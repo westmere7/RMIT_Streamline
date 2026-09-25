@@ -213,6 +213,8 @@ export interface PortalTransport {
   journey(grant: PortalGrant, itemId: EntityId): Promise<Activity[]>;
   book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: EntityId): Promise<BookingReceipt>;
   bookingForm(grant: PortalGrant): Promise<BookingForm>;
+  /** The name the workspace has for an email, for the booking form to fill in. */
+  lookupRequester(grant: PortalGrant, email: string): Promise<string | null>;
   comment(grant: PortalGrant, itemId: EntityId, body: string): Promise<void>;
   setDeliverableDone(grant: PortalGrant, itemId: EntityId, assetId: EntityId, done: boolean): Promise<void>;
 }
@@ -299,6 +301,15 @@ export class StakeholderPortalService {
     if (this.transport) return this.transport.bookingForm(grant);
     const resolved = await this.resolve(grant);
     return this.buildForm(resolved.workspaceId);
+  }
+
+  /** The name the workspace has for an email, behind the portal's gate. */
+  async publicLookupRequester(grant: PortalGrant, email: string, booking: { requesterNameFor(workspaceId: EntityId, email: string): Promise<string | null> }): Promise<string | null> {
+    const clean = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return null;
+    if (this.transport) return this.transport.lookupRequester(grant, clean);
+    const resolved = await this.resolve(grant);
+    return booking.requesterNameFor(resolved.workspaceId, clean);
   }
 
   async publicBook(

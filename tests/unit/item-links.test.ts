@@ -77,7 +77,7 @@ describe("Task Linking", () => {
     const views = await services.links.listForItem(sem1.id);
     expect(views[0]?.board.id).toBe(SEED_BOARD_IDS.dooh);
     // Every board holds the special columns, so those always line up; a plain one only by name.
-    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Timeline", "Due Date", "Department", "Size", "Brief"]);
+    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Timeline", "Due Date", "Requester", "Department", "Size", "Brief"]);
     expect(views[0]?.mapping.unmapped.map((c) => c.name)).toEqual(["Channel"]);
   });
 

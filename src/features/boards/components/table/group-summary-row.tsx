@@ -66,7 +66,8 @@ function ColumnSummary({ column, items }: { column: BoardColumn; items: readonly
     }
 
     case "PERSON":
-    case "PEOPLE": {
+    case "PEOPLE":
+    case "REQUESTER": {
       const ids = new Set<string>();
       for (const value of values) if (value && "userIds" in value) for (const id of value.userIds) ids.add(id);
       const people = [...ids].map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);

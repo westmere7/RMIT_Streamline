@@ -92,7 +92,7 @@ const ROLE_TYPES: Record<ColumnRole, RoleTypes> = {
   stakeholder: { implied: ["STAKEHOLDER"], hinted: [] },
   size: { implied: ["SIZE"], hinted: [] },
   assetsRecap: { implied: ["ASSETS_RECAP"], hinted: [] },
-  requester: { implied: [], hinted: ["PERSON", "PEOPLE", "TEXT"] },
+  requester: { implied: ["REQUESTER"], hinted: ["PERSON", "PEOPLE", "TEXT"] },
   department: { implied: ["STAKEHOLDER"], hinted: ["TEXT"] },
   requestedTeam: { implied: [], hinted: ["TAGS", "TEXT"] },
   assetType: { implied: [], hinted: ["TAGS", "TEXT"] },

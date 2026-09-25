@@ -137,7 +137,8 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return rank === Number.MAX_SAFE_INTEGER ? null : rank;
     }
     case "PERSON":
-    case "PEOPLE": {
+    case "PEOPLE":
+    case "REQUESTER": {
       const names = value.userIds.map((id) => ctx.userName?.(id) ?? "").filter(Boolean).sort((x, y) => x.localeCompare(y));
       return names.length ? names.join(", ") : null;
     }

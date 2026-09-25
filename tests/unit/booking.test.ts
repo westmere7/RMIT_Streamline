@@ -176,7 +176,8 @@ describe("placing a booking's answers on a board", () => {
   it("finds a home for every standard answer on the Task Allocation board", () => {
     const columns = taskAllocationColumns(["Digital", "Brand"]).map((c, i) => column(c.name, c.type, i, c.settings ?? defaultSettingsFor(c.type)));
     const plan = planStandardFields(columns);
-    expect(plan.requesterName?.name).toBe("Requester");
+    // The requester is a person, in the Requester column, not a name in a text one.
+    expect(plan.requesterName).toBeNull();
     expect(plan.requesterEmail?.name).toBe("Email");
     // The department is the Department column's, never a free-text one.
     expect(plan.department).toBeNull();
@@ -190,10 +191,10 @@ describe("placing a booking's answers on a board", () => {
     expect(plan.referenceUrl?.name).toBe("Reference");
 
     const req = request();
-    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate(), stakeholder: "Comm." });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate(), stakeholder: "Comm.", requesterId: "user-priya" });
     expect(placement.leftover).toEqual([]);
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
-    expect(byName.get("Requester")).toEqual({ type: "TEXT", text: "Priya Nair" });
+    expect(byName.get("Requester")).toEqual({ type: "REQUESTER", userIds: ["user-priya"] });
     // One tag, and it is the service. The sub-services are chips in the brief.
     expect(byName.get("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     expect(byName.get("Asset type")).toEqual({ type: "TAGS", tags: ["Print"] });
@@ -608,7 +609,12 @@ describe("booking a task", () => {
     const columns = await services.repos.boards.listColumns(board.id);
     const values = await services.repos.items.listValuesByItem(item.id);
     const valueOf = (name: string) => values.find((v) => v.columnId === columns.find((c) => c.name === name)!.id)?.value;
-    expect(valueOf("Requester")).toEqual({ type: "TEXT", text: "Priya Nair" });
+    // The requester is a person now: a pending member made from the name and email on the form.
+    const priya = await services.repos.users.getByEmail(request().requesterEmail);
+    expect(priya?.displayName).toBe("Priya Nair");
+    expect(valueOf("Requester")).toEqual({ type: "REQUESTER", userIds: [priya!.id] });
+    const membership = (await services.repos.workspaces.listMembers(SEED_WORKSPACE_ID)).find((m) => m.userId === priya!.id);
+    expect(membership?.status).toBe("INVITED");
     expect(valueOf("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     // The brief is the Brief column's, formatted — and the description is left
     // empty rather than holding the same page a second time.

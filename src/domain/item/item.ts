@@ -49,6 +49,8 @@ export type ColumnValue =
   | { type: "PERSON"; userIds: EntityId[] }
   /** People with no bearing on the work: a requester, a contact, whoever else should be named. */
   | { type: "PEOPLE"; userIds: EntityId[] }
+  /** Who asked for the work: a member, or the pending member a public booking made of them. */
+  | { type: "REQUESTER"; userIds: EntityId[] }
   | { type: "DATE"; date: ISODate | null }
   | { type: "TIMELINE"; start: ISODate | null; end: ISODate | null }
   | { type: "NUMBER"; number: number | null }
@@ -96,6 +98,7 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, labelId: null };
     case "PERSON":
     case "PEOPLE":
+    case "REQUESTER":
       return { type, userIds: [] };
     case "DATE":
       return { type, date: null };
@@ -146,6 +149,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.labelId === null;
     case "PERSON":
     case "PEOPLE":
+    case "REQUESTER":
       return value.userIds.length === 0;
     case "DATE":
       return value.date === null;

@@ -873,6 +873,16 @@ export function buildSeed(now: Date = new Date()): SeedBundle {
  */
 function specialColumnsFor(bundle: SeedBundle): SeedBundle {
   const out = emptySeedBundle();
+  // A people column a board called "Requester" is its Requester, values and all.
+  for (const board of bundle.boards) {
+    const columns = bundle.boardColumns.filter((c) => c.boardId === board.id);
+    if (columns.some((c) => c.type === "REQUESTER")) continue;
+    const named = columns.find((c) => (c.type === "PERSON" || c.type === "PEOPLE") && c.name.trim().toLowerCase() === "requester");
+    if (!named) continue;
+    named.type = "REQUESTER";
+    named.settings = defaultSettingsFor("REQUESTER");
+    for (const v of bundle.itemColumnValues) if (v.columnId === named.id && (v.value.type === "PERSON" || v.value.type === "PEOPLE")) v.value = { type: "REQUESTER", userIds: v.value.userIds.slice(0, 1) };
+  }
   for (const board of bundle.boards) {
     const columns = bundle.boardColumns.filter((c) => c.boardId === board.id);
     let position = columns.reduce((max, c) => Math.max(max, c.position), -1) + 1;

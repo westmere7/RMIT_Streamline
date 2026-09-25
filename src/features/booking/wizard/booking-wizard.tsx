@@ -69,6 +69,11 @@ export interface BookingWizardProps {
    */
   preview?: boolean;
   onSubmit: (request: BookingRequest) => Promise<BookingReceipt>;
+  /**
+   * The name the workspace has for an email, so a person it knows sees theirs
+   * filled in as they finish typing it. Absent when signed in: the account says who.
+   */
+  lookupRequester?: (email: string) => Promise<string | null>;
   /** Where the booked item can be opened, for people who may see its board. Null hides the link. */
   itemHref?: (receipt: BookingReceipt) => string | null;
   onBooked?: (receipt: BookingReceipt) => void;
@@ -118,7 +123,7 @@ interface StepDef {
   label: string;
 }
 
-function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, itemHref, onBooked }: BookingWizardProps) {
+function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, lookupRequester, itemHref, onBooked }: BookingWizardProps) {
   const template = form.template;
   const memory = useBookingMemory(remember ?? null);
 
@@ -180,6 +185,39 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
    * throwing away whatever the other control had just written.
    */
   const patch = (p: Partial<BookingRequest> | ((prev: BookingRequest) => Partial<BookingRequest>)) => setRequest((prev) => ({ ...prev, ...(typeof p === "function" ? p(prev) : p) }));
+
+  // A known email fills in the name the workspace has for it. It replaces the
+  // name field only if that has not been touched since the email was typed:
+  // typing a name first and then the email still fills it, but a name corrected
+  // afterwards is theirs and stays. Whatever is submitted is saved as their name.
+  const nameWhenEmailChanged = React.useRef(request.requesterName);
+  const email = request.requesterEmail.trim().toLowerCase();
+  React.useEffect(() => {
+    nameWhenEmailChanged.current = request.requesterName;
+    // Only the email moving should reset this, not every keystroke in the name.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
+  React.useEffect(() => {
+    if (!lookupRequester || account || preview || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      lookupRequester(email)
+        .then((name) => {
+          if (!live || !name) return;
+          setRequest((prev) => {
+            if (prev.requesterEmail.trim().toLowerCase() !== email) return prev;
+            if (prev.requesterName !== nameWhenEmailChanged.current || prev.requesterName === name) return prev;
+            nameWhenEmailChanged.current = name;
+            return { ...prev, requesterName: name };
+          });
+        })
+        .catch(() => undefined);
+    }, 350);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [email, lookupRequester, account, preview]);
 
   /** The request as it will be sent: the composer's rows as asset lines, and the brief written out. */
   const buildRequest = React.useCallback(

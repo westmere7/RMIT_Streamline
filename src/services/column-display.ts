@@ -42,6 +42,7 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return value.start || value.end ? `${formatShortDate(value.start)} – ${formatShortDate(value.end)}` : null;
     case "PERSON":
     case "PEOPLE":
+    case "REQUESTER":
       return value.userIds.map((id) => users.find((u) => u.id === id)?.displayName ?? "Unknown").join(", ") || null;
     case "TEXT":
     case "LONG_TEXT":

@@ -53,6 +53,7 @@ export function CellRenderer(props: CellProps) {
       return <PriorityCell {...props} />;
     case "PERSON":
     case "PEOPLE":
+    case "REQUESTER":
       return <PersonCell {...props} />;
     case "DATE":
       return <DateCell {...props} />;
@@ -392,7 +393,7 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
  */
 export function PersonCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const { users } = useBoardContext();
-  const type = column.type === "PEOPLE" ? "PEOPLE" : "PERSON";
+  const type = column.type === "PEOPLE" || column.type === "REQUESTER" ? column.type : "PERSON";
   const v = valueOf(type, value);
   const assigned = v.userIds.map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const allowMultiple = column.settings.kind === "person" ? column.settings.allowMultiple : true;
@@ -402,7 +403,7 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
       disabled={readOnly}
       align={columnAlign(column.type)}
       ariaLabel={`${column.name}: ${assigned.map((u) => u.displayName).join(", ") || "unassigned"} for ${item.name}`}
-      testId={type === "PEOPLE" ? "people-cell" : "person-cell"}
+      testId={type === "PEOPLE" ? "people-cell" : type === "REQUESTER" ? "requester-cell" : "person-cell"}
       trigger={
         assigned.length === 0 ? (
           <UserAvatar user={null} size="sm" />

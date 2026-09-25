@@ -447,4 +447,37 @@ describe("the booking wizard", () => {
     expect(within(bar).getAllByRole("button")).toHaveLength(3);
     expect(bar).toHaveAccessibleName("Step 1 of 3: Details");
   });
+
+  it("fills in the name the workspace has for a known email, and leaves a name corrected afterwards alone", async () => {
+    const lookupRequester = vi.fn(async (email: string) => (email === "emily@rmit.edu.au" ? "Emily Carter" : null));
+    const { user } = renderWizard({ lookupRequester });
+    const name = screen.getByTestId("booking-name") as HTMLInputElement;
+    const email = screen.getByTestId("booking-email") as HTMLInputElement;
+
+    // A name typed first, then a known email: the workspace's name replaces it.
+    await user.type(name, "Em");
+    await user.type(email, "emily@rmit.edu.au");
+    await waitFor(() => expect(name.value).toBe("Emily Carter"));
+    expect(lookupRequester).toHaveBeenLastCalledWith("emily@rmit.edu.au");
+
+    // Corrected after that, the name is theirs: typing on in the email does not undo it.
+    await user.clear(name);
+    await user.type(name, "Em Carter");
+    await user.type(email, " ");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(name.value).toBe("Em Carter");
+
+    // An email nobody has leaves the name as it is.
+    await user.clear(email);
+    await user.type(email, "new.person@rmit.edu.au");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(name.value).toBe("Em Carter");
+  });
+
+  it("does not look anyone up for a signed-in account", async () => {
+    const lookupRequester = vi.fn(async () => "Somebody");
+    renderWizard({ lookupRequester, account: { name: "Danh Nguyen", email: "danh@rmit.edu.au", title: "Producer" } });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(lookupRequester).not.toHaveBeenCalled();
+  });
 });

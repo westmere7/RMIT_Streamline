@@ -1,3 +1,4 @@
+import { serverRequesterDirectory } from "./requesters";
 import { z } from "zod";
 import { DEFAULT_PORTAL_RANGE, parsePortalRange, type PortalScope } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
@@ -82,8 +83,13 @@ export const portalAssetSchema = portalGrantSchema.extend({
 /** The services, pointed at the service role. Built per call; the client is a singleton. */
 export function portalServices(): Services {
   routeRepositoriesThrough(getSupabaseAdminClient());
-  return createServices(createSupabaseRepositories());
+  const services = createServices(createSupabaseRepositories());
+  // A requester the workspace does not have yet is added as a pending member, which needs the service role.
+  services.booking.useRequesters(serverRequesterDirectory());
+  return services;
 }
+
+export const portalRequesterSchema = portalGrantSchema.extend({ email: z.string().trim().max(254) });
 
 /**
  * Who is knocking, when anyone says so.
