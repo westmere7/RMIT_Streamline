@@ -7,19 +7,18 @@ test.describe("board management", () => {
     await signInAs(page, "Danh");
   });
 
-  test("creates a board from the Campaign template and lands on it", async ({ page }) => {
+  test("creates a board from the Blank template and lands on it", async ({ page }) => {
     await page.getByTestId("sidebar-add-new").click();
     await page.getByTestId("sidebar-add-board").click();
     await page.getByLabel("Board name").fill("Open Day 2027");
-    await page.getByRole("radio", { name: /Campaign/ }).click();
+    await expect(page.getByTestId("board-template")).toContainText("Blank");
     await page.getByTestId("create-board-submit").click();
     await expect(page).toHaveURL(/boards\/open-day-2027/);
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Open Day 2027");
-    await expect(page.getByTestId("group-Planning")).toBeVisible();
-    await expect(page.getByTestId("group-Completed")).toBeVisible();
+    await expect(page.getByTestId("group-Group 1")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Day 2027" })).toBeVisible();
     await page.reload();
-    await expect(page.getByTestId("group-Planning")).toBeVisible();
+    await expect(page.getByTestId("group-Group 1")).toBeVisible();
   });
 
   test("toggles a favourite from the board header", async ({ page }) => {

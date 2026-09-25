@@ -14,8 +14,8 @@ import { callApi } from "@/data/supabase/api-call";
 import { formatTicket } from "@/domain";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
-const GOES = ["Every board, with its groups and columns", "Every task and subitem, and what is in them", "Deliverables, updates, comments and links", "Board shares and automations", "The activity and notifications about them"];
-const STAYS = ["Settings, lists and departments", "Teams, members and roles", "The booking form and portals", "Trackers, messages and snapshots", "Task Allocation, emptied"];
+const GOES = ["Every board, with its groups and columns", "Every task and subitem, and what is in them", "Deliverables, updates, comments and links", "Board shares and automations", "Every tracker and its sheets", "The activity and notifications about them"];
+const STAYS = ["Settings, lists and departments", "Teams, members and roles", "The booking form and portals", "Messages and snapshots", "Task Allocation, emptied"];
 
 /**
  * Settings → Danger zone: what cannot be done by accident. Admins and owners
@@ -69,11 +69,11 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [password, setPassword] = React.useState("");
   const [resetTickets, setResetTickets] = React.useState(false);
-  const [done, setDone] = React.useState<{ boards: number; tasks: number; ticketsReset: boolean } | null>(null);
+  const [done, setDone] = React.useState<{ boards: number; tasks: number; trackers: number; ticketsReset: boolean } | null>(null);
   const firstTicket = formatTicket(ws.workspace.ticketPrefix, 1);
   const wipe = useMutation({
     mutationFn: () =>
-      callApi<{ boards: number; tasks: number; ticketsReset: boolean }>("/api/snapshots/wipe-boards", { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, password, resetTickets }) }, { auth: "required" }),
+      callApi<{ boards: number; tasks: number; trackers: number; ticketsReset: boolean }>("/api/snapshots/wipe-boards", { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, password, resetTickets }) }, { auth: "required" }),
     onSuccess: (result) => {
       setPassword("");
       setDone(result);
@@ -98,7 +98,7 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
             <DialogTitle className="flex items-center gap-2">
               <TriangleAlert className="size-5 text-destructive" /> Wipe all board data?
             </DialogTitle>
-            <DialogDescription>Every board and task goes, for everyone. Settings, lists and people stay.</DialogDescription>
+            <DialogDescription>Every board, task and tracker goes, for everyone. Settings, lists and people stay.</DialogDescription>
           </DialogHeader>
           <form
             id="danger-wipe-form"
@@ -129,7 +129,7 @@ function WipeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
         <BlockingScreen
           title="Wiping board data"
           detail="Saving a snapshot, then removing every board and task. Keep this tab open."
-          done={done ? { title: "Board data wiped", detail: `${done.boards} boards and ${done.tasks.toLocaleString()} tasks removed.${done.ticketsReset ? ` Tickets start again from ${firstTicket}.` : ""} Reloading…` } : null}
+          done={done ? { title: "Board data wiped", detail: `${done.boards} boards, ${done.tasks.toLocaleString()} tasks and ${done.trackers} trackers removed.${done.ticketsReset ? ` Tickets start again from ${firstTicket}.` : ""} Reloading…` } : null}
         />
       )}
     </>

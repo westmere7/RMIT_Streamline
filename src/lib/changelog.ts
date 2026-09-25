@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.1",
+    date: "2026-09-25",
+    title: "Templates in a dropdown, and a clearer update card",
+    changes: [
+      "Create board picks its template from a dropdown, with each template's description and what it holds. Blank is the one built in; the rest are templates you saved.",
+      "The new-version card is bigger, sits clear of the corner and has a softer shadow.",
+      "Wiping all board data now removes every tracker too.",
+    ],
+  },
+  {
     version: "0.47.0",
     date: "2026-09-25",
     title: "Board templates",

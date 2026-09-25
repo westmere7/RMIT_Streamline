@@ -15,16 +15,16 @@ describe("BoardService", () => {
     services = createServices(createLocalRepositories({ databaseName: `board-service-${Date.now()}-${counter}` }));
   });
 
-  it("creates a board from the Creative Production template with groups and columns", async () => {
+  it("creates a board from the built-in template with groups and columns", async () => {
     const { board, groups, columns } = await services.boards.createBoard(
-      { workspaceId: SEED_WORKSPACE_ID, name: "Open Day 2027", teamId: SEED_TEAM_IDS.campaigns, visibility: "TEAM", templateId: "creative-production" },
+      { workspaceId: SEED_WORKSPACE_ID, name: "Open Day 2027", teamId: SEED_TEAM_IDS.campaigns, visibility: "TEAM", templateId: "blank" },
       SEED_USER_IDS.danh,
     );
     expect(board.slug).toBe("open-day-2027");
     expect(board.ownerId).toBe(SEED_USER_IDS.danh);
-    expect(groups.map((g) => g.name)).toEqual(BOARD_TEMPLATES["creative-production"].groups.map((g) => g.name));
+    expect(groups.map((g) => g.name)).toEqual(BOARD_TEMPLATES.blank.groups.map((g) => g.name));
     // The template's columns, in order, then whichever special columns it left out: every board holds one of each.
-    const template = BOARD_TEMPLATES["creative-production"].columns.map((c) => c.type);
+    const template = BOARD_TEMPLATES.blank.columns.map((c) => c.type);
     expect(columns.slice(0, template.length).map((c) => c.type)).toEqual(template);
     for (const type of SPECIAL_BOARD_COLUMN_TYPES) expect(columns.filter((c) => c.type === type)).toHaveLength(1);
     expect(columns.find((c) => c.type === "STATUS")?.settings.kind).toBe("status");
@@ -43,7 +43,7 @@ describe("BoardService", () => {
   });
 
   it("marks private boards with the PRIVATE type", async () => {
-    const { board } = await services.boards.createBoard({ workspaceId: SEED_WORKSPACE_ID, name: "Secret", teamId: null, visibility: "PRIVATE", templateId: "campaign" }, SEED_USER_IDS.danh);
+    const { board } = await services.boards.createBoard({ workspaceId: SEED_WORKSPACE_ID, name: "Secret", teamId: null, visibility: "PRIVATE", templateId: "blank" }, SEED_USER_IDS.danh);
     expect(board.type).toBe("PRIVATE");
   });
 

@@ -1,6 +1,10 @@
 import type { ColorToken, ColumnType } from "@/domain";
 
-export const BOARD_TEMPLATE_IDS = ["blank", "campaign", "creative-production"] as const;
+/**
+ * The built-in starting point. Everything else is a template the workspace saved
+ * from one of its own boards (see src/domain/board/board-template.ts).
+ */
+export const BOARD_TEMPLATE_IDS = ["blank"] as const;
 export type BoardTemplateId = (typeof BOARD_TEMPLATE_IDS)[number];
 
 export interface BoardTemplate {
@@ -22,46 +26,6 @@ export const BOARD_TEMPLATES: Record<BoardTemplateId, BoardTemplate> = {
       { name: "Owner", type: "PERSON" },
       { name: "Status", type: "STATUS" },
       { name: "Due Date", type: "DATE" },
-    ],
-  },
-  campaign: {
-    id: "campaign",
-    name: "Campaign",
-    description: "Plan, produce and launch an integrated campaign.",
-    groups: [
-      { name: "Planning", color: "sky" },
-      { name: "Production", color: "orange" },
-      { name: "Review", color: "violet" },
-      { name: "Live", color: "green" },
-      { name: "Completed", color: "gray" },
-    ],
-    columns: [
-      { name: "Owner", type: "PERSON" },
-      { name: "Status", type: "STATUS" },
-      { name: "Priority", type: "PRIORITY" },
-      { name: "Timeline", type: "TIMELINE" },
-      { name: "Channel", type: "TAGS" },
-    ],
-  },
-  "creative-production": {
-    id: "creative-production",
-    name: "Creative Production",
-    description: "Brief, design, review and deliver creative assets.",
-    groups: [
-      { name: "Briefing", color: "gray" },
-      { name: "Design", color: "violet" },
-      { name: "Internal Review", color: "sky" },
-      { name: "Department Review", color: "amber" },
-      { name: "Approved", color: "green" },
-      { name: "Delivered", color: "teal" },
-    ],
-    columns: [
-      { name: "Designer", type: "PERSON" },
-      { name: "Status", type: "STATUS" },
-      { name: "Priority", type: "PRIORITY" },
-      { name: "Due Date", type: "DATE" },
-      { name: "Format", type: "TEXT" },
-      { name: "Market", type: "TAGS" },
     ],
   },
 };

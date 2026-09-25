@@ -395,6 +395,7 @@ export interface WipeResult {
   safetySnapshot: SnapshotSummary;
   boards: number;
   tasks: number;
+  trackers: number;
   ticketsReset: boolean;
 }
 
@@ -404,9 +405,11 @@ export interface WipeResult {
  * comments, links, shares and automations — along with the activity,
  * notifications, automation runs and portal receipts that pointed at them.
  *
- * What stays is everything that is not board data: the workspace and its
- * settings, lists and departments, teams, members and profiles, the booking
- * form and portals, trackers, direct messages and snapshots. Task Allocation is
+ * Every tracker goes too, with its sheets: they are work, like the boards.
+ *
+ * What stays is everything that is not work: the workspace and its settings,
+ * lists and departments, teams, members and profiles, the booking form and
+ * portals, direct messages and snapshots. Task Allocation is
  * built in, so it keeps its columns, groups and rules and loses only its tasks.
  *
  * With `resetTickets`, the ticket counter goes back to nothing as well, so the
@@ -440,9 +443,12 @@ export async function wipeBoardData(workspaceId: string, caller: Caller, passwor
       await tx`delete from public.boards where id = any(${others}::uuid[])`;
       // And any notice already pointing at nothing — a task or board removed before this, whose notice outlived it.
       await tx`delete from public.notifications where (entity_type = 'ITEM' and not exists (select 1 from public.items i where i.id = entity_id)) or (entity_type = 'BOARD' and not exists (select 1 from public.boards b where b.id = entity_id))`;
+      // Trackers are work as boards are; their sheets go with them.
+      const [trackers] = await tx<{ n: number }[]>`select count(*)::int as n from public.trackers where workspace_id = ${workspaceId}`;
+      await tx`delete from public.trackers where workspace_id = ${workspaceId}`;
       // The one time the series may go backwards: there is no task left to carry a number it would hand out again.
       if (options.resetTickets) await tx`update public.workspaces set ticket_counter = 0 where id = ${workspaceId}`;
-      return { boards: others.length, tasks: items?.n ?? 0, ticketsReset: !!options.resetTickets };
+      return { boards: others.length, tasks: items?.n ?? 0, trackers: trackers?.n ?? 0, ticketsReset: !!options.resetTickets };
     });
     return { safetySnapshot, ...counts };
   } finally {

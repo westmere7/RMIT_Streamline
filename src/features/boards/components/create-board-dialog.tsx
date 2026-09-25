@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { COLOR_TOKENS, describeTemplateSpec, type ColorToken, type SavedBoardTemplate } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -178,72 +179,74 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
             <Controller
               control={form.control}
               name="templateId"
-              render={({ field }) => (
-                <div role="radiogroup" className="grid gap-2 sm:grid-cols-3">
-                  {BOARD_TEMPLATE_LIST.map((template) => {
-                    const selected = !savedId && field.value === template.id;
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => {
+              render={({ field }) => {
+                // One list, built in and saved alike: "builtin:<id>" or "saved:<id>".
+                const value = savedId ? `saved:${savedId}` : `builtin:${field.value}`;
+                const builtIn = BOARD_TEMPLATE_LIST.find((t) => t.id === field.value);
+                const picked = savedId ? (saved.data ?? []).find((t) => t.id === savedId) : null;
+                return (
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={value}
+                      onValueChange={(next) => {
+                        const [kind, id] = next.split(":") as [string, string];
+                        if (kind === "builtin") {
                           setSavedId(null);
-                          field.onChange(template.id);
-                        }}
-                        className={cn(
-                          "rounded-xl border border-border/70 p-3.5 text-left transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring",
-                          selected ? "border-ring bg-accent" : "border-border",
+                          field.onChange(id);
+                          return;
+                        }
+                        const template = (saved.data ?? []).find((t) => t.id === id);
+                        setSavedId(id);
+                        // The look it was saved with, as a starting point.
+                        if (template?.spec.board) {
+                          form.setValue("color", template.spec.board.color);
+                          form.setValue("icon", template.spec.board.icon);
+                        }
+                      }}
+                    >
+                      <SelectTrigger aria-label="Template" className="h-auto min-h-11 flex-1 py-2" data-testid="board-template">
+                        <SelectValue>
+                          <span className="flex min-w-0 flex-col items-start text-left">
+                            <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                              {picked && <LayoutTemplate className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+                              {picked ? picked.name : builtIn?.name}
+                            </span>
+                            <span className="text-2xs text-muted-foreground">{picked ? describeTemplateSpec(picked.spec) : builtIn ? builtInSummary(builtIn) : ""}</span>
+                          </span>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80 border-border bg-card shadow-xl ring-1 ring-black/5 dark:bg-[color-mix(in_oklab,var(--color-popover),white_7%)] dark:ring-white/10">
+                        <SelectGroup>
+                          <SelectLabel>Built in</SelectLabel>
+                          {BOARD_TEMPLATE_LIST.map((template) => (
+                            <SelectItem key={template.id} value={`builtin:${template.id}`} className="py-2">
+                              <TemplateOption name={template.name} description={template.description} summary={builtInSummary(template)} />
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        {(saved.data ?? []).length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Saved</SelectLabel>
+                            {(saved.data ?? []).map((template) => (
+                              <SelectItem key={template.id} value={`saved:${template.id}`} className="py-2" data-testid="saved-template">
+                                <TemplateOption name={template.name} description={template.description} summary={describeTemplateSpec(template.spec)} saved />
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         )}
-                      >
-                        <p className="text-[13px] font-medium">{template.name}</p>
-                        <p className="mt-0.5 text-2xs text-muted-foreground">{template.description}</p>
-                        <p className="mt-2 text-2xs text-muted-foreground">
-                          {template.groups.length} groups · {template.columns.length + 1} columns
-                        </p>
-                      </button>
-                    );
-                  })}
-                  {(saved.data ?? []).map((template) => {
-                    const selected = savedId === template.id;
-                    return (
-                      <div key={template.id} className="relative">
-                        <button
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => {
-                            setSavedId(template.id);
-                            // The look it was saved with, as a starting point.
-                            if (template.spec.board) {
-                              form.setValue("color", template.spec.board.color);
-                              form.setValue("icon", template.spec.board.icon);
-                            }
-                          }}
-                          className={cn(
-                            "h-full w-full rounded-xl border border-border/70 p-3.5 pr-8 text-left transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring",
-                            selected ? "border-ring bg-accent" : "border-border",
-                          )}
-                          data-testid="saved-template"
-                        >
-                          <p className="flex items-center gap-1.5 text-[13px] font-medium">
-                            <LayoutTemplate className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            <span className="truncate">{template.name}</span>
-                          </p>
-                          {template.description && <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">{template.description}</p>}
-                          <p className="mt-2 text-2xs text-muted-foreground">{describeTemplateSpec(template.spec)}</p>
-                        </button>
-                        {canRemove(template) && (
-                          <Button type="button" variant="ghost" size="icon-xs" aria-label={`Delete ${template.name}`} className="absolute top-2 right-2 text-muted-foreground" onClick={() => setDeleting(template)} data-testid="saved-template-delete">
-                            <Trash2 />
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      </SelectContent>
+                    </Select>
+                    {/* A saved one is deleted from beside the list, not from inside it, where a click would pick it. */}
+                    {picked && canRemove(picked) && (
+                      <SimpleTooltip label="Delete this template">
+                        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Delete ${picked.name}`} className="shrink-0 text-muted-foreground" onClick={() => setDeleting(picked)} data-testid="saved-template-delete">
+                          <Trash2 />
+                        </Button>
+                      </SimpleTooltip>
+                    )}
+                  </div>
+                );
+              }}
             />
             <button type="button" onClick={() => showSaveTemplate(null)} className="justify-self-start text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="save-board-as-template">
               Save a board as a template…
@@ -288,5 +291,24 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
           }}
         />
     </>
+  );
+}
+
+/** "1 group · 4 columns" for a built-in template. */
+function builtInSummary(template: { groups: unknown[]; columns: unknown[] }): string {
+  return `${template.groups.length} group${template.groups.length === 1 ? "" : "s"} · ${template.columns.length + 1} columns`;
+}
+
+/** A template in the list: its name, what it is for, and what it holds. */
+function TemplateOption({ name, description, summary, saved = false }: { name: string; description: string | null; summary: string; saved?: boolean }) {
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="flex items-center gap-1.5 text-[13px] font-medium">
+        {saved && <LayoutTemplate className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        {name}
+      </span>
+      {description && <span className="text-2xs text-muted-foreground">{description}</span>}
+      <span className="text-2xs text-muted-foreground/80">{summary}</span>
+    </span>
   );
 }
