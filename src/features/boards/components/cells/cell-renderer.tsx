@@ -952,7 +952,7 @@ export function StakeholderCell({ item, column, value, onChange, readOnly, width
               </button>
             );
           })}
-          {groups.length === 0 && <p className="px-2 py-3 text-center text-2xs text-muted-foreground">No stakeholder groups yet. Add them in Settings → Lists.</p>}
+          {groups.length === 0 && <p className="px-2 py-3 text-center text-2xs text-muted-foreground">No departments yet. Add them in Settings → Lists.</p>}
           {v.group && (
             <button
               type="button"

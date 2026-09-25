@@ -136,7 +136,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
             </>
           }
           figure={rows.length}
-          figureLabel={rows.length === 1 ? "stakeholder group" : "stakeholder groups"}
+          figureLabel={rows.length === 1 ? "department" : "departments"}
           aside={rows.length > 0 ? `${active} of ${rows.length} have booked` : "none set up yet"}
           url={url}
           href={routes.portal(portal.token)}

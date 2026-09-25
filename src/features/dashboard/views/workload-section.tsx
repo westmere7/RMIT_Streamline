@@ -298,7 +298,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf }: 
           <p>
             Showing {group.name} only.{" "}
             <button type="button" onClick={() => set({ stakeholderGroup: null })} className="font-medium text-foreground/80 underline-offset-4 hover:underline">
-              Show every stakeholder group
+              Show every department
             </button>
           </p>
         )}
@@ -400,13 +400,13 @@ function StakeholderFilter({ groups, selected, onChange }: { groups: DepartmentL
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant={current ? "secondary" : "outline"} size="sm" className="h-8" disabled={groups.length === 0} data-testid="dashboard-stakeholder-filter">
-          <Building2 /> {current ? current.name : "All stakeholder groups"} <ChevronDown />
+          <Building2 /> {current ? current.name : "All departments"} <ChevronDown />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
-        <DropdownMenuLabel>Stakeholder group</DropdownMenuLabel>
+        <DropdownMenuLabel>Department</DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onChange(null)} data-testid="dashboard-stakeholder-all">
-          <span className="flex-1">All stakeholder groups</span>
+          <span className="flex-1">All departments</span>
           {selected === null && <Check className="size-3.5" />}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -463,8 +463,8 @@ function DepartmentMatrix({ rows, groups, users, measure, format }: { rows: Work
 
   return (
     <Panel
-      title="Per person, per stakeholder group"
-      subtitle={`${MEASURE_LABELS[measure]} each person holds for each of ${groups.length} groups`}
+      title="Per person, per department"
+      subtitle={`${MEASURE_LABELS[measure]} each person holds for each of ${groups.length} departments`}
       className="p-4"
       testId="dashboard-workload-matrix"
     >

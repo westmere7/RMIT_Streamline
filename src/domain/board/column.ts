@@ -353,7 +353,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   DATE: "The deadline. Overdue, on-time delivery and the calendar are all read off this. Other dates can live in their own Date column without being mistaken for it.",
   TIMELINE: "Start and end together. Drives the Gantt and timeline views, and stands in for the deadline where a board has no due date.",
   PRIORITY: "A fixed four-step scale, the same on every board, so priority can be compared across them. Its labels cannot be edited.",
-  STAKEHOLDER: "Who the work is for, chosen from the workspace's stakeholder groups. Groups the dashboard and drives the stakeholder portal.",
+  STAKEHOLDER: "Who the work is for, chosen from the workspace's departments. Groups the dashboard and drives the stakeholder portal.",
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
   ASSETS_RECAP: "A live summary of the task's assets, counted from the lines themselves.",
 };

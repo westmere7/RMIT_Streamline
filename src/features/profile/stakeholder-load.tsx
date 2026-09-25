@@ -36,7 +36,7 @@ export function StakeholderLoad({ userId }: { userId: string }) {
 
   if (snapshot.isPending) return <Skeleton className="h-24" />;
   if (snapshot.isError) return <p className="px-2 py-3 text-[13px] text-muted-foreground">The figures could not be read just now.</p>;
-  if (!row || row.byDepartment.length === 0) return <ChartEmpty message="No open work for any stakeholder group." />;
+  if (!row || row.byDepartment.length === 0) return <ChartEmpty message="No open work for any department." />;
 
   return (
     <>
@@ -49,7 +49,7 @@ export function StakeholderLoad({ userId }: { userId: string }) {
           detail: cell.overdue > 0 ? `${cell.overdue} overdue` : undefined,
         }))}
         valueLabel="tasks"
-        emptyMessage="No open work for any stakeholder group."
+        emptyMessage="No open work for any department."
         compact
       />
       <p className="mt-2.5 border-t border-border/50 pt-2 text-2xs leading-relaxed text-muted-foreground">

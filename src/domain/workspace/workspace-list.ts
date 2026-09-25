@@ -54,7 +54,7 @@ export const WORKSPACE_LIST_META: Record<WorkspaceListKey, WorkspaceListMeta> = 
     defaults: BOOKING_ASSET_TYPES,
   },
   STAKEHOLDER_GROUPS: {
-    label: "Stakeholder groups",
+    label: "Departments",
     description: "Who the work is for.",
     defaults: DEFAULT_STAKEHOLDER_GROUPS,
   },

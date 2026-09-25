@@ -201,7 +201,7 @@ describe("the stakeholder group filter", () => {
 
   it("says which group is showing, and offers the way back", () => {
     inProvider(<WorkloadSection {...groupedProps("comm.")} />);
-    expect(screen.getByText("Show every stakeholder group")).toBeInTheDocument();
+    expect(screen.getByText("Show every department")).toBeInTheDocument();
   });
 
   it("gives the whole grid when no group is chosen, so one click is not needed per group", () => {

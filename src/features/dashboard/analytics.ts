@@ -302,9 +302,10 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       const requester = userIds.map((id) => users.get(id)).find(Boolean);
       if (!requester) return;
       requesterName = requester.displayName;
-      // A person's own profile department is a guess about the work, taken
-      // only when it names a group on the list.
-      if (department === null && requester.department?.trim()) department = listed(requester.department, true);
+      // A person's own department is a guess about the work, taken only when
+      // it names a group on the list. Older profiles may only have the free text.
+      const own = requester.stakeholderGroup?.trim() || requester.department?.trim();
+      if (department === null && own) department = listed(own, true);
     };
     let requestedTeam: string | null = null;
     let requestAssetTypes: string[] = [];

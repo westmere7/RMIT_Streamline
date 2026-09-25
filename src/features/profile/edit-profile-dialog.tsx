@@ -43,7 +43,6 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
     lastName: user.lastName,
     displayName: user.displayName,
     jobTitle: user.jobTitle ?? "",
-    department: user.department ?? "",
     timezone: user.timezone,
     stakeholderGroup: user.stakeholderGroup ?? "",
     workHoursStart: user.workHoursStart ?? "",
@@ -61,7 +60,6 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
         lastName: form.lastName,
         displayName: form.displayName,
         jobTitle: form.jobTitle,
-        department: form.department,
         timezone: form.timezone,
         stakeholderGroup: form.stakeholderGroup || null,
         workHoursStart: form.workHoursStart || null,
@@ -116,24 +114,8 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
           <Input id="displayName" value={form.displayName} onChange={(e) => set({ displayName: e.target.value })} required data-testid="profile-display-name" />
         </div>
         <Field id="jobTitle" label="Job title" value={form.jobTitle} onChange={(v) => set({ jobTitle: v })} />
-        <Field id="department" label="Department" value={form.department} onChange={(v) => set({ department: v })} />
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="timezone">Timezone</Label>
-          <select
-            id="timezone"
-            value={form.timezone}
-            onChange={(e) => set({ timezone: e.target.value })}
-            className="h-9 w-full rounded-lg border border-border bg-transparent px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          >
-            {zones.map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="stakeholderGroup">Stakeholder group</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="stakeholderGroup">Department</Label>
           <select
             id="stakeholderGroup"
             value={form.stakeholderGroup}
@@ -145,6 +127,21 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
             {groups.map((group) => (
               <option key={group.name} value={group.name}>
                 {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="timezone">Timezone</Label>
+          <select
+            id="timezone"
+            value={form.timezone}
+            onChange={(e) => set({ timezone: e.target.value })}
+            className="h-9 w-full rounded-lg border border-border bg-transparent px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+          >
+            {zones.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone}
               </option>
             ))}
           </select>

@@ -103,7 +103,6 @@ export function ProfilePage({ userId }: { userId: string }) {
             <p className="mt-0.5 text-[13px] text-muted-foreground">{user.jobTitle ?? "No job title yet"}</p>
             <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-[13px] text-muted-foreground">
               <Detail icon={Mail} label={user.email} href={`mailto:${user.email}`} />
-              {user.department && <Detail icon={Building2} label={user.department} />}
               <Detail icon={Clock} label={hours ? `${hours} · ${user.timezone}` : user.timezone} />
               <Detail icon={CalendarCheck} label={`Joined ${formatShortDate(joinedAt.slice(0, 10))}`} />
             </dl>
@@ -171,7 +170,7 @@ export function ProfilePage({ userId }: { userId: string }) {
           {/* Who the work is for, not which group this person belongs to: the
               split comes off the tasks' own stakeholder cells, which is the
               same thing the dashboard's resourcing filter counts. */}
-          <Panel icon={Building2} title="Work by stakeholder group">
+          <Panel icon={Building2} title="Work by department">
             <StakeholderLoad userId={userId} />
           </Panel>
 
