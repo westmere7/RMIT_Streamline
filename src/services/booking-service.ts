@@ -211,6 +211,8 @@ export class BookingService {
         description: description || null,
         ticket,
         values: placement.values.map((v) => ({ columnId: v.columnId, value: v.value })),
+        // So the task's journey can open on "Booked by Priya for Marketing".
+        activity: { via: stakeholder ? "portal" : "booking", requesterName: request.requesterName || undefined, department: request.department?.trim() || undefined },
       },
       actorId,
     );

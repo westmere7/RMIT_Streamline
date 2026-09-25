@@ -1,5 +1,6 @@
 import type {
   ActivityInput,
+  ActivityMetadata,
   ArchiveLinkImpact,
   ArchiveLinkPolicy,
   ArchiveQuery,
@@ -79,6 +80,8 @@ export interface CreateItemInput {
   ticket?: string | null;
   /** Initial values, e.g. a status when creating from a Kanban lane. */
   values?: Array<{ columnId: EntityId; value: ColumnValue }>;
+  /** Extra facts for the "created" entry in the log, e.g. that a booking made it. */
+  activity?: Pick<ActivityMetadata, "via" | "requesterName" | "department">;
 }
 
 export interface SetValueContext {
@@ -211,7 +214,7 @@ export class ItemService {
       itemId: item.id,
       actorId,
       eventType: "ITEM_CREATED",
-      metadata: { itemName: item.name, boardName: board.name, groupName: group?.name },
+      metadata: { itemName: item.name, boardName: board.name, groupName: group?.name, ...input.activity },
     });
     return item;
   }

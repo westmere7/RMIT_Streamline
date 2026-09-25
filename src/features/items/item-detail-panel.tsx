@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Archive, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -35,6 +35,7 @@ import { COLUMN_TYPE_LABELS, TICKET_MAX, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
+import { TaskJourneyDialog } from "@/features/journey/task-journey-dialog";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
@@ -351,7 +352,7 @@ export function ItemDetailPanel({
               <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
             </TabsContent>
             <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
-              <ItemActivity itemId={item.id} />
+              <ItemActivity item={item} />
             </TabsContent>
           </Tabs>
         </>
@@ -475,7 +476,7 @@ function PopupBody({
             <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
           </TabsContent>
           <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
-            <ItemActivity itemId={item.id} />
+            <ItemActivity item={item} />
           </TabsContent>
         </Tabs>
       </section>
@@ -1312,14 +1313,33 @@ function SubOwners({ userIds }: { userIds: string[] }) {
   );
 }
 
-function ItemActivity({ itemId }: { itemId: string }) {
-  const activity = useItemActivity(itemId);
-  if (activity.isLoading) {
-    return (
-      <div className="space-y-2 py-4">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+function ItemActivity({ item }: { item: Item }) {
+  const activity = useItemActivity(item.id);
+  const [journeyOpen, setJourneyOpen] = React.useState(false);
+  return (
+    <>
+      {/* The story of the task, cut down to its milestones, one click away from the full log. */}
+      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-b border-border/60 bg-card/95 px-4 py-2.5 backdrop-blur">
+        <p className="text-2xs text-muted-foreground">{activity.data ? `${activity.data.length} ${activity.data.length === 1 ? "event" : "events"}` : " "}</p>
+        <button
+          type="button"
+          onClick={() => setJourneyOpen(true)}
+          className="group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-navy px-3 py-1.5 text-[12px] font-medium text-white shadow-sm ring-1 ring-white/10 transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-ring"
+          data-testid="open-task-journey"
+        >
+          <span aria-hidden className="pointer-events-none absolute -top-6 -right-4 size-12 rounded-full bg-primary/60 blur-xl transition-opacity group-hover:opacity-100 sm:opacity-80" />
+          <Route className="relative size-3.5 text-amber-300" />
+          <span className="relative">Task journey</span>
+        </button>
       </div>
-    );
-  }
-  return <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." />;
+      {activity.isLoading ? (
+        <div className="space-y-2 py-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+        </div>
+      ) : (
+        <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." />
+      )}
+      <TaskJourneyDialog item={item} open={journeyOpen} onOpenChange={setJourneyOpen} />
+    </>
+  );
 }

@@ -56,6 +56,10 @@ export interface ActivityMetadata {
   /** For the ASSET_* events: which deliverable, and which of its details changed. */
   assetName?: string;
   assetField?: string;
+  /** ITEM_CREATED by a booking: which door it came through, who asked and for whom. */
+  via?: "booking" | "portal";
+  requesterName?: string;
+  department?: string;
 }
 
 export interface Activity {

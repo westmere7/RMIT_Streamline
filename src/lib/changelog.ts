@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.34.0",
+    date: "2026-09-25",
+    title: "Task journey",
+    changes: [
+      "Task journey: from a task's Activity tab, see its story from booking to archive: allocation, moves, status changes and deliverables, with how long each leg took.",
+      "Where the time went: time in the queue, with the team and from done to archive, plus time spent in each status.",
+      "Profiles read like a dashboard: headline figures, open work by due date, board and department, and tabbed lists.",
+      "Stakeholder Portal is now called Portal and Booking; the form editor's side panel is down to Copy link, Open form and Open Task Allocation.",
+    ],
+  },
+  {
     version: "0.33.0",
     date: "2026-09-25",
     title: "Form editor: the published form, named",
