@@ -25,6 +25,9 @@ const builtAt = new Date().toISOString();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Next allows one dev server per build folder. A second one, such as a preview
+  // beside your own server on :3000, runs from a folder of its own.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   generateBuildId: () => buildId,
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,

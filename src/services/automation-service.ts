@@ -566,6 +566,7 @@ function labelOrPlain(column: BoardColumn | undefined, value: ColumnValue): stri
     case "TIME":
       return value.time ?? "";
     case "DATETIME":
+    case "COUNTDOWN":
       return value.at ? value.at.slice(0, 16).replace("T", " ") : "";
     case "TEXT":
     case "LONG_TEXT":

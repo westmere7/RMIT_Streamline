@@ -1012,14 +1012,15 @@ function ValueEditor({
     );
   }
 
-  if (column.type === "DATETIME") {
-    // The field works in local time; the value is a moment, stored in UTC.
-    const local = value?.type === "DATETIME" && value.at ? toLocalInput(value.at) : "";
+  if (column.type === "DATETIME" || column.type === "COUNTDOWN") {
+    // The field works in local time; the value is a moment, stored in UTC. A countdown's is the moment it ends.
+    const type = column.type;
+    const local = value?.type === type && value.at ? toLocalInput(value.at) : "";
     return (
       <Input
         type="datetime-local"
         value={local}
-        onChange={(e) => onChange({ type: "DATETIME", at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+        onChange={(e) => onChange({ type, at: e.target.value ? new Date(e.target.value).toISOString() : null })}
         aria-label="Value"
         className="h-8 w-52"
         data-testid="action-value"

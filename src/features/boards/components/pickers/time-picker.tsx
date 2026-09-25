@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { parseTimeOfDay } from "@/domain";
+import { dateTimeSettings, formatDateTime, parseCountdownDuration, parseTimeOfDay } from "@/domain";
 import { cn } from "@/lib/utils";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -105,6 +105,57 @@ export function DateTimePicker({ value, onChange, onDone }: { value: string | nu
         )}
       </div>
       <Calendar mode="single" selected={valid ?? undefined} defaultMonth={valid ?? undefined} onSelect={(day) => day && emit(day, time ?? "09:00")} />
+    </div>
+  );
+}
+
+/** The quick ones, a minute's worth to a month's. */
+const COUNTDOWN_PRESETS = ["15m", "1h", "1d", "1w", "1mo"];
+
+/**
+ * When a countdown ends: typed as a time from now ("45m", "3d 4h", "2mo"),
+ * picked from the quick ones, or set to the minute on the calendar below.
+ * Whichever way, the cell keeps the end moment.
+ */
+export function CountdownPicker({ value, onChange, onDone }: { value: string | null; onChange: (at: string | null) => void; onDone?: () => void }) {
+  const [draft, setDraft] = React.useState("");
+  const typed = draft.trim() ? parseCountdownDuration(draft) : null;
+  const set = (end: Date) => {
+    onChange(end.toISOString());
+    onDone?.();
+  };
+  return (
+    <div className="w-72" data-testid="countdown-picker">
+      <form
+        className="space-y-1.5 border-b p-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (typed) set(typed);
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+          placeholder="In 45m, 3d 4h, 2mo…"
+          aria-label="Time from now"
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+          data-testid="countdown-input"
+        />
+        {draft.trim() && (
+          <p className={cn("px-0.5 text-2xs", typed ? "text-muted-foreground" : "text-destructive")}>
+            {typed ? `Ends ${formatDateTime(typed.toISOString(), dateTimeSettings(null))} · Enter to set` : "Try 45m, 3h, 2w or 4mo"}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-1">
+          {COUNTDOWN_PRESETS.map((preset) => (
+            <Button key={preset} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs tabular" onClick={() => set(parseCountdownDuration(preset)!)}>
+              {preset}
+            </Button>
+          ))}
+        </div>
+      </form>
+      <DateTimePicker value={value} onChange={onChange} onDone={onDone} />
     </div>
   );
 }

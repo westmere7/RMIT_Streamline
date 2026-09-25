@@ -152,6 +152,7 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
     case "TIME":
       return value.time;
     case "DATETIME":
+    case "COUNTDOWN":
       return value.at ? new Date(value.at).getTime() : null;
     case "CHECKBOX":
       // Ticked first when ascending.

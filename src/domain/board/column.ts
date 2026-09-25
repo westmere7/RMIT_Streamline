@@ -1,6 +1,7 @@
 import type { ColorToken, EntityId } from "@/domain/common/types";
 import type { ColumnRole } from "@/domain/board/column-role";
 import { DEFAULT_DATE_TIME_SETTINGS, type DateTimeColumnSettings } from "@/domain/board/date-time-format";
+import { DEFAULT_COUNTDOWN_SETTINGS, type CountdownColumnSettings } from "@/domain/board/countdown";
 
 export const COLUMN_TYPES = [
   "TEXT",
@@ -16,6 +17,7 @@ export const COLUMN_TYPES = [
   "PLAIN_DATE",
   "TIME",
   "DATETIME",
+  "COUNTDOWN",
   "PRIORITY",
   "CHECKBOX",
   "LINK",
@@ -140,10 +142,11 @@ export interface EmptyColumnSettings {
   kind: "none";
 }
 
-export type { DateTimeColumnSettings };
+export type { DateTimeColumnSettings, CountdownColumnSettings };
 
 export type ColumnSettings =
   | DateTimeColumnSettings
+  | CountdownColumnSettings
   | StatusColumnSettings
   | DropdownColumnSettings
   | PriorityColumnSettings
@@ -197,6 +200,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   PLAIN_DATE: "Date",
   TIME: "Time",
   DATETIME: "Date + Time",
+  COUNTDOWN: "Countdown",
   PRIORITY: "Priority",
   CHECKBOX: "Checkbox",
   LINK: "Link",
@@ -224,6 +228,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   TIME: 90,
   // Compact on purpose: "Sep 16, 19:06" and no more.
   DATETIME: 130,
+  COUNTDOWN: 110,
   PRIORITY: 130,
   CHECKBOX: 90,
   LINK: 170,
@@ -296,6 +301,8 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
     case "DATETIME":
     case "BOOKED_AT":
       return { ...DEFAULT_DATE_TIME_SETTINGS };
+    case "COUNTDOWN":
+      return { ...DEFAULT_COUNTDOWN_SETTINGS };
     default:
       return { kind: "none" };
   }
@@ -372,6 +379,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   PLAIN_DATE: "A calendar day, with no bearing on deadlines. For when it is due, use Due date.",
   TIME: "A time of day.",
   DATETIME: "A day and a time together, kept compact: Sep 16, 19:06.",
+  COUNTDOWN: "Time left until a moment, from a minute to months: 45m, 3d 4h, 2mo.",
   CHECKBOX: "Ticked or not.",
   LINK: "A web address, with its own text if a bare URL would not read well.",
   TAGS: "Any number of labels at once, from a palette the board keeps.",

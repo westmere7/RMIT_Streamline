@@ -9,6 +9,7 @@ export * from "./board/board";
 export * from "./board/column";
 export * from "./board/column-role";
 export * from "./board/date-time-format";
+export * from "./board/countdown";
 export * from "./board/board-share";
 export * from "./dashboard/dashboard";
 export * from "./item/item";

@@ -56,6 +56,9 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return formatTimeOfDay(value.time, dateTimeSettings(column.settings).timeFormat);
     case "DATETIME":
       return formatDateTime(value.at, dateTimeSettings(column.settings));
+    // The end moment, not the time left: a log line or a preview outlives the minute it was written in.
+    case "COUNTDOWN":
+      return formatDateTime(value.at, dateTimeSettings(null));
     case "CHECKBOX":
       return value.checked ? "Checked" : "Unchecked";
     case "LINK":

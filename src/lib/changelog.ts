@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.42.0",
+    date: "2026-09-25",
+    title: "Countdown column",
+    changes: [
+      "New Countdown column: set an end by typing a time from now (45m, 3d 4h, 2mo), a quick pick, or a day and time. It shows the time left in the unit that suits it, from minutes to months.",
+      "Format sets the style (3d 4h or 3 days 4 hours), one or two units, what it says once the time is up, and when it turns amber.",
+    ],
+  },
+  {
     version: "0.41.12",
     date: "2026-09-25",
     title: "A leaner Task journey",

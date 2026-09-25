@@ -5,11 +5,11 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, recapAssets, statusRoleIds } from "@/domain";
+import { columnLabels, columnTagOptions, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
-import { DateTimePicker, TimePicker } from "@/features/boards/components/pickers/time-picker";
+import { CountdownPicker, DateTimePicker, TimePicker } from "@/features/boards/components/pickers/time-picker";
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
@@ -23,6 +23,7 @@ import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { useBoardUiStore } from "@/stores/board-ui-store";
+import { useClockTick } from "@/hooks/use-clock";
 import { cn } from "@/lib/utils";
 import { CellShell, PopoverCell } from "./cell-shell";
 
@@ -72,6 +73,8 @@ export function CellRenderer(props: CellProps) {
       return <TimeCell {...props} />;
     case "DATETIME":
       return <DateTimeCell {...props} />;
+    case "COUNTDOWN":
+      return <CountdownCell {...props} />;
     case "BOOKED_AT":
       return <BookedAtCell {...props} />;
     case "CHECKBOX":
@@ -489,6 +492,31 @@ export function DateTimeCell({ item, column, value, onChange, readOnly, width }:
       trigger={shown ? <span className="truncate text-xs tabular">{shown}</span> : EMPTY_DASH}
     >
       {(close) => <DateTimePicker value={v.at} onChange={(at) => onChange({ type: "DATETIME", at })} onDone={close} />}
+    </PopoverCell>
+  );
+}
+
+const COUNTDOWN_TONES: Record<CountdownTone, string> = {
+  normal: "",
+  warning: "font-medium text-amber-600 dark:text-amber-400",
+  over: "font-medium text-destructive",
+  ended: "text-muted-foreground",
+};
+
+/**
+ * Time left until the moment the cell holds, in the unit that suits it, and
+ * redrawn as it runs down. The end itself is in the label and the tooltip.
+ */
+export function CountdownCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  useClockTick();
+  const v = valueOf("COUNTDOWN", value);
+  const reading = readCountdown(v.at, countdownSettings(column.settings));
+  const ends = formatDateTime(v.at, dateTimeSettings(null));
+  return (
+    <PopoverCell width={width ?? column.width} disabled={readOnly} align={columnAlign(column.type)} ariaLabel={`${column.name}: ${reading ? `${reading.text}, ends ${ends}` : "not set"} for ${item.name}`} testId="countdown-cell"
+      trigger={reading ? <span title={`Ends ${ends}`} className={cn("truncate text-xs tabular", COUNTDOWN_TONES[reading.tone])}>{reading.text}</span> : EMPTY_DASH}
+    >
+      {(close) => <CountdownPicker value={v.at} onChange={(at) => onChange({ type: "COUNTDOWN", at })} onDone={close} />}
     </PopoverCell>
   );
 }

@@ -58,6 +58,8 @@ export type ColumnValue =
   | { type: "TIME"; time: string | null }
   /** A moment: an ISO timestamp, shown in the viewer's own time zone. */
   | { type: "DATETIME"; at: string | null }
+  /** The moment a countdown ends, as an ISO timestamp. The time left is worked out when shown. */
+  | { type: "COUNTDOWN"; at: string | null }
   | { type: "PRIORITY"; labelId: string | null }
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
@@ -107,6 +109,8 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, time: null };
     case "DATETIME":
       return { type, at: null };
+    case "COUNTDOWN":
+      return { type, at: null };
     // Nothing is stored: the booking time is the task's own creation time.
     case "BOOKED_AT":
       return { type: "DATETIME", at: null };
@@ -154,6 +158,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
     case "TIME":
       return value.time === null;
     case "DATETIME":
+    case "COUNTDOWN":
       return value.at === null;
     case "CHECKBOX":
       return !value.checked;
