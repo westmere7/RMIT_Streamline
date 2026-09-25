@@ -80,6 +80,9 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
     case "LONG_TEXT":
     case "RICH_TEXT":
       return { type, text: "" };
+    // A brief is rich text with a job: the same value, under its own column type.
+    case "BRIEF":
+      return { type: "RICH_TEXT", text: "" };
     case "STATUS":
     case "DROPDOWN":
       return { type, labelId: null };

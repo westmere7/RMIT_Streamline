@@ -1243,7 +1243,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || compact || !canEdit });
 
   const value = model.getValue(item.id, column.id);
-  const brief = column.type === "RICH_TEXT";
+  const brief = column.type === "RICH_TEXT" || column.type === "BRIEF";
   const body = value?.type === "RICH_TEXT" ? value.text : "";
 
   // The handle takes 24px off the left, so the label gives that back out of its

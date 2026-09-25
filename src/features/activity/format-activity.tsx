@@ -265,7 +265,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
 
 /** Columns that hold a page rather than a value. */
 function isDocumentColumn(columnType: string | undefined): boolean {
-  return columnType === "RICH_TEXT" || columnType === "LONG_TEXT";
+  return columnType === "RICH_TEXT" || columnType === "BRIEF" || columnType === "LONG_TEXT";
 }
 
 /** Plain-text version for tests and tooltips. */

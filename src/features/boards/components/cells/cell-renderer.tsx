@@ -61,6 +61,7 @@ export function CellRenderer(props: CellProps) {
     case "LONG_TEXT":
       return <LongTextCell {...props} />;
     case "RICH_TEXT":
+    case "BRIEF":
       return <RichTextCell {...props} />;
     case "NUMBER":
       return <NumberCell {...props} />;

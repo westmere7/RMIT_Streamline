@@ -19,6 +19,7 @@ export const COLUMN_TYPES = [
   "STAKEHOLDER",
   "SIZE",
   "ASSETS_RECAP",
+  "BRIEF",
   "DEPENDENCY",
 ] as const;
 
@@ -192,6 +193,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   STAKEHOLDER: "Department",
   SIZE: "Size",
   ASSETS_RECAP: "Assets recap",
+  BRIEF: "Brief",
   DEPENDENCY: "Dependency",
 };
 
@@ -213,6 +215,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   STAKEHOLDER: 124,
   SIZE: 110,
   ASSETS_RECAP: 200,
+  BRIEF: 220,
   DEPENDENCY: 180,
 };
 
@@ -328,7 +331,7 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  * Naming is still the board's business: a team that calls its PIC column
  * "Designer" is understood perfectly well.
  */
-export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP"];
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF"];
 
 /**
  * What each type is for, shown when the type is hovered in the picker.
@@ -356,6 +359,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   STAKEHOLDER: "Who the work is for, chosen from the workspace's departments. Groups the dashboard and drives the portal.",
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
   ASSETS_RECAP: "A live summary of the task's assets, counted from the lines themselves.",
+  BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own.",
 };
 
 /** True for the types the workspace reads meaning out of. */

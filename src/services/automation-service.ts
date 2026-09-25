@@ -361,7 +361,7 @@ function validate(
 }
 
 /** The column types a keyword can be found in. Exported for the builder's picker. */
-export const TEXTUAL_COLUMNS: readonly ColumnType[] = ["TEXT", "LONG_TEXT", "RICH_TEXT", "LINK", "TAGS"];
+export const TEXTUAL_COLUMNS: readonly ColumnType[] = ["TEXT", "LONG_TEXT", "RICH_TEXT", "BRIEF", "LINK", "TAGS"];
 
 function assertHour(hour: number): void {
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new AutomationError("Pick an hour between 0 and 23.");

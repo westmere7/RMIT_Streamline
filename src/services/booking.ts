@@ -622,6 +622,8 @@ interface FieldRule {
   types: readonly BoardColumn["type"][];
   /** Words in a column's name that mark it as the right home. */
   hints: readonly string[];
+  /** A type that is this answer's home whatever the column is called (the Brief column for the brief). */
+  implied?: readonly BoardColumn["type"][];
   /** When no name matches: use the board's only column of that type. */
   loneFallback: boolean;
 }
@@ -635,7 +637,8 @@ const FIELD_RULES: Record<StandardBookingField, FieldRule> = {
   // A rich-text column first: the brief is a document, and that is the column
   // that renders one. Named only, either way — a board with one long-text column
   // called "Notes" is not volunteering it for the brief.
-  brief: { types: ["RICH_TEXT", "LONG_TEXT"], hints: ["brief", "request detail"], loneFallback: false },
+  // The Brief column first, whatever it is called; then a rich or long text column that says it is one.
+  brief: { types: ["RICH_TEXT", "LONG_TEXT"], hints: ["brief", "request detail"], implied: ["BRIEF"], loneFallback: false },
   assets: { types: ["LONG_TEXT"], hints: ["asset", "spec", "deliverable", "scope", "requirement"], loneFallback: true },
   team: { types: ["TAGS", "TEXT"], hints: ["team", "allocated", "assigned team"], loneFallback: false },
   dueDate: { types: ["DATE", "TIMELINE"], hints: ["due", "deadline", "needed", "delivery"], loneFallback: true },
@@ -649,6 +652,8 @@ const norm = (name: string) => name.trim().toLowerCase();
 export function columnForField(field: StandardBookingField, columns: readonly BoardColumn[], taken: ReadonlySet<string> = new Set()): BoardColumn | null {
   const rule = FIELD_RULES[field];
   const free = columns.filter((c) => !taken.has(c.id));
+  const implied = rule.implied && free.find((c) => rule.implied!.includes(c.type));
+  if (implied) return implied;
   for (const type of rule.types) {
     const ofType = free.filter((c) => c.type === type);
     // A name that is exactly the word first, so "Requester" beats "Requester department" wherever it sits.

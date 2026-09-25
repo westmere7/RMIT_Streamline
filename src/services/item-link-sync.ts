@@ -49,7 +49,9 @@ export function sameColumnName(a: string, b: string): boolean {
 // The three that carry a text payload and can be handed between each other.
 // A rich brief copied into a plain column loses its formatting, which is
 // better than the two columns refusing to speak to each other at all.
-const isText = (type: ColumnType): boolean => type === "TEXT" || type === "LONG_TEXT" || type === "RICH_TEXT";
+const isText = (type: ColumnType): boolean => type === "TEXT" || type === "LONG_TEXT" || isRich(type);
+/** Rich text, and the Brief column, which holds rich text. */
+const isRich = (type: ColumnType): boolean => type === "RICH_TEXT" || type === "BRIEF";
 
 /** Same type, or text/long text which share a text payload. */
 export function compatibleTypes(a: ColumnType, b: ColumnType): boolean {
@@ -154,8 +156,8 @@ export function translateValue(value: ColumnValue, source: BoardColumn, target: 
     case "RICH_TEXT": {
       // Markup only survives into a column that can render it; anywhere else it
       // arrives as the words it reads as.
-      const text = value.type === "RICH_TEXT" && target.type !== "RICH_TEXT" ? richTextToPlain(value.text) : value.text;
-      if (target.type === "RICH_TEXT") return { kind: "value", value: { type: "RICH_TEXT", text } };
+      const text = value.type === "RICH_TEXT" && !isRich(target.type) ? richTextToPlain(value.text) : value.text;
+      if (isRich(target.type)) return { kind: "value", value: { type: "RICH_TEXT", text } };
       return { kind: "value", value: target.type === "LONG_TEXT" ? { type: "LONG_TEXT", text } : { type: "TEXT", text } };
     }
     case "DEPENDENCY":

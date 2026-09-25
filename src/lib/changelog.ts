@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.36.0",
+    date: "2026-09-25",
+    title: "A Brief column",
+    changes: [
+      "Brief is a new system column type. A booking writes its brief into it, headings and all; on any other task it is a rich-text field of its own.",
+      "Existing Brief columns, on Task Allocation and team boards, are now the Brief type, and allocation carries the brief across.",
+      "The note under the system types now says what they are for across the workspace, not only the dashboard.",
+    ],
+  },
+  {
     version: "0.35.4",
     date: "2026-09-25",
     title: "Portal tasks read like the app",

@@ -157,6 +157,7 @@ function ColumnSummary({ column, items }: { column: BoardColumn; items: readonly
     case "TEXT":
     case "LONG_TEXT":
     case "RICH_TEXT":
+    case "BRIEF":
     case "LINK": {
       const filled = values.filter((v) => (v && "text" in v && v.text?.trim()) || (v?.type === "LINK" && v.url)).length;
       return <Progress done={filled} total={items.length} word="filled" />;

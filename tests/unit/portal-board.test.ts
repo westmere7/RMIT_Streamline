@@ -177,7 +177,7 @@ describe("a department's requests as a board", () => {
   it("carries the requester's brief as a Brief row, the way the app shows it, and nothing else", () => {
     const payload = build([entry(task({ id: "a" }), { brief: "Service: Brand\n\n\n\n1. What are you asking for?\nSix A1 posters, print ready." }), entry(task({ id: "b" }))]);
     const brief = payload.columns.find((c) => c.name === "Brief")!;
-    expect(brief.type).toBe("RICH_TEXT");
+    expect(brief.type).toBe("BRIEF");
     const valueOf = (id: string) => payload.values.find((v) => v.itemId === id && v.columnId === brief.id)?.value;
     // The shape the plain copy lost: bold service line, the question as a heading, no runs of blank lines.
     expect(valueOf("a")).toEqual({ type: "RICH_TEXT", text: "**Service:** Brand\n\n## 1. What are you asking for?\nSix A1 posters, print ready." });

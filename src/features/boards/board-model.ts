@@ -194,7 +194,7 @@ export const TABLE_LAYOUT_COMPACT: TableLayout = {
  * hold documents, and a dependency column that lists item names. The assets
  * recap is a badge of two short figures, so it centres with the rest.
  */
-const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "RICH_TEXT", "DEPENDENCY"]);
+const LEFT_ALIGNED_COLUMNS = new Set<ColumnType>(["LONG_TEXT", "RICH_TEXT", "BRIEF", "DEPENDENCY"]);
 
 export function columnAlign(type: ColumnType): "left" | "center" {
   return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";

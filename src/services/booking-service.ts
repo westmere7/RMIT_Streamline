@@ -410,7 +410,7 @@ export class BookingService {
     // Anything the team's board has no column for is left behind.
     const carried: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }> = [];
     let briefCarried = false;
-    const briefColumn = sourceColumns.find((c) => c.type === "RICH_TEXT") ?? null;
+    const briefColumn = sourceColumns.find((c) => c.type === "BRIEF") ?? sourceColumns.find((c) => c.type === "RICH_TEXT") ?? null;
     for (const { source: sc, target: tc } of mapColumns(sourceColumns, targetColumns).mapped) {
       const value = sourceValues.find((v) => v.columnId === sc.id)?.value;
       if (!value || isEmptyValue(value)) continue;
@@ -505,7 +505,7 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     // popup on the board and as one collapsible field on the task panel. A brief
     // is read as a whole or not at all, so it is one column and not a dozen
     // holding a sentence each — and it is not repeated in the description.
-    { name: "Brief", type: "RICH_TEXT" },
+    { name: "Brief", type: "BRIEF" },
     { name: "Assets & specs", type: "LONG_TEXT" },
     { name: "Requested team", type: "TAGS", settings: { kind: "tags", options: teamNames.map((name, i) => ({ name, color: TEAM_TAG_COLORS[i % TEAM_TAG_COLORS.length]! })) } },
     { name: "Status", type: "STATUS" },

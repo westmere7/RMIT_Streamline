@@ -1,6 +1,7 @@
 import type {
   Board,
   BoardColumn,
+  ColumnType,
   CompleteOnboardingInput,
   EntityId,
   InvitationPreview,
@@ -319,7 +320,9 @@ export class WorkspaceService {
     const words = (name: string) => name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
     let position = columns.length;
     for (const wanted of taskAllocationColumns(teamNames)) {
-      const present = columns.some((c) => c.type === wanted.type && (c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
+      // A rich-text "Brief" from before the Brief type counts as the Brief column, so it is never doubled.
+      const sameKind = (type: ColumnType) => type === wanted.type || (wanted.type === "BRIEF" && type === "RICH_TEXT");
+      const present = columns.some((c) => sameKind(c.type) && (c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
       if (present) continue;
       const created = await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
       if (created.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, board.id, created.id);

@@ -245,7 +245,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // The brief as a Brief row, the way the app shows it, rather than a block of
   // plain text in the description.
   const hasBrief = tasks.some(({ brief }) => !!brief?.trim());
-  if (hasBrief) column("brief", PORTAL_COLUMN_LABELS.brief, "RICH_TEXT", { kind: "none" }, 220);
+  if (hasBrief) column("brief", PORTAL_COLUMN_LABELS.brief, "BRIEF", { kind: "none" }, 220);
   // ---- groups: the board each request is being run on --------------------------
   // The canonical arrangement. A visitor who would rather see the work by
   // status switches that on in the toolbar, and the payload is regrouped in the

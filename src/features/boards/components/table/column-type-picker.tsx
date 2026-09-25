@@ -63,7 +63,7 @@ export function ColumnTypePicker({ onPick, variant = "dropdown" }: { onPick: (ty
         {group(SYSTEM_TYPES, true)}
         {/* Under the group rather than over it: the types are what you came for,
             and this only explains why they are set apart. */}
-        <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Tracked workspace-wide, to power the dashboard.</p>
+        <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Understood across the workspace: the dashboard, the portal and booking all read them.</p>
       </div>
     </div>
   );

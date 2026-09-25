@@ -248,6 +248,15 @@ describe("placing a booking's answers on a board", () => {
     expect(description).toContain("Reference: https://example.com/brief");
   });
 
+  it("writes the brief into the Brief column whatever it is called, ahead of any rich-text column", () => {
+    const columns = [column("Request notes", "RICH_TEXT", 0), column("What they asked for", "BRIEF", 1)];
+    const req = request({ assets: [] });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate() });
+    // Stored as rich text, like any rich-text column.
+    expect(placement.values).toContainEqual({ columnId: "col-1", value: { type: "RICH_TEXT", text: req.brief } });
+    expect(placement.values.some((v) => v.columnId === "col-0")).toBe(false);
+  });
+
   it("writes the brief into a column named for it, and never twice", () => {
     const columns = [column("Status", "STATUS", 0), column("Brief", "RICH_TEXT", 1), column("Notes", "LONG_TEXT", 2)];
     const req = request({ assets: [] });

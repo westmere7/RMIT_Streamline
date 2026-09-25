@@ -96,7 +96,7 @@ const ROLE_TYPES: Record<ColumnRole, RoleTypes> = {
   department: { implied: ["STAKEHOLDER"], hinted: ["TEXT"] },
   requestedTeam: { implied: [], hinted: ["TAGS", "TEXT"] },
   assetType: { implied: [], hinted: ["TAGS", "TEXT"] },
-  brief: { implied: [], hinted: ["RICH_TEXT", "LONG_TEXT"] },
+  brief: { implied: ["BRIEF"], hinted: ["RICH_TEXT", "LONG_TEXT"] },
 };
 
 /** Every type that can carry a role, however it is found. */
