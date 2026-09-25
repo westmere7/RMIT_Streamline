@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.38.1",
+    date: "2026-09-25",
+    title: "Settings touch-ups",
+    changes: [
+      "Departments and Asset types no longer repeat their description above the list.",
+      "The System theme swatch shows light and dark side by side.",
+    ],
+  },
+  {
     version: "0.38.0",
     date: "2026-09-25",
     title: "Settings, regrouped",

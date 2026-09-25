@@ -185,14 +185,14 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
 
   return (
     <section data-testid={`list-${listKey}`}>
-      <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-2xs text-muted-foreground">{meta.description}</p>
-        {carriesRates && (
+      {/* The section header already says what the list is for; only the rate count is left to say. */}
+      {carriesRates && (
+        <div className="mb-2 flex items-baseline gap-2">
           <span className="ml-auto shrink-0 text-2xs text-muted-foreground tabular" data-testid="lists-rated-count">
             {rated} of {live.length} rated
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         {carriesRates && (

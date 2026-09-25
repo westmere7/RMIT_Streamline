@@ -408,7 +408,7 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; icon: Lucide
   { value: "light", label: "Light", icon: Sun, swatch: "bg-white" },
   { value: "dim", label: "Dim", icon: SunDim, swatch: "bg-slate-600" },
   { value: "dark", label: "Dark", icon: Moon, swatch: "bg-slate-900" },
-  { value: "system", label: "System", icon: Monitor, swatch: "bg-[linear-gradient(135deg,white_50%,var(--color-slate-900)_50%)]" },
+  { value: "system", label: "System", icon: Monitor, swatch: "bg-[linear-gradient(90deg,#ffffff_50%,#0f172a_50%)]" },
 ];
 
 /** Personal display preferences: kept in this browser, seen by nobody else. */
