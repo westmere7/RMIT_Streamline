@@ -661,33 +661,3 @@ html[data-booking-zoom] [data-radix-popper-content-wrapper] > * {
 html[data-booking-zoom] [data-radix-select-viewport] {
   min-width: calc(var(--radix-select-trigger-width) / var(--booking-zoom, 1)) !important;
 }
-
-/* A board item's name too long for its cell scrolls to its end and back while
-   its row is hovered, after half a second, and loops until the pointer
-   leaves (ScrollingName in src/features/boards/components/table/item-row.tsx). */
-@keyframes name-marquee {
-  0%,
-  15% {
-    transform: translateX(0);
-  }
-  45%,
-  60% {
-    transform: translateX(var(--marquee-distance));
-  }
-  90%,
-  100% {
-    transform: translateX(0);
-  }
-}
-
-.group\/row:hover .name-marquee {
-  animation: name-marquee var(--marquee-duration, 6s) ease-in-out infinite;
-  /* Each loop opens on a pause (0-15%); starting that far in, the first move comes half a second after the hover. */
-  animation-delay: calc(0.5s - var(--marquee-duration, 6s) * 0.15);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .group\/row:hover .name-marquee {
-    animation: none;
-  }
-}

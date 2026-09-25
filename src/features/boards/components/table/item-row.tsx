@@ -311,7 +311,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                         nameClipped > 0 && FADE_END,
                       )}
                     >
-                      <ScrollingName name={item.name} overflow={nameClipped} />
+                      {item.name}
                     </button>
                   )}
                 </div>
@@ -439,29 +439,6 @@ function useClipped<T extends HTMLElement>(text: string, editing: boolean): [Rea
     return () => observer.disconnect();
   }, [text, editing]);
   return [ref, clipped];
-}
-
-/** The fade at the end of a clipped name is this wide; a scroll goes this much further so the last letter clears it. */
-const FADE_WIDTH = 28;
-/** How fast a name scrolls, in pixels a second. */
-const SCROLL_SPEED = 40;
-
-/**
- * An item's name. One too long for its cell scrolls to its end and back while
- * the row is hovered, after half a second, and keeps doing so until the
- * pointer leaves (the name-marquee keyframes in globals.css). At rest, and for
- * anyone who asks for less motion, it sits still with its end faded.
- */
-function ScrollingName({ name, overflow }: { name: string; overflow: number }) {
-  if (overflow <= 0) return <>{name}</>;
-  const distance = overflow + FADE_WIDTH;
-  // The keyframes spend 60% of each loop moving, out and back; the rest is the pause at either end.
-  const seconds = Math.max(4, (2 * distance) / SCROLL_SPEED / 0.6);
-  return (
-    <span className="name-marquee inline-block" style={{ "--marquee-distance": `-${distance}px`, "--marquee-duration": `${seconds.toFixed(1)}s` } as React.CSSProperties}>
-      {name}
-    </span>
-  );
 }
 
 function LinkIndicator({ count, onClick }: { count: number; onClick: () => void }) {
@@ -625,7 +602,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                   title={item.name}
                   className={cn("min-w-0 overflow-hidden rounded px-1 text-left text-xs whitespace-nowrap hover:underline", nameClipped > 0 && FADE_END)}
                 >
-                  <ScrollingName name={item.name} overflow={nameClipped} />
+                  {item.name}
                 </button>
               )}
               {!renaming && linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.8",
+    date: "2026-09-25",
+    title: "Names sit still",
+    changes: [
+      "Long item names no longer scroll on hover. They fade out at the end, and the whole name is in the tooltip.",
+    ],
+  },
+  {
     version: "0.41.7",
     date: "2026-09-25",
     title: "Time in each status, redrawn",
