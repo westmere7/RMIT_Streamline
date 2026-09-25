@@ -98,12 +98,16 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
   // Work nobody has picked up is not a person and gets no row of its own on
   // any of this: it is a line in the note under the bars, where it reads as
   // the exception it is rather than as somebody's workload.
-  const people = filtered.filter((row) => row.userId !== null);
+  // Everyone at nothing is no workload to show: the bars give way to the empty
+  // state rather than a row of people each carrying zero.
+  const owners = filtered.filter((row) => row.userId !== null);
+  const people = owners.some((row) => row.tasks > 0) ? owners : [];
   // The same rows in the measure on screen, for the tables. Narrowed and
   // filtered exactly as the bars are, so the two halves of the panel are
   // always about the same people.
   const measuredRows = group ? workloadForDepartment(measured, group.key) : measured;
-  const measuredPeople = (query.trim() ? measuredRows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : measuredRows).filter((row) => row.userId !== null);
+  const measuredOwners = (query.trim() ? measuredRows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : measuredRows).filter((row) => row.userId !== null);
+  const measuredPeople = measuredOwners.some((row) => row.total > 0) ? measuredOwners : [];
   const measuredGroups = React.useMemo(() => workloadDepartments(measured), [measured]);
   const figuresReadout = useTableReadout<WorkloadRow>();
   // Every bar against the busiest person, so the lengths mean something.
@@ -248,7 +252,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
         })}
         {people.length === 0 && (
           <p className="py-4 text-center text-muted-foreground">
-            {query.trim() ? <>Nobody matches “{query}”.</> : <>Nobody is carrying work for {group?.name ?? "this group"} in this window.</>}
+            {query.trim() ? <>Nobody matches “{query}”.</> : <>Nobody is carrying work{group ? ` for ${group.name}` : ""} in this window.</>}
           </p>
         )}
 
@@ -288,10 +292,12 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
       </div>
 
       <div className="mt-3 space-y-1.5 border-t border-border/50 pt-2.5 text-2xs leading-relaxed text-muted-foreground">
-        <p>
-          These are <strong className="font-medium text-foreground/80">association counts</strong>: a task with two owners is counted under both, so the bars add up to{" "}
-          {formatCount(totals.tasks)} against fewer real tasks. Splitting it would invent an allocation nobody recorded.
-        </p>
+        {totals.tasks > 0 && (
+          <p>
+            These are <strong className="font-medium text-foreground/80">association counts</strong>: a task with two owners is counted under both, so the bars add up to{" "}
+            {formatCount(totals.tasks)} against fewer real tasks. Splitting it would invent an allocation nobody recorded.
+          </p>
+        )}
         {unowned && unowned.tasks > 0 && (
           <p>
             <strong className="font-medium text-foreground/80">{formatCount(unowned.tasks)}</strong> tasks in this window have no owner at all.
@@ -373,6 +379,13 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
                   </tr>
                 );
               })}
+              {measuredPeople.length === 0 && (
+                <tr>
+                  <td colSpan={BANDS.length + 2} className="py-6 text-center text-muted-foreground">
+                    {query.trim() ? <>Nobody matches “{query}”.</> : <>No work to count in this window yet.</>}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
           {figuresReadout.at && figuresReadout.over && (

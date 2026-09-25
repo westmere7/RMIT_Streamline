@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.46.1",
+    date: "2026-09-25",
+    title: "A dashboard that says when there is nothing yet",
+    changes: [
+      "Dashboard panels with no data say so, instead of showing a flat line or an empty chart. That includes the headline figures, tasks by month and who is carrying what.",
+      "A change against a very small number, fewer than five, shows the difference but no percentage.",
+      "Chart scales count in whole numbers, so a nearly empty chart no longer reads 0, 1, 1, 1.",
+    ],
+  },
+  {
     version: "0.46.0",
     date: "2026-09-25",
     title: "Danger zone, and safer restores",

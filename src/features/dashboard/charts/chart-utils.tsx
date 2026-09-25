@@ -24,12 +24,15 @@ export function compactCount(value: number): string {
  * above the peak so gridlines stay evenly spaced and the peak sits below the
  * top edge. Returns the domain top and the tick values.
  */
-export function niceScale(peak: number, steps = 4): { top: number; ticks: number[] } {
+export function niceScale(peak: number, steps = 4, whole = true): { top: number; ticks: number[] } {
   if (peak <= 0) return { top: 1, ticks: [0, 1] };
   const rough = peak / steps;
   const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
   const norm = rough / magnitude;
-  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * magnitude;
+  // Tasks and units are whole: a step under one gives an axis of "0, 1, 1, 1, 1"
+  // once the labels round, which is how a nearly empty chart used to read.
+  const nice = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * magnitude;
+  const step = whole ? Math.max(1, Math.round(nice)) : nice;
   let top = Math.ceil(peak / step) * step;
   if (top <= peak) top += step;
   const ticks: number[] = [];

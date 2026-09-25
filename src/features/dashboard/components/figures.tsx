@@ -6,6 +6,7 @@ import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber } from "@/features/dashboard/charts/motion";
 import type { Comparison } from "@/features/dashboard/metrics";
 import { cn } from "@/lib/utils";
+import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
 import { StatBar, TrendLine } from "./stat-visuals";
 
 /**
@@ -126,7 +127,12 @@ export function HeadlineFigure({
           bigger, and no dead space. `preserveAspectRatio="none"` on the svg is
           what lets it fill a height it does not choose. */}
       <div className="mt-3 flex min-h-14 flex-1 flex-col justify-end">
-        {trend && <TrendLine values={trend} labels={trendLabels} label={`${label} by month`} className="h-full min-h-14" />}
+        {trend && current === 0 && trend.every((value) => !value) ? (
+          // A flat line along zero looks like a chart with a fault; say what it means instead.
+          <ChartEmpty message={`No ${unitWord} in ${periodLabel} yet.`} className="min-h-14" />
+        ) : (
+          trend && <TrendLine values={trend} labels={trendLabels} label={`${label} by month`} className="h-full min-h-14" />
+        )}
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/50 pt-2.5 text-xs">
@@ -136,7 +142,7 @@ export function HeadlineFigure({
           </span>
         ) : (
           <>
-            <ChangeChip delta={delta} percent={percent} format={valueFormat} />
+            <ChangeChip delta={delta} percent={percent} base={previous} format={valueFormat} />
             <span className="text-muted-foreground">
               vs <span className="tabular text-foreground/80">{valueFormat(previous)}</span> in {comparisonLabel}
             </span>
@@ -153,8 +159,16 @@ export function HeadlineFigure({
   );
 }
 
-/** The change itself: a direction, a number, and a percentage only when one exists. */
-export function ChangeChip({ delta, percent, className, format = formatCount }: { delta: number | null; percent: number | null; className?: string; format?: (value: number) => string }) {
+/**
+ * Below this, a percentage change says more about the base than the work:
+ * one task to five is "+400%". The difference is still shown, and why the
+ * percentage is not.
+ */
+export const MIN_PERCENT_BASE = 5;
+
+/** The change itself: a direction, a number, and a percentage only when one exists and means something. */
+export function ChangeChip({ delta, percent, base, className, format = formatCount }: { delta: number | null; percent: number | null; base?: number | null; className?: string; format?: (value: number) => string }) {
+  const smallBase = base != null && base > 0 && base < MIN_PERCENT_BASE;
   if (delta === null) return null;
   const Icon = delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : ArrowRight;
   return (
@@ -165,7 +179,9 @@ export function ChangeChip({ delta, percent, className, format = formatCount }: 
           anything at or below nothing as "0 h" — and a fall of 2,409 hours
           rendering as "0 h" is worse than no chip at all. */}
       {`${delta > 0 ? "+" : delta < 0 ? "-" : ""}${format(Math.abs(delta))}`}
-      {percent === null ? (
+      {smallBase ? (
+        <span className="font-normal text-muted-foreground">· too few for a %</span>
+      ) : percent === null ? (
         // A zero baseline. "+12 from nothing" is a fact; "+∞%" is not.
         <span className="font-normal text-muted-foreground">· no % comparison</span>
       ) : (

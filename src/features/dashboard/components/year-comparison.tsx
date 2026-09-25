@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
+import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
 import { useSpring, useSprings } from "@/features/dashboard/charts/motion";
 import type { MonthlyComparisonRow } from "@/features/dashboard/metrics";
 import { ChangeChip } from "./figures";
@@ -80,6 +81,8 @@ export function YearComparisonChart({
   const centreOf = (index: number) => padLeft + index * slot + slot / 2;
 
   const hovered = hover === null ? null : rows.findIndex((r) => r.month === hover);
+  // Nothing in either year: say so over the plot, rather than drawing an empty axis.
+  const empty = rows.every((r) => !r.current && !r.comparison && !r.outlook);
 
   return (
     // The two colours are declared on the wrapper, not on the <svg>: the legend
@@ -94,6 +97,11 @@ export function YearComparisonChart({
       {/* The box the chart measures itself against, and the only thing that
           grows. Relative, because the hover card is an HTML overlay on it. */}
       <div ref={ref} className="relative min-h-[168px] w-full flex-1">
+        {empty && (
+          <div className="absolute inset-0 z-[1] flex bg-card">
+            <ChartEmpty message={`No ${unitWord} in ${currentLabel} or ${comparisonLabel} yet.`} />
+          </div>
+        )}
         <svg
           role="img"
           aria-label={`${unitWord} by month, ${currentLabel} against ${comparisonLabel}`}
@@ -271,7 +279,7 @@ export function YearComparisonChart({
                 </p>
                 {rows[hovered]!.delta !== null && (
                   <p className="mt-1">
-                    <ChangeChip delta={rows[hovered]!.delta} percent={rows[hovered]!.percent} className="text-2xs" />
+                    <ChangeChip delta={rows[hovered]!.delta} percent={rows[hovered]!.percent} base={rows[hovered]!.comparison} className="text-2xs" />
                   </p>
                 )}
               </>
