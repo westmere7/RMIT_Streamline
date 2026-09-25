@@ -69,7 +69,9 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const { listeners, setNodeRef, setActivatorNodeRef, isDragging } = useSortable({
     id: item.id,
     data: { type: "item", itemId: item.id, groupId: group.id },
-    disabled: !dndEnabled,
+    // Off while the name is a text field: pressing and dragging there selects
+    // the text, and must not pick the row up.
+    disabled: !dndEnabled || renaming,
   });
 
   // Rename and Add subitem open a field: they wait for the menu to finish

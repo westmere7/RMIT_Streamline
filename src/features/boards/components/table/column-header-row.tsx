@@ -289,7 +289,8 @@ function ColumnHeaderCell({
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: `column:${group.id}:${column.id}`,
     data: { type: "column", columnId: column.id, groupId: group.id, index } satisfies DragData,
-    disabled: !canEdit,
+    // Off while the name is a text field, so dragging across it selects text.
+    disabled: !canEdit || renaming,
   });
 
   // The header is both the drag handle and the menu button, so the two have to

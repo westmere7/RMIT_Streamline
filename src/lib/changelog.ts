@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.43.1",
+    date: "2026-09-25",
+    title: "Selecting text while renaming",
+    changes: [
+      "Dragging across a name you are renaming selects the text instead of picking up the task. The same goes for column and group names.",
+    ],
+  },
+  {
     version: "0.43.0",
     date: "2026-09-25",
     title: "Departments come only from the list",

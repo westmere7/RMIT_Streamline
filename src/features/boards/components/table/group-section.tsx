@@ -93,7 +93,8 @@ export function GroupSection({
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: group.id,
     data: { type: "group", groupId: group.id },
-    disabled: !dndEnabled,
+    // Off while the name is a text field, so dragging across it selects text.
+    disabled: !dndEnabled || renaming,
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `group-drop:${group.id}`, data: { type: "group-drop", groupId: group.id }, disabled: !dndEnabled });
 
