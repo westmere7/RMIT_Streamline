@@ -974,7 +974,7 @@ function Overview({ item }: { item: Item }) {
           return (
             <li key={sub.id} className="flex h-9 items-center gap-2 px-2 text-[13px]">
               <CornerDownRight className="size-3 text-muted-foreground/60" />
-              <button type="button" onClick={() => openItem(sub.id)} className={cn("min-w-0 flex-1 truncate text-left hover:underline", done && "text-muted-foreground line-through")}>
+              <button type="button" onClick={() => openItem(sub.id)} className={cn("min-w-0 flex-1 truncate text-left hover:underline", done && "text-muted-foreground")}>
                 {sub.name}
               </button>
               <SubOwners userIds={owners} />

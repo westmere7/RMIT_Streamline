@@ -153,7 +153,7 @@ function BarRow({ bar, group, range, zoom, users, today, onOpen }: { bar: Schedu
       <div className="sticky left-0 z-[2] h-full shrink-0 border-r bg-background" style={{ width: LABEL_WIDTH }}>
         <button type="button" onClick={onOpen} className="flex h-full w-full min-w-0 items-center gap-2 px-3 pl-6 text-left hover:bg-accent/50">
           <span className="min-w-0 flex-1">
-            <span className={cn("block truncate text-[13px]", done && "text-muted-foreground line-through")}>{item.name}</span>
+            <span className={cn("block truncate text-[13px]", done && "text-muted-foreground")}>{item.name}</span>
             <span className={cn("block truncate text-2xs tabular", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{dates}</span>
           </span>
           {late && <TriangleAlert className="size-3 shrink-0 text-red-600 dark:text-red-400" aria-label="Overdue" />}
@@ -172,7 +172,7 @@ function BarRow({ bar, group, range, zoom, users, today, onOpen }: { bar: Schedu
             data-testid="timeline-milestone"
           >
             <span className={cn("block size-3.5 rotate-45 rounded-[2px] shadow-xs", done && "opacity-50")} style={{ backgroundColor: colour.hex }} />
-            {zoom !== "month" && <span className={cn("text-2xs whitespace-nowrap", done ? "text-muted-foreground line-through" : "text-foreground/80")}>{item.name}</span>}
+            {zoom !== "month" && <span className={cn("text-2xs whitespace-nowrap", done ? "text-muted-foreground" : "text-foreground/80")}>{item.name}</span>}
           </button>
         ) : (
           <>
@@ -189,7 +189,7 @@ function BarRow({ bar, group, range, zoom, users, today, onOpen }: { bar: Schedu
               {wide && <span className="truncate">{item.name}</span>}
             </button>
             {!wide && zoom !== "month" && (
-              <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground line-through" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 220 }}>
+              <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 220 }}>
                 {item.name}
               </span>
             )}

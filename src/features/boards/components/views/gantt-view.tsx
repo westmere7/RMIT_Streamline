@@ -222,7 +222,7 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
             <span className="size-5 shrink-0" />
           )}
           <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-left hover:underline" data-testid="gantt-name">
-            <span className={cn("truncate text-[13px]", row.depth === 1 && "text-xs", done && "text-muted-foreground line-through")}>{item.name}</span>
+            <span className={cn("truncate text-[13px]", row.depth === 1 && "text-xs", done && "text-muted-foreground")}>{item.name}</span>
             {row.children > 0 && <span className="shrink-0 text-2xs text-muted-foreground tabular">{children.filter((c) => model.isDone(c.id)).length}/{children.length}</span>}
             {blocked && <BlockedDot label="Waiting on a dependency" />}
           </button>
@@ -259,7 +259,7 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
             </button>
           ))}
         {schedule && !schedule.milestone && width < 80 && zoom !== "month" && (
-          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground line-through" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 200 }}>
+          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 200 }}>
             {item.name}
           </span>
         )}

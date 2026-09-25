@@ -251,7 +251,7 @@ export function ItemList({ title, itemIds, ctx }: { title: string; itemIds: stri
           return (
             <li key={id}>
               <button type="button" onClick={() => openItem(id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
-                <span className={cn("min-w-0 flex-1 truncate text-[13px]", model.isDone(id) && "text-muted-foreground line-through")} title={item.name}>
+                <span className={cn("min-w-0 flex-1 truncate text-[13px]", model.isDone(id) && "text-muted-foreground")} title={item.name}>
                   {item.name}
                 </span>
                 {label && <LabelPill label={label} size="sm" striped={isStuckLabel(status, label.id)} className="shrink-0" />}

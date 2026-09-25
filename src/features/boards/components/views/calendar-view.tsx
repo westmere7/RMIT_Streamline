@@ -178,7 +178,7 @@ export function CalendarView() {
 function Chip({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: () => void }) {
   const color = entry.status ? colorClasses(entry.status.color) : colorClasses(entry.group.color);
   return (
-    <button type="button" onClick={onOpen} title={`${entry.item.name}${entry.status ? ` · ${entry.status.name}` : ""}${entry.owners.length ? ` · ${entry.owners.map((u) => u.displayName).join(", ")}` : ""}`} className={cn("flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-2xs hover:bg-accent", entry.done && "text-muted-foreground line-through")} data-testid="calendar-chip">
+    <button type="button" onClick={onOpen} title={`${entry.item.name}${entry.status ? ` · ${entry.status.name}` : ""}${entry.owners.length ? ` · ${entry.owners.map((u) => u.displayName).join(", ")}` : ""}`} className={cn("flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-2xs hover:bg-accent", entry.done && "text-muted-foreground")} data-testid="calendar-chip">
       <span className={cn("size-1.5 shrink-0 rounded-full", color.dot)} style={entry.stuck ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 2px)" } : undefined} />
       <span className="min-w-0 flex-1 truncate">{entry.item.name}</span>
       {late && <TriangleAlert className="size-2.5 shrink-0 text-red-600 dark:text-red-400" aria-label="Overdue" />}
@@ -191,7 +191,7 @@ function Chip({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: ()
 function DayCard({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className={cn("block w-full rounded-lg border border-border/60 bg-card p-2 text-left shadow-xs hover:shadow-md", entry.done && "opacity-70")} data-testid="calendar-card">
-      <span className={cn("block text-xs font-medium leading-snug", entry.done && "line-through")}>{entry.item.name}</span>
+      <span className={cn("block text-xs font-medium leading-snug", entry.done && "text-muted-foreground")}>{entry.item.name}</span>
       <span className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
         <span className={cn("size-1.5 rounded-full", colorClasses(entry.group.color).dot)} />
         <span className="truncate">{entry.group.name}</span>

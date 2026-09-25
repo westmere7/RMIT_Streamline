@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.2",
+    date: "2026-09-25",
+    title: "Long names scroll",
+    changes: [
+      "Hover a row whose name is too long, and after a second the name scrolls to its end and back, looping until you move away. It stays still for anyone who asks their system for less motion.",
+      "Done tasks are no longer crossed out anywhere. They stay slightly muted.",
+    ],
+  },
+  {
     version: "0.41.1",
     date: "2026-09-25",
     title: "Names use the whole cell",

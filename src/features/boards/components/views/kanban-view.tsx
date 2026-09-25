@@ -407,7 +407,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           {/* A hairline of the status colour down the left when the lanes do not already say it. */}
           {laneBy !== "status" && statusLabel && <span aria-hidden className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", colorClasses(statusLabel.color).dot)} />}
           {!compact && <CardCover url={item.coverUrl} />}
-          <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-medium leading-snug hover:underline", done && "line-through")} aria-label={`Open ${item.name}`}>
+          <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-medium leading-snug hover:underline", done && "text-muted-foreground")} aria-label={`Open ${item.name}`}>
             {item.name}
           </button>
           {brief && <p className="mt-1 line-clamp-2 text-2xs leading-snug text-muted-foreground">{brief}</p>}

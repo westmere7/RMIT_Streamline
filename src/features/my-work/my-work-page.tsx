@@ -363,7 +363,7 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                   )}
                   data-testid="my-work-row"
                 >
-                  <span className={cn("truncate font-medium", entry.isDone && "line-through decoration-muted-foreground/50")}>
+                  <span className={cn("truncate font-medium", entry.isDone && "text-muted-foreground")}>
                     {entry.item.parentItemId && <span className="mr-1 text-2xs text-muted-foreground">Subitem ·</span>}
                     {entry.item.name}
                   </span>
