@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.34.3",
+    date: "2026-09-25",
+    title: "Booking form dropdowns at larger sizes",
+    changes: ["On a booking form set larger or smaller, dropdowns and pickers open right beside their field, at the same size as the form."],
+  },
+  {
     version: "0.34.2",
     date: "2026-09-25",
     title: "Template save times",

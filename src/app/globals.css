@@ -646,3 +646,18 @@
     background-color: color-mix(in oklab, var(--color-primary) 7%, transparent);
   }
 }
+
+/* ---- A booking form drawn larger or smaller ---------------------------------
+ *
+ * The form's page is zoomed on its own element (see AuthShell `scale`); menus
+ * and popovers render at the end of <body>, outside it. Their wrapper is left
+ * alone so it is placed from on-screen boxes as usual, and only what is inside
+ * it is zoomed, so a menu opens where it should and at the form's size.
+ */
+html[data-booking-zoom] [data-radix-popper-content-wrapper] > * {
+  zoom: var(--booking-zoom, 1);
+}
+/* A select's list is as wide as its trigger, measured on screen; zoomed again it would be wider. */
+html[data-booking-zoom] [data-radix-select-viewport] {
+  min-width: calc(var(--radix-select-trigger-width) / var(--booking-zoom, 1)) !important;
+}

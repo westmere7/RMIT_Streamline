@@ -67,16 +67,19 @@ export function PortalBookingScreen({
 }) {
   const services = useServices();
   const queryClient = useQueryClient();
-  // The size the team set for this form. The whole page is zoomed, the document
-  // included, so the menus and dialogs that open over it (they render at the
-  // end of <body>) come out at the same size as the form; put back on the way out.
+  // The size the team set for this form. The page itself is zoomed (AuthShell's
+  // `scale`), never the document: menus position themselves from on-screen
+  // boxes, and under a zoomed document they were placed that much off to the
+  // side. Their contents are zoomed by a rule in globals.css keyed on this
+  // attribute instead, so they match the form; both are taken away on leaving.
   React.useEffect(() => {
     if (scale === 100) return;
     const root = document.documentElement;
-    const before = root.style.zoom;
-    root.style.zoom = `${scale}%`;
+    root.dataset.bookingZoom = "";
+    root.style.setProperty("--booking-zoom", String(scale / 100));
     return () => {
-      root.style.zoom = before;
+      delete root.dataset.bookingZoom;
+      root.style.removeProperty("--booking-zoom");
     };
   }, [scale]);
   // Some stakeholders do have an account here. If they are signed in the wizard
