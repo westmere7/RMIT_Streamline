@@ -10,7 +10,8 @@ import { createTestApp, TestBoard } from "../helpers/render-app";
 
 /**
  * The standing offer to undo: made by the actions with a clean inverse, taken
- * with one tap, retired by the next thing done. Driven through the phone's
+ * with one tap, retired by the next thing done. Editing a value is not one of
+ * them. Driven through the phone's
  * card, because its chips are the shortest path from a tap to a write.
  */
 const boardId = SEED_BOARD_IDS.rmitinerary;
@@ -39,45 +40,31 @@ async function changeFirstStatus(user: ReturnType<typeof userEvent.setup>) {
 describe("undo", () => {
   beforeEach(() => useUndoStore.getState().clear());
 
-  it("offers to undo a status change, and puts the old value back when taken", async () => {
+  it("does not offer to undo a value edit: the cell is set again instead", async () => {
     const user = userEvent.setup();
     const app = await createTestApp();
     await app.render(<Screen />);
 
-    const { before, picked } = await changeFirstStatus(user);
-    const bar = await screen.findByTestId("undo-bar");
-    expect(bar).toHaveTextContent(`Status set to ${picked}`);
+    const { picked } = await changeFirstStatus(user);
     await waitFor(() => expect((screen.getAllByTestId("mobile-card-status")[0]!).textContent?.trim()).toBe(picked));
+    expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument();
+  }, 20_000);
+
+  it("offers to undo a duplicate, and removes the copy when taken", async () => {
+    const user = userEvent.setup();
+    const app = await createTestApp();
+    await app.render(<Screen />);
+    const count = (await screen.findAllByTestId("mobile-item-card")).length;
+
+    await user.click(screen.getAllByTestId("mobile-item-menu")[0]!);
+    await user.click(await screen.findByRole("menuitem", { name: "Duplicate" }));
+    const bar = await screen.findByTestId("undo-bar");
+    expect(bar).toHaveTextContent("Duplicated as");
+    await waitFor(() => expect(screen.getAllByTestId("mobile-item-card")).toHaveLength(count + 1));
 
     await user.click(within(bar).getByTestId("undo-button"));
     await waitFor(() => expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument());
-    await waitFor(() => expect((screen.getAllByTestId("mobile-card-status")[0]!).textContent?.trim()).toBe(before));
-  }, 20_000);
-
-  it("stays until something else is done, then speaks for that instead", async () => {
-    const user = userEvent.setup();
-    const app = await createTestApp();
-    await app.render(<Screen />);
-
-    await changeFirstStatus(user);
-    await screen.findByTestId("undo-bar");
-    const first = useUndoStore.getState().offer?.id;
-
-    // A second change on another card replaces the offer rather than stacking.
-    const chips = await screen.findAllByTestId("mobile-card-status");
-    await user.click(chips[1]!);
-    const options = await screen.findAllByTestId("mobile-label-option");
-    await user.click(options.find((o) => !(o.textContent ?? "").includes(chips[1]!.textContent?.trim() ?? ""))!);
-    // Cleared the moment the second write starts, offered again once it lands.
-    await waitFor(() => {
-      const offer = useUndoStore.getState().offer;
-      expect(offer).not.toBeNull();
-      expect(offer?.id).not.toBe(first);
-    });
-    expect(screen.getByTestId("undo-bar")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("undo-dismiss"));
-    expect(screen.queryByTestId("undo-bar")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByTestId("mobile-item-card")).toHaveLength(count));
   }, 20_000);
 
   it("does not offer to undo a delete", async () => {

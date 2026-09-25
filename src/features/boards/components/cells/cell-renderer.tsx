@@ -13,7 +13,7 @@ import { DependencyPicker } from "@/features/boards/components/pickers/dependenc
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
 import { useBoardContext } from "@/features/boards/board-context";
-import { columnAlign } from "@/features/boards/board-model";
+import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { useBoardAssets, useItemAssetProgress } from "@/features/items/asset-hooks";
@@ -607,9 +607,6 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
   );
 }
 
-/** The width at which a Brief cell has room for the start of the brief itself. */
-const BRIEF_TEXT_WIDTH = 160;
-
 /**
  * A formatted document — the booking brief, and anything else a team writes as
  * one.
@@ -630,7 +627,7 @@ export function RichTextCell({ item, column, value, onChange, readOnly, width }:
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly && !summary}
-      align={compact ? "center" : columnAlign(column.type)}
+      align={columnAlignAt(column, width ?? column.width)}
       ariaLabel={`${column.name} for ${item.name}`}
       contentClassName="w-[min(40rem,calc(100vw-2rem))] p-0"
       testId="rich-text-cell"

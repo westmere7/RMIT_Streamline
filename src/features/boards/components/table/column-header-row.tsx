@@ -33,7 +33,7 @@ import { TicketHeaderCell } from "@/features/boards/components/table/ticket-cell
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { columnAlign, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
+import { columnAlignAt, columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { ITEM_COLUMN_MAX, ITEM_COLUMN_MIN, useItemColumnResizable, useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { useUiStore } from "@/stores/ui-store";
 import { colorClasses } from "@/lib/colors";
@@ -319,7 +319,7 @@ function ColumnHeaderCell({
           aria-sort={headerSort.ariaSort}
           className={cn(
             "group/col relative flex h-full shrink-0 items-center border-r border-border/60 px-1",
-            columnAlign(column.type) === "center" ? "justify-center" : "justify-start",
+            columnAlignAt(column, width) === "center" ? "justify-center" : "justify-start",
             isDragging && "opacity-40",
           )}
           style={columnCellStyle(width)}
@@ -359,7 +359,7 @@ function ColumnHeaderCell({
                   headerSort.active && "text-foreground",
                   canEdit && "cursor-grab active:cursor-grabbing",
                   // The options chevron floats at the left edge; left-aligned labels move over to make room.
-                  canEdit && columnAlign(column.type) !== "center" && "ml-6",
+                  canEdit && columnAlignAt(column, width) !== "center" && "ml-6",
                 )}
                 data-testid="column-sort"
                 {...attributes}

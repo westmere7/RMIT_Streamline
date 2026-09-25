@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, emptyValueFor } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -15,7 +15,6 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { BoardSnapshot, CreateItemInput, MoveItemInput } from "@/services";
-import { displayValue } from "@/services/column-display";
 import { clearUndo, offerUndo } from "@/stores/undo-store";
 
 type Updater = (snapshot: BoardSnapshot) => BoardSnapshot;
@@ -141,10 +140,10 @@ export function useBoardMutations(boardId: string) {
   );
 
   /**
-   * The write itself, with no offer to undo: what an undo runs, so undoing
-   * does not offer to undo the undo. The public `setValue` wraps it.
+   * Writes a cell. No offer to undo: a value is put back by setting it again,
+   * in the same cell, and a toast after every edit was noise.
    */
-  const writeValue = useCallback(
+  const setValue = useCallback(
     (item: Item, column: BoardColumn, value: ColumnValue) => {
       if (completesTask(item, column, value)) celebrate();
       return run(
@@ -156,20 +155,6 @@ export function useBoardMutations(boardId: string) {
     [run, services, ws, boardId, user.id, completesTask],
   );
 
-  const setValue = useCallback(
-    async (item: Item, column: BoardColumn, value: ColumnValue) => {
-      // Read before the write: what the cell held is what undo puts back. A
-      // cell with no row yet goes back to empty.
-      const before = queryClient.getQueryData<BoardSnapshot>(key)?.values.find((v) => v.itemId === item.id && v.columnId === column.id)?.value ?? emptyValueFor(column.type);
-      const result = await writeValue(item, column, value);
-      if (result !== undefined) {
-        const shown = displayValue(column, value, ws.users);
-        offerUndo(`${column.name} set to ${shown || "nothing"}`, () => writeValue(item, column, before));
-      }
-      return result;
-    },
-    [writeValue, queryClient, key, ws.users],
-  );
 
   const writeName = useCallback(
     (itemId: string, name: string) =>

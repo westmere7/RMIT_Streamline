@@ -200,6 +200,14 @@ export function columnAlign(type: ColumnType): "left" | "center" {
   return LEFT_ALIGNED_COLUMNS.has(type) ? "left" : "center";
 }
 
+/** The width at which a Brief column has room for the start of the brief itself. Narrower, it shows only "Brief". */
+export const BRIEF_TEXT_WIDTH = 160;
+
+/** A column's alignment at the width it is drawn: a compact Brief is a centred label, header and cells alike. */
+export function columnAlignAt(column: Pick<BoardColumn, "type">, width: number): "left" | "center" {
+  return column.type === "BRIEF" && width < BRIEF_TEXT_WIDTH ? "center" : columnAlign(column.type);
+}
+
 /**
  * The frozen head of a row: the tick box, the ticket when it is shown, and the
  * item name. Its width is fixed so the header, the rows, the group bars and the
