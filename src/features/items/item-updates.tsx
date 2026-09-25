@@ -347,11 +347,11 @@ function Reactions({ comment, onReact, compact = false, className }: { comment: 
               onClick={() => onReact?.(comment, emoji, !mine)}
               aria-pressed={mine}
               aria-label={`${emoji} ${userIds.length}${mine ? ", including you" : ""}`}
-              // No box of its own: the emoji and its count, and a faint ground only under the pointer.
-              // The viewer's own shows in the count's weight and colour, nothing louder.
+              // A hairline outline and no fill: the emoji and its count, with a faint ground only under the pointer.
+              // The viewer's own shows in a slightly stronger line and the count's colour, nothing louder.
               className={cn(
-                "inline-flex h-6 items-center gap-1 rounded-md px-1 text-xs tabular transition-colors enabled:hover:bg-accent/60 disabled:cursor-default",
-                mine ? "text-foreground" : "text-muted-foreground",
+                "inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs tabular transition-colors enabled:hover:bg-accent/50 disabled:cursor-default",
+                mine ? "border-primary/25 text-foreground" : "border-border/50 text-muted-foreground",
               )}
               data-testid="comment-reaction"
             >

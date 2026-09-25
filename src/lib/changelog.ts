@@ -23,7 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Reactions on updates",
     changes: [
       "React to an update or a reply with one of sixteen emoji. Click a reaction to add yours or take it back. Hover it to see who reacted.",
-      "Reactions sit quietly under the update: just the emoji and a count, with no box around them.",
+      "Reactions sit quietly under the update: the emoji and a count in a hairline outline, with no fill.",
       "Reactions appear live for everyone with the task open. A collapsed update shows its tally.",
     ],
   },
