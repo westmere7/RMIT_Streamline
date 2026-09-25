@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.5",
+    date: "2026-09-25",
+    title: "Favourites stay put",
+    changes: [
+      "A board opened from Favourites is selected there alone. Its team in the sidebar no longer opens to it or highlights it too.",
+    ],
+  },
+  {
     version: "0.41.4",
     date: "2026-09-25",
     title: "Quicker scroll, roomier rename",

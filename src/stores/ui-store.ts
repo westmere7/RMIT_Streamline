@@ -62,6 +62,13 @@ interface UiState {
    */
   navPending: string | null;
   setNavPending: (path: string | null) => void;
+  /**
+   * The board last opened from Favourites, by slug. While it is the board on
+   * screen, it is selected in Favourites alone and its team is left as it was.
+   * Not persisted.
+   */
+  favouriteOpen: string | null;
+  setFavouriteOpen: (slug: string | null) => void;
   commandPaletteOpen: boolean;
   /** Chosen search scope, or null to follow whatever the user is looking at. */
   searchScope: "view" | "workspace" | null;
@@ -129,6 +136,8 @@ export const useUiStore = create<UiState>()(
       setSearchScope: (searchScope) => set({ searchScope }),
       navPending: null,
       setNavPending: (navPending) => set({ navPending }),
+      favouriteOpen: null,
+      setFavouriteOpen: (favouriteOpen) => set({ favouriteOpen }),
       viewAsUserId: null,
       setViewAsUserId: (viewAsUserId) => {
         try {

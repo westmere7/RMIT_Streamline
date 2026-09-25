@@ -185,6 +185,14 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const boardsWithoutTeam = visibleBoards.filter((b) => !hasTeam(b));
   const archivedWithoutTeam = accessibleBoards.filter((b) => b.archivedAt !== null && !hasTeam(b));
   const activeBoardSlug = pathname.includes("/boards/") ? pathname.split("/boards/")[1]?.split("/")[0] : null;
+  // A board opened from Favourites is selected there alone: the team tree
+  // neither opens to it nor highlights it. Opened any other way, it is found in its team as usual.
+  const favouriteOpen = useUiStore((s) => s.favouriteOpen);
+  const setFavouriteOpen = useUiStore((s) => s.setFavouriteOpen);
+  const treeBoardSlug = favouriteOpen !== null && favouriteOpen === activeBoardSlug ? null : activeBoardSlug;
+  React.useEffect(() => {
+    if (favouriteOpen !== null && favouriteOpen !== activeBoardSlug) setFavouriteOpen(null);
+  }, [favouriteOpen, activeBoardSlug, setFavouriteOpen]);
   const activeTrackerId = pathname.includes("/trackers/") ? pathname.split("/trackers/")[1]?.split("/")[0] : null;
   const trackersForTeam = trackersForTeamOf;
   const activeTeamId = pathname.includes("/teams/") ? pathname.split("/teams/")[1]?.split("/")[0] : null;
@@ -304,7 +312,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             boards={adminBoards}
             trackers={adminTrackers}
             collapsed={collapsed}
-            activeBoardSlug={activeBoardSlug}
+            activeBoardSlug={treeBoardSlug}
             activeTrackerId={activeTrackerId}
             activeTeam={activeTeamId === adminTeam.id}
           />
@@ -315,7 +323,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             !collapsed && <p className="px-2 py-1 text-2xs text-muted-foreground">Star a board to pin it here.</p>
           ) : (
             favouriteBoards.map((board) => (
-              <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} />
+              <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} fromFavourites />
             ))
           )}
         </Section>
@@ -331,7 +339,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                 trackers={trackersForTeam(team.id)}
                 archivedBoards={accessibleBoards.filter((b) => b.archivedAt !== null && b.teamId === team.id)}
                 collapsed={collapsed}
-                activeBoardSlug={activeBoardSlug}
+                activeBoardSlug={treeBoardSlug}
                 activeTrackerId={activeTrackerId}
                 activeTeam={activeTeamId === team.id}
                 searchView={searchParams.get("view")}
@@ -343,9 +351,9 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               {!collapsed && <p className="label-quiet px-2.5 pt-2 pb-1">Other boards</p>}
               <ul className="space-y-0.5">
                 {boardsWithoutTeam.map((board) => (
-                  <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} />
+                  <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={treeBoardSlug === board.slug} collapsed={collapsed} />
                 ))}
-                {!collapsed && <ArchivedFolder boards={archivedWithoutTeam} activeBoardSlug={activeBoardSlug} />}
+                {!collapsed && <ArchivedFolder boards={archivedWithoutTeam} activeBoardSlug={treeBoardSlug} />}
               </ul>
             </div>
           )}
@@ -663,6 +671,7 @@ function BoardLink({
   collapsed,
   nested,
   archived,
+  fromFavourites = false,
 }: {
   board: Board;
   href: string;
@@ -670,14 +679,23 @@ function BoardLink({
   collapsed: boolean;
   nested?: boolean;
   archived?: boolean;
+  /** The entry under Favourites, whose board is then selected there alone. */
+  fromFavourites?: boolean;
 }) {
   const actions = useBoardRowActions(board);
   const claim = useNavClaim();
+  const setFavouriteOpen = useUiStore((s) => s.setFavouriteOpen);
   const link = (
       <SimpleTooltip label={archived ? `${board.name} (archived)` : board.name} side="right" disabled={!collapsed}>
         <Link
           href={href}
-          onClick={() => claim(href)}
+          onClick={() => {
+            // Before the claim, which flushes: the first render aiming at the
+            // board must already know where it was opened from, or the team
+            // tree opens to it in that render.
+            setFavouriteOpen(fromFavourites ? board.slug : null);
+            claim(href);
+          }}
           aria-current={active ? "page" : undefined}
           className={cn(
             navItemClasses(active),
