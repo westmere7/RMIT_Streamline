@@ -4,7 +4,8 @@ import * as React from "react";
 import { ContextMenuItem } from "@/components/ui/context-menu";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, type ColumnType, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, type ColumnType, columnTypeTaken, isSystemColumnType } from "@/domain";
+import { useBoardContext } from "@/features/boards/board-context";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 
 /** Files are attached from the item panel, so a board never adds that column by hand. */
@@ -20,6 +21,7 @@ export const COLUMN_TYPE_PICKER_WIDTH = "w-[19rem]";
 
 interface MenuItemProps {
   onSelect?: (event: Event) => void;
+  disabled?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
@@ -36,18 +38,23 @@ interface MenuItemProps {
  * A heading over it was tried and dropped: it pushed the types down the menu
  * to explain something nobody needs before they have seen them.
  *
+ * A special type the board already has is greyed out: a board holds one of
+ * each (Date aside, see ONE_PER_BOARD_COLUMN_TYPES).
+ *
  * `variant` picks the menu primitive, since Radix items only work inside their
  * own menu type.
  */
 export function ColumnTypePicker({ onPick, variant = "dropdown" }: { onPick: (type: ColumnType) => void; variant?: "dropdown" | "context" }) {
   const Item = (variant === "context" ? ContextMenuItem : DropdownMenuItem) as React.ComponentType<MenuItemProps>;
+  const { model } = useBoardContext();
   const group = (types: ColumnType[], system: boolean) => (
     <div className="grid grid-cols-2 gap-0.5">
       {types.map((type) => {
         const Icon = COLUMN_TYPE_ICONS[type];
+        const taken = columnTypeTaken(type, model.columns);
         return (
-          <SimpleTooltip key={type} label={COLUMN_TYPE_PURPOSE[type]} side="right">
-            <Item onSelect={() => onPick(type)} className="min-w-0">
+          <SimpleTooltip key={type} label={taken ? "Already on this board." : COLUMN_TYPE_PURPOSE[type]} side="right">
+            <Item onSelect={() => onPick(type)} disabled={taken} className="min-w-0">
               <Icon className={system ? "text-green-600 dark:text-green-400" : undefined} />
               <span className="truncate whitespace-nowrap">{COLUMN_TYPE_LABELS[type]}</span>
             </Item>

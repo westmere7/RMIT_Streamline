@@ -13,7 +13,7 @@ import type {
   EntityId,
   Item,
 } from "@/domain";
-import { portalBriefMarkdown } from "@/domain";
+import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, columnTypeTaken, portalBriefMarkdown } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap } from "./item-asset-service";
@@ -443,6 +443,9 @@ export class BoardService {
   // ---- Columns -------------------------------------------------------------
 
   async addColumn(input: BoardColumnInput & { id?: EntityId; position?: number }): Promise<BoardColumn> {
+    if (ONE_PER_BOARD_COLUMN_TYPES.includes(input.type) && columnTypeTaken(input.type, await this.repos.boards.listColumns(input.boardId))) {
+      throw new Error(`This board already has a ${COLUMN_TYPE_LABELS[input.type]} column.`);
+    }
     const column = await this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
     // A recap column summarises lines that may already exist; fill it in straight away.
     if (column.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, column.boardId, column.id);

@@ -215,7 +215,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   STAKEHOLDER: 124,
   SIZE: 110,
   ASSETS_RECAP: 200,
-  BRIEF: 220,
+  BRIEF: 110,
   DEPENDENCY: 180,
 };
 
@@ -359,10 +359,24 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   STAKEHOLDER: "Who the work is for, chosen from the workspace's departments. Groups the dashboard and drives the portal.",
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
   ASSETS_RECAP: "A live summary of the task's assets, counted from the lines themselves.",
-  BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own.",
+  BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own. One per board.",
 };
 
 /** True for the types the workspace reads meaning out of. */
 export function isSystemColumnType(type: ColumnType): boolean {
   return SYSTEM_COLUMN_TYPES.includes(type);
+}
+
+/**
+ * The special types a board holds one of. A second Status or Brief would leave
+ * the dashboard, portal and booking choosing between them.
+ *
+ * Date is the exception: a board keeps a briefed-on or start date beside its
+ * deadline, and the Deadline role says which one counts.
+ */
+export const ONE_PER_BOARD_COLUMN_TYPES: readonly ColumnType[] = SYSTEM_COLUMN_TYPES.filter((type) => type !== "DATE");
+
+/** True when a board with these columns already has its one column of this type. */
+export function columnTypeTaken(type: ColumnType, columns: readonly Pick<BoardColumn, "type">[]): boolean {
+  return ONE_PER_BOARD_COLUMN_TYPES.includes(type) && columns.some((column) => column.type === type);
 }

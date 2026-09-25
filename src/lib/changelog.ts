@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.36.2",
+    date: "2026-09-25",
+    title: "One of each special column",
+    changes: [
+      "A board holds one column of each special type. A type already on the board is greyed out in the picker. Date is the exception.",
+      "Brief columns start compact, showing only \"Brief\". Widen the column to see the start of the brief.",
+    ],
+  },
+  {
     version: "0.36.1",
     date: "2026-09-25",
     title: "Briefs follow the task",

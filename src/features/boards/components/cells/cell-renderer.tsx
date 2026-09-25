@@ -607,6 +607,9 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
   );
 }
 
+/** The width at which a Brief cell has room for the start of the brief itself. */
+const BRIEF_TEXT_WIDTH = 160;
+
 /**
  * A formatted document — the booking brief, and anything else a team writes as
  * one.
@@ -615,15 +618,19 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
  * because a column two hundred pixels wide cannot show a document and pretending
  * otherwise gives every row three lines of clipped markup. The whole of it,
  * formatted and with its links live, is one click away.
+ *
+ * A Brief column narrower than BRIEF_TEXT_WIDTH says only "Brief": a few
+ * clipped words tell nobody anything, and widening the column brings them back.
  */
 export function RichTextCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const v = valueOf("RICH_TEXT", value);
   const summary = React.useMemo(() => richTextSummary(v.text), [v.text]);
+  const compact = column.type === "BRIEF" && (width ?? column.width) < BRIEF_TEXT_WIDTH;
   return (
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly && !summary}
-      align={columnAlign(column.type)}
+      align={compact ? "center" : columnAlign(column.type)}
       ariaLabel={`${column.name} for ${item.name}`}
       contentClassName="w-[min(40rem,calc(100vw-2rem))] p-0"
       testId="rich-text-cell"
@@ -631,7 +638,7 @@ export function RichTextCell({ item, column, value, onChange, readOnly, width }:
         summary ? (
           <span className="flex min-w-0 items-center gap-1.5 px-1 text-muted-foreground">
             <FileText className="size-3.5 shrink-0 opacity-70" aria-hidden />
-            <span className="truncate">{summary}</span>
+            <span className="truncate">{compact ? "Brief" : summary}</span>
           </span>
         ) : (
           <span className="px-1" />
