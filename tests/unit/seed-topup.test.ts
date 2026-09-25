@@ -299,12 +299,13 @@ describe("teams renamed since the seed", () => {
     expect(bundle.itemColumnValues.some((v) => (v.value.type === "TEXT" || v.value.type === "LONG_TEXT") && mentions(v.value.text))).toBe(false);
     expect(bundle.notifications.some((n) => mentions(n.title) || mentions(n.body ?? ""))).toBe(false);
     expect(bundle.items.some((i) => mentions(i.description ?? ""))).toBe(false);
-    // The tag the request carried is now the current name, and nothing else moved.
-    const before = extras.itemColumnValues.filter((v) => v.value.type === "TAGS" && v.value.tags.includes("Melbourne Creative"));
+    // Where a request named the team, it now names it as it is called today, and nothing else moved.
+    const before = [...extras.items.filter((i) => (i.description ?? "").includes("Melbourne Creative")), ...extras.notifications.filter((n) => `${n.title} ${n.body ?? ""}`.includes("Melbourne Creative"))];
     expect(before.length).toBeGreaterThan(0);
-    for (const v of before) {
-      const after = bundle.itemColumnValues.find((x) => x.id === v.id)!;
-      expect(after.value.type === "TAGS" && after.value.tags).toContain("Melbourne");
+    for (const row of before) {
+      const after = [...bundle.items, ...bundle.notifications].find((x) => x.id === row.id)!;
+      expect(JSON.stringify(after)).toContain("Melbourne");
+      expect(JSON.stringify(after)).not.toContain("Melbourne Creative");
     }
     expect(bundle.items.length).toBe(extras.items.length);
     expect(renameTeamsInExtras(extras, new Map())).toBe(extras);

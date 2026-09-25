@@ -319,7 +319,10 @@ export class WorkspaceService {
     const columns = await this.repos.boards.listColumns(board.id);
     const words = (name: string) => name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
     let position = columns.length;
-    for (const wanted of taskAllocationColumns(teamNames)) {
+    // Only the special columns, which every board holds. A plain column an admin
+    // took off (a requester, an email) is theirs to have removed; putting it back
+    // on every visit is how deleted columns kept returning.
+    for (const wanted of taskAllocationColumns(teamNames).filter((c) => isSystemColumnType(c.type))) {
       // A rich-text "Brief" from before the Brief type counts as the Brief column, so it is never doubled.
       const sameKind = (type: ColumnType) => type === wanted.type || (wanted.type === "BRIEF" && type === "RICH_TEXT");
       // A special column is one per board, so any of its type is the one, whatever it is called.

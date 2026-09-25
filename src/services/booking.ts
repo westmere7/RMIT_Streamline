@@ -723,7 +723,10 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   place("requesterEmail", request.requesterEmail, (column) =>
     column.type === "LINK" ? { type: "LINK", url: `mailto:${request.requesterEmail}`, text: request.requesterEmail } : { type: "TEXT", text: request.requesterEmail },
   );
-  place("department", request.department, () => ({ type: "TEXT", text: request.department! }));
+  // The Department column holds it when the board has one (below); a line in the
+  // description saying the same would be the same word twice.
+  const departmentColumn = !!ctx.stakeholder && columns.some((c) => c.type === "STAKEHOLDER");
+  if (!departmentColumn) place("department", request.department, () => ({ type: "TEXT", text: request.department! }));
   // The main service only. The sub-services are chips in the brief, where the
   // question they answer is standing right next to them; a column holding both
   // reads as one flat list of words that used to mean two different things.

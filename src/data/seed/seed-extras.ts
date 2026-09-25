@@ -513,7 +513,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
   activity({ boardId: allocationBoardId, itemId: null, actorId: users.danh, eventType: "BOARD_CREATED", metadata: { boardName: allocationBoard.name }, createdAt: iso(systemCreated) });
 
   const allocationStatus = allocationColumns.find((c) => c.type === "STATUS")!;
-  const allocatedTo = allocationColumns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"))!;
+  const allocatedTo = allocationColumns.find((c) => c.type === "TEXT" && c.name.toLowerCase().includes("allocated"));
   const allocationRecap = allocationColumns.find((c) => c.type === "ASSETS_RECAP") ?? null;
 
   // ---- a. Stakeholder bookings -----------------------------------------------

@@ -178,18 +178,19 @@ describe("placing a booking's answers on a board", () => {
     const plan = planStandardFields(columns);
     expect(plan.requesterName?.name).toBe("Requester");
     expect(plan.requesterEmail?.name).toBe("Email");
-    expect(plan.department?.name).toBe("Requester department");
+    // The department is the Department column's, never a free-text one.
+    expect(plan.department).toBeNull();
     expect(plan.service?.name).toBe("Service");
     expect(plan.assetTypes?.name).toBe("Asset type");
     expect(plan.brief?.name).toBe("Brief");
     expect(plan.assets?.name).toBe("Assets & specs");
-    expect(plan.team?.name).toBe("Requested team");
+    expect(plan.team).toBeNull();
     expect(plan.dueDate?.name).toBe("Due Date");
     expect(plan.priority?.name).toBe("Priority");
     expect(plan.referenceUrl?.name).toBe("Reference");
 
     const req = request();
-    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Brand" }, template: defaultBookingFormTemplate() });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate(), stakeholder: "Comm." });
     expect(placement.leftover).toEqual([]);
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Requester")).toEqual({ type: "TEXT", text: "Priya Nair" });
@@ -198,7 +199,7 @@ describe("placing a booking's answers on a board", () => {
     expect(byName.get("Asset type")).toEqual({ type: "TAGS", tags: ["Print"] });
     expect(byName.get("Brief")).toEqual({ type: "RICH_TEXT", text: req.brief });
     expect(byName.get("Assets & specs")).toEqual({ type: "LONG_TEXT", text: "1. A1 poster ×6 (Print) — 594×841 mm, CMYK, print ready\n2. Instagram tile" });
-    expect(byName.get("Requested team")).toEqual({ type: "TAGS", tags: ["Brand"] });
+    expect(byName.get("Department")).toEqual({ type: "STAKEHOLDER", group: "Comm." });
     expect(byName.get("Due Date")).toEqual({ type: "DATE", date: "2026-10-01" });
     expect(byName.get("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });
     expect(byName.get("Reference")).toEqual({ type: "LINK", url: "https://example.com/brief", text: null });
@@ -513,19 +514,16 @@ describe("the built-in Admin team and Task Allocation board", () => {
     expect(columns.map((c) => c.name)).toEqual([
       "Requester",
       "Email",
-      "Requester department",
       "Department",
       "Service",
       "Asset type",
       "Brief",
       "Assets & specs",
-      "Requested team",
       "Status",
       "Priority",
       "Due Date",
       "Reference",
       "Assets recap",
-      "Allocated to",
       "Booking time",
       "PIC",
       "Timeline",
@@ -533,9 +531,6 @@ describe("the built-in Admin team and Task Allocation board", () => {
     ]);
     const serviceTags = columns.find((c) => c.name === "Service")!.settings as TagsColumnSettings;
     expect(serviceTags.options.map((o) => o.name)).toEqual(["Brand", "Design", "Production"]);
-    const teamTags = columns.find((c) => c.name === "Requested team")!.settings as TagsColumnSettings;
-    expect(teamTags.options.map((o) => o.name)).toContain("Digital");
-    expect(teamTags.options.map((o) => o.name)).not.toContain("Admin");
   });
 
   it("can be renamed but not archived or deleted", async () => {

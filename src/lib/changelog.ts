@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.4",
+    date: "2026-09-25",
+    title: "Tidier Task Allocation",
+    changes: [
+      "Task Allocation drops Requester department, Requested team and Allocated to. Department holds the department, and Requester holds the name of the person who booked.",
+      "Columns you remove from Task Allocation stay removed. Only the special columns every board has are put back.",
+    ],
+  },
+  {
     version: "0.47.3",
     date: "2026-09-25",
     title: "No more Storage settings",

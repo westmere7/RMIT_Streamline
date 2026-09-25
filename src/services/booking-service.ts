@@ -528,11 +528,10 @@ export class BookingService {
 }
 
 /** Columns the Task Allocation board is created with. Kept here so the form and the board agree. */
-export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<BoardColumn, "name" | "type"> & { settings?: BoardColumn["settings"] }> {
+export function taskAllocationColumns(_teamNames: readonly string[] = []): Array<Pick<BoardColumn, "name" | "type"> & { settings?: BoardColumn["settings"] }> {
   return [
     { name: "Requester", type: "TEXT" },
     { name: "Email", type: "TEXT" },
-    { name: "Requester department", type: "TEXT" },
     // Who the work is for: one of Settings → Departments, checked on every
     // booking, so it can be trusted and filtered on.
     { name: "Department", type: "STAKEHOLDER" },
@@ -547,13 +546,11 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     // holding a sentence each — and it is not repeated in the description.
     { name: "Brief", type: "BRIEF" },
     { name: "Assets & specs", type: "LONG_TEXT" },
-    { name: "Requested team", type: "TAGS", settings: { kind: "tags", options: teamNames.map((name, i) => ({ name, color: TEAM_TAG_COLORS[i % TEAM_TAG_COLORS.length]! })) } },
     { name: "Status", type: "STATUS" },
     { name: "Priority", type: "PRIORITY" },
     { name: "Due Date", type: "DATE" },
     { name: "Reference", type: "LINK" },
     { name: "Assets recap", type: "ASSETS_RECAP" },
-    { name: "Allocated to", type: "TEXT" },
     // When it was booked: the task's own creation time, never stored or edited.
     { name: "Booking time", type: "BOOKED_AT" },
     // The special columns every board holds, here like anywhere else.
@@ -562,8 +559,6 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Size", type: "SIZE" },
   ];
 }
-
-const TEAM_TAG_COLORS = ["blue", "orange", "violet", "green", "sky", "amber", "teal", "pink", "rose", "cyan"] as const;
 
 /**
  * The palette the Service column starts with: the services the built-in form
