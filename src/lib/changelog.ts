@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.44.1",
+    date: "2026-09-25",
+    title: "Clearer wording when removing a column",
+    changes: [
+      "Removing a special column now says: Nothing is lost. Add it back any time and its values return.",
+    ],
+  },
+  {
     version: "0.44.0",
     date: "2026-09-25",
     title: "Special columns on every board",

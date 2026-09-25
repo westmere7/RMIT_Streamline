@@ -495,7 +495,7 @@ function ColumnHeaderCell({
             onOpenChange={setConfirmDelete}
             // A special column is kept: every board holds one, so it only leaves the board.
             title={isSystemColumnType(column.type) ? `Remove “${column.name}” from the board?` : `Delete the “${column.name}” column?`}
-            description={isSystemColumnType(column.type) ? "What the tasks have in it is kept, and comes back if you add the column again." : "All values stored in this column are permanently removed from every item on the board."}
+            description={isSystemColumnType(column.type) ? "Nothing is lost. Add it back any time and its values return." : "All values stored in this column are permanently removed from every item on the board."}
             confirmLabel={isSystemColumnType(column.type) ? "Remove from board" : "Delete column"}
             destructive
             onConfirm={() => mutations.deleteColumn(column.id).then(() => undefined)}

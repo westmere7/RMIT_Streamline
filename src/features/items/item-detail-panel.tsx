@@ -1208,7 +1208,7 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={isSystemColumnType(column.type) ? `Remove “${column.name}” from the board?` : `Remove “${column.name}”?`}
-        description={isSystemColumnType(column.type) ? "What the tasks have in it is kept, and comes back if you add the column again." : "The column and everything every task has in it go, on this board and on the panel. This cannot be undone."}
+        description={isSystemColumnType(column.type) ? "Nothing is lost. Add it back any time and its values return." : "The column and everything every task has in it go, on this board and on the panel. This cannot be undone."}
         confirmLabel={isSystemColumnType(column.type) ? "Remove from board" : "Remove column"}
         destructive
         onConfirm={() => void mutations.deleteColumn(column.id)}
