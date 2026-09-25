@@ -8,9 +8,7 @@ import {
   BookOpen,
   Building2,
   Check,
-  Database,
   DatabaseBackup,
-  Download,
   Hash,
   Info,
   LayoutGrid,
@@ -20,12 +18,10 @@ import {
   Palette,
   Pencil,
   Plus,
-  RotateCcw,
   Shapes,
   ShieldCheck,
   Sun,
   SunDim,
-  Upload,
   TriangleAlert,
   UserCog,
   Users,
@@ -35,7 +31,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +39,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { Team } from "@/domain";
-import { isDataExport, type DataExport } from "@/data/repositories";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
@@ -62,7 +56,7 @@ import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "data", "danger", "documentation"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "danger", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -92,7 +86,6 @@ const SECTION_META: Record<Section, SectionMeta> = {
   view: { label: "Appearance", icon: Palette, description: "How the app looks for you, on this device.", width: "narrow" },
   documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true },
   snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Everything the workspace holds, saved in one file. Download it, or restore to it.", width: "wide" },
-  data: { label: "Storage", icon: Database, description: "Where the workspace is kept.", width: "narrow" },
   danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and owners only.", width: "wide" },
 };
 
@@ -102,7 +95,7 @@ const NAV_GROUPS: Array<{ label: string; sections: Section[]; members?: boolean;
   { label: "Lists", sections: ["departments", "asset-types"] },
   { label: "People", sections: ["permissions"], members: true },
   { label: "You", sections: ["view"] },
-  { label: "Data", sections: ["snapshots", "data", "danger"] },
+  { label: "Data", sections: ["snapshots", "danger"] },
   { label: "Help", sections: ["documentation"], about: true },
 ];
 
@@ -176,7 +169,7 @@ export function SettingsPage() {
         </nav>
         <div data-settings-content className="scrollbar-thin min-w-0 flex-1 overflow-y-auto px-4 py-5 md:px-10 md:py-8">
           <div className={WIDTH_CLASSES[meta.width]}>
-            {!meta.bare && <SectionHeader meta={meta} description={section === "data" ? undefined : meta.description} />}
+            {!meta.bare && <SectionHeader meta={meta} description={meta.description} />}
             {section === "general" && <OverviewSection onGo={go} />}
             {section === "tickets" && <TicketsSection />}
             {section === "teams" && <TeamsSection />}
@@ -187,7 +180,6 @@ export function SettingsPage() {
             {section === "documentation" && <DocumentationSection />}
             {section === "snapshots" && <SnapshotsSection />}
             {section === "danger" && <DangerZoneSection />}
-            {section === "data" && <DataSection />}
           </div>
         </div>
         <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
@@ -468,142 +460,3 @@ function AppearanceSection() {
   );
 }
 
-function DataSection() {
-  const ws = useWorkspace();
-  const { providerKind } = useDataContext();
-  const services = useServices();
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const [confirm, setConfirm] = React.useState(false);
-  const [pendingImport, setPendingImport] = React.useState<{ data: DataExport; filename: string } | null>(null);
-  const [exporting, setExporting] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const manage = canManageWorkspace(ws.permissions);
-
-  const exportData = async () => {
-    setExporting(true);
-    try {
-      const data = await services.repos.admin.exportAll();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `streamline-${ws.slug}-${data.exportedAt.slice(0, 10)}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      const count = Object.values(data.stores).reduce((sum, rows) => sum + rows.length, 0);
-      toast.success("Data exported", { description: `${count.toLocaleString()} records saved to ${anchor.download}` });
-    } catch (error) {
-      console.error("[data] export failed", error);
-      toast.error("Could not export data");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const pickFile = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      const parsed: unknown = JSON.parse(await file.text());
-      if (!isDataExport(parsed)) {
-        toast.error("That file is not a Streamline export");
-        return;
-      }
-      setPendingImport({ data: parsed, filename: file.name });
-    } catch (error) {
-      console.error("[data] import parse failed", error);
-      toast.error("Could not read that file");
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const importCounts = pendingImport
-    ? {
-        boards: pendingImport.data.stores.boards?.length ?? 0,
-        items: pendingImport.data.stores.items?.length ?? 0,
-        users: pendingImport.data.stores.users?.length ?? 0,
-      }
-    : null;
-
-  return (
-    <>
-      <p className="-mt-3 mb-5 text-[13px] text-muted-foreground">
-        {providerKind === "supabase"
-          ? "Kept in Supabase Postgres and shared by everyone in the workspace. Row-level security decides what each person sees."
-          : "Kept in this browser only (IndexedDB). Each browser and each device holds its own copy."}
-      </p>
-      {providerKind === "supabase" ? (
-        <SettingsCard title="Backups">
-          <p className="text-[13px] text-muted-foreground">A snapshot keeps a copy of everything, to download or to restore.</p>
-          {manage && (
-            <Button asChild variant="outline" size="sm" className="mt-3">
-              <Link href={routes.settings(ws.slug, "snapshots")}>
-                <DatabaseBackup /> Snapshots
-              </Link>
-            </Button>
-          )}
-        </SettingsCard>
-      ) : (
-        <div className="space-y-4">
-          <SettingsCard title="Export">
-            <p className="mb-3 text-[13px] text-muted-foreground">Everything in this browser as one JSON file, to move it to another browser or share a scenario.</p>
-            <Button variant="outline" size="sm" disabled={exporting} onClick={() => void exportData()} data-testid="export-data">
-              <Download /> {exporting ? "Exporting…" : "Export data"}
-            </Button>
-          </SettingsCard>
-          <SettingsCard title="Import">
-            <p className="mb-3 text-[13px] text-muted-foreground">Replaces everything in this browser with an exported file.</p>
-            <input ref={fileInputRef} type="file" accept="application/json,.json" hidden aria-label="Choose export file" onChange={(e) => void pickFile(e.target.files?.[0])} />
-            <Button variant="outline" size="sm" disabled={!manage} onClick={() => fileInputRef.current?.click()} data-testid="import-data">
-              <Upload /> Import data…
-            </Button>
-            {!manage && <p className="mt-2 text-2xs text-muted-foreground">Owners and admins only.</p>}
-          </SettingsCard>
-          <SettingsCard title="Reset demo data">
-            <p className="mb-3 text-[13px] text-muted-foreground">Puts back the original boards, items and comments. Local changes are lost.</p>
-            <Button variant="destructive" size="sm" disabled={!manage} onClick={() => setConfirm(true)}>
-              <RotateCcw /> Reset demo data
-            </Button>
-            {!manage && <p className="mt-2 text-2xs text-muted-foreground">Owners and admins only.</p>}
-          </SettingsCard>
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={pendingImport !== null}
-        onOpenChange={(open) => !open && setPendingImport(null)}
-        title="Import and replace local data?"
-        description={
-          pendingImport && importCounts
-            ? `${pendingImport.filename} contains ${importCounts.boards} boards, ${importCounts.items} items and ${importCounts.users} people (exported ${new Date(pendingImport.data.exportedAt).toLocaleString()}). Everything currently in this browser will be replaced. You will be signed out if your account is not in the file.`
-            : undefined
-        }
-        confirmLabel="Import data"
-        destructive
-        onConfirm={async () => {
-          if (!pendingImport) return;
-          await services.repos.admin.importAll(pendingImport.data);
-          queryClient.clear();
-          toast.success("Data imported");
-          // Full reload so auth, workspace and board queries all start from the imported state.
-          window.location.assign(routes.root());
-        }}
-      />
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title="Reset demo data?"
-        description="All boards, items, comments and notifications in this browser will be replaced with the original seed. This cannot be undone."
-        confirmLabel="Reset data"
-        destructive
-        onConfirm={async () => {
-          await services.repos.admin.resetToSeed();
-          queryClient.clear();
-          toast.success("Demo data reset");
-          router.replace(routes.workspace(ws.slug));
-        }}
-      />
-    </>
-  );
-}

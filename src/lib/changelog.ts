@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.3",
+    date: "2026-09-25",
+    title: "No more Storage settings",
+    changes: [
+      "Settings no longer has a Storage section. Snapshots and the Danger zone cover what it was for.",
+    ],
+  },
+  {
     version: "0.47.2",
     date: "2026-09-25",
     title: "Archived items, away from Archive board",
