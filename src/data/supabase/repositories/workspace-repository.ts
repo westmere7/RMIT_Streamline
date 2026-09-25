@@ -25,7 +25,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {
-    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates, ticket_prefix: patch.ticketPrefix });
+    const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, booking_form_name: patch.bookingFormName, booking_form_published_at: patch.bookingFormPublishedAt, booking_form_bookings: patch.bookingFormBookings, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates, ticket_prefix: patch.ticketPrefix });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
     return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
   }
@@ -42,6 +42,12 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     const first = Number(result.data);
     if (!Number.isFinite(first) || first < 1) throw new Error("workspaces.allocateTicketNumbers: the database returned no number");
     return first;
+  }
+
+  /** One statement in the database, so two bookings landing together each count. */
+  async countFormBooking(workspaceId: string): Promise<void> {
+    const result = await db().rpc("count_form_booking", { p_workspace: workspaceId });
+    if (result.error) throw new Error(`workspaces.countFormBooking: ${result.error.message}`);
   }
 
   async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {

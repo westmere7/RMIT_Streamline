@@ -23,6 +23,12 @@ export interface Workspace extends Timestamps {
    * there is no work in progress.
    */
   bookingFormDraft?: BookingFormTemplate | null;
+  /** What the live form was called when it was published. */
+  bookingFormName?: string | null;
+  /** When the live form was last published. Null when that was before it was recorded. */
+  bookingFormPublishedAt?: string | null;
+  /** Tasks booked through the form since it was last published. */
+  bookingFormBookings?: number | null;
   /**
    * What the stakeholder portal calls the team — "RMIT Creative", say, where the
    * workspace itself is "RMIT VN MKT". Presentation only: it never renames the

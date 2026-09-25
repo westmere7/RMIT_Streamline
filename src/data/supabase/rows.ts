@@ -127,6 +127,9 @@ export interface WorkspaceRow {
   booking_key: string | null;
   booking_form: BookingFormTemplate | null;
   booking_form_draft?: BookingFormTemplate | null;
+  booking_form_name?: string | null;
+  booking_form_published_at?: string | null;
+  booking_form_bookings?: number | null;
   asset_rates: unknown;
   creative_team_name: string | null;
   ticket_prefix: string | null;
@@ -135,10 +138,10 @@ export interface WorkspaceRow {
   updated_at: string;
 }
 
-export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, creative_team_name, asset_rates, ticket_prefix, ticket_counter, created_at, updated_at";
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_bookings, creative_team_name, asset_rates, ticket_prefix, ticket_counter, created_at, updated_at";
 
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, bookingFormName: row.booking_form_name ?? null, bookingFormPublishedAt: row.booking_form_published_at ?? null, bookingFormBookings: row.booking_form_bookings ?? 0, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {

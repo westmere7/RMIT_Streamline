@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LayoutTemplate, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, FileCheck2, LayoutTemplate, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -23,6 +23,10 @@ export interface TemplatesMenuProps {
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
   onReset: () => void;
+  /** Puts the published form back in the editor, to start from what stakeholders see. */
+  onLoadLive: () => void;
+  /** The editor already holds the published form. */
+  showingLive: boolean;
 }
 
 /**
@@ -34,7 +38,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset }: TemplatesMenuProps) {
+export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [loadOpen, setLoadOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -82,6 +86,9 @@ export function TemplatesMenu({ templates, current, onLoad, onSaveTemplate, onDe
             {templates.length > 0 && <span className="ml-auto text-2xs text-muted-foreground tabular">{templates.length}</span>}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onLoadLive} disabled={showingLive} data-testid="booking-editor-load-live">
+            <FileCheck2 /> Load the published form
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={onReset} data-testid="booking-editor-reset">
             <RotateCcw /> Start from the built-in form
           </DropdownMenuItem>

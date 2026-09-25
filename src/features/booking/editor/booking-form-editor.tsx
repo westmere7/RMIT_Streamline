@@ -35,6 +35,7 @@ import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { ChoiceChips } from "./choice-chips";
 import { PreviewDialog } from "./preview-dialog";
+import { PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesMenu } from "./templates-menu";
 
@@ -66,7 +67,11 @@ export interface BookingFormEditorProps {
   savingDraft: boolean;
   publishing: boolean;
   onSaveDraft: (template: BookingFormTemplate) => Promise<void>;
-  onPublish: (template: BookingFormTemplate) => Promise<void>;
+  onPublish: (template: BookingFormTemplate, name: string) => Promise<void>;
+  /** The form stakeholders are using: its name, when it went live, how much it has been booked through. */
+  published: Omit<PublishedFormInfo, "template">;
+  /** The team's name, which a newly published form is named after unless someone types another. */
+  teamName: string;
   onDiscardDraft: () => Promise<void>;
   /** Leaves the editor, where the page has somewhere to go. */
   onClose?: () => void;
@@ -101,6 +106,8 @@ export function BookingFormEditor({
   publishing,
   onSaveDraft,
   onPublish,
+  published,
+  teamName,
   onDiscardDraft,
   onClose,
   onSaveTemplate,
@@ -169,6 +176,7 @@ export function BookingFormEditor({
   // The controls: beside the form when the page offers a place for them, above it otherwise.
   const panel = (
     <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
+      <PublishedFormCard info={{ ...published, template: live }} />
       <div>
         <p className="text-[13px] font-medium">Editing the form</p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
@@ -229,6 +237,12 @@ export function BookingFormEditor({
               setDraft(fresh);
               setSelectedService(fresh.services[0]?.id ?? null);
             }}
+            onLoadLive={() => {
+              setDraft(clone(live));
+              setSelectedService(live.services[0]?.id ?? null);
+              toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
+            }}
+            showingLive={matchesLive}
           />
         </div>
       </div>
@@ -366,14 +380,7 @@ export function BookingFormEditor({
           setSelectedService(live.services[0]?.id ?? null);
         }}
       />
-      <ConfirmDialog
-        open={confirmPublish}
-        onOpenChange={setConfirmPublish}
-        title="Publish this form?"
-        description="Every stakeholder gets it straight away, on the portal and the public link. Anyone part-way through a booking finishes on the form they started."
-        confirmLabel="Publish"
-        onConfirm={() => onPublish(draft)}
-      />
+      <PublishDialog open={confirmPublish} onOpenChange={setConfirmPublish} teamName={teamName} onPublish={(name) => onPublish(draft, name)} />
     </div>
   );
 }

@@ -51,6 +51,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
       getBySlug: async () => null,
       update: readOnly("editing the workspace"),
       allocateTicketNumbers: readOnly("handing out a ticket"),
+      countFormBooking: readOnly("taking a booking"),
       listMembers: async () => [],
       listMembershipsForUser: async () => [],
       addMember: readOnly("adding a member"),

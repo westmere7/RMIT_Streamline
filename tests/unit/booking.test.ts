@@ -680,6 +680,20 @@ describe("booking a task", () => {
     if (!plan.requesterEmail) expect(item.description).toContain("priya@rmit.edu.au");
   });
 
+  it("names the published form, stamps when, and counts bookings from then", async () => {
+    await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
+    await services.booking.publishForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");
+    let workspace = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!;
+    expect(workspace.bookingFormName).toBe("RMIT Marketing · 25 Sep 2026, 10:42");
+    expect(workspace.bookingFormPublishedAt).toBeTruthy();
+    expect(workspace.bookingFormBookings).toBe(0);
+
+    await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
+    await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
+    workspace = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!;
+    expect(workspace.bookingFormBookings).toBe(2);
+  });
+
   it("falls back to the allocation queue when the service names a team that has gone", async () => {
     const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
     const events = teams.find((t) => t.name === "Events")!;

@@ -31,6 +31,15 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     return updated;
   }
 
+  /** The booking counter, bumped inside one transaction like the ticket counter below. */
+  async countFormBooking(workspaceId: string): Promise<void> {
+    const db = await this.conn.getDb();
+    const tx = db.transaction("workspaces", "readwrite");
+    const existing = await tx.store.get(workspaceId);
+    if (existing) await tx.store.put({ ...existing, bookingFormBookings: (existing.bookingFormBookings ?? 0) + 1 });
+    await tx.done;
+  }
+
   /**
    * The same bargain as the Supabase provider, inside one IndexedDB
    * transaction: read the counter, add to it and write it back with nothing

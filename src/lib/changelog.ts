@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.33.0",
+    date: "2026-09-25",
+    title: "Form editor: the published form, named",
+    changes: [
+      "The form editor shows the published form: its name, how many questions it asks, when it was published and how many tasks were booked since.",
+      "Publishing asks for a name, defaulting to the team name with the date and time.",
+      "Templates → Load the published form puts the live form back in the editor.",
+      "Dashboard names lead somewhere: people open their profile, teams their page, and a department narrows the workload to it.",
+    ],
+  },
+  {
     version: "0.32.0",
     date: "2026-09-25",
     title: "Departments, calmer motion, and a changelog",

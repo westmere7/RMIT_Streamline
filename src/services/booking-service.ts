@@ -227,6 +227,9 @@ export class BookingService {
     );
 
     await this.notifyAdmins(members, board, item, request, team, actorId);
+    // A figure for the form editor. The booking has landed either way, so a
+    // counter that cannot be bumped is not a reason to tell the stakeholder no.
+    await this.repos.workspaces.countFormBooking(workspaceId).catch(() => undefined);
     return {
       itemId: item.id,
       itemName: item.name,
@@ -279,19 +282,19 @@ export class BookingService {
    * worked towards has arrived, and leaving it behind would have the editor
    * open for ever after on a "draft" identical to the live form.
    */
-  async publishForm(workspaceId: EntityId, input: BookingFormTemplate): Promise<BookingFormTemplate> {
+  async publishForm(workspaceId: EntityId, input: BookingFormTemplate, name?: string | null): Promise<BookingFormTemplate> {
     const template = normaliseBookingTemplate(input);
     // A form published exactly as the built-in one is stored as nothing at all,
     // so the workspace goes on following the built-in form as the app improves
     // it rather than pinning today's copy of it.
     const stored = isDefaultBookingTemplate(template) ? null : template;
-    await this.repos.workspaces.update(workspaceId, { bookingForm: stored, bookingFormDraft: null });
+    await this.repos.workspaces.update(workspaceId, { bookingForm: stored, bookingFormDraft: null, bookingFormName: name?.trim().slice(0, 120) || null, bookingFormPublishedAt: new Date().toISOString(), bookingFormBookings: 0 });
     return template;
   }
 
   /** Back to the built-in form, live and in the editor. */
   async resetForm(workspaceId: EntityId): Promise<BookingFormTemplate> {
-    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null });
+    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null, bookingFormName: null, bookingFormPublishedAt: new Date().toISOString(), bookingFormBookings: 0 });
     return defaultBookingFormTemplate();
   }
 

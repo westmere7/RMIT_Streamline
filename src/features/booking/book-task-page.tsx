@@ -102,7 +102,7 @@ export function BookTaskPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the draft"),
   });
   const publishForm = useMutation({
-    mutationFn: (template: BookingFormTemplate) => services.booking.publishForm(ws.workspace.id, template),
+    mutationFn: ({ template, name }: { template: BookingFormTemplate; name: string }) => services.booking.publishForm(ws.workspace.id, template, name),
     onSuccess: async () => {
       await formChanged();
       toast.success("Form published", { description: "Everyone sees the new form from now on." });
@@ -223,7 +223,14 @@ export function BookTaskPage() {
                 savingDraft={saveDraft.isPending}
                 publishing={publishForm.isPending}
                 onSaveDraft={(template) => saveDraft.mutateAsync(template).then(() => undefined)}
-                onPublish={(template) => publishForm.mutateAsync(template).then(() => undefined)}
+                onPublish={(template, name) => publishForm.mutateAsync({ template, name }).then(() => undefined)}
+                published={{
+                  name: ws.workspace.bookingFormName ?? null,
+                  publishedAt: ws.workspace.bookingFormPublishedAt ?? null,
+                  bookings: ws.workspace.bookingFormBookings ?? 0,
+                  builtIn: !ws.workspace.bookingForm,
+                }}
+                teamName={ws.workspace.creativeTeamName?.trim() || ws.workspace.name}
                 onDiscardDraft={discardDraft}
                 onSaveTemplate={saveTemplate}
                 onDeleteTemplate={deleteTemplate}

@@ -78,6 +78,8 @@ export interface WorkspaceRepository {
    * never given back — a ticket is something somebody was told.
    */
   allocateTicketNumbers(workspaceId: EntityId, count?: number): Promise<number>;
+  /** Counts one booking against the published form, atomically. */
+  countFormBooking(workspaceId: EntityId): Promise<void>;
   listMembers(workspaceId: EntityId): Promise<WorkspaceMember[]>;
   listMembershipsForUser(userId: EntityId): Promise<WorkspaceMember[]>;
   addMember(input: Omit<WorkspaceMember, "id">): Promise<WorkspaceMember>;
