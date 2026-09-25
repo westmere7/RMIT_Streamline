@@ -283,7 +283,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 >
                   {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
                 </button>
-                <div className="flex h-full min-w-0 items-center">
+                {/* Renaming, the field spans the whole cell and the badges and buttons step aside for it. */}
+                <div className={cn("flex h-full min-w-0 items-center", renaming && "flex-1 pr-1")}>
                   {renaming ? (
                     <InlineEdit
                       value={item.name}
@@ -314,9 +315,9 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     </button>
                   )}
                 </div>
-                {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
-                <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
-                {blocked && <BlockedDot />}
+                {!renaming && linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+                {!renaming && <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />}
+                {!renaming && blocked && <BlockedDot />}
                 {movingTo && (
                   <span
                     className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary"
@@ -326,7 +327,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     <LoaderCircle className="size-3 animate-spin" /> Moving…
                   </span>
                 )}
-                <div className={HOVER_ACTIONS}>
+                <div className={cn(HOVER_ACTIONS, renaming && "hidden")}>
                   {canEdit && (
                     <SimpleTooltip label="Rename">
                       <button
@@ -447,7 +448,7 @@ const SCROLL_SPEED = 40;
 
 /**
  * An item's name. One too long for its cell scrolls to its end and back while
- * the row is hovered, after a second's pause, and keeps doing so until the
+ * the row is hovered, after half a second, and keeps doing so until the
  * pointer leaves (the name-marquee keyframes in globals.css). At rest, and for
  * anyone who asks for less motion, it sits still with its end faded.
  */
@@ -627,9 +628,9 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                   <ScrollingName name={item.name} overflow={nameClipped} />
                 </button>
               )}
-              {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
-                <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
-              {canEdit && (
+              {!renaming && linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
+              {!renaming && <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />}
+              {canEdit && !renaming && (
                 <div className={HOVER_ACTIONS}>
                   <button
                     type="button"

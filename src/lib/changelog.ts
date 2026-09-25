@@ -22,7 +22,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-09-25",
     title: "Long names scroll",
     changes: [
-      "Hover a row whose name is too long, and after a second the name scrolls to its end and back, looping until you move away. It stays still for anyone who asks their system for less motion.",
+      "Hover a row whose name is too long, and after half a second the name scrolls to its end and back, looping until you move away. It stays still for anyone who asks their system for less motion.",
+      "Renaming a task, the name field spans the whole cell; its badges and buttons step aside until you are done.",
       "Done tasks are no longer crossed out anywhere. They stay slightly muted.",
     ],
   },

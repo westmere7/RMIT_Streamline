@@ -663,7 +663,7 @@ html[data-booking-zoom] [data-radix-select-viewport] {
 }
 
 /* A board item's name too long for its cell scrolls to its end and back while
-   its row is hovered, after a second's pause, and loops until the pointer
+   its row is hovered, after half a second, and loops until the pointer
    leaves (ScrollingName in src/features/boards/components/table/item-row.tsx). */
 @keyframes name-marquee {
   0%,
@@ -681,7 +681,7 @@ html[data-booking-zoom] [data-radix-select-viewport] {
 }
 
 .group\/row:hover .name-marquee {
-  animation: name-marquee var(--marquee-duration, 6s) ease-in-out 1s infinite;
+  animation: name-marquee var(--marquee-duration, 6s) ease-in-out 0.5s infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
