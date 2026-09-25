@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.7",
+    date: "2026-09-25",
+    title: "Time in each status, redrawn",
+    changes: [
+      "Task journey's Time in each status is a card of its own, longest first. Each status has a bar for its share, its time and percentage, and the one the task is in now is marked.",
+      "The Where the time went bar is gone. The figures above it already give the queue and team times.",
+    ],
+  },
+  {
     version: "0.41.6",
     date: "2026-09-25",
     title: "Task journey on the portal",
