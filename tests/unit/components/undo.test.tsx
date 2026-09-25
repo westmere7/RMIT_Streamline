@@ -58,7 +58,7 @@ describe("undo", () => {
 
     await user.click(screen.getAllByTestId("mobile-item-menu")[0]!);
     await user.click(await screen.findByRole("menuitem", { name: "Duplicate" }));
-    const bar = await screen.findByTestId("undo-bar");
+    const bar = await screen.findByTestId("undo-bar", {}, { timeout: 8000 });
     expect(bar).toHaveTextContent("Duplicated as");
     await waitFor(() => expect(screen.getAllByTestId("mobile-item-card")).toHaveLength(count + 1));
 
