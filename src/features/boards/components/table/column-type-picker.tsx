@@ -35,9 +35,9 @@ interface MenuItemProps {
  * still has to answer one question across all of them, so it finds what it
  * needs by these types rather than by the names boards give them.
  *
- * The green icon marks them, with one small line under the group saying why.
- * A heading over it was tried and dropped: it pushed the types down the menu
- * to explain something nobody needs before they have seen them.
+ * Each group ends with one small line saying what sets it apart, and the green
+ * icon marks the second. Headings over them were tried and dropped: they
+ * pushed the types down the menu and read as clutter.
  *
  * A special type the board already has is greyed out: a board holds one of
  * each (see ONE_PER_BOARD_COLUMN_TYPES). Picking it moves the one
@@ -97,14 +97,16 @@ export function ColumnTypePicker({
       })}
     </div>
   );
+  // Under each group rather than over it: the types are what you came for,
+  // and this only says why they are set apart.
+  const note = (text: string) => <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">{text}</p>;
   return (
     <div>
       {group(PLAIN_TYPES, false)}
+      {note("This board's own, as many as you like.")}
       <div className="mt-1 border-t pt-1">
         {group(systemTypes, true)}
-        {/* Under the group rather than over it: the types are what you came for,
-            and this only explains why they are set apart. */}
-        <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Read by the dashboard, portal and booking.</p>
+        {note("One each, read by the dashboard and portal.")}
       </div>
     </div>
   );
