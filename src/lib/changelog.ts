@@ -18,12 +18,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.3",
+    date: "2026-09-25",
+    title: "Quicker scroll, roomier rename",
+    changes: [
+      "A long name starts scrolling after half a second of hover.",
+      "When you rename a task, the name field spans the whole cell. Its badges and buttons step aside until you finish.",
+      "The logo at the top of the sidebar sits a little further in.",
+    ],
+  },
+  {
     version: "0.41.2",
     date: "2026-09-25",
     title: "Long names scroll",
     changes: [
-      "Hover a row whose name is too long, and after half a second the name scrolls to its end and back, looping until you move away. It stays still for anyone who asks their system for less motion.",
-      "Renaming a task, the name field spans the whole cell; its badges and buttons step aside until you are done.",
+      "Hover a row whose name is too long, and after a second the name scrolls to its end and back, looping until you move away. It stays still for anyone who asks their system for less motion.",
       "Done tasks are no longer crossed out anywhere. They stay slightly muted.",
     ],
   },

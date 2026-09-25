@@ -221,7 +221,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               type="button"
               onClick={() => setAboutOpen(true)}
               aria-label="About Streamline"
-              className="flex min-w-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring"
+              className={cn("flex min-w-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring", !collapsed && "ml-2")}
               data-testid="sidebar-about"
             >
               {collapsed ? <BrandMark className="size-8 rounded-xl shadow-xs" /> : <BrandLogo className="h-6" />}
