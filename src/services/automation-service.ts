@@ -561,6 +561,12 @@ function labelOrPlain(column: BoardColumn | undefined, value: ColumnValue): stri
       return [value.start, value.end].filter(Boolean).join(" to ");
     case "NUMBER":
       return value.number === null ? "" : String(value.number);
+    case "PLAIN_DATE":
+      return value.date ?? "";
+    case "TIME":
+      return value.time ?? "";
+    case "DATETIME":
+      return value.at ? value.at.slice(0, 16).replace("T", " ") : "";
     case "TEXT":
     case "LONG_TEXT":
     case "RICH_TEXT":

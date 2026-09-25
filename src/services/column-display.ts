@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, User } from "@/domain";
-import { columnLabels, formatAssetsRecap } from "@/domain";
+import { columnLabels, dateTimeSettings, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 
@@ -50,6 +50,12 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return richTextToPlain(value.text) || null;
     case "NUMBER":
       return value.number === null ? null : String(value.number);
+    case "PLAIN_DATE":
+      return formatPlainDate(value.date, dateTimeSettings(column.settings).dateFormat);
+    case "TIME":
+      return formatTimeOfDay(value.time, dateTimeSettings(column.settings).timeFormat);
+    case "DATETIME":
+      return formatDateTime(value.at, dateTimeSettings(column.settings));
     case "CHECKBOX":
       return value.checked ? "Checked" : "Unchecked";
     case "LINK":

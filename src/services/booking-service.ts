@@ -516,6 +516,8 @@ export function taskAllocationColumns(teamNames: readonly string[]): Array<Pick<
     { name: "Reference", type: "LINK" },
     { name: "Assets recap", type: "ASSETS_RECAP" },
     { name: "Allocated to", type: "TEXT" },
+    // When it was booked: the task's own creation time, never stored or edited.
+    { name: "Booking time", type: "BOOKED_AT" },
   ];
 }
 

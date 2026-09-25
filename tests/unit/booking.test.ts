@@ -526,6 +526,7 @@ describe("the built-in Admin team and Task Allocation board", () => {
       "Reference",
       "Assets recap",
       "Allocated to",
+      "Booking time",
     ]);
     const serviceTags = columns.find((c) => c.name === "Service")!.settings as TagsColumnSettings;
     expect(serviceTags.options.map((o) => o.name)).toEqual(["Brand", "Design", "Production"]);

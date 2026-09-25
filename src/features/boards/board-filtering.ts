@@ -147,6 +147,12 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return value.start ?? value.end;
     case "NUMBER":
       return value.number;
+    case "PLAIN_DATE":
+      return value.date;
+    case "TIME":
+      return value.time;
+    case "DATETIME":
+      return value.at ? new Date(value.at).getTime() : null;
     case "CHECKBOX":
       // Ticked first when ascending.
       return value.checked ? 0 : 1;
@@ -180,6 +186,8 @@ export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<Filter
   if (columnId !== null) {
     const column = ctx.columns.find((c) => c.id === columnId);
     if (!column) return 0;
+    // The booking time is the task's own creation time; nothing is stored in the cell.
+    if (column.type === "BOOKED_AT") return compareKeys(new Date(a.createdAt).getTime(), new Date(b.createdAt).getTime(), dir);
     return compareKeys(cellSortKey(column, ctx.getValue(a.id, column.id), ctx), cellSortKey(column, ctx.getValue(b.id, column.id), ctx), dir);
   }
   switch (sort.field) {

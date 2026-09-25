@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.0",
+    date: "2026-09-25",
+    title: "Date, Time and Date + Time columns",
+    changes: [
+      "Three new columns: Date, Time and Date + Time. None of them counts as a deadline.",
+      "Format in a column's menu sets how its values are written: Sep 16, 16 Sep 2026, 16/09/2026 or 2026-09-16, and 19:06 or 7:06 PM. Date + Time is compact by default: Sep 16, 19:06.",
+      "Task Allocation has a Booking time column, filled in by itself from when the task was booked and never edited. No other board can have one.",
+      "Automations can set the new columns.",
+    ],
+  },
+  {
     version: "0.40.1",
     date: "2026-09-25",
     title: "Threads read as threads",

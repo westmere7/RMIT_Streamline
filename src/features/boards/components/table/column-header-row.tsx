@@ -30,6 +30,7 @@ import type { BoardColumn, BoardGroup } from "@/domain";
 import { COLUMN_ROLE_LABELS, COLUMN_ROLE_PURPOSE, COLUMN_TYPE_LABELS, hasEditableLabels, isSystemColumnType, rolesForType } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TicketHeaderCell } from "@/features/boards/components/table/ticket-cell";
+import { ColumnFormatMenu } from "@/features/boards/components/table/column-format-menu";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -427,6 +428,7 @@ function ColumnHeaderCell({
                       <Tags /> Edit tags
                     </DropdownMenuItem>
                   )}
+                  <ColumnFormatMenu column={column} />
                   {/* What the workspace should read off this column. Only shown
                       where the column's type could do a job at all. */}
                   {roleOptions.length > 0 && (
@@ -526,6 +528,7 @@ function ColumnHeaderCell({
             <Tags /> Edit tags
           </ContextMenuItem>
         )}
+        <ColumnFormatMenu column={column} variant="context" />
         <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger>

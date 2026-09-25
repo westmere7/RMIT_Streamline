@@ -1,5 +1,6 @@
 import type { ColorToken, EntityId } from "@/domain/common/types";
 import type { ColumnRole } from "@/domain/board/column-role";
+import { DEFAULT_DATE_TIME_SETTINGS, type DateTimeColumnSettings } from "@/domain/board/date-time-format";
 
 export const COLUMN_TYPES = [
   "TEXT",
@@ -12,6 +13,9 @@ export const COLUMN_TYPES = [
   "DATE",
   "TIMELINE",
   "NUMBER",
+  "PLAIN_DATE",
+  "TIME",
+  "DATETIME",
   "PRIORITY",
   "CHECKBOX",
   "LINK",
@@ -20,6 +24,7 @@ export const COLUMN_TYPES = [
   "SIZE",
   "ASSETS_RECAP",
   "BRIEF",
+  "BOOKED_AT",
   "DEPENDENCY",
 ] as const;
 
@@ -135,7 +140,10 @@ export interface EmptyColumnSettings {
   kind: "none";
 }
 
+export type { DateTimeColumnSettings };
+
 export type ColumnSettings =
+  | DateTimeColumnSettings
   | StatusColumnSettings
   | DropdownColumnSettings
   | PriorityColumnSettings
@@ -186,6 +194,9 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   DATE: "Due date",
   TIMELINE: "Timeline",
   NUMBER: "Number",
+  PLAIN_DATE: "Date",
+  TIME: "Time",
+  DATETIME: "Date + Time",
   PRIORITY: "Priority",
   CHECKBOX: "Checkbox",
   LINK: "Link",
@@ -194,6 +205,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   SIZE: "Size",
   ASSETS_RECAP: "Assets recap",
   BRIEF: "Brief",
+  BOOKED_AT: "Booking time",
   DEPENDENCY: "Dependency",
 };
 
@@ -208,6 +220,10 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   DATE: 130,
   TIMELINE: 190,
   NUMBER: 110,
+  PLAIN_DATE: 120,
+  TIME: 90,
+  // Compact on purpose: "Sep 16, 19:06" and no more.
+  DATETIME: 130,
   PRIORITY: 130,
   CHECKBOX: 90,
   LINK: 170,
@@ -216,6 +232,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   SIZE: 110,
   ASSETS_RECAP: 200,
   BRIEF: 110,
+  BOOKED_AT: 130,
   DEPENDENCY: 180,
 };
 
@@ -274,6 +291,11 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
       return { kind: "number", unit: null, decimals: 0 };
     case "TAGS":
       return { kind: "tags", options: [] };
+    case "PLAIN_DATE":
+    case "TIME":
+    case "DATETIME":
+    case "BOOKED_AT":
+      return { ...DEFAULT_DATE_TIME_SETTINGS };
     default:
       return { kind: "none" };
   }
@@ -331,7 +353,7 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  * Naming is still the board's business: a team that calls its PIC column
  * "Designer" is understood perfectly well.
  */
-export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF"];
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF", "BOOKED_AT"];
 
 /**
  * What each type is for, shown when the type is hovered in the picker.
@@ -347,6 +369,9 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   DROPDOWN: "One of a list of choices the board defines, with colours. A status without the meanings.",
   PEOPLE: "People with no bearing on the work — a requester, a contact. For who is doing it, use PIC.",
   NUMBER: "A number, with a unit if it needs one.",
+  PLAIN_DATE: "A calendar day, with no bearing on deadlines. For when it is due, use Due date.",
+  TIME: "A time of day.",
+  DATETIME: "A day and a time together, kept compact: Sep 16, 19:06.",
   CHECKBOX: "Ticked or not.",
   LINK: "A web address, with its own text if a bare URL would not read well.",
   TAGS: "Any number of labels at once, from a palette the board keeps.",
@@ -360,6 +385,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
   ASSETS_RECAP: "A live summary of the task's assets, counted from the lines themselves.",
   BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own.",
+  BOOKED_AT: "When the task was booked. Filled in by itself and never edited. Task Allocation only.",
 };
 
 /** True for the types the workspace reads meaning out of. */

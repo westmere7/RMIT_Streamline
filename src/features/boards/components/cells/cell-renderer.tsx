@@ -5,10 +5,11 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, emptyValueFor, formatAssetsRecap, isProgressLabel, isStuckLabel, priorityStrength, recapAssets, statusRoleIds } from "@/domain";
+import { columnLabels, columnTagOptions, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, recapAssets, statusRoleIds } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
+import { DateTimePicker, TimePicker } from "@/features/boards/components/pickers/time-picker";
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
@@ -65,6 +66,14 @@ export function CellRenderer(props: CellProps) {
       return <RichTextCell {...props} />;
     case "NUMBER":
       return <NumberCell {...props} />;
+    case "PLAIN_DATE":
+      return <PlainDateCell {...props} />;
+    case "TIME":
+      return <TimeCell {...props} />;
+    case "DATETIME":
+      return <DateTimeCell {...props} />;
+    case "BOOKED_AT":
+      return <BookedAtCell {...props} />;
     case "CHECKBOX":
       return <CheckboxCell {...props} />;
     case "LINK":
@@ -437,6 +446,60 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
     >
       {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "DATE", date })} onDone={close} />}
     </PopoverCell>
+  );
+}
+
+// ---- Plain date, time, date + time, booking time ---------------------------
+//
+// Dates that mean nothing to deadlines: no overdue colour, no calendar view.
+// Each column writes its value in the format it was given (Format, in the
+// column's menu); the defaults are the compact ones.
+
+const EMPTY_DASH = <span className="text-2xs text-muted-foreground/60">—</span>;
+
+export function PlainDateCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const v = valueOf("PLAIN_DATE", value);
+  const shown = formatPlainDate(v.date, dateTimeSettings(column.settings).dateFormat);
+  return (
+    <PopoverCell width={width ?? column.width} disabled={readOnly} align={columnAlign(column.type)} ariaLabel={`${column.name}: ${shown ?? "not set"} for ${item.name}`} testId="plain-date-cell"
+      trigger={shown ? <span className="truncate text-xs tabular">{shown}</span> : EMPTY_DASH}
+    >
+      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "PLAIN_DATE", date })} onDone={close} />}
+    </PopoverCell>
+  );
+}
+
+export function TimeCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const v = valueOf("TIME", value);
+  const shown = formatTimeOfDay(v.time, dateTimeSettings(column.settings).timeFormat);
+  return (
+    <PopoverCell width={width ?? column.width} disabled={readOnly} align={columnAlign(column.type)} ariaLabel={`${column.name}: ${shown ?? "not set"} for ${item.name}`} testId="time-cell"
+      trigger={shown ? <span className="truncate text-xs tabular">{shown}</span> : EMPTY_DASH}
+    >
+      {(close) => <TimePicker value={v.time} onChange={(time) => onChange({ type: "TIME", time })} onDone={close} />}
+    </PopoverCell>
+  );
+}
+
+export function DateTimeCell({ item, column, value, onChange, readOnly, width }: CellProps) {
+  const v = valueOf("DATETIME", value);
+  const shown = formatDateTime(v.at, dateTimeSettings(column.settings));
+  return (
+    <PopoverCell width={width ?? column.width} disabled={readOnly} align={columnAlign(column.type)} ariaLabel={`${column.name}: ${shown ?? "not set"} for ${item.name}`} testId="datetime-cell"
+      trigger={shown ? <span className="truncate text-xs tabular">{shown}</span> : EMPTY_DASH}
+    >
+      {(close) => <DateTimePicker value={v.at} onChange={(at) => onChange({ type: "DATETIME", at })} onDone={close} />}
+    </PopoverCell>
+  );
+}
+
+/** When the task was booked: its own creation time, shown and never edited. */
+export function BookedAtCell({ item, column, width }: CellProps) {
+  const shown = formatDateTime(item.createdAt, dateTimeSettings(column.settings));
+  return (
+    <CellShell width={width ?? column.width} interactive={false} align={columnAlign(column.type)} aria-label={`${column.name}: ${shown ?? "not set"} for ${item.name}`} data-testid="booked-at-cell">
+      {shown ? <span className="truncate text-xs text-muted-foreground tabular">{shown}</span> : EMPTY_DASH}
+    </CellShell>
   );
 }
 

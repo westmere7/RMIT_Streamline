@@ -52,6 +52,12 @@ export type ColumnValue =
   | { type: "DATE"; date: ISODate | null }
   | { type: "TIMELINE"; start: ISODate | null; end: ISODate | null }
   | { type: "NUMBER"; number: number | null }
+  /** A calendar day, meaning nothing to deadlines. */
+  | { type: "PLAIN_DATE"; date: ISODate | null }
+  /** A time of day, "HH:MM" on a 24-hour clock. */
+  | { type: "TIME"; time: string | null }
+  /** A moment: an ISO timestamp, shown in the viewer's own time zone. */
+  | { type: "DATETIME"; at: string | null }
   | { type: "PRIORITY"; labelId: string | null }
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
@@ -95,6 +101,15 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, start: null, end: null };
     case "NUMBER":
       return { type, number: null };
+    case "PLAIN_DATE":
+      return { type, date: null };
+    case "TIME":
+      return { type, time: null };
+    case "DATETIME":
+      return { type, at: null };
+    // Nothing is stored: the booking time is the task's own creation time.
+    case "BOOKED_AT":
+      return { type: "DATETIME", at: null };
     case "PRIORITY":
       return { type, labelId: null };
     case "CHECKBOX":
@@ -134,6 +149,12 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.start === null && value.end === null;
     case "NUMBER":
       return value.number === null;
+    case "PLAIN_DATE":
+      return value.date === null;
+    case "TIME":
+      return value.time === null;
+    case "DATETIME":
+      return value.at === null;
     case "CHECKBOX":
       return !value.checked;
     case "LINK":

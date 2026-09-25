@@ -443,6 +443,9 @@ export class BoardService {
   // ---- Columns -------------------------------------------------------------
 
   async addColumn(input: BoardColumnInput & { id?: EntityId; position?: number }): Promise<BoardColumn> {
+    if (input.type === "BOOKED_AT" && (await this.repos.boards.getById(input.boardId))?.system !== "TASK_ALLOCATION") {
+      throw new Error("A Booking time column belongs on Task Allocation only.");
+    }
     if (ONE_PER_BOARD_COLUMN_TYPES.includes(input.type) && columnTypeTaken(input.type, await this.repos.boards.listColumns(input.boardId))) {
       throw new Error(`This board already has a ${COLUMN_TYPE_LABELS[input.type]} column.`);
     }

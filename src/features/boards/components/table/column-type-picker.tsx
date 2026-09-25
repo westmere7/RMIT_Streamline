@@ -57,7 +57,9 @@ export function ColumnTypePicker({
   variant?: "dropdown" | "context";
 }) {
   const Item = (variant === "context" ? ContextMenuItem : DropdownMenuItem) as React.ComponentType<MenuItemProps>;
-  const { model, mutations } = useBoardContext();
+  const { model, mutations, board } = useBoardContext();
+  // The booking time is only a fact on the board bookings land on.
+  const systemTypes = SYSTEM_TYPES.filter((type) => type !== "BOOKED_AT" || board.system === "TASK_ALLOCATION");
   const moveHere = (existing: (typeof model.columns)[number]) => {
     const ids = model.columns.map((c) => c.id).filter((id) => id !== existing.id);
     const at = afterColumnId ? ids.indexOf(afterColumnId) + 1 : ids.length;
@@ -99,7 +101,7 @@ export function ColumnTypePicker({
     <div>
       {group(PLAIN_TYPES, false)}
       <div className="mt-1 border-t pt-1">
-        {group(SYSTEM_TYPES, true)}
+        {group(systemTypes, true)}
         {/* Under the group rather than over it: the types are what you came for,
             and this only explains why they are set apart. */}
         <p className="px-2 pt-1.5 pb-0.5 text-2xs text-muted-foreground">Read by the dashboard, portal and booking.</p>

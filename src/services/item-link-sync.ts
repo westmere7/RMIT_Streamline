@@ -17,7 +17,7 @@ import { richTextToPlain } from "@/lib/rich-text";
 
 /** Column types whose values only make sense on their own board. */
 // Dependencies point at items on their own board; a recap is derived from the item's own asset lines.
-export const UNSYNCED_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["DEPENDENCY", "ASSETS_RECAP"]);
+export const UNSYNCED_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set<ColumnType>(["DEPENDENCY", "ASSETS_RECAP", "BOOKED_AT"]);
 
 export interface ColumnMapping {
   source: BoardColumn;

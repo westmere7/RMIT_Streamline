@@ -658,7 +658,7 @@ function ActionEditor({
 
       {action.kind === "set_value" && (
         <>
-          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "DEPENDENCY"].includes(c.type), (columnId) => {
+          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "DEPENDENCY", "BOOKED_AT"].includes(c.type), (columnId) => {
             const column = vocabulary.columns.find((c) => c.id === columnId);
             onChange({ kind: "set_value", columnId, value: column ? emptyValueFor(column.type) : action.value });
           })}
@@ -671,7 +671,7 @@ function ActionEditor({
 
       {(action.kind === "set_parent_value" || action.kind === "set_subitems_value") && (
         <>
-          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "DEPENDENCY"].includes(c.type), (columnId) => {
+          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "DEPENDENCY", "BOOKED_AT"].includes(c.type), (columnId) => {
             const column = vocabulary.columns.find((c) => c.id === columnId);
             onChange({ ...action, columnId, value: column ? emptyValueFor(column.type) : action.value });
           })}
@@ -686,7 +686,7 @@ function ActionEditor({
             value={action.fromColumnId}
             label="From"
             onChange={(fromColumnId) => onChange({ ...action, fromColumnId })}
-            options={vocabulary.columns.filter((c) => !["ASSETS_RECAP", "DEPENDENCY"].includes(c.type)).map((c) => ({ value: c.id, label: c.name }))}
+            options={vocabulary.columns.filter((c) => !["ASSETS_RECAP", "DEPENDENCY", "BOOKED_AT"].includes(c.type)).map((c) => ({ value: c.id, label: c.name }))}
             testId="action-column"
           />
           <span className="text-[13px] text-muted-foreground">to</span>
@@ -986,6 +986,47 @@ function ValueEditor({
     );
   }
 
+  if (column.type === "PLAIN_DATE") {
+    return (
+      <Input
+        type="date"
+        value={value?.type === "PLAIN_DATE" ? (value.date ?? "") : ""}
+        onChange={(e) => onChange({ type: "PLAIN_DATE", date: e.target.value || null })}
+        aria-label="Value"
+        className="h-8 w-40"
+        data-testid="action-value"
+      />
+    );
+  }
+
+  if (column.type === "TIME") {
+    return (
+      <Input
+        type="time"
+        value={value?.type === "TIME" ? (value.time ?? "") : ""}
+        onChange={(e) => onChange({ type: "TIME", time: e.target.value || null })}
+        aria-label="Value"
+        className="h-8 w-32"
+        data-testid="action-value"
+      />
+    );
+  }
+
+  if (column.type === "DATETIME") {
+    // The field works in local time; the value is a moment, stored in UTC.
+    const local = value?.type === "DATETIME" && value.at ? toLocalInput(value.at) : "";
+    return (
+      <Input
+        type="datetime-local"
+        value={local}
+        onChange={(e) => onChange({ type: "DATETIME", at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+        aria-label="Value"
+        className="h-8 w-52"
+        data-testid="action-value"
+      />
+    );
+  }
+
   if (column.type === "DATE") {
     return (
       <Input
@@ -1129,4 +1170,12 @@ function defaultAction(allowed: readonly AutomationActionKind[], vocabulary: Rul
     default:
       return { kind: "notify", audience: "people_on_item", message: "{item} needs a look" };
   }
+}
+
+/** An ISO moment as a datetime-local field wants it: "2026-09-16T19:06", in local time. */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
