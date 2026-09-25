@@ -347,14 +347,16 @@ function Reactions({ comment, onReact, compact = false, className }: { comment: 
               onClick={() => onReact?.(comment, emoji, !mine)}
               aria-pressed={mine}
               aria-label={`${emoji} ${userIds.length}${mine ? ", including you" : ""}`}
+              // No box of its own: the emoji and its count, and a faint ground only under the pointer.
+              // The viewer's own shows in the count's weight and colour, nothing louder.
               className={cn(
-                "inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs tabular transition-colors disabled:cursor-default",
-                mine ? "border-primary/40 bg-primary/10 text-primary" : "border-border/70 bg-background text-muted-foreground enabled:hover:border-border enabled:hover:bg-accent/60",
+                "inline-flex h-6 items-center gap-1 rounded-md px-1 text-xs tabular transition-colors enabled:hover:bg-accent/60 disabled:cursor-default",
+                mine ? "text-foreground" : "text-muted-foreground",
               )}
               data-testid="comment-reaction"
             >
               <span className="text-[13px] leading-none">{emoji}</span>
-              <span className="text-2xs font-medium">{userIds.length}</span>
+              <span className={cn("text-2xs", mine ? "font-semibold text-primary" : "font-medium")}>{userIds.length}</span>
             </button>
           </SimpleTooltip>
         );
@@ -364,7 +366,7 @@ function Reactions({ comment, onReact, compact = false, className }: { comment: 
   );
 }
 
-/** The six reactions on offer, in a small popover. One already given is marked, and choosing it takes it back. */
+/** The reactions on offer, two rows in a small popover. One already given is marked, and choosing it takes it back. */
 function ReactionPicker({ comment, onReact, compact }: { comment: Comment; onReact: ReactHandler; compact?: boolean }) {
   const ws = useWorkspace();
   const [open, setOpen] = React.useState(false);
@@ -378,7 +380,7 @@ function ReactionPicker({ comment, onReact, compact }: { comment: Comment; onRea
           </Button>
         </PopoverTrigger>
       </SimpleTooltip>
-      <PopoverContent align="start" side="top" className="flex w-auto gap-0.5 rounded-full p-1" data-testid="comment-reaction-picker">
+      <PopoverContent align="start" side="top" className="grid w-auto grid-cols-8 gap-0.5 p-1.5" data-testid="comment-reaction-picker">
         {COMMENT_REACTIONS.map((emoji) => (
           <button
             key={emoji}
@@ -389,7 +391,7 @@ function ReactionPicker({ comment, onReact, compact }: { comment: Comment; onRea
             }}
             aria-label={mine.has(emoji) ? `Remove ${emoji}` : `React ${emoji}`}
             aria-pressed={mine.has(emoji)}
-            className={cn("flex size-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-accent", mine.has(emoji) && "bg-primary/10")}
+            className={cn("flex size-8 items-center justify-center rounded-md text-lg transition-transform hover:scale-125 hover:bg-accent", mine.has(emoji) && "bg-accent")}
           >
             {emoji}
           </button>

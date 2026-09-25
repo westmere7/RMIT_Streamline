@@ -18,11 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.39.0",
+    version: "0.39.1",
     date: "2026-09-25",
     title: "Reactions on updates",
     changes: [
-      "React to an update or a reply with one of six emoji. Click a chip to add yours or take it back. Hover a chip to see who reacted.",
+      "React to an update or a reply with one of sixteen emoji. Click a reaction to add yours or take it back. Hover it to see who reacted.",
+      "Reactions sit quietly under the update: just the emoji and a count, with no box around them.",
       "Reactions appear live for everyone with the task open. A collapsed update shows its tally.",
     ],
   },

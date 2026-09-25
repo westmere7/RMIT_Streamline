@@ -30,10 +30,10 @@ export interface CommentReaction {
 }
 
 /**
- * The reactions on offer. A short fixed set rather than a full picker: the
- * point is a quick acknowledgement, and six are enough to say most of them.
+ * The reactions on offer. A fixed set rather than a full picker: the point is
+ * a quick acknowledgement, and two rows of these say most of what one is for.
  */
-export const COMMENT_REACTIONS = ["👍", "❤️", "🎉", "😄", "👀", "🙏"] as const;
+export const COMMENT_REACTIONS = ["👍", "👎", "❤️", "🎉", "😄", "😂", "😮", "😢", "😡", "🤔", "👀", "🙏", "👏", "🔥", "🚀", "✅"] as const;
 
 /** Adds or takes away one person's emoji, keeping the rest in the order they came. */
 export function withReaction(reactions: readonly CommentReaction[] | undefined, userId: EntityId, emoji: string, on: boolean, at: string): CommentReaction[] {

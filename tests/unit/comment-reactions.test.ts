@@ -12,27 +12,27 @@ async function setup() {
   await services.repos.admin.resetToSeed();
   const [item] = await services.repos.items.listByBoard(SEED_BOARD_IDS.rmitinerary);
   const users = await services.repos.users.list();
-  const comment = await services.comments.addComment(item!.id, "Draft is up for review", SEED_USER_IDS.alex, users);
+  const comment = await services.comments.addComment(item!.id, "Draft is up for review", SEED_USER_IDS.danh, users);
   return { services, item: item!, comment };
 }
 
 describe("comment reactions", () => {
   it("keeps one of each emoji per person, and takes it back again", async () => {
     const { services, item, comment } = await setup();
-    const other = Object.values(SEED_USER_IDS).find((id) => id !== SEED_USER_IDS.alex)!;
+    const other = Object.values(SEED_USER_IDS).find((id) => id !== SEED_USER_IDS.danh)!;
 
-    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.alex, true);
-    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.alex, true);
+    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.danh, true);
+    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.danh, true);
     await services.comments.setReaction(comment, "👍", other, true);
     await services.comments.setReaction(comment, "🎉", other, true);
 
     let stored = (await services.comments.listByItem(item.id)).find((c) => c.id === comment.id)!;
     expect(groupReactions(stored.reactions)).toEqual([
-      { emoji: "👍", userIds: [SEED_USER_IDS.alex, other] },
+      { emoji: "👍", userIds: [SEED_USER_IDS.danh, other] },
       { emoji: "🎉", userIds: [other] },
     ]);
 
-    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.alex, false);
+    await services.comments.setReaction(comment, "👍", SEED_USER_IDS.danh, false);
     stored = (await services.comments.listByItem(item.id)).find((c) => c.id === comment.id)!;
     expect(groupReactions(stored.reactions)).toEqual([
       { emoji: "👍", userIds: [other] },
@@ -46,7 +46,7 @@ describe("comment reactions", () => {
 
   it("refuses an emoji that is not on offer", async () => {
     const { services, comment } = await setup();
-    await expect(services.comments.setReaction(comment, "🦄", SEED_USER_IDS.alex, true)).rejects.toThrow("not one on offer");
+    await expect(services.comments.setReaction(comment, "🦄", SEED_USER_IDS.danh, true)).rejects.toThrow("not one on offer");
   });
 
   it("groups in the order each emoji first appeared", () => {
