@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.12",
+    date: "2026-09-25",
+    title: "A leaner Task journey",
+    changes: [
+      "Task journey drops its row of four figures (in the queue, with the team, deliverables, milestones). It now opens on the time in each status, then the timeline.",
+    ],
+  },
+  {
     version: "0.41.11",
     date: "2026-09-25",
     title: "Fold an update from its header",

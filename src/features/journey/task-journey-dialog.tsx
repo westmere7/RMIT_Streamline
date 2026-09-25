@@ -12,8 +12,6 @@ import {
   ClipboardPen,
   Clock,
   Flag,
-  Hourglass,
-  Milestone as MilestoneIcon,
   MoveRight,
   PackageCheck,
   PackagePlus,
@@ -21,7 +19,6 @@ import {
   RotateCcw,
   Route,
   Send,
-  Users,
 } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -30,8 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Item, StatusColumnSettings } from "@/domain";
 import { useItemActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
-import { useItemAssets } from "@/features/items/asset-hooks";
-import { buildJourney, formatSpan, type Journey, type JourneyPhase, type JourneyStatus, type Milestone, type MilestoneKind } from "@/features/journey/journey";
+import { buildJourney, formatSpan, type Journey, type JourneyStatus, type Milestone, type MilestoneKind } from "@/features/journey/journey";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
@@ -54,8 +50,6 @@ const KIND: Record<MilestoneKind, { icon: React.ComponentType<{ className?: stri
   restored: { icon: ArchiveRestore, color: "#0ea5e9" },
 };
 
-const PHASE_COLOR: Record<JourneyPhase["key"], string> = { queue: "#f59e0b", team: "#3b82f6", wrap: "#10b981" };
-
 /**
  * The task's journey, as a pop-up: where it came from, where it went, how long
  * each leg took, and — while it is still going — how long it has been sitting
@@ -75,7 +69,6 @@ function JourneyBody({ item }: { item: Item }) {
   const ws = useWorkspace();
   const services = useServices();
   const activity = useItemActivity(item.id);
-  const assets = useItemAssets(item.id);
   const columns = useQuery({ queryKey: queryKeys.boardColumns(item.boardId), queryFn: () => services.repos.boards.listColumns(item.boardId), staleTime: 60_000 });
   // "Now" moves on while the pop-up is open, so a journey still going keeps counting.
   const [now, setNow] = React.useState(() => new Date());
@@ -114,7 +107,6 @@ function JourneyBody({ item }: { item: Item }) {
           <p className="p-10 text-center text-[13px] text-muted-foreground">Nothing recorded for this task yet.</p>
         ) : (
           <>
-            <Figures journey={journey} deliverables={assets.data ? { done: assets.data.filter((a) => a.completedAt !== null).length, total: assets.data.length } : null} />
             <StatusTime journey={journey} />
             <Timeline journey={journey} now={now} />
           </>
@@ -162,50 +154,6 @@ function Header({ item, journey, loading }: { item: Item; journey: Journey; load
           </p>
         </div>
       )}
-    </div>
-  );
-}
-
-// ---- the four figures ----------------------------------------------------------
-
-function Figures({ journey, deliverables }: { journey: Journey; deliverables: { done: number; total: number } | null }) {
-  const queue = journey.phases.find((p) => p.key === "queue");
-  const team = journey.phases.find((p) => p.key === "team");
-  // The task's deliverables as they stand, which the log may not have seen arrive.
-  const lastProgress = deliverables && deliverables.total > 0 ? deliverables : ([...journey.milestones].reverse().find((m) => m.progress)?.progress ?? null);
-  return (
-    <div className="grid grid-cols-2 gap-px border-b border-border/70 bg-border/60 sm:grid-cols-4" data-testid="journey-figures">
-      <FigureCell icon={Hourglass} color={PHASE_COLOR.queue} label="In the queue" value={queue ? formatSpan(queue.ms) : "—"} hint={queue ? (queue.open ? "waiting to be allocated" : "booking to allocation") : "went straight to a team"} />
-      <FigureCell icon={Users} color={PHASE_COLOR.team} label="With the team" value={team ? formatSpan(team.ms) : "—"} hint={team ? (team.open ? "still being worked on" : "allocation to done") : "not with a team yet"} />
-      <FigureCell
-        icon={PackageCheck}
-        color="#14b8a6"
-        label="Deliverables"
-        value={lastProgress ? `${lastProgress.done}/${lastProgress.total}` : "—"}
-        hint={lastProgress ? `${lastProgress.total ? Math.round((lastProgress.done / lastProgress.total) * 100) : 0}% delivered` : "none listed"}
-        progress={lastProgress && lastProgress.total ? lastProgress.done / lastProgress.total : undefined}
-      />
-      <FigureCell icon={MilestoneIcon} color="#8b5cf6" label="Milestones" value={String(journey.milestones.length)} hint={`${journey.statusChanges} status ${journey.statusChanges === 1 ? "change" : "changes"}`} />
-    </div>
-  );
-}
-
-function FigureCell({ icon: Icon, color, label, value, hint, progress }: { icon: React.ComponentType<{ className?: string }>; color: string; label: string; value: string; hint: string; progress?: number }) {
-  return (
-    <div className="bg-card px-5 py-4">
-      <p className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground">
-        <span className="flex size-6 items-center justify-center rounded-md" style={{ background: `${color}1f`, color }}>
-          <Icon className="size-3.5" />
-        </span>
-        {label}
-      </p>
-      <p className="mt-2 text-[24px] leading-none font-semibold tracking-tight tabular">{value}</p>
-      {progress !== undefined && (
-        <span aria-hidden className="mt-2 block h-1 overflow-hidden rounded-full bg-surface-strong">
-          <span className="block h-full rounded-full" style={{ width: `${Math.round(progress * 100)}%`, background: color }} />
-        </span>
-      )}
-      <p className="mt-1.5 text-2xs text-muted-foreground">{hint}</p>
     </div>
   );
 }
