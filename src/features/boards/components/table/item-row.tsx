@@ -49,6 +49,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [renaming, setRenaming] = React.useState(false);
+  const [nameRef, nameClipped] = useClipped<HTMLButtonElement>(item.name, renaming);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [addingSubitem, setAddingSubitem] = React.useState(false);
   const [sharing, setSharing] = React.useState(false);
@@ -294,6 +295,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     />
                   ) : (
                     <button
+                      ref={nameRef}
                       type="button"
                       onClick={() => openItem(item.id)}
                       onDoubleClick={(e) => {
@@ -304,7 +306,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                       title={item.name}
                       data-testid="item-name"
                       className={cn(
-                        "min-w-0 truncate rounded px-1 text-left text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-ring",
+                        "min-w-0 overflow-hidden rounded px-1 text-left text-[13px] whitespace-nowrap hover:underline focus-visible:outline-2 focus-visible:outline-ring",
+                        nameClipped && FADE_END,
                         done && "line-through decoration-muted-foreground/40",
                       )}
                     >
@@ -324,7 +327,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                     <LoaderCircle className="size-3 animate-spin" /> Moving…
                   </span>
                 )}
-                <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                <div className={HOVER_ACTIONS}>
                   {canEdit && (
                     <SimpleTooltip label="Rename">
                       <button
@@ -404,6 +407,37 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
 });
 
 /** Small chain icon on rows that are kept in sync with items on other boards. */
+/**
+ * A name that does not fit fades out at its end rather than stopping at "…":
+ * the last few letters before the edge are still there to read.
+ */
+const FADE_END = "[mask-image:linear-gradient(to_right,#000_calc(100%-1.75rem),transparent)]";
+
+/**
+ * The row's own buttons (rename, open, more) take no room until the row is
+ * hovered or one of them has focus, so a name uses the whole cell at rest and
+ * only gives way to them when they are wanted.
+ */
+const HOVER_ACTIONS =
+  "ml-auto flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-opacity group-hover/row:max-w-24 group-hover/row:opacity-100 focus-within:max-w-24 focus-within:opacity-100 has-[[data-state=open]]:max-w-24 has-[[data-state=open]]:opacity-100";
+
+/** Whether the element's text runs past its edge, kept current as the row resizes. */
+function useClipped<T extends HTMLElement>(text: string, editing: boolean): [React.RefObject<T | null>, boolean] {
+  const ref = React.useRef<T>(null);
+  const [clipped, setClipped] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClipped(el.scrollWidth > el.clientWidth + 1);
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, editing]);
+  return [ref, clipped];
+}
+
 function LinkIndicator({ count, onClick }: { count: number; onClick: () => void }) {
   const label = count === 1 ? "Linked to an item on another board" : `Linked to ${count} items on other boards`;
   return (
@@ -502,6 +536,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
   const showTicket = useShowTicket();
   const viewing = useBoardUiStore((s) => s.openItemId === item.id);
   const [renaming, setRenaming] = React.useState(false);
+  const [nameRef, nameClipped] = useClipped<HTMLButtonElement>(item.name, renaming);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const done = model.isDone(item.id);
   const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
@@ -553,6 +588,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                 />
               ) : (
                 <button
+                  ref={nameRef}
                   type="button"
                   onClick={() => openItem(item.id)}
                   onDoubleClick={(e) => {
@@ -560,7 +596,8 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
                     e.preventDefault();
                     setRenaming(true);
                   }}
-                  className={cn("min-w-0 truncate rounded px-1 text-left text-xs hover:underline", done && "line-through decoration-muted-foreground/40")}
+                  title={item.name}
+                  className={cn("min-w-0 overflow-hidden rounded px-1 text-left text-xs whitespace-nowrap hover:underline", nameClipped && FADE_END, done && "line-through decoration-muted-foreground/40")}
                 >
                   {item.name}
                 </button>
@@ -568,7 +605,7 @@ function SubitemRow({ item, widthOverrides }: { item: Item; widthOverrides: Reco
               {linkCount > 0 && <LinkIndicator count={linkCount} onClick={() => openItem(item.id)} />}
                 <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} />
               {canEdit && (
-                <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+                <div className={HOVER_ACTIONS}>
                   <button
                     type="button"
                     aria-label={`Rename ${item.name}`}

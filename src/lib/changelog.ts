@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.1",
+    date: "2026-09-25",
+    title: "Names use the whole cell",
+    changes: [
+      "An item's name uses the whole cell until the row is hovered. Rename, open and more take up room only then.",
+      "A name too long for its cell fades out at the end instead of ending in “…”. It stops before the linked, updates and blocked icons, which always stay whole.",
+    ],
+  },
+  {
     version: "0.41.0",
     date: "2026-09-25",
     title: "Date, Time and Date + Time columns",
