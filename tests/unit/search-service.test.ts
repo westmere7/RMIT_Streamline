@@ -76,4 +76,14 @@ describe("SearchService", () => {
     expect((await service.search(WORKSPACE, "grad", { boardId: "elsewhere" })).items).toEqual([]);
     expect((await service.search(WORKSPACE, "grad", { boardId: board.id })).items.map((r) => r.item.id)).toEqual(["i5", "i4"]);
   });
+
+  it("finds people who have not onboarded yet, but not deactivated ones", async () => {
+    const person = (id: string, first: string, last: string, deactivatedAt: string | null = null): User =>
+      ({ id, email: `${first.toLowerCase()}@rmit.local`, firstName: first, lastName: last, displayName: `${first} ${last}`, avatarUrl: null, jobTitle: null, department: null, timezone: "UTC", deactivatedAt, createdAt: "", updatedAt: "" }) as User;
+    const member = (userId: string, status: WorkspaceMember["status"]) => ({ workspaceId: WORKSPACE, userId, role: "MEMBER", status }) as WorkspaceMember;
+    const people = [person("u-active", "Linh", "Vo"), person("u-pending", "Linh", "Tran"), person("u-gone", "Linh", "Nguyen", "2026-01-01"), person("u-stranger", "Linh", "Outside")];
+    const members = [member("u-active", "ACTIVE"), member("u-pending", "INVITED"), member("u-gone", "DEACTIVATED")];
+    const service = new SearchService({ ...repos(), users: { list: async () => people }, workspaces: { listMembers: async () => members } } as unknown as Repositories);
+    expect((await service.search(WORKSPACE, "linh")).users.map((u) => u.id).sort()).toEqual(["u-active", "u-pending"]);
+  });
 });

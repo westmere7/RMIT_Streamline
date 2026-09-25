@@ -231,7 +231,7 @@ export function CommandPalette() {
                 <CommandItem key={user.id} value={`user-${user.id}`} onSelect={() => go(routes.person(ws.slug, user.id))}>
                   <UserAvatar user={user} size="xs" tooltip={false} />
                   <span className="truncate">{user.displayName}</span>
-                  <span className="ml-auto truncate text-2xs text-muted-foreground">{user.jobTitle}</span>
+                  <span className="ml-auto truncate text-2xs text-muted-foreground">{ws.members.some((m) => m.userId === user.id && m.status === "INVITED") ? "Pending onboarding" : user.jobTitle}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -35,7 +35,7 @@ interface Entry {
  * place; the week gives every item a card with status, priority and owner.
  */
 export function CalendarView() {
-  const { model, users, openItem, now } = useBoardContext();
+  const { model, users: assignable, people: users = assignable, openItem, now } = useBoardContext();
   const [settings, updateSettings] = useViewSettings("calendar", { mode: "month" as Mode });
   const mode = settings.mode;
   const setMode = (next: Mode) => updateSettings({ mode: next });

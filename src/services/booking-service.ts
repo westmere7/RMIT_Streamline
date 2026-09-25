@@ -314,12 +314,15 @@ export class BookingService {
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
-    // Who asked, as a person. A member signed in is themselves; anyone else is
-    // found or added by their email. A booking is never refused over this: if the
-    // person cannot be recorded, their name still travels in the description.
+    // Who asked, as a person. A member signed in and booking as themselves is
+    // themselves; booking for someone else, or with no account, the email on the
+    // form says who, found or added. A booking is never refused over this: if
+    // the person cannot be recorded, their name still travels in the description.
     const signedIn = memberId && members.some((m) => m.userId === memberId && m.status === "ACTIVE") ? memberId : null;
-    let requesterId: EntityId | null = signedIn;
-    if (!requesterId && request.requesterEmail.trim()) {
+    const formEmail = request.requesterEmail.trim().toLowerCase();
+    const ownEmail = signedIn && formEmail ? ((await this.repos.users.getById(signedIn))?.email.trim().toLowerCase() ?? null) : null;
+    let requesterId: EntityId | null = signedIn && (!formEmail || formEmail === ownEmail) ? signedIn : null;
+    if (!requesterId && formEmail) {
       try {
         requesterId = await this.requesters.ensure(workspaceId, { name: request.requesterName, email: request.requesterEmail }, actorId);
       } catch (error) {

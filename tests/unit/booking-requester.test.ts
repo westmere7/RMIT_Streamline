@@ -88,14 +88,28 @@ describe("the requester of a booking", () => {
     expect((await membershipOf(emily.id))?.status).toBe("ACTIVE");
   });
 
-  it("is the member who booked when signed in, whatever the form says, and nobody is renamed", async () => {
+  it("is the member who booked when signed in and booking as themselves, and nobody is renamed", async () => {
     const danh = (await services.repos.users.getById(SEED_USER_IDS.danh))!;
     const users = (await services.repos.users.list()).length;
-    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ requesterName: "Someone Else", requesterEmail: "someone.else@rmit.edu.au" }), actorId: danh.id });
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ requesterName: "D. Nguyen", requesterEmail: danh.email.toUpperCase() }), actorId: danh.id });
     expect(await requesterOf(receipt.itemId)).toEqual([danh.id]);
     expect((await services.repos.users.list()).length).toBe(users);
     expect((await services.repos.users.getById(danh.id))?.displayName).toBe(danh.displayName);
-    expect(await services.repos.users.getByEmail("someone.else@rmit.edu.au")).toBeNull();
+  });
+
+  it("is the person on the form when a signed-in member books for someone else", async () => {
+    const danh = (await services.repos.users.getById(SEED_USER_IDS.danh))!;
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ requesterName: "Someone Else", requesterEmail: "someone.else@rmit.edu.au" }), actorId: danh.id });
+    const someone = await services.repos.users.getByEmail("someone.else@rmit.edu.au");
+    expect(someone?.displayName).toBe("Someone Else");
+    expect(await requesterOf(receipt.itemId)).toEqual([someone!.id]);
+    expect((await membershipOf(someone!.id))?.status).toBe("INVITED");
+    expect((await services.repos.users.getById(danh.id))?.displayName).toBe(danh.displayName);
+    // And for a colleague the workspace has, that colleague.
+    const emily = (await services.repos.users.getById(SEED_USER_IDS.emily))!;
+    const forEmily = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ requesterName: emily.displayName, requesterEmail: emily.email }), actorId: danh.id });
+    expect(await requesterOf(forEmily.itemId)).toEqual([emily.id]);
+    expect(await services.booking.lookupRequester({ workspaceSlug: "rmit", key: null, email: emily.email })).toBe(emily.displayName);
   });
 
   it("fills in a known email's name for the form, and nothing for anything else", async () => {

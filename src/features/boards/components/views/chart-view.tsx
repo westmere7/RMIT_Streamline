@@ -39,7 +39,7 @@ interface Slice extends Bucket {
 const NEUTRAL_FILL = colorClasses("gray").hex;
 
 export function ChartView() {
-  const { board, model, users, now } = useBoardContext();
+  const { board, model, users: assignable, people: users = assignable, now } = useBoardContext();
   const assets = useBoardAssets(board.id);
   const [settings, updateSettings] = useViewSettings("chart", { dimension: "status" as GroupDimension, measure: "count" as Measure, type: "bars" as ChartType });
   const { dimension, measure, type } = settings;

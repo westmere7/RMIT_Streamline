@@ -91,7 +91,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
               // link is remembered by their own browser, per workspace.
               remember={signedIn ? null : `book:${workspaceSlug}`}
               onSubmit={(request) => services.booking.submit({ workspaceSlug, key: bookingKey, request, actorId: signedIn ? user.id : null })}
-              lookupRequester={signedIn ? undefined : (email) => services.booking.lookupRequester({ workspaceSlug, key: bookingKey, email })}
+              lookupRequester={(email) => services.booking.lookupRequester({ workspaceSlug, key: bookingKey, email })}
               // A member can follow the ticket to the board; a board they may
               // not open says so itself.
               itemHref={signedIn ? (receipt) => routes.board(workspaceSlug, receipt.boardSlug, { itemId: receipt.itemId }) : undefined}

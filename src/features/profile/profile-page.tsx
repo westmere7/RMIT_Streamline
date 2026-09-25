@@ -122,7 +122,7 @@ export function ProfilePage({ userId }: { userId: string }) {
                 {user.displayName}
               </h2>
               {member && <Badge variant="muted">{ROLE_LABEL[member.role]}</Badge>}
-              {member?.status === "INVITED" && <Badge variant="outline">Invited</Badge>}
+              {member?.status === "INVITED" && <Badge variant="warning">Pending onboarding</Badge>}
               {user.deactivatedAt && <Badge variant="outline">Deactivated</Badge>}
               {group && (
                 <span

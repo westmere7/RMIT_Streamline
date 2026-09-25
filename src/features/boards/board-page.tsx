@@ -287,6 +287,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             model,
             mutations,
             users: ws.activeUsers,
+            people: ws.users,
             canEdit,
             canManage: canManageBoard(ws.permissions, board),
             openItem,

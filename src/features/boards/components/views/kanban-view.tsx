@@ -341,7 +341,7 @@ function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; l
 }
 
 function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; overlay?: boolean }) {
-  const { model, board, users, openItem, openItemUpdates, canEdit, updates } = useBoardContext();
+  const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates } = useBoardContext();
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);

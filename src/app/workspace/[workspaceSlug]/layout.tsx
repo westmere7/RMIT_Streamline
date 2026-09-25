@@ -6,9 +6,11 @@ import { useEffect } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { ErrorState } from "@/components/shared/error-state";
+import { PersonCardProvider } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
+import { renderPersonCard } from "@/features/members/person-card";
 import { WorkspaceProvider } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
@@ -69,7 +71,9 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
 
   return (
     <WorkspaceProvider workspace={workspace}>
-      <AppShell>{children}</AppShell>
+      <PersonCardProvider value={renderPersonCard}>
+        <AppShell>{children}</AppShell>
+      </PersonCardProvider>
     </WorkspaceProvider>
   );
 }

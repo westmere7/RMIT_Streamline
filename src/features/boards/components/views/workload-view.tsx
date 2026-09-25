@@ -46,7 +46,7 @@ const LEVEL_CLASSES: Record<LoadLevel, string> = {
 };
 
 export function WorkloadView() {
-  const { board, model, users, now } = useBoardContext();
+  const { board, model, users: assignable, people: users = assignable, now } = useBoardContext();
   const [settings, updateSettings] = useViewSettings("workload", { kind: "weeks" as PeriodKind, mode: "due" as WorkloadMode, measure: "count" as Measure });
   const { kind, mode, measure } = settings;
   const setKind = (next: PeriodKind) => updateSettings({ kind: next });

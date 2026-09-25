@@ -12,7 +12,7 @@ import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { SERVICE_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
-import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow } from "../booking-fields";
+import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow, type EmailCheck } from "../booking-fields";
 
 /**
  * The four steps of the booking wizard, each one a plain function of the
@@ -42,8 +42,11 @@ export function StepBasics({
   omit,
   identity,
   hiddenKeys,
+  emailCheck,
 }: StepProps & {
   identity?: React.ReactNode;
+  /** What the workspace makes of the email typed, shown under the email box. */
+  emailCheck?: EmailCheck | null;
   /** Questions the account has answered: the card above carries them, so they are not on the form. */
   hiddenKeys?: readonly BookingStandardKey[];
 }) {
@@ -80,7 +83,7 @@ export function StepBasics({
         <div className="grid gap-4 sm:grid-cols-6">
           {gridFields.map((field) => (
             <div key={field.id} className={cn("col-span-6 min-w-0", SPAN[field.width])}>
-              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} />
+              <StandardField field={field} form={form} draft={request} onChange={patch} error={errors[field.id]} emailCheck={field.key === "requesterEmail" ? emailCheck : undefined} />
             </div>
           ))}
         </div>

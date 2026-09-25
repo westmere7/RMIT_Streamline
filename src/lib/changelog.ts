@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.49.0",
+    date: "2026-09-26",
+    title: "Profile cards on hover",
+    changes: [
+      "Hover a face or name to see a compact profile card.",
+      "People added by a booking show in Requester cells and in search, marked Pending onboarding.",
+      "The booking form checks an email as you type and says when it has been used before.",
+      "Signed in and booking for someone else, the email is checked too, and they become the requester.",
+    ],
+  },
+  {
     version: "0.48.1",
     date: "2026-09-26",
     title: "Booking form fills in your name",

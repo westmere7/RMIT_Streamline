@@ -21,8 +21,23 @@ export interface UserAvatarProps {
   user: Pick<User, "id" | "firstName" | "lastName" | "displayName" | "avatarUrl"> | null | undefined;
   size?: AvatarSize;
   className?: string;
-  /** Show a tooltip with the user's name on hover. Defaults to true. */
+  /** Show the person's card (or their name) on hover. Defaults to true. */
   tooltip?: boolean;
+}
+
+/**
+ * How a person's card is drawn on hover. The workspace supplies it (it knows
+ * their teams, their status and where their profile is); anywhere else, such as
+ * a shared board, a name in a tooltip is all there is.
+ */
+type PersonCardRenderer = (userId: string, trigger: React.ReactElement) => React.ReactElement;
+const PersonCardContext = React.createContext<PersonCardRenderer | null>(null);
+export const PersonCardProvider = PersonCardContext.Provider;
+
+/** A person's compact card on hover where there is one, their name in a tooltip otherwise. */
+export function PersonHover({ user, children }: { user: Pick<User, "id" | "displayName">; children: React.ReactElement }) {
+  const render = React.useContext(PersonCardContext);
+  return render ? render(user.id, children) : <SimpleTooltip label={user.displayName}>{children}</SimpleTooltip>;
 }
 
 export function UserAvatar({ user, size = "md", className, tooltip = true }: UserAvatarProps) {
@@ -50,7 +65,7 @@ export function UserAvatar({ user, size = "md", className, tooltip = true }: Use
     </span>
   );
   if (!tooltip || !user) return content;
-  return <SimpleTooltip label={user.displayName}>{content}</SimpleTooltip>;
+  return <PersonHover user={user}>{content}</PersonHover>;
 }
 
 export interface AvatarStackProps {

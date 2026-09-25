@@ -49,7 +49,7 @@ export function GroupSummaryRow({ leading, items, widthOverrides }: { leading: R
 
 /** One column's answer for the group. Null when the column has nothing worth summing up. */
 function ColumnSummary({ column, items }: { column: BoardColumn; items: readonly Item[] }) {
-  const { model, users } = useBoardContext();
+  const { model, users: assignable, people: users = assignable } = useBoardContext();
   const values = items.map((item) => model.getValue(item.id, column.id));
 
   switch (column.type) {

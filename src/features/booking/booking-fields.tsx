@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, CircleCheck, Plus, X } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, LoaderCircle, Plus, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
@@ -123,6 +123,12 @@ export function NumberBadge({ n }: { n: number | string }) {
 
 // ---- step one: the fixed questions --------------------------------------------
 
+/**
+ * What the workspace makes of the email typed: still asking, or a person it
+ * knows by this name. Nothing to say about an email it has not seen.
+ */
+export type EmailCheck = { state: "checking" } | { state: "known"; name: string; onUseName: (() => void) | null };
+
 export interface StandardFieldProps {
   field: BookingStandardField;
   form: BookingFormData;
@@ -138,13 +144,15 @@ export interface StandardFieldProps {
    * copying, and the field stays in the tab order so nobody lands on a gap.
    */
   readOnly?: boolean;
+  /** The email box's own answer, as it is typed. */
+  emailCheck?: EmailCheck | null;
   hideLabel?: boolean;
   /** Drawn as tall as the identity card it sits beside. Only the department takes this. */
   tall?: boolean;
 }
 
 /** One of the fixed questions, worded by the template, with the control it calls for. */
-export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel, tall }: StandardFieldProps) {
+export function StandardField({ field, form, draft, onChange, error, preview, readOnly, hideLabel, tall, emailCheck }: StandardFieldProps) {
   const id = (base: string) => (preview ? `preview-${base}` : base);
   const tid = (base: string) => (preview ? undefined : base);
   const shell = { label: field.label, required: field.required, description: field.description, error, hideLabel };
@@ -160,7 +168,37 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
     case "requesterEmail":
       return (
         <Field id={id("booking-email")} {...shell}>
-          <Input id={id("booking-email")} type="email" autoComplete="email" value={draft.requesterEmail} onChange={(e) => onChange({ requesterEmail: e.target.value })} aria-invalid={!!error} disabled={preview} {...locked} data-testid={tid("booking-email")} />
+          <div className="relative">
+            <Input
+              id={id("booking-email")}
+              type="email"
+              autoComplete="email"
+              value={draft.requesterEmail}
+              onChange={(e) => onChange({ requesterEmail: e.target.value })}
+              aria-invalid={!!error}
+              aria-busy={emailCheck?.state === "checking" || undefined}
+              disabled={preview}
+              {...locked}
+              className={cn(locked.className, emailCheck && "pr-8")}
+              data-testid={tid("booking-email")}
+            />
+            {emailCheck?.state === "checking" && <LoaderCircle aria-label="Checking email" className="absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground" data-testid="booking-email-checking" />}
+            {emailCheck?.state === "known" && <CircleCheck aria-hidden className="absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-emerald-600 dark:text-emerald-400" />}
+          </div>
+          {emailCheck?.state === "known" && (
+            <p className="text-2xs text-muted-foreground" role="status" data-testid="booking-email-known">
+              {emailCheck.onUseName ? (
+                <>
+                  Used before as {emailCheck.name}.{" "}
+                  <button type="button" onClick={emailCheck.onUseName} className="font-medium text-foreground underline-offset-2 hover:underline">
+                    Use this name
+                  </button>
+                </>
+              ) : (
+                "Used before. Name filled in."
+              )}
+            </p>
+          )}
         </Field>
       );
     case "department": {

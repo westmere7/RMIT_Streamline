@@ -3,7 +3,7 @@
 import { Check, ExternalLink, FileText, Link2, Pencil, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
-import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
+import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
 import { columnLabels, columnTagOptions, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
@@ -392,10 +392,10 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
  * workload view and My Work whether these are the people doing the work.
  */
 export function PersonCell({ item, column, value, onChange, readOnly, width }: CellProps) {
-  const { users } = useBoardContext();
+  const { users, people = users } = useBoardContext();
   const type = column.type === "PEOPLE" || column.type === "REQUESTER" ? column.type : "PERSON";
   const v = valueOf(type, value);
-  const assigned = v.userIds.map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
+  const assigned = v.userIds.map((id) => people.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   const allowMultiple = column.settings.kind === "person" ? column.settings.allowMultiple : true;
   return (
     <PopoverCell
@@ -408,17 +408,19 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
         assigned.length === 0 ? (
           <UserAvatar user={null} size="sm" />
         ) : assigned.length === 1 ? (
-          <span className="flex items-center gap-1.5 truncate px-0.5">
-            <UserAvatar user={assigned[0]} size="sm" tooltip={false} />
-            <span className="truncate text-xs">{assigned[0]!.firstName}</span>
-          </span>
+          <PersonHover user={assigned[0]!}>
+            <span className="flex items-center gap-1.5 truncate px-0.5">
+              <UserAvatar user={assigned[0]} size="sm" tooltip={false} />
+              <span className="truncate text-xs">{assigned[0]!.firstName}</span>
+            </span>
+          </PersonHover>
         ) : (
           <AvatarStack users={assigned} size="sm" max={3} />
         )
       }
     >
       {(close) => (
-        <PersonPicker users={users} value={v.userIds} allowMultiple={allowMultiple} onChange={(userIds) => onChange({ type, userIds })} onDone={close} />
+        <PersonPicker users={users} known={people} value={v.userIds} allowMultiple={allowMultiple} onChange={(userIds) => onChange({ type, userIds })} onDone={close} />
       )}
     </PopoverCell>
   );

@@ -37,7 +37,7 @@ type Row =
  * that are done. Read-only: dates are changed on the item, not by dragging.
  */
 export function GanttView() {
-  const { model, users, openItem, now } = useBoardContext();
+  const { model, users: assignable, people: users = assignable, openItem, now } = useBoardContext();
   const [settings, updateSettings] = useViewSettings("gantt", { zoom: "week" as Zoom });
   const zoom = settings.zoom;
   const setZoom = (next: Zoom) => updateSettings({ zoom: next });

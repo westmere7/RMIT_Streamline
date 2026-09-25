@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 export interface PersonPickerProps {
   users: User[];
+  /** Who the chosen ids may name, beyond those who can be picked: a pending requester, say. `users` when absent. */
+  known?: User[];
   value: string[];
   onChange: (userIds: string[]) => void;
   allowMultiple?: boolean;
@@ -20,11 +22,11 @@ export interface PersonPickerProps {
 }
 
 /** Searchable member picker supporting single and multiple assignment. */
-export function PersonPicker({ users, value, onChange, allowMultiple = true, onDone }: PersonPickerProps) {
+export function PersonPicker({ users, known = users, value, onChange, allowMultiple = true, onDone }: PersonPickerProps) {
   // Optional: the picker is at home inside a workspace, and the chips only
   // lead to a profile where there is one to lead to.
   const slug = useWorkspaceOptional()?.slug ?? null;
-  const selected = value.map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
+  const selected = value.map((id) => known.find((u) => u.id === id)).filter((u): u is User => !!u);
   const available = users.filter((u) => u.deactivatedAt === null);
 
   const toggle = (userId: string) => {

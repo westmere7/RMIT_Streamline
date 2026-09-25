@@ -165,6 +165,7 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
             model,
             mutations,
             users: ws.activeUsers,
+            people: ws.users,
             // Nothing on this screen is editable: the panel opens read-only, and
             // the row's cells are a record of what the task was when it was put
             // away. Restoring it is how it becomes editable again.

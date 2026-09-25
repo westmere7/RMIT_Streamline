@@ -13,6 +13,11 @@ export interface BoardContextValue {
   mutations: BoardMutations;
   /** Workspace users that can be assigned. */
   users: User[];
+  /**
+   * Everyone a cell may name: pending and deactivated people too, so a requester
+   * who has not onboarded yet still shows. `users` when absent.
+   */
+  people?: User[];
   canEdit: boolean;
   canManage: boolean;
   /** Opens the task beside the board, or — asked for by name — as a pop-up over it. */

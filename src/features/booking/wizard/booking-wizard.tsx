@@ -12,7 +12,7 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
-import { newAssetRow, type AssetRow } from "../booking-fields";
+import { newAssetRow, type AssetRow, type EmailCheck } from "../booking-fields";
 import { useBookingMemory, useMountedInBrowser, type PastBooking } from "../booking-remember";
 import { StepAssets, StepBasics, StepBrief, StepReview } from "./wizard-steps";
 
@@ -203,30 +203,47 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
   React.useEffect(() => {
     lookupRef.current = lookupRequester;
   });
-  const canLookUp = !!lookupRequester && !account && !preview;
+  // Signed in and booking as themselves, the account says who. Filling the two
+  // boxes in by hand (booking for someone else) is checked like anyone's.
+  const asAccount = !!account && request.requesterName.trim() === account.name && request.requesterEmail.trim() === account.email;
+  const canLookUp = !!lookupRequester && !asAccount && !preview;
+  const checkable = canLookUp && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  // The last answer, for the email it answered. Checking is simply an email
+  // that has no answer yet, so nothing has to be set when typing starts.
+  const [lookedUp, setLookedUp] = React.useState<{ email: string; name: string | null } | null>(null);
   React.useEffect(() => {
-    if (!canLookUp || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+    if (!checkable) return;
     let live = true;
     const timer = window.setTimeout(() => {
       const lookup = lookupRef.current;
       if (!lookup) return;
       lookup(email)
+        .catch(() => null)
         .then((name) => {
-          if (!live || !name) return;
+          if (!live) return;
+          setLookedUp({ email, name });
+          if (!name) return;
           setRequest((prev) => {
             if (prev.requesterEmail.trim().toLowerCase() !== email) return prev;
             // No side effects in here: React may run this twice.
             if (prev.requesterName !== nameWhenEmailChanged.current || prev.requesterName === name) return prev;
             return { ...prev, requesterName: name };
           });
-        })
-        .catch(() => undefined);
+        });
     }, 350);
     return () => {
       live = false;
       window.clearTimeout(timer);
     };
-  }, [email, canLookUp]);
+  }, [email, checkable]);
+  const knownName = lookedUp?.email === email ? lookedUp.name : null;
+  const emailCheck: EmailCheck | null = !checkable
+    ? null
+    : lookedUp?.email !== email
+      ? { state: "checking" }
+      : knownName
+        ? { state: "known", name: knownName, onUseName: request.requesterName.trim() === knownName ? null : () => patch({ requesterName: knownName }) }
+        : null;
 
   /** The request as it will be sent: the composer's rows as asset lines, and the brief written out. */
   const buildRequest = React.useCallback(
@@ -418,6 +435,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
             // two boxes it answers are not on the form. "Booking for someone
             // else?" is what brings them back, empty.
             hiddenKeys={account && knownRequester ? ACCOUNT_KEYS : undefined}
+            emailCheck={emailCheck}
             identity={
               <Identity
                 account={account ?? null}

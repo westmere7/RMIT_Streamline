@@ -24,7 +24,7 @@ const ROW = 40;
  * label. Items with no date are counted and listed rather than dropped.
  */
 export function TimelineView() {
-  const { model, users, openItem, now } = useBoardContext();
+  const { model, users: assignable, people: users = assignable, openItem, now } = useBoardContext();
   const [settings, updateSettings] = useViewSettings("timeline", { zoom: "day" as Zoom });
   const zoom = settings.zoom;
   const setZoom = (next: Zoom) => updateSettings({ zoom: next });

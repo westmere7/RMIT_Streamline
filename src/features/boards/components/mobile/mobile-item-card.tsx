@@ -250,7 +250,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
 }
 
 function Owners({ userIds }: { userIds: string[] }) {
-  const { users } = useBoardContext();
+  const { users: assignable, people: users = assignable } = useBoardContext();
   const people = userIds.map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u);
   if (people.length === 0) return null;
   return <AvatarStack users={people} size="md" max={3} />;
