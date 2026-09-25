@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.42.3",
+    date: "2026-09-25",
+    title: "One avatar per person on cards",
+    changes: [
+      "A person in two people columns on the same item shows once on its phone card, not twice.",
+    ],
+  },
+  {
     version: "0.42.2",
     date: "2026-09-25",
     title: "Column types explain both groups",

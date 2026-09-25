@@ -60,8 +60,15 @@ export interface AvatarStackProps {
   className?: string;
 }
 
+/** Each user once, first appearance kept: one person can sit in two people columns. */
+export function uniqueUsers<U extends { id: string }>(users: U[]): U[] {
+  const seen = new Set<string>();
+  return users.filter((u) => !seen.has(u.id) && !!seen.add(u.id));
+}
+
 /** Overlapping avatars for multi-assignee cells. */
-export function AvatarStack({ users, size = "md", max = 3, className }: AvatarStackProps) {
+export function AvatarStack({ users: given, size = "md", max = 3, className }: AvatarStackProps) {
+  const users = uniqueUsers(given);
   const visible = users.slice(0, max);
   const overflow = users.length - visible.length;
   return (

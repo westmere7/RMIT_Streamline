@@ -64,10 +64,14 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
   // The date the card shows is the date the chip changes: the board's date
   // column when it has one, the end of its timeline otherwise.
   const dueColumn = model.dateColumn ?? model.timelineColumn;
-  const owners = model.personColumns.flatMap((c) => {
-    const v = model.getValue(item.id, c.id);
-    return v?.type === "PERSON" ? v.userIds : [];
-  });
+  const owners = [
+    ...new Set(
+      model.personColumns.flatMap((c) => {
+        const v = model.getValue(item.id, c.id);
+        return v?.type === "PERSON" ? v.userIds : [];
+      }),
+    ),
+  ];
 
   // A chip is a button only when there is something to change and somebody
   // allowed to change it; otherwise it is the same chip, just still.
