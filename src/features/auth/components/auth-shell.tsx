@@ -25,6 +25,7 @@ export function AuthShell({
   width,
   fill,
   scale,
+  extras,
 }: {
   headline: string;
   lead: string;
@@ -49,6 +50,12 @@ export function AuthShell({
    * is drawn that much taller under a zoom too — so it still fills one screen.
    */
   scale?: number;
+  /**
+   * Quiet controls for the reader's own view (theme, size). At the foot of the
+   * brand panel beside the small print; on a phone, where the panel is hidden,
+   * under the card. Given the tone of whichever ground it is drawn on.
+   */
+  extras?: (tone: "navy" | "canvas") => React.ReactNode;
 }) {
   const widthClass = width === "2xl" ? "max-w-4xl" : width === "xl" ? "max-w-2xl" : wide || width === "lg" ? "max-w-lg" : "max-w-md";
   return (
@@ -56,18 +63,18 @@ export function AuthShell({
       className={cn("flex bg-canvas", fill ? "h-screen" : "min-h-screen")}
       style={scale && scale !== 1 ? { zoom: scale, ...(fill ? { height: `calc(100dvh / ${scale})` } : { minHeight: `calc(100dvh / ${scale})` }) } : undefined}
     >
-      <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]" aria-hidden>
+      <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]">
         {/* Depth: a red glow low on the panel, a blue one high, and a faint grid. */}
         <div className="pointer-events-none absolute -bottom-40 -left-24 size-[560px] rounded-full bg-primary/30 blur-3xl" />
         <div className="pointer-events-none absolute -top-32 -right-24 size-[420px] rounded-full bg-[#4b52d6]/25 blur-3xl" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
 
-        <div className="relative flex items-end gap-1.5">
+        <div aria-hidden className="relative flex items-end gap-1.5">
           <BrandLogo tone="onNavy" className="h-8" />
           <AuthVersion className="bg-white/15 text-white/70" />
         </div>
 
-        <div className="relative space-y-6">
+        <div aria-hidden className="relative space-y-6">
           <h1 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">{headline}</h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
           <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
@@ -77,7 +84,10 @@ export function AuthShell({
           </ul>
         </div>
 
-        <div className="relative text-xs text-white/50">{footnote}</div>
+        <div className="relative flex items-center justify-between gap-4">
+          <div aria-hidden className="text-xs text-white/50">{footnote}</div>
+          {extras?.("navy")}
+        </div>
       </section>
 
       <section className={cn("relative flex flex-1 flex-col items-center justify-center gap-6 p-6 sm:p-10", fill && "min-h-0 overflow-hidden")}>
@@ -98,6 +108,7 @@ export function AuthShell({
           {progress && <span aria-hidden className="auth-sweep absolute inset-x-0 top-0 h-0.5" />}
           {children}
         </div>
+        {extras && <div className={cn("relative flex w-full justify-end lg:hidden", widthClass)}>{extras("canvas")}</div>}
       </section>
     </main>
   );

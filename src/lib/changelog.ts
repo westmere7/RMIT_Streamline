@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.34.4",
+    date: "2026-09-25",
+    title: "Visitors choose their size",
+    changes: [
+      "Booking form visitors can make the form larger or smaller for themselves; the team can turn that off in Booking form settings.",
+      "The theme and size controls sit quietly at the foot of the brand panel, under the card on a phone, instead of in the form's header.",
+    ],
+  },
+  {
     version: "0.34.3",
     date: "2026-09-25",
     title: "Booking form dropdowns at larger sizes",

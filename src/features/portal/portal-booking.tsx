@@ -1,18 +1,19 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, LoaderCircle, LogIn } from "lucide-react";
+import { ArrowLeft, LoaderCircle, LogIn, Minus, Plus } from "lucide-react";
 import * as React from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/domain";
-import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
+import { BOOKING_SCALE_MAX, BOOKING_SCALE_MIN, DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD, clampBookingScale } from "@/domain";
 import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newSubmissionKey, type PortalCredentials } from "@/features/portal/portal-client";
-import { PortalThemeSwitch } from "@/features/portal/portal-shell";
+import { THEME_ICONS, usePortalTheme } from "@/features/portal/portal-shell";
+import { cn } from "@/lib/utils";
 
 /**
  * Booking from the portal, on the booking page.
@@ -42,7 +43,8 @@ export function PortalBookingScreen({
   headline,
   lead,
   offerSignIn = true,
-  scale = 100,
+  scale: teamScale = 100,
+  scaleSwitch = true,
   onView,
   onClose,
 }: {
@@ -60,6 +62,8 @@ export function PortalBookingScreen({
   offerSignIn?: boolean;
   /** The interface size the team set for this form, in percent. */
   scale?: number;
+  /** Whether the visitor may change that size for themselves. */
+  scaleSwitch?: boolean;
   /** Opens the request that was just booked, on the board. */
   onView: (itemId: string) => void;
   /** Back to the board without booking, or once the ticket has been read. */
@@ -67,6 +71,7 @@ export function PortalBookingScreen({
 }) {
   const services = useServices();
   const queryClient = useQueryClient();
+  const { scale, set: setScale } = useVisitorScale(credentials.token, teamScale, scaleSwitch);
   // The size the team set for this form. The page itself is zoomed (AuthShell's
   // `scale`), never the document: menus position themselves from on-screen
   // boxes, and under a zoomed document they were placed that much off to the
@@ -113,14 +118,23 @@ export function PortalBookingScreen({
   });
 
   return (
-    <AuthShell headline={headline || DEFAULT_BOOKING_HEADLINE} lead={lead || DEFAULT_BOOKING_LEAD} footnote={`${creativeTeamName} · Streamline`} cardTestId="portal-book" progress={form.isLoading || stakeholders === null} width="2xl" fill scale={scale / 100}>
+    <AuthShell
+      headline={headline || DEFAULT_BOOKING_HEADLINE}
+      lead={lead || DEFAULT_BOOKING_LEAD}
+      footnote={`${creativeTeamName} · Streamline`}
+      cardTestId="portal-book"
+      progress={form.isLoading || stakeholders === null}
+      width="2xl"
+      fill
+      scale={scale / 100}
+      extras={(tone) => <ViewControls tone={tone} scale={scale} teamScale={teamScale} allowScale={scaleSwitch} onScale={setScale} />}
+    >
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
         <BrandMark className="size-9 rounded-lg text-sm" />
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-[15px] font-semibold tracking-tight">{portalName}</p>
           <p className="text-xs text-muted-foreground">Task booking{account ? ` · signed in as ${account.name}` : ""}</p>
         </div>
-        <PortalThemeSwitch />
         <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
           <ArrowLeft /> Back to our tasks
         </Button>
@@ -191,5 +205,128 @@ export function PortalBookingScreen({
         )}
       </div>
     </AuthShell>
+  );
+}
+
+// ---- the visitor's own view ------------------------------------------------------
+
+/** How much one press of − or + changes the size. */
+const VISITOR_SCALE_STEP = 10;
+
+/**
+ * The size this visitor reads the form at: the team's, unless the link lets
+ * them choose and they have. A choice remembers the team size it was made
+ * over and lapses when the team changes theirs, like the theme choice does.
+ */
+function useVisitorScale(token: string, teamScale: number, allow: boolean) {
+  const key = `streamline.portal-scale:${token}`;
+  const stored = React.useSyncExternalStore(
+    (onChange) => {
+      const onStorage = (event: StorageEvent) => {
+        if (event.key === key) onChange();
+      };
+      window.addEventListener("storage", onStorage);
+      return () => window.removeEventListener("storage", onStorage);
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    () => null,
+  );
+  // This visit's choice, for a browser that will not store it.
+  const [override, setOverride] = React.useState<string | null>(null);
+  const choice = allow ? parseScaleChoice(override ?? stored) : null;
+  const scale = choice && choice.over === teamScale ? choice.scale : teamScale;
+  const set = React.useCallback(
+    (next: number) => {
+      const value = clampBookingScale(next);
+      const raw = JSON.stringify({ scale: value, over: teamScale });
+      setOverride(raw);
+      try {
+        // Going back to the team's size is choosing to follow it.
+        if (value === teamScale) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, raw);
+      } catch {
+        // The choice then lasts this visit.
+      }
+    },
+    [key, teamScale],
+  );
+  return { scale, set };
+}
+
+function parseScaleChoice(raw: string | null): { scale: number; over: number } | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as { scale?: unknown; over?: unknown };
+    return typeof value.scale === "number" && typeof value.over === "number" ? { scale: clampBookingScale(value.scale), over: value.over } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The reader's view, kept small and out of the way: theme and size, at the foot
+ * of the brand panel (under the card on a phone). Nothing at all when the link
+ * lets the visitor change neither.
+ */
+function ViewControls({ tone, scale, teamScale, allowScale, onScale }: { tone: "navy" | "canvas"; scale: number; teamScale: number; allowScale: boolean; onScale: (scale: number) => void }) {
+  const theme = usePortalTheme();
+  const allowTheme = !!theme?.allowSwitch;
+  if (!allowTheme && !allowScale) return null;
+  const navy = tone === "navy";
+  const hover = navy ? "hover:bg-white/10 hover:text-white" : "hover:bg-accent hover:text-foreground";
+  const button = cn("flex size-7 items-center justify-center rounded-full transition-colors disabled:pointer-events-none disabled:opacity-35", hover);
+  const active = navy ? "bg-white/15 text-white" : "bg-foreground/10 text-foreground";
+  return (
+    <div className={cn("inline-flex items-center gap-0.5 rounded-full border p-0.5 text-2xs", navy ? "border-white/12 text-white/55" : "border-border/70 text-muted-foreground")} data-testid="booking-view-controls">
+      {allowTheme && (
+        <div role="radiogroup" aria-label="Theme" className="flex items-center gap-0.5">
+          {(["light", "dark", "system"] as const).map((option) => {
+            const Icon = THEME_ICONS[option];
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={theme.theme === option}
+                aria-label={`${option} theme`}
+                title={`${option[0]!.toUpperCase()}${option.slice(1)} theme`}
+                onClick={() => theme.set(option)}
+                className={cn(button, theme.theme === option && active)}
+                data-testid={`portal-theme-${option}`}
+              >
+                <Icon className="size-3.5" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {allowTheme && allowScale && <span aria-hidden className={cn("mx-1 h-3.5 w-px", navy ? "bg-white/15" : "bg-border")} />}
+      {allowScale && (
+        <div role="group" aria-label="Interface size" className="flex items-center gap-0.5">
+          <button type="button" className={button} onClick={() => onScale(scale - VISITOR_SCALE_STEP)} disabled={scale <= BOOKING_SCALE_MIN} aria-label="Smaller" title="Smaller" data-testid="booking-scale-down">
+            <Minus className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn("h-7 min-w-11 rounded-full px-1.5 font-medium tabular transition-colors", hover)}
+            onClick={() => onScale(teamScale)}
+            title={scale === teamScale ? "Interface size" : `Back to ${teamScale}%`}
+            aria-label={`Interface size ${scale}%${scale === teamScale ? "" : `, press for ${teamScale}%`}`}
+            data-testid="booking-scale-value"
+          >
+            {scale}%
+          </button>
+          <button type="button" className={button} onClick={() => onScale(scale + VISITOR_SCALE_STEP)} disabled={scale >= BOOKING_SCALE_MAX} aria-label="Larger" title="Larger" data-testid="booking-scale-up">
+            <Plus className="size-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

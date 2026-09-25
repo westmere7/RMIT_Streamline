@@ -277,7 +277,12 @@ function subscribeToStorage(key: string, onChange: () => void): () => void {
   return () => window.removeEventListener("storage", listener);
 }
 
-const THEME_ICONS: Record<PortalTheme, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
+export const THEME_ICONS: Record<PortalTheme, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
+
+/** The portal page's theme and, when the link allows it, the way to change it. Null outside a PortalThemeScope. */
+export function usePortalTheme() {
+  return React.useContext(PortalThemeContext);
+}
 
 /**
  * How far back the board reads.

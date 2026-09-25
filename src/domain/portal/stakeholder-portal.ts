@@ -115,6 +115,8 @@ export interface StakeholderPortal extends Timestamps {
   bookingSignIn: boolean;
   /** The booking form's interface size, in percent (BOOKING_SCALE_MIN to BOOKING_SCALE_MAX). */
   bookingScale: number;
+  /** Whether a visitor may change the booking form's size for themselves. */
+  bookingScaleSwitch: boolean;
 }
 
 /** How far the booking form can be drawn smaller or larger, and in what steps. */
@@ -220,6 +222,7 @@ export type PortalPresentation = Partial<
     | "bookingLead"
     | "bookingSignIn"
     | "bookingScale"
+    | "bookingScaleSwitch"
   >
 >;
 
@@ -339,6 +342,7 @@ export interface PortalGate {
   bookingLead: string | null;
   bookingSignIn: boolean;
   bookingScale: number;
+  bookingScaleSwitch: boolean;
   /** Rises whenever the link or password changes; a grant issued under an older one is dead. */
   credentialVersion: number;
 }

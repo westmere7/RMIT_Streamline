@@ -203,6 +203,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           lead={gate.data.bookingLead}
           offerSignIn={gate.data.bookingSignIn}
           scale={gate.data.bookingScale ?? 100}
+          scaleSwitch={gate.data.bookingScaleSwitch ?? true}
           onView={(itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
           onClose={leave}
         />

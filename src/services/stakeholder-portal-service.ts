@@ -537,6 +537,7 @@ export class StakeholderPortalService {
       bookingLead: null,
       bookingSignIn: true,
       bookingScale: 100,
+      bookingScaleSwitch: true,
       credentialVersion: 0,
     };
     const portal = isPlausiblePortalToken(token) ? await this.repos.stakeholderPortals.getPortalByToken(token) : null;
@@ -564,6 +565,7 @@ export class StakeholderPortalService {
       bookingLead: portal.bookingLead,
       bookingSignIn: portal.bookingSignIn,
       bookingScale: portal.bookingScale ?? 100,
+      bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
       credentialVersion: portal.credentialVersion,
     };
   }

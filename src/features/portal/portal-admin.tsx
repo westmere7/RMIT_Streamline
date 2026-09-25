@@ -447,7 +447,7 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
 // ---- each link's settings ------------------------------------------------------
 
 /** The settings a panel edits. A draft of these is what Save writes and Discard throws away. */
-type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale">> & {
+type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale" | "bookingScaleSwitch">> & {
   bookingHeadline: string;
   bookingLead: string;
   teamName: string;
@@ -456,7 +456,7 @@ type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
   portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "hiddenColumns", "showRecap", "showItemGroups"],
-  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale"],
+  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
 function draftOf(portal: StakeholderPortal, teamName: string): Draft {
@@ -473,6 +473,7 @@ function draftOf(portal: StakeholderPortal, teamName: string): Draft {
     bookingThemeSwitch: portal.bookingThemeSwitch,
     bookingSignIn: portal.bookingSignIn,
     bookingScale: portal.bookingScale ?? 100,
+    bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
     bookingHeadline: portal.bookingHeadline ?? "",
     bookingLead: portal.bookingLead ?? "",
     teamName,
@@ -656,6 +657,7 @@ function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
       </Field>
       <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
       <ScaleField value={draft.bookingScale} onChange={(value) => set("bookingScale", value)} />
+      <Toggle label="Visitors can change size" checked={draft.bookingScaleSwitch} onChange={(value) => set("bookingScaleSwitch", value)} testId="portal-booking-scale-switch" />
     </>
   );
 }
