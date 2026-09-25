@@ -36,12 +36,24 @@ const INSERT_CHUNK = 500;
 
 export const snapshotWorkspaceSchema = z.object({ workspaceId: z.uuid() });
 export const createSnapshotSchema = z.object({ workspaceId: z.uuid(), name: z.string().trim().max(120).optional() });
-export const restoreSnapshotSchema = z.object({ workspaceId: z.uuid(), password: z.string().min(1, "Enter your password").max(200) });
+/**
+ * What a restore asks for before it wipes anything. For now the word below,
+ * typed out: the admin's password check (`verifyPassword`) is switched off
+ * while the app is tried out, and comes back by setting this to true.
+ */
+export const RESTORE_NEEDS_PASSWORD = false;
+export const RESTORE_CONFIRM_WORD = "RESTORE";
+export const restoreSnapshotSchema = z.object({ workspaceId: z.uuid(), password: z.string().max(200).optional(), confirm: z.string().max(40).optional() });
+
+/** Held for the length of a restore or a wipe, so two of them never run over each other. */
+const RESTORE_LOCK = 7_441_902;
+
+export const wipeBoardsSchema = z.object({ workspaceId: z.uuid(), password: z.string({ error: "Enter your password." }).min(1, "Enter your password.").max(200) });
 
 export interface SnapshotSummary {
   id: string;
   name: string;
-  kind: "manual" | "before_restore" | "upload";
+  kind: "manual" | "before_restore" | "before_wipe" | "upload";
   createdAt: string;
   createdByName: string | null;
   appVersion: string | null;
@@ -142,7 +154,8 @@ interface Captured {
 export async function capture(meta: { name: string; createdAt: string; createdByName: string }): Promise<Captured> {
   return db().begin("isolation level repeatable read read only", async (tx) => {
     const tables = await tablesNow(tx);
-    const [ledger] = await tx<{ name: string }[]>`select name from public.schema_migrations order by name desc limit 1`;
+    // The last migration, not the last policy file: "policies/…" sorts after "migrations/…".
+    const [ledger] = await tx<{ name: string }[]>`select name from public.schema_migrations where name like 'migrations/%' order by name desc limit 1`;
     const tableCounts: Record<string, number> = {};
     const parts: string[] = [];
     for (const table of [...tables.keys()].sort()) {
@@ -291,8 +304,8 @@ export interface RestoreResult {
 /**
  * Puts the database back to a snapshot.
  *
- * The password is checked first, then the current state is snapshotted, so a
- * restore is itself undoable. The restore is one transaction: every table is
+ * The confirmation (or, when RESTORE_NEEDS_PASSWORD, the password) is checked
+ * first, then the current state is snapshotted, so a restore is itself undoable. The restore is one transaction: every table is
  * emptied and refilled, or nothing changes. Triggers and foreign-key checks are
  * held off for its length (`session_replication_role = replica`), which lets
  * the tables be filled in any order and keeps automations from firing on rows
@@ -302,20 +315,32 @@ export interface RestoreResult {
  * older schema still restores; a column it has that the table no longer does
  * is dropped.
  */
-export async function restoreSnapshot(workspaceId: string, id: string, caller: Caller, password: string): Promise<RestoreResult> {
-  await verifyPassword(caller, password);
+export async function restoreSnapshot(workspaceId: string, id: string, caller: Caller, proof: { password?: string; confirm?: string }): Promise<RestoreResult> {
+  if (RESTORE_NEEDS_PASSWORD) {
+    if (!proof.password) throw new HttpError(400, "Enter your password.");
+    await verifyPassword(caller, proof.password);
+  } else if (proof.confirm?.trim() !== RESTORE_CONFIRM_WORD) {
+    throw new HttpError(400, `Type ${RESTORE_CONFIRM_WORD} to confirm.`);
+  }
   const [row] = await db()<(SnapshotRow & { file: Buffer })[]>`select ${db()([...SUMMARY_COLUMNS, "file"])} from public.workspace_snapshots where id = ${id} and workspace_id = ${workspaceId}`;
   if (!row) throw new HttpError(404, "That snapshot no longer exists.");
   const doc = readSnapshotFile(row.file);
 
-  const safetySnapshot = await createSnapshot(workspaceId, caller, `Before restoring “${row.name}”`, "before_restore");
+  // One restore at a time: the connection is a single session, so the lock is held until released below.
+  const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
+  if (!lock?.ok) throw new HttpError(409, "Another restore is already running. Try again once it has finished.");
+  try {
+    const safetySnapshot = await createSnapshot(workspaceId, caller, `Before restoring “${row.name}”`, "before_restore");
 
-  const { rowCount, skippedTables } = await db().begin((tx) => refill(tx, doc));
+    const { rowCount, skippedTables } = await db().begin((tx) => refill(tx, doc));
 
-  const [restored] = await db()<SnapshotRow[]>`
-    update public.workspace_snapshots set restored_at = now(), restored_by_name = ${caller.name}
-    where id = ${id} returning ${db()(SUMMARY_COLUMNS)}`;
-  return { restored: summary(restored!), safetySnapshot, rowCount, skippedTables };
+    const [restored] = await db()<SnapshotRow[]>`
+      update public.workspace_snapshots set restored_at = now(), restored_by_name = ${caller.name}
+      where id = ${id} returning ${db()(SUMMARY_COLUMNS)}`;
+    return { restored: summary(restored!), safetySnapshot, rowCount, skippedTables };
+  } finally {
+    await db()`select pg_advisory_unlock(${RESTORE_LOCK})`.catch(() => undefined);
+  }
 }
 
 /**
@@ -359,4 +384,57 @@ export async function refill(tx: postgres.TransactionSql, doc: SnapshotDocument)
     );
   }
   return { rowCount, skippedTables };
+}
+
+export interface WipeResult {
+  safetySnapshot: SnapshotSummary;
+  boards: number;
+  tasks: number;
+}
+
+/**
+ * Settings → Danger zone: every board in the workspace and everything on it
+ * goes — groups, columns, tasks and subitems, their values, deliverables,
+ * comments, links, shares and automations — along with the activity,
+ * notifications, automation runs and portal receipts that pointed at them.
+ *
+ * What stays is everything that is not board data: the workspace and its
+ * settings, lists and departments, teams, members and profiles, the booking
+ * form and portals, trackers, direct messages and snapshots. Task Allocation is
+ * built in, so it keeps its columns, groups and rules and loses only its tasks.
+ *
+ * Always behind the admin's password, whatever RESTORE_NEEDS_PASSWORD says, and
+ * snapshotted first, so it can be undone from Settings → Snapshots. One
+ * transaction: all of it goes, or none of it.
+ */
+export async function wipeBoardData(workspaceId: string, caller: Caller, password: string): Promise<WipeResult> {
+  await verifyPassword(caller, password);
+  const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
+  if (!lock?.ok) throw new HttpError(409, "A restore or a wipe is already running. Try again once it has finished.");
+  try {
+    const safetySnapshot = await createSnapshot(workspaceId, caller, "Before wiping board data", "before_wipe");
+    const counts = await db().begin(async (tx) => {
+      await tx`set local statement_timeout = '55s'`;
+      const boards = await tx<{ id: string; system: string | null }[]>`select id, system from public.boards where workspace_id = ${workspaceId}`;
+      const all = boards.map((b) => b.id);
+      const builtIn = boards.filter((b) => b.system !== null).map((b) => b.id);
+      const others = boards.filter((b) => b.system === null).map((b) => b.id);
+      const [items] = await tx<{ n: number }[]>`select count(*)::int as n from public.items where board_id = any(${all}::uuid[])`;
+      // What only points at boards and tasks (set null, not cascade), so it would outlive them as noise.
+      const tasks = tx`select id from public.items where board_id = any(${all}::uuid[])`;
+      await tx`delete from public.activities where workspace_id = ${workspaceId} and (board_id = any(${all}::uuid[]) or item_id in (${tasks}))`;
+      await tx`delete from public.notifications where board_id = any(${all}::uuid[]) or (entity_type = 'ITEM' and entity_id in (${tasks}))`;
+      await tx`delete from public.automation_runs where board_id = any(${all}::uuid[])`;
+      await tx`delete from public.portal_submissions where item_id in (${tasks})`;
+      // The rest goes with its board or its task.
+      await tx`delete from public.items where board_id = any(${builtIn}::uuid[])`;
+      await tx`delete from public.boards where id = any(${others}::uuid[])`;
+      // And any notice already pointing at nothing — a task or board removed before this, whose notice outlived it.
+      await tx`delete from public.notifications where (entity_type = 'ITEM' and not exists (select 1 from public.items i where i.id = entity_id)) or (entity_type = 'BOARD' and not exists (select 1 from public.boards b where b.id = entity_id))`;
+      return { boards: others.length, tasks: items?.n ?? 0 };
+    });
+    return { safetySnapshot, ...counts };
+  } finally {
+    await db()`select pg_advisory_unlock(${RESTORE_LOCK})`.catch(() => undefined);
+  }
 }

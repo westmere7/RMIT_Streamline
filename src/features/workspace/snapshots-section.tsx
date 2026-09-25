@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, Download, History, LoaderCircle, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
+import { BlockingScreen } from "@/components/shared/blocking-screen";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils";
 interface SnapshotSummary {
   id: string;
   name: string;
-  kind: "manual" | "before_restore" | "upload";
+  kind: "manual" | "before_restore" | "before_wipe" | "upload";
   createdAt: string;
   createdByName: string | null;
   appVersion: string | null;
@@ -64,7 +65,7 @@ function formatWhen(iso: string): string {
  *
  * Taking one saves every table into one file kept in the database. Any of them
  * can be downloaded, and a file downloaded before can be uploaded back. A
- * restore asks for the admin's password and snapshots the present first, so it
+ * restore asks for a typed confirmation and snapshots the present first, so it
  * can itself be undone from this list.
  */
 export function SnapshotsSection() {
@@ -176,13 +177,14 @@ export function SnapshotsSection() {
           <ul className="divide-y divide-border/60">
             {snapshots.map((snapshot) => (
               <li key={snapshot.id} className="flex items-center gap-3 px-4 py-3" data-testid="snapshot-row">
-                <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", snapshot.kind === "before_restore" ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-surface text-muted-foreground")} aria-hidden>
-                  {snapshot.kind === "upload" ? <Upload className="size-4" /> : snapshot.kind === "before_restore" ? <History className="size-4" /> : <Camera className="size-4" />}
+                <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-surface text-muted-foreground")} aria-hidden>
+                  {snapshot.kind === "upload" ? <Upload className="size-4" /> : snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" ? <History className="size-4" /> : <Camera className="size-4" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
                     <span className="truncate">{snapshot.name}</span>
                     {snapshot.kind === "before_restore" && <Badge variant="muted">Before a restore</Badge>}
+                    {snapshot.kind === "before_wipe" && <Badge variant="muted">Before a wipe</Badge>}
                     {snapshot.kind === "upload" && <Badge variant="muted">Uploaded</Badge>}
                     {snapshot.restoredAt && (
                       <SimpleTooltip label={`Restored ${formatWhen(snapshot.restoredAt)}${snapshot.restoredByName ? ` by ${snapshot.restoredByName}` : ""}`}>
@@ -237,62 +239,83 @@ export function SnapshotsSection() {
   );
 }
 
+/** The word typed to confirm a restore; the server checks the same (RESTORE_CONFIRM_WORD). */
+const CONFIRM_WORD = "RESTORE";
+
 /**
- * The one step that changes everything, behind the admin's own password.
- * Once it is done the page reloads, so nothing on screen is left over from
- * before.
+ * The one step that changes everything, behind a typed confirmation (the
+ * password check is off while the app is tried out; see RESTORE_NEEDS_PASSWORD).
+ * While it runs, the whole app is covered and nothing else can be done; once it
+ * is done the page reloads, so nothing on screen is left over from before.
  */
 function RestoreDialog({ snapshot, onClose }: { snapshot: SnapshotSummary | null; onClose: () => void }) {
   const ws = useWorkspace();
   const queryClient = useQueryClient();
-  const [password, setPassword] = React.useState("");
+  const [typed, setTyped] = React.useState("");
+  const [done, setDone] = React.useState<number | null>(null);
   const restore = useMutation({
     mutationFn: () =>
-      callApi<{ rowCount: number; skippedTables: string[] }>(`/api/snapshots/${snapshot!.id}/restore`, { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, password }) }, { auth: "required" }),
+      callApi<{ rowCount: number; skippedTables: string[] }>(
+        `/api/snapshots/${snapshot!.id}/restore`,
+        { method: "POST", body: JSON.stringify({ workspaceId: ws.workspace.id, confirm: typed.trim() }) },
+        { auth: "required" },
+      ),
     onSuccess: (result) => {
-      toast.success("Restored", { description: `${result.rowCount.toLocaleString()} rows put back. Reloading…` });
+      setDone(result.rowCount);
       queryClient.clear();
-      setTimeout(() => window.location.reload(), 900);
+      setTimeout(() => window.location.reload(), 1200);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not restore the snapshot"),
   });
-  // The password never outlives the dialog.
   const close = () => {
-    setPassword("");
+    setTyped("");
     onClose();
   };
+  const ready = typed.trim() === CONFIRM_WORD;
+  const busy = restore.isPending || done !== null;
 
   return (
-    <Dialog open={snapshot !== null} onOpenChange={(open) => !open && !restore.isPending && close()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShieldAlert className="size-5 text-destructive" /> Restore “{snapshot?.name}”?
-          </DialogTitle>
-          <DialogDescription>
-            Everything goes back to {snapshot ? formatWhen(snapshot.createdAt) : ""}, for everyone. The current state is saved as a snapshot first.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          id="snapshot-restore-form"
-          className="grid gap-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (password) restore.mutate();
-          }}
-        >
-          <Label htmlFor="snapshot-password">Your password</Label>
-          <Input id="snapshot-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus disabled={restore.isPending} data-testid="snapshot-password" />
-        </form>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={close} disabled={restore.isPending}>
-            Cancel
-          </Button>
-          <Button type="submit" form="snapshot-restore-form" variant="destructive" disabled={!password || restore.isPending} data-testid="snapshot-restore-confirm">
-            {restore.isPending ? <LoaderCircle className="animate-spin" /> : <RotateCcw />} {restore.isPending ? "Restoring…" : "Restore"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={snapshot !== null && !busy} onOpenChange={(open) => !open && !busy && close()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="size-5 text-destructive" /> Restore “{snapshot?.name}”?
+            </DialogTitle>
+            <DialogDescription>
+              Everything goes back to {snapshot ? formatWhen(snapshot.createdAt) : ""}, for everyone. The current state is saved as a snapshot first.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="snapshot-restore-form"
+            className="grid gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (ready) restore.mutate();
+            }}
+          >
+            <Label htmlFor="snapshot-confirm">
+              Type <span className="font-mono font-semibold">{CONFIRM_WORD}</span> to confirm
+            </Label>
+            <Input id="snapshot-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} autoFocus className="font-mono" data-testid="snapshot-confirm" />
+          </form>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" form="snapshot-restore-form" variant="destructive" disabled={!ready} data-testid="snapshot-restore-confirm">
+              <RotateCcw /> Restore
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {busy && snapshot && (
+        <BlockingScreen
+          title={`Restoring “${snapshot.name}”`}
+          detail="Saving the current state, then putting every table back. Keep this tab open."
+          done={done === null ? null : { title: "Restored", detail: `${done.toLocaleString()} rows put back. Reloading…` }}
+        />
+      )}
+    </>
   );
 }

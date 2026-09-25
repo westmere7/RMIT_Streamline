@@ -8,10 +8,16 @@
  * thing back. A clean run proves every table's rows survive the trip through
  * the file: types, arrays, enums, generated columns and all.
  *
+ * With --snapshot it rehearses restoring a saved snapshot instead (its id, or
+ * "latest"): the file is refilled into the current schema, each table's rows
+ * are counted against the file, and it is rolled back. That proves an older
+ * snapshot still restores into a newer schema.
+ *
  * Every table is locked for the few seconds it takes, so run it when nobody is
  * mid-edit. Nothing is written: not the tables, not a snapshot row.
  *
  *   npm run db:snapshot:rehearse
+ *   npm run db:snapshot:rehearse -- --snapshot latest
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -50,7 +56,49 @@ async function fingerprints(tx: postgres.Sql | postgres.TransactionSql, tables: 
 
 class Rollback extends Error {}
 
+const flag = process.argv.indexOf("--snapshot");
+const saved = flag >= 0 ? (process.argv[flag + 1] ?? "latest") : null;
+
+/** Restores a saved snapshot into the current schema, counts every table against the file, rolls back. */
+async function rehearseSaved(which: string): Promise<void> {
+  const [row] =
+    which === "latest"
+      ? await sql<{ id: string; name: string; schema_version: string | null; file: Buffer }[]>`select id, name, schema_version, file from public.workspace_snapshots order by created_at desc limit 1`
+      : await sql<{ id: string; name: string; schema_version: string | null; file: Buffer }[]>`select id, name, schema_version, file from public.workspace_snapshots where id = ${which}`;
+  if (!row) throw new Error(`No snapshot ${which}.`);
+  const doc = readSnapshotFile(row.file);
+  console.log(`Rehearsing a restore of “${row.name}” (schema ${row.schema_version ?? "unknown"}).`);
+  let report = "";
+  try {
+    await sql.begin(async (tx) => {
+      const t0 = Date.now();
+      const { rowCount, skippedTables } = await refill(tx, doc);
+      const wrong: string[] = [];
+      for (const [table, rows] of Object.entries(doc.tables)) {
+        if (skippedTables.includes(table)) continue;
+        const [n] = await tx.unsafe<{ n: number }[]>(`select count(*)::int as n from public."${table}"`);
+        if ((n?.n ?? 0) !== rows.length) wrong.push(`${table} (${rows.length} in the file, ${n?.n ?? 0} put back)`);
+      }
+      report = [
+        `Refilled ${rowCount.toLocaleString()} rows in ${Date.now() - t0} ms.`,
+        skippedTables.length ? `Skipped (not in this schema): ${skippedTables.join(", ")}` : "No tables skipped.",
+        wrong.length ? `WRONG COUNT: ${wrong.join("; ")}` : "Every table holds exactly what the file does.",
+      ].join("\n");
+      throw new Rollback();
+    });
+  } catch (error) {
+    if (!(error instanceof Rollback)) throw error;
+  }
+  console.log(report);
+  console.log("Rolled back: nothing was changed.");
+  if (report.includes("WRONG")) process.exitCode = 1;
+}
+
 try {
+  if (saved) {
+    await rehearseSaved(saved);
+    throw new Rollback();
+  }
   const started = Date.now();
   const captured = await capture({ name: "Rehearsal", createdAt: new Date().toISOString(), createdByName: "snapshot-rehearsal" });
   const doc = readSnapshotFile(captured.file);
@@ -80,8 +128,10 @@ try {
   console.log("Rolled back: nothing was changed.");
   if (report.includes("DIFFERENT")) process.exitCode = 1;
 } catch (error) {
-  console.error("Rehearsal failed:", error);
-  process.exitCode = 1;
+  if (!(error instanceof Rollback)) {
+    console.error("Rehearsal failed:", error);
+    process.exitCode = 1;
+  }
 } finally {
   await sql.end();
   process.exit(process.exitCode ?? 0);

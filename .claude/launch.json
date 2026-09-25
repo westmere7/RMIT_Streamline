@@ -45,6 +45,22 @@
         "SKIP_DB_MIGRATE": "1",
         "NEXT_DIST_DIR": ".next-preview"
       }
+    },
+    {
+      "name": "dev-preview-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3200"
+      ],
+      "port": 3200,
+      "env": {
+        "SKIP_DB_MIGRATE": "1",
+        "NEXT_DIST_DIR": ".next-preview"
+      }
     }
   ]
 }

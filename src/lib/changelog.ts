@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.46.0",
+    date: "2026-09-25",
+    title: "Danger zone, and safer restores",
+    changes: [
+      "Settings → Danger zone can wipe all board data for a clean start: every board and task goes, while settings, lists, teams and people stay. It needs your password and takes a snapshot first.",
+      "Restoring a snapshot asks you to type RESTORE, and covers the app until it is done so nothing else can happen in the meantime.",
+      "Only admins and owners can restore, wipe or manage snapshots.",
+    ],
+  },
+  {
     version: "0.45.2",
     date: "2026-09-25",
     title: "Straight into the app",

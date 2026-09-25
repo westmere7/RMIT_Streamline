@@ -26,6 +26,7 @@ import {
   Sun,
   SunDim,
   Upload,
+  TriangleAlert,
   UserCog,
   Users,
   type LucideIcon,
@@ -48,6 +49,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
+import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { TicketSettings } from "@/features/workspace/ticket-settings";
 import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
@@ -60,7 +62,7 @@ import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "data", "documentation"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "data", "danger", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -91,6 +93,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
   documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true },
   snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Everything the workspace holds, saved in one file. Download it, or restore to it.", width: "wide" },
   data: { label: "Storage", icon: Database, description: "Where the workspace is kept.", width: "narrow" },
+  danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and owners only.", width: "wide" },
 };
 
 /** The side list, in groups of what the sections are about. */
@@ -99,7 +102,7 @@ const NAV_GROUPS: Array<{ label: string; sections: Section[]; members?: boolean;
   { label: "Lists", sections: ["departments", "asset-types"] },
   { label: "People", sections: ["permissions"], members: true },
   { label: "You", sections: ["view"] },
-  { label: "Data", sections: ["snapshots", "data"] },
+  { label: "Data", sections: ["snapshots", "data", "danger"] },
   { label: "Help", sections: ["documentation"], about: true },
 ];
 
@@ -114,9 +117,9 @@ export function SettingsPage() {
   let section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const { providerKind } = useDataContext();
-  // Snapshots are the shared database's, and an admin's alone.
+  // Snapshots and the danger zone are the shared database's, and an admin's or owner's alone.
   const snapshotsOn = providerKind === "supabase" && canManageWorkspace(ws.permissions);
-  const visible = (s: Section) => s !== "snapshots" || snapshotsOn;
+  const visible = (s: Section) => (s !== "snapshots" && s !== "danger") || snapshotsOn;
   if (!visible(section)) section = "general";
   const meta = SECTION_META[section];
   const go = (s: Section) => router.replace(routes.settings(ws.slug, s));
@@ -183,6 +186,7 @@ export function SettingsPage() {
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}
             {section === "snapshots" && <SnapshotsSection />}
+            {section === "danger" && <DangerZoneSection />}
             {section === "data" && <DataSection />}
           </div>
         </div>
