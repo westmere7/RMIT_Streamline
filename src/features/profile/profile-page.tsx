@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Boxes, Building2, CalendarCheck, CalendarClock, CalendarX2, Clock, History, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
+import { Boxes, CalendarCheck, Clock, History, Info, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { WorkspaceRole } from "@/domain";
 import { assetCount, formatWorkHours } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
@@ -19,7 +20,7 @@ import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useProfile } from "@/features/profile/hooks";
-import { StakeholderLoad } from "@/features/profile/stakeholder-load";
+import { STAKEHOLDER_LOAD_NOTE, StakeholderLoad } from "@/features/profile/stakeholder-load";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -72,7 +73,7 @@ export function ProfilePage({ userId }: { userId: string }) {
         <Skeleton className="h-28" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28" />
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
         <Skeleton className="h-48" />
@@ -172,27 +173,21 @@ export function ProfilePage({ userId }: { userId: string }) {
         </section>
 
         {/* ---- What they are carrying, in figures ----------------------------- */}
-        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="profile-figures">
-          <Figure icon={ListChecks} label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length} assigned`} />
-          <Figure icon={AlertTriangle} label="Overdue tasks" value={buckets.overdue} tone={buckets.overdue > 0 ? "urgent" : undefined} hint={`${buckets.today + buckets.thisWeek} more due this week`} />
-          <Figure
-            icon={Boxes}
-            label="Assets done"
-            value={`${assets.done}/${assets.total}`}
-            hint={assets.units === assets.total ? `${assetsPercent}%` : `${assetsPercent}% · ${assets.units} units`}
-            progress={assets.total > 0 ? assets.done / assets.total : undefined}
-          />
-          <Figure icon={CalendarX2} label="Assets overdue" value={assets.overdue} tone={assets.overdue > 0 ? "urgent" : undefined} hint="deliverables past their due date" />
+        <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-4" data-testid="profile-figures">
+          <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} />
+          <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today + buckets.thisWeek} more due this week`} />
+          <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} />
+          <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" />
         </div>
 
         {/* ---- The open work, three ways ----------------------------------------- */}
-        <div className="mt-3 grid gap-3 lg:grid-cols-3">
-          <Panel icon={CalendarClock} title="Open work by due date" count={open.length}>
+        <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-3">
+          <Split title="By due date">
             <RankedBars data={dueRows} valueLabel="tasks" compact emptyMessage="Nothing open right now." />
-          </Panel>
-          <Panel icon={SquareKanban} title="Open work by board" count={byBoard.length}>
+          </Split>
+          <Split title="By board">
             <RankedBars
-              data={byBoard.slice(0, 6)}
+              data={byBoard.slice(0, 5)}
               valueLabel="tasks"
               compact
               emptyMessage="Nothing open right now."
@@ -201,13 +196,13 @@ export function ProfilePage({ userId }: { userId: string }) {
                 return board ? routes.board(ws.slug, board.slug) : null;
               }}
             />
-          </Panel>
+          </Split>
           {/* Who the work is for, not which group this person belongs to: the
               split comes off the tasks' own stakeholder cells, which is the
               same thing the dashboard's resourcing filter counts. */}
-          <Panel icon={Building2} title="Work by department">
+          <Split title="By department" info={STAKEHOLDER_LOAD_NOTE}>
             <StakeholderLoad userId={userId} />
-          </Panel>
+          </Split>
         </div>
 
         {/* ---- The lists, one at a time ------------------------------------------ */}
@@ -259,7 +254,7 @@ export function ProfilePage({ userId }: { userId: string }) {
                             <span className="min-w-0 flex-1 truncate">{task.item.name}</span>
                             <span className="hidden shrink-0 text-2xs text-muted-foreground md:inline">{task.board.name}</span>
                             {task.dueDate && (
-                              <span className={cn("hidden w-14 shrink-0 text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                              <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                                 {formatShortDate(task.dueDate)}
                               </span>
                             )}
@@ -295,7 +290,7 @@ export function ProfilePage({ userId }: { userId: string }) {
                       {type && <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(type.color).soft)}>{type.name}</span>}
                       <span className="shrink-0 text-2xs text-muted-foreground tabular">×{assetCount(asset)}</span>
                       {asset.dueDate && (
-                        <span className={cn("hidden w-14 shrink-0 text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                        <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                           {formatShortDate(asset.dueDate)}
                         </span>
                       )}
@@ -348,40 +343,36 @@ export function ProfilePage({ userId }: { userId: string }) {
   );
 }
 
-/** One figure from the strip: an icon, the number large, and what it counts under it. */
-function Figure({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone,
-  progress,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number | string;
-  hint?: string;
-  tone?: "urgent";
-  /** 0–1, drawn as a thin bar under the number. */
-  progress?: number;
-}) {
-  const urgent = tone === "urgent";
+/** One figure in the strip: what it counts, the number, and a line under it. */
+function Figure({ label, value, hint, urgent, progress }: { label: string; value: number | string; hint?: string; urgent?: boolean; progress?: number }) {
   return (
-    <div className={cn("flex flex-col rounded-2xl border bg-card p-4 shadow-xs", urgent ? "border-red-500/30" : "border-border/70")}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-        <span className={cn("flex size-7 items-center justify-center rounded-lg", urgent ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-accent-soft text-accent-soft-foreground")}>
-          <Icon className="size-3.5" />
-        </span>
-      </div>
-      <p className={cn("mt-1.5 text-[28px] leading-none font-semibold tracking-tight tabular", urgent && "text-red-600 dark:text-red-400")}>{value}</p>
+    <div className="flex flex-col bg-card px-5 py-4">
+      <p className="text-[12px] text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 text-[26px] leading-tight font-semibold tracking-tight tabular", urgent && "text-red-600 dark:text-red-400")}>{value}</p>
       {progress !== undefined && (
-        <span aria-hidden className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-surface-strong">
+        <span aria-hidden className="mt-1.5 block h-1 overflow-hidden rounded-full bg-surface-strong">
           <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${Math.round(progress * 100)}%` }} />
         </span>
       )}
-      {hint && <p className="mt-auto pt-2 text-2xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-auto pt-1.5 text-2xs text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+/** One of the three splits of the open work: a quiet heading over its bars. */
+function Split({ title, info, children }: { title: string; info?: string; children: React.ReactNode }) {
+  return (
+    <section className="bg-card p-4">
+      <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+        Open work {title.toLowerCase()}
+        {info && (
+          <SimpleTooltip label={info}>
+            <Info className="size-3 cursor-help" aria-label={info} />
+          </SimpleTooltip>
+        )}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -404,31 +395,6 @@ function Detail({ icon: Icon, label, href }: { icon: React.ComponentType<{ class
   return <dd>{href ? <a href={href} className="hover:text-foreground hover:underline">{content}</a> : content}</dd>;
 }
 
-function Panel({
-  icon: Icon,
-  title,
-  count,
-  className,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  /** Left off where the panel's own contents are the count. */
-  count?: number;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={cn("rounded-xl border border-border/70 bg-card p-4 shadow-xs", className)}>
-      <h3 className="mb-3 flex items-center gap-2 text-[13px] font-medium">
-        <Icon className="size-4 text-muted-foreground" />
-        {title}
-        {count !== undefined && <span className="text-2xs text-muted-foreground">{count}</span>}
-      </h3>
-      {children}
-    </section>
-  );
-}
 
 function Muted({ children }: { children: React.ReactNode }) {
   return <p className="px-2 py-3 text-[13px] text-muted-foreground">{children}</p>;

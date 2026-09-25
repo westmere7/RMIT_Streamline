@@ -11,6 +11,9 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 /** The same window the dashboard's resourcing panel opens on by default. */
 const WEEKS = 4;
 
+/** What the department split counts, for the heading's info tip. */
+export const STAKEHOLDER_LOAD_NOTE = `Open work due in the next ${WEEKS} weeks, plus everything overdue or undated, by the department its task names. A task shared with somebody else counts for both.`;
+
 /**
  * How much of one person's open work is for which stakeholder group.
  *
@@ -39,8 +42,7 @@ export function StakeholderLoad({ userId }: { userId: string }) {
   if (!row || row.byDepartment.length === 0) return <ChartEmpty message="No open work for any department." />;
 
   return (
-    <>
-      <RankedBars
+    <RankedBars
         data={row.byDepartment.map((cell) => ({
           id: cell.key,
           name: cell.name,
@@ -52,9 +54,5 @@ export function StakeholderLoad({ userId }: { userId: string }) {
         emptyMessage="No open work for any department."
         compact
       />
-      <p className="mt-2.5 border-t border-border/50 pt-2 text-2xs leading-relaxed text-muted-foreground">
-        Open work due in the next {WEEKS} weeks, plus everything overdue or undated, by the group its task names. A task shared with somebody else counts for both.
-      </p>
-    </>
   );
 }
