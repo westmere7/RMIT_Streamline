@@ -661,3 +661,9 @@ html[data-booking-zoom] [data-radix-popper-content-wrapper] > * {
 html[data-booking-zoom] [data-radix-select-viewport] {
   min-width: calc(var(--radix-select-trigger-width) / var(--booking-zoom, 1)) !important;
 }
+
+/* Toasts stack above the new-version card while it is up (see UpdateCard). */
+[data-sonner-toaster][data-y-position="bottom"] {
+  translate: 0 calc(-1 * var(--update-card-space, 0px));
+  transition: translate 200ms ease;
+}

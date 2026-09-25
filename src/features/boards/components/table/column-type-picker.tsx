@@ -76,15 +76,15 @@ export function ColumnTypePicker({
         const existing = columnTypeTaken(type, model.columns) ? model.columns.find((c) => c.type === type) : undefined;
         // Taken off this board: picking it puts that one back, values and all.
         const off = existing ? undefined : model.removedColumns.find((c) => c.type === type);
-        // What the type is for, then, set apart under a rule, the one-per-board
-        // rule and what a click does about it.
-        const label = ONE_PER_BOARD_COLUMN_TYPES.includes(type) ? (
+        // What the type is for, then, set apart under a rule, where this board's
+        // one is and what a click does about it.
+        const label = ONE_PER_BOARD_COLUMN_TYPES.includes(type) && (existing || off) ? (
           <span className="block max-w-64">
             <span className="block">{COLUMN_TYPE_PURPOSE[type]}</span>
             <span className="mt-1.5 block border-t border-current/20 pt-1.5 text-2xs">
-              <span className="opacity-70">One per board.</span>
+              <span className="opacity-70">{existing ? "Already added." : "Removed from this board."}</span>
               {existing && <span className="font-semibold"> Click to move &ldquo;{existing.name}&rdquo; here.</span>}
-              {off && <span className="font-semibold"> Click to put &ldquo;{off.name}&rdquo; back, with what it held.</span>}
+              {off && <span className="font-semibold"> Click to put it back.</span>}
             </span>
           </span>
         ) : (

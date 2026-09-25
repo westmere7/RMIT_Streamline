@@ -40,11 +40,14 @@ test.describe("version check", () => {
   test("a newer build on the server raises a pop-up that does not force a reload", async ({ page }) => {
     await serveNewerBuild(page);
     await signInAs(page, "Danh");
-    const popup = page.getByTestId("update-dialog");
+    const popup = page.getByTestId("update-card");
     await expect(popup).toBeVisible({ timeout: 15000 });
     await expect(popup).toContainText("v9.9.9 is ready");
-    await expect(page.getByTestId("changelog-entries").locator("li").first()).toBeVisible();
     await expect(page.getByTestId("update-refresh")).toHaveText(/Refresh/);
+    // Compact until asked: the changelog opens in place.
+    await expect(page.getByTestId("changelog-entries")).toHaveCount(0);
+    await page.getByTestId("update-whats-new").click();
+    await expect(page.getByTestId("changelog-entries").locator("li").first()).toBeVisible();
 
     // Still the same page underneath.
     await expect(page).toHaveURL(/\/workspace\/rmit$/);
@@ -54,6 +57,6 @@ test.describe("version check", () => {
     await expect(popup).toHaveCount(0);
     await page.goto("/workspace/rmit/my-work");
     await page.waitForTimeout(1500);
-    await expect(page.getByTestId("update-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("update-card")).toHaveCount(0);
   });
 });

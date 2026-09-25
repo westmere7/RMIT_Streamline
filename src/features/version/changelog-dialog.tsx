@@ -1,42 +1,22 @@
 "use client";
 
-import { RotateCw, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { SkeletonLine } from "@/components/ui/skeleton";
 import { CHANGELOG, type ChangelogEntry } from "@/lib/changelog";
 import { formatShortDate } from "@/lib/dates/dates";
 import { CURRENT_VERSION } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
 /**
- * What changed, as a dialog in the middle of the screen.
- *
- * Two uses. With `latest`, it announces a new build: everything between the
- * version this page runs and the server's, read from the server (this page's
- * own changelog stops where it was built), with Refresh and Later. Without it,
- * it is the full history, opened from About.
+ * Every release, newest first, as a dialog opened from About. A new build is
+ * announced by UpdateCard instead, in the corner, with the same entries.
  */
-export function ChangelogDialog({
-  open,
-  onOpenChange,
-  latest,
-  onRefresh,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** The version the server has, when announcing an update. */
-  latest?: string;
-  onRefresh?: () => void;
-}) {
-  const update = latest !== undefined;
-  const entries = useEntries(open && update ? CURRENT_VERSION.version : null);
-  const shown = update ? entries : CHANGELOG;
-
+export function ChangelogDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="md" hideClose={update} className="gap-0 overflow-hidden p-0 shadow-[0_24px_80px_-20px_rgba(0,0,84,0.55)]" data-testid={update ? "update-dialog" : "changelog-dialog"}>
+      <DialogContent size="md" className="gap-0 overflow-hidden p-0 shadow-[0_24px_80px_-20px_rgba(0,0,84,0.55)]" data-testid="changelog-dialog">
         {/* The brand, on the navy the About dialog and sign-in wear. */}
         <div className="relative overflow-hidden bg-navy px-6 pt-6 pb-5 text-white">
           <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 size-64 rounded-full bg-primary/35 blur-3xl" />
@@ -45,63 +25,52 @@ export function ChangelogDialog({
           <div className="relative">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white/85 uppercase backdrop-blur">
               <Sparkles className="size-3 text-amber-300" />
-              {update ? "New version" : "Changelog"}
+              Changelog
             </span>
-            <DialogTitle className="mt-3 text-[22px] leading-tight font-semibold tracking-tight text-white">
-              {update ? (
-                <>
-                  Streamline <span className="bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">v{latest}</span> is ready
-                </>
-              ) : (
-                "What's new in Streamline"
-              )}
-            </DialogTitle>
-            <DialogDescription className="mt-1 text-[13px] text-white/65">
-              {update ? `You're on v${CURRENT_VERSION.version}. Refreshing keeps your place.` : `You're on v${CURRENT_VERSION.version}.`}
-            </DialogDescription>
+            <DialogTitle className="mt-3 text-[22px] leading-tight font-semibold tracking-tight text-white">What&apos;s new in Streamline</DialogTitle>
+            <DialogDescription className="mt-1 text-[13px] text-white/65">You&apos;re on v{CURRENT_VERSION.version}.</DialogDescription>
           </div>
         </div>
 
         <div className="scrollbar-thin max-h-[min(52vh,440px)] overflow-y-auto px-6 py-5" data-testid="changelog-entries">
-          {shown === null ? (
-            <div className="space-y-2.5">
-              <SkeletonLine className="w-40" />
-              <SkeletonLine className="w-full" />
-              <SkeletonLine className="w-5/6" />
-            </div>
-          ) : shown.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">Refresh to see what changed.</p>
-          ) : (
-            <ol className="relative space-y-6">
-              {shown.map((entry, index) => (
-                <Entry key={entry.version} entry={entry} newest={index === 0} />
-              ))}
-            </ol>
-          )}
+          <ol className="relative space-y-6">
+            {CHANGELOG.map((entry, index) => (
+              <ChangelogEntryItem key={entry.version} entry={entry} newest={index === 0} />
+            ))}
+          </ol>
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border/70 bg-surface/50 px-6 py-3.5">
-          {update ? (
-            <>
-              <Button variant="ghost" onClick={() => onOpenChange(false)} data-testid="update-later">
-                Later
-              </Button>
-              <Button onClick={onRefresh} className="min-w-28 shadow-sm" data-testid="update-refresh" autoFocus>
-                <RotateCw /> Refresh
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function Entry({ entry, newest }: { entry: ChangelogEntry; newest: boolean }) {
+export function ChangelogEntryItem({ entry, newest, compact = false }: { entry: ChangelogEntry; newest: boolean; compact?: boolean }) {
+  // Compact, for the corner card: the version as plain text, smaller type.
+  if (compact) {
+    return (
+      <li>
+        <div className="flex items-baseline gap-2">
+          <h3 className="min-w-0 flex-1 truncate text-xs font-semibold">{entry.title}</h3>
+          <span className="shrink-0 text-2xs text-muted-foreground tabular">
+            v{entry.version} · {formatShortDate(entry.date)}
+          </span>
+        </div>
+        <ul className="mt-1 space-y-1">
+          {entry.changes.map((change) => (
+            <li key={change} className="text-xs leading-relaxed text-muted-foreground">
+              {change}
+            </li>
+          ))}
+        </ul>
+      </li>
+    );
+  }
   return (
     <li>
       <div className="flex items-baseline gap-2">
@@ -125,8 +94,11 @@ function Entry({ entry, newest }: { entry: ChangelogEntry; newest: boolean }) {
   );
 }
 
-/** The server's entries since `since`; null while loading or when not asked. */
-function useEntries(since: string | null): ChangelogEntry[] | null {
+/**
+ * The server's entries since `since`, read from the new build (this page's own
+ * changelog stops where it was built); null while loading or when not asked.
+ */
+export function useChangelogSince(since: string | null): ChangelogEntry[] | null {
   const [entries, setEntries] = React.useState<ChangelogEntry[] | null>(null);
   React.useEffect(() => {
     if (since === null) return;

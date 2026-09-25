@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChangelogDialog } from "@/features/version/changelog-dialog";
+import { UpdateCard } from "@/features/version/update-card";
 import { VERSION_CHECK_INTERVAL_MS } from "@/lib/version";
 import { selectUpdateAvailable, useVersionStore } from "@/stores/version-store";
 
@@ -9,9 +9,9 @@ import { selectUpdateAvailable, useVersionStore } from "@/stores/version-store";
  * Keeps an open page aware of the build the server is running. It asks every
  * VERSION_CHECK_INTERVAL_MS while the tab is visible, and again the moment the
  * tab comes back into view or the connection returns. When the server has a
- * build this page does not, a pop-up says what changed and offers to refresh.
- * Nothing is forced: the page keeps working, and "Later" keeps it away for that
- * build.
+ * build this page does not, a card in the corner offers to refresh and, when
+ * asked, says what changed. Nothing is forced: the page keeps working, and
+ * "Later" keeps it away for that build.
  */
 export function VersionWatcher() {
   const check = useVersionStore((s) => s.check);
@@ -41,15 +41,6 @@ export function VersionWatcher() {
   }, [check]);
 
   const open = updateAvailable && latest !== null && dismissedBuildId !== latest.buildId;
-  if (!latest) return null;
-  return (
-    <ChangelogDialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) dismiss(latest.buildId);
-      }}
-      latest={latest.version}
-      onRefresh={() => window.location.reload()}
-    />
-  );
+  if (!latest || !open) return null;
+  return <UpdateCard latest={latest.version} onRefresh={() => window.location.reload()} onLater={() => dismiss(latest.buildId)} />;
 }

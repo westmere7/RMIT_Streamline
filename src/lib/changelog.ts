@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.45.0",
+    date: "2026-09-25",
+    title: "A quieter update notice",
+    changes: [
+      "A new version is announced in a small card in the corner, not in the middle of the screen. Open What's new in the card to read the changelog.",
+      "The column type picker says Already added for a special column the board has, and Removed from this board for one it took off.",
+    ],
+  },
+  {
     version: "0.44.1",
     date: "2026-09-25",
     title: "Clearer wording when removing a column",
