@@ -13,6 +13,11 @@ export interface Comment extends Timestamps {
    * the badge on an update reads to say it lives on more than one task.
    */
   sharedId: EntityId | null;
+  /**
+   * The update this one replies to; null for an update of its own. Replies are
+   * one level deep: this always names a top-level update.
+   */
+  parentId?: EntityId | null;
 }
 
-export type CommentInput = Pick<Comment, "itemId" | "authorId" | "body" | "mentionUserIds"> & { sharedId?: EntityId | null };
+export type CommentInput = Pick<Comment, "itemId" | "authorId" | "body" | "mentionUserIds"> & { sharedId?: EntityId | null; parentId?: EntityId | null };

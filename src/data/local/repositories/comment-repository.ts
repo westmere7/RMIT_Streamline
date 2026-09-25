@@ -33,7 +33,7 @@ export class LocalCommentRepository implements CommentRepository {
   async create(input: CommentInput): Promise<Comment> {
     const db = await this.conn.getDb();
     const now = nowIso();
-    const comment: Comment = { sharedId: null, ...input, id: newId(), createdAt: now, updatedAt: now };
+    const comment: Comment = { sharedId: null, parentId: null, ...input, id: newId(), createdAt: now, updatedAt: now };
     await db.put("comments", comment);
     const item = await db.get("items", comment.itemId);
     if (item) {

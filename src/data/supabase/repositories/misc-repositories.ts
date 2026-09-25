@@ -33,7 +33,7 @@ import {
   type NotificationRow,
 } from "../rows";
 
-const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, created_at, updated_at";
+const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at";
 const ACTIVITY = "id, workspace_id, board_id, item_id, actor_id, event_type, metadata, created_at";
 const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, actor_id, read_at, created_at";
 const NOTIFICATION_PREFERENCES = "user_id, types, muted_board_ids, browser_enabled, updated_at";
@@ -70,6 +70,7 @@ export class SupabaseCommentRepository implements CommentRepository {
       body: input.body,
       mention_user_ids: input.mentionUserIds,
       shared_id: input.sharedId ?? null,
+      parent_id: input.parentId ?? null,
     };
     const result = await db().from("comments").insert(payload).select(COMMENT).single();
     return toComment(unwrap<CommentRow>(result, "comments.create"));

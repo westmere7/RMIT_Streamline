@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.35.0",
+    date: "2026-09-25",
+    title: "Threaded updates",
+    changes: [
+      "Updates are threads: each update is a card with its replies inside and a \"Write a reply…\" box at the foot.",
+      "Replies start as a plain box and open into the full editor when you need formatting.",
+      "Collapse a conversation to one line, or collapse them all; long threads show the latest three replies first.",
+      "The author of an update hears when somebody replies to it.",
+    ],
+  },
+  {
     version: "0.34.4",
     date: "2026-09-25",
     title: "Visitors choose their size",

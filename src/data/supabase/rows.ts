@@ -519,6 +519,7 @@ export interface CommentRow {
   body: string;
   mention_user_ids: string[];
   shared_id: string | null;
+  parent_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -531,6 +532,7 @@ export function toComment(row: CommentRow): Comment {
     body: row.body,
     mentionUserIds: row.mention_user_ids ?? [],
     sharedId: row.shared_id ?? null,
+    parentId: row.parent_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

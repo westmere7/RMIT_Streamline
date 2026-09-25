@@ -72,11 +72,30 @@ export function useCommentMutations(itemId: string) {
     onSettled: settle,
   });
 
+  // One level deep: the service files a reply to a reply under the same update.
+  const reply = useMutation({
+    mutationFn: ({ parentId, body }: { parentId: string; body: string }) => services.comments.replyToComment(itemId, parentId, body, user.id, ws.users),
+    onMutate: async ({ parentId, body }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Comment[]>(key);
+      const parent = previous?.find((c) => c.id === parentId);
+      const temp: Comment = { id: newId(), itemId, authorId: user.id, body, mentionUserIds: [], sharedId: null, parentId: parent?.parentId ?? parentId, createdAt: nowIso(), updatedAt: nowIso() };
+      queryClient.setQueryData<Comment[]>(key, (old = []) => [...old, temp]);
+      return { previous };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      toast.error(error instanceof Error ? error.message : "Could not post the reply");
+    },
+    onSettled: settle,
+  });
+
   const remove = useMutation({
-    mutationFn: (comment: Pick<Comment, "id" | "sharedId">) => services.comments.deleteComment(comment),
+    mutationFn: (comment: Pick<Comment, "id" | "sharedId" | "itemId">) => services.comments.deleteComment(comment),
     onMutate: async (comment) => {
       const previous = queryClient.getQueryData<Comment[]>(key);
-      queryClient.setQueryData<Comment[]>(key, (old) => old?.filter((c) => c.id !== comment.id));
+      // Its replies go with it.
+      queryClient.setQueryData<Comment[]>(key, (old) => old?.filter((c) => c.id !== comment.id && c.parentId !== comment.id));
       return { previous };
     },
     onError: (_e, _v, ctx) => {
@@ -85,5 +104,5 @@ export function useCommentMutations(itemId: string) {
     onSettled: settle,
   });
 
-  return { add, edit, remove };
+  return { add, edit, reply, remove };
 }

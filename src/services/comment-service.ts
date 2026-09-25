@@ -1,4 +1,4 @@
-import type { Comment, EntityId, User } from "@/domain";
+import type { Comment, EntityId, NotificationType, User } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -123,10 +123,62 @@ export class CommentService {
     return updated;
   }
 
-  /** Deletes an update and, like editing, every copy of it on linked tasks. */
-  async deleteComment(comment: Pick<Comment, "id" | "sharedId">): Promise<void> {
+  /**
+   * Replies to an update, on this task only (a reply answers the conversation
+   * here, so it is not copied to linked tasks). A reply to a reply is filed
+   * under the same update: threads are one level deep. The update's author
+   * hears about it, and anyone mentioned hears as they would anywhere else.
+   */
+  async replyToComment(itemId: EntityId, parentId: EntityId, body: string, actorId: EntityId, users: readonly User[]): Promise<Comment> {
+    const trimmed = body.trim();
+    if (!trimmed) throw new Error("Reply cannot be empty");
+    const all = await this.repos.comments.listByItem(itemId);
+    const target = all.find((c) => c.id === parentId);
+    if (!target) throw new NotFoundError("Comment", parentId);
+    const root = target.parentId ? (all.find((c) => c.id === target.parentId) ?? target) : target;
+    const item = await this.repos.items.getById(root.itemId);
+    if (!item) throw new NotFoundError("Item", root.itemId);
+    const board = await this.repos.boards.getById(item.boardId);
+    const mentionUserIds = extractMentions(trimmed, users);
+    const reply = await this.repos.comments.create({ itemId: root.itemId, authorId: actorId, body: trimmed, mentionUserIds, parentId: root.id });
+    await this.repos.activities.create({
+      workspaceId: board?.workspaceId ?? "",
+      boardId: item.boardId,
+      itemId: item.id,
+      actorId,
+      eventType: "COMMENT_ADDED",
+      metadata: { itemName: item.name },
+    });
+
+    const actorName = users.find((u) => u.id === actorId)?.firstName ?? "Someone";
+    const preview = truncate(richTextToPlain(trimmed), 140);
+    const mentioned = mentionUserIds.filter((id) => id !== actorId);
+    const deliveries = mentioned.map((userId) => ({
+      userId,
+      type: "MENTION" as NotificationType,
+      title: `${actorName} mentioned you in ${item.name}`,
+      body: preview,
+      entityType: "ITEM" as const,
+      entityId: item.id,
+      boardId: item.boardId,
+      actorId,
+    }));
+    // The update's author, unless they are replying to themselves or were just mentioned.
+    if (root.authorId !== actorId && !mentioned.includes(root.authorId)) {
+      deliveries.push({ userId: root.authorId, type: "COMMENT", title: `${actorName} replied to your update in ${item.name}`, body: preview, entityType: "ITEM" as const, entityId: item.id, boardId: item.boardId, actorId });
+    }
+    if (deliveries.length) await this.notifications.deliver(deliveries);
+    return reply;
+  }
+
+  /** Deletes an update and, like editing, every copy of it on linked tasks — with the replies under each. */
+  async deleteComment(comment: Pick<Comment, "id" | "sharedId" | "itemId">): Promise<void> {
     const copies = comment.sharedId ? await this.repos.comments.listBySharedId(comment.sharedId) : [];
     const ids = new Set([comment.id, ...copies.map((copy) => copy.id)]);
+    // Postgres cascades replies away; the browser's own store does not, so they are named here.
+    const itemIds = new Set([comment.itemId, ...copies.map((copy) => copy.itemId)]);
+    const siblings = itemIds.size ? await this.repos.comments.listByItems([...itemIds]) : [];
+    for (const reply of siblings) if (reply.parentId && ids.has(reply.parentId)) ids.add(reply.id);
     await Promise.all([...ids].map((id) => this.repos.comments.delete(id)));
   }
 }
