@@ -42,6 +42,7 @@ export function PortalBookingScreen({
   headline,
   lead,
   offerSignIn = true,
+  scale = 100,
   onView,
   onClose,
 }: {
@@ -57,6 +58,8 @@ export function PortalBookingScreen({
   lead?: string | null;
   /** Whether staff are offered a sign-in that fills their details in. */
   offerSignIn?: boolean;
+  /** The interface size the team set for this form, in percent. */
+  scale?: number;
   /** Opens the request that was just booked, on the board. */
   onView: (itemId: string) => void;
   /** Back to the board without booking, or once the ticket has been read. */
@@ -64,6 +67,18 @@ export function PortalBookingScreen({
 }) {
   const services = useServices();
   const queryClient = useQueryClient();
+  // The size the team set for this form. The whole page is zoomed, the document
+  // included, so the menus and dialogs that open over it (they render at the
+  // end of <body>) come out at the same size as the form; put back on the way out.
+  React.useEffect(() => {
+    if (scale === 100) return;
+    const root = document.documentElement;
+    const before = root.style.zoom;
+    root.style.zoom = `${scale}%`;
+    return () => {
+      root.style.zoom = before;
+    };
+  }, [scale]);
   // Some stakeholders do have an account here. If they are signed in the wizard
   // fills their details in, and they can still type over them.
   const auth = useAuth();
@@ -95,7 +110,7 @@ export function PortalBookingScreen({
   });
 
   return (
-    <AuthShell headline={headline || DEFAULT_BOOKING_HEADLINE} lead={lead || DEFAULT_BOOKING_LEAD} footnote={`${creativeTeamName} · Streamline`} cardTestId="portal-book" progress={form.isLoading || stakeholders === null} width="2xl" fill>
+    <AuthShell headline={headline || DEFAULT_BOOKING_HEADLINE} lead={lead || DEFAULT_BOOKING_LEAD} footnote={`${creativeTeamName} · Streamline`} cardTestId="portal-book" progress={form.isLoading || stakeholders === null} width="2xl" fill scale={scale / 100}>
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
         <BrandMark className="size-9 rounded-lg text-sm" />
         <div className="min-w-0 flex-1 leading-tight">

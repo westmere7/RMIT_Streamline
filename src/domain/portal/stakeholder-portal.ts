@@ -113,6 +113,20 @@ export interface StakeholderPortal extends Timestamps {
   bookingLead: string | null;
   /** Whether the booking form offers staff a sign-in that fills their details in. */
   bookingSignIn: boolean;
+  /** The booking form's interface size, in percent (BOOKING_SCALE_MIN to BOOKING_SCALE_MAX). */
+  bookingScale: number;
+}
+
+/** How far the booking form can be drawn smaller or larger, and in what steps. */
+export const BOOKING_SCALE_MIN = 80;
+export const BOOKING_SCALE_MAX = 150;
+export const BOOKING_SCALE_STEP = 5;
+
+/** A size the booking form can take: whole steps, inside the range, 100 when it is not a number at all. */
+export function clampBookingScale(value: number): number {
+  if (!Number.isFinite(value)) return 100;
+  const stepped = Math.round(value / BOOKING_SCALE_STEP) * BOOKING_SCALE_STEP;
+  return Math.min(BOOKING_SCALE_MAX, Math.max(BOOKING_SCALE_MIN, stepped));
 }
 
 /** The periods a portal may open on. "All time" and single years are the visitor's to pick, never a default. */
@@ -205,6 +219,7 @@ export type PortalPresentation = Partial<
     | "bookingHeadline"
     | "bookingLead"
     | "bookingSignIn"
+    | "bookingScale"
   >
 >;
 
@@ -323,6 +338,7 @@ export interface PortalGate {
   bookingHeadline: string | null;
   bookingLead: string | null;
   bookingSignIn: boolean;
+  bookingScale: number;
   /** Rises whenever the link or password changes; a grant issued under an older one is dead. */
   credentialVersion: number;
 }

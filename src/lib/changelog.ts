@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.34.1",
+    date: "2026-09-25",
+    title: "Booking form size, and smaller fixes",
+    changes: [
+      "Booking form settings: an interface size from 80% to 150%, for kiosks, big screens or anyone who wants it larger.",
+      "A request being allocated shows a soft sweep and \"Moving…\" until it has left Task Allocation.",
+      "Form editor: templates have a panel of their own, and a loaded template can be updated in one click.",
+      "Task journey opens from an icon beside share and close in the task panel; that icon row is more compact.",
+      "Team and board icons in menus keep their own colours.",
+      "Profiles are calmer: one strip of figures and one card for the open-work splits.",
+    ],
+  },
+  {
     version: "0.34.0",
     date: "2026-09-25",
     title: "Task journey",

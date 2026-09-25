@@ -17,7 +17,7 @@ import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, booking_scale, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -54,6 +54,7 @@ interface PortalRow {
   booking_headline: string | null;
   booking_lead: string | null;
   booking_sign_in: boolean | null;
+  booking_scale: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +120,7 @@ function toPortal(row: PortalRow): StakeholderPortal {
     bookingHeadline: row.booking_headline,
     bookingLead: row.booking_lead,
     bookingSignIn: row.booking_sign_in ?? true,
+    bookingScale: row.booking_scale ?? 100,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -248,6 +250,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.bookingHeadline !== undefined) payload.booking_headline = patch.bookingHeadline;
     if (patch.bookingLead !== undefined) payload.booking_lead = patch.bookingLead;
     if (patch.bookingSignIn !== undefined) payload.booking_sign_in = patch.bookingSignIn;
+    if (patch.bookingScale !== undefined) payload.booking_scale = patch.bookingScale;
     const result = await db().from("department_portals").update(payload).eq("id", id).select(PORTAL).single();
     return toPortal(unwrap<PortalRow>(result, "department_portals.update"));
   }

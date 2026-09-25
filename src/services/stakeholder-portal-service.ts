@@ -36,6 +36,7 @@ import {
   isPortalColumnKey,
   isPortalDefaultRange,
   isPortalTheme,
+  clampBookingScale,
   isPortalView,
   MAX_BOOKING_HEADLINE,
   MAX_BOOKING_LEAD,
@@ -478,6 +479,7 @@ export class StakeholderPortalService {
     // Blank means "use the built-in words", which is stored as nothing.
     if (patch.bookingHeadline !== undefined) cleaned.bookingHeadline = patch.bookingHeadline?.trim().slice(0, MAX_BOOKING_HEADLINE) || null;
     if (patch.bookingLead !== undefined) cleaned.bookingLead = patch.bookingLead?.trim().slice(0, MAX_BOOKING_LEAD) || null;
+    if (patch.bookingScale !== undefined) cleaned.bookingScale = clampBookingScale(patch.bookingScale);
     if (Object.keys(cleaned).length === 0) return portal;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
   }
@@ -534,6 +536,7 @@ export class StakeholderPortalService {
       bookingHeadline: null,
       bookingLead: null,
       bookingSignIn: true,
+      bookingScale: 100,
       credentialVersion: 0,
     };
     const portal = isPlausiblePortalToken(token) ? await this.repos.stakeholderPortals.getPortalByToken(token) : null;
@@ -560,6 +563,7 @@ export class StakeholderPortalService {
       bookingHeadline: portal.bookingHeadline,
       bookingLead: portal.bookingLead,
       bookingSignIn: portal.bookingSignIn,
+      bookingScale: portal.bookingScale ?? 100,
       credentialVersion: portal.credentialVersion,
     };
   }

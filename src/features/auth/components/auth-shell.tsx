@@ -24,6 +24,7 @@ export function AuthShell({
   wide,
   width,
   fill,
+  scale,
 }: {
   headline: string;
   lead: string;
@@ -42,10 +43,19 @@ export function AuthShell({
    * growing with the content.
    */
   fill?: boolean;
+  /**
+   * The zoom the page is drawn at (1 = as designed), when something has zoomed
+   * it. The screen-tall frame divides by it so it still fills exactly one
+   * screen: under a zoom, a viewport height is drawn that much taller too.
+   */
+  scale?: number;
 }) {
   const widthClass = width === "2xl" ? "max-w-4xl" : width === "xl" ? "max-w-2xl" : wide || width === "lg" ? "max-w-lg" : "max-w-md";
   return (
-    <main className={cn("flex bg-canvas", fill ? "h-screen" : "min-h-screen")}>
+    <main
+      className={cn("flex bg-canvas", fill ? "h-screen" : "min-h-screen")}
+      style={scale && scale !== 1 ? (fill ? { height: `calc(100dvh / ${scale})` } : { minHeight: `calc(100dvh / ${scale})` }) : undefined}
+    >
       <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]" aria-hidden>
         {/* Depth: a red glow low on the panel, a blue one high, and a faint grid. */}
         <div className="pointer-events-none absolute -bottom-40 -left-24 size-[560px] rounded-full bg-primary/30 blur-3xl" />

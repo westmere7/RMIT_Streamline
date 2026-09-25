@@ -17,6 +17,10 @@ import {
   DEFAULT_BOOKING_HEADLINE,
   DEFAULT_BOOKING_LEAD,
   MAX_BOOKING_HEADLINE,
+  BOOKING_SCALE_MAX,
+  BOOKING_SCALE_MIN,
+  BOOKING_SCALE_STEP,
+  clampBookingScale,
   MAX_BOOKING_LEAD,
   MAX_CREATIVE_TEAM_NAME,
   PORTAL_COLUMN_LABELS,
@@ -443,7 +447,7 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
 // ---- each link's settings ------------------------------------------------------
 
 /** The settings a panel edits. A draft of these is what Save writes and Discard throws away. */
-type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn">> & {
+type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale">> & {
   bookingHeadline: string;
   bookingLead: string;
   teamName: string;
@@ -452,7 +456,7 @@ type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
   portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "hiddenColumns", "showRecap", "showItemGroups"],
-  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn"],
+  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
 function draftOf(portal: StakeholderPortal, teamName: string): Draft {
@@ -468,6 +472,7 @@ function draftOf(portal: StakeholderPortal, teamName: string): Draft {
     bookingTheme: portal.bookingTheme,
     bookingThemeSwitch: portal.bookingThemeSwitch,
     bookingSignIn: portal.bookingSignIn,
+    bookingScale: portal.bookingScale ?? 100,
     bookingHeadline: portal.bookingHeadline ?? "",
     bookingLead: portal.bookingLead ?? "",
     teamName,
@@ -650,7 +655,38 @@ function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
         <Textarea value={draft.bookingLead} onChange={(e) => set("bookingLead", e.target.value)} maxLength={MAX_BOOKING_LEAD} placeholder={DEFAULT_BOOKING_LEAD} aria-label="Booking page intro" rows={2} className="min-h-0 resize-none" data-testid="portal-booking-lead" />
       </Field>
       <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
+      <ScaleField value={draft.bookingScale} onChange={(value) => set("bookingScale", value)} />
     </>
+  );
+}
+
+/** How large the form is drawn, for a kiosk, a big screen or a reader who wants it bigger. */
+function ScaleField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <Field label="Interface size">
+      <div className="flex items-center gap-3">
+        <span className="text-2xs text-muted-foreground tabular">{BOOKING_SCALE_MIN}%</span>
+        <input
+          type="range"
+          min={BOOKING_SCALE_MIN}
+          max={BOOKING_SCALE_MAX}
+          step={BOOKING_SCALE_STEP}
+          value={value}
+          onChange={(e) => onChange(clampBookingScale(Number(e.target.value)))}
+          aria-label="Interface size"
+          aria-valuetext={`${value}%`}
+          className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[var(--color-primary)]"
+          data-testid="portal-booking-scale"
+        />
+        <span className="text-2xs text-muted-foreground tabular">{BOOKING_SCALE_MAX}%</span>
+        <span className="w-12 text-right text-[13px] font-medium tabular" data-testid="portal-booking-scale-value">
+          {value}%
+        </span>
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-2xs" onClick={() => onChange(100)} disabled={value === 100}>
+          Reset
+        </Button>
+      </div>
+    </Field>
   );
 }
 
