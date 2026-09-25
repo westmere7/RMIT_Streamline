@@ -197,17 +197,26 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     // Only the email moving should reset this, not every keystroke in the name.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
+  // The latest lookup, so a parent that hands in a new function on every render
+  // does not restart the wait each time: only the email moving should.
+  const lookupRef = React.useRef(lookupRequester);
   React.useEffect(() => {
-    if (!lookupRequester || account || preview || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+    lookupRef.current = lookupRequester;
+  });
+  const canLookUp = !!lookupRequester && !account && !preview;
+  React.useEffect(() => {
+    if (!canLookUp || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
     let live = true;
     const timer = window.setTimeout(() => {
-      lookupRequester(email)
+      const lookup = lookupRef.current;
+      if (!lookup) return;
+      lookup(email)
         .then((name) => {
           if (!live || !name) return;
           setRequest((prev) => {
             if (prev.requesterEmail.trim().toLowerCase() !== email) return prev;
+            // No side effects in here: React may run this twice.
             if (prev.requesterName !== nameWhenEmailChanged.current || prev.requesterName === name) return prev;
-            nameWhenEmailChanged.current = name;
             return { ...prev, requesterName: name };
           });
         })
@@ -217,7 +226,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       live = false;
       window.clearTimeout(timer);
     };
-  }, [email, lookupRequester, account, preview]);
+  }, [email, canLookUp]);
 
   /** The request as it will be sent: the composer's rows as asset lines, and the brief written out. */
   const buildRequest = React.useCallback(

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -43,12 +44,16 @@ const receipt = (): BookingReceipt =>
 const renderWizard = (props: Partial<React.ComponentProps<typeof BookingWizard>> = {}) => {
   const onSubmit = vi.fn(async () => receipt());
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // Strict, as the app runs in development: it runs state updates twice, which is
+  // how a side effect inside one (the name lookup had one) shows itself.
   render(
-    <QueryClientProvider client={client}>
-      <TooltipPrimitive.Provider>
-        <BookingWizard form={formWith()} onSubmit={onSubmit} {...props} />
-      </TooltipPrimitive.Provider>
-    </QueryClientProvider>,
+    <React.StrictMode>
+      <QueryClientProvider client={client}>
+        <TooltipPrimitive.Provider>
+          <BookingWizard form={formWith()} onSubmit={onSubmit} {...props} />
+        </TooltipPrimitive.Provider>
+      </QueryClientProvider>
+    </React.StrictMode>,
   );
   return { onSubmit, user: userEvent.setup() };
 };
