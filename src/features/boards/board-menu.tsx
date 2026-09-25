@@ -57,6 +57,16 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
     // view back to the table or to the kanban, which is the same wish.
     { type: "item", label: "Open", icon: <SquareKanban />, onSelect: () => router.push(ws.boardPath(board)) },
     { type: "item", label: "Open as Kanban", icon: <Kanban />, onSelect: () => router.push(ws.boardPath(board, { view: "kanban" })) },
+    // The board's archive, not the board's own archiving: a place to go, so it
+    // sits with the other ways of opening the board, well away from "Archive
+    // board" at the foot of the menu. Side by side, one was clicked for the other.
+    {
+      type: "item",
+      label: "View archived items",
+      icon: <Inbox />,
+      onSelect: () => router.push(routes.boardArchive(ws.slug, board.slug)),
+      testId: "board-menu-archive",
+    },
     { type: "item", label: favourite ? "Remove from favourites" : "Add to favourites", icon: <Star />, onSelect: () => actions.toggleFavourite.mutate(!favourite) },
     { type: "separator" },
     { type: "item", label: "Board settings", icon: <Settings2 />, onSelect: () => handlers.openSettings("general") },
@@ -103,17 +113,6 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
       icon: muted ? <Bell /> : <BellOff />,
       onSelect: () => setBoardSubscribed.mutate({ boardId: board.id, subscribed: muted }),
       testId: "toggle-board-subscription",
-    },
-    { type: "separator" },
-    // The board's archive, not the board's own archiving: everything that has
-    // been taken off this board, on a screen of its own. Its own section, above
-    // "Archive board", so the two are never read as the same thing.
-    {
-      type: "item",
-      label: "Archived items",
-      icon: <Inbox />,
-      onSelect: () => router.push(routes.boardArchive(ws.slug, board.slug)),
-      testId: "board-menu-archive",
     },
   ];
 

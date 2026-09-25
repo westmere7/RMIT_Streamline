@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.47.2",
+    date: "2026-09-25",
+    title: "Archived items, away from Archive board",
+    changes: [
+      "In a board's menu, View archived items now sits with Open and Open as Kanban, well away from Archive board, so one is not clicked for the other.",
+    ],
+  },
+  {
     version: "0.47.1",
     date: "2026-09-25",
     title: "Templates in a dropdown, and a clearer update card",
