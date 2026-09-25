@@ -402,13 +402,12 @@ export function isSystemColumnType(type: ColumnType): boolean {
 }
 
 /**
- * The special types a board holds one of. A second Status or Brief would leave
- * the dashboard, portal and booking choosing between them.
- *
- * Date is the exception: a board keeps a briefed-on or start date beside its
- * deadline, and the Deadline role says which one counts.
+ * The special types a board holds one of, every one of them. A second Status,
+ * Due date or Brief would leave the dashboard, portal and booking choosing
+ * between them. Any other date a board keeps, a start or a briefed-on day, is
+ * a plain Date column.
  */
-export const ONE_PER_BOARD_COLUMN_TYPES: readonly ColumnType[] = SYSTEM_COLUMN_TYPES.filter((type) => type !== "DATE");
+export const ONE_PER_BOARD_COLUMN_TYPES: readonly ColumnType[] = SYSTEM_COLUMN_TYPES;
 
 /** True when a board with these columns already has its one column of this type. */
 export function columnTypeTaken(type: ColumnType, columns: readonly Pick<BoardColumn, "type">[]): boolean {

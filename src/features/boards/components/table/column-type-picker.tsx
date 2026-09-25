@@ -40,7 +40,7 @@ interface MenuItemProps {
  * to explain something nobody needs before they have seen them.
  *
  * A special type the board already has is greyed out: a board holds one of
- * each (Date aside, see ONE_PER_BOARD_COLUMN_TYPES). Picking it moves the one
+ * each (see ONE_PER_BOARD_COLUMN_TYPES). Picking it moves the one
  * the board has to where the new column would have gone.
  *
  * `variant` picks the menu primitive, since Radix items only work inside their

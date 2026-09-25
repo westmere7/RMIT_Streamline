@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.42.1",
+    date: "2026-09-25",
+    title: "One Due date per board",
+    changes: [
+      "A board holds one Due date column, like every other special column. For another day, such as a start or briefed-on date, use a plain Date column.",
+    ],
+  },
+  {
     version: "0.42.0",
     date: "2026-09-25",
     title: "Countdown column",

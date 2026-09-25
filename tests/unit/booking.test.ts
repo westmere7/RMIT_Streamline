@@ -740,9 +740,10 @@ describe("booking a task", () => {
     const other = (await services.repos.items.listByBoard(target.id)).find((i) => i.id !== item.id)!;
     expect((await services.repos.items.listValuesByItem(other.id)).some((v) => v.columnId === brief.id)).toBe(false);
 
-    // One per board: a second Brief is refused, while a second Date is fine.
+    // One per board: a second Brief or Due date is refused; another day is a plain Date.
     await expect(services.boards.addColumn({ boardId: target.id, name: "Brief 2", type: "BRIEF" })).rejects.toThrow("already has a Brief column");
-    await expect(services.boards.addColumn({ boardId: target.id, name: "Briefed on", type: "DATE" })).resolves.toBeTruthy();
+    await expect(services.boards.addColumn({ boardId: target.id, name: "Briefed on", type: "DATE" })).rejects.toThrow("already has a Due date column");
+    await expect(services.boards.addColumn({ boardId: target.id, name: "Briefed on", type: "PLAIN_DATE" })).resolves.toBeTruthy();
   });
 
   it("moves an allocated request onto the team board rather than copying it", async () => {
