@@ -283,16 +283,16 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             busy={automationsBusyElsewhere}
           />
           <li>
-            <SimpleTooltip label="Stakeholder Portal" side="right" disabled={!collapsed}>
+            <SimpleTooltip label="Portal and Booking" side="right" disabled={!collapsed}>
               <Link
                 href={routes.book(ws.slug)}
-                aria-label="Stakeholder Portal"
+                aria-label="Portal and Booking"
                 onClick={onNavigate}
                 className={cn("group", primaryNavClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
                 data-testid="sidebar-book-task"
               >
                 <PrimaryIcon icon={ClipboardPen} active={isActivePath(routes.book(ws.slug))} />
-                {!collapsed && <span className="flex-1 text-left">Stakeholder Portal</span>}
+                {!collapsed && <span className="flex-1 text-left">Portal and Booking</span>}
               </Link>
             </SimpleTooltip>
           </li>

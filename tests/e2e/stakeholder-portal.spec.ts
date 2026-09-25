@@ -72,7 +72,7 @@ async function backToTasks(page: Page, form: Page): Promise<void> {
 /** The workspace's one portal, on the management screen. */
 async function portalCard(page: Page) {
   await page.goto("/workspace/rmit/book");
-  await expect(page.getByRole("heading", { name: "Stakeholder Portal" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Portal and Booking" })).toBeVisible();
   const card = page.getByTestId("portal-card");
   await expect(card).toBeVisible();
   return card;
@@ -126,7 +126,7 @@ test.describe("the stakeholder portal", () => {
     await page.goto("/workspace/rmit");
     // The sidebar says the new name and still points at the old URL.
     const nav = page.getByTestId("sidebar-book-task");
-    await expect(nav).toContainText("Stakeholder Portal");
+    await expect(nav).toContainText("Portal and Booking");
     await expect(nav).toHaveAttribute("href", "/workspace/rmit/book");
 
     await nav.click();

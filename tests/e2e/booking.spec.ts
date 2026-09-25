@@ -10,7 +10,7 @@ import { resetLocalData, row, signInAs } from "./helpers";
 const TASK_ALLOCATION_URL = "/workspace/rmit/boards/task-allocation";
 
 /**
- * The destination is the Stakeholder Portal now, at the same URL. An
+ * The destination is the Portal and Booking now, at the same URL. An
  * administrator lands on the portal, with the form editor one tab across; the
  * form itself lives on the booking page (/book/rmit) for everybody.
  */

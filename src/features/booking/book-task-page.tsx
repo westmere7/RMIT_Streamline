@@ -22,7 +22,7 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
- * The Stakeholder Portal destination, at the URL "Book a task" always had.
+ * The Portal and Booking destination, at the URL "Book a task" always had.
  *
  * For a manager this is where the portal and the form are shaped: the portal's
  * links and settings on one tab, the form editor on the other. Booking itself
@@ -152,7 +152,7 @@ export function BookTaskPage() {
           with the aside's right edge. */}
       <div className="mx-auto w-full max-w-[66rem] shrink-0">
         <PageHeader
-          title="Stakeholder Portal"
+          title="Portal and Booking"
           // Held to a reading width: at full width the line pushes the button onto one of its own.
           description={
             <span className="block max-w-[44rem]">
@@ -169,7 +169,7 @@ export function BookTaskPage() {
             </Button>
           }
         />
-        <div role="tablist" aria-label="Stakeholder Portal" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
+        <div role="tablist" aria-label="Portal and Booking" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
           {(
             [
               ["portals", "Portal"],

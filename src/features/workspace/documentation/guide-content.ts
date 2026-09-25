@@ -35,7 +35,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Nominate the person who will consolidate feedback and confirm the final output on your side.",
       ] },
       { title: "Make your first request", steps: [
-        "Open the portal and choose Book a task. If booking is unavailable there, use the current booking link supplied by the team. Signed-in members can also use the booking tab in Stakeholder Portal.",
+        "Open the portal and choose Book a task. If booking is unavailable there, use the current booking link supplied by the team. Signed-in members can also use the booking tab in Portal and Booking.",
         "Follow the published form's service choices and required questions. Give the request a distinctive title and describe the outcome you need.",
         "Specify the deliverables, formats, quantities, source material, contact information, and requested date wherever the form asks for them. Call out an immovable event date and explain why it matters.",
         "Review the brief and submit once. Keep the confirmation and its ticket. If the response is unclear, ask the team whether it received the request before submitting again.",
@@ -151,7 +151,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["My Work", "Review assignments across accessible boards and plan your day."],
         ["Inbox / Messages", "Read task events and Updates, or have a direct conversation."],
         ["Teams / Boards", "Organize, assign, schedule, and deliver tasks."],
-        ["Stakeholder Portal", "Book work inside the app; administrators also manage the external portal."],
+        ["Portal and Booking", "Book work inside the app; administrators also manage the external portal."],
         ["Dashboard", "Review output, demand, delivery, and resourcing."],
         ["Trackers", "Maintain spreadsheet-style records and import or export workbooks."],
         ["Members / Settings", "Manage people and workspace configuration; read this guide."],
@@ -181,7 +181,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Complete & report", "Task owner / lead", "Assets and task status reflect delivery; reporting data has been checked."],
       ] } },
       { title: "1. Prepare and submit the brief", steps: [
-        "Requester: open the current booking link, or use Book a task from the Stakeholder Portal area. Describe the purpose, audience, intended channels, and the result you need.",
+        "Requester: open the current booking link, or use Book a task from the Portal and Booking area. Describe the purpose, audience, intended channels, and the result you need.",
         "List the deliverables clearly. Distinguish asset types, versions, formats, quantities, dimensions, and any copy or source material the team must use. Supply accessible reference links.",
         "Enter the requested deadline and contact information, then complete the required questions shown by the form. A requested date is a planning input; agree feasibility with the delivery team.",
         "Review the submission and submit once. Keep the receipt and its ticket for follow-up. If the response fails or is unclear, check with the team for an existing request before sending another copy.",
@@ -389,7 +389,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     audience: "Requesters, coordinators, and administrators",
     sections: [
       { title: "Submit a request", steps: [
-        "Use the current public booking link, the portal's Book a task control when enabled, or the in-app booking page. Administrators can reach the form from the booking tab in Stakeholder Portal.",
+        "Use the current public booking link, the portal's Book a task control when enabled, or the in-app booking page. Administrators can reach the form from the booking tab in Portal and Booking.",
         "Select the relevant service or request options offered by the published form, then complete its brief and required information. Questions and available choices depend on the current form.",
         "Provide enough detail to estimate and deliver the work: objective, audience, copy, channels, deliverables, quantities, specifications, references, contact, and deadline where requested.",
         "Resolve validation messages and review the information before submitting. Keep the ticket and use it when asking the team about progress.",
@@ -418,10 +418,10 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     summary: "Manage the shared portal and help external stakeholders follow work and book requests.",
     audience: "Administrators and stakeholder coordinators",
     sections: [
-      { title: "One portal with stakeholder filters", paragraphs: ["The portal provides an external view of stakeholder work without requiring a normal workspace account. Administrators manage one portal link and its presentation from Stakeholder Portal. Visitors can use stakeholder and date filters, search, grouping, and the available board views to find work.", "A stakeholder filter is a browsing control within that portal. It is not a separate private link for each department. Review the overall audience and visible work before distributing the shared link."] },
+      { title: "One portal with stakeholder filters", paragraphs: ["The portal provides an external view of stakeholder work without requiring a normal workspace account. Administrators manage one portal link and its presentation from Portal and Booking. Visitors can use stakeholder and date filters, search, grouping, and the available board views to find work.", "A stakeholder filter is a browsing control within that portal. It is not a separate private link for each department. Review the overall audience and visible work before distributing the shared link."] },
       { title: "Prepare the portal", steps: [
         "Maintain stakeholder names in Settings → Lists. Use the Stakeholder column on tasks to classify work consistently.",
-        "Open Stakeholder Portal as a workspace administrator. Set the creative team name and description used in the portal header.",
+        "Open Portal and Booking as a workspace administrator. Set the creative team name and description used in the portal header.",
         "Choose the initial view, visible columns, default theme, whether figures are shown, and whether the link takes new requests.",
         "Set or update the portal password when needed. Open or preview the portal and inspect its tasks, details, and stakeholder filters from the intended visitor's perspective.",
         "Enable the portal and distribute the current link to its intended audience. Recheck the visible work after changing stakeholder labels or presentation settings.",
@@ -672,7 +672,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Check affected task values, asset types, and stakeholder classifications after a rename or removal. Stakeholder identity and portal visibility make those changes operationally significant.",
       ] },
       { title: "Configure output rates", paragraphs: ["Output rates belong to asset-type rows in Lists. Set the rate and its unit using the controls on the row, then save the draft. A rename moves the associated rate with that asset type; removing a type also requires reviewing its rate and existing use.", "These rates translate recorded deliverable quantities into estimated effort for reporting. Agree a realistic standard with the team and review it when production expectations change. A missing rate means incomplete estimation coverage, not free work or zero time spent."] },
-      { title: "Personal preferences and other controls", paragraphs: ["View settings stay on the current device and affect your own display. Theme choices are available through the app's appearance controls, including More on phones. Notification settings live in Inbox, board-specific controls live with the board, and portal management lives in Stakeholder Portal.", "Use General to change the workspace name; the displayed workspace URL identifies the workspace separately. Use About when an administrator needs the app version to investigate a problem."] },
+      { title: "Personal preferences and other controls", paragraphs: ["View settings stay on the current device and affect your own display. Theme choices are available through the app's appearance controls, including More on phones. Notification settings live in Inbox, board-specific controls live with the board, and portal management lives in Portal and Booking.", "Use General to change the workspace name; the displayed workspace URL identifies the workspace separately. Use About when an administrator needs the app version to investigate a problem."] },
     ],
     related: ["assets", "portal", "data", "members"],
   },
@@ -712,7 +712,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     summary: "Find the mobile navigation and keep everyday task updates manageable on a small screen.",
     audience: "People working away from their desktop",
     sections: [
-      { title: "Find your way around", paragraphs: ["The phone layout uses a bottom navigation bar instead of the desktop sidebar. Browse provides the workspace directory. More collects destinations used less often, including Dashboard, Stakeholder Portal, Messages, Members, Settings, profile, and appearance controls.", "Settings sections appear as a horizontal row on smaller screens; scroll the row to reach Documentation. Within this guide, use Browse chapters or search to move between topics."] },
+      { title: "Find your way around", paragraphs: ["The phone layout uses a bottom navigation bar instead of the desktop sidebar. Browse provides the workspace directory. More collects destinations used less often, including Dashboard, Portal and Booking, Messages, Members, Settings, profile, and appearance controls.", "Settings sections appear as a horizontal row on smaller screens; scroll the row to reach Documentation. Within this guide, use Browse chapters or search to move between topics."] },
       { title: "A quick mobile update", steps: [
         "Open My Work or Browse and choose the task's board.",
         "Use the board's mobile search, filters, and view controls to find the task, then open its details.",
