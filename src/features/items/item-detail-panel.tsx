@@ -1278,6 +1278,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
         {brief ? (
           <BriefRowValue
             title={column.name}
+            fileName={`${item.name} - ${column.name}`}
             body={body}
             canEdit={canEdit}
             open={open}

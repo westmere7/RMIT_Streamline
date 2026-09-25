@@ -648,6 +648,7 @@ export function RichTextCell({ item, column, value, onChange, readOnly, width }:
       {(close) => (
         <RichTextDocBody
           title={column.name}
+          fileName={`${item.name} - ${column.name}`}
           body={v.text}
           canEdit={!readOnly}
           onSave={(text) => onChange({ type: "RICH_TEXT", text })}

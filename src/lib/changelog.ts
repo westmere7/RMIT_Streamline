@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.37.0",
+    date: "2026-09-25",
+    title: "Download a brief as Word",
+    changes: [
+      "A brief, or any rich-text document, downloads as a Word file from its pop-up, with its service header, headings, lists and links.",
+      "Allocate to: every team opens to its boards, even a team with just one.",
+      "In the column picker, the one-per-board note sits under its own rule, apart from the type's description.",
+    ],
+  },
+  {
     version: "0.36.3",
     date: "2026-09-25",
     title: "Service first in the brief",

@@ -351,7 +351,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   LINK: "A web address, with its own text if a bare URL would not read well.",
   TAGS: "Any number of labels at once, from a palette the board keeps.",
   DEPENDENCY: "Tasks on this board this one waits on. Never carried to a linked board.",
-  STATUS: "Says how the work is going. Its labels carry the meanings — done, stuck, in progress — that drive completion, My Work and every status figure on the dashboard. One per board.",
+  STATUS: "Says how the work is going. Its labels carry the meanings — done, stuck, in progress — that drive completion, My Work and every status figure on the dashboard.",
   PERSON: "The person carrying the work. Feeds the workload view, My Work and who-is-busy on the dashboard. For people who are not doing the work — a requester, a contact — use a People column instead.",
   DATE: "The deadline. Overdue, on-time delivery and the calendar are all read off this. Other dates can live in their own Date column without being mistaken for it.",
   TIMELINE: "Start and end together. Drives the Gantt and timeline views, and stands in for the deadline where a board has no due date.",
@@ -359,7 +359,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   STAKEHOLDER: "Who the work is for, chosen from the workspace's departments. Groups the dashboard and drives the portal.",
   SIZE: "T-shirt sizing — how big the piece of work is. Rolls up into effort and capacity figures.",
   ASSETS_RECAP: "A live summary of the task's assets, counted from the lines themselves.",
-  BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own. One per board.",
+  BRIEF: "The request's brief. A booking fills it in from the form; on any other task it is a rich-text field of its own.",
 };
 
 /** True for the types the workspace reads meaning out of. */

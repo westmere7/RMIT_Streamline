@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Copy, Maximize2, Pencil, X } from "lucide-react";
+import { ChevronRight, Copy, Download, Maximize2, Pencil, X } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { RichText } from "@/components/shared/rich-text";
@@ -57,11 +57,31 @@ export async function copyRichText(body: string, what = "Brief"): Promise<void> 
   }
 }
 
+/**
+ * Saves the document as a Word file. The builder is loaded on the first click,
+ * so the zip library it needs stays out of every page that never downloads one.
+ */
+export async function downloadRichText(body: string, name: string): Promise<void> {
+  try {
+    const { docxFileName, richTextToDocx } = await import("@/lib/rich-text-docx");
+    const url = URL.createObjectURL(await richTextToDocx(body, name));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = docxFileName(name);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    toast.error("Could not make the Word file");
+  }
+}
+
 interface DocProps {
   title: string;
   body: string;
   canEdit: boolean;
   onSave: (body: string) => void;
+  /** What the downloaded file is called and headed with, usually the task and the column. Falls back to the title. */
+  fileName?: string;
 }
 
 /**
@@ -70,7 +90,7 @@ interface DocProps {
  * Shared by the popup a board cell opens and the one the panel opens, so a
  * brief is the same thing to look at whichever one you arrived through.
  */
-export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose, startEditing, testId }: DocProps & { onDone?: () => void; onClose?: () => void; startEditing?: boolean; testId?: string }) {
+export function RichTextDocBody({ title, body, canEdit, onSave, fileName, onDone, onClose, startEditing, testId }: DocProps & { onDone?: () => void; onClose?: () => void; startEditing?: boolean; testId?: string }) {
   const ws = useWorkspace();
   // A dialog opened by the pencil is already writing: the alternative is a
   // window that opens on the reading view with an Edit button to press next,
@@ -94,6 +114,11 @@ export function RichTextDocBody({ title, body, canEdit, onSave, onDone, onClose,
             <DocButton label={`Copy ${title.toLowerCase()}`} onClick={() => void copyRichText(body, title)} testId="rich-text-copy">
               <Copy className="size-3.5" />
             </DocButton>
+            {body.trim() && (
+              <DocButton label="Download as Word" onClick={() => void downloadRichText(body, fileName ?? title)} testId="rich-text-download">
+                <Download className="size-3.5" />
+              </DocButton>
+            )}
             {canEdit && (
               <DocButton label="Edit" onClick={start} testId="rich-text-edit">
                 <Pencil className="size-3.5" />
@@ -188,7 +213,7 @@ export function RichTextDocDialog({ open, onOpenChange, startEditing, ...doc }: 
  * the subitems — is what somebody scrolling the panel is usually after, and a
  * brief opened by default pushes all of it below the fold.
  */
-export function BriefRowValue({ title, body, canEdit, onSave, open, onToggle }: DocProps & { open: boolean; onToggle: () => void }) {
+export function BriefRowValue({ title, body, canEdit, onSave, fileName, open, onToggle }: DocProps & { open: boolean; onToggle: () => void }) {
   /** Shut, opened to read, or opened to write. */
   const [popup, setPopup] = React.useState<null | "read" | "edit">(null);
   const summary = richTextSummary(body);
@@ -215,7 +240,7 @@ export function BriefRowValue({ title, body, canEdit, onSave, open, onToggle }: 
       <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup("read")} testId="rich-text-field-popup">
         <Maximize2 className="size-3.5" />
       </DocButton>
-      <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} />
+      <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} fileName={fileName} />
     </div>
   );
 }

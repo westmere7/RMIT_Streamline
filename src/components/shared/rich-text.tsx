@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { parseRichText, splitBriefFacts, type BlockNode, type BriefFacts, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
 /** The palette an update can use. Chosen to stay readable on both themes. */
@@ -147,53 +147,6 @@ function Block({ node, mentionHref, variant = "compact" }: { node: BlockNode; me
         </p>
       );
   }
-}
-
-function plainInline(nodes: InlineNode[]): string {
-  return nodes
-    .map((node) => {
-      switch (node.type) {
-        case "text":
-          return node.text;
-        case "link":
-          return node.label;
-        case "mention":
-          return `@${node.name}`;
-        default:
-          return plainInline(node.children);
-      }
-    })
-    .join("");
-}
-
-interface BriefFacts {
-  service: string | null;
-  involves: string[];
-}
-
-/**
- * The "Service:" and "Involves:" lines a booking puts at the top of its brief,
- * lifted out so they can head the document, and the blocks left after them. A
- * body that does not start with them comes back untouched.
- */
-function splitBriefFacts(blocks: BlockNode[]): { facts: BriefFacts | null; rest: BlockNode[] } {
-  const facts: BriefFacts = { service: null, involves: [] };
-  let index = 0;
-  for (; index < blocks.length; index++) {
-    const block = blocks[index];
-    if (block?.type !== "paragraph") break;
-    const first = block.children[0];
-    if (first?.type !== "bold") break;
-    const label = plainInline(first.children).trim();
-    const value = plainInline(block.children.slice(1)).trim();
-    if (label === "Service:" && !facts.service && value) facts.service = value;
-    else if (label === "Involves:" && facts.involves.length === 0 && value) facts.involves = value.split(/,\s*/).filter(Boolean);
-    else break;
-  }
-  if (index === 0) return { facts: null, rest: blocks };
-  // The rule a booking draws under them; the header does that job now.
-  if (blocks[index]?.type === "rule") index++;
-  return { facts, rest: blocks.slice(index) };
 }
 
 /** What was booked, above everything else in the brief: the service large, what it involves as chips. */

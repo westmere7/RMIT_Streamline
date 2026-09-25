@@ -4,7 +4,7 @@ import * as React from "react";
 import { ContextMenuItem } from "@/components/ui/context-menu";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, type ColumnType, columnTypeTaken, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPES, COLUMN_TYPE_LABELS, COLUMN_TYPE_PURPOSE, ONE_PER_BOARD_COLUMN_TYPES, type ColumnType, columnTypeTaken, isSystemColumnType } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { cn } from "@/lib/utils";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
@@ -71,10 +71,15 @@ export function ColumnTypePicker({
       {types.map((type) => {
         const Icon = COLUMN_TYPE_ICONS[type];
         const existing = columnTypeTaken(type, model.columns) ? model.columns.find((c) => c.type === type) : undefined;
-        const label = existing ? (
+        // What the type is for, then, set apart under a rule, the one-per-board
+        // rule and what a click does about it.
+        const label = ONE_PER_BOARD_COLUMN_TYPES.includes(type) ? (
           <span className="block max-w-64">
-            {COLUMN_TYPE_PURPOSE[type]}
-            <span className="mt-1 block font-medium">One per board. Click to move &ldquo;{existing.name}&rdquo; here.</span>
+            <span className="block">{COLUMN_TYPE_PURPOSE[type]}</span>
+            <span className="mt-1.5 block border-t border-current/20 pt-1.5 text-2xs">
+              <span className="opacity-70">One per board.</span>
+              {existing && <span className="font-semibold"> Click to move &ldquo;{existing.name}&rdquo; here.</span>}
+            </span>
           </span>
         ) : (
           COLUMN_TYPE_PURPOSE[type]

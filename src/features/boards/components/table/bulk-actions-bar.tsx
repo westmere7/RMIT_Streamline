@@ -76,15 +76,6 @@ export function BulkActionsBar() {
                   allocation.allocate.mutate({ itemIds: ids, boardId });
                   clear();
                 };
-                if (boards.length === 1) {
-                  const only = boards[0]!;
-                  return (
-                    <DropdownMenuItem key={only.id} onSelect={() => send(only.id)} data-testid={`bulk-allocate-${only.slug}`}>
-                      {icon}
-                      <span className="min-w-0 truncate">{team ? team.name : only.name}</span>
-                    </DropdownMenuItem>
-                  );
-                }
                 return (
                   <DropdownMenuSub key={team?.id ?? "no-team"}>
                     <DropdownMenuSubTrigger>

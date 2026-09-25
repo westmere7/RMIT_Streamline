@@ -91,21 +91,14 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
           icon: <ArrowRightLeft />,
           accent: true,
           // Team, then board: one name per line, and no entry long enough to
-          // wrap. A team with a single board skips the second step — two
-          // clicks for one choice is not a menu, it is a maze.
+          // wrap. A team with a single board still opens to it, so the board
+          // a request lands on is always named before it is sent there.
           items: allocation.loading
             ? // The menu opens now and fills in when the workspace answers.
               [{ type: "item" as const, label: "Finding the team boards…", icon: <LoaderCircle className="animate-spin" />, disabled: true, onSelect: () => {} }]
             : allocation.targets.map(({ team, boards }) => {
                 const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />;
                 const send = (boardId: string) => allocation.allocate.mutate({ itemIds: allocating, boardId });
-                // One board: the team name is the whole choice. Its board
-                // name as a hint beside it squeezed the name to "Br…" and
-                // wrapped the hint over three lines.
-                if (boards.length === 1) {
-                  const only = boards[0]!;
-                  return { type: "item" as const, label: team ? team.name : only.name, icon, onSelect: () => send(only.id) };
-                }
                 return {
                   type: "sub" as const,
                   label: team ? team.name : "No team",
