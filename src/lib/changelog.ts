@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.45.2",
+    date: "2026-09-25",
+    title: "Straight into the app",
+    changes: [
+      "Opening the app while signed in shows the loading screen and then your workspace, without the sign-in page on the way.",
+    ],
+  },
+  {
     version: "0.45.1",
     date: "2026-09-25",
     title: "Shorter column notes",

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +85,13 @@ export function LoginScreen() {
           ? { message: "Signing you in", withUser: false, step: 1 }
           : null;
   const busy = progress !== null;
+
+  // A saved session never meets the form: checking it, and then opening its
+  // workspace, is the loading screen, the same one the workspace itself shows.
+  // Somebody who has just typed their details sees it happen on the card.
+  if (status === "loading" || (status === "signed-in" && pendingEmail === null && !noWorkspace)) {
+    return <FullPageLoader label={status === "loading" ? "Checking your session…" : destination ? `Opening ${destination.name}…` : "Opening workspace…"} />;
+  }
 
   return (
     <AuthShell
