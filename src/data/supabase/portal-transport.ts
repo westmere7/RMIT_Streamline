@@ -1,4 +1,4 @@
-import type { BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalScope, PortalTaskDetail, PortalTaskPage, PortalBoardPayload } from "@/domain";
+import type { Activity, BookingForm, BookingReceipt, BookingRequest, PortalContext, PortalGate, PortalScope, PortalTaskDetail, PortalTaskPage, PortalBoardPayload } from "@/domain";
 import { formatPortalRange } from "@/domain";
 import type { PortalGrant, PortalTransport } from "@/services/stakeholder-portal-service";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
@@ -41,6 +41,10 @@ export class HttpPortalTransport implements PortalTransport {
       method: "POST",
       body: JSON.stringify({ ...body(grant), submissionKey, request, departmentId }),
     });
+  }
+
+  async journey(grant: PortalGrant, itemId: string): Promise<Activity[]> {
+    return call<Activity[]>(`/api/portal/${encodeURIComponent(grant.token)}/tasks/${encodeURIComponent(itemId)}/journey`, { method: "POST", body: JSON.stringify(body(grant)) });
   }
 
   async comment(grant: PortalGrant, itemId: string, text: string): Promise<void> {

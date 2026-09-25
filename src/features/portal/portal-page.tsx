@@ -89,6 +89,15 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   const range = searching ? EVERY_PORTAL_RANGE : chosenRange;
   const scope = React.useMemo(() => ({ stakeholderId, range }), [stakeholderId, range]);
 
+  // A request's journey, read when it is opened rather than with every refresh of the board.
+  // Keyed on the grant's own parts, so the board's data layer is not rebuilt on every render.
+  const credentialVersion = gate.data?.credentialVersion;
+  const viewerId = viewer?.userId ?? null;
+  const loadJourney = React.useCallback(
+    (itemId: string) => services.portals.publicJourney({ token, password, credentialVersion, viewer: viewerId && auth.user ? { userId: auth.user.id, displayName: auth.user.displayName, isWorkspaceMember: true } : null }, itemId),
+    [services, token, password, credentialVersion, viewerId, auth.user],
+  );
+
   const page = useQuery({
     queryKey: ["portal-board", token, gate.data?.credentialVersion, password, stakeholderId, formatPortalRange(range)],
     queryFn: () => services.portals.publicBoard(credentials, scope),
@@ -237,6 +246,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", page.isPlaceholderData && "pointer-events-none opacity-60")} data-testid="portal-board">
             <PortalBoardScreen
                 token={token}
+                loadJourney={loadJourney}
                 payload={page.data}
                 bookHref={context?.allowBooking === false ? null : bookHref}
                 rangePicker={

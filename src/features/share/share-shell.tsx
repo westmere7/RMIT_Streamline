@@ -8,7 +8,7 @@ import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { AuthProvider, AuthSession, PublicBoardPayload, User } from "@/domain";
+import type { Activity, AuthProvider, AuthSession, PublicBoardPayload, User } from "@/domain";
 import { createMemoryRepositories, shareGuestUser } from "@/data/memory";
 import { AuthContextProvider, type AuthContextValue } from "@/features/auth/auth-context";
 import { AuthShell } from "@/features/auth/components/auth-shell";
@@ -123,14 +123,25 @@ export function SharePasswordPrompt({ what, busy, wrong, onSubmit }: { what: str
  * A separate query cache keeps this page's made-up board out of the app's own,
  * in case both are open in the same tab.
  */
-export function ShareGuestProviders({ payload, path, children }: { payload: PublicBoardPayload; path: string; children: React.ReactNode }) {
+export function ShareGuestProviders({
+  payload,
+  path,
+  activityFor,
+  children,
+}: {
+  payload: PublicBoardPayload;
+  path: string;
+  /** Fetches one item's activity on demand, for a payload that does not carry it (the portal). */
+  activityFor?: (itemId: string) => Promise<Activity[]>;
+  children: React.ReactNode;
+}) {
   const [queryClient] = React.useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: SHARE_REFRESH_MS, retry: false, refetchOnWindowFocus: false } } }));
   const guest = React.useMemo(() => shareGuestUser(), []);
   // Each poll builds the data layer again over the newer payload — the objects
   // are plain and cheap — and then asks the page to read through it.
   const data = React.useMemo<DataContextValue>(
-    () => ({ providerKind: "local", services: createServices(createMemoryRepositories(payload)), auth: guestAuthProvider(guest) }),
-    [payload, guest],
+    () => ({ providerKind: "local", services: createServices(createMemoryRepositories(payload, { activityFor })), auth: guestAuthProvider(guest) }),
+    [payload, guest, activityFor],
   );
   React.useEffect(() => {
     void queryClient.invalidateQueries();

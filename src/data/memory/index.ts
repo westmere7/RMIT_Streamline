@@ -1,4 +1,4 @@
-import type { ArchivePage, ArchiveQuery, Item, ItemColumnValue, PublicBoardPayload, User, Workspace } from "@/domain";
+import type { Activity, ArchivePage, ArchiveQuery, EntityId, Item, ItemColumnValue, PublicBoardPayload, User, Workspace } from "@/domain";
 import { compareArchived, matchesArchiveQuery } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
@@ -18,7 +18,16 @@ import type { Repositories } from "@/data/repositories";
  * `source` is read on every call rather than captured, so the page can refresh
  * the payload underneath and the next read answers from the newer board.
  */
-export function createMemoryRepositories(source: PublicBoardPayload | (() => PublicBoardPayload)): Repositories {
+export function createMemoryRepositories(
+  source: PublicBoardPayload | (() => PublicBoardPayload),
+  options: {
+    /**
+     * Where one item's activity comes from when the payload does not carry it.
+     * The portal fetches a task's journey only when it is opened.
+     */
+    activityFor?: (itemId: EntityId) => Promise<Activity[]>;
+  } = {},
+): Repositories {
   const payload = (): PublicBoardPayload => (typeof source === "function" ? source() : source);
   const board = () => payload().board;
   const usersById = () => new Map(payload().users.map((u) => [u.id, u]));
@@ -262,7 +271,7 @@ export function createMemoryRepositories(source: PublicBoardPayload | (() => Pub
     activities: {
       listByWorkspace: async () => [],
       listByBoard: async (boardId, limit) => (onBoard(boardId) ? payload().activities.slice(0, limit) : []),
-      listByItem: async (itemId) => payload().activities.filter((a) => a.itemId === itemId),
+      listByItem: async (itemId) => (options.activityFor ? options.activityFor(itemId) : payload().activities.filter((a) => a.itemId === itemId)),
       create: readOnly("recording activity"),
       createMany: readOnly("recording activity"),
     },

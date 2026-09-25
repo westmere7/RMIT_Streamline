@@ -27,6 +27,7 @@ import type {
   StakeholderDepartment,
   TagOption,
   User,
+  Activity,
 } from "@/domain";
 import {
   EVERY_PORTAL_RANGE,
@@ -200,11 +201,16 @@ export interface PortalOverview {
  * page never knows which — it calls the same four methods either way, which is
  * how the local suite exercises the real behaviour rather than a stand-in.
  */
+/** The events Task journey draws, and the only details of them it shows (src/features/journey/journey.ts). */
+const JOURNEY_EVENTS = new Set<Activity["eventType"]>(["ITEM_CREATED", "ITEM_MOVED", "ITEM_COLUMN_VALUE_UPDATED", "ASSET_ADDED", "ASSET_REMOVED", "ASSET_COMPLETED", "ASSET_REOPENED", "ITEM_ARCHIVED", "ITEM_RESTORED"]);
+const JOURNEY_METADATA = ["boardName", "via", "requesterName", "department", "groupName", "from", "to", "fromGroupName", "toGroupName", "columnType", "assetName"] as const;
+
 export interface PortalTransport {
   gate(token: string): Promise<PortalGate>;
   board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardPayload & { context: PortalContext }>;
   tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope }): Promise<PortalTaskPage & { context: PortalContext }>;
   task(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail>;
+  journey(grant: PortalGrant, itemId: EntityId): Promise<Activity[]>;
   book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: EntityId): Promise<BookingReceipt>;
   bookingForm(grant: PortalGrant): Promise<BookingForm>;
   comment(grant: PortalGrant, itemId: EntityId, body: string): Promise<void>;
@@ -280,6 +286,12 @@ export class StakeholderPortalService {
     if (this.transport) return this.transport.task(grant, itemId);
     const resolved = await this.resolve(grant);
     return this.task(resolved, itemId, grant.viewer ?? null);
+  }
+
+  async publicJourney(grant: PortalGrant, itemId: EntityId): Promise<Activity[]> {
+    if (this.transport) return this.transport.journey(grant, itemId);
+    const resolved = await this.resolve(grant);
+    return this.journey(resolved, itemId);
   }
 
   /** The booking form, behind the same gate: a workspace's questions are not public. */
@@ -692,6 +704,28 @@ export class StakeholderPortalService {
    * department's work. `canAct` says whether this visitor may comment or edit
    * assets on this concrete task; it is computed, never taken from the request.
    */
+  /**
+   * The events a request's Task journey is drawn from, for one request.
+   *
+   * Read when the journey is opened rather than with every board refresh, and
+   * behind the same check as opening the request. Only the kinds of event the
+   * journey draws come back, each with only the details it shows: a status
+   * change says which statuses, never what any other column said.
+   */
+  async journey(resolved: ResolvedPortal, itemId: EntityId): Promise<Activity[]> {
+    const scoped = await this.scopeWithItems(resolved, EVERYTHING);
+    if (!scoped.entries.some((row) => row.itemId === itemId)) throw new PortalAccessError("unknown", "That request is not part of this portal.");
+    const events = await this.repos.activities.listByItem(itemId);
+    return events.flatMap((event) => {
+      if (!JOURNEY_EVENTS.has(event.eventType)) return [];
+      const meta = event.metadata ?? {};
+      if (event.eventType === "ITEM_COLUMN_VALUE_UPDATED" && meta.columnType !== "STATUS") return [];
+      const kept: Record<string, unknown> = {};
+      for (const key of JOURNEY_METADATA) if (meta[key] !== undefined) kept[key] = meta[key];
+      return [{ ...event, metadata: kept as Activity["metadata"] }];
+    });
+  }
+
   async task(resolved: ResolvedPortal, itemId: EntityId, viewer: PortalViewer | null): Promise<PortalTaskDetail> {
     // Everything the link may see, whichever stakeholder or year is on screen:
     // a task opened from a search or a pasted link is still this portal's.

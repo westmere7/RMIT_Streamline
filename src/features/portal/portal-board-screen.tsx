@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ColorDot } from "@/components/shared/label-pill";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { BOARD_VIEWS, PORTAL_GROUPINGS, type BoardViewKind, type ColumnLabel, type PortalBoardPayload, type PortalGrouping } from "@/domain";
+import { BOARD_VIEWS, PORTAL_GROUPINGS, type Activity, type BoardViewKind, type ColumnLabel, type PortalBoardPayload, type PortalGrouping } from "@/domain";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
@@ -62,7 +62,10 @@ export function PortalBoardScreen({
   searchingAllYears,
   showItemGroups,
   refreshing = false,
+  loadJourney,
 }: {
+  /** One request's journey events, fetched when its Task journey is opened. */
+  loadJourney?: (itemId: string) => Promise<Activity[]>;
   token: string;
   payload: PortalBoardPayload;
   /** True while a newer read of the board is on its way. */
@@ -110,7 +113,7 @@ export function PortalBoardScreen({
   }, [payload, statusOrder]);
 
   return (
-    <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`}>
+    <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`} activityFor={loadJourney}>
       <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} />
     </ShareGuestProviders>
   );

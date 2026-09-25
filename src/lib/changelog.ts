@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.6",
+    date: "2026-09-25",
+    title: "Task journey on the portal",
+    changes: [
+      "Task journey now works on the portal. A request's history loads when you open it, trimmed to what the journey shows.",
+      "The sidebar selects a board where you opened it from. Choosing it in its team moves the selection there from Favourites.",
+    ],
+  },
+  {
     version: "0.41.5",
     date: "2026-09-25",
     title: "Favourites stay put",

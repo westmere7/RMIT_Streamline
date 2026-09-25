@@ -89,6 +89,27 @@ describe("what the portal is allowed to show", () => {
     };
   }
 
+  it("opens a request's journey with only the events it draws, and refuses one outside the portal", async () => {
+    await label(items[0]!, "Comm.");
+    const resolved = await open(comm);
+    const status = (await services.repos.boards.listColumns(BOARD)).find((c) => c.type === "STATUS")!;
+    const created = { workspaceId: WS, boardId: BOARD, itemId: items[0]!.id, actorId: ACTOR };
+    await services.repos.activities.createMany([
+      { ...created, eventType: "ITEM_COLUMN_VALUE_UPDATED", metadata: { columnName: status.name, columnType: "STATUS", from: "Not Started", to: "Done", itemName: "secret name" } },
+      { ...created, eventType: "ITEM_COLUMN_VALUE_UPDATED", metadata: { columnName: "Budget", columnType: "NUMBER", from: "100", to: "9000" } },
+      { ...created, eventType: "ITEM_RENAMED", metadata: { from: "old", to: "new" } },
+    ]);
+
+    const events = await services.portals.journey(resolved.portal, items[0]!.id);
+    const updates = events.filter((e) => e.eventType === "ITEM_COLUMN_VALUE_UPDATED");
+    // The status change comes through with the statuses and nothing else; the budget and the rename do not.
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.metadata).toEqual({ columnType: "STATUS", from: "Not Started", to: "Done" });
+    expect(events.some((e) => e.eventType === "ITEM_RENAMED")).toBe(false);
+
+    await expect(services.portals.journey(resolved.portal, items[5]!.id)).rejects.toBeInstanceOf(PortalAccessError);
+  });
+
   it("shows every task labelled with the department, not only what was booked", async () => {
     await label(items[0]!, "Comm.");
     await label(items[1]!, "Comm.");

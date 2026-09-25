@@ -185,8 +185,10 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const boardsWithoutTeam = visibleBoards.filter((b) => !hasTeam(b));
   const archivedWithoutTeam = accessibleBoards.filter((b) => b.archivedAt !== null && !hasTeam(b));
   const activeBoardSlug = pathname.includes("/boards/") ? pathname.split("/boards/")[1]?.split("/")[0] : null;
-  // A board opened from Favourites is selected there alone: the team tree
-  // neither opens to it nor highlights it. Opened any other way, it is found in its team as usual.
+  // One entry is selected for the board on screen, the one it was opened from.
+  // From Favourites, the team tree neither opens to it nor highlights it; from
+  // anywhere else — its team, a link, search — it is found in its team and the
+  // Favourites entry is left unselected.
   const favouriteOpen = useUiStore((s) => s.favouriteOpen);
   const setFavouriteOpen = useUiStore((s) => s.setFavouriteOpen);
   const treeBoardSlug = favouriteOpen !== null && favouriteOpen === activeBoardSlug ? null : activeBoardSlug;
@@ -323,7 +325,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             !collapsed && <p className="px-2 py-1 text-2xs text-muted-foreground">Star a board to pin it here.</p>
           ) : (
             favouriteBoards.map((board) => (
-              <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={collapsed} fromFavourites />
+              <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={favouriteOpen === board.slug && activeBoardSlug === board.slug} collapsed={collapsed} fromFavourites />
             ))
           )}
         </Section>
