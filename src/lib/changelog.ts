@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.10",
+    date: "2026-09-25",
+    title: "Roomier folded threads",
+    changes: [
+      "A collapsed update shows who wrote it and when on one line, with its reactions and replies on the right, and up to two lines of what it says below.",
+    ],
+  },
+  {
     version: "0.41.9",
     date: "2026-09-25",
     title: "Status bars line up",

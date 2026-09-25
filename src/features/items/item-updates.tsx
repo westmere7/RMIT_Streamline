@@ -223,16 +223,24 @@ function CommentItem({
   if (collapsed) {
     return (
       <li className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="comment" data-collapsed="true">
-        <button type="button" onClick={onToggle} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent/40">
-          <ChevronDown className="size-3.5 shrink-0 -rotate-90 text-muted-foreground" />
-          <CommentAuthorName comment={comment} />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{richTextToPlain(comment.body)}</span>
-          <ReactionSummary comment={comment} />
-          {replies.length > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-muted-foreground tabular">
-              <MessageSquare className="size-3" /> {replies.length}
+        {/* Folded, but still read at a glance: who and when on one line, the start of what they said under it. */}
+        <button type="button" onClick={onToggle} className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-accent/40">
+          <ChevronDown className="mt-1 size-3.5 shrink-0 -rotate-90 text-muted-foreground" />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <CommentAuthorName comment={comment} size="sm" />
+              <RelativeTime iso={comment.createdAt} className="shrink-0 text-2xs text-muted-foreground" />
+              <span className="ml-auto flex shrink-0 items-center gap-3">
+                <ReactionSummary comment={comment} />
+                {replies.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground tabular">
+                    <MessageSquare className="size-3" /> {replies.length} {replies.length === 1 ? "reply" : "replies"}
+                  </span>
+                )}
+              </span>
             </span>
-          )}
+            <span className="mt-1.5 line-clamp-2 block pl-8 text-[13px] leading-relaxed text-muted-foreground">{richTextToPlain(comment.body)}</span>
+          </span>
         </button>
       </li>
     );
@@ -507,12 +515,12 @@ function ConfirmDelete({ label, onConfirm }: { label: string; onConfirm: () => v
 }
 
 /** A small avatar and the name, for the folded line. */
-function CommentAuthorName({ comment }: { comment: Comment }) {
+function CommentAuthorName({ comment, size = "xs" }: { comment: Comment; size?: "xs" | "sm" }) {
   const ws = useWorkspace();
   const author = ws.userById(comment.authorId);
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-medium">
-      <UserAvatar user={author} size="xs" tooltip={false} />
+    <span className={cn("flex min-w-0 shrink-0 items-center text-[13px] font-medium", size === "sm" ? "gap-2" : "gap-1.5")}>
+      <UserAvatar user={author} size={size} tooltip={false} />
       {author?.displayName ?? "Unknown"}
     </span>
   );
