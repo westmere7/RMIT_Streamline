@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Info, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -25,7 +25,6 @@ import {
   isRequesterKey,
   newServiceType,
   newStandardField,
-  templateQuestionCount,
 } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -254,10 +253,6 @@ export function BookingFormEditor({
           </button>
         </p>
       )}
-      <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-        <Info className="mt-px size-3 shrink-0" aria-hidden />
-        {templateQuestionCount(draft)} questions across {draft.services.length === 1 ? "1 service" : `${draft.services.length} services`}.
-      </p>
     </section>
   );
 
@@ -380,7 +375,13 @@ export function BookingFormEditor({
           setSelectedService(live.services[0]?.id ?? null);
         }}
       />
-      <PublishDialog open={confirmPublish} onOpenChange={setConfirmPublish} teamName={teamName} onPublish={(name) => onPublish(draft, name)} />
+      <PublishDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        teamName={teamName}
+        // What is live now is what was saved: publishing clears the draft.
+        onPublish={(name) => onPublish(draft, name).then(() => setSaved(clone(draft)))}
+      />
     </div>
   );
 }

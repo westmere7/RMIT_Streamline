@@ -1,16 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, LoaderCircle, RefreshCw } from "lucide-react";
+import { Check, Copy, ExternalLink, Inbox, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { BookingBlock, BookingFormTemplate, BookingSavedBlock, BookingTemplate } from "@/domain";
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
@@ -250,8 +248,6 @@ export function BookTaskPage() {
 /** The public link and where bookings arrive: admins only. */
 function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) => void }) {
   const ws = useWorkspace();
-  const services = useServices();
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const key = ws.workspace.bookingKey ?? null;
   // The origin is only known in the browser; until hydration the path alone is shown.
@@ -259,62 +255,39 @@ function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) 
   const publicUrl = key ? `${origin}${routes.publicBooking(ws.slug, key)}` : "";
   const allocation = ws.boards.find((b) => b.system === "TASK_ALLOCATION");
 
-  const regenerate = useMutation({
-    mutationFn: () => services.workspace.regenerateBookingKey(ws.workspace.id),
-    onSuccess: async () => {
-      await ws.refresh();
-      toast.success("New booking link ready", { description: "The previous link no longer works." });
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not replace the link"),
-  });
-
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(publicUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      toast.error("Could not copy. Select the link and copy it by hand.");
+      toast.error("Could not copy the link.");
     }
   };
 
   return (
-    <aside className="scrollbar-thin space-y-4 lg:min-h-0 lg:overflow-y-auto">
+    <aside className="scrollbar-thin space-y-3 lg:min-h-0 lg:overflow-y-auto">
       <div ref={editorSlot} />
-      <section className="rounded-2xl border border-border/60 bg-surface/40 p-5" data-testid="booking-share">
-        <h2 className="text-[15px] font-semibold tracking-tight">Share with stakeholders</h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">Anyone with this link can book a task without an account. Send it by email or put it on the intranet.</p>
-        <div className="mt-3 flex gap-1.5">
-          <Input readOnly value={publicUrl} aria-label="Public booking link" onFocus={(e) => e.currentTarget.select()} className="h-9 text-xs" data-testid="booking-public-link" />
-          <Button type="button" variant="outline" size="icon-sm" className="size-9 shrink-0" aria-label="Copy booking link" onClick={() => void copy()} disabled={!publicUrl} data-testid="booking-copy-link">
-            {copied ? <Check className="text-green-600" /> : <Copy />}
+      {/* The public form and where it lands: three buttons, nothing to read. */}
+      <div className="grid gap-2" data-testid="booking-share">
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={() => void copy()} disabled={!publicUrl} data-testid="booking-copy-link">
+            {copied ? <Check className="text-green-600" /> : <Copy />} {copied ? "Copied" : "Copy link"}
+          </Button>
+          <Button asChild variant="outline" disabled={!publicUrl}>
+            <a href={publicUrl || undefined} target="_blank" rel="noreferrer" data-testid="booking-public-link">
+              <ExternalLink /> Open form
+            </a>
           </Button>
         </div>
-        <Button type="button" variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setConfirmOpen(true)} disabled={regenerate.isPending} data-testid="booking-regenerate">
-          <RefreshCw className={regenerate.isPending ? "animate-spin" : undefined} /> Replace the link
-        </Button>
-      </section>
-      <section className="rounded-2xl border border-border/60 bg-surface/40 p-5">
-        <h2 className="text-[15px] font-semibold tracking-tight">Where bookings land</h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Every booking arrives on <span className="font-medium text-foreground">{allocation?.name ?? "Task Allocation"}</span> unless the chosen team has picked one of its boards to receive them (Team settings → Bookings land on).
-        </p>
         {allocation && (
-          <Button asChild variant="outline" size="sm" className="mt-3">
+          <Button asChild variant="outline">
             <Link href={ws.boardPath(allocation)} data-testid="booking-open-allocation">
-              <ExternalLink /> Open {allocation.name}
+              <Inbox /> Open {allocation.name}
             </Link>
           </Button>
         )}
-      </section>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Replace the booking link?"
-        description="Everyone holding the current link loses access to the form. Send the new one out afterwards."
-        confirmLabel="Replace link"
-        onConfirm={() => regenerate.mutateAsync().then(() => undefined)}
-      />
+      </div>
     </aside>
   );
 }

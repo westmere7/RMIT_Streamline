@@ -62,7 +62,7 @@ test.describe("task booking", () => {
     // Let the owner create them first, then look as a plain member.
     await signInAs(page, "Danh");
     await openBookPage(page);
-    await expect(page.getByTestId("booking-public-link")).toHaveValue(/\/book\/rmit\//, { timeout: 15_000 });
+    await expect(page.getByTestId("booking-public-link")).toHaveAttribute("href", /\/book\/rmit\//, { timeout: 15_000 });
 
     await page.getByTestId("user-menu").click();
     await page.getByRole("menuitem", { name: /sign out/i }).click();
@@ -78,8 +78,8 @@ test.describe("task booking", () => {
     await signInAs(page, "Danh");
     await openBookPage(page);
     const link = page.getByTestId("booking-public-link");
-    await expect(link).toHaveValue(/\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
-    const publicUrl = await link.inputValue();
+    await expect(link).toHaveAttribute("href", /\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
+    const publicUrl = (await link.getAttribute("href"))!;
 
     await page.goto(publicUrl);
     await expect(page.getByTestId("booking-card")).toBeVisible();
@@ -188,7 +188,7 @@ test.describe("task booking", () => {
   test("a stakeholder needs the right key", async ({ page }) => {
     await signInAs(page, "Danh");
     await openBookPage(page);
-    await expect(page.getByTestId("booking-public-link")).toHaveValue(/\/book\/rmit\//, { timeout: 15_000 });
+    await expect(page.getByTestId("booking-public-link")).toHaveAttribute("href", /\/book\/rmit\//, { timeout: 15_000 });
     await page.goto("/book/rmit/nottherightkeynottherightkey");
     await expect(page.getByTestId("booking-unusable")).toBeVisible();
     await expect(page.getByTestId("booking-wizard")).toHaveCount(0);
@@ -230,7 +230,7 @@ test.describe("task booking", () => {
   test("an admin builds a service in a draft, and nothing changes until it is published", async ({ page }) => {
     await signInAs(page, "Danh");
     await openBookPage(page);
-    const publicUrl = await page.getByTestId("booking-public-link").inputValue();
+    const publicUrl = (await page.getByTestId("booking-public-link").getAttribute("href"))!;
 
     // A service of the workspace's own, with a question of its own. Adding one
     // picks it, and its settings open under the cards.
