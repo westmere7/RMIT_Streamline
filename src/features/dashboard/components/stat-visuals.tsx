@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { compactCount, formatCount } from "@/features/dashboard/charts/chart-utils";
-import { KineticNumber } from "@/features/dashboard/charts/motion";
+import { KineticNumber, useRevealed, useSprings } from "@/features/dashboard/charts/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,7 +39,8 @@ export function StatRing({
   format?: (value: number) => string;
   testId?: string;
 }) {
-  const share = total > 0 ? Math.min(1, value / total) : 0;
+  const revealed = useRevealed();
+  const share = revealed && total > 0 ? Math.min(1, value / total) : 0;
   const stroke = 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -101,7 +102,8 @@ export function StatBar({
   hint?: string;
   testId?: string;
 }) {
-  const share = peak > 0 ? Math.max(0.02, value / peak) : 0;
+  const revealed = useRevealed();
+  const share = revealed && peak > 0 ? Math.max(0.02, value / peak) : 0;
   const Tag = onSelect && value > 0 ? "button" : "div";
   return (
     <Tag
@@ -170,15 +172,19 @@ export function TrendLine({
   className?: string;
   label: string;
 }) {
-  const points = values.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v !== null);
-  if (points.length < 2) return null;
+  const real = values.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v !== null);
+  // The line rises into place, and moves rather than redraws when the data changes.
+  const sprung = useSprings(Object.fromEntries(real.map((p) => [String(p.i), p.v])));
+  if (real.length < 2) return null;
+  const points = real.map((p) => ({ i: p.i, v: Math.max(0, sprung[String(p.i)] ?? p.v) }));
 
   // The drawn range: from the first month with an answer to the last. Anything
   // beyond that has not happened and is not the chart's to leave room for.
   const first = points[0]!.i;
   const last = points[points.length - 1]!;
   const span = Math.max(1, last.i - first);
-  const peak = Math.max(1, ...points.map((p) => p.v));
+  // Scaled to the real values, so the line grows into a scale that is already right.
+  const peak = Math.max(1, ...real.map((p) => p.v));
   const height = 100;
   const pad = 6;
   const x = (i: number) => ((i - first) / span) * 100;
@@ -264,12 +270,13 @@ const AXIS_WIDTH = "w-7";
  */
 export function ShareBar({ data, className, testId }: { data: Array<{ name: string; value: number; color: string }>; className?: string; testId?: string }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
+  const revealed = useRevealed();
   if (total <= 0) return null;
   return (
     <div className={className} data-testid={testId}>
       <div className="flex h-2.5 w-full overflow-hidden rounded-full">
         {data.map((row) => (
-          <span key={row.name} title={`${row.name}: ${formatCount(row.value)}`} style={{ width: `${(row.value / total) * 100}%`, background: row.color }} className="h-full transition-[width] duration-700 ease-kinetic first:rounded-l-full last:rounded-r-full motion-reduce:transition-none" />
+          <span key={row.name} title={`${row.name}: ${formatCount(row.value)}`} style={{ width: `${revealed ? (row.value / total) * 100 : 0}%`, background: row.color }} className="h-full transition-[width] duration-700 ease-kinetic first:rounded-l-full last:rounded-r-full motion-reduce:transition-none" />
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-2xs">
@@ -277,7 +284,7 @@ export function ShareBar({ data, className, testId }: { data: Array<{ name: stri
           <li key={row.name} className="flex items-center gap-1.5">
             <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: row.color }} />
             <span className="text-muted-foreground">{row.name}</span>
-            <KineticNumber value={row.value} format={formatCount} className="font-medium tabular" />
+            <span className="font-medium tabular">{formatCount(row.value)}</span>
           </li>
         ))}
       </ul>

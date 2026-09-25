@@ -19,12 +19,65 @@ import { usePrefersReducedMotion } from "./chart-utils";
  * moment. Geometry (a bar, a tile, an area) moves a little more gently than a
  * number, so the figures land first and the shapes follow.
  *
- * Nothing animates on first paint (the page arrives with its values in place and
- * the entry animations in globals.css do the arriving) and nothing animates for
- * a visitor who asked for reduced motion.
+ * On arrival the shapes and the big figures hold at nought until the dashboard
+ * is revealed — the snapshot is in, the reader's saved view has been applied,
+ * and a frame has been painted — and then grow in, so none of it plays out
+ * behind the skeleton or under a main thread still busy mounting the page.
+ * Scales hold their real value from the start. A panel that mounts after the
+ * reveal (a tab switched to) arrives with its values in place, and nothing
+ * animates for a visitor who asked for reduced motion.
  */
 
 export type SpringKind = "gentle" | "smooth";
+
+/**
+ * "grow": held at nought until the dashboard is revealed, then sprung in. For
+ * geometry and figures. "hold": the real value from the first paint. For scales,
+ * which a bar growing from nought needs to already be right.
+ */
+export type SpringEntry = "grow" | "hold";
+
+const RevealContext = React.createContext(true);
+
+/** Whether the dashboard has been revealed. True outside a DashboardReveal. */
+export function useRevealed(): boolean {
+  return React.useContext(RevealContext);
+}
+
+/**
+ * Holds the dashboard's entry motion until `ready`, then waits for two painted
+ * frames (the first commit with real data, and the layout it settles into) and
+ * for the tab to be visible, and reveals. Once revealed it stays revealed.
+ */
+export function DashboardReveal({ ready, children }: { ready: boolean; children: React.ReactNode }) {
+  const [revealed, setRevealed] = React.useState(false);
+  React.useEffect(() => {
+    if (revealed || !ready) return;
+    let frame = 0;
+    const go = () => {
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => setRevealed(true));
+      });
+    };
+    if (document.visibilityState === "visible") {
+      go();
+      return () => cancelAnimationFrame(frame);
+    }
+    // Opened in a background tab: rAF is paused there anyway, and the reader
+    // should see it arrive, not come back to it finished.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      document.removeEventListener("visibilitychange", onVisible);
+      go();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      cancelAnimationFrame(frame);
+    };
+  }, [ready, revealed]);
+  return <RevealContext.Provider value={revealed}>{children}</RevealContext.Provider>;
+}
 
 const SPRINGS: Record<SpringKind, { stiffness: number; damping: number }> = {
   // Critically damped (damping = 2·√stiffness): as quick as it can be without
@@ -50,8 +103,13 @@ function signatureOf(targets: Record<string, number>): string {
  * Springs every value of `targets` towards its target and returns where each one
  * is now. A key that appears grows in from nought; a key that goes away is gone.
  */
-export function useSprings(targets: Record<string, number>, kind: SpringKind = "gentle"): Record<string, number> {
+export function useSprings(real: Record<string, number>, kind: SpringKind = "gentle", entry: SpringEntry = "grow"): Record<string, number> {
   const reduced = usePrefersReducedMotion();
+  const revealed = useRevealed();
+  // Before the reveal every value aims at nought, so the reveal is simply the
+  // first change of target and springs in like any other.
+  const held = entry === "grow" && !revealed && !reduced;
+  const targets = held ? Object.fromEntries(Object.keys(real).map((key) => [key, 0])) : real;
   const [shown, setShown] = React.useState<Record<string, number>>(targets);
   const bodies = React.useRef<Map<string, Body> | null>(null);
   const signature = signatureOf(targets);
@@ -60,7 +118,7 @@ export function useSprings(targets: Record<string, number>, kind: SpringKind = "
     // The targets of the render that changed the signature.
     const goal = targets;
     // The first run only records where everything starts: the values painted on
-    // mount are already the right ones.
+    // mount (nought when held, the real ones otherwise) are where it starts from.
     if (bodies.current === null) {
       bodies.current = new Map(Object.entries(goal).map(([key, x]) => [key, { x, v: 0 }]));
       return;
@@ -107,7 +165,7 @@ export function useSprings(targets: Record<string, number>, kind: SpringKind = "
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature, reduced, kind]);
 
-  if (reduced) return targets;
+  if (reduced) return real;
   // A key the springs have not reached yet starts from nothing, so it grows in.
   const out: Record<string, number> = {};
   for (const key in targets) out[key] = key in shown ? shown[key]! : 0;
@@ -115,12 +173,13 @@ export function useSprings(targets: Record<string, number>, kind: SpringKind = "
 }
 
 /** One value on a spring. */
-export function useSpring(target: number, kind: SpringKind = "smooth"): number {
-  return useSprings({ value: target }, kind).value!;
+export function useSpring(target: number, kind: SpringKind = "smooth", entry: SpringEntry = "grow"): number {
+  return useSprings({ value: target }, kind, entry).value!;
 }
 
 /**
- * A figure that counts its way to a new value.
+ * A figure that counts its way to a new value. For the big and medium figures
+ * only: a small number in a row or a legend is plain text.
  *
  * `format` receives the value in flight, so a count stays whole by rounding and
  * hours keep their decimals. The final value is what a screen reader hears.

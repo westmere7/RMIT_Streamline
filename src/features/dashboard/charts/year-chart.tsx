@@ -3,8 +3,8 @@
 import * as React from "react";
 import type { MonthPoint, TeamRef, YearDot } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
-import { BRAND_RED, ChartTooltip, compactCount, formatCount, MONTH_LABELS, niceScale, smoothPath, useMounted, usePrefersReducedMotion, useSize } from "./chart-utils";
-import { useSpring, useSprings } from "./motion";
+import { BRAND_RED, ChartTooltip, compactCount, formatCount, MONTH_LABELS, niceScale, smoothPath, usePrefersReducedMotion, useSize } from "./chart-utils";
+import { useRevealed, useSpring, useSprings } from "./motion";
 import { ChartEmpty } from "./ranked-bars";
 
 const MONTH_MID = Array.from({ length: 12 }, (_, i) => (i + 0.5) / 12);
@@ -42,8 +42,12 @@ export function YearChart({
 }) {
   const [ref, { width, height }] = useSize<HTMLDivElement>();
   const [hover, setHover] = React.useState<YearDot | null>(null);
-  const mounted = useMounted();
+  const revealed = useRevealed();
   const reduced = usePrefersReducedMotion();
+  // The line draws itself in and the dots pop in once the dashboard is
+  // revealed; before that there is nothing of either to show.
+  const entering = revealed && !reduced;
+  const drawn = revealed || reduced;
   const svgRef = React.useRef<SVGSVGElement>(null);
   const gradientId = React.useId();
 
@@ -53,7 +57,7 @@ export function YearChart({
   const sprungDots = useSprings(Object.fromEntries(dots.map((d) => [d.id, d.value])));
   const lastForScale = nowMonth ?? 11;
   const targetPeak = Math.max(...months.slice(0, lastForScale + 1).map((m) => m.value), ...dots.map((d) => d.value), 0);
-  const sprungTop = useSpring(niceScale(targetPeak).top);
+  const sprungTop = useSpring(niceScale(targetPeak).top, "smooth", "hold");
 
   const setHot = (dot: YearDot | null) => {
     setHover(dot);
@@ -148,9 +152,9 @@ export function YearChart({
                 {label}
               </text>
             ))}
-            {area && <path d={area} fill={`url(#${gradientId})`} className={cn(mounted && !reduced && "dashboard-area-in")} />}
+            {area && <path d={area} fill={`url(#${gradientId})`} />}
             {doneLine && shownMonths.some((m) => m.done > 0) && <path d={doneLine} fill="none" stroke="var(--foreground)" strokeOpacity={0.35} strokeWidth={1.5} strokeDasharray="3 4" />}
-            {line && <path d={line} fill="none" stroke={BRAND_RED} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" className={cn(mounted && !reduced && "dashboard-line-in")} />}
+            {line && drawn && <path d={line} fill="none" stroke={BRAND_RED} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" className={cn(entering && "dashboard-line-in")} />}
             {peakMonth && (
               // Anchored away from the NOW marker and the plot's right edge so the label never sits on either.
               <text
@@ -161,7 +165,7 @@ export function YearChart({
                 fontWeight={700}
                 fill={BRAND_RED}
               >
-                Peak · {formatCount(valueOf(peakMonth))}
+                Peak · {formatCount(peakMonth.value)}
               </text>
             )}
             {nowMonth !== null && (
@@ -172,7 +176,7 @@ export function YearChart({
                 </text>
               </g>
             )}
-            {visibleDots.map((d, i) => {
+            {drawn && visibleDots.map((d, i) => {
               const hot = hover?.id === d.id;
               return (
                 <circle
@@ -184,7 +188,7 @@ export function YearChart({
                   fillOpacity={hover && !hot ? 0.35 : 0.95}
                   stroke={hot ? "var(--background)" : "none"}
                   strokeWidth={hot ? 2 : 0}
-                  className={cn("transition-[r,fill-opacity] duration-150", mounted && !reduced && "dashboard-dot-in")}
+                  className={cn("transition-[r,fill-opacity] duration-150", entering && "dashboard-dot-in")}
                   style={{ animationDelay: `${Math.min(700, (i / Math.max(1, visibleDots.length)) * 700)}ms` }}
                 />
               );

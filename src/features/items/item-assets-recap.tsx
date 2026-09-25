@@ -62,7 +62,7 @@ export function AssetsRecapStrip({ assets }: { assets: readonly ItemAsset[] }) {
 
   const bar = (
     <div
-      className={cn("h-1 overflow-hidden rounded-full bg-surface-strong", expanded ? "w-full" : "min-w-16 max-w-56 flex-1")}
+      className={cn("h-1 overflow-hidden rounded-full bg-surface-strong", expanded ? "w-full" : "min-w-16 flex-1")}
       role="progressbar"
       aria-valuenow={percent}
       aria-valuemin={0}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChartTooltip, compactCount, formatCount, niceScale, useMounted, usePrefersReducedMotion, useSize } from "@/features/dashboard/charts/chart-utils";
+import { ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { useSpring, useSprings } from "@/features/dashboard/charts/motion";
 import type { MonthlyComparisonRow } from "@/features/dashboard/metrics";
 import { ChangeChip } from "./figures";
@@ -51,8 +51,6 @@ export function YearComparisonChart({
 }) {
   const [ref, size] = useSize<HTMLDivElement>();
   const [hover, setHover] = React.useState<number | null>(null);
-  const mounted = useMounted();
-  const reduced = usePrefersReducedMotion();
 
   // The rest of last year counts towards the scale: a bar drawn off the top
   // of the plot would be worse than not drawing it.
@@ -64,7 +62,7 @@ export function YearComparisonChart({
   const { top: targetTop, ticks } = niceScale(peak, generous ? 8 : roomy ? 6 : 4);
   // The bars and the scale ride springs: a new period or measure grows and
   // shrinks the columns in place, with a little overshoot, instead of redrawing.
-  const top = Math.max(1e-6, useSpring(targetTop));
+  const top = Math.max(1e-6, useSpring(targetTop, "smooth", "hold"));
   const sprung = useSprings(Object.fromEntries(rows.flatMap((r) => [[`c${r.month}`, r.current ?? 0], [`p${r.month}`, r.comparison ?? 0], [`o${r.month}`, r.outlook ?? 0]])));
   const live = (key: "c" | "p" | "o", row: MonthlyComparisonRow, fallback: number) => Math.max(0, sprung[`${key}${row.month}`] ?? fallback);
 
@@ -176,25 +174,23 @@ export function YearComparisonChart({
                     rx={2}
                     fill="var(--chart-current)"
                     fillOpacity={hover !== null && !on ? 0.55 : 1}
-                    className={cn("transition-[fill-opacity] duration-150", mounted && !reduced && "dashboard-area-in")}
-                    // Left to right, the way the year happened.
-                    style={mounted && !reduced ? { animationDelay: `${Math.min(360, index * 30)}ms` } : undefined}
+                    className="transition-[fill-opacity] duration-150"
                   />
                 )}
 
                 {roomy && row.current !== null && row.current > 0 && index !== peakIndex && (
                   <text x={centre + 1 + barWidth / 2} y={y(live("c", row, row.current)) - 4} textAnchor="middle" className="fill-foreground text-[9px] font-medium tabular">
-                    {formatCount(live("c", row, row.current))}
+                    {formatCount(row.current)}
                   </text>
                 )}
                 {generous && row.comparison === null && row.outlook !== null && row.outlook > 0 && (
                   <text x={centre - barWidth / 2 - 1} y={y(live("o", row, row.outlook)) - 4} textAnchor="middle" className="fill-muted-foreground/70 text-[9px] tabular">
-                    {formatCount(live("o", row, row.outlook))}
+                    {formatCount(row.outlook)}
                   </text>
                 )}
                 {generous && row.comparison !== null && row.comparison > 0 && (
                   <text x={centre - barWidth / 2 - 1} y={y(live("p", row, row.comparison)) - 4} textAnchor="middle" className="fill-muted-foreground text-[9px] tabular">
-                    {formatCount(live("p", row, row.comparison))}
+                    {formatCount(row.comparison)}
                   </text>
                 )}
 
@@ -221,7 +217,7 @@ export function YearComparisonChart({
                 textAnchor={peakIndex >= rows.length - 2 ? "end" : "middle"}
                 className="fill-[color:var(--chart-current)] text-[9px] font-bold tabular"
               >
-                Peak · {formatCount(live("c", rows[peakIndex]!, rows[peakIndex]!.current!))}
+                Peak · {formatCount(rows[peakIndex]!.current!)}
               </text>
             )}
 

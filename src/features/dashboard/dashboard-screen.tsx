@@ -4,6 +4,7 @@ import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
 import { hasAnyRate, normaliseAssetRates } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
+import { DashboardReveal } from "@/features/dashboard/charts/motion";
 import { MeasureToggle, ScopeToolbar } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
 import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport, BUSINESS_TIMEZONE, MEASURE_UNITS, type ReportingPeriod } from "@/features/dashboard/metrics";
@@ -44,7 +45,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
   const today = useToday();
   const facts = React.useMemo(() => buildFacts(snapshot), [snapshot]);
   const teamIds = React.useMemo(() => facts.teams.map((t) => t.id), [facts.teams]);
-  const { prefs, set, reset } = useDashboardPrefs(viewerId, snapshot.workspace.id, teamIds);
+  const { prefs, set, reset, hydrated } = useDashboardPrefs(viewerId, snapshot.workspace.id, teamIds);
 
   const currentYear = Number(today.slice(0, 4));
   const years = React.useMemo(() => {
@@ -121,7 +122,9 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, t
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-surface/40">
         <div className="mx-auto w-full max-w-[1600px] p-3 sm:p-5">
-          <DashboardBody {...shared} />
+          <DashboardReveal ready={hydrated}>
+            <DashboardBody {...shared} />
+          </DashboardReveal>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, ArrowRight, CheckCircle2, CircleSlash, Plus, Search, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleSlash, Plus, Search, Trash2, Zap } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton, SkeletonLine } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { AutomationRule, AutomationRun, Board } from "@/domain";
 import { TRIGGER_TIMING } from "@/domain";
 import { AutomationRuleDialog } from "@/features/automations/automation-rule-dialog";
@@ -52,6 +53,9 @@ export function AutomationsPage() {
 
   const [search, setSearch] = React.useState("");
   const [boardFilter, setBoardFilter] = React.useState<string>("all");
+  // Null until someone picks a tab: then it follows the data, opening on the
+  // automations when there are any and on the recipes when there are none.
+  const [tab, setTab] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<{ board: Board; rule: AutomationRule | null; preset?: Recipe } | null>(null);
 
   // Quick runs are not shown here. They are a thing a person does to a board
@@ -84,6 +88,7 @@ export function AutomationsPage() {
   const boardsWithRules = new Set(all.map((r) => r.boardId)).size;
   const ranToday = (runs.data ?? []).filter((r) => r.status === "ran" && isToday(r.createdAt)).length;
   const manageable = ws.boards.filter((b) => b.archivedAt === null && canManageBoard(ws.permissions, b));
+  const openTab = tab ?? (rules.data && all.length === 0 && manageable.length > 0 ? "recipes" : "rules");
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto" data-testid="automations-page">
@@ -113,77 +118,93 @@ export function AutomationsPage() {
               because if it is not then every figure below it is a fiction. */}
           <RunnerStrip health={health} live={live} ranToday={ranToday} failing={failing} loading={rules.isLoading} />
 
-          {manageable.length > 0 && (
-            <section>
-              <SectionTitle icon={Zap} title="Start from a recipe" hint="One click, then change anything you like." />
-              <RecipeGrid boards={manageable} onPick={(board, recipe) => setEditing({ board, rule: null, preset: recipe })} />
-            </section>
-          )}
+          <Tabs value={openTab} onValueChange={setTab}>
+            <UnderlineTabsList className="mb-5">
+              <UnderlineTabsTrigger value="rules" data-testid="automations-tab-rules">
+                Board automations
+                {all.length > 0 && <span className="text-2xs text-muted-foreground tabular">{all.length}</span>}
+              </UnderlineTabsTrigger>
+              {manageable.length > 0 && (
+                <UnderlineTabsTrigger value="recipes" data-testid="automations-tab-recipes">
+                  Recipes
+                </UnderlineTabsTrigger>
+              )}
+              <UnderlineTabsTrigger value="activity" data-testid="automations-tab-activity">
+                Activity
+              </UnderlineTabsTrigger>
+            </UnderlineTabsList>
 
-          <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <SectionTitle icon={Activity} title="Your rules" hint={null} className="mb-0" />
+            <TabsContent value="rules">
               {all.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search rules"
-                      aria-label="Search rules"
-                      className="h-8 w-44 pl-8"
-                      data-testid="automation-search"
-                    />
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search automations"
+                        aria-label="Search automations"
+                        className="h-8 w-44 pl-8"
+                        data-testid="automation-search"
+                      />
+                    </div>
+                    <Select value={boardFilter} onValueChange={setBoardFilter}>
+                      <SelectTrigger className="h-8 w-auto min-w-36" aria-label="Filter by board">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Every board</SelectItem>
+                        {[...new Set(all.map((r) => r.boardId))]
+                          .map((id) => ws.boardById(id))
+                          .filter((b): b is Board => !!b)
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((board) => (
+                            <SelectItem key={board.id} value={board.id}>
+                              {board.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select value={boardFilter} onValueChange={setBoardFilter}>
-                    <SelectTrigger className="h-8 w-auto min-w-36" aria-label="Filter by board">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Every board</SelectItem>
-                      {[...new Set(all.map((r) => r.boardId))]
-                        .map((id) => ws.boardById(id))
-                        .filter((b): b is Board => !!b)
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .map((board) => (
-                          <SelectItem key={board.id} value={board.id}>
-                            {board.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               )}
-            </div>
 
-            {rules.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-24 rounded-xl" />
-                ))}
-              </div>
-            ) : all.length === 0 ? (
-              <EmptyState
-                icon={Zap}
-                title="No board does anything on its own yet"
-                description="An automation watches for something and then acts. It runs on a server, so it works with nobody signed in."
-              />
-            ) : byBoard.length === 0 ? (
-              <EmptyState icon={Search} title="Nothing matches" description="No rule on any board you can see matches that." compact />
-            ) : (
-              <div className="space-y-6">
-                {byBoard.map(({ board, rules: list }) => (
-                  <BoardRules key={board.id} board={board} rules={list} onEdit={(rule) => setEditing({ board, rule })} />
-                ))}
-              </div>
+              {rules.isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 rounded-xl" />
+                  ))}
+                </div>
+              ) : all.length === 0 ? (
+                <EmptyState
+                  icon={Zap}
+                  title="No board does anything on its own yet"
+                  description="An automation watches for something and then acts. It runs on a server, so it works with nobody signed in."
+                />
+              ) : byBoard.length === 0 ? (
+                <EmptyState icon={Search} title="Nothing matches" description="No rule on any board you can see matches that." compact />
+              ) : (
+                <div className="space-y-6">
+                  {byBoard.map(({ board, rules: list }) => (
+                    <BoardRules key={board.id} board={board} rules={list} onEdit={(rule) => setEditing({ board, rule })} />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {manageable.length > 0 && (
+              <TabsContent value="recipes">
+                <p className="mb-3 text-[13px] text-muted-foreground">One click, then change anything you like.</p>
+                <RecipeGrid boards={manageable} onPick={(board, recipe) => setEditing({ board, rule: null, preset: recipe })} />
+              </TabsContent>
             )}
-          </section>
 
-          <section>
-            <SectionTitle icon={Activity} title="Lately" hint="What the rules have actually done, newest first." />
-            <RunFeed runs={runs.data ?? []} loading={runs.isLoading} />
-          </section>
+            <TabsContent value="activity">
+              <p className="mb-3 text-[13px] text-muted-foreground">What the rules have actually done, newest first.</p>
+              <RunFeed runs={runs.data ?? []} loading={runs.isLoading} />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
@@ -206,17 +227,6 @@ export function AutomationsPage() {
 
 function isToday(iso: string): boolean {
   return iso.slice(0, 10) === new Date().toISOString().slice(0, 10);
-}
-
-function SectionTitle({ icon: Icon, title, hint, className }: { icon: React.ComponentType<{ className?: string }>; title: string; hint: string | null; className?: string }) {
-  return (
-    <div className={cn("mb-3", className)}>
-      <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
-        <Icon className="size-4 text-muted-foreground" /> {title}
-      </h2>
-      {hint && <p className="mt-0.5 text-[13px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
+import { KineticNumber, useRevealed } from "@/features/dashboard/charts/motion";
 import * as React from "react";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { teamHex, type TeamRef } from "@/features/dashboard/analytics";
@@ -131,6 +132,7 @@ export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf
  * numbers.
  */
 function RequestFigure({ label, value, peak, tone, hint }: { label: string; value: number | null; peak: number; tone?: "good" | "urgent"; hint?: string }) {
+  const revealed = useRevealed();
   return (
     <div className="border-b border-border/40 pb-2.5 last:border-0 last:pb-0">
       <div className="flex items-baseline justify-between gap-3">
@@ -146,14 +148,14 @@ function RequestFigure({ label, value, peak, tone, hint }: { label: string; valu
             tone === "good" && "text-emerald-600 dark:text-emerald-400",
           )}
         >
-          {value === null ? "Nothing recorded" : formatCount(value)}
+          {value === null ? "Nothing recorded" : <KineticNumber value={value} format={formatCount} />}
         </dd>
       </div>
       {value !== null && (
         <span aria-hidden className="mt-1.5 block h-1 overflow-hidden rounded-full bg-surface-strong/70">
           <span
-            className={cn("block h-full rounded-full", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/40")}
-            style={{ width: `${peak > 0 ? Math.max(2, (value / peak) * 100) : 0}%` }}
+            className={cn("block h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/40")}
+            style={{ width: `${revealed && peak > 0 ? Math.max(2, (value / peak) * 100) : 0}%` }}
           />
         </span>
       )}

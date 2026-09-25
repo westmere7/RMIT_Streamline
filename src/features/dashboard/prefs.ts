@@ -107,7 +107,7 @@ const useStore = create<PrefsStore>()(
   ),
 );
 
-let hydrated = false;
+let rehydrateStarted = false;
 
 /**
  * This person's preferences for this workspace.
@@ -119,8 +119,8 @@ let hydrated = false;
 export function useDashboardPrefs(userId: string, workspaceId: string, selectableTeams: string[]) {
   const scope = `${userId}:${workspaceId}`;
   React.useEffect(() => {
-    if (hydrated) return;
-    hydrated = true;
+    if (rehydrateStarted) return;
+    rehydrateStarted = true;
     void useStore.persist.rehydrate();
   }, []);
 
@@ -141,5 +141,12 @@ export function useDashboardPrefs(userId: string, workspaceId: string, selectabl
 
   const set = React.useCallback((patch: Partial<DashboardPrefs>) => write(scope, patch), [write, scope]);
   const reset = React.useCallback(() => resetAll(scope), [resetAll, scope]);
-  return { prefs, set, reset };
+  // Whether the saved view has been applied yet, so the page's entry motion is
+  // of the reader's view and not of the defaults it replaces.
+  const hydrated = React.useSyncExternalStore(
+    (onChange) => useStore.persist.onFinishHydration(onChange),
+    () => useStore.persist.hasHydrated(),
+    () => false,
+  );
+  return { prefs, set, reset, hydrated };
 }

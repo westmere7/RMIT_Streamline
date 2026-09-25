@@ -34,7 +34,7 @@ export function StackedColumns({
   // Each segment's height springs to its new value, so a change of measure or
   // filter restacks the columns instead of redrawing them.
   const sprung = useSprings(Object.fromEntries(shown.flatMap((r) => r.segments.map((s) => [`${r.name}\u0000${s.key}`, s.value]))));
-  const sprungMax = useSpring(mode === "count" ? Math.max(1, ...shown.map((r) => r.total)) : 1);
+  const sprungMax = useSpring(mode === "count" ? Math.max(1, ...shown.map((r) => r.total)) : 1, "smooth", "hold");
   if (shown.length === 0) return <ChartEmpty message={emptyMessage} />;
   const segmentValue = (row: StackedRow, key: string, fallback: number) => Math.max(0, sprung[`${row.name}\u0000${key}`] ?? fallback);
   const rowTotal = (row: StackedRow) => row.segments.reduce((sum, s) => sum + segmentValue(row, s.key, s.value), 0);

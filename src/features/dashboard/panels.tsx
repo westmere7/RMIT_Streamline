@@ -10,7 +10,7 @@ import type { BoardRow, DeliveredEntry, NamedCount, RequestsSummary, StackedRow,
 import { percentChange, STATUS_BUCKETS, teamHex } from "@/features/dashboard/analytics";
 import { AnimatedNumber } from "@/features/dashboard/charts/animated-number";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
-import { KineticNumber } from "@/features/dashboard/charts/motion";
+import { KineticNumber, useRevealed } from "@/features/dashboard/charts/motion";
 import { MixChart } from "@/features/dashboard/charts/mix-chart";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { MonthSparkline } from "@/features/dashboard/charts/sparkline";
@@ -154,7 +154,7 @@ export function RequestsPanel({ requests, nowMonth, year, action }: { requests: 
         <div>
           <AnimatedNumber value={requests.total} className="text-[40px] font-semibold tracking-tight" />
           <p className="text-xs text-muted-foreground">
-            <KineticNumber value={requests.open} format={formatCount} /> open
+            {formatCount(requests.open)} open
             {requests.medianLeadDays !== null && <> · typically {requests.medianLeadDays} days notice</>}
           </p>
         </div>
@@ -244,6 +244,7 @@ export function PeoplePanel({ data, users }: { data: NamedCount[]; users: Map<st
 }
 
 export function BoardsPanel({ rows, onOpen }: { rows: BoardRow[]; onOpen?: (boardId: string) => void }) {
+  const revealed = useRevealed();
   if (rows.length === 0) {
     return (
       <Panel title="Boards" subtitle="Tasks, assets and progress" testId="dashboard-boards">
@@ -269,11 +270,11 @@ export function BoardsPanel({ rows, onOpen }: { rows: BoardRow[]; onOpen?: (boar
                   <span className="block truncate font-medium text-foreground">{b.name}</span>
                   <span className="block truncate text-2xs text-muted-foreground">{b.team.name}</span>
                 </span>
-                <KineticNumber value={b.tasks} format={formatCount} className="w-10 text-right tabular" />
-                <KineticNumber value={b.assetUnits} format={formatCount} className="w-12 text-right text-muted-foreground tabular" />
+                <span className="w-10 text-right tabular">{formatCount(b.tasks)}</span>
+                <span className="w-12 text-right text-muted-foreground tabular">{formatCount(b.assetUnits)}</span>
                 <span className="flex w-20 items-center gap-1.5">
                   <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-strong">
-                    <span className="block h-full rounded-full bg-green-500" style={{ width: `${pct}%` }} />
+                    <span className="block h-full rounded-full bg-green-500 transition-[width] duration-700 ease-kinetic motion-reduce:transition-none" style={{ width: `${revealed ? pct : 0}%` }} />
                   </span>
                   <span className="w-8 text-right text-2xs text-muted-foreground tabular">{pct}%</span>
                 </span>

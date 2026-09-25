@@ -5,6 +5,7 @@ import type { NamedCount } from "@/features/dashboard/analytics";
 import { cn } from "@/lib/utils";
 import { ChartTooltip, formatCount, useSize } from "./chart-utils";
 import { MixLegend } from "./mix-chart";
+import { useRevealed } from "./motion";
 import { ChartEmpty } from "./ranked-bars";
 
 export interface TreemapTile {
@@ -145,6 +146,7 @@ export function TreemapChart({
   // Where the cursor is inside the map, for the readout that follows it.
   const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
   const [ref, { width, height }] = useSize<HTMLDivElement>();
+  const revealed = useRevealed();
   const total = data.reduce((sum, d) => sum + d.value, 0);
   const keyOf = (row: NamedCount) => row.id ?? row.name;
   // Rounded, so a pixel of resize does not re-run the layout; before the first
@@ -185,7 +187,12 @@ export function TreemapChart({
             <div
               key={tile.key}
               className={cn("absolute p-[2px] transition-[left,top,width,height,opacity] duration-700 ease-kinetic motion-reduce:transition-none", onSelect && "cursor-pointer", active === tile.key && "z-10")}
-              style={{ left: `${tile.x}%`, top: `${tile.y}%`, width: `${tile.w}%`, height: `${tile.h}%`, opacity: dim ? 0.35 : 1 }}
+              style={
+                revealed
+                  ? { left: `${tile.x}%`, top: `${tile.y}%`, width: `${tile.w}%`, height: `${tile.h}%`, opacity: dim ? 0.35 : 1 }
+                  : // Folded into its own centre until the dashboard is revealed, then grown out.
+                    { left: `${tile.x + tile.w / 2}%`, top: `${tile.y + tile.h / 2}%`, width: 0, height: 0, opacity: 0 }
+              }
               onMouseEnter={() => setActive(tile.key)}
               onClick={onSelect ? () => onSelect(row) : undefined}
               data-testid="treemap-tile"

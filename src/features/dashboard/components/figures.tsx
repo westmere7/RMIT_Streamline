@@ -138,7 +138,7 @@ export function HeadlineFigure({
           <>
             <ChangeChip delta={delta} percent={percent} format={valueFormat} />
             <span className="text-muted-foreground">
-              vs <KineticNumber value={previous} format={valueFormat} className="tabular text-foreground/80" /> in {comparisonLabel}
+              vs <span className="tabular text-foreground/80">{valueFormat(previous)}</span> in {comparisonLabel}
             </span>
           </>
         )}
@@ -164,7 +164,7 @@ export function ChangeChip({ delta, percent, className, format = formatCount }: 
           a magnitude. `formatHours` cannot express a negative — it reads
           anything at or below nothing as "0 h" — and a fall of 2,409 hours
           rendering as "0 h" is worse than no chip at all. */}
-      <KineticNumber value={Math.abs(delta)} format={(value) => `${delta > 0 ? "+" : delta < 0 ? "-" : ""}${format(value)}`} />
+      {`${delta > 0 ? "+" : delta < 0 ? "-" : ""}${format(Math.abs(delta))}`}
       {percent === null ? (
         // A zero baseline. "+12 from nothing" is a fact; "+∞%" is not.
         <span className="font-normal text-muted-foreground">· no % comparison</span>

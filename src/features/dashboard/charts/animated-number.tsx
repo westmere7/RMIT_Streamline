@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePrefersReducedMotion } from "./chart-utils";
+import { useRevealed } from "./motion";
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const FADE_MASK = "linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%)";
@@ -14,7 +15,11 @@ const FADE_MASK = "linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%
  */
 export function AnimatedNumber({ value, duration = 900, className }: { value: number; duration?: number; className?: string }) {
   const n = Math.max(0, Math.round(value));
-  const s = String(n);
+  // Every reel on nought until the dashboard is revealed, then each rolls to its
+  // digit. The reels are already there at full width, so all of them roll.
+  const revealed = useRevealed();
+  const reduced = usePrefersReducedMotion();
+  const s = revealed || reduced ? String(n) : String(n).replace(/\d/g, "0");
   const len = s.length;
   const nodes: React.ReactNode[] = [];
   for (let i = 0; i < len; i++) {
