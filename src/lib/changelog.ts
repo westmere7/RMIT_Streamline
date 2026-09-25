@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.35.1",
+    date: "2026-09-25",
+    title: "Quicker delete for updates",
+    changes: ["Deleting an update or reply asks with a small \"Delete?\" badge in place of the bin: click it again to delete, or leave it and it stands down."],
+  },
+  {
     version: "0.35.0",
     date: "2026-09-25",
     title: "Threaded updates",

@@ -319,20 +319,64 @@ function CommentHeader({ comment, size, onEdit, onDelete, leading }: { comment: 
           </SimpleTooltip>
         )}
       </div>
-      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100">
+      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100">
         {canEditComment(ws.permissions, comment) && (
           <Button variant="ghost" size="icon-xs" aria-label={`Edit ${noun}`} onClick={onEdit}>
             <Pencil />
           </Button>
         )}
         {canDeleteComment(ws.permissions, comment) && (
-          <Button variant="ghost" size="icon-xs" aria-label={`Delete ${noun}`} className="hover:text-destructive" onClick={onDelete}>
-            <Trash2 />
-          </Button>
+          <ConfirmDelete label={`Delete ${noun}`} onConfirm={onDelete} />
         )}
       </span>
       {leading}
     </div>
+  );
+}
+
+/** How long the "Delete?" badge waits for its second click before standing down. */
+const CONFIRM_MS = 4000;
+
+/**
+ * Delete in two clicks without a dialog: the bin turns into a small red
+ * "Delete?" badge where it stood, and a second click on the badge deletes.
+ * Clicking elsewhere, Escape or a few seconds' wait puts the bin back.
+ */
+function ConfirmDelete({ label, onConfirm }: { label: string; onConfirm: () => void }) {
+  const [confirming, setConfirming] = React.useState(false);
+  const badge = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (!confirming) return;
+    badge.current?.focus();
+    const timer = window.setTimeout(() => setConfirming(false), CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [confirming]);
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="icon-xs" aria-label={label} className="hover:text-destructive" onClick={() => setConfirming(true)} data-testid="comment-delete">
+        <Trash2 />
+      </Button>
+    );
+  }
+  return (
+    <button
+      ref={badge}
+      type="button"
+      onClick={() => {
+        setConfirming(false);
+        onConfirm();
+      }}
+      onBlur={() => setConfirming(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setConfirming(false);
+      }}
+      aria-label={`${label}: press again to confirm`}
+      className="inline-flex h-6 items-center gap-1 rounded-full bg-destructive px-2 text-2xs font-medium text-white shadow-sm animate-in fade-in-0 zoom-in-95"
+      data-confirming=""
+      data-testid="comment-delete-confirm"
+    >
+      <Trash2 className="size-3" /> Delete?
+    </button>
   );
 }
 
