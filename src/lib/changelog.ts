@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.36.3",
+    date: "2026-09-25",
+    title: "Service first in the brief",
+    changes: [
+      "A booking brief opens with its service and what it involves as a header, above the questions.",
+      "A special type already on the board still shows its description in the picker. Clicking it moves that column to where you were adding one.",
+    ],
+  },
+  {
     version: "0.36.2",
     date: "2026-09-25",
     title: "One of each special column",

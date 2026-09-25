@@ -1179,7 +1179,7 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
               <Plus /> Insert column
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
-              <ColumnTypePicker onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id })} />
+              <ColumnTypePicker onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id })} afterColumnId={column.id} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>

@@ -149,9 +149,85 @@ function Block({ node, mentionHref, variant = "compact" }: { node: BlockNode; me
   }
 }
 
+function plainInline(nodes: InlineNode[]): string {
+  return nodes
+    .map((node) => {
+      switch (node.type) {
+        case "text":
+          return node.text;
+        case "link":
+          return node.label;
+        case "mention":
+          return `@${node.name}`;
+        default:
+          return plainInline(node.children);
+      }
+    })
+    .join("");
+}
+
+interface BriefFacts {
+  service: string | null;
+  involves: string[];
+}
+
+/**
+ * The "Service:" and "Involves:" lines a booking puts at the top of its brief,
+ * lifted out so they can head the document, and the blocks left after them. A
+ * body that does not start with them comes back untouched.
+ */
+function splitBriefFacts(blocks: BlockNode[]): { facts: BriefFacts | null; rest: BlockNode[] } {
+  const facts: BriefFacts = { service: null, involves: [] };
+  let index = 0;
+  for (; index < blocks.length; index++) {
+    const block = blocks[index];
+    if (block?.type !== "paragraph") break;
+    const first = block.children[0];
+    if (first?.type !== "bold") break;
+    const label = plainInline(first.children).trim();
+    const value = plainInline(block.children.slice(1)).trim();
+    if (label === "Service:" && !facts.service && value) facts.service = value;
+    else if (label === "Involves:" && facts.involves.length === 0 && value) facts.involves = value.split(/,\s*/).filter(Boolean);
+    else break;
+  }
+  if (index === 0) return { facts: null, rest: blocks };
+  // The rule a booking draws under them; the header does that job now.
+  if (blocks[index]?.type === "rule") index++;
+  return { facts, rest: blocks.slice(index) };
+}
+
+/** What was booked, above everything else in the brief: the service large, what it involves as chips. */
+function BriefFactsHeader({ facts }: { facts: BriefFacts }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-x-8 gap-y-3 rounded-lg bg-muted/60 px-3.5 py-3" data-testid="brief-facts">
+      {facts.service && (
+        <div className="min-w-0">
+          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Service</p>
+          <p className="text-[18px] leading-snug font-semibold tracking-tight text-foreground">{facts.service}</p>
+        </div>
+      )}
+      {facts.involves.length > 0 && (
+        <div className="min-w-0">
+          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Involves</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {facts.involves.map((part) => (
+              <span key={part} className="rounded-md border bg-background px-2 py-0.5 text-[13px] font-medium text-foreground">
+                {part}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Renders the small markup updates are written in. Everything comes from parsed
  * data — no HTML is ever built from what someone typed.
+ *
+ * A document that opens with a booking's Service and Involves lines shows them
+ * as a header over the rest.
  */
 export function RichText({
   body,
@@ -168,9 +244,11 @@ export function RichText({
   /** Where an @name leads. Without it a mention is highlighted but not clickable. */
   mentionHref?: (displayName: string) => string | null;
 }) {
-  const blocks = React.useMemo(() => parseRichText(body, mentionNames), [body, mentionNames]);
+  const parsed = React.useMemo(() => parseRichText(body, mentionNames), [body, mentionNames]);
+  const { facts, rest: blocks } = React.useMemo(() => (variant === "document" ? splitBriefFacts(parsed) : { facts: null, rest: parsed }), [parsed, variant]);
   return (
     <div className={cn("space-y-1 text-[13px] break-words", className)} data-testid="rich-text">
+      {facts && <BriefFactsHeader facts={facts} />}
       {blocks.map((block, index) => (
         <Block key={index} node={block} mentionHref={mentionHref} variant={variant} />
       ))}

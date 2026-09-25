@@ -418,7 +418,7 @@ function ColumnHeaderCell({
                       <Plus /> Insert column right
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
-                      <ColumnTypePicker onPick={insertColumn} />
+                      <ColumnTypePicker onPick={insertColumn} afterColumnId={column.id} />
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuItem disabled={index === 0} onSelect={() => move(-1)}>
@@ -493,7 +493,7 @@ function ColumnHeaderCell({
             <Plus /> Insert column right
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className={COLUMN_TYPE_PICKER_WIDTH}>
-            <ColumnTypePicker variant="context" onPick={insertColumn} />
+            <ColumnTypePicker variant="context" onPick={insertColumn} afterColumnId={column.id} />
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuItem disabled={index === 0} onSelect={() => move(-1)}>
