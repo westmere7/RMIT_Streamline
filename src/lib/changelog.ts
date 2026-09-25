@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.41.11",
+    date: "2026-09-25",
+    title: "Fold an update from its header",
+    changes: [
+      "Clicking an update's header folds it. The author's name and the edit and delete buttons still do what they did.",
+    ],
+  },
+  {
     version: "0.41.10",
     date: "2026-09-25",
     title: "Roomier folded threads",

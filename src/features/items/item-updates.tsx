@@ -249,7 +249,7 @@ function CommentItem({
   return (
     <li className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="comment">
       <div className="group/comment px-4 pt-3.5 pb-1.5">
-        <CommentHeader comment={comment} size="md" onEdit={() => setEditing(true)} onDelete={onDelete} leading={toggleButton} />
+        <CommentHeader comment={comment} size="md" onEdit={() => setEditing(true)} onDelete={onDelete} leading={toggleButton} onHeaderClick={editing ? undefined : onToggle} />
         <CommentBody comment={comment} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-2 pl-1" />
         {/* The actions under an update, as monday has them: a rule, then Reply, then how many there are. */}
         <div className="mt-2.5 flex flex-wrap items-center gap-1 border-t border-border/50 pt-1.5">
@@ -432,14 +432,41 @@ function ReactionSummary({ comment }: { comment: Comment }) {
 }
 
 /** Who wrote it and when, with edit and delete for whoever may. */
-function CommentHeader({ comment, size, onEdit, onDelete, leading }: { comment: Comment; size: "sm" | "md"; onEdit: () => void; onDelete: () => void; leading?: React.ReactNode }) {
+function CommentHeader({
+  comment,
+  size,
+  onEdit,
+  onDelete,
+  leading,
+  onHeaderClick,
+}: {
+  comment: Comment;
+  size: "sm" | "md";
+  onEdit: () => void;
+  onDelete: () => void;
+  leading?: React.ReactNode;
+  /** Clicking the header anywhere but its name and buttons: an update folds this way. */
+  onHeaderClick?: () => void;
+}) {
   const ws = useWorkspace();
   const links = useMentionLinks();
   const author = ws.userById(comment.authorId);
   const edited = comment.updatedAt !== comment.createdAt;
   const noun = comment.parentId ? "reply" : "update";
   return (
-    <div className={cn("flex items-center", size === "md" ? "gap-2.5" : "gap-2")}>
+    <div
+      className={cn("flex items-center", size === "md" ? "gap-2.5" : "gap-2", onHeaderClick && "-mx-1 -my-0.5 cursor-pointer rounded-lg px-1 py-0.5")}
+      onClick={
+        onHeaderClick
+          ? (event) => {
+              // The name, the buttons and anything else with a click of its own keep it.
+              if ((event.target as HTMLElement).closest("a, button, input, [role=menuitem]")) return;
+              onHeaderClick();
+            }
+          : undefined
+      }
+      data-testid={onHeaderClick ? "comment-header" : undefined}
+    >
       <UserAvatar user={author} size={size} tooltip={false} />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-[13px]">
         <Mention href={links.person(comment.authorId)}>{author?.displayName ?? "Unknown"}</Mention>
