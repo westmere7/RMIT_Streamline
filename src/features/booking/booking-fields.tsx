@@ -164,15 +164,20 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
         </Field>
       );
     case "department": {
-      // Picked from the workspace's departments when it has any, and only from
-      // them: a department not on the list is one the team has not set up, and
-      // a request filed under a word nobody else uses reaches nobody. Never
-      // locked: the one on an account is a default, not a fact, and one the
-      // list does not know is shown as nothing chosen.
+      // Picked from the workspace's departments, and only from them, on every
+      // link: a department not on the list is one the dashboard cannot count,
+      // and the server refuses it. Never locked: the one on an account is a
+      // default, not a fact, and one the list does not know is shown as nothing
+      // chosen. With no departments set up there is nothing to pick, and so no
+      // booking, until the team adds them.
       if (form.departments.length === 0) {
         return (
           <Field id={id("booking-department")} {...shell}>
-            <Input id={id("booking-department")} autoComplete="organization" value={draft.department ?? ""} onChange={(e) => onChange({ department: e.target.value })} aria-invalid={!!error} disabled={preview} data-testid={tid("booking-department")} />
+            <Select value="" disabled>
+              <SelectTrigger id={id("booking-department")} aria-label={field.label} aria-invalid className="h-11 border-dashed text-[13px]" data-testid={tid("booking-department")}>
+                <SelectValue placeholder="No departments set up yet" />
+              </SelectTrigger>
+            </Select>
           </Field>
         );
       }

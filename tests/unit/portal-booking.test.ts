@@ -12,7 +12,7 @@ const WS = SEED_WORKSPACE_ID;
 const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => ({
   requesterName: "Priya Nair",
   requesterEmail: "priya@rmit.edu.au",
-  department: "School of Design",
+  department: "Comm.",
   title: "Open Day wayfinding posters",
   brief: "Six A1 posters for the Brunswick campus, print ready by the due date.",
   assetTypes: ["Print"],
@@ -100,18 +100,15 @@ describe("booking through a portal", () => {
     expect(await groupOn(item.id, item.boardId)).toBe(department.name);
   });
 
-  it("leaves the stakeholder column empty for a public booking that names a department", async () => {
-    // The public form's "department" is free text a requester types about
-    // themselves. Writing it to the STAKEHOLDER column would let anyone file
-    // into another department's portal by typing its name, so only the token
-    // sets it — the whole point of keeping the two fields apart.
-    const receipt = await services.booking.book(WS, request({ department: other.name }));
+  it("files a public booking under the department it picked, spelt the list's way, and refuses one off the list", async () => {
+    // Every link books into a department on the list, so the dashboard can
+    // count it: the public form's pick fills the column the portal's does.
+    const receipt = await services.booking.book(WS, request({ department: `  ${other.name.toUpperCase()} ` }));
     const item = (await services.repos.items.getById(receipt.itemId))!;
-    expect(await groupOn(item.id, item.boardId)).toBeNull();
+    expect(await groupOn(item.id, item.boardId)).toBe(other.name);
 
-    const otherPortal = await services.portals.setEnabled(WS, true);
-    const otherResolved = await services.portals.resolve({ token: otherPortal.token, password: null });
-    expect((await services.portals.tasks(otherResolved)).tasks).toHaveLength(0);
+    await expect(services.booking.book(WS, request({ department: "School of Design" }))).rejects.toThrow("not one of the departments");
+    await expect(services.booking.book(WS, request({ department: null }))).rejects.toThrow();
   });
 
   it("publishes the brief the form composed, and keeps their contact details internal", async () => {

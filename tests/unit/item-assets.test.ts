@@ -209,7 +209,7 @@ describe("asset lines on an item", () => {
       request: {
         requesterName: "Alex Stakeholder",
         requesterEmail: "alex@rmit.edu.au",
-        department: "School of Design",
+        department: "Comm.",
         title: "Graduate show wayfinding",
         brief: "Signage for the graduate show across two buildings, plus a social tile.",
         assetTypes: ["Print"],

@@ -16,7 +16,10 @@ const formWith = (template: BookingFormTemplate = defaultBookingFormTemplate()):
     { name: "Print assets", color: "red" },
     { name: "Static Designs", color: "blue" },
   ],
-  departments: [],
+  departments: [
+    { name: "Comm.", color: "blue" },
+    { name: "Events", color: "orange" },
+  ],
   priorities: [
     { name: "High", color: "orange" },
     { name: "Medium", color: "blue" },
@@ -55,7 +58,9 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>, service = "d
   // The three about the requester are one block, and all three are required.
   await user.type(screen.getByTestId("booking-name"), "Priya Nair");
   await user.type(screen.getByTestId("booking-email"), "priya.nair@rmit.edu.au");
-  await user.type(screen.getByTestId("booking-department"), "School of Design");
+  // Picked, never typed: the department is one of the workspace's own.
+  await user.click(screen.getByTestId("booking-department"));
+  await user.click(await screen.findByTestId("booking-department-comm-"));
   await user.type(screen.getByTestId("booking-title"), "Open Day wayfinding posters");
   // Both of the "when" questions are required now.
   await user.click(screen.getByTestId("booking-priority"));

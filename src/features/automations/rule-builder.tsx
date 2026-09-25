@@ -22,6 +22,8 @@ import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, T_SHIRT_S
 import type { RuleVocabulary } from "@/services";
 import { TEXTUAL_COLUMNS } from "@/services";
 import { cn } from "@/lib/utils";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 
 /**
  * The builder: one sentence, assembled from three rows of pickers.
@@ -951,6 +953,8 @@ function ValueEditor({
     );
   }
 
+  if (column.type === "STAKEHOLDER") return <DepartmentValueEditor value={value} onChange={onChange} />;
+
   if (column.type === "CHECKBOX") {
     return (
       <Picker
@@ -1051,6 +1055,14 @@ function ValueEditor({
       data-testid="action-value"
     />
   );
+}
+
+/** A department, from Settings → Departments and nowhere else: the database refuses any other word. */
+function DepartmentValueEditor({ value, onChange }: { value: ColumnValue | null; onChange: (value: ColumnValue | null) => void }) {
+  const ws = useWorkspace();
+  const departments = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
+  const current = value?.type === "STAKEHOLDER" ? (departments.find((d) => d.name.toLowerCase() === (value.group ?? "").toLowerCase())?.name ?? "") : "";
+  return <Picker value={current} label="Department" onChange={(group) => onChange({ type: "STAKEHOLDER", group })} options={departments.map((d) => ({ value: d.name, label: d.name }))} testId="action-value" />;
 }
 
 // ---------------------------------------------------------------------------

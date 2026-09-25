@@ -138,7 +138,9 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     ...(memory.draft?.request ?? {}),
     requesterName: memory.draft?.request.requesterName || account?.name || memory.requester?.name || defaults?.requesterName || "",
     requesterEmail: memory.draft?.request.requesterEmail || account?.email || memory.requester?.email || defaults?.requesterEmail || "",
-    department: memory.draft?.request.department ?? defaults?.department ?? null,
+    // Only a department still on the list: an account or a remembered draft can
+    // carry one that was renamed or removed since, and the server refuses those.
+    department: listedDepartment(form.departments, memory.draft?.request.department ?? defaults?.department),
     itemId: null,
   }));
   const [assets, setAssets] = React.useState<AssetRow[]>(() => (memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
@@ -674,4 +676,10 @@ function Receipt({ receipt, template, itemHref, onAnother }: { receipt: BookingR
       </div>
     </div>
   );
+}
+
+/** `name` as the workspace's list spells it, or null when the list has no such department. */
+function listedDepartment(departments: readonly { name: string }[], name: string | null | undefined): string | null {
+  const wanted = (name ?? "").trim().toLowerCase();
+  return (wanted && departments.find((d) => d.name.trim().toLowerCase() === wanted)?.name) || null;
 }

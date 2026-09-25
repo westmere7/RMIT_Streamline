@@ -95,6 +95,32 @@ describe("the stakeholder portal", () => {
     expect(page.tasks.find((t) => t.id === itemA.id)?.stakeholder).toBeNull();
   });
 
+  it("never leaves a removed department on its tasks: they move to another or are cleared", async () => {
+    const departments = await services.portals.ensureDepartments(WS);
+    const [gone, kept, cleared] = departments;
+    const boards = await services.repos.boards.listByWorkspace(WS);
+    let column = null;
+    for (const board of boards) {
+      column = (await services.repos.boards.listColumns(board.id)).find((c) => c.type === "STAKEHOLDER") ?? null;
+      if (column) break;
+    }
+    expect(column).toBeTruthy();
+    const [itemA, itemB] = (await services.repos.items.listByBoard(column!.boardId)).filter((i) => i.parentItemId === null);
+    await services.repos.items.setValue(itemA!.id, column!.id, { type: "STAKEHOLDER", group: gone!.name });
+    await services.repos.items.setValue(itemB!.id, column!.id, { type: "STAKEHOLDER", group: cleared!.name });
+    const groupOf = async (itemId: string) => {
+      const value = (await services.repos.items.listValuesByItem(itemId)).find((v) => v.columnId === column!.id)?.value;
+      return value?.type === "STAKEHOLDER" ? value.group : null;
+    };
+
+    await services.lists.remove(WS, "STAKEHOLDER_GROUPS", gone!.name, { replaceWith: kept!.name });
+    expect(await groupOf(itemA!.id)).toBe(kept!.name);
+
+    // No "keep it on them" for a department: asked for nothing, the tasks let it go.
+    await services.lists.remove(WS, "STAKEHOLDER_GROUPS", cleared!.name);
+    expect(await groupOf(itemB!.id)).toBeNull();
+  });
+
   it("gives a re-added group a fresh department rather than the old one's history", async () => {
     const { first } = await twoDepartments();
     const lists = await services.lists.lists(WS);

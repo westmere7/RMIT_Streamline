@@ -55,18 +55,32 @@ export class WorkspaceListService {
    */
   async save(workspaceId: EntityId, listKey: WorkspaceListKey, options: readonly TagOption[], renames: Record<string, string> = {}): Promise<WorkspaceLists> {
     const cleaned = cleanListOptions(options);
+    const departments = listKey === "STAKEHOLDER_GROUPS";
+    const before = departments ? (await this.lists(workspaceId))[listKey] : [];
     await this.repos.workspaceLists.replace(
       workspaceId,
       listKey,
       cleaned.map((option, index) => ({ workspaceId, listKey, name: option.name, color: option.color, position: index })),
     );
+    // Identity flows through `renames`: it is the only record of what the person
+    // meant, and guessing from the names afterwards is how one department's
+    // history ends up attached to another. Before the cells are rewritten: the
+    // database only takes a department that is on the list, so the new name has
+    // to be a department by the time a task is labelled with it.
+    if (departments) await this.portals?.syncDepartments(workspaceId, cleaned, renames);
     for (const [from, to] of Object.entries(renames)) {
       if (from !== to) await this.rewrite(workspaceId, listKey, from, to);
     }
-    // Identity flows through `renames`: it is the only record of what the person
-    // meant, and guessing from the names afterwards is how one department's
-    // history ends up attached to another.
-    if (listKey === "STAKEHOLDER_GROUPS") await this.portals?.syncDepartments(workspaceId, cleaned, renames);
+    // A department that leaves the list leaves its tasks too. Only departments on
+    // the list label work, so the dashboard never counts one it cannot name;
+    // `remove` moves them to another department first when it was asked to.
+    if (departments) {
+      const kept = new Set(cleaned.map((option) => option.name.toLowerCase()));
+      const renamed = new Set(Object.keys(renames).map((name) => name.toLowerCase()));
+      for (const option of before) {
+        if (!kept.has(option.name.toLowerCase()) && !renamed.has(option.name.toLowerCase())) await this.rewrite(workspaceId, listKey, option.name, null);
+      }
+    }
     return this.lists(workspaceId);
   }
 
@@ -82,14 +96,19 @@ export class WorkspaceListService {
 
   /**
    * Takes an option out of the list. Rows that carry it are handed
-   * `replaceWith` when one is named, and otherwise keep the word they have —
-   * the history stays readable, the list just stops offering it.
+   * `replaceWith` when one is named. Otherwise an asset type stays on its
+   * deliverables — the history stays readable, the list just stops offering
+   * it — and a department is cleared from its tasks, since only departments on
+   * the list may label work.
    */
   async remove(workspaceId: EntityId, listKey: WorkspaceListKey, name: string, options: RemoveListOption = {}): Promise<WorkspaceLists> {
     const current = (await this.lists(workspaceId))[listKey];
     const kept = current.filter((option) => option.name.toLowerCase() !== name.toLowerCase());
-    await this.save(workspaceId, listKey, kept);
+    // Moved while the word is still on the list, then the list is saved without
+    // it: the other way round, a department's tasks would be cleared by the
+    // save before they could be moved.
     if (options.replaceWith !== undefined) await this.rewrite(workspaceId, listKey, name, options.replaceWith);
+    await this.save(workspaceId, listKey, kept);
     return this.lists(workspaceId);
   }
 

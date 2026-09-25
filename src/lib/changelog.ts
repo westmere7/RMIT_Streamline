@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.43.0",
+    date: "2026-09-25",
+    title: "Departments come only from the list",
+    changes: [
+      "Every booking link, public, portal or in the app, files the request under a department from Settings → Departments, and fills the task's Department column with it. A department that is not on the list is refused.",
+      "No other word can be saved as a task's department, from any board, automation or link.",
+      "Removing a department moves its tasks to another one or clears them. It no longer stays on them.",
+      "Automations that set a Department pick it from the list.",
+    ],
+  },
+  {
     version: "0.42.3",
     date: "2026-09-25",
     title: "One avatar per person on cards",

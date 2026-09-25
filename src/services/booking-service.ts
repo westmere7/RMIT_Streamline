@@ -77,6 +77,18 @@ export class BookingAccessError extends Error {
 }
 
 export class BookingService {
+  /**
+   * The workspace's active departments, written out from Settings' list the
+   * first time anything asks (see StakeholderPortalService.ensureDepartments).
+   * Handed in once both services exist, since the portal builds its form
+   * through this one.
+   */
+  private departmentsOf: (workspaceId: EntityId) => Promise<ReadonlyArray<{ name: string; color: string; status?: string }>> = (workspaceId) => this.repos.stakeholderPortals.listDepartments(workspaceId);
+
+  useDepartments(source: (workspaceId: EntityId) => Promise<ReadonlyArray<{ name: string; color: string; status?: string }>>): void {
+    this.departmentsOf = source;
+  }
+
   constructor(
     private readonly repos: Repositories,
     private readonly workspace: WorkspaceService,
@@ -139,7 +151,7 @@ export class BookingService {
     const options: BookingTeamOption[] = offered.map((team, i) => ({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: receiving[i]?.name ?? null }));
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
-    const departments: TagOption[] = (await this.repos.stakeholderPortals.listDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color }));
+    const departments: TagOption[] = (await this.activeDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color as TagOption["color"] }));
     return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template: resolveBookingTemplate(workspace) };
   }
 
@@ -151,6 +163,25 @@ export class BookingService {
    * public booking has no account behind it); the requester is in the columns and
    * the description regardless.
    */
+  /**
+   * The workspace's department called `name`, as the list spells it. Refused
+   * when it is not one of the active departments, and when there are none to
+   * pick from: a booking always says whose work it is.
+   */
+  private async resolveDepartment(workspaceId: EntityId, name: string | null | undefined): Promise<string> {
+    const departments = await this.activeDepartments(workspaceId);
+    if (departments.length === 0) throw new Error("No departments are set up yet. Add them in Settings → Departments.");
+    const wanted = (name ?? "").trim().toLowerCase();
+    const found = departments.find((d) => d.name.trim().toLowerCase() === wanted);
+    if (!found) throw new Error(wanted ? `“${name!.trim()}” is not one of the departments. Pick one from the list.` : "Pick your department from the list.");
+    return found.name;
+  }
+
+  /** The departments a booking may name: the active ones, in the list's order. */
+  private async activeDepartments(workspaceId: EntityId) {
+    return (await this.departmentsOf(workspaceId)).filter((d) => d.status === undefined || d.status === "ACTIVE");
+  }
+
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
@@ -177,6 +208,14 @@ export class BookingService {
     const problems = validateBookingAgainstTemplate(request, template);
     if (Object.keys(problems).length) throw new Error(Object.values(problems).join(". "));
 
+    // The department is one of the workspace's own, from Settings → Departments,
+    // on every link: the dashboard reads it, and a word that is not on the list
+    // is a department it cannot count. The portal's arrives already checked by
+    // id; the form's arrives as a name and is checked here, then written in the
+    // list's own spelling.
+    const department = await this.resolveDepartment(workspaceId, stakeholder ?? request.department);
+    request.department = department;
+
     // The brief is composed here, from the template and the answers, whatever
     // the caller sent as one. What the team reads is what the form asked for.
     request.brief = composeBrief(request, template);
@@ -190,7 +229,7 @@ export class BookingService {
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
 
-    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder });
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department });
     const description = describeBooking(request, placement);
     // The form names the id the item will have so a submission that is retried
     // cannot book the same thing twice. Honoured only if it is still free: an id

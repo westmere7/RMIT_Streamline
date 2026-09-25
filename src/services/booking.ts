@@ -694,13 +694,11 @@ export interface PlacementContext {
   /** The form the request answered; its services say what the brief is made of. */
   template?: BookingFormTemplate | null;
   /**
-   * The department this booking belongs to, proven by a portal token.
+   * The department this booking belongs to, as the workspace's list spells it.
    *
-   * Deliberately not `request.department`: that is free text a public requester
-   * types about themselves, and writing it to a STAKEHOLDER column would let
-   * anyone file work into another department's portal by typing its name. This
-   * value only ever comes from the token that admitted the caller, so the board
-   * can show who booked a task and the portal can recognise its own work.
+   * Never the raw `request.department`: the booking service checks the name
+   * against Settings → Departments first (the portal's by id), so only a
+   * department on the list ever reaches a STAKEHOLDER column.
    */
   stakeholder?: string | null;
 }
@@ -751,7 +749,7 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   });
   place("referenceUrl", request.referenceUrl, () => ({ type: "LINK", url: request.referenceUrl!, text: null }));
 
-  // The department that booked it, from its portal link. Found by column type
+  // The department that booked it, checked against the list. Found by column type
   // and never by name — `labelledItemIds()` in the stakeholder portal service
   // reads these columns the same way, so a board that renames "Stakeholder" to
   // "Requested by" still lines up. No leftover when the board has no such

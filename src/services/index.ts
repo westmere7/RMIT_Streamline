@@ -75,6 +75,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   const tickets = new TicketService(repos, links);
   const booking = new BookingService(repos, workspace, items, assets, notifications, tickets, options.bookingTransport ?? null);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
+  booking.useDepartments((workspaceId) => portals.ensureDepartments(workspaceId));
   const comments = new CommentService(repos, notifications, links);
   // Constructed in every set so the local provider can drive it from a test and
   // run a quick run without a server. The unattended passes are only ever

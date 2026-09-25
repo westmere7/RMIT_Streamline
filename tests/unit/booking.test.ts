@@ -62,7 +62,7 @@ const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => {
   const base: BookingRequest = {
     requesterName: "Priya Nair",
     requesterEmail: "priya@rmit.edu.au",
-    department: "School of Design",
+    department: "Comm.",
     title: "Open Day wayfinding posters",
     brief: "",
     assetTypes: ["Print"],

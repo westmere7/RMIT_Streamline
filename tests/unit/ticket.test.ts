@@ -298,7 +298,7 @@ describe("booking a task", () => {
         brief: "Three banners for the city campus.",
         requesterName: "Priya Nair",
         requesterEmail: "priya@example.com",
-        department: "Marketing",
+        department: "Comm.",
         assetTypes: ["Print"],
         assets: [
           { name: "Banner A", quantity: 2, spec: null },

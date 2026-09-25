@@ -463,14 +463,18 @@ function RemoveOptionDialog({
   const ws = useWorkspace();
   // Only a stored word can have anything using it; one added in this draft cannot.
   const usage = useListOptionUsage(ws.workspace.id, listKey, row?.origin ?? null);
-  const [replaceWith, setReplaceWith] = React.useState<string>(KEEP);
+  // A department cannot stay on work once it leaves the list: only listed
+  // departments label tasks, so its tasks move to another one or are cleared.
+  const canKeep = listKey !== "STAKEHOLDER_GROUPS";
+  const firstChoice = canKeep ? KEEP : "";
+  const [replaceWith, setReplaceWith] = React.useState<string>(firstChoice);
   // The dialog animates out after the row is marked, so it keeps the last one to
   // read from — and each row opens its own question, so the previous answer must
   // not carry over to it.
   const [shown, setShown] = React.useState<DraftRow | null>(row);
   if (row && row.id !== shown?.id) {
     setShown(row);
-    setReplaceWith(KEEP);
+    setReplaceWith(firstChoice);
   }
   const count = row?.origin ? (usage.data?.count ?? 0) : 0;
   const checking = !!row?.origin && usage.isLoading;
@@ -499,7 +503,7 @@ function RemoveOptionDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={KEEP}>Keep {shown?.name} on them</SelectItem>
+                {canKeep && <SelectItem value={KEEP}>Keep {shown?.name} on them</SelectItem>}
                 <SelectItem value="">Clear it</SelectItem>
                 {others.map((other) => (
                   <SelectItem key={other} value={other}>
