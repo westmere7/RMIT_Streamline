@@ -196,7 +196,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         {carriesRates && (
-          <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground max-md:hidden">
             <span className="min-w-0 flex-1">Type</span>
             <span className="w-[19.5rem] shrink-0">Output rate — how many the team finishes</span>
             <span className="w-[10rem] shrink-0">Time for one</span>
@@ -237,10 +237,10 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
               maxLength={MAX_LIST_OPTION_NAME}
               placeholder={`Add to ${meta.label.toLowerCase()}`}
               aria-label={`Add to ${meta.label}`}
-              className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+              className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70 max-md:h-10 max-md:text-[15px]"
               data-testid="list-add-input"
             />
-            <Button type="button" size="sm" variant="secondary" className="h-8 shrink-0" disabled={!adding.trim()} onClick={add} data-testid="list-add-submit">
+            <Button type="button" size="sm" variant="secondary" className="h-8 shrink-0 max-md:h-10" disabled={!adding.trim()} onClick={add} data-testid="list-add-submit">
               Add
             </Button>
           </div>
@@ -303,14 +303,14 @@ function ListRow({
   const hours = hoursPerUnit(rate);
 
   return (
-    <li className={cn("group flex items-center gap-2 px-3 py-2", removed && "bg-destructive/[0.04]")} data-testid="list-option">
-      <span className="flex min-w-0 flex-1 items-center gap-2">
+    <li className={cn("group flex items-center gap-2 px-3 py-2 max-md:flex-wrap max-md:gap-y-2 max-md:py-2.5", removed && "bg-destructive/[0.04]")} data-testid="list-option">
+      <span className="flex min-w-0 flex-1 items-center gap-2 max-md:order-1">
         <Popover>
           <PopoverTrigger asChild disabled={!canEdit || removed}>
             <button
               type="button"
               aria-label={`Colour of ${row.name}`}
-              className={cn("size-4 shrink-0 rounded-full", colorClasses(row.color).dot, canEdit && !removed && "hover:ring-2 hover:ring-ring")}
+              className={cn("relative size-4 shrink-0 rounded-full after:absolute after:-inset-3 after:content-['']", colorClasses(row.color).dot, canEdit && !removed && "hover:ring-2 hover:ring-ring")}
               data-testid="list-option-color"
             />
           </PopoverTrigger>
@@ -333,7 +333,7 @@ function ListRow({
                 e.currentTarget.blur();
               }
             }}
-            className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 text-[13px] outline-none hover:bg-accent focus:bg-background focus:ring-2 focus:ring-ring"
+            className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 text-[13px] outline-none hover:bg-accent focus:bg-background focus:ring-2 focus:ring-ring max-md:h-10 max-md:text-[15px]"
             data-testid="list-option-name"
           />
         ) : (
@@ -345,19 +345,19 @@ function ListRow({
 
       {carriesRates &&
         (removed ? (
-          <span className="w-[29.5rem] shrink-0 text-2xs text-muted-foreground">
+          <span className="w-[29.5rem] shrink-0 text-2xs text-muted-foreground max-md:order-3 max-md:w-full max-md:pl-6">
             {row.removal?.replaceWith === undefined ? "will leave the list" : row.removal.replaceWith === null ? "will be cleared from its deliverables" : `will move to ${row.removal.replaceWith}`}
           </span>
         ) : (
           <>
-            <span className="flex w-[19.5rem] shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
+            <span className="flex w-[19.5rem] shrink-0 items-center gap-2 text-[13px] text-muted-foreground max-md:order-3 max-md:w-full max-md:pl-6">
               <Input
                 type="number"
                 min={1}
                 step="any"
                 inputMode="decimal"
                 aria-label={`${row.name}: how many`}
-                className="h-8 w-[4.25rem] tabular"
+                className="h-8 w-[4.25rem] tabular max-md:h-10"
                 disabled={!canEdit}
                 value={rate ? String(rate.qty) : ""}
                 placeholder="—"
@@ -375,7 +375,7 @@ function ListRow({
                 step="any"
                 inputMode="decimal"
                 aria-label={`${row.name}: every how many`}
-                className="h-8 w-16 tabular"
+                className="h-8 w-16 tabular max-md:h-10"
                 disabled={!canEdit || !rate}
                 value={rate ? String(rate.every) : ""}
                 placeholder="1"
@@ -386,7 +386,7 @@ function ListRow({
                 data-testid={`rate-every-${row.name}`}
               />
               <Select value={rate?.per ?? "day"} disabled={!canEdit || !rate} onValueChange={(per) => onRate({ per: per as RatePer })}>
-                <SelectTrigger className="h-8 w-[7rem]" aria-label={`${row.name}: per`} data-testid={`rate-per-${row.name}`}>
+                <SelectTrigger className="h-8 w-[7rem] max-md:h-10" aria-label={`${row.name}: per`} data-testid={`rate-per-${row.name}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -401,7 +401,7 @@ function ListRow({
 
             {/* The sanity check: a rate reading "2 min each" for a campaign film
                 is wrong in a way the three numbers alone do not show. */}
-            <span className="flex w-[10rem] shrink-0 items-center gap-2">
+            <span className="flex w-[10rem] shrink-0 items-center gap-2 max-md:order-4 max-md:w-full max-md:pl-6">
               {hint ? (
                 <>
                   <span className="h-1.5 min-w-1 flex-1 overflow-hidden rounded-full bg-surface-strong/80">
@@ -418,7 +418,7 @@ function ListRow({
 
       {canEdit &&
         (removed ? (
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Keep ${row.name}`} onClick={onUndoRemove} className="shrink-0 text-muted-foreground" data-testid="list-option-undo">
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Keep ${row.name}`} onClick={onUndoRemove} className="shrink-0 text-muted-foreground max-md:order-2 max-md:size-10" data-testid="list-option-undo">
             <Undo2 />
           </Button>
         ) : (
@@ -428,7 +428,7 @@ function ListRow({
             size="icon-sm"
             aria-label={`Remove ${row.name}`}
             onClick={onAskRemove}
-            className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive pointer-coarse:opacity-100"
+            className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive pointer-coarse:opacity-100 max-md:order-2 max-md:size-10"
             data-testid="list-option-remove"
           >
             <X />

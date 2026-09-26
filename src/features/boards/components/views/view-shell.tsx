@@ -29,7 +29,7 @@ export interface SegmentedOption<T extends string> {
 /** A pill group for a small, exclusive choice: zoom level, period, chart type. */
 export function Segmented<T extends string>({ value, onChange, options, ariaLabel, className, testId }: { value: T; onChange: (value: T) => void; options: ReadonlyArray<SegmentedOption<T>>; ariaLabel: string; className?: string; testId?: string }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn("inline-flex h-8 items-center rounded-full border border-border/70 bg-card p-0.5 text-xs shadow-xs", className)} data-testid={testId}>
+    <div role="radiogroup" aria-label={ariaLabel} className={cn("inline-flex h-8 items-center rounded-full border border-border/70 bg-card p-0.5 text-xs shadow-xs max-md:h-11 max-md:text-[13px]", className)} data-testid={testId}>
       {options.map((option) => {
         const active = option.value === value;
         const Icon = option.icon;
@@ -42,7 +42,7 @@ export function Segmented<T extends string>({ value, onChange, options, ariaLabe
             aria-label={option.ariaLabel ?? option.label}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-full px-2.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+              "inline-flex h-7 items-center gap-1 rounded-full px-2.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring max-md:h-10 max-md:px-3",
               active ? "bg-foreground text-background shadow-xs" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
             data-testid={testId ? `${testId}-${option.value}` : undefined}
@@ -84,7 +84,8 @@ export function ViewSelect<T extends string>({ value, onChange, options, ariaLab
       onChange={(e) => onChange(e.target.value as T)}
       aria-label={ariaLabel}
       data-testid={testId}
-      className="h-8 rounded-full border border-border/70 bg-card px-2.5 pr-7 text-xs font-medium text-foreground shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      // A thumb-sized target on a phone, at 16px so iOS does not zoom in on it.
+      className="h-8 rounded-full border border-border/70 bg-card px-2.5 pr-7 text-xs font-medium text-foreground shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:h-10 max-md:text-base"
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>

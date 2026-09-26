@@ -1,16 +1,18 @@
 "use client";
 
-import { ChevronRight, FileSpreadsheet, Search, SquareKanban, Star, Users } from "lucide-react";
+import { ChevronRight, FileSpreadsheet, Plus, Search, SquareKanban, Star, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Board, Team } from "@/domain";
+import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { useTrackers } from "@/features/trackers/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
 
@@ -25,6 +27,7 @@ export function BrowsePage() {
   const ws = useWorkspace();
   const trackers = useTrackers().data ?? [];
   const [query, setQuery] = React.useState("");
+  const [creating, setCreating] = React.useState(false);
 
   const needle = query.trim().toLowerCase();
   const matches = (name: string) => !needle || name.toLowerCase().includes(needle);
@@ -42,17 +45,26 @@ export function BrowsePage() {
     <div className="scrollbar-thin flex-1 overflow-y-auto overscroll-contain">
       <div className="px-4 pt-4 pb-8">
         <h1 className="sr-only">Browse the workspace</h1>
-        <label className="relative mb-4 flex items-center">
-          <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
-          <span className="sr-only">Filter boards, teams and trackers</span>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter boards, teams, trackers"
-            className="h-11 pl-9 text-base"
-            data-testid="browse-filter"
-          />
-        </label>
+        <div className="mb-4 flex items-center gap-2">
+          <label className="relative flex min-w-0 flex-1 items-center">
+            <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
+            <span className="sr-only">Filter boards, teams and trackers</span>
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter boards, teams, trackers"
+              className="h-11 pl-9 text-base"
+              data-testid="browse-filter"
+            />
+          </label>
+          {/* The sidebar's New board, which a phone does not have. */}
+          {canCreateBoard(ws.permissions) && (
+            <Button type="button" variant="outline" className="h-11 shrink-0 px-3" onClick={() => setCreating(true)} data-testid="browse-new-board">
+              <Plus /> New board
+            </Button>
+          )}
+        </div>
+        <CreateBoardDialog open={creating} onOpenChange={setCreating} />
 
         {nothing && <p className="px-1 py-8 text-center text-[15px] text-muted-foreground">Nothing matches “{query}”.</p>}
 

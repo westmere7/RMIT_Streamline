@@ -82,8 +82,8 @@ export function TrackerPage() {
   return (
     <SheetEditorProvider key={activeSheet?.id ?? "none"} sheet={activeSheet} canEdit={canEdit}>
       <div className="flex h-full min-h-0 flex-col" data-testid="tracker-page">
-        <header className="border-b px-6 pt-4 pb-3">
-          <div className="flex items-start gap-3.5">
+        <header className="border-b px-6 pt-4 pb-3 max-md:px-4">
+          <div className="flex items-start gap-3.5 max-md:flex-wrap">
             <SimpleTooltip label="Back to trackers">
               <Button variant="ghost" size="icon-sm" asChild className="mt-0.5 text-muted-foreground">
                 <Link href={routes.trackers(ws.slug)} aria-label="Back to trackers">
@@ -104,7 +104,7 @@ export function TrackerPage() {
                   disabled={!canEdit}
                   ariaLabel="Tracker name"
                   className={cn("rounded px-1 -mx-1", canEdit && "hover:bg-accent")}
-                  inputClassName="h-8 w-96 text-xl font-semibold"
+                  inputClassName="h-8 w-96 max-w-full text-xl font-semibold"
                 />
               </h1>
               <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
@@ -132,7 +132,7 @@ export function TrackerPage() {
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5 max-md:w-full max-md:justify-end">
               <EditorControls canEdit={canEdit} />
               {canEdit && (
                 <>

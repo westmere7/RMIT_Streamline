@@ -13,6 +13,7 @@ import type { BookingBlock, BookingFormTemplate, BookingSavedBlock, BookingTempl
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { canManageWorkspace, canSeeSystemEntities } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
@@ -40,6 +41,9 @@ export function BookTaskPage() {
   const [tab, setTab] = React.useState<"portals" | "book">("portals");
   // Where the editor hangs its controls: the top of the aside, so the card holds the form alone.
   const [editorPanel, setEditorPanel] = React.useState<HTMLDivElement | null>(null);
+  // A phone stacks the aside under the whole form, so there the panel stays
+  // at the top of the card, where saving and publishing are in reach.
+  const isMobile = useIsMobile();
 
   React.useEffect(() => {
     if (!manager) router.replace(routes.bookForm(ws.slug));
@@ -203,8 +207,9 @@ export function BookTaskPage() {
       )}
       {/* On a desktop the editor card scrolls by itself under the header; on a phone the whole page scrolls. */}
       <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", tab !== "book" && "hidden")}>
+        <p className="mb-3 text-[13px] text-muted-foreground md:hidden" data-testid="booking-editor-phone-note">Editing the form works best on a larger screen.</p>
         <div className="mx-auto grid w-full max-w-[80rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
-          <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-5 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
+          <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-3 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
             {form.isLoading || draft.isLoading ? (
               <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
                 <LoaderCircle className="size-4 animate-spin" /> Opening the editor…
@@ -234,7 +239,7 @@ export function BookTaskPage() {
                 onDeleteTemplate={deleteTemplate}
                 onSaveBlock={saveBlock}
                 onDeleteSavedBlock={deleteSavedBlock}
-                panelContainer={editorPanel}
+                panelContainer={isMobile ? null : editorPanel}
               />
             )}
           </section>

@@ -18,6 +18,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.50.0",
+    date: "2026-09-26",
+    title: "Streamline on a phone",
+    changes: [
+      "Dialogs rise from the bottom of a phone's screen, and search opens full screen with Cancel.",
+      "My Work on a phone has a search box and a Filters sheet with the same filters as on a desktop.",
+      "Settings on a phone is a list: tap a section to open it, and Settings to go back.",
+      "Task cards are calmer: the name, the status as a pill, the due date and the board. The task panel shows the status as a pill too.",
+      "On a phone, each task on a board is its own card, edged in its group's colour.",
+      "On a phone, Browse has New board, and the form editor keeps Save and Publish above the form.",
+      "Streamline can be added to a home screen, where it opens full screen with its own icon.",
+      "A bar says when the connection drops. Changes save when it returns.",
+      "On an iPhone or iPad, the notification setting says to add Streamline to the Home Screen first.",
+      "Menus and pickers stay inside the screen, and switches, chips and small buttons are easier to hit.",
+      "A restore or wipe keeps a phone's screen on until it has finished.",
+      "Your sidebar width, open teams and panel sizes are kept across reloads again.",
+      "A What's new card after an update, off for now (Settings → Appearance).",
+    ],
+  },
+  {
     version: "0.49.1",
     date: "2026-09-26",
     title: "Portal booking for every department",
@@ -823,4 +843,19 @@ export function compareVersions(a: string, b: string): number {
 export function changesSince(since: string, entries: readonly ChangelogEntry[] = CHANGELOG): ChangelogEntry[] {
   const newer = entries.filter((entry) => compareVersions(entry.version, since) > 0);
   return newer.length > 0 ? newer : entries.slice(0, 1);
+}
+
+/**
+ * The releases a browser has not run before, for the "App updated" notice:
+ * after `seen`, up to and including `current`, newest first. Empty when the
+ * version has not moved on, or has gone back, so the notice stays away.
+ */
+export function releasesAfter(seen: string, current: string, entries: readonly ChangelogEntry[] = CHANGELOG): ChangelogEntry[] {
+  if (compareVersions(current, seen) <= 0) return [];
+  return entries.filter((entry) => compareVersions(entry.version, seen) > 0 && compareVersions(entry.version, current) <= 0);
+}
+
+/** The release before `version`, or null for the first. */
+export function releaseBefore(version: string, entries: readonly ChangelogEntry[] = CHANGELOG): string | null {
+  return entries.find((entry) => compareVersions(entry.version, version) < 0)?.version ?? null;
 }

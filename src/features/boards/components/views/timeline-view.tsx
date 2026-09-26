@@ -64,7 +64,7 @@ export function TimelineView() {
             <ViewStat value={all.length} label="scheduled" />
             {overdue > 0 && <ViewStat value={overdue} label="overdue" tone="warn" testId="timeline-overdue" />}
             {rows.unscheduled.length > 0 && (
-              <button type="button" onClick={() => setShowUnscheduled((v) => !v)} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 hover:bg-accent hover:text-foreground" aria-pressed={showUnscheduled} data-testid="timeline-unscheduled">
+              <button type="button" onClick={() => setShowUnscheduled((v) => !v)} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 hover:bg-accent hover:text-foreground max-md:min-h-10 max-md:px-3" aria-pressed={showUnscheduled} data-testid="timeline-unscheduled">
                 <CalendarX2 className="size-3" /> <span className="font-semibold text-foreground tabular">{rows.unscheduled.length}</span> without a date
               </button>
             )}

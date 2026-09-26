@@ -7,10 +7,12 @@ import { MobileBottomNav, MobileTopBar } from "@/components/layout/mobile-shell"
 import { ViewingAsBanner } from "@/features/workspace/components/viewing-as-banner";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { ConfettiCanvas } from "@/components/shared/confetti";
+import { OfflineBanner } from "@/components/shared/offline-banner";
 import { UndoBar } from "@/features/undo/undo-bar";
 import { useOsNotifications } from "@/features/notifications/use-os-notifications";
 import { tabCountPrefix, useTabBadge } from "@/features/notifications/use-tab-badge";
 import { CommandPalette } from "@/features/search/command-palette";
+import { AppUpdatedNotice } from "@/features/version/app-updated-card";
 import { VersionWatcher } from "@/features/version/version-watcher";
 import { SaveBoardTemplateHost } from "@/features/boards/board-templates";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,6 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <UndoBar />
       <ConfettiCanvas />
       <VersionWatcher />
+      <AppUpdatedNotice />
       <SaveBoardTemplateHost />
     </>
   );
@@ -98,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             workspace bar above it was a second header saying less, and the
             two together took a third of the screen before the first card. */}
         {!onBoard && <MobileTopBar />}
+        <OfflineBanner />
         <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>
@@ -112,6 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <main id="main" className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-sm">
         <ViewingAsBanner />
+        <OfflineBanner />
         {children}
       </main>
       {overlays}

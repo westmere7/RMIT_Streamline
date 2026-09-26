@@ -26,7 +26,7 @@ import { normalizeLinkHref } from "@/lib/rich-text";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { useClockTick } from "@/hooks/use-clock";
 import { cn } from "@/lib/utils";
-import { CellShell, PopoverCell } from "./cell-shell";
+import { CellShell, PopoverCell, useCellStretchMode } from "./cell-shell";
 
 export interface CellProps {
   item: Item;
@@ -143,6 +143,10 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   const label = labels.find((l) => l.id === v.labelId) ?? null;
   const stuck = isStuckLabel(column, v.labelId);
   const w = width ?? column.width;
+  // In the board's table the chip is a band down the cell, so a column of
+  // statuses reads as one strip of colour. Anywhere else — the task panel, a
+  // phone's field list — it is a pill the size of its word, as on the cards.
+  const pill = useCellStretchMode() !== "table";
   // Work under way says how far along its deliverables are: the chip itself is
   // the track, and the done share is a slightly lighter tint of its own colour.
   // Only there: before it starts there is nothing to show, and once it is done
@@ -163,24 +167,34 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       disabled={readOnly}
       ariaLabel={`${column.name}: ${label?.name ?? "not set"} for ${item.name}`}
       testId="status-cell"
-      align={columnAlign(column.type)}
+      align={pill ? "left" : columnAlign(column.type)}
       contentClassName="p-2"
       trigger={
         label ? (
-          <span className="flex h-full w-full items-center p-1.5">
+          <span className={cn("flex h-full w-full items-center", pill ? "py-1" : "p-1.5")}>
             <span
-              className={cn("relative flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid, stuck && "zebra")}
+              className={cn(
+                "relative flex items-center truncate font-medium shadow-xs",
+                pill ? "h-7 max-w-full rounded-md px-1 text-[13px]" : "h-full w-full justify-center rounded-lg text-xs",
+                colorClasses(label.color).solid,
+                stuck && "zebra",
+              )}
               style={allDone ? { outline: `2px solid ${allDone}`, outlineOffset: "1px" } : undefined}
               data-assets-complete={allDone ? "true" : undefined}
+              data-shape={pill ? "pill" : "band"}
               title={progress ? `${label.name} — assets ${progress.done} of ${progress.lines} done` : undefined}
             >
               {progress && !allDone && (
-                <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg" data-testid="status-asset-progress" data-percent={progress.percent}>
+                <span aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", pill ? "rounded-md" : "rounded-lg")} data-testid="status-asset-progress" data-percent={progress.percent}>
                   <span className="block h-full bg-white/20 transition-[width] duration-300" style={{ width: `${progress.percent}%` }} />
                 </span>
               )}
               <span className="relative truncate px-2">{label.name}</span>
             </span>
+          </span>
+        ) : pill ? (
+          <span className="flex h-full w-full items-center py-1">
+            <span className="inline-flex h-7 items-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">Set status</span>
           </span>
         ) : (
           <span className="flex h-full w-full items-center p-1.5">

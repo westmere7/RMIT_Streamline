@@ -159,7 +159,23 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: "streamline.ui",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => {
+        // Throws on the server, where there is nothing to keep.
+        const local = localStorage;
+        return {
+          getItem: (name) => local.getItem(name),
+          // Nothing is written until the saved preferences have been read
+          // back. The store hydrates after mount, and a child's effects run
+          // before its parent's: one setter called there (the sidebar
+          // clearing its pending navigation) saved the defaults over the
+          // person's sidebar width, panel size and open teams, and the
+          // rehydrate that followed read the defaults back.
+          setItem: (name, value) => {
+            if (useUiStore.persist.hasHydrated()) local.setItem(name, value);
+          },
+          removeItem: (name) => local.removeItem(name),
+        };
+      }),
       skipHydration: true,
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,

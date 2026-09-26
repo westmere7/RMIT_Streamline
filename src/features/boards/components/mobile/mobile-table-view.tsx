@@ -271,13 +271,13 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
       </div>
 
       {!collapsed && (
-        <ul className={cn("divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card", `border-l-[3px] ${colors.border}`)}>
+        <ul className="flex flex-col gap-2">
           {items.map((item) => (
             <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
           ))}
-          {items.length === 0 && <li className="px-3 py-3 text-[14px] text-muted-foreground">Nothing in this group.</li>}
+          {items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-[14px] text-muted-foreground">Nothing in this group.</li>}
           {canEdit && !selectMode && (
-            <li>
+            <li className="rounded-xl border border-dashed border-border/70">
               {adding ? (
                 <div className="flex items-center gap-2 px-2.5 py-2">
                   <Input

@@ -18,31 +18,36 @@ function MobileTable({ openItem }: { openItem?: (id: string | null) => void }) {
 }
 
 describe("the mobile board", () => {
-  it("puts status, priority and the due date on every card", async () => {
+  it("puts the status and due date on every card, and the priority only when it asks for attention", async () => {
     const app = await createTestApp();
     await app.render(<MobileTable />);
 
     const cards = await screen.findAllByTestId("mobile-item-card");
     expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) expect(within(card).getByTestId("mobile-card-status")).toBeInTheDocument();
 
-    // The known issue this rebuild addresses: a mobile list that shows a title
-    // and a date and drops the two things that say what to do about it.
-    const card = cards.find((c) => c.textContent?.includes("RMITinerary High Achiever"));
-    expect(card).toBeDefined();
-    expect(card!).toHaveTextContent("Done");
-    expect(card!).toHaveTextContent("High");
-    expect(card!).toHaveTextContent(/Sep/);
+    // A finished task: what it is and when, and no priority left to act on.
+    const done = cards.find((c) => c.textContent?.includes("RMITinerary High Achiever"));
+    expect(done).toBeDefined();
+    expect(done!).toHaveTextContent("Done");
+    expect(done!).toHaveTextContent(/Sep/);
+    expect(within(done!).queryByTestId("mobile-card-priority")).toBeNull();
+    // Low and medium are the ordinary case: a priority on a card is a high one.
+    for (const chip of screen.queryAllByTestId("mobile-card-priority")) expect(chip).toHaveAccessibleName(/: (high|critical|urgent)$/i);
   });
 
-  it("shows the booking code on the card", async () => {
+  it("keeps the booking code off the card, a tap away in its menu", async () => {
+    const user = userEvent.setup();
     const app = await createTestApp();
     const items = await app.data.services.repos.items.listByBoard(boardId);
-    const coded = items.find((i) => i.ticket);
+    const coded = items.find((i) => i.ticket && !i.parentItemId);
     await app.render(<MobileTable />);
 
     const cards = await screen.findAllByTestId("mobile-item-card");
-    const card = cards.find((c) => c.textContent?.includes(coded!.name));
-    expect(card).toHaveTextContent(coded!.ticket!);
+    const card = cards.find((c) => c.textContent?.includes(coded!.name))!;
+    expect(card).not.toHaveTextContent(coded!.ticket!);
+    await user.click(within(card).getByTestId("mobile-item-menu"));
+    expect(await screen.findByRole("menuitem", { name: `Copy ID ${coded!.ticket}` })).toBeInTheDocument();
   });
 
   it("folds a group and says how many are in it", async () => {

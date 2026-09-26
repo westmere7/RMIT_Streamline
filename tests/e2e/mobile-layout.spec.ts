@@ -79,7 +79,12 @@ test.describe("phone layout", () => {
 
   test("search matches the ticket as well as the name", async ({ page }) => {
     await page.goto("/workspace/rmit/boards/semester-1-campaign");
-    const ticket = await page.getByTestId("mobile-item-card").first().locator(".font-mono").first().innerText();
+    // The card leaves the ticket to the task; its menu offers to copy it.
+    await page.getByTestId("mobile-item-menu").first().click();
+    const copy = page.getByRole("dialog").getByRole("menuitem", { name: /^Copy ID / });
+    const ticket = (await copy.innerText()).replace(/^Copy ID\s*/, "").trim();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
 
     await page.getByTestId("mobile-search-chip").click();
     await page.getByTestId("mobile-search-input").fill(ticket);
@@ -89,7 +94,8 @@ test.describe("phone layout", () => {
 
   test("an item opens full screen, keeps its deep link, and Back returns to the board", async ({ page }) => {
     await page.goto("/workspace/rmit/boards/semester-1-campaign");
-    await page.getByTestId("mobile-item-card").first().click();
+    // The name: the card's middle is its row of chips, each of which opens its own sheet.
+    await page.getByTestId("mobile-item-open").first().click();
 
     const panel = page.getByTestId("item-panel");
     await expect(panel).toBeVisible();

@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronRight, CornerDownRight, Link2 } from "lucide-react";
+import { CornerDownRight } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { LabelPill } from "@/components/shared/label-pill";
-import { PriorityPill } from "@/components/shared/priority-signal";
-import { isStuckLabel } from "@/domain";
+import { PrioritySignal } from "@/components/shared/priority-signal";
+import { isStuckLabel, priorityStrength } from "@/domain";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue } from "@/lib/dates/dates";
@@ -14,73 +13,70 @@ import { cn } from "@/lib/utils";
 import type { MyWorkItem } from "@/services/my-work-service";
 
 /**
- * One task, as a phone shows it.
+ * One task, as a phone lists it: the name first, and one quiet line under it.
  *
- * The desktop row hides status and priority below md and leaves a title and a
- * date — which is the least useful half. Here everything that decides what to do
- * next is on the card: what it is, which board it came from, where it stands,
- * how urgent it is, and when it is due, with overdue said in words as well as
- * colour. Sized for a thumb and an arm's length: 16px name, 13px for everything
- * else, and a chevron so the row reads as a place to go rather than a line to read.
+ * The line says where the task stands, when it is due and which board it is
+ * on — in that order, because that is the order a list is read in. Nothing is
+ * said twice: a late date is red, which is what the old "Overdue" badge said
+ * again under a section already called Overdue. Priority appears only when it
+ * asks for attention (high or critical). Everything else is a tap away.
  */
 export function MobileTaskRow({ entry, now, showBoard = true }: { entry: MyWorkItem; now: Date; showBoard?: boolean }) {
   const ws = useWorkspace();
   const late = !entry.isDone && isOverdue(entry.dueDate, now);
+  const urgency = !entry.isDone && entry.priority ? priorityStrength(entry.priority.id) : 0;
+  const stuck = !!entry.status && isStuckLabel(entry.statusColumn, entry.status.id);
   return (
     <li>
-      <Link
-        href={ws.boardPath(entry.board, { itemId: entry.item.id })}
-        className="flex min-h-16 items-center gap-2 px-3 py-3 active:bg-accent/70"
-        data-testid="mobile-task-row"
-      >
-        <span className="flex min-w-0 flex-1 flex-col gap-2">
-          <span className="flex items-start gap-2">
-            {entry.item.parentItemId && <CornerDownRight aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground/70" />}
-            {/* Done is said by the chip; striking the name through as well made
-                a finished task the hardest one on the list to read. */}
-            <span className={cn("min-w-0 flex-1 text-[16px] leading-snug font-medium", entry.isDone && "text-muted-foreground")}>{entry.item.name}</span>
-            {entry.dueDate && (
-              <span className={cn("shrink-0 pt-px text-[13px] tabular", late ? "font-semibold text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-                {formatShortDate(entry.dueDate, now)}
-              </span>
-            )}
-          </span>
-
-          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-            {entry.status && <LabelPill label={entry.status} size="lg" striped={isStuckLabel(entry.statusColumn, entry.status.id)} />}
-            {entry.priority && <PriorityPill label={entry.priority} className="text-[13px]" />}
-            {late && (
-              <span className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300" data-testid="mobile-overdue">
-                Overdue
-              </span>
-            )}
-          </span>
-
-          {showBoard && (
-            <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-              <DynamicIcon name={entry.board.icon} className={cn("size-4 shrink-0", colorClasses(entry.board.color).text)} />
-              <span className="truncate">
-                {entry.board.name}
-                {entry.group ? ` · ${entry.group.name}` : ""}
-              </span>
-              {entry.linkedBoards.length > 0 && (
-                <span className="flex shrink-0 items-center gap-0.5" aria-label={`Also on ${entry.linkedBoards.map((b) => b.name).join(", ")}`}>
-                  <Link2 className="size-3.5" />+{entry.linkedBoards.length}
-                </span>
-              )}
+      <Link href={ws.boardPath(entry.board, { itemId: entry.item.id })} className="flex min-h-16 flex-col justify-center gap-1.5 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-xs active:bg-accent/70 dark:bg-surface" data-testid="mobile-task-row">
+        <span className="flex items-start gap-2">
+          {entry.item.parentItemId && <CornerDownRight aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground/60" />}
+          <span className={cn("line-clamp-2 min-w-0 flex-1 text-[16px] leading-snug font-medium", entry.isDone && "text-muted-foreground")}>{entry.item.name}</span>
+          {urgency >= 2 && entry.priority && (
+            <span className="mt-1 shrink-0" title={`${entry.priority.name} priority`}>
+              <PrioritySignal level={urgency} className={cn("size-4", colorClasses(entry.priority.color).text)} />
+              <span className="sr-only">{entry.priority.name} priority</span>
             </span>
           )}
         </span>
-        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/50" />
+
+        <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+          {entry.status && (
+            <LabelPill label={entry.status} striped={stuck} className="shrink-0" data-testid="mobile-task-status" />
+          )}
+          {entry.dueDate && (
+            <>
+              {entry.status && <Dot />}
+              <span className={cn("shrink-0 tabular", late && "font-semibold text-red-600 dark:text-red-400")} data-testid="mobile-task-due">
+                {late && <span className="sr-only">Overdue, </span>}
+                {formatShortDate(entry.dueDate, now)}
+              </span>
+            </>
+          )}
+          {showBoard && (
+            <>
+              {(entry.status || entry.dueDate) && <Dot />}
+              <span className="min-w-0 truncate">{entry.board.name}</span>
+            </>
+          )}
+        </span>
       </Link>
     </li>
   );
 }
 
-/** The card list they sit in, so every screen frames them the same way. */
+function Dot() {
+  return (
+    <span aria-hidden className="text-muted-foreground/40">
+      ·
+    </span>
+  );
+}
+
+/** The list they sit in: each task its own card, spaced apart, so one is never read as part of the next. */
 export function MobileTaskList({ children, ...props }: React.ComponentProps<"ul">) {
   return (
-    <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card" {...props}>
+    <ul className="flex flex-col gap-2" {...props}>
       {children}
     </ul>
   );

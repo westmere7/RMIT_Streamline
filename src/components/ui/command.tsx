@@ -3,7 +3,7 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import * as React from "react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
@@ -24,12 +24,20 @@ function CommandDialog({
 }: React.ComponentProps<typeof Dialog> & { title?: string; description?: string; shouldFilter?: boolean }) {
   return (
     <Dialog {...props}>
-      <DialogContent size="lg" hideClose className="top-[18%] translate-y-0 overflow-hidden p-0">
+      {/* On a phone, search takes the whole screen: the keyboard covers the
+          bottom half, so results start right under the field, and Cancel
+          stands in for the Escape key a phone does not have. */}
+      <DialogContent
+        size="lg"
+        hideClose
+        className="top-[18%] translate-y-0 overflow-hidden p-0 max-md:top-0 max-md:flex max-md:h-dvh max-md:max-h-none max-md:flex-col max-md:rounded-none max-md:border-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)] max-md:[&_[data-dialog-grabber]]:hidden"
+      >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
-        <Command shouldFilter={shouldFilter} className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0">
+        <Command shouldFilter={shouldFilter} className="max-md:min-h-0 max-md:flex-1 max-md:rounded-none max-md:[&_[cmdk-input-wrapper]]:pr-20 max-md:[&_[cmdk-list]]:max-h-none max-md:[&_[cmdk-list]]:flex-1 [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0">
           {children}
         </Command>
+        <DialogClose className="absolute top-[calc(env(safe-area-inset-top)+0.25rem)] right-2 hidden h-11 items-center rounded-lg px-3 text-[15px] font-medium text-primary active:bg-accent/70 max-md:flex">Cancel</DialogClose>
       </DialogContent>
     </Dialog>
   );

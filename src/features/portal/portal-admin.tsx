@@ -85,7 +85,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
 
   return (
     <section className="rounded-2xl border border-border/70 bg-card" data-testid="portal-card">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-5 py-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-5 py-4 max-md:px-4">
         <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[16px] font-semibold tracking-tight">
           Portal
           <Badge variant={open ? "success" : "muted"} className="gap-1.5" data-testid="portal-state">
@@ -98,7 +98,7 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
             </Badge>
           )}
         </h3>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 max-md:w-full max-md:flex-wrap">
           {/* Both links share one credential, so what guards it is here rather
               than in either link's settings. */}
           <PasswordButton portal={portal} />

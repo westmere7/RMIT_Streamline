@@ -19,14 +19,14 @@ import { SkeletonLine } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import type { User } from "@/domain";
 import { isStuckLabel } from "@/domain";
-import { EMPTY_MY_WORK_FILTERS, MY_WORK_KINDS, MY_WORK_KIND_LABELS, MY_WORK_SEARCH_KINDS, MY_WORK_SEARCH_KIND_LABELS, activeMyWorkFilterCount, filterMyWork, myWorkLabelNames, type MyWorkFilters, type MyWorkSearchKind } from "@/features/my-work/filters";
+import { EMPTY_MY_WORK_FILTERS, MY_WORK_DUE_BUCKETS, MY_WORK_KINDS, MY_WORK_KIND_LABELS, MY_WORK_SEARCH_KINDS, MY_WORK_SEARCH_KIND_LABELS, activeMyWorkFilterCount, filterMyWork, myWorkLabelNames, type MyWorkFilters, type MyWorkSearchKind } from "@/features/my-work/filters";
 import { useMyWork } from "@/features/my-work/hooks";
 import { MyWorkSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MyWorkMobile } from "@/features/mobile/my-work-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
-import { formatShortDate, type DateBucket } from "@/lib/dates/dates";
+import { formatShortDate } from "@/lib/dates/dates";
 import { cn, groupBy } from "@/lib/utils";
 import { MY_WORK_SECTION_LABELS, MY_WORK_SECTIONS, sectionFor, type MyWorkItem, type MyWorkSection } from "@/services/my-work-service";
 
@@ -35,14 +35,6 @@ export function MyWorkPage() {
   const isMobile = useIsMobile();
   return isMobile ? <MyWorkMobile /> : <MyWorkDesktop />;
 }
-
-const DUE_BUCKETS: Array<{ id: DateBucket; label: string }> = [
-  { id: "overdue", label: "Overdue" },
-  { id: "today", label: "Today" },
-  { id: "thisWeek", label: "This week" },
-  { id: "later", label: "Later" },
-  { id: "noDate", label: "No date" },
-];
 
 function MyWorkDesktop() {
   const ws = useWorkspace();
@@ -117,7 +109,7 @@ function MyWorkDesktop() {
           />
           <ChecklistFilter icon={Filter} label="Status" title="Status" empty="Nothing here has a status." options={statuses.map((s) => ({ id: s, label: s }))} selected={filters.statuses} onChange={(statuses) => patch({ statuses })} testId="my-work-filter-status" />
           <ChecklistFilter icon={Filter} label="Priority" title="Priority" empty="Nothing here has a priority." options={priorities.map((p) => ({ id: p, label: p }))} selected={filters.priorities} onChange={(priorities) => patch({ priorities })} testId="my-work-filter-priority" />
-          <ChoiceFilter icon={CalendarDays} label="Due" title="Due" options={DUE_BUCKETS.map((b) => ({ id: b.id, label: b.label }))} value={filters.due} onChange={(due) => patch({ due })} testId="my-work-filter-due" />
+          <ChoiceFilter icon={CalendarDays} label="Due" title="Due" options={MY_WORK_DUE_BUCKETS.map((b) => ({ id: b.id, label: b.label }))} value={filters.due} onChange={(due) => patch({ due })} testId="my-work-filter-due" />
           <ChoiceFilter
             icon={Layers}
             label="Type"

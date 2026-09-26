@@ -9,20 +9,8 @@ import { ChangelogEntryItem, useChangelogSince } from "@/features/version/change
 import { CURRENT_VERSION } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
-/**
- * A new build, announced in the corner.
- *
- * Compact until asked: the version and two ways out, Refresh and Later, with
- * "What's new" opening the changelog in place. It never takes focus or covers
- * the page, but it is the brand's navy and it stays until answered, so it is
- * not missed either. While it is up, toasts stack above it rather than on it.
- */
-export function UpdateCard({ latest, onRefresh, onLater }: { latest: string; onRefresh: () => void; onLater: () => void }) {
-  const [expanded, setExpanded] = React.useState(false);
-  const entries = useChangelogSince(CURRENT_VERSION.version);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  // Room for the toasts above it, however tall it is at the moment.
+/** Room for the toasts above a card in the corner, however tall it is at the moment. */
+export function useToastRoom(ref: React.RefObject<HTMLElement | null>): void {
   React.useEffect(() => {
     const node = ref.current;
     if (!node) return;
@@ -35,7 +23,22 @@ export function UpdateCard({ latest, onRefresh, onLater }: { latest: string; onR
       observer.disconnect();
       root.style.removeProperty("--update-card-space");
     };
-  }, []);
+  }, [ref]);
+}
+
+/**
+ * A new build, announced in the corner.
+ *
+ * Compact until asked: the version and two ways out, Refresh and Later, with
+ * "What's new" opening the changelog in place. It never takes focus or covers
+ * the page, but it is the brand's navy and it stays until answered, so it is
+ * not missed either. While it is up, toasts stack above it rather than on it.
+ */
+export function UpdateCard({ latest, onRefresh, onLater }: { latest: string; onRefresh: () => void; onLater: () => void }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const entries = useChangelogSince(CURRENT_VERSION.version);
+  const ref = React.useRef<HTMLDivElement>(null);
+  useToastRoom(ref);
 
   const count = entries?.length ?? 0;
   return (

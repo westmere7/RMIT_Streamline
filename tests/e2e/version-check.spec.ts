@@ -60,3 +60,66 @@ test.describe("version check", () => {
     await expect(page.getByTestId("update-card")).toHaveCount(0);
   });
 });
+
+// After the refresh, not before it: the app says it was updated, and what changed.
+test.describe("app updated", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetLocalData(page);
+  });
+
+  test("a first visit has nothing to catch up on, and starts from this version", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("app-updated")).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("streamline.version.seen"))).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  test("it is off until asked for, and off it still keeps up with the version", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await page.evaluate(() => localStorage.setItem("streamline.version.seen", "0.1.0"));
+    await page.reload();
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("app-updated")).toHaveCount(0);
+    // Read as it went by, so switching it on later brings no backlog.
+    expect(await page.evaluate(() => localStorage.getItem("streamline.version.seen"))).not.toBe("0.1.0");
+  });
+
+  test("switched on, a browser that last ran an older version is told what changed, once", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await page.goto("/workspace/rmit/settings?section=view");
+    const toggle = page.getByTestId("setting-app-updated");
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await page.evaluate(() => localStorage.setItem("streamline.version.seen", "0.1.0"));
+    await page.goto("/workspace/rmit");
+    const card = page.getByTestId("app-updated");
+    await expect(card).toBeVisible({ timeout: 15000 });
+    await expect(card).toContainText("App updated");
+    await expect(card.getByTestId("app-updated-entries").locator("li").first()).toBeVisible();
+    // The latest release is open; the ones before it are a tap away.
+    await card.getByTestId("app-updated-earlier").click();
+    await expect(card.getByTestId("app-updated-earlier")).toHaveText(/Hide earlier updates/);
+
+    await card.getByTestId("app-updated-done").click();
+    await expect(card).toHaveCount(0);
+    await page.reload();
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("app-updated")).toHaveCount(0);
+  });
+
+  test("switched on, it waits while a newer build is on offer", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await page.evaluate(() => {
+      localStorage.setItem("streamline.version.notice", "on");
+      localStorage.setItem("streamline.version.seen", "0.1.0");
+    });
+    await serveNewerBuild(page);
+    await page.reload();
+    await expect(page.getByTestId("update-card")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("app-updated")).toHaveCount(0);
+    // Later: then it is the news that is left.
+    await page.getByTestId("update-later").click();
+    await expect(page.getByTestId("app-updated")).toBeVisible();
+  });
+});

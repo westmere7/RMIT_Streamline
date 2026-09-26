@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, CornerDownRight, Link2, MoreHorizontal } from "lucide-react";
+import { Check, ChevronDown, CornerDownRight, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -40,7 +40,7 @@ type Editing = "status" | "priority" | "date" | null;
  * name is the button that opens the item; the chips sit beside it rather than
  * inside it, because a button inside a button is not a thing.
  */
-export function MobileItemCard({ item, group, selectMode, indent = false }: { item: Item; group: BoardGroup; selectMode: boolean; indent?: boolean }) {
+export function MobileItemCard({ item, group, selectMode, indent = false, footer }: { item: Item; group: BoardGroup; selectMode: boolean; indent?: boolean; footer?: React.ReactNode }) {
   const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
@@ -51,7 +51,6 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
   const done = model.isDone(item.id);
   const blocked = model.isBlocked(item.id);
   const subitems = model.subitemsByParent.get(item.id) ?? [];
-  const linkCount = model.linksByItem.get(item.id)?.length ?? 0;
   const due = model.dueDateOf(item.id);
   const late = !done && isOverdue(due);
 
@@ -87,7 +86,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
           setEditing(kind);
         }}
         aria-label={label}
-        className="rounded-md active:opacity-70"
+        className="relative rounded-md after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] active:opacity-70"
         data-testid={testId}
       >
         {children}
@@ -97,7 +96,9 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
     );
 
   return (
-    <li className={cn(indent && "pl-5")}>
+    // A card is its own box, its group's colour down the left edge, so one task
+    // is never read as part of the next. Subitems sit inside their parent's box.
+    <li className={cn(indent ? "pl-5" : "overflow-hidden rounded-xl border border-l-[3px] border-border/70 bg-card shadow-xs dark:bg-surface")} style={indent ? undefined : { borderLeftColor: colorClasses(group.color).hex }}>
       {/* The whole card is the target, whitespace included, so a thumb does not
           have to land on the name. The name is also a real button, for keyboards;
           the div is the forgiving surface round it. */}
@@ -123,7 +124,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
             {indent && <CornerDownRight aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground/60" />}
             {/* Done is said by the chip; striking the name through as well made
                 a finished task the hardest one on the list to read. */}
-            <span className={cn("min-w-0 flex-1 text-[16px] leading-snug font-medium", done && "text-muted-foreground")}>{item.name}</span>
+            <span className={cn("line-clamp-2 min-w-0 flex-1 text-[16px] leading-snug font-medium", done && "text-muted-foreground")}>{item.name}</span>
           </button>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -140,12 +141,14 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
               )}
             {priorityColumn &&
               priority &&
+              !done &&
+              priorityStrength(priority.id) >= 2 &&
               chip(
                 "priority",
-                `Change priority of ${item.name}`,
-                <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-surface-strong/70 px-2.5 text-[13px] font-medium text-foreground/80">
-                  <PrioritySignal level={priorityStrength(priority.id)} className={colorClasses(priority.color).text} />
-                  {priority.name}
+                `Change priority of ${item.name}: ${priority.name}`,
+                <span className="inline-flex h-7 items-center rounded-md bg-surface-strong/70 px-2" title={priority.name}>
+                  <PrioritySignal level={priorityStrength(priority.id)} className={cn("size-4", colorClasses(priority.color).text)} />
+                  <span className="sr-only">{priority.name}</span>
                 </span>,
                 "mobile-card-priority",
               )}
@@ -168,20 +171,14 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
                 <span aria-hidden className="size-1.5 rounded-full bg-current" /> Blocked
               </span>
             )}
+            {/* Who is on it, at the end of the same row. The ticket and the
+                link count are in the task, a tap away. */}
+            {owners.length > 0 && (
+              <span className="ml-auto">
+                <Owners userIds={owners} />
+              </span>
+            )}
           </div>
-
-          {(item.ticket || owners.length > 0 || linkCount > 0) && (
-            <div className="mt-2 flex items-center gap-3 text-[13px] text-muted-foreground">
-              {item.ticket && <span className="font-mono tracking-tight tabular">{item.ticket}</span>}
-              <Owners userIds={owners} />
-              {linkCount > 0 && (
-                <span className="flex items-center gap-1" aria-label={`${linkCount} linked ${linkCount === 1 ? "item" : "items"}`}>
-                  <Link2 className="size-3.5" aria-hidden />
-                  {linkCount}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         { }
@@ -211,6 +208,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false }: { it
           ))}
         </ul>
       )}
+      {footer}
 
       {editable && statusColumn && (
         <LabelSheet

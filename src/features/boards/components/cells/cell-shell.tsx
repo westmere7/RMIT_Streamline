@@ -23,6 +23,11 @@ export function CellStretchProvider({ mode = "table", children }: { mode?: Stret
   return <StretchContext.Provider value={mode}>{children}</StretchContext.Provider>;
 }
 
+/** Which host this cell is in: the board's table, the task panel, or a phone's field list. */
+export function useCellStretchMode(): StretchMode {
+  return React.useContext(StretchContext);
+}
+
 function useCellStyle(width: number): React.CSSProperties {
   const mode = React.useContext(StretchContext);
   if (mode === "table") return columnCellStyle(width);

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./providers";
@@ -16,6 +16,17 @@ export const metadata: Metadata = {
     template: "%s · Streamline",
   },
   description: "Work management for the RMIT creative and marketing team.",
+  // Added to a home screen, it opens as an app of its own, named under its icon,
+  // without the browser's bars (the manifest says the same for Android).
+  appleWebApp: { capable: true, title: "Streamline", statusBarStyle: "default" },
+};
+
+/** The phone's own bar takes the page's colour, light or dark. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1029" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

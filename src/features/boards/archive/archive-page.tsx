@@ -333,7 +333,7 @@ function ArchivePager({
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = total === 0 ? 0 : first + shown - 1;
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-t border-border/70 px-6" data-testid="archive-pager">
+    <div className="flex h-12 shrink-0 items-center gap-2 border-t border-border/70 px-6 max-md:px-3" data-testid="archive-pager">
       <span className="text-2xs text-muted-foreground tabular">
         {total === 0 ? "No items" : `${first}–${last} of ${total}`}
       </span>
@@ -357,13 +357,13 @@ function ArchivePager({
 
       <div className="ml-auto flex items-center gap-1">
         <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)} data-testid="archive-prev">
-          <ChevronLeft /> Previous
+          <ChevronLeft /> <span className="max-sm:sr-only">Previous</span>
         </Button>
         <span className="px-2 text-2xs text-muted-foreground tabular" data-testid="archive-page-label">
           Page {page} of {pageCount}
         </span>
         <Button variant="ghost" size="sm" disabled={page >= pageCount} onClick={() => onPage(page + 1)} data-testid="archive-next">
-          Next <ChevronRight />
+          <span className="max-sm:sr-only">Next</span> <ChevronRight />
         </Button>
       </div>
     </div>

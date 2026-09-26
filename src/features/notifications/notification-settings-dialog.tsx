@@ -22,6 +22,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import {
   browserNotificationsSupported,
   currentPermission,
+  needsHomeScreenForNotifications,
   requestBrowserPermission,
   showOsNotification,
   type BrowserPermission,
@@ -51,6 +52,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
   // Subscribed rather than read once: the permission can change in the browser's
   // own site settings while this dialog is open.
   const permission = useBrowserPermission();
+  const homeScreen = React.useMemo(() => open && needsHomeScreenForNotifications(), [open]);
 
   const types = preferences.data?.types ?? DEFAULT_TYPE_DELIVERY;
   const browserEnabled = preferences.data?.browserEnabled ?? false;
@@ -110,7 +112,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
                 open — closing Streamline stops them.
               </p>
               <p className={cn("mt-1.5 text-2xs", permission === "denied" ? "text-destructive" : "text-muted-foreground")}>
-                {PERMISSION_TEXT[permission]}
+                {homeScreen ? "On iPhone and iPad, add Streamline to your Home Screen (Share, then Add to Home Screen) to get notifications." : PERMISSION_TEXT[permission]}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">

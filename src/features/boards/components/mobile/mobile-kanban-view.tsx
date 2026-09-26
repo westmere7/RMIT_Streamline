@@ -135,6 +135,7 @@ export function MobileKanbanView() {
               <ChevronLeft className="size-5" />
             </button>
             <span className="min-w-0 flex-1 truncate text-center font-medium text-foreground" aria-live="polite">
+              {colors && <span aria-hidden className={cn("mr-1.5 inline-block size-2.5 rounded-full align-middle", colors.dot)} />}
               {lane.name} · {lane.items.length} {lane.items.length === 1 ? "item" : "items"}
               {overdue > 0 && <span className="ml-1.5 text-red-600 dark:text-red-400">{overdue} overdue</span>}
             </span>
@@ -148,13 +149,13 @@ export function MobileKanbanView() {
               <ChevronRight className="size-5" />
             </button>
           </div>
-          <ul className={cn("divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card", colors && `border-l-[3px] ${colors.border}`)}>
+          <ul className="flex flex-col gap-2">
             {lane.items.map((item) => (
               <LaneCard key={item.id} item={item} laneId={lane.id} laneBy={laneBy} />
             ))}
-            {lane.items.length === 0 && <li className="px-3 py-4 text-[14px] text-muted-foreground">Nothing in this lane.</li>}
+            {lane.items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-4 text-[14px] text-muted-foreground">Nothing in this lane.</li>}
             {canEdit && lane.initial && (
-              <li>
+              <li className="rounded-xl border border-dashed border-border/70">
                 {adding ? (
                   <div className="p-2">
                     <Input
@@ -222,22 +223,28 @@ function LaneCard({ item, laneId, laneBy }: { item: Item; laneId: string; laneBy
     .filter((l) => l.id !== laneId)
     .map((l) => ({ type: "item", label: l.name, onSelect: () => l.apply(item) }));
 
+  const movable = canEdit && moveActions.length > 0;
   return (
     <>
-      <MobileItemCard item={item} group={group} selectMode={false} />
-      {canEdit && moveActions.length > 0 && (
-        <>
-          <button
-            type="button"
-            onClick={() => setMoveOpen(true)}
-            className="flex min-h-11 w-full items-center gap-2 border-t border-border/50 px-3 text-left text-[13px] font-medium text-muted-foreground active:bg-accent/70"
-            data-testid="mobile-kanban-move"
-          >
-            <MoveRight className="size-4" aria-hidden /> Move to another lane…
-          </button>
-          <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title={`Move “${item.name}” to`} actions={moveActions} />
-        </>
-      )}
+      {/* "Move to" travels inside the card it moves. */}
+      <MobileItemCard
+        item={item}
+        group={group}
+        selectMode={false}
+        footer={
+          movable ? (
+            <button
+              type="button"
+              onClick={() => setMoveOpen(true)}
+              className="flex min-h-11 w-full items-center gap-2 border-t border-border/50 px-3 text-left text-[13px] font-medium text-muted-foreground active:bg-accent/70"
+              data-testid="mobile-kanban-move"
+            >
+              <MoveRight className="size-4" aria-hidden /> Move to another lane…
+            </button>
+          ) : null
+        }
+      />
+      {movable && <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title={`Move “${item.name}” to`} actions={moveActions} />}
     </>
   );
 }

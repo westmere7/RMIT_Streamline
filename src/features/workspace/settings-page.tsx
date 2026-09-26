@@ -8,6 +8,8 @@ import {
   BookOpen,
   Building2,
   Check,
+  ChevronLeft,
+  ChevronRight,
   DatabaseBackup,
   Hash,
   Info,
@@ -47,7 +49,9 @@ import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { TicketSettings } from "@/features/workspace/ticket-settings";
 import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
+import { useAppUpdatedNoticeSetting } from "@/features/version/app-updated-card";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
@@ -106,6 +110,10 @@ export function SettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const raw = searchParams.get("section") ?? "";
+  // On a phone the page is a list of sections to drill into, and a section
+  // is a page of its own with a way back — like the phone's own settings.
+  const hasSection = raw !== "";
+  const isMobile = useIsMobile();
   const asked = SECTION_ALIASES[raw] ?? raw;
   let section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
   const [aboutOpen, setAboutOpen] = React.useState(false);
@@ -115,7 +123,9 @@ export function SettingsPage() {
   const visible = (s: Section) => (s !== "snapshots" && s !== "danger") || snapshotsOn;
   if (!visible(section)) section = "general";
   const meta = SECTION_META[section];
-  const go = (s: Section) => router.replace(routes.settings(ws.slug, s));
+  // A section replaces the last on a desktop, so Back leaves the page; on a
+  // phone each one is a step in, and Back returns to the list.
+  const go = (s: Section) => (isMobile ? router.push : router.replace)(routes.settings(ws.slug, s));
   const itemClass = (active: boolean) =>
     cn(
       "flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors max-md:h-10 max-md:w-auto max-md:shrink-0 max-md:px-3 max-md:text-[14px] max-md:whitespace-nowrap",
@@ -124,10 +134,11 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PageHeader title="Workspace settings" description={ws.workspace.name} />
+      <PageHeader title="Workspace settings" description={ws.workspace.name} className={cn(hasSection && "max-md:hidden")} />
       <div className="flex min-h-0 flex-1 max-md:flex-col">
-        {/* Grouped down the side on desktop; one scrolling row on a phone, where the group names would only take room. */}
-        <nav className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-r px-3 py-3 max-md:w-full max-md:overflow-x-auto max-md:border-r-0 max-md:border-b max-md:py-1.5" aria-label="Settings sections">
+        <PhoneSectionList slug={ws.slug} visible={visible} onAbout={() => setAboutOpen(true)} className={cn("md:hidden", hasSection && "hidden")} />
+        {/* Grouped down the side on desktop. */}
+        <nav className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-r px-3 py-3 max-md:hidden" aria-label="Settings sections">
           <div className="space-y-4 max-md:flex max-md:gap-1 max-md:space-y-0">
             {NAV_GROUPS.map((group) => (
               <div key={group.label} className="max-md:contents">
@@ -167,8 +178,12 @@ export function SettingsPage() {
             ))}
           </div>
         </nav>
-        <div data-settings-content className="scrollbar-thin min-w-0 flex-1 overflow-y-auto px-4 py-5 md:px-10 md:py-8">
+        <div data-settings-content className={cn("scrollbar-thin min-w-0 flex-1 overflow-y-auto px-4 py-5 md:px-10 md:py-8", !hasSection && "max-md:hidden")}>
           <div className={WIDTH_CLASSES[meta.width]}>
+            <Link href={routes.settings(ws.slug)} className="-mt-2 -ml-2 mb-3 inline-flex h-11 items-center gap-0.5 rounded-lg pr-3 pl-1 text-[15px] font-medium text-muted-foreground active:bg-accent/70 md:hidden" data-testid="settings-back">
+              <ChevronLeft className="size-5" aria-hidden />
+              Settings
+            </Link>
             {!meta.bare && <SectionHeader meta={meta} description={meta.description} />}
             {section === "general" && <OverviewSection onGo={go} />}
             {section === "tickets" && <TicketsSection />}
@@ -185,6 +200,63 @@ export function SettingsPage() {
         <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The phone's settings: every section as a row to tap into, in the same
+ * groups as the desktop's side list, with a line on what each one holds.
+ */
+function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string; visible: (s: Section) => boolean; onAbout: () => void; className?: string }) {
+  const row = "flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-accent/70";
+  const icon = (Icon: LucideIcon) => (
+    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card" aria-hidden>
+      <Icon className="size-[18px] text-foreground/80" />
+    </span>
+  );
+  return (
+    <nav className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6", className)} aria-label="Settings sections">
+      {NAV_GROUPS.map((group) => {
+        const sections = group.sections.filter(visible);
+        if (!sections.length && !group.members && !group.about) return null;
+        return (
+          <section key={group.label} className="mt-4 first:mt-1">
+            <h2 className="mb-1.5 px-1 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">{group.label}</h2>
+            <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
+              {sections.map((s) => (
+                <li key={s}>
+                  <Link href={routes.settings(slug, s)} className={row} data-testid={`settings-row-${s}`}>
+                    {icon(SECTION_META[s].icon)}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium">{SECTION_META[s].label}</span>
+                      <span className="block truncate text-[13px] text-muted-foreground">{SECTION_META[s].description}</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden />
+                  </Link>
+                </li>
+              ))}
+              {group.members && (
+                <li>
+                  <Link href={routes.members(slug)} className={row}>
+                    {icon(UserCog)}
+                    <span className="min-w-0 flex-1 text-[15px] font-medium">Members</span>
+                    <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden />
+                  </Link>
+                </li>
+              )}
+              {group.about && (
+                <li>
+                  <button type="button" onClick={onAbout} className={row} data-testid="settings-row-about">
+                    {icon(Info)}
+                    <span className="min-w-0 flex-1 text-[15px] font-medium">About</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+          </section>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -331,7 +403,7 @@ function TeamsSection() {
                 <DynamicIcon name={team.icon} className={cn("size-4", colors.text)} />
               </span>
               <span className="min-w-0 flex-1">
-                <Link href={routes.team(ws.slug, team.id)} className="block truncate font-medium hover:underline">
+                <Link href={routes.team(ws.slug, team.id)} className="relative block truncate font-medium after:absolute after:inset-x-0 after:-inset-y-3 after:content-[''] hover:underline">
                   {team.name}
                 </Link>
                 <span className="text-2xs text-muted-foreground tabular">
@@ -381,13 +453,14 @@ function PermissionsSection() {
     ["Snapshots and the Danger zone", "✓", "✓", "—", "—"],
   ];
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+    // Scrolls inside its own box on the narrowest phones rather than losing a column.
+    <div className="overflow-x-auto overscroll-x-contain rounded-xl border border-border/70 bg-card shadow-xs">
       <table className="w-full text-[13px]">
         <thead className="bg-surface text-left text-2xs text-muted-foreground">
           <tr className="h-9">
-            <th className="px-4 font-medium">Can</th>
+            <th className="px-4 font-medium max-md:px-3">Can</th>
             {["Owner", "Admin", "Member", "Guest"].map((role) => (
-              <th key={role} className="px-3 text-center font-medium">
+              <th key={role} className="px-3 text-center font-medium max-md:px-1.5">
                 {role}
               </th>
             ))}
@@ -396,9 +469,9 @@ function PermissionsSection() {
         <tbody className="divide-y divide-border/60">
           {rows.map(([cap, ...cells]) => (
             <tr key={cap} className="h-10">
-              <td className="px-4">{cap}</td>
+              <td className="px-4 max-md:px-3">{cap}</td>
               {cells.map((c, i) => (
-                <td key={i} className="px-3">
+                <td key={i} className="px-3 max-md:px-1.5">
                   <span className="flex justify-center">
                     <Allowed value={c} />
                   </span>
@@ -424,6 +497,7 @@ function AppearanceSection() {
   const showTeamCounts = useUiStore((s) => s.showTeamCounts);
   const setShowTeamCounts = useUiStore((s) => s.setShowTeamCounts);
   const [theme, setTheme] = useThemePreference();
+  const [appUpdated, setAppUpdated] = useAppUpdatedNoticeSetting();
 
   return (
     <div className="space-y-5">
@@ -456,6 +530,14 @@ function AppearanceSection() {
             Item counts beside teams
           </Label>
           <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
+        </div>
+      </SettingsCard>
+      <SettingsCard title="Updates">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="show-app-updated" className="text-[13px] font-medium">
+            What&apos;s new after an update
+          </Label>
+          <Switch id="show-app-updated" aria-label="What's new after an update" checked={appUpdated} onCheckedChange={setAppUpdated} data-testid="setting-app-updated" />
         </div>
       </SettingsCard>
     </div>

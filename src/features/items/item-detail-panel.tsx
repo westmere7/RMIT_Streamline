@@ -326,7 +326,7 @@ export function ItemDetailPanel({
             {/* Compact, the four tabs are their icons and counts: four words
                 do not fit in 300px beside them. The words stay for anyone
                 reading rather than looking, and as the tooltip. */}
-            <UnderlineTabsList className={cn(panel.size === "compact" ? "justify-between px-2" : "px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain")}>
+            <UnderlineTabsList className={cn(panel.size === "compact" ? "justify-between px-2" : "px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain", "max-md:justify-between max-md:px-1 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1")}>
               <UnderlineTabsTrigger value="overview" title={panel.size === "compact" ? "Overview" : undefined}>
                 <SquarePen className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Overview</span>
               </UnderlineTabsTrigger>

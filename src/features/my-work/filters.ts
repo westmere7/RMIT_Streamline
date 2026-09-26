@@ -44,6 +44,15 @@ export interface MyWorkFilters {
   kind: MyWorkKind;
 }
 
+/** The due-date buckets offered as a filter, in the order the sections run. */
+export const MY_WORK_DUE_BUCKETS: ReadonlyArray<{ id: DateBucket; label: string }> = [
+  { id: "overdue", label: "Overdue" },
+  { id: "today", label: "Today" },
+  { id: "thisWeek", label: "This week" },
+  { id: "later", label: "Later" },
+  { id: "noDate", label: "No date" },
+];
+
 export const EMPTY_MY_WORK_FILTERS: MyWorkFilters = { searchKind: null, search: "", boardIds: [], statuses: [], priorities: [], personIds: [], due: null, kind: "all" };
 
 /** How many filters are narrowing the list, for the badge. The search counts as one when it is in force. */

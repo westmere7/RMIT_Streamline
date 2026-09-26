@@ -189,7 +189,7 @@ export function MobileBoardTools({
       </Sheet>
 
       <Sheet open={open === "columns"} onOpenChange={(next) => !next && close()}>
-        <SheetContent title="Columns" description="Which fields the grid shows. Cards always carry the essentials.">
+        <SheetContent title="Columns" description="Hiding a column hides it for everyone on this board.">
           <MobileColumns />
         </SheetContent>
       </Sheet>
@@ -354,12 +354,15 @@ function MobileFilters() {
   );
 }
 
-/** Which columns the grid shows — the desktop's Hide menu, including the ticket slot. */
+/**
+ * Which columns the board shows — the desktop's Hide menu. Not its ticket
+ * switch: the phone's grid has no ticket slot, so that switch would only
+ * change the desktop table from here.
+ */
 function MobileColumns() {
-  const { model, mutations, canManage, showTicket, setShowTicket } = useBoardContext();
+  const { model, mutations, canManage } = useBoardContext();
   return (
     <div className="pb-2">
-      <Option label="Ticket" checked={showTicket} onChange={() => setShowTicket(!showTicket)} testId="mobile-toggle-ticket" />
       {model.columns.map((column) => (
         <Option
           key={column.id}

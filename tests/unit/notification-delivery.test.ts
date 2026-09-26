@@ -3,7 +3,7 @@ import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS } from "@/data/seed/seed-data";
 import { countUnread, defaultNotificationPreferences, deliveryFor, isBoardMuted, type Notification } from "@/domain";
 import { createServices } from "@/services";
-import { shouldRaiseOsNotification } from "@/lib/browser-notifications";
+import { homeScreenNeeded, shouldRaiseOsNotification } from "@/lib/browser-notifications";
 
 let counter = 0;
 
@@ -178,5 +178,28 @@ describe("raising an operating-system notification", () => {
 
   it("never repeats one it has already shown", () => {
     expect(shouldRaiseOsNotification({ ...base, alreadySeen: true })).toBe(false);
+  });
+});
+
+describe("notifications on an iPhone or iPad", () => {
+  const iPhone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
+  const iPadAsMac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15";
+  const android = "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
+
+  it("asks for the Home Screen in Safari, where notifications are missing", () => {
+    expect(homeScreenNeeded({ userAgent: iPhone, maxTouchPoints: 5, standalone: false, supported: false })).toBe(true);
+    // An iPad asks for the desktop site and says it is a Mac.
+    expect(homeScreenNeeded({ userAgent: iPadAsMac, maxTouchPoints: 5, standalone: false, supported: false })).toBe(true);
+  });
+
+  it("says nothing once added, or where notifications work", () => {
+    expect(homeScreenNeeded({ userAgent: iPhone, maxTouchPoints: 5, standalone: true, supported: false })).toBe(false);
+    expect(homeScreenNeeded({ userAgent: iPhone, maxTouchPoints: 5, standalone: true, supported: true })).toBe(false);
+    expect(homeScreenNeeded({ userAgent: android, maxTouchPoints: 5, standalone: false, supported: true })).toBe(false);
+  });
+
+  it("leaves a real Mac and other browsers without it alone", () => {
+    expect(homeScreenNeeded({ userAgent: iPadAsMac, maxTouchPoints: 0, standalone: false, supported: false })).toBe(false);
+    expect(homeScreenNeeded({ userAgent: android, maxTouchPoints: 5, standalone: false, supported: false })).toBe(false);
   });
 });

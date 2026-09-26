@@ -25,7 +25,23 @@ export function BlockingScreen({ title, detail, done }: { title: string; detail:
     window.addEventListener("keydown", block, true);
     window.addEventListener("beforeunload", stay);
     (document.activeElement as HTMLElement | null)?.blur();
+    // A phone left alone locks its screen and suspends the page, which would
+    // then miss the end of the wait. Where the browser allows it, the screen
+    // stays on until this closes.
+    let wakeLock: WakeLockSentinel | null = null;
+    let closed = false;
+    if ("wakeLock" in navigator) {
+      navigator.wakeLock
+        .request("screen")
+        .then((sentinel) => {
+          if (closed) void sentinel.release();
+          else wakeLock = sentinel;
+        })
+        .catch(() => undefined);
+    }
     return () => {
+      closed = true;
+      void wakeLock?.release();
       window.clearInterval(tick);
       window.removeEventListener("keydown", block, true);
       window.removeEventListener("beforeunload", stay);

@@ -17,6 +17,35 @@ export function browserNotificationsSupported(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
+export interface HomeScreenCheck {
+  userAgent: string;
+  maxTouchPoints: number;
+  /** Opened from the Home Screen, as an app of its own. */
+  standalone: boolean;
+  supported: boolean;
+}
+
+/**
+ * iPhone and iPad give notifications only to a site added to the Home Screen:
+ * in Safari itself `Notification` is simply missing. An iPad asks for the
+ * desktop site and says it is a Mac, so a Mac with a touch screen is one.
+ */
+export function homeScreenNeeded(check: HomeScreenCheck): boolean {
+  if (check.supported || check.standalone) return false;
+  return /iPhone|iPad|iPod/.test(check.userAgent) || (/Macintosh/.test(check.userAgent) && check.maxTouchPoints > 1);
+}
+
+/** `homeScreenNeeded` for this browser. */
+export function needsHomeScreenForNotifications(): boolean {
+  if (typeof window === "undefined") return false;
+  return homeScreenNeeded({
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints ?? 0,
+    standalone: window.matchMedia?.("(display-mode: standalone)").matches === true || (navigator as { standalone?: boolean }).standalone === true,
+    supported: browserNotificationsSupported(),
+  });
+}
+
 export function currentPermission(): BrowserPermission {
   if (!browserNotificationsSupported()) return "unsupported";
   return window.Notification.permission as BrowserPermission;

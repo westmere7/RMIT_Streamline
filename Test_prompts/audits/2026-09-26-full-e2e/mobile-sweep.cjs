@@ -90,6 +90,7 @@ async function measure(page) {
   const settings = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "danger", "documentation"];
   const routes = [
     ["home", "/workspace/rmit"],
+    ["settings", "/workspace/rmit/settings"],
     ["my-work", "/workspace/rmit/my-work"],
     ["inbox", "/workspace/rmit/inbox"],
     ["browse", "/workspace/rmit/browse"],
@@ -129,7 +130,8 @@ async function measure(page) {
     try {
       await page.goto(BASE + boards[0], { waitUntil: "networkidle" });
       await page.waitForTimeout(1500);
-      const card = page.getByTestId("mobile-item-card").first();
+      // By its name: the middle of a card is its row of chips, each opening its own sheet.
+      const card = page.getByTestId("mobile-item-open").first();
       if (await card.count()) {
         await card.click();
         await page.waitForTimeout(1800);
