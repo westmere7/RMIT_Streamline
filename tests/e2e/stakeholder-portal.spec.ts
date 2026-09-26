@@ -182,12 +182,14 @@ test.describe("the stakeholder portal", () => {
     // Closed before it is opened again: a click while it is still closing opens nothing.
     await expect(page.getByRole("menu")).toHaveCount(0);
 
-    // And with nobody selected the same link shows both, each row saying who it
-    // is for.
+    // And with nobody selected the same link shows every department's work.
     await page.getByTestId("portal-stakeholder-picker").click();
     await page.getByTestId("portal-stakeholder-all").click();
     await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Department" })).toBeVisible();
+    await expect(page.getByTestId("portal-stakeholder-name")).toHaveText("All departments");
+    // Only Comm. has work in the window, and a Department column would say
+    // the same word on every row, so there is none until a second one does.
+    await expect(page.getByRole("columnheader", { name: "Department" })).toHaveCount(0);
   });
 
   test("opens on the last three months, and offers the windows either side of it", async ({ page }) => {
