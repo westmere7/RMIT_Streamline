@@ -368,11 +368,14 @@ test.describe("operating-system notifications", () => {
  */
 test.describe("asking a browser that has not answered", () => {
   test.beforeEach(async ({ page }) => {
+    // The answer is kept across page loads, as a browser keeps it: this script
+    // runs again on every navigation.
     await page.addInitScript(() => {
       class FakeNotification {
-        static permission = "default";
+        static permission = sessionStorage.getItem("fake-notification-permission") ?? "default";
         static requestPermission = async () => {
           FakeNotification.permission = "granted";
+          sessionStorage.setItem("fake-notification-permission", "granted");
           return "granted";
         };
         close() {}

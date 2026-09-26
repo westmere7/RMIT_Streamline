@@ -123,12 +123,12 @@ test.describe("asset lines and the recap column", () => {
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3");
     await poster.getByTestId("asset-toggle").click();
 
-    // The board cell follows: 3 posters + 1 tile, one type, one person.
-    await expect(cell).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
+    // The board cell follows: two lines, 3 posters + 1 tile, one person.
+    await expect(cell).toHaveAttribute("aria-label", /2 assets ×4 · 1 PIC/, { timeout: 20_000 });
 
     // Everything survives a reload, and the badge on the tab counts the lines.
     await page.reload();
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /2 assets ×4 · 1 PIC/, { timeout: 20_000 });
     await clickRowButton(row(page, name), `Open ${name}`);
     await expect(panel(page).getByTestId("tab-assets")).toContainText("2");
 
@@ -148,12 +148,12 @@ test.describe("asset lines and the recap column", () => {
     await openLine(page, "Instagram tile");
     await line(page, "Instagram tile").getByTestId("asset-remove").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /3 assets · 1 PIC/, { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /1 asset ×3 · 1 PIC/, { timeout: 20_000 });
 
     // Duplicating carries the details onto a second line: another three posters.
     await rowMenu(page, "A1 poster", "Duplicate");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
-    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /6 assets · 1 PIC/, { timeout: 20_000 });
+    await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /2 assets ×6 · 1 PIC/, { timeout: 20_000 });
   });
 
   test("a viewer sees the deliverables but cannot change them", async ({ page }) => {

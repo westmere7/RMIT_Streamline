@@ -179,6 +179,8 @@ test.describe("the stakeholder portal", () => {
     await page.getByTestId("portal-stakeholder-picker").click();
     await expect(page.getByRole("menuitem", { name: /^Event/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
+    // Closed before it is opened again: a click while it is still closing opens nothing.
+    await expect(page.getByRole("menu")).toHaveCount(0);
 
     // And with nobody selected the same link shows both, each row saying who it
     // is for.

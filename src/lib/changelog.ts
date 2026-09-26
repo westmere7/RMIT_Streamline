@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.51.1",
+    date: "2026-09-26",
+    title: "Publishing the booking form",
+    changes: ["Once a booking form with a new service or question is published, the editor stops saying a draft is waiting and no longer offers to publish it again."],
+  },
+  {
     version: "0.51.0",
     date: "2026-09-26",
     title: "Notifications from the start",

@@ -28,7 +28,7 @@ import {
 } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { bookingFormTemplateSchema } from "@/services/booking";
+import { bookingFormTemplateSchema, normaliseBookingTemplate } from "@/services/booking";
 import { AssetList, AssetTypePicker, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
@@ -147,12 +147,18 @@ export function BookingFormEditor({
   // on screen against what is live says whether there is anything to publish;
   // and what was last saved against what is live says whether a draft is
   // sitting there waiting, which is the one worth offering to throw away.
-  const savedHere = JSON.stringify(draft) === JSON.stringify(saved);
+  // Each compared as it would be stored: a publish hands back the form in the
+  // schema's key order with its defaults filled in, and a form that differs from
+  // what is on screen only in that way is the same form.
+  const draftKey = React.useMemo(() => formKey(draft), [draft]);
+  const savedKey = React.useMemo(() => formKey(saved), [saved]);
+  const liveKey = React.useMemo(() => formKey(live), [live]);
+  const savedHere = draftKey === savedKey;
   // Still in the list: a template deleted since it was loaded has no slot to write back to.
   const template = fromTemplate && templates.some((t) => t.id === fromTemplate.id) ? fromTemplate : null;
-  const templateChanged = !!template && JSON.stringify(draft) !== JSON.stringify(template.template);
-  const matchesLive = JSON.stringify(draft) === JSON.stringify(live);
-  const draftWaiting = JSON.stringify(saved) !== JSON.stringify(live);
+  const templateChanged = !!template && draftKey !== formKey(template.template);
+  const matchesLive = draftKey === liveKey;
+  const draftWaiting = savedKey !== liveKey;
 
   const update = (fn: (t: BookingFormTemplate) => void) =>
     setDraft((prev) => {
@@ -860,4 +866,13 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** A form as it would be stored; one the schema refuses is compared as it stands. */
+function formKey(template: BookingFormTemplate): string {
+  try {
+    return JSON.stringify(normaliseBookingTemplate(template));
+  } catch {
+    return JSON.stringify(template);
+  }
 }
