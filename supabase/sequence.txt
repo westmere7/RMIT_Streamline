@@ -106,3 +106,7 @@ migrations/0076_snapshot_before_wipe.sql
 migrations/0077_board_templates.sql
 policies/0019_board_templates_policies.sql
 migrations/0078_requester_column_type.sql
+migrations/0079_comments_stay_put.sql
+migrations/0080_recurring_receipts.sql
+migrations/0081_rewrite_ticket_prefix_long_numbers.sql
+policies/0020_comments_update_needs_edit_rights.sql

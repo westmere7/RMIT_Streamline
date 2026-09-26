@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0081_rewrite_ticket_prefix_long_numbers.sql     PROPOSED — audit F-107
+-- 0081_rewrite_ticket_prefix_long_numbers.sql     audit F-107, 26 September 2026
 --
 -- A prefix change keeps four-digit ticket numbers whole.
 --
@@ -11,8 +11,8 @@
 --
 -- Same function, same checks, the pad widened to the number's own length.
 --
--- Test on the disposable stack: give a task CP_1234 and one CP_014, rewrite to
--- PROD, and expect PROD_1234 and PROD_014. Then append to sequence.txt.
+-- Checked on a disposable stack before it shipped: CP_1234 and CP_014 came
+-- out of a rewrite to PROD as PROD_1234 and PROD_014.
 -- =============================================================================
 
 create or replace function public.rewrite_ticket_prefix(p_boards uuid[], p_prefix text)

@@ -50,7 +50,15 @@ if (!process.env.SUPABASE_DB_URL) {
 }
 
 const apply = process.argv.includes("--apply");
-const sql = postgres(process.env.SUPABASE_DB_URL, { prepare: false, ssl: "require" });
+/** A database on this machine (a disposable local stack) speaks no TLS; every other one must. */
+function sslFor(url) {
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname) ? false : "require";
+  } catch {
+    return "require";
+  }
+}
+const sql = postgres(process.env.SUPABASE_DB_URL, { prepare: false, ssl: sslFor(process.env.SUPABASE_DB_URL) });
 
 try {
   // Oldest first: the order decides which chain keeps the code.

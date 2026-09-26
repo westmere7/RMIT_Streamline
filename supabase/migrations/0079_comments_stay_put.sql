@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0079_comments_stay_put.sql            PROPOSED — audit F-104 / F-164
+-- 0079_comments_stay_put.sql            audit F-104 / F-164, 26 September 2026
 --
 -- An edit changes what an update says, never where it is.
 --
@@ -15,15 +15,12 @@
 -- Snapshot restore writes with session_replication_role = replica, which skips
 -- this trigger, so a restore still brings back what it saved.
 --
--- The matching policy change is proposed-sql/policies/0020_comments_update_needs_edit_rights.sql.
+-- The matching policy change is policies/0020_comments_update_needs_edit_rights.sql.
 --
--- Before moving this into supabase/migrations (which applies it to production
--- on the next build): apply it on the disposable stack, then check
---   1. editing an update's text still works for its author;
---   2. PATCH /rest/v1/comments?id=eq.<id> {"item_id":"<other>"} as the author
---      is refused with 'An update stays on its task';
---   3. inserting a reply whose parent is on another task is refused.
--- Then append the file name to supabase/sequence.txt.
+-- Checked on a disposable stack before it shipped, through PostgREST with a
+-- member's own JWT: editing an update's text still works; PATCHing its item_id
+-- is refused with 'An update stays on its task'; a reply whose parent is on
+-- another task is refused; a reply on the same task still posts.
 -- =============================================================================
 
 create or replace function public.comments_stay_put()

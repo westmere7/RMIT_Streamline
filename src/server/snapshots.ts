@@ -76,13 +76,21 @@ interface Caller {
   name: string;
 }
 
+/** A database on this machine (a disposable local stack) speaks no TLS; every other one must. */
+function sslFor(url: string): "require" | false {
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname) ? false : "require";
+  } catch {
+    return "require";
+  }
+}
 let client: postgres.Sql | null = null;
 
 function db(): postgres.Sql {
   if (client) return client;
   const url = process.env.SUPABASE_DB_URL?.trim();
   if (!url) throw new HttpError(503, "Snapshots are not configured on this server: set SUPABASE_DB_URL in the deployment's environment variables.");
-  client = postgres(url, { prepare: false, ssl: "require", max: 1, idle_timeout: 20, connect_timeout: 15 });
+  client = postgres(url, { prepare: false, ssl: sslFor(url), max: 1, idle_timeout: 20, connect_timeout: 15 });
   return client;
 }
 

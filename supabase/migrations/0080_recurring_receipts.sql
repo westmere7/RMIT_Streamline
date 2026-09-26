@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0080_recurring_receipts.sql            PROPOSED — audit F-105
+-- 0080_recurring_receipts.sql            audit F-105, 26 September 2026
 --
 -- A recurring rule's receipt names no task, and now it can be written.
 --
@@ -15,9 +15,9 @@
 -- duplicate still raises 23505, which is what claimScheduleFire reads as
 -- "somebody already did this", so the code is unchanged.
 --
--- Test on the disposable stack first: a recurring rule whose atHour is the
--- current Melbourne hour fires once on a runner tick, leaves one receipt, and
--- a second tick in the same hour fires nothing. Then append to sequence.txt.
+-- Checked on a disposable stack before it shipped: a recurring rule at the
+-- current Melbourne hour fired once over two runner ticks and left one receipt
+-- with no task; inserting that receipt again was refused with 23505.
 -- =============================================================================
 
 alter table public.automation_schedule_fires drop constraint if exists automation_schedule_fires_pkey;

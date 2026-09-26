@@ -42,7 +42,15 @@ if (!url) {
   console.error("SUPABASE_DB_URL is not set.");
   process.exit(1);
 }
-const sql = postgres(url, { prepare: false, ssl: "require", max: 1 });
+/** A database on this machine (a disposable local stack) speaks no TLS; every other one must. */
+function sslFor(url: string): "require" | false {
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname) ? false : "require";
+  } catch {
+    return "require";
+  }
+}
+const sql = postgres(url, { prepare: false, ssl: sslFor(url), max: 1 });
 
 /** One line per table: how many rows, and a digest of all of them in a fixed order. */
 async function fingerprints(tx: postgres.Sql | postgres.TransactionSql, tables: string[]): Promise<Map<string, string>> {

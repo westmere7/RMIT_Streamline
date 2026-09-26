@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0020_comments_update_needs_edit_rights.sql      PROPOSED — audit F-104
+-- 0020_comments_update_needs_edit_rights.sql      audit F-104, 26 September 2026
 --
 -- The author may edit their update while they can still comment on its task.
 --
@@ -9,8 +9,8 @@
 -- place. Together with migrations 0079 (which freezes item_id) this closes
 -- moving a comment onto a board the author cannot see.
 --
--- Test on the disposable stack first (see 0079's header), then append to
--- supabase/sequence.txt after 0079.
+-- Checked with 0079 on a disposable stack: an editor who wrote an update can
+-- still edit it.
 -- =============================================================================
 
 drop policy if exists comments_update_author on public.comments;
