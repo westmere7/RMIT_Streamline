@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { resetLocalData, signInAs } from "./helpers";
+import { clickRowButton, resetLocalData, row, signInAs } from "./helpers";
 
 /**
  * The portal end to end, on the local provider.
@@ -19,7 +19,7 @@ import { resetLocalData, signInAs } from "./helpers";
  * service is picked because the built-in form gives it three required
  * questions, which is what makes this exercise the gating between steps.
  */
-async function bookThroughPortal(page: Page, title: string, brief: string): Promise<Page> {
+async function bookThroughPortal(page: Page, title: string, brief: string, departmentName?: string): Promise<Page> {
   // The form opens in a tab of its own; the board stays put behind it.
   const [form] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("portal-book-button").click()]);
   await expect(form.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
@@ -34,7 +34,8 @@ async function bookThroughPortal(page: Page, title: string, brief: string): Prom
   const department = form.getByTestId("booking-department");
   if (!(await department.getAttribute("data-department"))) {
     await department.click();
-    await form.getByRole("option").first().click();
+    const options = form.getByRole("option");
+    await (departmentName ? options.filter({ hasText: departmentName }) : options).first().click();
   }
   // Urgency and a date are required on step one.
   await form.getByTestId("booking-priority").click();
@@ -151,14 +152,16 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
 
     await page.goto(portalPath);
-    await showOnly(page, "Comm.");
+    // A fresh portal has no department with work, so its menu offers none yet:
+    // the first booking picks its department in the form.
     await expect(page.getByTestId("portal-totals")).toContainText("0");
 
-    const form = await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.");
+    const form = await bookThroughPortal(page, "Open Day wayfinding posters", "Six A1 posters for Brunswick, print ready.", "Comm.");
 
     // And the request is on the board straight away, which is what "submitted"
     // means. The board is the workspace's own, so the row is an ordinary one.
     await backToTasks(page, form);
+    await showOnly(page, "Comm.");
     await expect(page.getByRole("button", { name: "Open Day wayfinding posters", exact: true })).toBeVisible();
     await expect(page.getByTestId("portal-totals")).toContainText("1");
   });
@@ -167,13 +170,15 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
 
     await page.goto(portalPath);
-    await showOnly(page, "Comm.");
-    await backToTasks(page, await bookThroughPortal(page, "Comm only request", "Should never appear under Event."));
+    await backToTasks(page, await bookThroughPortal(page, "Comm only request", "Should never appear under Event.", "Comm."));
 
     // Switching the selector is what separates them now, not a second link.
-    await showOnly(page, "Event");
-    await expect(page.getByTestId("portal-totals")).toContainText("0");
-    await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toHaveCount(0);
+    await showOnly(page, "Comm.");
+    await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toBeVisible();
+    // A department with no work here is not offered, so Event is not on the list.
+    await page.getByTestId("portal-stakeholder-picker").click();
+    await expect(page.getByRole("menuitem", { name: /^Event/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     // And with nobody selected the same link shows both, each row saying who it
     // is for.
@@ -206,8 +211,8 @@ test.describe("the stakeholder portal", () => {
   test("searches past the window it is showing", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
+    await backToTasks(page, await bookThroughPortal(page, "Findable by search", "A request to look for.", "Comm."));
     await showOnly(page, "Comm.");
-    await backToTasks(page, await bookThroughPortal(page, "Findable by search", "A request to look for."));
 
     // A search is not a question about a date, so the window steps aside and
     // says that it has.
@@ -427,7 +432,7 @@ test.describe("the stakeholder portal", () => {
       }
     });
     await page.goto(portalPath);
-    await page.getByRole("button", { name: "Open Read only please" }).click();
+    await clickRowButton(row(page, "Read only please"), "Open Read only please");
     await expect(page.getByTestId("item-panel")).toBeVisible();
 
     // Nothing on the panel or the board writes: the repositories behind this

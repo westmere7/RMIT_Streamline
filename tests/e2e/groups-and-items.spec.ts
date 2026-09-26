@@ -124,6 +124,8 @@ test.describe("groups, items and subitems", () => {
 
     await clickRowButton(copy, /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
+    // Archiving asks first.
+    await page.getByRole("alertdialog").getByRole("button", { name: "Archive" }).click();
     await expect(copy).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(copy).toHaveCount(0);
@@ -180,7 +182,7 @@ test.describe("groups, items and subitems", () => {
 
   test("an item deep link opens the detail panel and survives a reload", async ({ page }) => {
     const item = row(page, "RMITinerary Explorer");
-    await item.getByRole("button", { name: /Open RMITinerary Explorer/ }).click();
+    await clickRowButton(item, /Open RMITinerary Explorer/);
     await expect(page.getByTestId("item-panel")).toContainText("RMITinerary Explorer");
     await expect(page).toHaveURL(/item=/);
     const url = page.url();

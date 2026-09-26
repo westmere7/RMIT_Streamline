@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 /** Read the workspace as someone else: the same question as signing in as them, without their password. */
 async function switchTo(page: Page, name: string) {
@@ -105,7 +105,7 @@ test.describe("permissions", () => {
 
   test("an editor can edit but only the author can edit their own update", async ({ page }) => {
     await openBoard(page);
-    await row(page, "RMITinerary Explorer").getByRole("button", { name: /Open RMITinerary Explorer/ }).click();
+    await clickRowButton(row(page, "RMITinerary Explorer"), /Open RMITinerary Explorer/);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     await page.getByTestId("comment-input").fill("Owner note");
     await page.getByTestId("comment-submit").click();
@@ -114,7 +114,7 @@ test.describe("permissions", () => {
     // Tuyet is an editor on this board: she can post, but not touch Danh's update.
     await switchTo(page, "Tuyet Le");
     await openBoard(page);
-    await row(page, "RMITinerary Explorer").getByRole("button", { name: /Open RMITinerary Explorer/ }).click();
+    await clickRowButton(row(page, "RMITinerary Explorer"), /Open RMITinerary Explorer/);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     const danhs = page.getByTestId("comment").filter({ hasText: "Owner note" }).first();
     await expect(danhs).toBeVisible({ timeout: 15000 });
@@ -133,7 +133,7 @@ test.describe("reading the workspace as someone else", () => {
   test("an admin sees what a member sees, and comes back to their own view", async ({ page }) => {
     await signInAs(page, "Danh");
     // The built-in Admin team is for admins alone, so it is the tell.
-    const adminTeam = page.getByTestId("sidebar").getByRole("link", { name: "Admin", exact: true });
+    const adminTeam = page.getByTestId("sidebar-admin");
     await expect(adminTeam).toBeVisible({ timeout: 20000 });
 
     await switchTo(page, "Jun Tanaka");

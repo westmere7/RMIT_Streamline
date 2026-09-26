@@ -78,6 +78,8 @@ test.describe("data integrity under stress", () => {
     await openBoard(page);
     await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
+    // Archiving asks first.
+    await page.getByRole("alertdialog").getByRole("button", { name: "Archive" }).click();
     await expect(row(page, ITEM)).toHaveCount(0, { timeout: 15000 });
 
     await page.getByTestId("search-input").fill("Explorer");

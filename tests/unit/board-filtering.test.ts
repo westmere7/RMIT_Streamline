@@ -59,6 +59,14 @@ describe("filterItems", () => {
     expect(filterItems(coded, "CP_075", EMPTY_FILTERS, ctx)).toEqual([]);
   });
 
+  it("never treats a query without a digit as a ticket", () => {
+    const coded = items.map((it, i) => ({ ...it, ticket: `CP_07${i}` }));
+    // "c" and "cp" are in every ticket; "(*)" is nothing once the separators go.
+    expect(filterItems(coded, "cp", EMPTY_FILTERS, ctx)).toEqual([]);
+    expect(filterItems(coded, "(*)", EMPTY_FILTERS, ctx)).toEqual([]);
+    expect(filterItems(coded, "c", EMPTY_FILTERS, ctx).map((i) => i.id)).toEqual(["c"]);
+  });
+
   it("filters by any assigned person", () => {
     expect(filterItems(items, "", { ...EMPTY_FILTERS, personIds: ["danh"] }, ctx).map((i) => i.id)).toEqual(["a", "b"]);
     expect(filterItems(items, "", { ...EMPTY_FILTERS, personIds: ["jun", "emily"] }, ctx).map((i) => i.id)).toEqual(["b", "d"]);

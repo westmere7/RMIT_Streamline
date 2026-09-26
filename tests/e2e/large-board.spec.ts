@@ -1,11 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
-import { resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, resetLocalData, row, signInAs } from "./helpers";
 
 /**
  * A board far bigger than the seed: 8 groups, 300 items, 12 columns with a value
  * on every cell. Built straight into IndexedDB so the fixture costs a second
  * rather than ten minutes of clicking.
  */
+/** How many tasks the board shows, from the group headers: only the rows in view are rendered. */
+async function shownCount(page: Page): Promise<number> {
+  const counts = await page.getByTestId("board-table").getByText(/^\d+ items?$/).allInnerTexts();
+  return counts.reduce((sum, count) => sum + Number.parseInt(count, 10), 0);
+}
+
 async function buildLargeBoard(page: Page) {
   return page.evaluate(async () => {
     const open = indexedDB.open("rmit-streamline");
@@ -163,7 +169,7 @@ test.describe("a board far bigger than the seed", () => {
     await expect(page.getByTestId("item-row").first()).toBeVisible({ timeout: 60_000 });
     const firstRow = Date.now() - openedAt;
 
-    await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 60_000 }).toBe(300);
+    await expect.poll(() => shownCount(page), { timeout: 60_000 }).toBe(300);
     const allRows = Date.now() - openedAt;
 
     // 2. Typing into a cell.
@@ -186,26 +192,24 @@ test.describe("a board far bigger than the seed", () => {
     // 4. Filtering.
     const filterAt = Date.now();
     await page.getByTestId("search-input").fill("item 02");
-    await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBeLessThan(300);
+    await expect.poll(() => shownCount(page), { timeout: 30_000 }).toBeLessThan(300);
     const filtering = Date.now() - filterAt;
     await page.getByTestId("search-input").fill("");
-    await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBe(300);
+    await expect.poll(() => shownCount(page), { timeout: 30_000 }).toBe(300);
 
     // 5. Opening the detail panel. The first open also compiles the panel's
     // chunk in dev, so the second one is the number that reflects the app.
     // Let the refetch from the edits above settle first, or its cost lands here.
     await page.waitForTimeout(1500);
     const firstPanelAt = Date.now();
-    await target.getByRole("button", { name: /^Open Stress item 001/ }).click();
+    await clickRowButton(target, /^Open Stress item 001/);
     await expect(page.getByTestId("item-panel")).toBeVisible({ timeout: 30_000 });
     const firstPanel = Date.now() - firstPanelAt;
     await page.getByTestId("close-panel").click();
     await expect(page.getByTestId("item-panel")).toHaveCount(0);
 
     const panelAt = Date.now();
-    await row(page, "Stress item 002 — a realistically long task name for wrapping")
-      .getByRole("button", { name: /^Open Stress item 002/ })
-      .click();
+    await clickRowButton(row(page, "Stress item 002 — a realistically long task name for wrapping"), /^Open Stress item 002/);
     await expect(page.getByTestId("item-panel")).toBeVisible();
     const panel = Date.now() - panelAt;
     await page.getByTestId("close-panel").click();

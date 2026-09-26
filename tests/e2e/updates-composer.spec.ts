@@ -204,7 +204,8 @@ test.describe("writing an update", () => {
     await page.getByTestId("comment-submit").click();
     const posted = page.getByTestId("comment").first();
     await expect(posted).toContainText("[click](javascript:alert(1))", { timeout: 15000 });
-    await expect(posted.getByRole("link")).toHaveCount(0);
+    await expect(posted.getByRole("link", { name: "click" })).toHaveCount(0);
+    await expect(posted.locator('a[href^="javascript:"]')).toHaveCount(0);
   });
 });
 

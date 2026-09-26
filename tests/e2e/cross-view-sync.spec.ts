@@ -111,6 +111,8 @@ test.describe("changes reaching every view", () => {
     await openBoard(page);
     await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
+    // Archiving asks first.
+    await page.getByRole("alertdialog").getByRole("button", { name: "Archive" }).click();
     await expect(row(page, ITEM)).toHaveCount(0, { timeout: 15000 });
     await page.goto("/workspace/rmit/my-work");
     await expect(page.getByRole("heading", { name: "My Work" })).toBeVisible({ timeout: 15000 });
@@ -151,9 +153,9 @@ test.describe("changes reaching every view", () => {
     await expect(page.getByTestId("comment").first()).toContainText("Edited update", { timeout: 15000 });
 
     // Delete it.
+    // Two taps where the bin was: the bin, then the "Delete?" badge that takes its place.
     await page.getByTestId("comment").first().getByRole("button", { name: "Delete update" }).click();
-    const confirm = page.getByRole("alertdialog");
-    if (await confirm.isVisible().catch(() => false)) await confirm.getByRole("button", { name: /delete/i }).click();
+    await page.getByTestId("comment").first().getByTestId("comment-delete-confirm").click();
     await expect(page.getByTestId("comment")).toHaveCount(1, { timeout: 15000 });
     await page.reload();
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();

@@ -88,9 +88,9 @@ test.describe("asset lines and the recap column", () => {
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3", { timeout: 20_000 });
 
     await poster.getByTestId("asset-type").click();
-    await page.getByTestId("asset-type-option-Print").click();
+    await page.getByTestId("asset-type-option-Flyer (1 - 2 Pages)").click();
     await page.keyboard.press("Escape");
-    await expect(poster.getByTestId("asset-type")).toHaveAttribute("aria-label", "Asset type: Print", { timeout: 20_000 });
+    await expect(poster.getByTestId("asset-type")).toHaveAttribute("aria-label", "Asset type: Flyer (1 - 2 Pages)", { timeout: 20_000 });
     // Escape closed the picker, not the panel.
     await expect(panel(page)).toBeVisible();
 
@@ -110,7 +110,7 @@ test.describe("asset lines and the recap column", () => {
     await expect(panel(page).getByTestId("assets-quantity")).toContainText("2 assets");
     await poster.getByTestId("asset-update").click();
     await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Print");
+    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Flyer");
     await expect(panel(page).getByTestId("assets-people")).toHaveAttribute("aria-label", /Tuyet Le/);
     await expect(panel(page).getByTestId("assets-due")).toContainText(/Next due/);
 
@@ -140,7 +140,7 @@ test.describe("asset lines and the recap column", () => {
     await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "true", { timeout: 20_000 });
     await expect(panel(page).getByTestId("assets-progress")).toContainText("1 of 2 items done");
     await line(page, "A1 poster").getByTestId("asset-toggle").click();
-    await expect(line(page, "A1 poster").getByTestId("asset-summary")).toContainText("Print");
+    await expect(line(page, "A1 poster").getByTestId("asset-summary")).toContainText("Flyer");
     await line(page, "A1 poster").getByTestId("asset-done").click();
     await expect(line(page, "A1 poster")).toHaveAttribute("data-asset-done", "false", { timeout: 20_000 });
 

@@ -147,24 +147,27 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
     // Selection does not survive navigation.
     await expect(page.getByTestId("bulk-actions")).toHaveCount(0);
 
-    // Select two in Backlog and archive them.
+    // Select two in Backlog and archive them. A long group renders only the
+    // rows in view, so the rows are followed by name rather than counted.
     const backlogRows = page.getByTestId("group-Backlog").getByTestId("item-row");
     await expect(backlogRows.first()).toBeVisible({ timeout: 15000 });
-    const before = await backlogRows.count();
+    const archived = [(await backlogRows.nth(0).getAttribute("data-item-name"))!, (await backlogRows.nth(1).getAttribute("data-item-name"))!];
     await backlogRows.nth(0).getByRole("checkbox").click();
     await backlogRows.nth(1).getByRole("checkbox").click();
     await expect(page.getByTestId("bulk-actions")).toContainText("2");
     await page.getByTestId("bulk-actions").getByRole("button", { name: /archive/i }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /archive/i }).click();
-    await expect(backlogRows).toHaveCount(before - 2, { timeout: 15000 });
+    for (const name of archived) await expect(row(page, name)).toHaveCount(0, { timeout: 15000 });
 
     // And delete one.
+    const deleted = (await backlogRows.nth(0).getAttribute("data-item-name"))!;
     await backlogRows.nth(0).getByRole("checkbox").click();
     await page.getByTestId("bulk-actions").getByRole("button", { name: /delete/i }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
-    await expect(backlogRows).toHaveCount(before - 3, { timeout: 15000 });
+    await expect(row(page, deleted)).toHaveCount(0, { timeout: 15000 });
     await page.reload();
-    await expect(page.getByTestId("group-Backlog").getByTestId("item-row")).toHaveCount(before - 3, { timeout: 15000 });
+    await expect(backlogRows.first()).toBeVisible({ timeout: 15000 });
+    for (const name of [...archived, deleted]) await expect(row(page, name)).toHaveCount(0);
   });
 
   test("dragging a row within a group changes the stored order", async ({ page }) => {

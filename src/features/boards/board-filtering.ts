@@ -44,12 +44,16 @@ export function primaryDueDate(itemId: string, columns: BoardColumn[], getValue:
  * conversation quotes — so typing "CP_014" has to find the task, and so does
  * "cp14", "cp-14" and "14". Nobody remembers a separator, and nobody types the
  * padding. See `ticketSearchKey`.
+ *
+ * A query with no digit in it is never a ticket, as in the palette. Every task
+ * has one, so "c" matched them all, and "(*)" — nothing left once the
+ * separators go — matched every ticket there is.
  */
 export function matchesSearch(item: Item, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
   if (item.name.toLowerCase().includes(q)) return true;
-  if (!item.ticket) return false;
+  if (!item.ticket || !/\d/.test(q)) return false;
   return item.ticket.toLowerCase().includes(q) || ticketSearchKey(item.ticket).includes(ticketSearchKey(q));
 }
 

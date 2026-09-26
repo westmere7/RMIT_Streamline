@@ -237,6 +237,10 @@ test.describe("operating-system notifications", () => {
   });
 
   const raised = (page: Page) => page.evaluate(() => (window as unknown as { __osNotifications: Array<{ title: string; body?: string }> }).__osNotifications);
+  // The inbox polls only every two minutes; coming back into view re-reads it,
+  // once its last read is ten seconds old. A row written straight into the
+  // database arrives that way.
+  const backInView = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
 
   test("the settings screen turns them on and can send a test", async ({ page }) => {
     await openSettings(page);
@@ -287,9 +291,15 @@ test.describe("operating-system notifications", () => {
       db.close();
     });
 
-    // The inbox polls; when it sees them, the loud one is announced.
+    // The inbox re-reads; when it sees them, the loud one is announced.
     await expect
-      .poll(async () => (await raised(page)).map((n) => n.title), { timeout: 90_000, intervals: [1000] })
+      .poll(
+        async () => {
+          await backInView(page);
+          return (await raised(page)).map((n) => n.title);
+        },
+        { timeout: 90_000, intervals: [1000] },
+      )
       .toContain("Emily mentioned you in the incoming test");
     expect((await raised(page)).map((n) => n.title)).not.toContain("A quiet update that must stay quiet");
 
@@ -331,8 +341,16 @@ test.describe("operating-system notifications", () => {
       db.close();
     });
 
-    // The poll brings it into the inbox — and the operating system is never asked.
-    await expect(page.getByTestId("notification-row").filter({ hasText: "Should not reach the operating system" })).toBeVisible({ timeout: 90_000 });
+    // The re-read brings it into the inbox — and the operating system is never asked.
+    await expect
+      .poll(
+        async () => {
+          await backInView(page);
+          return page.getByTestId("notification-row").filter({ hasText: "Should not reach the operating system" }).count();
+        },
+        { timeout: 90_000, intervals: [1000] },
+      )
+      .toBe(1);
     expect(await raised(page)).toEqual([]);
   });
 });

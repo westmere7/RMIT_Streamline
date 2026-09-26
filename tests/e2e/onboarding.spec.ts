@@ -29,7 +29,8 @@ test.describe("member onboarding", () => {
   test("pending members are listed, cannot sign in, and are kept out of pickers", async ({ page }) => {
     // Not offered as an account and refused when typed.
     await page.goto("/login");
-    await expect(page.getByTestId("login-danh")).toBeVisible();
+    // The accounts are listed once the local seed is in.
+    await expect(page.getByTestId("login-danh")).toBeVisible({ timeout: 20000 });
     await expect(page.getByTestId("login-anh")).toHaveCount(0);
     await page.getByLabel(/email/i).fill("anh@rmit.local");
     await page.getByRole("button", { name: /continue/i }).click();

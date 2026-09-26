@@ -53,8 +53,8 @@ test.describe("on a phone", () => {
     await expect(posted).toBeVisible({ timeout: 15_000 });
 
     // Nothing to hover over on a phone: the controls are simply there.
-    expect(await shownOpacity(page, "comment-delete", posted)).toBe(1);
-    expect(await shownOpacity(page, "comment-reaction-add", posted)).toBe(1);
+    await expect.poll(() => shownOpacity(page, "comment-delete", posted)).toBe(1);
+    await expect.poll(() => shownOpacity(page, "comment-reaction-add", posted)).toBe(1);
 
     await posted.getByRole("button", { name: "Edit update" }).click();
     await page.getByTestId("comment-edit-input").fill("Checked on the phone, then edited");

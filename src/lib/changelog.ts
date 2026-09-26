@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.50.1",
+    date: "2026-09-26",
+    title: "Board search",
+    changes: ["Searching a board for a letter or two, or for punctuation alone, no longer lists every task with a ticket."],
+  },
+  {
     version: "0.50.0",
     date: "2026-09-26",
     title: "Streamline on a phone",
