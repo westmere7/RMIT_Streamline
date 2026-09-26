@@ -239,8 +239,14 @@ test.describe("operating-system notifications", () => {
   const raised = (page: Page) => page.evaluate(() => (window as unknown as { __osNotifications: Array<{ title: string; body?: string }> }).__osNotifications);
   // The inbox polls only every two minutes; coming back into view re-reads it,
   // once its last read is ten seconds old. A row written straight into the
-  // database arrives that way.
-  const backInView = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+  // database arrives that way. The page is visible for that one moment, then
+  // hidden again, which is when a notification is worth raising.
+  const backInView = (page: Page) =>
+    page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+      window.dispatchEvent(new Event("visibilitychange"));
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    });
 
   test("the settings screen turns them on and can send a test", async ({ page }) => {
     await openSettings(page);
@@ -352,5 +358,48 @@ test.describe("operating-system notifications", () => {
       )
       .toBe(1);
     expect(await raised(page)).toEqual([]);
+  });
+});
+
+/**
+ * A browser that has never been asked. Browsers put up their permission prompt
+ * only for a tap, so Home offers a card; `window.Notification` is replaced so
+ * the test can answer the prompt.
+ */
+test.describe("asking a browser that has not answered", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      class FakeNotification {
+        static permission = "default";
+        static requestPermission = async () => {
+          FakeNotification.permission = "granted";
+          return "granted";
+        };
+        close() {}
+      }
+      Object.defineProperty(window, "Notification", { configurable: true, writable: true, value: FakeNotification });
+    });
+    await resetLocalData(page);
+    await signInAs(page, "Danh");
+  });
+
+  test("Home offers to turn them on, and allowing switches the setting on too", async ({ page }) => {
+    const prompt = page.getByTestId("notification-prompt");
+    await expect(prompt).toBeVisible({ timeout: 15_000 });
+    await prompt.getByTestId("notification-prompt-allow").click();
+    await expect(prompt).toHaveCount(0);
+    await openSettings(page);
+    await expect(page.getByTestId("browser-notifications-toggle")).toHaveAttribute("aria-checked", "true", { timeout: 20_000 });
+  });
+
+  test("Not now puts it away for this browser", async ({ page }) => {
+    const prompt = page.getByTestId("notification-prompt");
+    await expect(prompt).toBeVisible({ timeout: 15_000 });
+    await prompt.getByTestId("notification-prompt-later").click();
+    await expect(prompt).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1000);
+    await expect(page.getByTestId("notification-prompt")).toHaveCount(0);
   });
 });

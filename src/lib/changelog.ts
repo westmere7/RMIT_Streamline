@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.51.0",
+    date: "2026-09-26",
+    title: "Notifications from the start",
+    changes: ["In a browser that has not been asked yet, Home offers to turn notifications on. Allowing them also switches on your notification setting."],
+  },
+  {
     version: "0.50.1",
     date: "2026-09-26",
     title: "Board search",

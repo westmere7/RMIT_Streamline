@@ -21,6 +21,7 @@ import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { NotificationPrompt } from "@/features/notifications/notification-prompt";
 
 function greeting(now: Date): string {
   const h = now.getHours();
@@ -73,6 +74,7 @@ export function HomeMobile() {
           {greeting(now)}, {ws.currentUser.firstName}
         </h1>
         <p className="text-[13px] text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+        <NotificationPrompt className="mt-4" />
 
         {/* What the day looks like, before anything else — and nothing at all
             until it is known. Three noughts that turn into "4 overdue" a second

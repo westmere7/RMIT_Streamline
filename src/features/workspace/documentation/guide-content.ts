@@ -566,7 +566,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Mute a board", "Stops its events reaching you; your access does not change."],
       ] } },
       { title: "Browser notifications", steps: [
-        "In Notification settings, switch on Notifications on this device and allow them when the browser asks.",
+        "In Notification settings, switch on Notifications on this device and allow them when the browser asks. A browser that has not been asked yet offers the same from a card on Home.",
         "Send a test. If it does not appear, allow notifications for the site in the browser.",
         "Keep a Streamline tab open; closing it stops browser notifications.",
       ] },

@@ -28,6 +28,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
 import { sectionFor } from "@/services/my-work-service";
+import { NotificationPrompt } from "@/features/notifications/notification-prompt";
 
 function greeting(now: Date): string {
   const h = now.getHours();
@@ -87,6 +88,7 @@ function HomeDesktop() {
           </div>
           <p className="text-[13px] text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
         </header>
+        <NotificationPrompt className="mb-6" />
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-8">
