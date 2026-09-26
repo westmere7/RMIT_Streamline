@@ -80,8 +80,11 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>, service = "d
 /**
  * The booking wizard as a stakeholder meets it: four steps, a bar that says
  * where they are, and questions that change with the kind of work they picked.
+ *
+ * Each case walks a whole form, up to three seconds alone and past the default
+ * five with the rest of the suite running beside it (F-122).
  */
-describe("the booking wizard", () => {
+describe("the booking wizard", { timeout: 15_000 }, () => {
   it("shows one segment per step and starts on the first", () => {
     renderWizard();
     const bar = screen.getByTestId("booking-progress");

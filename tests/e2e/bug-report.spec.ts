@@ -20,8 +20,9 @@ test.describe("reporting a bug", () => {
     await resetLocalData(page);
   });
 
-  test("a member reports one from their menu, and it lands in Bugs on a board only Danh has", async ({ page }) => {
-    await signInAs(page, "Emily");
+  test("a member reports one from their menu, and it lands in Bugs on a board only Danh belongs to", async ({ page }) => {
+    // Jun is a member. Workspace admins see every board that is not the app's own, this one included.
+    await signInAs(page, "Jun");
     await page.getByTestId("user-menu").click();
     await page.getByTestId("menu-report-bug").click();
     const dialog = page.getByTestId("bug-report-dialog");
@@ -42,7 +43,7 @@ test.describe("reporting a bug", () => {
     await expect(dialog).toHaveCount(0);
     await expect(page.getByText("Bug reported. Thank you.")).toBeVisible();
 
-    // Emily is not on the board.
+    // Jun is not on the board.
     await expect(page.getByRole("link", { name: "App development" })).toHaveCount(0);
 
     await switchAccount(page, "Danh");
