@@ -1136,7 +1136,8 @@ export class StakeholderPortalService {
    * once per department.
    */
   private async labelledItemIds(workspaceId: EntityId): Promise<Map<string, EntityId[]>> {
-    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((board) => board.archivedAt === null);
+    // Never the App development board: a bug report is nobody's request.
+    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((board) => board.archivedAt === null && board.system !== "APP_DEVELOPMENT");
     // Every board's columns at once. Sequentially this was the larger half of
     // the wait, and one board's columns do not depend on another's.
     const columns = (await Promise.all(boards.map((board) => this.repos.boards.listColumns(board.id)))).flat();

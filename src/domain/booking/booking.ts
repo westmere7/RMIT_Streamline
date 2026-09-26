@@ -17,9 +17,20 @@ import type { BookingAnswer, BookingFormTemplate } from "./booking-template";
 export const TEAM_SYSTEM_KINDS = ["ADMIN"] as const;
 export type TeamSystemKind = (typeof TEAM_SYSTEM_KINDS)[number];
 
-/** A board the app created itself. It can be renamed but never removed. */
-export const BOARD_SYSTEM_KINDS = ["TASK_ALLOCATION"] as const;
+/**
+ * A board the app created itself. It can be renamed but never removed.
+ *
+ * TASK_ALLOCATION is where bookings arrive, and is for workspace admins.
+ * APP_DEVELOPMENT is where bug reports arrive, and is for its members alone:
+ * being a workspace admin does not open it (see `boardRoleFor`).
+ */
+export const BOARD_SYSTEM_KINDS = ["TASK_ALLOCATION", "APP_DEVELOPMENT"] as const;
 export type BoardSystemKind = (typeof BOARD_SYSTEM_KINDS)[number];
+
+/** A built-in board only its owner and members may open, workspace admins included. */
+export function isMembersOnlyBoard(board: { system?: BoardSystemKind | null }): boolean {
+  return board.system === "APP_DEVELOPMENT";
+}
 
 /**
  * The kinds of asset the team produces; the palette of the "Asset type" column.

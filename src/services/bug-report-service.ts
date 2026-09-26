@@ -81,6 +81,17 @@ export class BugReportService {
     return { itemId: item.id, itemName: item.name };
   }
 
+  /**
+   * Makes the board as soon as its keeper opens the workspace, so it is there
+   * before the first report, the way Task Allocation is there for admins. Does
+   * nothing for anybody else, or once the board exists.
+   */
+  async ensureForKeeper(workspaceId: EntityId, userId: EntityId): Promise<Board | null> {
+    const members = await this.repos.workspaces.listMembers(workspaceId);
+    if ((await this.keeperOf(workspaceId, members)) !== userId) return null;
+    return this.ensureBoard(workspaceId, userId);
+  }
+
   /** The person who looks after the app, by email; the workspace owner where nobody has that address. */
   private async keeperOf(workspaceId: EntityId, members: readonly WorkspaceMember[]): Promise<EntityId> {
     const user = await this.repos.users.getByEmail(BUG_BOARD_OWNER_EMAIL);
@@ -90,30 +101,52 @@ export class BugReportService {
     return owner.userId;
   }
 
-  /** The board the workspace remembers, while it is still there; otherwise a new one, remembered. */
+  /**
+   * The workspace's App development board, found by its built-in kind.
+   *
+   * A board made before the kind existed (v0.52.0) is the one `bugBoardId`
+   * names, and is adopted rather than doubled. Otherwise one is made. Built in,
+   * it cannot be archived or deleted from the app, so that is the first report,
+   * or a board somebody removed from the database by hand.
+   */
   private async ensureBoard(workspaceId: EntityId, keeperId: EntityId): Promise<Board> {
     const workspace = await this.repos.workspaces.getById(workspaceId);
     if (!workspace) throw new NotFoundError("Workspace", workspaceId);
-    const known = workspace.bugBoardId ? await this.repos.boards.getById(workspace.bugBoardId) : null;
-    if (known && known.workspaceId === workspaceId && !known.archivedAt) return known;
+    const boards = await this.repos.boards.listByWorkspace(workspaceId);
+    const builtIn = boards.find((b) => b.system === "APP_DEVELOPMENT");
+    if (builtIn) return builtIn.archivedAt ? this.repos.boards.update(builtIn.id, { archivedAt: null }) : builtIn;
+    const earlier = workspace.bugBoardId ? boards.find((b) => b.id === workspace.bugBoardId && !b.archivedAt && !b.system) : undefined;
+    if (earlier) return this.repos.boards.update(earlier.id, { system: "APP_DEVELOPMENT" });
 
     const columns = bugBoardColumns();
     // The special columns every board holds, which a bug has no use for, arrive hidden rather than left for the board to add in plain view.
     const extras = SPECIAL_BOARD_COLUMN_TYPES.filter((type) => !columns.some((c) => c.type === type)).map((type) => ({ name: COLUMN_TYPE_LABELS[type], type, hidden: true }));
-    const { board } = await this.boards.createBoard(
-      { workspaceId, name: BUG_BOARD.name, description: BUG_BOARD.description, teamId: null, visibility: "PRIVATE", templateId: "blank", color: BUG_BOARD.color, icon: BUG_BOARD.icon },
-      keeperId,
-      {
-        version: 1,
-        parts: ["groups", "columnSettings", "layout"],
-        board: null,
-        groups: [{ key: "bugs", name: BUG_GROUP.name, color: BUG_GROUP.color }],
-        columns: [...columns, ...extras].map((column, index) => ({ ...column, key: `c${index}` })),
-        automations: [],
-        tasks: [],
-      },
-    );
-    await this.repos.workspaces.update(workspaceId, { bugBoardId: board.id });
+    let board: Board;
+    try {
+      ({ board } = await this.boards.createBoard(
+        { workspaceId, name: BUG_BOARD.name, description: BUG_BOARD.description, teamId: null, visibility: "PRIVATE", templateId: "blank", color: BUG_BOARD.color, icon: BUG_BOARD.icon, system: "APP_DEVELOPMENT" },
+        keeperId,
+        {
+          version: 1,
+          parts: ["groups", "columnSettings", "layout"],
+          board: null,
+          groups: [{ key: "bugs", name: BUG_GROUP.name, color: BUG_GROUP.color }],
+          columns: [...columns, ...extras].map((column, index) => ({ ...column, key: `c${index}` })),
+          automations: [],
+          tasks: [],
+        },
+      ));
+    } catch (error) {
+      // Two first reports at once: the database lets one board of the kind
+      // through (boards_one_system_per_workspace), and the other uses it.
+      const made = (await this.repos.boards.listByWorkspace(workspaceId)).find((b) => b.system === "APP_DEVELOPMENT");
+      if (made) return made;
+      throw error;
+    }
+    // The pointer beside the kind. Writing the workspace row takes an admin, and
+    // the keeper made the board in their own session may not be one: the kind is
+    // what the board is found by, so the pointer can wait.
+    await this.repos.workspaces.update(workspaceId, { bugBoardId: board.id }).catch(() => undefined);
     return board;
   }
 

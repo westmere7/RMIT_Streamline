@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.52.2",
+    date: "2026-09-26",
+    title: "The App development board",
+    changes: [
+      "App development is built in: it is there as soon as the person who looks after the app opens the workspace, and it cannot be archived, moved or deleted.",
+      "Only the board's own members see it. Being a workspace admin no longer opens it.",
+      "The activity feed only shows what happened on boards you can open.",
+    ],
+  },
+  {
     version: "0.52.1",
     date: "2026-09-26",
     title: "Status in the task panel",

@@ -37,6 +37,8 @@ export interface CreateBoardInput {
   templateId: BoardTemplateId;
   color?: ColorToken;
   icon?: string;
+  /** Only the app sets this, for a board it builds itself (App development). */
+  system?: Board["system"];
 }
 
 export interface BoardBundle {
@@ -92,6 +94,7 @@ export class BoardService {
       ownerId: actorId,
       color: input.color ?? "blue",
       icon: input.icon ?? "square-kanban",
+      ...(input.system ? { system: input.system } : {}),
     };
     const board = await this.repos.boards.create(boardInput);
     await this.repos.boards.setMember(board.id, actorId, "OWNER");
@@ -171,7 +174,7 @@ export class BoardService {
   ): Promise<Board> {
     if (patch.teamId !== undefined || patch.visibility !== undefined) {
       const current = await this.repos.boards.getById(boardId);
-      if (current?.system) throw new Error(`${current.name} is built in: it stays with its team and visible to admins only.`);
+      if (current?.system) throw new Error(`${current.name} is built in: where it sits and who can see it stay as they are.`);
     }
     const before = await this.getBoard(boardId);
     const next: typeof patch = { ...patch };
@@ -226,7 +229,7 @@ export class BoardService {
     await this.repos.boards.delete(boardId);
   }
 
-  /** Built-in boards (Task Allocation) can be renamed and recoloured, nothing more drastic. */
+  /** Built-in boards (Task Allocation, App development) can be renamed and recoloured, nothing more drastic. */
   private async assertNotSystem(boardId: EntityId, action: string): Promise<void> {
     const board = await this.repos.boards.getById(boardId);
     if (board?.system) throw new Error(`${board.name} is built in and cannot be ${action}. You can rename it instead.`);

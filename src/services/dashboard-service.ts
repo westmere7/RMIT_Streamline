@@ -110,7 +110,8 @@ export class DashboardService {
  * independent, so they all go at once.
  */
 export async function loadDashboardSnapshot(repos: Repositories, workspaceId: EntityId, boards: Board[]): Promise<DashboardSnapshot> {
-  const active = boards.filter((b) => b.workspaceId === workspaceId && b.archivedAt === null);
+  // Bug reports are not the team's output, and the App development board is its members' alone.
+  const active = boards.filter((b) => b.workspaceId === workspaceId && b.archivedAt === null && b.system !== "APP_DEVELOPMENT");
   const [workspace, teams, users, departments, perBoard] = await Promise.all([
     repos.workspaces.getById(workspaceId),
     repos.teams.listByWorkspace(workspaceId),

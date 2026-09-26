@@ -5,10 +5,11 @@ import type { ColorToken, EntityId } from "@/domain/common/types";
  * Bug reports: filed by anybody from About or their own menu, landing as tasks
  * in the Bugs group of a board called App development.
  *
- * The board is an ordinary board. The app makes it the first time somebody
- * reports a bug, remembers it on the workspace (`bugBoardId`), and makes a
- * fresh one if it has since been deleted or archived. Its one member is the
- * person who looks after the app; everyone else files into it without seeing it.
+ * The board is built in (`system = "APP_DEVELOPMENT"`): the app makes it the
+ * first time somebody reports a bug, and it cannot be archived, moved or
+ * deleted. Otherwise it works like any board. Only its owner and members see
+ * it, workspace admins included; its one member to begin with is the person who
+ * looks after the app, and everyone else files into it without seeing it.
  */
 
 /** Who looks after the app: the board's owner and the person each report is assigned to. */

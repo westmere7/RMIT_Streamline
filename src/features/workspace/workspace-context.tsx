@@ -3,9 +3,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import type { Board, BoardFavourite, BoardMember, Team, TeamMember, User, Workspace, WorkspaceMember } from "@/domain";
+import { BUG_BOARD_OWNER_EMAIL } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
-import { buildPermissionContext, canSeeSystemEntities, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canSeeSystemEntities, canViewBoard, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useUiStore } from "@/stores/ui-store";
@@ -106,11 +107,12 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
     // changes is how much of it the app is willing to show.
     const viewingAs = viewAsUserId && isWorkspaceAdmin(own) ? (ctx.users.find((u) => u.id === viewAsUserId) ?? null) : null;
     const permissions = viewingAs ? buildPermissionContext({ userId: viewingAs.id, workspaceMembers: ctx.members, teamMembers: ctx.teamMembers, boardMembers }) : own;
-    // The Admin team and Task Allocation board exist for admins alone. Supabase
-    // hides them through RLS; the local store has no such layer, so filter here.
+    // The Admin team and Task Allocation board exist for admins alone, and the
+    // App development board for its members alone. Supabase hides them through
+    // RLS; the local store has no such layer, so filter here.
     const admin = canSeeSystemEntities(permissions);
     const teams = admin ? ctx.teams : ctx.teams.filter((t) => !t.system);
-    const boards = admin ? allBoards : allBoards.filter((b) => !b.system);
+    const boards = allBoards.filter((b) => !b.system || canViewBoard(permissions, b));
     const usersById = new Map(ctx.users.map((u) => [u.id, u]));
     const activeMemberIds = new Set(ctx.members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     const teamsById = new Map(teams.map((t) => [t.id, t]));
@@ -167,6 +169,28 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       cancelled = true;
     };
   }, [isAdmin, needsSystemEntities, services, workspace.id, currentUser.id, refresh]);
+
+  // Whoever looks after the app gets the App development board on opening the
+  // workspace, before any bug is reported (BugReportService.ensureForKeeper).
+  // Asked only by someone who could be that person: the keeper's address, or
+  // the workspace owner, who keeps it where nobody has that address.
+  const mayKeepBugs = currentUser.email.trim().toLowerCase() === BUG_BOARD_OWNER_EMAIL || value?.permissions.workspaceRole === "OWNER";
+  const needsBugBoard = !!value && !value.viewingAs && mayKeepBugs && !value.boards.some((b) => b.system === "APP_DEVELOPMENT");
+  const bugBoardChecked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!needsBugBoard || bugBoardChecked.current === workspace.id) return;
+    bugBoardChecked.current = workspace.id;
+    let cancelled = false;
+    services.bugReports
+      .ensureForKeeper(workspace.id, currentUser.id)
+      .then((board) => {
+        if (!cancelled && board) void refresh();
+      })
+      .catch((error) => console.warn("[workspace] could not create the App development board", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [needsBugBoard, services, workspace.id, currentUser.id, refresh]);
 
   if (contextQuery.isError || boardsQuery.isError) {
     throw contextQuery.error ?? boardsQuery.error;

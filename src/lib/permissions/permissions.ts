@@ -1,4 +1,5 @@
 import type { Board, BoardMember, BoardRole, TeamMember, WorkspaceMember, WorkspaceRole } from "@/domain";
+import { isMembersOnlyBoard } from "@/domain/booking/booking";
 
 /**
  * Everything the permission checks need about the current user, resolved once
@@ -66,7 +67,7 @@ export function canCreateBoard(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
 }
 
-/** The shape the board checks need; `system` marks the built-in Task Allocation board. */
+/** The shape the board checks need; `system` marks a built-in board (Task Allocation, App development). */
 export type BoardAccessInput = Pick<Board, "id" | "ownerId" | "visibility" | "teamId"> & Partial<Pick<Board, "system">>;
 
 /** Built-in rows (the Admin team, the Task Allocation board) exist for workspace admins only. */
@@ -76,7 +77,9 @@ export function canSeeSystemEntities(ctx: PermissionContext): boolean {
 
 /** Effective board role considering ownership, explicit membership and visibility. */
 export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): BoardRole | null {
-  if (board.system && !canSeeSystemEntities(ctx)) return null;
+  // Built-in boards are for workspace admins, except the members-only kind, which
+  // is decided by its seats below.
+  if (board.system && !isMembersOnlyBoard(board) && !canSeeSystemEntities(ctx)) return null;
   // Membership first, before ownership and before an explicit seat.
   //
   // `workspaceRole` is null for somebody who is not an ACTIVE member — which
@@ -89,6 +92,8 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   if (board.ownerId === ctx.userId) return "OWNER";
   const explicit = ctx.boardRoles.get(board.id);
   if (explicit) return explicit;
+  // The App development board is its members' alone: no admin role, no visibility.
+  if (isMembersOnlyBoard(board)) return null;
   if (isWorkspaceAdmin(ctx)) return "EDITOR";
 
   // Visibility says who may read a board, not who may change it. Anyone in the
@@ -115,7 +120,11 @@ export function canEditBoard(ctx: PermissionContext, board: BoardAccessInput): b
 }
 
 export function canManageBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
-  return boardRoleFor(ctx, board) === "OWNER" || isWorkspaceAdmin(ctx);
+  // An admin manages what they can see. Every other board an admin sees by being
+  // one; a members-only board they do not, and managing it would let them seat
+  // themselves on it.
+  const role = boardRoleFor(ctx, board);
+  return role === "OWNER" || (isWorkspaceAdmin(ctx) && role !== null);
 }
 
 export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
@@ -123,7 +132,7 @@ export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput):
   // ownership directly, so without it a deactivated owner could still delete
   // the board.
   if (ctx.workspaceRole === null) return false;
-  return board.ownerId === ctx.userId || isWorkspaceAdmin(ctx);
+  return board.ownerId === ctx.userId || (isWorkspaceAdmin(ctx) && boardRoleFor(ctx, board) !== null);
 }
 
 export function canEditComment(ctx: PermissionContext, comment: { authorId: string }): boolean {

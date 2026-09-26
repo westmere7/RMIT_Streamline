@@ -10,12 +10,13 @@ definitions. What holds today:
 
 | Policy file | Now defines |
 | --- | --- |
-| 0014, 0015 | `private.board_role_for()` / `private.board_role()`: an active membership is checked before ownership or an explicit seat; the board SELECT policy evaluates the row's own fields, so `INSERT … RETURNING` works |
+| 0014, 0015 | `private.board_role()`, and `private.board_role_for()` until 0021: an active membership is checked before ownership or an explicit seat; the board SELECT policy evaluates the row's own fields, so `INSERT … RETURNING` works |
 | 0016 | Saved booking blocks: members read, admins write |
 | 0017 | Automation rules: board viewers read; board managers (`can_manage_board`) insert as themselves, update and delete. Runs: board viewers read. Marks and schedule receipts: RLS on, no policies |
 | 0018 | `automation_events`: board viewers read (for the running indicator) |
 | 0019 | Board templates: members read and insert as themselves; the creator or an admin updates or deletes |
 | 0020 | `comments_update_author`: the author edits an update only while they can edit its task (with migration 0079, which freezes where a comment is) |
+| 0021 | `board_role_for()`, `can_manage_board()`, `can_delete_board()`: the built-in App development board (`system = 'APP_DEVELOPMENT'`) is its owner's and members' alone, with no admin override. `activities_select`: a row about a board is read only by people who can see that board |
 
 Some policies live in migrations rather than here:
 `comment_reactions` (0070: select with `can_view_item`; insert as yourself on a

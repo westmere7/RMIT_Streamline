@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import { BUG_BOARD, BUG_BOARD_OWNER_EMAIL, bugReportTitle, type BugReportInput } from "@/domain";
+import { buildPermissionContext, canDeleteBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { createServices } from "@/services";
 
 const SHOT = "data:image/webp;base64,UklGRhYAAABXRUJQVlA4TAoAAAAvAAAAAAfQ//73vw==";
@@ -24,6 +25,7 @@ describe("bug reports", () => {
     const workspace = await services.repos.workspaces.getById(SEED_WORKSPACE_ID);
     const board = (await services.repos.boards.getById(workspace!.bugBoardId!))!;
     expect(board.name).toBe(BUG_BOARD.name);
+    expect(board.system).toBe("APP_DEVELOPMENT");
     expect(board.visibility).toBe("PRIVATE");
     // Nobody in the demo has the keeper's address, so the workspace owner keeps it.
     expect(board.ownerId).toBe(SEED_USER_IDS.danh);
@@ -56,7 +58,7 @@ describe("bug reports", () => {
     expect(told.some((n) => n.entityId === item.id && n.title.startsWith("Emily reported a bug"))).toBe(true);
   });
 
-  it("keeps using the board, and makes a new one once it has been deleted", async () => {
+  it("keeps using the board, which the app will not archive or delete, and makes it again if it goes by hand", async () => {
     const services = await setup("again");
     await services.bugReports.file(SEED_WORKSPACE_ID, report(), SEED_USER_IDS.emily);
     const first = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bugBoardId!;
@@ -64,11 +66,49 @@ describe("bug reports", () => {
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bugBoardId).toBe(first);
     expect((await services.repos.items.listByBoard(first)).map((i) => i.name).sort()).toEqual(["Second", "The Save button overlaps the footer"]);
 
+    await expect(services.boards.archiveBoard(first, SEED_USER_IDS.danh)).rejects.toThrow(/built in/);
+    await expect(services.boards.deleteBoard(first)).rejects.toThrow(/built in/);
+    await expect(services.boards.updateBoard(first, { visibility: "WORKSPACE" }, SEED_USER_IDS.danh)).rejects.toThrow(/built in/);
+
     await services.repos.boards.delete(first);
     await services.bugReports.file(SEED_WORKSPACE_ID, report({ description: "Third" }), SEED_USER_IDS.jun);
-    const second = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bugBoardId!;
-    expect(second).not.toBe(first);
-    expect((await services.repos.items.listByBoard(second)).map((i) => i.name)).toEqual(["Third"]);
+    const second = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).find((b) => b.system === "APP_DEVELOPMENT")!;
+    expect(second.id).not.toBe(first);
+    expect((await services.repos.items.listByBoard(second.id)).map((i) => i.name)).toEqual(["Third"]);
+  });
+
+  it("adopts the plain board v0.52.0 made rather than making a second", async () => {
+    const services = await setup("adopt");
+    const { board } = await services.boards.createBoard({ workspaceId: SEED_WORKSPACE_ID, name: BUG_BOARD.name, teamId: null, visibility: "PRIVATE", templateId: "blank" }, SEED_USER_IDS.danh);
+    await services.repos.workspaces.update(SEED_WORKSPACE_ID, { bugBoardId: board.id });
+    await services.bugReports.file(SEED_WORKSPACE_ID, report(), SEED_USER_IDS.emily);
+    expect((await services.repos.boards.getById(board.id))?.system).toBe("APP_DEVELOPMENT");
+    expect((await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => b.name === BUG_BOARD.name)).toHaveLength(1);
+  });
+
+  it("is its members' alone: an admin who is not on it can neither see, manage nor delete it", async () => {
+    const services = await setup("access");
+    await services.bugReports.file(SEED_WORKSPACE_ID, report(), SEED_USER_IDS.jun);
+    const [members, teamMembers, boardMembers, boards] = await Promise.all([
+      services.repos.workspaces.listMembers(SEED_WORKSPACE_ID),
+      services.repos.teams.listMembersByWorkspace(SEED_WORKSPACE_ID),
+      services.repos.boards.listMembersByWorkspace(SEED_WORKSPACE_ID),
+      services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID),
+    ]);
+    const as = (userId: string) => buildPermissionContext({ userId, workspaceMembers: members, teamMembers, boardMembers });
+    const bugs = boards.find((b) => b.system === "APP_DEVELOPMENT")!;
+    const allocation = boards.find((b) => b.system === "TASK_ALLOCATION")!;
+
+    // Danh owns it; Emily is a workspace admin; Jun is a member who filed into it.
+    expect([canViewBoard(as(SEED_USER_IDS.danh), bugs), canManageBoard(as(SEED_USER_IDS.danh), bugs), canDeleteBoard(as(SEED_USER_IDS.danh), bugs)]).toEqual([true, true, true]);
+    expect([canViewBoard(as(SEED_USER_IDS.emily), bugs), canManageBoard(as(SEED_USER_IDS.emily), bugs), canDeleteBoard(as(SEED_USER_IDS.emily), bugs)]).toEqual([false, false, false]);
+    expect(canViewBoard(as(SEED_USER_IDS.jun), bugs)).toBe(false);
+
+    // A seat opens it, admin or not; Task Allocation stays the admins'.
+    await services.repos.boards.setMember(bugs.id, SEED_USER_IDS.emily, "EDITOR");
+    const seated = buildPermissionContext({ userId: SEED_USER_IDS.emily, workspaceMembers: members, teamMembers, boardMembers: await services.repos.boards.listMembersByWorkspace(SEED_WORKSPACE_ID) });
+    expect([canViewBoard(seated, bugs), canManageBoard(seated, bugs)]).toEqual([true, true]);
+    expect([canViewBoard(as(SEED_USER_IDS.emily), allocation), canViewBoard(as(SEED_USER_IDS.jun), allocation)]).toEqual([true, false]);
   });
 
   it("gives the board to whoever has the keeper's address", async () => {
