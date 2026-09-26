@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.55.1",
+    date: "2026-09-27",
+    title: "Add member, on one screen",
+    changes: ["Add member shows the form and the team's join link together, and teams are picked as chips."],
+  },
+  {
     version: "0.55.0",
     date: "2026-09-27",
     title: "Members, for managers",

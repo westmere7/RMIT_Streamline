@@ -6,19 +6,21 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 import { copyToClipboard } from "../hooks";
 
 /**
- * The workspace's join link, beside "Add a person" wherever people are invited.
+ * The workspace's join link, under "Add member" wherever people are invited.
  *
  * One address for the whole team: each person who opens it types their own name
  * and email and is added as a pending member with a personal link, the same as
  * adding them by hand. Off by default; a new link retires the old one.
  */
-export function JoinLinkPanel() {
+export function JoinLinkPanel({ compact = false }: { compact?: boolean }) {
   const ws = useWorkspace();
   const services = useServices();
   const key = ws.workspace.joinKey ?? null;
@@ -44,34 +46,29 @@ export function JoinLinkPanel() {
     }
   };
 
-  if (!key) {
-    return (
-      <div className="space-y-3" data-testid="join-link-panel">
-        <p className="text-[13px] text-muted-foreground">One link for everyone. Each person enters their own name and email, then sets a password as anyone invited does.</p>
-        <Button onClick={() => set.mutate(true)} disabled={set.isPending} data-testid="join-link-on">
-          {set.isPending ? <LoaderCircle className="animate-spin" /> : null} Turn on the join link
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-3" data-testid="join-link-panel">
-      <p className="text-[13px] text-muted-foreground">Anyone with this link can add themselves as a pending member. An email already in the workspace is turned away.</p>
-      <div className="flex gap-2">
-        <Input ref={inputRef} readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Join link" data-testid="join-link" className="font-mono text-xs" />
-        <Button type="button" variant="outline" onClick={() => void copy()} className="shrink-0" data-testid="join-link-copy">
-          {copied ? <Check className="text-green-600" /> : <Copy />} {copied ? "Copied" : "Copy"}
-        </Button>
+    <div className={cn(compact ? "space-y-2.5" : "space-y-3")} data-testid="join-link-panel">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium">Join link</p>
+          <p className="text-2xs text-muted-foreground">One link for everyone: each person enters their own details. Emails already here are turned away.</p>
+        </div>
+        <span className="flex shrink-0 items-center gap-2">
+          {set.isPending && <LoaderCircle className="size-3.5 animate-spin text-muted-foreground" />}
+          <Switch checked={!!key} onCheckedChange={(on) => set.mutate(on)} disabled={set.isPending} aria-label="Join link" data-testid={key ? "join-link-off" : "join-link-on"} />
+        </span>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => set.mutate(true)} disabled={set.isPending} data-testid="join-link-new">
-          <RefreshCw /> New link
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => set.mutate(false)} disabled={set.isPending} data-testid="join-link-off">
-          Turn off
-        </Button>
-      </div>
+      {key && (
+        <div className="flex gap-2">
+          <Input ref={inputRef} readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Join link address" data-testid="join-link" className="h-8 font-mono text-xs" />
+          <Button type="button" variant="outline" size="sm" onClick={() => void copy()} className="shrink-0" data-testid="join-link-copy">
+            {copied ? <Check className="text-green-600" /> : <Copy />} {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => set.mutate(true)} disabled={set.isPending} className="shrink-0" title="Make a new link; the old one stops working" data-testid="join-link-new">
+            <RefreshCw /> New
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

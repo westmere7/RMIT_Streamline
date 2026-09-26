@@ -1,19 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Check } from "lucide-react";
 import * as React from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { WORKSPACE_ROLES } from "@/domain";
 import type { InviteResult } from "@/data/repositories";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { colorClasses } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 import { useMemberMutations } from "../hooks";
 import { InviteLinkPanel } from "./invite-link-panel";
 import { JoinLinkPanel } from "./join-link-panel";
@@ -32,10 +33,10 @@ type FormValues = z.infer<typeof schema>;
 const EMPTY: FormValues = { email: "", firstName: "", lastName: "", jobTitle: "", role: "MEMBER", teamIds: [] };
 
 /**
- * Adds people to the workspace, two ways. "Add a person": the details, then the
- * invitation link to pass on; the person is a pending member from the moment
- * that step succeeds. "Join link": one link for the whole team, where each
- * person enters their own details and is added the same way.
+ * Adds people to the workspace, both ways on one screen: one person's details,
+ * then their invitation link to pass on (a pending member from the moment that
+ * succeeds), and under it the team's join link, where each person enters their
+ * own details and is added the same way.
  */
 export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -52,7 +53,6 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
   const { invite } = useMemberMutations();
   const [result, setResult] = React.useState<InviteResult | null>(null);
-  const [mode, setMode] = React.useState<"person" | "link">("person");
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -71,9 +71,8 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
 
   const activeTeams = ws.teams.filter((t) => t.archivedAt === null);
 
-  return (
-    <>
-    {result ? (
+  if (result) {
+    return (
       <>
         <DialogHeader>
           <DialogTitle>{result.user.displayName} has been added</DialogTitle>
@@ -86,115 +85,104 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
           </Button>
         </DialogFooter>
       </>
-    ) : (
-      <>
-        <DialogHeader>
-          <DialogTitle>Add member</DialogTitle>
-          <DialogDescription>
-            {mode === "person" ? "No email is sent. You will get a unique link to pass on; the person sets their own password when they open it." : "Share one link and let each person add themselves."}
-          </DialogDescription>
-        </DialogHeader>
-        <Tabs value={mode} onValueChange={(next) => setMode(next as "person" | "link")}>
-          <UnderlineTabsList className="-mt-1">
-            <UnderlineTabsTrigger value="person" data-testid="invite-mode-person">Add a person</UnderlineTabsTrigger>
-            <UnderlineTabsTrigger value="link" data-testid="invite-mode-link">Join link</UnderlineTabsTrigger>
-          </UnderlineTabsList>
-        </Tabs>
-        {mode === "link" ? (
-          <>
-            <JoinLinkPanel />
-            <DialogFooter>
-              <Button onClick={onClose} data-testid="join-link-done">
-                Done
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-        <>
-        <form id="invite-form" className="grid gap-4" onSubmit={form.handleSubmit(submit)}>
+    );
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Add member</DialogTitle>
+        <DialogDescription>No email is sent. You get a link to pass on, and they set their own password.</DialogDescription>
+      </DialogHeader>
+      <form id="invite-form" className="grid gap-3.5" onSubmit={form.handleSubmit(submit)}>
+        <div className="grid gap-1.5">
+          <Label htmlFor="invite-email">Email</Label>
+          <Input id="invite-email" type="email" autoFocus placeholder="name@rmit.edu.au" {...form.register("email")} aria-invalid={!!form.formState.errors.email} />
+          {form.formState.errors.email && <p className="text-2xs text-destructive">{form.formState.errors.email.message}</p>}
+        </div>
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor="invite-email">Email</Label>
-            <Input id="invite-email" type="email" autoFocus placeholder="name@rmit.edu.au" {...form.register("email")} aria-invalid={!!form.formState.errors.email} />
-            {form.formState.errors.email && <p className="text-2xs text-destructive">{form.formState.errors.email.message}</p>}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="invite-first">First name</Label>
-              <Input id="invite-first" {...form.register("firstName")} aria-invalid={!!form.formState.errors.firstName} />
-              {form.formState.errors.firstName && <p className="text-2xs text-destructive">{form.formState.errors.firstName.message}</p>}
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="invite-last">Last name</Label>
-              <Input id="invite-last" {...form.register("lastName")} aria-invalid={!!form.formState.errors.lastName} />
-              {form.formState.errors.lastName && <p className="text-2xs text-destructive">{form.formState.errors.lastName.message}</p>}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="invite-title">Job title</Label>
-              <Input id="invite-title" placeholder="Optional — they can fill this in" {...form.register("jobTitle")} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Workspace role</Label>
-              <Controller
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger aria-label="Workspace role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WORKSPACE_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {role.charAt(0) + role.slice(1).toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
+            <Label htmlFor="invite-first">First name</Label>
+            <Input id="invite-first" {...form.register("firstName")} aria-invalid={!!form.formState.errors.firstName} />
+            {form.formState.errors.firstName && <p className="text-2xs text-destructive">{form.formState.errors.firstName.message}</p>}
           </div>
           <div className="grid gap-1.5">
-            <Label>Teams</Label>
+            <Label htmlFor="invite-last">Last name</Label>
+            <Input id="invite-last" {...form.register("lastName")} aria-invalid={!!form.formState.errors.lastName} />
+            {form.formState.errors.lastName && <p className="text-2xs text-destructive">{form.formState.errors.lastName.message}</p>}
+          </div>
+        </div>
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="invite-title">Job title</Label>
+            <Input id="invite-title" placeholder="Optional" {...form.register("jobTitle")} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Workspace role</Label>
             <Controller
               control={form.control}
-              name="teamIds"
+              name="role"
               render={({ field }) => (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {activeTeams.map((team) => {
-                    const checked = field.value.includes(team.id);
-                    return (
-                      <label key={team.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 px-2.5 py-2 text-[13px] transition-colors hover:bg-accent/60">
-                        <Checkbox
-                          aria-label={team.name}
-                          checked={checked}
-                          onCheckedChange={(next) =>
-                            field.onChange(next ? [...field.value, team.id] : field.value.filter((id) => id !== team.id))
-                          }
-                        />
-                        <span className="truncate">{team.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger aria-label="Workspace role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WORKSPACE_ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role.charAt(0) + role.slice(1).toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             />
           </div>
-        </form>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="invite-form" disabled={invite.isPending} data-testid="invite-submit">
-            {invite.isPending ? "Adding…" : "Add and get link"}
-          </Button>
-        </DialogFooter>
-        </>
-        )}
-      </>
-    )}
+        </div>
+        <div className="grid gap-1.5">
+          <Label id="invite-teams-label">Teams</Label>
+          <Controller
+            control={form.control}
+            name="teamIds"
+            render={({ field }) => (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="invite-teams-label" data-testid="invite-teams">
+                {activeTeams.map((team) => {
+                  const checked = field.value.includes(team.id);
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={checked}
+                      aria-label={team.name}
+                      onClick={() => field.onChange(checked ? field.value.filter((id) => id !== team.id) : [...field.value, team.id])}
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                        checked ? cn("border-transparent font-medium", colorClasses(team.color).soft) : "border-border/70 bg-surface-strong/40 text-muted-foreground hover:border-border hover:text-foreground",
+                      )}
+                    >
+                      {checked && <Check className="size-3.5" />}
+                      {team.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          />
+        </div>
+      </form>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" form="invite-form" disabled={invite.isPending} data-testid="invite-submit">
+          {invite.isPending ? "Adding…" : "Add and get link"}
+        </Button>
+      </DialogFooter>
+      {/* The other way in: one link for the whole team. */}
+      <div className="border-t border-border/70 pt-4">
+        <JoinLinkPanel compact />
+      </div>
     </>
   );
 }
