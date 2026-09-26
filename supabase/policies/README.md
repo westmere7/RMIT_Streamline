@@ -17,6 +17,7 @@ definitions. What holds today:
 | 0019 | Board templates: members read and insert as themselves; the creator or an admin updates or deletes |
 | 0020 | `comments_update_author`: the author edits an update only while they can edit its task (with migration 0079, which freezes where a comment is) |
 | 0021 | `board_role_for()`, `can_manage_board()`, `can_delete_board()`: the built-in App development board (`system = 'APP_DEVELOPMENT'`) is its owner's and members' alone, with no admin override. `activities_select`: a row about a board is read only by people who can see that board |
+| 0022 | `can_manage_board()`: on the App development board only its owner manages it. `board_members` insert, update and delete: nobody writes their own seat, except a board's owner writing their own OWNER seat when the board is made |
 
 Some policies live in migrations rather than here:
 `comment_reactions` (0070: select with `can_view_item`; insert as yourself on a

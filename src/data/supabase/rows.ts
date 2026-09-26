@@ -135,14 +135,15 @@ export interface WorkspaceRow {
   ticket_prefix: string | null;
   ticket_counter: number | null;
   bug_board_id?: string | null;
+  bug_ticket_counter?: number | null;
   created_at: string;
   updated_at: string;
 }
 
-export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_bookings, creative_team_name, asset_rates, ticket_prefix, ticket_counter, bug_board_id, created_at, updated_at";
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_bookings, creative_team_name, asset_rates, ticket_prefix, ticket_counter, bug_board_id, bug_ticket_counter, created_at, updated_at";
 
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, bookingFormName: row.booking_form_name ?? null, bookingFormPublishedAt: row.booking_form_published_at ?? null, bookingFormBookings: row.booking_form_bookings ?? 0, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, bugBoardId: row.bug_board_id ?? null, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, bookingFormName: row.booking_form_name ?? null, bookingFormPublishedAt: row.booking_form_published_at ?? null, bookingFormBookings: row.booking_form_bookings ?? 0, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, bugBoardId: row.bug_board_id ?? null, bugTicketCounter: row.bug_ticket_counter ?? 0, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {

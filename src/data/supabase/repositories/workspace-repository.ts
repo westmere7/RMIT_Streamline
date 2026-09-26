@@ -44,6 +44,15 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     return first;
   }
 
+  /** The bug series' counter, bumped the same way by `next_bug_ticket_numbers`. */
+  async allocateBugTicketNumbers(workspaceId: string, count = 1): Promise<number> {
+    const result = await db().rpc("next_bug_ticket_numbers", { p_workspace: workspaceId, p_count: count });
+    if (result.error) throw new Error(`workspaces.allocateBugTicketNumbers: ${result.error.message}`);
+    const first = Number(result.data);
+    if (!Number.isFinite(first) || first < 1) throw new Error("workspaces.allocateBugTicketNumbers: the database returned no number");
+    return first;
+  }
+
   /** One statement in the database, so two bookings landing together each count. */
   async countFormBooking(workspaceId: string): Promise<void> {
     const result = await db().rpc("count_form_booking", { p_workspace: workspaceId });

@@ -1,9 +1,10 @@
 import type { Board, DashboardShare, DashboardShareGate, DashboardSnapshot, EntityId, ISODate, PublicDashboardPayload, ShareRefusal, User } from "@/domain";
-import { generateShareToken, isPlausibleShareToken, publicDashboardSnapshot, refuseDashboardShare } from "@/domain";
+import { generateShareToken, isPlausibleShareToken, publicDashboardSnapshot, refuseDashboardShare, viewerDashboardSnapshot } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt, verifyPassword } from "@/lib/auth/password-hash";
 import { todayISO } from "@/lib/dates/dates";
+import { canViewBoard, type PermissionContext } from "@/lib/permissions/permissions";
 import { ShareAccessError } from "./board-share-service";
 
 /** What the Share dialog sends back. An absent field is left as it is. */
@@ -22,6 +23,8 @@ export interface DashboardShareSettings {
 export interface PublicDashboardTransport {
   gate(token: string): Promise<DashboardShareGate>;
   load(token: string, password: string | null): Promise<PublicDashboardPayload>;
+  /** The workspace's own dashboard for the signed-in reader, counted over every board (src/server/workspace-dashboard.ts). */
+  loadWorkspace(workspaceSlug: string): Promise<DashboardSnapshot>;
 }
 
 /**
@@ -42,6 +45,17 @@ export class DashboardService {
   /** The figures behind the dashboard for the given boards, read fresh. */
   async loadSnapshot(workspaceId: EntityId, boards: Board[]): Promise<DashboardSnapshot> {
     return loadDashboardSnapshot(this.repos, workspaceId, boards);
+  }
+
+  /**
+   * The workspace's dashboard for one reader: every board counted, whoever is
+   * reading, with nothing to read on the boards they cannot open (see
+   * viewerDashboardSnapshot). With Supabase the reader's session cannot see
+   * those boards, so the server reads them with the service role.
+   */
+  async loadForViewer(input: { workspaceId: EntityId; workspaceSlug: string; viewer: PermissionContext }): Promise<DashboardSnapshot> {
+    if (this.transport) return this.transport.loadWorkspace(input.workspaceSlug);
+    return loadViewerDashboard(this.repos, input.workspaceId, input.viewer);
   }
 
   /** The workspace's link, or null when it has never been shared. */
@@ -101,6 +115,13 @@ export class DashboardService {
     const salt = newSalt();
     return `${salt}:${await hashPassword(password, salt)}`;
   }
+}
+
+/** Every board read, then trimmed for the reader. Where the server does the same, it passes a context built from the database. */
+export async function loadViewerDashboard(repos: Repositories, workspaceId: EntityId, viewer: PermissionContext): Promise<DashboardSnapshot> {
+  const boards = await repos.boards.listByWorkspace(workspaceId);
+  const snapshot = await loadDashboardSnapshot(repos, workspaceId, boards);
+  return viewerDashboardSnapshot(snapshot, new Set(snapshot.boards.filter((board) => canViewBoard(viewer, board)).map((board) => board.id)));
 }
 
 /**

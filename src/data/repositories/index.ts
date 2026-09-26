@@ -78,6 +78,8 @@ export interface WorkspaceRepository {
    * never given back — a ticket is something somebody was told.
    */
   allocateTicketNumbers(workspaceId: EntityId, count?: number): Promise<number>;
+  /** The same for bug reports, which are numbered in a series of their own (BUG_001). */
+  allocateBugTicketNumbers(workspaceId: EntityId, count?: number): Promise<number>;
   /** Counts one booking against the published form, atomically. */
   countFormBooking(workspaceId: EntityId): Promise<void>;
   listMembers(workspaceId: EntityId): Promise<WorkspaceMember[]>;

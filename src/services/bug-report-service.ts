@@ -6,6 +6,7 @@ import { BUG_BOARD, COLUMN_TYPE_LABELS, BUG_BOARD_OWNER_EMAIL, BUG_CATEGORIES, B
 import type { BoardService } from "./board-service";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
+import type { TicketService } from "./ticket-service";
 
 /** A screenshot as it is linked from the board: a stored file, or (local mode) the image itself. */
 const screenshotUrl = z.string().max(3_000_000).refine((url) => /^https:\/\//i.test(url) || /^data:image\/(webp|png|jpeg);base64,/i.test(url), "A screenshot has to be an uploaded image.");
@@ -38,6 +39,7 @@ export class BugReportService {
     private readonly boards: BoardService,
     private readonly items: ItemService,
     private readonly notifications: NotificationService,
+    private readonly tickets: TicketService,
     private readonly transport: BugReportTransport | null,
   ) {}
 
@@ -56,8 +58,11 @@ export class BugReportService {
     const [columns, groups] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id)]);
     const group = await this.bugsGroup(board.id, groups);
 
+    // Its own series, BUG_001 and on: a bug is not one of the team's jobs, and
+    // must not take a number the next booking would have had.
+    const ticket = await this.tickets.issueBug(workspaceId);
     const item = await this.items.createItem(
-      { boardId: board.id, groupId: group.id, name: bugReportTitle(report.description), description: null, values: placeValues(columns, report, reporterId, keeperId) },
+      { boardId: board.id, groupId: group.id, name: bugReportTitle(report.description), description: null, ticket, values: placeValues(columns, report, reporterId, keeperId) },
       reporterId,
     );
     // Kept on the task as well, as a booking's brief is, so a Brief column added back later arrives filled.
@@ -69,7 +74,7 @@ export class BugReportService {
         {
           userId: keeperId,
           type: "ASSIGNED",
-          title: `${reporter?.firstName ?? "Someone"} reported a bug: ${item.name}`,
+          title: `${reporter?.firstName ?? "Someone"} reported ${ticket}: ${item.name}`,
           body: `${bugCategoryName(report.category)} · ${board.name}`,
           entityType: "ITEM",
           entityId: item.id,
@@ -78,7 +83,7 @@ export class BugReportService {
         },
       ]);
     }
-    return { itemId: item.id, itemName: item.name };
+    return { itemId: item.id, itemName: item.name, ticket: item.ticket ?? ticket };
   }
 
   /**

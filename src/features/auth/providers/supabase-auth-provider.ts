@@ -49,7 +49,12 @@ export class SupabaseAuthProvider implements AuthProvider {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await getSupabaseClient().auth.signOut();
+    // This device only. Supabase's default ends every session the account has,
+    // so signing out on a phone left the laptop's tab reading data on a token
+    // Auth no longer honours: bookings, bug reports and invitations all failed
+    // there with "Your session has expired". A deactivated account, above, is
+    // still ended everywhere.
+    const { error } = await getSupabaseClient().auth.signOut({ scope: "local" });
     if (error) throw new AuthError(error.message);
   }
 

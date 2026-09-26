@@ -62,6 +62,8 @@ export interface Workspace extends Timestamps {
    * people the same one is the fault this whole system exists to avoid.
    */
   ticketCounter?: number | null;
+  /** How many bug tickets (BUG_001, …) this workspace has handed out; a series apart from `ticketCounter`. */
+  bugTicketCounter?: number | null;
   /** The App development board bug reports land on, beside its built-in kind. Null until the first report makes it. */
   bugBoardId?: EntityId | null;
 }

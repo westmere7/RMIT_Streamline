@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 export function DashboardPage() {
   const ws = useWorkspace();
   const router = useRouter();
-  const snapshot = useDashboardSnapshot(ws.workspace.id, ws.boards);
+  const snapshot = useDashboardSnapshot(ws.workspace, ws.permissions);
   useDashboardRealtime(ws.workspace.id);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);

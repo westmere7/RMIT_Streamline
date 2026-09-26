@@ -120,11 +120,23 @@ export function canEditBoard(ctx: PermissionContext, board: BoardAccessInput): b
 }
 
 export function canManageBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {
-  // An admin manages what they can see. Every other board an admin sees by being
-  // one; a members-only board they do not, and managing it would let them seat
-  // themselves on it.
   const role = boardRoleFor(ctx, board);
+  // A members-only board is its owner's to run. An admin seated on it is a
+  // member like any other, or they could raise their own seat.
+  if (isMembersOnlyBoard(board)) return role === "OWNER";
+  // Otherwise an admin manages what they can see, which is every other board.
   return role === "OWNER" || (isWorkspaceAdmin(ctx) && role !== null);
+}
+
+/**
+ * Whether this person may change or remove `memberId`'s seat on the board.
+ *
+ * A manager may, on anybody's but their own and the owner's: nobody raises,
+ * lowers or removes their own place on a board, so a seat is always somebody
+ * else's decision.
+ */
+export function canEditBoardSeat(ctx: PermissionContext, board: BoardAccessInput, memberId: string): boolean {
+  return canManageBoard(ctx, board) && memberId !== ctx.userId && memberId !== board.ownerId;
 }
 
 export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {

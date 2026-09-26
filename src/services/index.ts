@@ -105,7 +105,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     links,
     assets,
     booking,
-    bugReports: new BugReportService(repos, boards, items, notifications, options.bugReportTransport ?? null),
+    bugReports: new BugReportService(repos, boards, items, notifications, tickets, options.bugReportTransport ?? null),
     tickets,
     comments,
     automations: new AutomationService(repos, automationEngine, options.automationTransport ?? null),

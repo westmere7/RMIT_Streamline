@@ -332,6 +332,7 @@ export class BoardService {
   // ---- Members -------------------------------------------------------------
 
   async setMember(boardId: EntityId, userId: EntityId, role: BoardRole, actorId: EntityId, memberName: string): Promise<void> {
+    if (userId === actorId) throw new Error("Your own place on a board is somebody else's to change.");
     const before = await this.repos.boards.listMembers(boardId);
     const existed = before.some((m) => m.userId === userId);
     await this.repos.boards.setMember(boardId, userId, role);
@@ -361,6 +362,7 @@ export class BoardService {
   }
 
   async removeMember(boardId: EntityId, userId: EntityId, actorId: EntityId, memberName: string): Promise<void> {
+    if (userId === actorId) throw new Error("Your own place on a board is somebody else's to change.");
     await this.repos.boards.removeMember(boardId, userId);
     const board = await this.getBoard(boardId);
     await this.repos.activities.create({

@@ -113,3 +113,5 @@ policies/0020_comments_update_needs_edit_rights.sql
 migrations/0082_bug_reports.sql
 policies/0021_members_only_boards.sql
 migrations/0083_app_development_board.sql
+migrations/0084_bug_tickets.sql
+policies/0022_board_seats_are_someone_elses.sql

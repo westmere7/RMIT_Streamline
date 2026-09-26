@@ -1,5 +1,5 @@
 import type { EntityId, Item, Workspace } from "@/domain";
-import { formatTicket, normaliseTicket, normaliseTicketPrefix, parseTicket, ticketPrefixOf } from "@/domain";
+import { BUG_TICKET_PREFIX, formatTicket, normaliseTicket, normaliseTicketPrefix, parseTicket, ticketPrefixOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemLinkService } from "./item-link-service";
@@ -76,6 +76,11 @@ export class TicketService {
     return Array.from({ length: count }, (_, i) => formatTicket(prefix, first + i));
   }
 
+  /** The next bug ticket, BUG_001 and on, from the bug series' own counter. */
+  async issueBug(workspaceId: EntityId): Promise<string> {
+    return formatTicket(BUG_TICKET_PREFIX, await this.repos.workspaces.allocateBugTicketNumbers(workspaceId, 1));
+  }
+
   /**
    * Gives a task the next ticket in the series.
    *
@@ -87,7 +92,9 @@ export class TicketService {
   async assign(workspaceId: EntityId, itemId: EntityId, actorId: EntityId): Promise<Item> {
     const item = await this.item(itemId);
     if (item.ticket) return item;
-    return this.write(itemId, await this.issue(workspaceId), actorId);
+    // A task on the App development board is a bug, and takes the next bug ticket.
+    const onBugBoard = (await this.repos.boards.getById(item.boardId))?.system === "APP_DEVELOPMENT";
+    return this.write(itemId, onBugBoard ? await this.issueBug(workspaceId) : await this.issue(workspaceId), actorId);
   }
 
   /**
@@ -146,19 +153,21 @@ export class TicketService {
   async setPrefix(workspaceId: EntityId, prefix: string, options: { rewriteExisting: boolean }): Promise<PrefixChange> {
     const next = normaliseTicketPrefix(prefix);
     if (!next) throw new TicketError("A ticket prefix is one to eight letters or digits — “CP”, say.");
+    if (next === BUG_TICKET_PREFIX) throw new TicketError(`${BUG_TICKET_PREFIX} is what bug reports are numbered with. Pick another prefix.`);
 
     const current = await this.prefixOf(workspaceId);
     // Every ticket keeps the number it had, so nothing can collide that was not
     // colliding already, and two tasks sharing a ticket across a link move
     // together because both are rewritten by the same rule.
-    const rewritten = options.rewriteExisting && next !== current ? await this.repos.items.rewriteTicketPrefix(await this.boardIds(workspaceId), next) : 0;
+    // Bug tickets keep theirs: they are a series of their own, and BUG_007 becoming CP_007 would take a booking's number.
+    const rewritten = options.rewriteExisting && next !== current ? await this.repos.items.rewriteTicketPrefix(await this.seriesBoardIds(workspaceId), next) : 0;
     await this.repos.workspaces.update(workspaceId, { ticketPrefix: next });
     return { prefix: next, rewritten };
   }
 
   /** How many tasks in the workspace hold a ticket, for the sentence before a prefix change. */
   async countTicketed(workspaceId: EntityId): Promise<number> {
-    return this.repos.items.countTicketed(await this.boardIds(workspaceId));
+    return this.repos.items.countTicketed(await this.seriesBoardIds(workspaceId));
   }
 
   /**
@@ -186,7 +195,12 @@ export class TicketService {
   }
 
   private async ticketed(workspaceId: EntityId): Promise<Item[]> {
-    return this.repos.items.listTicketed(await this.boardIds(workspaceId));
+    return this.repos.items.listTicketed(await this.seriesBoardIds(workspaceId));
+  }
+
+  /** The boards the workspace's own series lives on: every one but App development, whose bugs count separately. */
+  private async seriesBoardIds(workspaceId: EntityId): Promise<EntityId[]> {
+    return (await this.repos.boards.listByWorkspace(workspaceId)).filter((board) => board.system !== "APP_DEVELOPMENT").map((board) => board.id);
   }
 
   private async boardIds(workspaceId: EntityId): Promise<EntityId[]> {

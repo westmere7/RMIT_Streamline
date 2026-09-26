@@ -29,7 +29,7 @@ export const STAKEHOLDER_LOAD_NOTE = `Open work due in the next ${WEEKS} weeks, 
 export function StakeholderLoad({ userId }: { userId: string }) {
   const ws = useWorkspace();
   const today = useToday();
-  const snapshot = useDashboardSnapshot(ws.workspace.id, ws.boards, { live: false });
+  const snapshot = useDashboardSnapshot(ws.workspace, ws.permissions, { live: false });
 
   const row = React.useMemo<WorkloadRow | null>(() => {
     if (!snapshot.data) return null;

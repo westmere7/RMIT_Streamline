@@ -103,9 +103,9 @@ function BugReportForm({ pageUrl, onDone }: { pageUrl: string | null; onDone: ()
           viewport: `${window.innerWidth} × ${window.innerHeight}`,
         },
       }),
-    onSuccess: async () => {
+    onSuccess: async (receipt) => {
       publishDataChange({ kinds: ["workspace", "board", "items"] });
-      toast.success("Bug reported. Thank you.");
+      toast.success(receipt.ticket ? `Bug reported as ${receipt.ticket}. Thank you.` : "Bug reported. Thank you.");
       onDone();
       await ws.refresh();
     },

@@ -3,9 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import type { Board } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
+import type { PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { DashboardShareSettings } from "@/services";
@@ -47,7 +47,9 @@ const COALESCE_MS = 2_000;
 const MIN_REFETCH_MS = 20_000;
 
 /**
- * Everything the dashboard is drawn from, for the boards the reader can see.
+ * Everything the dashboard is drawn from: every board in the workspace, the
+ * same figures for every reader, with nothing to read on the boards this
+ * reader cannot open (DashboardService.loadForViewer).
  *
  * `live` is what the dashboard itself wants: nothing trusted for any length of
  * time, because the figures are a live read of the boards and every
@@ -55,11 +57,13 @@ const MIN_REFETCH_MS = 20_000;
  * panel off this snapshot — a profile's stakeholder split — passes `false`, so
  * one panel does not put a whole workspace read on a fifteen-second loop.
  */
-export function useDashboardSnapshot(workspaceId: string, boards: Board[], { live = true }: { live?: boolean } = {}) {
+export function useDashboardSnapshot(workspace: { id: string; slug: string }, viewer: PermissionContext, { live = true }: { live?: boolean } = {}) {
   const services = useServices();
   return useQuery({
-    queryKey: queryKeys.dashboard(workspaceId),
-    queryFn: () => services.dashboard.loadSnapshot(workspaceId, boards),
+    // By reader: "View as" reads another person's trimming. The workspace key
+    // stays in front, so every invalidation of the dashboard still reaches it.
+    queryKey: [...queryKeys.dashboard(workspace.id), viewer.userId],
+    queryFn: () => services.dashboard.loadForViewer({ workspaceId: workspace.id, workspaceSlug: workspace.slug, viewer }),
     staleTime: live ? 0 : BORROWED_STALE_MS,
     refetchInterval: live ? SNAPSHOT_REFRESH_MS : false,
     // Not in the background. A tab nobody is looking at has no figures to keep

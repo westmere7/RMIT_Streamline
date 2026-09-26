@@ -269,6 +269,33 @@ const DEPARTMENT_COLUMN_HINTS = ["department", "school", "faculty", "portfolio",
  * by, and PERSON is who is carrying the work — the workload panel is drawn from
  * it. Free text is published only where the column is plainly a department.
  */
+/**
+ * The workspace's dashboard as one signed-in person is handed it.
+ *
+ * The figures are the workspace's, whoever reads them: a member who cannot open
+ * Task Allocation or another team's board still sees the same totals as an
+ * admin, because a report that quietly counts less for some readers is read as
+ * the whole and is wrong. What they are not handed is anything to read on the
+ * boards they cannot open: those tasks and deliverables arrive without names,
+ * their boards without a name of their own, and only the columns the charts
+ * draw on (the public link's rule). The page lists no task and names no board
+ * today; this is so that one added later cannot name a private one.
+ */
+export function viewerDashboardSnapshot(snapshot: DashboardSnapshot, openBoardIds: ReadonlySet<EntityId>): DashboardSnapshot {
+  const closed = new Set(snapshot.boards.filter((b) => !openBoardIds.has(b.id)).map((b) => b.id));
+  if (closed.size === 0) return snapshot;
+  const publishable = new Set(snapshot.columns.filter(isPublishableColumn).map((c) => c.id));
+  const closedItems = new Set(snapshot.items.filter((i) => closed.has(i.boardId)).map((i) => i.id));
+  return {
+    ...snapshot,
+    boards: snapshot.boards.map((board) => (closed.has(board.id) ? { ...board, name: "", description: null } : board)),
+    columns: snapshot.columns.filter((column) => !closed.has(column.boardId) || publishable.has(column.id)),
+    items: snapshot.items.map((item) => (closed.has(item.boardId) ? { ...item, name: "", description: null, coverUrl: null, ticket: null } : item)),
+    values: snapshot.values.filter((value) => !closedItems.has(value.itemId) || publishable.has(value.columnId)),
+    assets: snapshot.assets.map((asset) => (closed.has(asset.boardId) ? { ...asset, name: "", notes: null, previewUrl: null, artworkUrl: null } : asset)),
+  };
+}
+
 function isPublishableColumn(column: BoardColumn): boolean {
   switch (column.type) {
     case "STATUS":

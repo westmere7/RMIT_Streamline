@@ -37,6 +37,9 @@ export const BUG_STATUS_LABELS: ColumnLabel[] = [
   { id: "wont-fix", name: "Won't fix", color: "violet" },
 ];
 
+/** Bug reports carry tickets of their own series, BUG_001 and on, apart from the workspace's. */
+export const BUG_TICKET_PREFIX = "BUG";
+
 /** How many screenshots one report carries, each in its own link column. */
 export const MAX_BUG_SCREENSHOTS = 3;
 export const MAX_BUG_DESCRIPTION = 4000;
@@ -85,6 +88,8 @@ export interface BugReportInput {
 export interface BugReportReceipt {
   itemId: EntityId;
   itemName: string;
+  /** BUG_001 and on. */
+  ticket: string | null;
 }
 
 export function bugCategoryName(id: string): string {

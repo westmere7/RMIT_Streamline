@@ -60,6 +60,7 @@ export function createMemoryRepositories(
       getBySlug: async () => null,
       update: readOnly("editing the workspace"),
       allocateTicketNumbers: readOnly("handing out a ticket"),
+      allocateBugTicketNumbers: readOnly("handing out a ticket"),
       countFormBooking: readOnly("taking a booking"),
       listMembers: async () => [],
       listMembershipsForUser: async () => [],

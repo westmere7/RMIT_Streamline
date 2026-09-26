@@ -20,9 +20,13 @@ async function setup(name: string) {
 describe("bug reports", () => {
   it("files a member's report as a task in Bugs on a private App development board only its keeper belongs to", async () => {
     const services = await setup("first");
+    const counterBefore = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.ticketCounter;
     const receipt = await services.bugReports.file(SEED_WORKSPACE_ID, report(), SEED_USER_IDS.emily);
+    // A ticket of its own series, and the workspace's own series untouched.
+    expect(receipt.ticket).toBe("BUG_001");
 
     const workspace = await services.repos.workspaces.getById(SEED_WORKSPACE_ID);
+    expect(workspace!.ticketCounter).toBe(counterBefore);
     const board = (await services.repos.boards.getById(workspace!.bugBoardId!))!;
     expect(board.name).toBe(BUG_BOARD.name);
     expect(board.system).toBe("APP_DEVELOPMENT");
@@ -55,7 +59,8 @@ describe("bug reports", () => {
     expect(columns.find((c) => c.type === "BRIEF")?.hidden ?? false).toBe(false);
 
     const told = await services.repos.notifications.listByUser(SEED_USER_IDS.danh);
-    expect(told.some((n) => n.entityId === item.id && n.title.startsWith("Emily reported a bug"))).toBe(true);
+    expect(item.ticket).toBe("BUG_001");
+    expect(told.some((n) => n.entityId === item.id && n.title.startsWith("Emily reported BUG_001"))).toBe(true);
   });
 
   it("keeps using the board, which the app will not archive or delete, and makes it again if it goes by hand", async () => {
@@ -104,10 +109,10 @@ describe("bug reports", () => {
     expect([canViewBoard(as(SEED_USER_IDS.emily), bugs), canManageBoard(as(SEED_USER_IDS.emily), bugs), canDeleteBoard(as(SEED_USER_IDS.emily), bugs)]).toEqual([false, false, false]);
     expect(canViewBoard(as(SEED_USER_IDS.jun), bugs)).toBe(false);
 
-    // A seat opens it, admin or not; Task Allocation stays the admins'.
+    // A seat opens it, admin or not, and running it stays the owner's; Task Allocation stays the admins'.
     await services.repos.boards.setMember(bugs.id, SEED_USER_IDS.emily, "EDITOR");
     const seated = buildPermissionContext({ userId: SEED_USER_IDS.emily, workspaceMembers: members, teamMembers, boardMembers: await services.repos.boards.listMembersByWorkspace(SEED_WORKSPACE_ID) });
-    expect([canViewBoard(seated, bugs), canManageBoard(seated, bugs)]).toEqual([true, true]);
+    expect([canViewBoard(seated, bugs), canManageBoard(seated, bugs)]).toEqual([true, false]);
     expect([canViewBoard(as(SEED_USER_IDS.emily), allocation), canViewBoard(as(SEED_USER_IDS.jun), allocation)]).toEqual([true, false]);
   });
 
@@ -130,6 +135,23 @@ describe("bug reports", () => {
     await expect(services.bugReports.file(SEED_WORKSPACE_ID, report({ screenshots: ["javascript:alert(1)"] }), SEED_USER_IDS.emily)).rejects.toThrow(/uploaded image/i);
     await expect(services.bugReports.file(SEED_WORKSPACE_ID, report(), "nobody")).rejects.toThrow(/only members/i);
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bugBoardId ?? null).toBeNull();
+  });
+
+  it("numbers bugs in their own series, which a prefix change leaves alone", async () => {
+    const services = await setup("tickets");
+    const tickets = [];
+    for (const description of ["One", "Two", "Three"]) tickets.push((await services.bugReports.file(SEED_WORKSPACE_ID, report({ description }), SEED_USER_IDS.jun)).ticket);
+    expect(tickets).toEqual(["BUG_001", "BUG_002", "BUG_003"]);
+
+    await services.tickets.setPrefix(SEED_WORKSPACE_ID, "PROD", { rewriteExisting: true });
+    const board = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).find((b) => b.system === "APP_DEVELOPMENT")!;
+    expect((await services.repos.items.listByBoard(board.id)).map((i) => i.ticket).sort()).toEqual(["BUG_001", "BUG_002", "BUG_003"]);
+    await expect(services.tickets.setPrefix(SEED_WORKSPACE_ID, "bug", { rewriteExisting: false })).rejects.toThrow(/bug reports/i);
+
+    // A bug that lost its ticket gets the next bug one back, not a booking's.
+    const bug = (await services.repos.items.listByBoard(board.id)).find((i) => i.name === "Two")!;
+    await services.tickets.setTicket(SEED_WORKSPACE_ID, bug.id, null, SEED_USER_IDS.danh);
+    expect((await services.tickets.assign(SEED_WORKSPACE_ID, bug.id, SEED_USER_IDS.danh)).ticket).toBe("BUG_004");
   });
 
   it("names the task after the first line written", () => {

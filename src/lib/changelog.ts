@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.53.0",
+    date: "2026-09-26",
+    title: "One dashboard, bug tickets",
+    changes: [
+      "The dashboard shows the same figures to everyone in the workspace, counted over every board, whether or not you can open them all.",
+      "Every bug report gets a ticket of its own series, BUG_001 and on, apart from the tickets bookings get.",
+      "Nobody can change or remove their own place on a board, and on App development only its owner manages who is on it.",
+      "Signing out ends your session on this device only, not on your other devices.",
+    ],
+  },
+  {
     version: "0.52.2",
     date: "2026-09-26",
     title: "The App development board",

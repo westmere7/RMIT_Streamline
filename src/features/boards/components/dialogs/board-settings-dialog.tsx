@@ -20,7 +20,7 @@ import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { BoardSharePanel } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { boardRoleFor, canDeleteBoard, canManageBoard } from "@/lib/permissions/permissions";
+import { boardRoleFor, canDeleteBoard, canEditBoardSeat, canManageBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 
 export type BoardSettingsSection = "general" | "members" | "share" | "columns" | "permissions" | "archive" | "danger";
@@ -213,6 +213,8 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
         {members.map((member) => {
           const user = ws.userById(member.userId);
           const isOwner = board.ownerId === member.userId;
+          // Your own seat is somebody else's to change.
+          const editable = canEditBoardSeat(ws.permissions, board, member.userId);
           return (
             <li key={member.id} className="flex h-11 items-center gap-2.5 px-3 text-[13px]">
               <UserAvatar user={user} size="md" tooltip={false} />
@@ -222,7 +224,7 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
               </span>
               {isOwner ? (
                 <Badge variant="primary">Owner</Badge>
-              ) : manage ? (
+              ) : editable ? (
                 <Select value={member.role} onValueChange={(role) => actions.setMember.mutate({ userId: member.userId, role: role as BoardRole })}>
                   <SelectTrigger className="h-7 w-28" aria-label={`Role for ${user?.displayName}`}>
                     <SelectValue />
@@ -238,7 +240,7 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
               ) : (
                 <Badge variant="muted">{member.role.toLowerCase()}</Badge>
               )}
-              {manage && !isOwner && (
+              {editable && (
                 <Button variant="ghost" size="icon-xs" aria-label={`Remove ${user?.displayName}`} onClick={() => actions.removeMember.mutate(member.userId)}>
                   <X />
                 </Button>

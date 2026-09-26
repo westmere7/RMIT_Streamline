@@ -61,6 +61,21 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     return taken - count + 1;
   }
 
+  async allocateBugTicketNumbers(workspaceId: string, count = 1): Promise<number> {
+    if (count < 1) throw new Error("workspaces.allocateBugTicketNumbers: count must be at least 1");
+    const db = await this.conn.getDb();
+    const tx = db.transaction("workspaces", "readwrite");
+    const existing = await tx.store.get(workspaceId);
+    if (!existing) {
+      await tx.done;
+      throw new NotFoundError("Workspace", workspaceId);
+    }
+    const taken = (existing.bugTicketCounter ?? 0) + count;
+    await tx.store.put({ ...existing, bugTicketCounter: taken, updatedAt: nowIso() });
+    await tx.done;
+    return taken - count + 1;
+  }
+
   async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     const db = await this.conn.getDb();
     return db.getAllFromIndex("workspaceMembers", "byWorkspace", workspaceId);
