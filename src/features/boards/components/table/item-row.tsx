@@ -280,7 +280,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                   }}
                   className={cn(
                     "flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10",
-                    subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                    subitems.length === 0 && "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
                   )}
                 >
                   {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
@@ -421,7 +421,7 @@ const FADE_END = "[mask-image:linear-gradient(to_right,#000_calc(100%-1.75rem),t
  * only gives way to them when they are wanted.
  */
 const HOVER_ACTIONS =
-  "ml-auto flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-opacity group-hover/row:max-w-24 group-hover/row:opacity-100 focus-within:max-w-24 focus-within:opacity-100 has-[[data-state=open]]:max-w-24 has-[[data-state=open]]:opacity-100";
+  "ml-auto flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-opacity group-hover/row:max-w-24 group-hover/row:opacity-100 focus-within:max-w-24 focus-within:opacity-100 has-[[data-state=open]]:max-w-24 has-[[data-state=open]]:opacity-100 pointer-coarse:max-w-24 pointer-coarse:opacity-100";
 
 /** How far the element's text runs past its edge, in pixels (0 when it fits), kept current as the row resizes. */
 function useClipped<T extends HTMLElement>(text: string, editing: boolean): [React.RefObject<T | null>, number] {

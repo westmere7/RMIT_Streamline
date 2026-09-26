@@ -147,7 +147,8 @@ const DURATION_UNITS: Array<[RegExp, CountdownUnit]> = [
  * duration, or one under a minute. "m" is minutes; months are "mo".
  */
 export function parseCountdownDuration(input: string, now: Date = new Date()): Date | null {
-  const text = input.trim().toLowerCase();
+  // "in 45m" reads as "45m": the picker's own placeholder says it that way.
+  const text = input.trim().toLowerCase().replace(/^in\s+/, "");
   if (!text) return null;
   const tokens = [...text.matchAll(/(\d+)\s*([a-z]+)/g)];
   // Every character has to belong to a number-and-unit pair (spaces and commas aside).

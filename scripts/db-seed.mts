@@ -307,6 +307,9 @@ async function main(): Promise<void> {
           position: c.position,
           width: c.width,
           hidden: c.hidden,
+          hidden_in_panel: c.hiddenInPanel ?? false,
+          role: c.role ?? null,
+          removed: c.removed ?? false,
         })),
       )}`;
 
@@ -323,6 +326,7 @@ async function main(): Promise<void> {
             parent_item_id: i.parentItemId,
             name: i.name,
             description: i.description,
+            cover_url: i.coverUrl ?? null,
             ticket: i.ticket ?? null,
             position: i.position,
             created_by: i.createdBy,
@@ -350,9 +354,14 @@ async function main(): Promise<void> {
             name: a.name,
             asset_type: a.assetType,
             quantity: a.quantity,
-            assignee_id: a.assigneeId,
+            // Several people per line since 0017; the old single column is left empty,
+            // as the app's own repository leaves it.
+            assignee_ids: a.assigneeIds ?? [],
             due_date: a.dueDate,
+            completed_at: a.completedAt ?? null,
             notes: a.notes,
+            preview_url: a.previewUrl ?? null,
+            artwork_url: a.artworkUrl ?? null,
             position: a.position,
             created_by: a.createdBy,
             created_at: a.createdAt,
@@ -390,7 +399,7 @@ async function main(): Promise<void> {
 
       if (seed.comments.length) {
         await tx`insert into public.comments ${tx(
-          seed.comments.map((c) => ({ id: c.id, item_id: c.itemId, author_id: c.authorId, body: c.body, mention_user_ids: c.mentionUserIds, shared_id: c.sharedId, created_at: c.createdAt, updated_at: c.updatedAt })),
+          seed.comments.map((c) => ({ id: c.id, item_id: c.itemId, author_id: c.authorId, body: c.body, mention_user_ids: c.mentionUserIds, shared_id: c.sharedId, parent_id: c.parentId ?? null, created_at: c.createdAt, updated_at: c.updatedAt })),
         )}`;
       }
 

@@ -230,7 +230,7 @@ export function TeamPage() {
                       variant="ghost"
                       size="icon-xs"
                       aria-label={`Remove ${user.displayName}`}
-                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                       onClick={() => removeMember.mutate(user.id)}
                     >
                       {membership.role === "LEAD" ? <UserMinus /> : <X />}

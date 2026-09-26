@@ -63,8 +63,10 @@ export interface BookingTransport {
  * A booking's requester is a person, shown in the board's Requester column
  * like anyone else in a people column. Someone signed in is who they are; for
  * the public form, the email says who: somebody the workspace already has is
- * that person (and their name is kept as they typed it this time), and
- * somebody new becomes a pending member, as an admin's "Add member" makes one.
+ * that person, and somebody new becomes a pending member, as an admin's "Add
+ * member" makes one. The name typed on the form is used only for somebody new:
+ * the form is public and checks nobody's email, so it renames nobody already
+ * in the member list, pending or joined.
  * Pending members cannot sign in or see anything until they onboard.
  *
  * The browser's copy works on the local repositories; the server hands in one
@@ -73,7 +75,7 @@ export interface BookingTransport {
 export interface RequesterDirectory {
   /** This workspace's person with this email, whatever their status. */
   find(workspaceId: EntityId, email: string): Promise<{ userId: EntityId; name: string } | null>;
-  /** The person for this name and email: found and renamed, or added as a pending member. */
+  /** The person for this email: found (keeping the name they have), or added as a pending member under the typed name. */
   ensure(workspaceId: EntityId, person: { name: string; email: string }, invitedBy: EntityId): Promise<EntityId>;
 }
 
@@ -100,12 +102,9 @@ function localRequesterDirectory(repos: Repositories): RequesterDirectory {
       const email = person.email.trim().toLowerCase();
       const name = splitPersonName(person.name);
       const { user, member } = await inWorkspace(workspaceId, email);
-      if (user && member) {
-        if (name.displayName && name.displayName !== user.displayName) await repos.users.update(user.id, name);
-        return user.id;
-      }
+      // Somebody the workspace has keeps their name, pending or joined: see the note above.
+      if (user && member) return user.id;
       const invited = await repos.onboarding.invite({ workspaceId, invitedBy, email, firstName: name.firstName || email, lastName: name.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
-      if (user && name.displayName && name.displayName !== user.displayName) await repos.users.update(user.id, name);
       return invited.user.id;
     },
   };

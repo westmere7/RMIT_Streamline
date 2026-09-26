@@ -390,7 +390,7 @@ function ColumnHeaderCell({
                     <button
                       type="button"
                       aria-label={`${column.name} column options`}
-                      className="absolute top-1/2 left-1 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent/70 hover:text-foreground focus-visible:opacity-100 group-hover/col:opacity-100 data-[state=open]:opacity-100"
+                      className="absolute top-1/2 left-1 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent/70 hover:text-foreground focus-visible:opacity-100 group-hover/col:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                     >
                       <ChevronDown className="size-3.5" />
                     </button>

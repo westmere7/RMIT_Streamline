@@ -104,9 +104,10 @@ export function PortalBookingScreen({
   /**
    * Who the request is for is the form's own department question — the same
    * control, from the same list, as every other booking page — and it starts
-   * on whichever department the portal was showing. The server still wants the
-   * department's id, so the chosen name is looked up among the departments
-   * this link serves before anything is sent.
+   * on whichever department the portal was showing. The chosen name goes with
+   * the id the portal has for it. A department with no work yet is not among
+   * the portal's filters and has no id here; the server finds it on the list
+   * by name instead.
    */
   const stakeholderFor = (name: string | null) => stakeholders?.find((s) => s.name === (name ?? "").trim()) ?? null;
 
@@ -175,9 +176,8 @@ export function PortalBookingScreen({
               remember={account ? null : `portal:${credentials.token}`}
               lookupRequester={(email) => services.portals.publicLookupRequester(credentials, email, services.booking)}
               onSubmit={async (request) => {
-                const forStakeholder = stakeholderFor(request.department);
-                if (!forStakeholder) throw new Error("Pick which department this is for.");
-                return services.portals.publicBook(credentials, submissionKey, request, forStakeholder.id, services.booking);
+                if (!request.department?.trim()) throw new Error("Pick which department this is for.");
+                return services.portals.publicBook(credentials, submissionKey, request, stakeholderFor(request.department)?.id ?? null, services.booking);
               }}
               // Nothing here links into the application: a stakeholder has no
               // account and the board is not theirs to open.

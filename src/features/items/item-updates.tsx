@@ -343,7 +343,7 @@ function Reactions({ comment, onReact, compact = false, className }: { comment: 
   if (groups.length === 0 && (!onReact || compact)) {
     // A reply with none yet: only the hover button, on a line of its own.
     return onReact ? (
-      <div className={cn("flex h-6 items-center opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100", className)}>
+      <div className={cn("flex h-6 items-center opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100", className)}>
         <ReactionPicker comment={comment} onReact={onReact} compact />
       </div>
     ) : null;
@@ -480,7 +480,7 @@ function CommentHeader({
           </SimpleTooltip>
         )}
       </div>
-      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100">
+      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100 pointer-coarse:opacity-100">
         {canEditComment(ws.permissions, comment) && (
           <Button variant="ghost" size="icon-xs" aria-label={`Edit ${noun}`} onClick={onEdit}>
             <Pencil />

@@ -22,6 +22,7 @@ import { RichTextDocBody, richTextSummary } from "@/features/items/rich-text-fie
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
+import { normalizeLinkHref } from "@/lib/rich-text";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { useClockTick } from "@/hooks/use-clock";
 import { cn } from "@/lib/utils";
@@ -863,6 +864,9 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
   const v = valueOf("LINK", value);
   const [url, setUrl] = React.useState(v.url);
   const [text, setText] = React.useState(v.text ?? "");
+  // Only an address worth opening gets the open button: web and email, with a
+  // bare "example.com" read as https. javascript:, data: and the rest stay text.
+  const openHref = v.url ? normalizeLinkHref(v.url) : null;
   return (
     <PopoverCell
       width={width ?? column.width}
@@ -877,17 +881,19 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
           // the value centred, an anchor across the middle would swallow the
           // click that opens the editor.
           <span className="flex min-w-0 items-center gap-1 px-1 text-xs text-ring">
-            <a
-              href={v.url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Open ${v.text || v.url}`}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="shrink-0 rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <ExternalLink className="size-3" />
-            </a>
+            {openHref && (
+              <a
+                href={openHref}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open ${v.text || v.url}`}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="shrink-0 rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                <ExternalLink className="size-3" />
+              </a>
+            )}
             <span className="truncate hover:underline">{v.text || v.url.replace(/^https?:\/\//, "")}</span>
           </span>
         ) : (

@@ -2,217 +2,135 @@
 
 ```
 supabase/
-├── migrations/
-│   ├── 0001_initial_schema.sql   tables, enums, indexes, triggers
-│   ├── 0002_item_links.sql       Task Linking (item_links) + enum values
-│   ├── 0003_trackers.sql         trackers + tracker_sheets
-│   ├── 0004_realtime.sql         supabase_realtime publication
-│   ├── 0005 … 0008               direct messages, status roles, notification delivery, shared comments
-│   └── 0009_workspace_invitations.sql  onboarding links for pending members
-├── policies/
-│   ├── 0001_rls_policies.sql     RLS helpers + policies
-│   ├── 0002_item_links_policies.sql  RLS for item_links
-│   ├── 0003_trackers_policies.sql    RLS for trackers
-│   ├── 0004_notification_preferences_policies.sql
-│   ├── 0005_workspace_invitations_policies.sql  admins may read their workspace's links
-│   ├── 0009_board_shares_policies.sql  board links: viewers read, managers change
-│   ├── 0010_dashboard_shares_policies.sql  dashboard link: members read, admins change
-│   └── README.md                 permission model, assumptions, realtime notes
-├── seed.sql                      demo data (same ids as src/data/seed/seed-data.ts)
+├── migrations/     0001 … 0078   tables, enums, triggers, functions, realtime (77 files; there is no 0069)
+├── policies/       0001 … 0019   RLS helpers (private schema) and policies
+├── optional/                     SQL applied by hand only: the pg_cron automation driver
+├── sequence.txt                  the order the 96 SQL files are applied in
+├── seed.sql                      historical demo SQL; npm run db:seed no longer uses it
 └── README.md                     this file
 ```
 
-Applied by `npm run db:migrate` (see below), which is also what `npm run dev`
-and CI call.
-
-The SQL mirrors the TypeScript domain 1:1 (`src/domain/**`), so switching
-`NEXT_PUBLIC_DATA_PROVIDER` from `local` to `supabase` is a data copy, not a
-remodel. JSON columns (`board_columns.settings`, `item_column_values.value_json`,
-`activities.metadata`) store the TypeScript unions verbatim with camelCase keys.
+The SQL mirrors the TypeScript domain (`src/domain/**`). JSON columns keep the TypeScript shapes verbatim, with camelCase keys: `board_columns.settings`, `item_column_values.value_json`, `automation_rules.trigger_json`, and `activities.metadata`. The knowledge base lists every migration and policy (`KNOWLEDGE_BASE.md` §17).
 
 ## Applying SQL
 
-`npm run db:migrate` applies every file under `migrations/` then `policies/`,
-lexicographically, once each, and records what it did in
-`public.schema_migrations`. Adding a new file with a higher numeric prefix and
-running the command (or `npm run dev`, which calls it first) is the whole
-workflow — no dashboard, no CLI, no `psql`.
-
 ```bash
-npm run db:migrate            # apply anything pending
-npm run db:migrate -- --dry   # list what would run, change nothing
+npm run db:migrate            # apply anything pending, in sequence.txt order
+npm run db:migrate -- --dry   # list what would run (still connects and ensures the ledger)
 npm run db:migrate -- --baseline
                               # record files as applied without running them
                               # (a database that already has the schema)
-npm run db:seed               # demo accounts + seed.sql
 npm run db:setup              # migrate + seed + point .env.local at Supabase
 ```
 
-Each file runs in a transaction, so a failure leaves nothing half-applied.
-Applied files are fingerprinted: editing one after the fact is reported, because
-the database no longer matches the repo — add a follow-up migration instead.
+- **Order.** `scripts/db-migrate.mjs` applies pending files in the order `sequence.txt` gives, which is the order they were first applied. Migrations and policies interleave there, because thirteen migrations (0005, 0010, 0013, …) call `private.*` helpers that policy files define. Running every migration before every policy stops at 0005 on an empty database.
+- **Unlisted files.** A file the list does not name still runs, after the listed ones, with a warning. `tests/unit/sql-sequence.test.ts` fails until it is listed.
+- **Transactions.** Each file runs in a transaction together with its ledger row in `public.schema_migrations`, so a failure leaves nothing half-applied.
+- **Checksums.** Applied files are fingerprinted. Editing one afterwards is reported as drift, never re-run; add a follow-up file instead.
 
-`SUPABASE_DB_URL` (Project Settings → Database → Connection string → URI) is the
-only variable the runner needs. It is server-side only and lives in `.env.local`.
-`.github/workflows/db-migrate.yml` runs the same command on every push to `main`
-that touches SQL, using a `SUPABASE_DB_URL` repository secret.
+**Adding SQL:**
 
-## Scheduled keep alive
+1. Take the next number in its directory.
+2. Append the file to `sequence.txt`.
+3. Run `npm run db:migrate`.
 
-The [Supabase keep alive workflow](../.github/workflows/supabase-keep-alive.yml)
-executes a read-only `SELECT 1` every six hours (`17 */6 * * *`, UTC). It reuses
-the `SUPABASE_DB_URL` repository secret used by the migration workflow, retries
-failed connections three times, and fails visibly if the query cannot complete.
+`npm run dev`, every Vercel build (`prebuild`), and `.github/workflows/db-migrate.yml` (on pushes to `main` that touch SQL) all apply pending files to whatever `SUPABASE_DB_URL` names. A SQL file pushed to `main` is therefore live in production. Set `SKIP_DB_MIGRATE=1` to run the app without migrating.
 
-To enable it:
+`SUPABASE_DB_URL` must be the **session pooler** URI (`aws-0-<region>.pooler.supabase.com:5432`, user `postgres.<ref>`). The direct host is IPv6-only, so Vercel and GitHub runners cannot reach it.
 
-1. In GitHub, open **Settings > Secrets and variables > Actions** and set
-   `SUPABASE_DB_URL` to the Supabase Postgres connection URI with its password.
-   Use the **session pooler** URI from Supabase's **Connect** panel for IPv4
-   compatibility with GitHub-hosted runners. URL-encode special characters in
-   the password and use `sslmode=require` if specifying SSL mode in the URI.
-2. Push the workflow to the repository's default branch with Actions enabled.
-3. Open **Actions > Supabase keep alive > Run workflow** to verify connectivity.
-   If the project is already paused, resume it in Supabase first.
+## Seeding
 
-[Supabase's pausing documentation](https://supabase.com/docs/guides/platform/free-project-pausing)
-says a few user database requests each day are typically sufficient. This job
-generates activity but does not guarantee exemption; paid plans are exempt from
-inactivity pausing. [GitHub schedules](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
-can be delayed, and public repositories have schedules disabled after 60 days
-without repository activity. Re-enable the workflow if that happens.
+| Command | What it does |
+| --- | --- |
+| `npm run db:seed` | **Replaces** the seed workspace. Creates the demo Auth accounts through the Auth Admin API with fixed ids (password `Password123!`, or `SEED_PASSWORD`; the admin `admin123`, or `ADMIN_PASSWORD`), then writes the TypeScript seed bundle (`src/data/seed`). Members who are not in the seed are kept. Pending members get fresh join links. **Only for disposable databases.** |
+| `npm run db:seed:topup` | Adds seed extras with `on conflict do nothing`, mapping groups and columns by name. Safe on a hand-edited workspace. |
+| `npm run db:special-columns` | Gives every board its special columns. |
 
-## Order
+Both seeds need `SUPABASE_SERVICE_ROLE_KEY` as well as `SUPABASE_DB_URL`.
 
-`migrations/` before `policies/`, so RLS lands after the tables it protects:
+Seed ids follow `0000000<ns>-0000-4000-8000-<n>`: the workspace is `00000000-…-000000000001`, users `00000001-…`, teams `00000002-…`, boards `00000003-…`.
 
-1. `migrations/0001_initial_schema.sql` – tables, enums, indexes, triggers
-2. `migrations/0002_item_links.sql` – Task Linking
-3. `migrations/0003_trackers.sql` – trackers and sheets
-4. `migrations/0004_realtime.sql` – publishes the collaborative tables
-5. `policies/0001_rls_policies.sql`, `0002_…`, `0003_…` – RLS helpers and policies
+## A disposable database
 
-The storage bucket snippet below is still manual (it touches `storage.objects`,
-which the pooler role cannot always alter); paste it into the SQL editor once.
+For tests that need RLS, triggers, server routes, the automation runner, restore, or wipe, use a local Supabase stack (Docker + `npx supabase start`). Run it from a git worktree whose `.env.local` names only `127.0.0.1` services, so nothing can fall back to production.
 
-## Seeding and auth users
+Build the database in that worktree:
 
-`profiles.id` references `auth.users(id)`, so the nine demo profiles need
-matching auth accounts with the same ids. `npm run db:seed` does both:
+```bash
+node scripts/db-migrate.mjs
+npx tsx scripts/db-seed.mts
+```
 
-1. creates (or updates) the nine accounts through the Auth Admin API with the
-   fixed seed ids and password `Password123!` — override with `SEED_PASSWORD`,
-2. runs `seed.sql`, which fills in profiles and everything below them.
-
-It needs `SUPABASE_SERVICE_ROLE_KEY` as well as `SUPABASE_DB_URL`. The
-commented-out `auth.users` block in `seed.sql` is only for a local
-`supabase start` stack, where inserting into `auth` directly is acceptable.
-
-Seed ids follow the TypeScript convention `0000000<ns>-0000-4000-8000-<n>`:
-workspace `00000000-…-000000000001`, users `00000001-…`, teams `00000002-…`,
-boards `00000003-…`, groups `00000004-…`, columns `00000005-…`, items
-`00000006-…`.
+The recipe is in `KNOWLEDGE_BASE.md` §19.
 
 ## Onboarding without email (`workspace_invitations`)
 
-Nobody receives a confirmation email. An admin adds a person from the members
-page; the app's own route handlers (`src/app/api/invitations`, backed by
-`src/server/onboarding.ts`) use the **service role** to create an Auth account
-with no password, insert the `INVITED` membership and one row here holding the
-link token. Opening `/join/<token>` resolves it through `GET /api/join/<token>`
-and `POST /api/join/<token>` sets the password with `auth.admin.updateUserById`,
-updates the profile and flips the membership to `ACTIVE`.
+Nobody receives an email. An admin adds a person from Members. The app's route handlers (`src/app/api/invitations*`, `src/server/onboarding.ts`) use the **service role** to:
 
-Consequences for the database side:
+1. create an Auth account with no password;
+2. insert the `INVITED` membership;
+3. insert one invitation row holding the link token.
 
-- The server needs `SUPABASE_SERVICE_ROLE_KEY` at runtime (Vercel: Secret).
-  Nothing else in the app does.
-- `workspace_invitations` has one RLS policy: workspace admins may `select`
-  their workspace's rows, so the members page can offer "copy invite link"
-  again. No client can insert, update or delete a row; the join page never
-  touches PostgREST for it.
-- Pending accounts have no password, so `signInWithPassword` fails for them
-  regardless of what the app shows. `private.workspace_role()` only counts
-  `ACTIVE` memberships, so even a pending person with a session would see
-  nothing.
-- `npm run db:seed` recreates the seeded pending members' accounts without a
-  password on every run and prints fresh invitation links.
+`/join/<token>` reads it through `GET /api/join/<token>`. `POST` sets the password (`auth.admin.updateUserById`), updates the profile and makes the membership `ACTIVE`.
 
-## Storage: `workspace-files` bucket
+A public booking from a new email creates a pending member through the same path (`src/server/requesters.ts`).
 
-Attachments (`ColumnValue` of type `FILES`) live in a private bucket. Objects are
-keyed `<workspace_id>/<board_id>/<item_id>/<filename>` so the first path segment
-identifies the workspace.
+- **Who can read invitations.** Workspace admins may `select` their workspace's rows. No client can insert, update or delete one.
+- **Pending accounts cannot sign in.** They have no password. `private.workspace_role()` counts only `ACTIVE` memberships, so even a pending person with a session would see nothing.
+
+## Storage
+
+| Bucket | Created by | Access |
+| --- | --- | --- |
+| `avatars` | Migration 0005 | Public read; users write `<their id>/…` only |
+| `item-covers` | Migration 0013 | Public read |
+
+Both migrations guard their `storage.objects` changes, because the pooler role cannot always alter Storage. After a fresh build, check that both buckets and their policies exist before testing uploads. Public bucket URLs do not follow a private board's visibility.
+
+## Automations
+
+A write raises a row in `automation_events` from a trigger (0052–0057), but only when an enabled rule on the board listens. `/api/automations/run` drains the queue.
+
+Something must call that endpoint on a timer. Production uses pg_cron from the database: `optional/automations_pg_cron.sql`, job `streamline-automations`, every minute. The alternatives are in [optional/README.md](optional/README.md).
+
+To check the runner:
 
 ```sql
-insert into storage.buckets (id, name, public)
-values ('workspace-files', 'workspace-files', false)
-on conflict do nothing;
-
--- First path segment as a uuid, or null when the key is not workspace-scoped.
-create or replace function private.object_workspace(p_name text)
-returns uuid
-language sql
-immutable
-as $$
-  select case
-    when split_part(p_name, '/', 1) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    then split_part(p_name, '/', 1)::uuid
-  end
-$$;
-
-create policy "workspace files: members read" on storage.objects
-  for select to authenticated
-  using (
-    bucket_id = 'workspace-files'
-    and private.is_workspace_member(private.object_workspace(name))
-  );
-
-create policy "workspace files: members upload" on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'workspace-files'
-    and private.is_workspace_member(private.object_workspace(name))
-    and private.workspace_role(private.object_workspace(name)) <> 'GUEST'
-    and owner = (select auth.uid())
-  );
-
-create policy "workspace files: owner or admin update" on storage.objects
-  for update to authenticated
-  using (
-    bucket_id = 'workspace-files'
-    and (owner = (select auth.uid())
-         or private.is_workspace_admin(private.object_workspace(name)))
-  );
-
-create policy "workspace files: owner or admin delete" on storage.objects
-  for delete to authenticated
-  using (
-    bucket_id = 'workspace-files'
-    and (owner = (select auth.uid())
-         or private.is_workspace_admin(private.object_workspace(name)))
-  );
+select * from cron.job;                                               -- the driver
+select count(*) from automation_events where processed_at is null;    -- a growing queue means nothing drains it
+select * from automation_heartbeat;                                   -- when the scheduler last ran
+select status, summary, created_at from automation_runs order by created_at desc limit 20;
 ```
 
-Serve files to the browser with short-lived signed URLs
-(`storage.from('workspace-files').createSignedUrl(path, 3600)`); the bucket is
-not public. Store the resulting path (not the signed URL) in `AttachmentMeta.url`
-and sign on read. Tighten the read policy to `private.can_view_board(<board
-segment>)` if per-board secrecy of attachments becomes a requirement.
+## Snapshots
+
+`workspace_snapshots` (0071) stores gzipped JSON copies of every public table except `schema_migrations` and itself. It has no foreign keys, RLS on and no policies: only the server's direct connection (`src/server/snapshots.ts`) touches it. Restore refills every table with triggers off (`session_replication_role = replica`).
+
+When you change a table, check that snapshots still round-trip:
+
+```bash
+npm run db:snapshot:rehearse
+```
+
+## Scheduled keep alive
+
+[The keep-alive workflow](../.github/workflows/supabase-keep-alive.yml) runs a read-only `SELECT 1` four times a day (`17 */6 * * *` UTC). It uses the `SUPABASE_DB_URL` repository secret and retries three times.
+
+- It generates activity; it does not guarantee exemption from pausing.
+- GitHub disables schedules on public repositories after 60 days without activity.
 
 ## Realtime
 
-Every table the app shows on screen is in the `supabase_realtime` publication:
-0004 publishes the board tables, 0005/0015/0024/0026/0035 add messages, assets,
-boards, teams, lists and workspaces, and 0049 adds the rest — profiles,
-memberships, invitations, favourites, item reads, booking templates and blocks,
-and the portal tables. RLS applies to Realtime, so subscribers only receive rows
-they could `select`.
+Every table the app shows is in the `supabase_realtime` publication:
 
-Replica identity stays at its default everywhere. That means a `DELETE` reaches
-subscribers as a primary key and nothing else, so a filtered subscription cannot
-match one; the client adds an unfiltered `DELETE` listener per filtered table
-instead (`src/lib/realtime/use-realtime.ts`). `replica identity full` would put
-the whole deleted row on the wire, and deletions are not filtered by RLS.
+- 0004 publishes the board tables.
+- 0005, 0015, 0024, 0026 and 0035 add messages, assets, boards, teams, lists and workspaces.
+- 0049 adds profiles, memberships, invitations, favourites, item reads, booking templates and blocks, and the portal tables.
+- 0052–0054 add automation rules, runs, the heartbeat and events.
+- 0070 adds reactions.
 
-Details and caveats are in `supabase/policies/README.md`.
+RLS applies to Realtime, so subscribers receive only rows they could `select`.
+
+Replica identity stays at its default. A `DELETE` therefore reaches subscribers as a primary key only, and the client adds an unfiltered `DELETE` listener per filtered table (`src/lib/realtime/use-realtime.ts`).
+
+Details and caveats are in `policies/README.md`.

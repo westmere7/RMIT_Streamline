@@ -166,7 +166,7 @@ export function MessagesPage() {
                           variant="ghost"
                           size="icon-xs"
                           aria-label="Delete message"
-                          className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                          className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive pointer-coarse:opacity-100"
                           onClick={() => remove.mutate(message.id)}
                         >
                           <Trash2 />

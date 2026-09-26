@@ -165,7 +165,7 @@ export function GroupSection({
                 <button
                   type="button"
                   aria-label={`Options for ${group.name}`}
-                  className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity transition-colors group-hover/group:opacity-100 focus-visible:opacity-100 hover:bg-accent/70 hover:text-foreground"
+                  className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity transition-colors group-hover/group:opacity-100 focus-visible:opacity-100 hover:bg-accent/70 hover:text-foreground pointer-coarse:opacity-100"
                 >
                   <MoreHorizontal className="size-4" />
                 </button>

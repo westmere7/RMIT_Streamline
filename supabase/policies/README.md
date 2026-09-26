@@ -1,7 +1,30 @@
 # Row Level Security – assumptions and notes
 
-`0001_rls_policies.sql` is the database-side twin of
-`src/lib/permissions/permissions.ts`. When one changes, change the other.
+`0001_rls_policies.sql` and the policy files after it are the database-side twin
+of `src/lib/permissions/permissions.ts`. When one changes, change the other.
+
+## Current state (26 September 2026)
+
+Read the files in `supabase/sequence.txt` order: later files replace earlier
+definitions. What holds today:
+
+| Policy file | Now defines |
+| --- | --- |
+| 0014, 0015 | `private.board_role_for()` / `private.board_role()`: an active membership is checked before ownership or an explicit seat; the board SELECT policy evaluates the row's own fields, so `INSERT … RETURNING` works |
+| 0016 | Saved booking blocks: members read, admins write |
+| 0017 | Automation rules: board viewers read; board managers (`can_manage_board`) insert as themselves, update and delete. Runs: board viewers read. Marks and schedule receipts: RLS on, no policies |
+| 0018 | `automation_events`: board viewers read (for the running indicator) |
+| 0019 | Board templates: members read and insert as themselves; the creator or an admin updates or deletes |
+
+Some policies live in migrations rather than here:
+`comment_reactions` (0070: select with `can_view_item`; insert as yourself on a
+comment of the same item, viewers included; delete your own) and
+`workspace_snapshots` (0071: RLS on, no policies, server only). A proposed
+tightening of `comments_update_author` — an edit must stay on a task its author
+can edit — is in `Test_prompts/audits/2026-09-26-full-e2e/proposed-sql/`.
+
+The sections below describe the model from 0001 onwards. Where a later file
+replaced a definition, the table above says which one holds.
 
 ## Identity
 

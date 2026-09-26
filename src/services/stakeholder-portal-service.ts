@@ -211,7 +211,7 @@ export interface PortalTransport {
   tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope }): Promise<PortalTaskPage & { context: PortalContext }>;
   task(grant: PortalGrant, itemId: EntityId): Promise<PortalTaskDetail>;
   journey(grant: PortalGrant, itemId: EntityId): Promise<Activity[]>;
-  book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: EntityId): Promise<BookingReceipt>;
+  book(grant: PortalGrant, submissionKey: string, request: BookingRequest, departmentId: EntityId | null): Promise<BookingReceipt>;
   bookingForm(grant: PortalGrant): Promise<BookingForm>;
   /** The name the workspace has for an email, for the booking form to fill in. */
   lookupRequester(grant: PortalGrant, email: string): Promise<string | null>;
@@ -316,7 +316,7 @@ export class StakeholderPortalService {
     grant: PortalGrant,
     submissionKey: string,
     request: BookingRequest,
-    departmentId: EntityId,
+    departmentId: EntityId | null,
     booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> },
   ): Promise<BookingReceipt> {
     if (this.transport) return this.transport.book(grant, submissionKey, request, departmentId);
@@ -878,9 +878,11 @@ export class StakeholderPortalService {
        * The portal serves every stakeholder, so this is no longer implied by
        * the credential and has to be said. It is still not taken on trust: the
        * id is checked against this workspace's own departments before a word of
-       * it reaches the booking.
+       * it reaches the booking. Null when the visitor picked a department the
+       * portal has no id for — one with no work yet — which is then found on
+       * the workspace's list by the name the request gives.
        */
-      departmentId: EntityId;
+      departmentId: EntityId | null;
       booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> };
       memberId?: EntityId | null;
     },
@@ -892,7 +894,7 @@ export class StakeholderPortalService {
     const key = input.submissionKey.trim();
     if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
 
-    const department = await this.requireDepartment(resolved.workspaceId, input.departmentId);
+    const department = input.departmentId ? await this.requireDepartment(resolved.workspaceId, input.departmentId) : await this.departmentNamed(resolved.workspaceId, input.request.department);
     if (department.status !== "ACTIVE") throw new Error("That department is no longer taking requests.");
 
     // The stakeholder is written over whatever arrived in the body: the name on
@@ -971,6 +973,20 @@ export class StakeholderPortalService {
   private async requireDepartment(workspaceId: EntityId, departmentId: EntityId): Promise<StakeholderDepartment> {
     const department = await this.repos.stakeholderPortals.getDepartment(departmentId);
     if (!department || department.workspaceId !== workspaceId) throw new Error("That department is not part of this workspace.");
+    return department;
+  }
+
+  /**
+   * An active department on the workspace's list, by the name a booking gave.
+   *
+   * For a department the portal offers but has no id for: its filters list
+   * only departments with work, while the form offers every one on the list,
+   * so the first booking for a department arrives by name.
+   */
+  private async departmentNamed(workspaceId: EntityId, name: string | null): Promise<StakeholderDepartment> {
+    const wanted = (name ?? "").trim().toLowerCase();
+    const department = wanted ? (await this.ensureDepartments(workspaceId)).find((d) => d.status === "ACTIVE" && d.name.trim().toLowerCase() === wanted) : undefined;
+    if (!department) throw new Error("Pick which department this is for.");
     return department;
   }
 

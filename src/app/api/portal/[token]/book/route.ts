@@ -26,7 +26,7 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
     const receipt = await services.portals.book(resolved, {
       submissionKey: body.submissionKey,
       request: body.request,
-      departmentId: body.departmentId,
+      departmentId: body.departmentId ?? null,
       booking: services.booking,
       memberId: viewer?.isWorkspaceMember ? viewer.userId : null,
     });

@@ -111,6 +111,20 @@ describe("booking through a portal", () => {
     await expect(services.booking.book(WS, request({ department: null }))).rejects.toThrow();
   });
 
+  it("books for a department picked by name when the portal has no id for it, such as one with no work yet", async () => {
+    // The portal's filters list only departments with work; the form offers
+    // every department on the list. The first booking for any other one
+    // arrives with its name and no id — after a wipe, that is every booking.
+    const receipt = await services.portals.book(resolved, { submissionKey: "key-000000020", departmentId: null, request: request({ department: `  ${other.name.toUpperCase()} ` }), booking: services.booking });
+    const provenance = await services.repos.stakeholderPortals.getRequestByItem(WS, receipt.itemId);
+    expect(provenance?.departmentId).toBe(other.id);
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect(await groupOn(item.id, item.boardId)).toBe(other.name);
+
+    // A name that is not on the list is still refused.
+    await expect(services.portals.book(resolved, { submissionKey: "key-000000021", departmentId: null, request: request({ department: "School of Design" }), booking: services.booking })).rejects.toThrow("Pick which department this is for.");
+  });
+
   it("publishes the brief the form composed, and keeps their contact details internal", async () => {
     const receipt = await book("key-000000004");
     const item = (await services.repos.items.getById(receipt.itemId))!;

@@ -77,7 +77,7 @@ export function ItemCover({ item, canEdit }: { item: Item; canEdit: boolean }) {
       {/* eslint-disable-next-line @next/next/no-img-element -- covers are user uploads at arbitrary sizes and hosts */}
       <img src={item.coverUrl} alt="" className={cn("block h-40 max-h-[26vh] w-full object-cover transition-opacity", busy && "opacity-60")} />
       {canEdit && (
-        <div className="absolute right-3 bottom-3 flex gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100">
+        <div className="absolute right-3 bottom-3 flex gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
           <Button type="button" size="sm" variant="secondary" className="h-7 bg-background/90 shadow-sm backdrop-blur" disabled={busy !== null} onClick={() => inputRef.current?.click()} data-testid="cover-replace">
             {busy === "upload" ? <Loader2 className="animate-spin" /> : <RefreshCw />} Replace
           </Button>

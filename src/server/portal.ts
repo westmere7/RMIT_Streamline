@@ -60,8 +60,12 @@ export const portalBoardSchema = portalGrantSchema.merge(portalScopeSchema);
 export const portalBookSchema = portalGrantSchema.extend({
   submissionKey: z.string().min(8).max(100),
   request: bookingRequestSchema,
-  /** Which stakeholder the request is for. Checked against the workspace before use. */
-  departmentId: z.string().uuid(),
+  /**
+   * Which stakeholder the request is for. Checked against the workspace before
+   * use. Absent for a department the visitor picked that has no work yet: the
+   * portal has no id for it, and it is found on the list by the request's name.
+   */
+  departmentId: z.string().uuid().nullish(),
 });
 
 export const portalCommentSchema = portalGrantSchema.extend({

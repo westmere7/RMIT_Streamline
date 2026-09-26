@@ -56,6 +56,22 @@ describe("SearchService", () => {
     expect((await search("TA-0000")).items).toEqual([]);
   });
 
+  it("does not let a letter or two match every ticket", async () => {
+    // Every task has a ticket, so "c" or "cp" matching every CP_… buried the
+    // names being typed. A ticket is quoted by its number; a query with no
+    // digit is a name.
+    const ticketed = [item("t1", "Poster", "CP_001"), item("t2", "Campaign plan", "CP_002"), item("t3", "Brochure", "CP_014"), item("t4", "Media kit", "CP26_079")];
+    const service = new SearchService({ ...repos(), items: { listByBoard: async () => ticketed } } as unknown as Repositories);
+    const ids = async (query: string) => (await service.search(WORKSPACE, query)).items.map((r) => r.item.id);
+    expect(await ids("c")).toEqual(["t2", "t3"]);
+    expect(await ids("cp")).toEqual([]);
+    expect(await ids("14")).toEqual(["t3"]);
+    expect(await ids("cp-14")).toEqual(["t3"]);
+    // A prefix with digits in it, as the live workspace's CP26 has.
+    expect(await ids("79")).toEqual(["t4"]);
+    expect(await ids("CP26_079")).toEqual(["t4"]);
+  });
+
   it("finds a task from the start of a word, and ranks the better match first", async () => {
     // "Upgrade" contains "grad" too, but "Graduation" starts with it.
     expect((await search("Grad")).items.map((r) => r.item.id)).toEqual(["i5", "i4"]);

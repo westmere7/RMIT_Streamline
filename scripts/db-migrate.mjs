@@ -9,10 +9,12 @@
  *                               record every file as applied without running it
  *                               (for a database that already has the schema)
  *
- * Order is migrations/ then policies/, lexicographic within each — so new files
- * only need a higher numeric prefix. Adding one and running the script (or
- * `npm run dev`, which calls it) is the whole workflow; nothing here needs a
- * dashboard visit.
+ * Order is supabase/sequence.txt, the order the files were first applied in:
+ * migrations and policies interleave there, because some migrations call
+ * helpers a policy file defines. Add a new file with the next number in its
+ * directory, append it to sequence.txt, and run the script (or `npm run dev`,
+ * which calls it); nothing here needs a dashboard visit. A file the list does
+ * not name still runs, after the listed ones, with a warning.
  *
  * Each file runs inside a transaction, so a failure leaves nothing half-applied.
  * Applied files are fingerprinted: editing one after the fact is reported rather
@@ -40,6 +42,36 @@ function loadEnv() {
       process.env[key] = rawValue.replace(/^["']|["']$/g, "");
     }
   }
+}
+
+/**
+ * supabase/sequence.txt: the order the SQL was first applied in. Thirteen
+ * migrations call private.* helpers that a policy file defines, so "every
+ * migration, then every policy" cannot build an empty database — it stops at
+ * migrations/0005. Listed files run in the listed order; a file the list does
+ * not name yet runs after them, in the old directory order, so a database that
+ * is already up to date behaves exactly as before.
+ */
+function readSequence() {
+  const path = join(ROOT, "supabase/sequence.txt");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+}
+
+function inSequence(files) {
+  const byName = new Map(files.map((file) => [file.name, file]));
+  const listed = [];
+  for (const name of readSequence()) {
+    const file = byName.get(name);
+    if (!file) continue;
+    listed.push(file);
+    byName.delete(name);
+  }
+  const unlisted = files.filter((file) => byName.has(file.name));
+  return { ordered: [...listed, ...unlisted], unlisted };
 }
 
 function collectFiles() {
@@ -119,10 +151,13 @@ async function main() {
     process.exit(1);
   }
 
-  const files = collectFiles();
+  const { ordered: files, unlisted } = inSequence(collectFiles());
   if (files.length === 0) {
     console.log("No .sql files found under supabase/.");
     return;
+  }
+  for (const file of unlisted) {
+    console.warn(`! ${file.name} is not in supabase/sequence.txt; it runs after the listed files.`);
   }
 
   const sql = postgres(url, { max: 1, prepare: false, idle_timeout: 5, connect_timeout: 30, onnotice: () => {} });

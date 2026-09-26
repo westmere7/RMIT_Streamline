@@ -55,7 +55,11 @@ export class BoardTemplateService {
 
   /**
    * A new board laid out as the template says: its groups and columns, then
-   * its automations pointed at the new ones, then its task names in order.
+   * its task names in order, then its automations pointed at the new ones.
+   *
+   * Tasks before rules: a write only queues automation events once the board
+   * has a rule listening, so building the template's own tasks first keeps
+   * its "when a task is added" rules from firing once for every one of them.
    */
   async createBoard(templateId: EntityId, input: Omit<CreateBoardInput, "templateId">, actorId: EntityId): Promise<BoardBundle> {
     const template = await this.repos.boardTemplates.getById(templateId);
@@ -67,6 +71,18 @@ export class BoardTemplateService {
       spec,
     );
     const ids = bundle.ids ?? new Map<string, string>();
+
+    const firstGroup = bundle.groups[0]!;
+    const positions = new Map<string, number>();
+    for (const task of spec.tasks) {
+      const groupId = ids.get(task.groupKey) ?? firstGroup.id;
+      const position = positions.get(groupId) ?? 0;
+      positions.set(groupId, position + 1);
+      const item = await this.items.createItem({ boardId: bundle.board.id, groupId, name: task.name, position }, actorId);
+      for (const [index, sub] of task.subitems.entries()) {
+        await this.items.createItem({ boardId: bundle.board.id, groupId, parentItemId: item.id, name: sub, position: index }, actorId);
+      }
+    }
 
     for (const rule of spec.automations) {
       const moved = remapTemplateIds({ trigger: rule.trigger, conditions: rule.conditions, actions: rule.actions }, ids);
@@ -81,18 +97,6 @@ export class BoardTemplateService {
         actions: moved.actions,
         createdBy: actorId,
       });
-    }
-
-    const firstGroup = bundle.groups[0]!;
-    const positions = new Map<string, number>();
-    for (const task of spec.tasks) {
-      const groupId = ids.get(task.groupKey) ?? firstGroup.id;
-      const position = positions.get(groupId) ?? 0;
-      positions.set(groupId, position + 1);
-      const item = await this.items.createItem({ boardId: bundle.board.id, groupId, name: task.name, position }, actorId);
-      for (const [index, sub] of task.subitems.entries()) {
-        await this.items.createItem({ boardId: bundle.board.id, groupId, parentItemId: item.id, name: sub, position: index }, actorId);
-      }
     }
     return bundle;
   }

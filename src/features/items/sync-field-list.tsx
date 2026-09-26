@@ -226,7 +226,7 @@ function FieldRow({
             }}
             aria-label={`Unpair ${label}`}
             title="Unpair these columns"
-            className="ml-auto flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover/sync:opacity-100"
+            className="ml-auto flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover/sync:opacity-100 pointer-coarse:opacity-100"
           >
             <Unlink className="size-3" />
           </button>

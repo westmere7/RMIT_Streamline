@@ -18,7 +18,7 @@ import { useBoardContext } from "@/features/boards/board-context";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { copyToClipboard } from "@/features/members/hooks";
 import { colorClasses } from "@/lib/colors";
-import { formatShortDate, isOverdue } from "@/lib/dates/dates";
+import { formatShortDate, isOverdue, toISODate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
 
@@ -316,7 +316,9 @@ function DateSheet({ open, onOpenChange, title, current, onPick }: { open: boole
   const plus = (days: number) => {
     const d = new Date(today);
     d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
+    // The phone's own day. toISOString is the UTC one, which is still
+    // yesterday on a Melbourne or Ho Chi Minh City morning.
+    return toISODate(d);
   };
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

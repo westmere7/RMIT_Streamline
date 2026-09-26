@@ -428,7 +428,7 @@ function ListRow({
             size="icon-sm"
             aria-label={`Remove ${row.name}`}
             onClick={onAskRemove}
-            className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive"
+            className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive pointer-coarse:opacity-100"
             data-testid="list-option-remove"
           >
             <X />

@@ -148,7 +148,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     department: listedDepartment(form.departments, memory.draft?.request.department ?? defaults?.department),
     itemId: null,
   }));
-  const [assets, setAssets] = React.useState<AssetRow[]>(() => (memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
+  const [assets, setAssets] = React.useState<AssetRow[]>(() => (memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "", assetType: line.assetType ?? null })));
   const [restored, setRestored] = React.useState(!!memory.draft);
   /**
    * The asset types the deliverables already name. They are part of the answer
@@ -398,7 +398,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       referenceUrl: past.referenceUrl,
       dueDate: null,
     }));
-    setAssets(past.assets.map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "" })));
+    setAssets(past.assets.map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "", assetType: line.assetType ?? null })));
     setErrors({});
     setStartedFrom(past.id);
   };

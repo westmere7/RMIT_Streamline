@@ -1,5 +1,5 @@
 import type { Board, EntityId, Item, Team, User } from "@/domain";
-import { ticketSearchKey } from "@/domain";
+import { parseTicket, ticketSearchKey } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
 export interface SearchResults {
@@ -79,14 +79,23 @@ function best(...scores: Array<number | null>): number | null {
 }
 
 /**
- * A ticket, matched the way people quote it: "CP_014", "cp14", "cp-14" or just
- * "14". Nobody remembers the separator and nobody types the padding.
+ * How well a ticket answers what was typed, on the ranking's own scale.
+ *
+ * Quoted the way people quote one — "CP_014", "cp14", "cp-14", or its bare
+ * number, "14" or "014" — the ticket is as good as the name: 0. Appearing
+ * somewhere inside it is a weak match, like a name that merely contains the
+ * text: 3. A query with no digit in it is never a ticket at all. Every task
+ * has one, so letting "c" or "cp" match them filled the results with every
+ * ticketed task and buried the names being typed.
  */
-function matchesTicket(ticket: string | null | undefined, query: string): boolean {
-  if (!ticket) return false;
+function ticketScore(ticket: string | null | undefined, query: string): number | null {
+  if (!ticket) return null;
   const needle = query.trim().toLowerCase();
-  if (!needle) return false;
-  return ticket.toLowerCase().includes(needle) || ticketSearchKey(ticket).includes(ticketSearchKey(needle));
+  if (!/\d/.test(needle)) return null;
+  const key = ticketSearchKey(needle);
+  if (ticketSearchKey(ticket) === key) return 0;
+  if (/^\d+$/.test(needle) && parseTicket(ticket)?.number === Number(needle)) return 0;
+  return ticket.toLowerCase().includes(needle) || ticketSearchKey(ticket).includes(key) ? 3 : null;
 }
 
 /** Best first, then the shorter name, which is nearer to being what was typed. */
@@ -123,9 +132,9 @@ export class SearchService {
     const itemRows: Array<{ row: SearchResults["items"][number]; score: number; name: string }> = [];
     for (const { board, items } of perBoard) {
       for (const item of items) {
-        // A code that matches is as good as the name itself: whoever typed it
-        // was quoting this task.
-        const score = best(searchScore(item.name, needle), matchesTicket(item.ticket, query) ? 0 : null);
+        // A ticket quoted in full is as good as the name itself: whoever typed
+        // it was quoting this task.
+        const score = best(searchScore(item.name, needle), ticketScore(item.ticket, query));
         if (score === null) continue;
         const archived = item.archivedAt !== null;
         // Live work ahead of archived work at the same score: an archived hit is

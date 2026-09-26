@@ -62,7 +62,10 @@ export function useLaneOptions(): Array<{ value: LaneBy; label: string }> {
  * phone calls it from an explicit "Move to" control. Same write either way.
  */
 export function useKanbanLanes(laneBy: LaneBy): Lane[] {
-  const { model, mutations, users } = useBoardContext();
+  const { model, mutations, users, people } = useBoardContext();
+  // Everyone a task can name, pending and departed people too: a task whose
+  // only owner has not onboarded yet, or has left, still needs a lane.
+  const named = people ?? users;
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
   const firstGroup = model.groups[0];
   const personColumn = model.personColumns[0] ?? null;
@@ -100,7 +103,7 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
         const v = model.getValue(item.id, column.id);
         return v?.type === "PERSON" ? v.userIds : [];
       };
-      const out: Lane[] = users
+      const out: Lane[] = named
         .filter((u) => visibleItems.some((i) => ownersOf(i).includes(u.id)))
         .sort((a, b) => a.displayName.localeCompare(b.displayName))
         .map((user) => ({
@@ -124,5 +127,5 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
       apply: (item) => void mutations.moveItemsToGroup([item.id], group.id),
       initial: { groupId: group.id, values: [] },
     }));
-  }, [laneBy, model, visibleItems, users, personColumn, firstGroup, mutations]);
+  }, [laneBy, model, visibleItems, named, personColumn, firstGroup, mutations]);
 }

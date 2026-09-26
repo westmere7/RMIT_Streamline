@@ -2,36 +2,50 @@
 
 ## 1. Purpose, scope, and evidence
 
-Streamline is an internal work-management application for the RMIT creative and marketing team. It combines configurable task boards, stakeholder booking, team allocation, deliverable tracking, spreadsheet-style trackers, discussions, direct messages, and workspace administration.
+Streamline is the RMIT creative and marketing team's own work-management application. It combines:
 
-This document is a technical and operational reference for developers, maintainers, administrators, testers, and future coding agents. It describes the implementation present in this repository, explains how its parts fit together, and identifies the files to consult before changing behavior.
+- configurable task boards, with automations and board templates;
+- stakeholder booking through one portal, and allocation of that booked work to teams;
+- deliverable tracking, and a live dashboard;
+- spreadsheet-style trackers;
+- threaded discussions, direct messages and notifications;
+- workspace administration, including snapshots.
 
-**Repository snapshot:** reviewed on 12 September 2026, at Git revision `b612633`; package version `0.17.0`. Unless explicitly marked as work in progress, versions, routes, constants and commands below describe that committed snapshot. The repository is the evidence source; this document does not certify the configuration, migration state, availability, or test results of any deployed environment.
+This document is the technical and operational reference for developers, maintainers, administrators, testers and coding agents. It describes the implementation in this repository, how its parts fit together, and which files to read before changing behaviour.
 
-**Evidence precedence:** executable implementation and current configuration take precedence over old comments and existing README prose. SQL must be read in application order, including later policy replacements. Tests describe intended behavior and regression coverage; their presence does not mean they were executed or passed during this documentation task.
+**Snapshot.** This document was rewritten on 26 September 2026.
 
-This update was prepared by inspecting current source, configuration, migrations, test definitions, and changes since the earlier snapshot. This documentation task edits only this knowledge base; concurrent application edits by other work are left untouched. Verification is static documentation validation; no build, development server, database connection, migration, seed, or application test suite was run for this update.
+- **Base:** revision `0649d71`, package `0.49.0`.
+- **On top of it:** the changes of that day's audit, released as `0.49.1`. They are listed in `Test_prompts/audits/2026-09-26-full-e2e/FIX_LOG.md`.
+- **Where the audit changed behaviour**, this document describes the new behaviour and says so. Examples: portal booking by department name, requester renaming, ticket search, `column_cleared`.
+- **Proposed SQL** that is not yet applied is described as proposed.
+- **Repository heads:** migration **0078**, policy **0019**, `supabase/sequence.txt` listing all 96 SQL files, IndexedDB **17**.
 
-### Changes since the earlier snapshot
+**Evidence precedence.** When sources disagree, trust them in this order:
 
-- One workspace-wide stakeholder portal replaces separate department links; stakeholder and date selections filter an already authorized workspace scope.
-- Booking uses a configurable service-based wizard, a saved draft separate from the published form, reusable form templates and brief blocks, and browser-local booking memory.
-- New bookings create deliverable lines without duplicate subitems. Allocation moves the original task and retains its identity and portal provenance.
-- Board archives have their own paginated route. Dashboard history includes archived items on active boards, while archived boards remain excluded.
-- The dashboard is one page with effort, task and asset measures, output-rate settings, and workload split by stakeholder. Its public share includes named workload.
-- Board and item shares offer public or member-only access, defaulting to member-only for new links. Shared board/item profile projection now uses an allowlist.
-- Active workspace membership precedes ownership and explicit board seats. Tracker saves flush on unmount; board value events are scoped by board; dashboard refreshes are throttled.
-- Repository schema heads are SQL migration **0040**, policy **0016**, and IndexedDB **15**.
+1. Executable code and current configuration.
+2. Tests. They show intended behaviour and regression coverage; a test existing does not mean it ran.
+3. Comments and older prose.
 
-### Concurrent work in progress
+SQL must be read in the order it is applied (`supabase/sequence.txt`), including later policy replacements.
 
-While this review was underway, additional uncommitted application edits appeared for formatted briefs and conditional questions. They are recorded here separately from the `b612633` baseline; their end-to-end integration, migrations and tests are not certified by this document.
+What was executed for this rewrite, and what was only read, is recorded in the audit folder (`COVERAGE.md`).
 
-- `src/domain/board/column.ts` and `src/domain/item/item.ts` add a `RICH_TEXT` column with a text payload, with corresponding display/filter/sort and link-mapping changes. Rich-to-plain translation removes formatting when targeting TEXT/LONG_TEXT.
-- `src/domain/booking/booking-template.ts` adds single-choice follow-up blocks keyed by option name, a one-level branch model, visible/all-block helpers and lettered question numbering. `src/services/booking.ts` adds branch-aware validation and formatted brief composition.
-- Shared rich-text rendering/editing helpers are being extended. Comments describe moving the composed brief into a dedicated rich-text Brief field rather than duplicating it in the description; confirm the completed booking service, renderer, persistence and migration paths before treating that change as delivered.
+### Changes since the 13 September snapshot (v0.19 → v0.49)
 
-The column inventory, booking storage behavior and SQL heads in the main sections are the committed baseline. When this work is completed, reconcile these provisional notes into those sections and update the snapshot revision.
+| Area | What changed |
+| --- | --- |
+| Tickets | Every task can carry a ticket such as `CP_014`. The number comes from a per-workspace counter; the prefix is set in Settings → Tickets. Uniqueness is enforced in `TicketService`. Tickets replaced the `TA-` booking references (migrations 0050/0051). |
+| Automations | Board rules — "when this, then that" — fired by Postgres triggers into a queue and drained server-side by `/api/automations/run`. 21 triggers, 23 actions, 10 recipes, quick runs, a heartbeat and a running indicator (0052–0057). |
+| Columns | New types: Dropdown, People, Rich text → Brief, Requester, Date, Time, Date + Time, Countdown, Booking time. Column roles ("Used as"). 10 special columns on every board; deleting one only removes it from view (0075). One of each special type per board. Departments locked to Settings' list (trigger 0074). |
+| Task panel | Name first; pop-up mode; three widths (300/520/880); two panes in the wide view; columns as draggable rows with their own menus; hide in panel (0044); task journey. |
+| Collaboration | Threaded updates with replies (0062); 16 reactions (0070); inline "Delete?"; reply notifications; profile hover cards. |
+| Booking and portal | Requester special column filled by bookings; public bookers found by email or added as pending members; live email check and name fill. Per-link portal settings (0058); booking page scale (0060/0061); the published form is named (0059). Portal task journey; "Portal and Booking" naming. |
+| Boards | Saved board templates with chosen parts (0077). Folded groups become one summary row. Item column resize. Board menu regrouped. |
+| Administration | Settings regrouped (Workspace / Lists / People / You / Data / Help). Snapshots with download, upload and restore (0071). Danger zone wipe (0076). New-version card with a changelog. Undo offer. Resizable sidebar. |
+| Everywhere | Realtime on the remaining workspace tables (0049); "Department" is the only word for who work is for (0063/0065). |
+| Phone | Card list with quick sheets and a New item button; grid and Kanban fitted to a phone (v0.24–v0.25). |
+| Operations | The migration runner applies `supabase/sequence.txt` order, so an empty database can be built from the repo; `db:seed` works again (audit fixes F-108, F-109). |
 
 ### Navigation
 
@@ -44,18 +58,18 @@ The column inventory, booking storage behavior and SQL heads in the main section
 7. [Authentication and onboarding](#8-authentication-and-onboarding)
 8. [Authorization](#9-authorization)
 9. [Boards, columns, and views](#10-boards-columns-and-views)
-10. [Items, links, and assets](#11-items-links-and-assets)
+10. [Items, tickets, links, and assets](#11-items-tickets-links-and-assets)
 11. [Booking and allocation](#12-booking-and-allocation)
-12. [Public board sharing](#13-public-board-sharing)
-    - [Individual task sharing](#13a-individual-task-sharing)
+12. [Board and task sharing](#13-board-and-task-sharing)
     - [Workspace dashboard](#13b-workspace-dashboard)
     - [Stakeholder portal](#13c-stakeholder-portal)
-    - [Phone experience](#13d-the-phone-experience)
+    - [The phone experience](#13d-the-phone-experience)
+    - [Automations](#13e-automations)
 13. [Personal work and collaboration](#14-personal-work-and-collaboration)
 14. [Trackers and Excel interchange](#15-trackers-and-excel-interchange)
 15. [State, synchronization, and saving](#16-state-synchronization-and-saving)
-16. [Database operations](#17-database-operations)
-17. [Deployment and build identity](#18-deployment-and-build-identity)
+16. [Database operations, snapshots and the danger zone](#17-database-operations)
+17. [Deployment, build identity and updates](#18-deployment-build-identity-and-updates)
 18. [Testing and verification](#19-testing-and-verification)
 19. [Troubleshooting](#20-troubleshooting)
 20. [Development change guides](#21-development-change-guides)
@@ -64,186 +78,201 @@ The column inventory, booking storage behavior and SQL heads in the main section
 
 ## 2. Product and terminology
 
-The main hierarchy is a workspace containing teams and boards. Boards contain groups, columns, items, and subitems. Column definitions describe a board's structure; separate item-column value records hold each task's data.
+A workspace contains teams, people, boards and trackers. Boards contain groups, columns, items and subitems. Column definitions describe a board's structure; separate item-column value records hold each task's data.
 
 | Term | Meaning in this application |
 | --- | --- |
-| Workspace | Organization-level container, with its own membership, roles, booking key, and booking form. |
-| Team | A collection of workspace members; can organize boards and designate a board to receive bookings. |
-| Board | A configurable work surface with ownership, visibility, memberships, groups, and typed columns. |
-| Group | An ordered section within a board, such as Backlog or Completed. |
-| Item | A task with identity, title, description, position, and optional cover and booking reference. |
-| Subitem | An item whose `parentItemId` points to another item. It uses the board's column model. |
-| Column | A board-specific field definition, including type, position, width, and type-specific settings. |
-| Column value | A typed value associated with one item and one column. |
-| Status role | The semantic meaning of a status label: done, stuck, or progress. |
-| Linked item | A separate item on another board connected through selective field synchronization. |
-| Asset | A structured deliverable line on an item, with quantity, assignees, due date, and completion. |
-| Tracker | A lightweight workbook containing ordered sheets of typed cells and section rows. |
-| Update | Depending on context, either a comment in an item's Updates tab or a quiet notification delivery class. |
-| Task Allocation | The built-in, administrator-only board receiving bookings without a valid direct destination. |
-| Board/item share | A read-only link to a board or individual task, with public or active-member access, optional password and expiry. |
-| Stakeholder portal | One workspace-wide reading and booking link; stakeholder and time filters organize the published requests. |
-| Booking service | A configured kind of work, with its own brief questions and optional receiving team. |
-| Dashboard | Derived tasks, asset units, estimated effort, demand, and named workload; preferences, output rates and share settings are stored separately. |
-| Invitation | A token-based onboarding link for a pending workspace member. |
+| Workspace | The organisation-level container: membership, roles, booking key, booking form, ticket prefix and counter, output rates. |
+| Team | A group of members that organises boards and trackers and can name a board that receives bookings. The built-in Admin team (`system = "ADMIN"`) holds Task Allocation and has its own sidebar panel. |
+| Board | A configurable work surface with ownership, visibility, members, groups and typed columns. |
+| Group | An ordered section of a board, such as Planning or Completed. |
+| Item / task | A task with identity, name, description, position, optional cover and optional ticket. |
+| Subitem | An item whose `parentItemId` points at another item. It uses the board's columns. |
+| Column | A board's field definition: type, position, width, settings, optional role, and the `hidden`, `hiddenInPanel` and `removed` flags. |
+| Special column | One of the 10 system types every board holds exactly once: Status, PIC, Requester, Due date, Timeline, Priority, Department, Size, Assets recap and Brief. Task Allocation also has Booking time. |
+| Column role | A column's declared job on its board ("Used as"): status, pic, dueDate, timeline, priority, stakeholder, size, assetsRecap, requester, department, requestedTeam, assetType, brief. |
+| Status role | What a status label means — done, stuck or progress — separate from its wording. |
+| Ticket | A task's quotable code, `PREFIX_NNN` (for example `CP_014`), drawn from the workspace's counter. |
+| Linked item | A separate item on another board, joined for selective field synchronisation, shared deliverables and a shared Updates conversation. |
+| Asset / deliverable | A structured deliverable line on an item: type, quantity, assignees, due date, completion, spec and two links. |
+| Department | Who the work is for. It comes from Settings → Departments, is stored in a STAKEHOLDER column, and is the only word used for it. |
+| Requester | Who asked for the work: a person (a REQUESTER column), filled by bookings. |
+| Brief | A booking's composed brief: one rich-text document in the Brief column. |
+| Booking service | A kind of work on the booking form, with its own brief questions and optional receiving team. |
+| Task Allocation | The built-in, admin-only board that receives bookings without a direct destination. |
+| Automation | A board rule — trigger, optional conditions, actions — run server-side. A **quick run** is a saved group of actions fired by hand; a **recipe** is a ready-made starting point. |
+| Board template | A saved layout (columns, and optionally groups, settings, layout, automations, task names, look) that new boards start from. |
+| Snapshot | A gzipped JSON copy of every public table, stored in the database; it can be downloaded, uploaded and restored. |
+| Danger zone | Settings' wipe of all board data. It takes a snapshot first. |
+| Thread / reply / reaction | An update with one level of replies under it, and emoji reactions on either. |
+| Task journey | A task's milestones from booking to archive, timed, in one dialog. |
+| Board / task share | A read-only link to a board or one task: public or member-only, optional password and expiry. |
+| Portal | One workspace-wide reading and booking link. Department and date choices filter an already authorised set. |
+| Dashboard | Figures derived from the boards, in tasks, asset units or estimated effort; can be shared publicly. |
+| Invitation | A token-based onboarding link for a pending member. |
 
 ### Main user journeys
 
-- **Team member:** sign in, find a board or My Work assignment, update fields, discuss a task, track its assets, and review notifications.
-- **Manager:** organize boards and groups, assign people, review workload and progress, and allocate incoming work.
-- **Stakeholder:** open a booking link, submit a brief and deliverables, and receive a reference for follow-up.
-- **Workspace administrator:** manage people, invitations, system entities, booking configuration, and workspace settings.
-- **Share-link reader:** open a board or task link, satisfy member/password gates when configured, and inspect the scoped content.
+- **Team member:** sign in, find work (Home, My Work, search), update fields, discuss a task in its thread, track deliverables, read the Inbox.
+- **Team manager:** organise boards and groups, assign people, set up automations, review workload and the dashboard, save a board as a template.
+- **Admin:** run Task Allocation, the portal and the form editor; manage members, teams, departments, asset types, tickets; take snapshots.
+- **Stakeholder:** open the portal or booking link, book in four steps, get a ticket, follow progress on the portal.
+- **Share-link reader:** open a board, task or dashboard link and pass its gate.
 
-These journeys use different access mechanisms. Booking keys, board/item/dashboard share tokens, portal tokens and onboarding tokens are separate credentials for separate purposes.
+Booking keys, board/task/dashboard share tokens, portal tokens, invitation tokens and the automation runner secret are separate credentials for separate purposes.
 
 ## 3. Technology and repository map
 
 ### Runtime and packages
 
-Use the repository's declared **Node.js `22.x`** engine. The package is private and named `rmit-streamline`.
+Use Node.js **22.x** (the package's `engines`). The package is private, named `rmit-streamline`.
 
 | Responsibility | Implementation |
 | --- | --- |
-| Application framework | Next.js `16.3.4`, App Router |
+| Application framework | Next.js `16.3.4`, App Router (read `node_modules/next/dist/docs/` before changing Next.js code, as `AGENTS.md` requires) |
 | UI runtime | React and React DOM `19.2.8` |
-| Language | TypeScript `^5.9.0` |
-| Styling | Tailwind CSS `^4.3.3`, CSS tokens, animation utilities |
-| UI primitives | Radix UI, shared wrappers in `src/components/ui` |
-| Icons, toast, search dialog | Lucide, Sonner, cmdk |
+| Language | TypeScript `^5.9.0`, strict, `noUncheckedIndexedAccess`, `noImplicitOverride` |
+| Styling | Tailwind CSS 4 with CSS tokens, `tw-animate-css` |
+| UI primitives | Radix UI (`radix-ui`), wrappers in `src/components/ui` |
+| Icons, toasts, palette | Lucide, Sonner, cmdk |
 | Remote-state cache | TanStack Query `^5.102.8` |
-| Board row virtualization | TanStack Virtual `^3.14.11` |
+| Row virtualisation | TanStack Virtual `^3.14.11` |
 | Client UI state | Zustand `^5.0.15` |
 | Browser persistence | IndexedDB through `idb` `^8.0.3` |
-| Shared backend | Supabase JS `^2.115.0`, Postgres, Auth, Realtime, Storage |
-| Rich text | Tiptap `^3.31.3`, including mentions and placeholder extensions |
-| Forms | React Hook Form, resolver adapters, Zod |
-| Drag and drop | dnd-kit core, sortable, modifiers, and utilities |
-| Dates | date-fns and react-day-picker |
-| Excel files | ExcelJS `^4.4.0` |
-| Unit/component testing | Vitest, happy-dom, Testing Library, fake-indexeddb |
-| Browser testing | Playwright |
-| Database scripts | `postgres`, Node.js scripts, `tsx` for TypeScript seed scripts |
+| Shared backend | Supabase JS `^2.115.0`: Postgres, Auth, Realtime, Storage |
+| Server-side SQL | `postgres` `^3.4.9` (migrations, seeds, snapshots, restore, wipe) |
+| Rich text | Tiptap `^3.31.3` with mentions and placeholders; a Markdown subset stored as text |
+| Word export | `jszip` builds `.docx` files from rich text (`src/lib/rich-text-docx.ts`) |
+| Forms | React Hook Form, resolvers, Zod 4 |
+| Drag and drop | dnd-kit core, sortable, modifiers, utilities |
+| Dates | date-fns 4, react-day-picker 10 |
+| Excel | ExcelJS `^4.4.0` |
+| Unit/component tests | Vitest 4, happy-dom, Testing Library, fake-indexeddb |
+| Browser tests | Playwright `^1.62.1` |
+| Scripts | Node ESM scripts and `tsx` for TypeScript ones |
 
-These are declared dependency versions or ranges, not a claim that every machine has the same resolved installation. `package-lock.json` controls reproducible npm installs.
+`.npmrc` sets `legacy-peer-deps=true`; Vercel installs with the same flag. `package-lock.json` controls reproducible installs.
 
 ### Directory responsibilities
 
 | Path | Responsibility |
 | --- | --- |
-| `src/app` | App Router pages, layouts, providers, styles, and HTTP route handlers. |
-| `src/components/layout` | App shell, sidebar, menus, and loading layout. |
-| `src/components/shared` | Reusable rich text, inline editing, avatars, icons, colors, and state displays. |
-| `src/components/ui` | UI primitives such as dialogs, buttons, inputs, popovers, and menus. |
-| `src/domain` | Domain types, value unions, constants, and pure helpers. |
-| `src/data/repositories/index.ts` | Shared persistence interfaces. |
-| `src/data/local` | IndexedDB schema, connection lifecycle, and repositories. |
-| `src/data/supabase` | Supabase repositories, row conversion, error handling, and HTTP transports. |
-| `src/data/memory` | Read-only repositories backed by a public-board payload. |
-| `src/data/seed` | Deterministic demo entities, extra content, history, trackers, and seed application. |
-| `src/services` | Use-case orchestration and domain transformations. |
-| `src/features` | Product screens, feature components, hooks, and contexts. |
-| `src/server` | Server-side booking, sharing, onboarding, validation, and HTTP support. |
-| `src/lib` | Configuration, dates, routes, permissions, IDs, rich text, auth utilities, and synchronization. |
-| `src/stores` | UI preferences, per-board interaction state, and version-check state. |
-| `supabase/migrations` | Ordered schema/data migrations. |
-| `supabase/policies` | Ordered RLS policies and helper-function replacements. |
-| `scripts` | Migration, seed, setup, user administration, and Supabase test runners. |
-| `tests/unit` | Unit and component regression tests. |
-| `tests/e2e` | Browser workflows, provider smoke tests, and deployment smoke tests. |
-| `Test_prompts` | QA prompts and historical QA notes; not the executable test harness. |
+| `src/app` | App Router pages and layouts, providers, styles, and the 29 HTTP route handlers under `api/`. |
+| `src/components/layout` | App shell, sidebar, phone shell, menus (`menu-sheet.tsx` renders menus as sheets on phones), loader. |
+| `src/components/shared`, `src/components/ui` | Reusable controls (avatars with hover cards, rich text, labels) and primitives. |
+| `src/domain` | Types, value unions, constants and pure helpers: board, item, ticket, automation, booking, portal, dashboard, template. |
+| `src/data/repositories` | The 25 repository contracts shared by providers. |
+| `src/data/local` | IndexedDB schema (v17), connection and repositories. |
+| `src/data/supabase` | Supabase repositories, row mapping, HTTP transports for server routes. |
+| `src/data/memory` | Read-only repositories over a public payload (shares, portal). |
+| `src/data/seed` | Deterministic demo data, extras, 2025 history, trackers, top-up logic. |
+| `src/services` | Use cases: boards, items, tickets, links, assets, booking, portal, automations (service and engine), templates, search, dashboard, notifications, comments. |
+| `src/server` | Service-role server code: booking, requesters, portal, sharing, onboarding, automations runner, snapshots and wipe, HTTP helpers. |
+| `src/features` | Screens and hooks by area: boards, items, automations, booking, portal, dashboard, journey, undo, version, workspace (settings, guide), members, profile, trackers, mobile… |
+| `src/lib`, `src/stores`, `src/hooks` | Config, routes, permissions, dates, rich text, realtime, query keys, changelog; Zustand stores; `useIsMobile`, clock hooks. |
+| `supabase/migrations`, `supabase/policies` | Ordered SQL, applied in the order `supabase/sequence.txt` gives. |
+| `supabase/optional` | SQL applied by hand only (the pg_cron automation driver). |
+| `scripts` | Migration runner, seeds, top-up, special columns, snapshot rehearsal, ticket dedupe, account tools, e2e runners. |
+| `tests/unit`, `tests/e2e` | Vitest suites (106 files after the audit) and Playwright specs (32). |
+| `Test_prompts` | Audit prompts and reports. Evidence, not the executable harness. |
 
-`tsconfig.json` enables strict checking, `noUncheckedIndexedAccess`, and `noImplicitOverride`. Imports beginning with `@/` resolve to `src/`.
+Imports beginning with `@/` resolve to `src/`. `tsconfig.json` includes every `.ts`/`.tsx` file, **tests included**, so a type error in a test also fails `next build`.
 
 ## 4. Architecture and request flow
 
-### Normal application flow
-
 ```text
-App Router page/layout
-  -> feature screen/context
-  -> feature hook and TanStack Query cache
-  -> service
-  -> repository interface
-  -> IndexedDB or Supabase implementation
+App Router page / layout
+  -> feature screen, context, hooks, TanStack Query cache
+  -> service (use case)                     src/services
+  -> repository interface                   src/data/repositories
+     -> Local: IndexedDB                    src/data/local
+     -> Supabase: PostgREST / Auth / Realtime / Storage  src/data/supabase
+
+Public payloads (board/task shares, portal, dashboard link)
+  -> server route (service role) -> projection -> JSON
+  -> read-only memory repositories -> the same board views and panels
+
+Automations (Supabase)
+  write (any client) -> Postgres trigger -> automation_events (queue)
+  pg_cron / GitHub Actions / member nudge -> /api/automations/run -> AutomationEngine -> ordinary services
 ```
 
-Pages are generally entry points into feature modules. The feature layer owns interaction and rendering. Services own use cases that span several entities. Repositories provide persistence in domain types.
-
-The composition root is `src/features/data/data-context.tsx`. It resolves configuration, constructs repositories, creates services, and creates the corresponding auth provider. `useServices()` exposes this graph to features.
-
-`src/services/index.ts` constructs services in dependency order. A shared `NotificationService` is supplied to the services that emit notifications. `ItemLinkService` is shared with items and comments. Booking receives workspace, item, link, asset, and notification services. This makes booking reuse the normal business behavior instead of implementing another task subsystem.
+The composition root is `src/features/data/data-context.tsx`. `createServices()` (`src/services/index.ts`) wires the services in dependency order, sharing `NotificationService`, `ItemLinkService` and the automation engine. Booking reuses the normal item, asset, link and ticket services rather than a parallel task system.
 
 ### Provider selection
 
-`createRepositories()` in `src/data/provider.ts` chooses between local and Supabase persistence. Both expose the same `Repositories` contract. Switching providers selects another store; it does **not** copy existing browser data into Postgres or vice versa.
+`createRepositories()` chooses local or Supabase persistence. Both expose the same `Repositories` contract. Switching providers selects another store; it copies nothing.
 
-The memory implementation is a specialized read-only adapter for public board rendering. It is not a third configurable workspace backend. It serves a bounded payload, returns empty results outside that payload, rejects writes, and ignores incidental visit/read markers that public visitors cannot persist.
+The memory implementation is a read-only adapter for public pages, not a third backend. It returns empty results outside its payload and rejects writes.
 
 ### Application providers
 
-`src/app/providers.tsx` composes QueryClient, local synchronization, data, auth, tooltips, theme synchronization, and toast rendering. Query defaults are:
+`src/app/providers.tsx` composes, in order: the QueryClient, local cross-tab sync, data, auth, tooltips, theme sync and toasts.
+
+Query defaults:
 
 | Setting | Value |
 | --- | --- |
-| `staleTime` | 30 seconds |
-| `gcTime` | 5 minutes |
-| Query retry | 1 |
-| Refetch on window focus | Enabled by default, gated by `staleTime` |
+| `staleTime` | 30 s |
+| `gcTime` | 5 min |
+| `retry` | 1 |
+| `refetchOnWindowFocus` | on (gated by `staleTime`) |
 
-Focus refetching is the backstop under Realtime: a subscription cannot cover the
-time a tab spent asleep or offline, and returning to the window is when somebody
-is about to trust what is on screen. `staleTime` still gates it, so flicking
-between two tabs re-reads nothing.
+Feature hooks override these where they need to.
 
-Individual feature hooks can override these defaults. Mutation failures are logged centrally, while feature-specific mutation paths supply user-facing errors.
+`AppShell` mounts one of two frames, never both:
+
+- **Phone** (below 768 px): `MobileShell`, a top bar plus five destinations.
+- **Desktop**: sidebar plus main.
+
+Shared overlays sit above that branch: the command palette, the undo bar, confetti, `VersionWatcher` and `SaveBoardTemplateHost`.
 
 ### Boundaries to preserve
 
-Use repository interfaces and services for normal task data. Keep pure mapping, formatting, and aggregation in modules that do not require a browser or a database. Use the shared permission helpers rather than copying role logic into components.
-
-The architecture is a convention with some explicit exceptions: avatar and cover upload helpers access Supabase Storage directly; some feature reads use `services.repos`. Do not interpret the layering description as a claim that the code has no direct provider-aware paths.
-
-Server-side booking and sharing route the ordinary Supabase repositories through the service-role client. `routeRepositoriesThrough()` uses a module-level override. It is intended for server use and must not be invoked in browser code. Any future change to per-request clients needs to account for that shared state.
+- **Services and repositories.** Normal task data goes through services and repositories. Pure mapping and aggregation stay out of components.
+- **Permission helpers.** Use the shared helpers in `src/lib/permissions/permissions.ts`.
+- **Services check no permissions.** On Supabase, RLS and the server routes are the only gates. On the local provider, only the UI is.
+- **Deliberate direct paths:**
+  - avatar and cover uploads go straight to Storage;
+  - snapshots and wipe use a direct `postgres` connection;
+  - some feature reads use `services.repos`.
+- **Service role in server code.** `routeRepositoriesThrough()` points the Supabase repositories at the service-role client with a module-level override. It is server-only.
 
 ## 5. Configuration and local development
 
-### Configuration behavior
+### Configuration behaviour
 
 `src/lib/config.ts` is authoritative:
 
-1. Trim and lowercase `NEXT_PUBLIC_DATA_PROVIDER`.
-2. Select local mode only when its value is exactly `local` after normalization.
-3. Otherwise select Supabase.
-4. If the Supabase URL or anon key is absent, log a warning and fall back to local mode.
+1. `NEXT_PUBLIC_DATA_PROVIDER` is trimmed and lowercased.
+2. Exactly `local` means local.
+3. Anything else means Supabase.
+4. If the Supabase URL or anon key is missing, it logs a warning and falls back to local.
 
-An unknown provider string therefore follows the Supabase branch; it does not produce a configuration validation error. A successful app startup is not proof that it is using the intended backend.
+An unknown provider string therefore follows the Supabase branch. A running app is not proof that it uses the intended backend.
 
 ### Environment variables
 
 | Variable | Scope and purpose |
 | --- | --- |
-| `NEXT_PUBLIC_DATA_PROVIDER` | Browser-visible provider choice; `local` or `supabase`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe project key; row authorization depends on RLS and the user session. |
-| `NEXT_PUBLIC_SUPABASE_REGION` | Optional human-readable backend region for the About UI. |
-| `SUPABASE_DB_URL` | Server/script-only Postgres connection URI for migrations and seed operations. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged key for onboarding, public booking, public sharing, and administrative seed operations. |
-| `SKIP_DB_MIGRATE` | Set to `1` to bypass the migration runner. |
-| `SEED_PASSWORD` | Demo account password override used by seed/test tooling. |
-| `ADMIN_PASSWORD` | Seed administrator password override. |
-| `SEED_APP_URL` | Base URL used when the seed prints invitation links. |
-| `ADD_USER_PASSWORD` | Alternative password input for `scripts/add-user.mjs`. |
-| `E2E_BASE_URL` | Deployed site target for deployment smoke tests. |
-| `E2E_EMAIL`, `E2E_PASSWORD` | Smoke-test sign-in overrides. |
-| `E2E_PROVIDER`, `PW_PROVIDER` | Supabase test gating and dev-server provider selection. |
+| `NEXT_PUBLIC_DATA_PROVIDER` | `local` or `supabase` (default). |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-visible project URL and public key; access is enforced by RLS. |
+| `NEXT_PUBLIC_SUPABASE_REGION` | Optional label shown in About. |
+| `SUPABASE_DB_URL` | Server/script-only Postgres URI (the session pooler for hosted projects). Used by migrations, seeds, snapshots, restore and wipe. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for onboarding, booking, requester lookup, portal, shares, the dashboard link, the automation runner and seeds. |
+| `AUTOMATION_SECRET` (or `CRON_SECRET`) | The automation runner's secret. The runner checks `AUTOMATION_SECRET` first, so when both are set `CRON_SECRET` is ignored. With neither set, `/api/automations/run` answers 503 to runner calls. |
+| `AUTOMATION_TIMEZONE` | The zone scheduled rules read the clock in (default `Australia/Melbourne`). Snapshot names default to `Asia/Ho_Chi_Minh` when it is unset. |
+| `SKIP_DB_MIGRATE` | `1` bypasses the migration runner (`predev`/`prebuild`). |
+| `NEXT_DIST_DIR` | Build folder override, so a second dev server can run beside another (`dev-preview` uses `.next-preview`). |
+| `SEED_PASSWORD`, `ADMIN_PASSWORD`, `SEED_APP_URL`, `ADD_USER_PASSWORD` | Seed/account tooling. |
+| `E2E_PROVIDER`, `PW_PROVIDER`, `E2E_BASE_URL`, `E2E_EMAIL`, `E2E_PASSWORD`, `CI` | Test selection and targets. |
+| Build identity | `VERCEL_GIT_COMMIT_SHA`, `GITHUB_SHA`, `BUILD_ID`, `VERCEL_ENV` are read; `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_BUILD_ID`, `NEXT_PUBLIC_BUILT_AT`, `NEXT_PUBLIC_DEPLOY_ENV` are set by `next.config.ts`. |
 
-Build identity variables are described in section 18. Do not place privileged values in variables prefixed with `NEXT_PUBLIC_`.
+Never put privileged values in `NEXT_PUBLIC_*` variables. `.env.local` is gitignored.
+
+**Fallback trap.** Scripts fill every *unset* variable from `.env.local`. If a hosted project's `.env.local` is present, any variable you forget to pass falls back to that project. Run disposable work from a separate checkout (§19).
 
 ### Local-only development on Windows
-
-From the repository root, with Node.js 22 available:
 
 ```powershell
 npm ci
@@ -252,818 +281,1374 @@ $env:SKIP_DB_MIGRATE = '1'
 npm run dev
 ```
 
-The normal development URL is `http://localhost:3000`. The environment assignments above affect the current PowerShell session. Persistent project configuration can instead be placed in `.env.local`, using `.env.example` as the field reference.
+The migration skip is explicit because `predev` (and `prebuild`) run the migration runner whenever `SUPABASE_DB_URL` is configured. Choosing the local provider does not disable that.
 
-The migration skip is explicit because `npm run dev` has a `predev` hook. Selecting local data does not itself disable migrations when a database URL is configured. The same issue applies to the `prebuild` hook.
-
-`.npmrc` contains `legacy-peer-deps=true`. Vercel also installs with that option. Preserve this repository setting when reproducing installs.
+A second dev server beside your own needs its own build folder. `.claude/launch.json`'s `dev-preview` runs port 3200 with `NEXT_DIST_DIR=.next-preview`, local data and `SKIP_DB_MIGRATE=1`.
 
 ### First local session
 
-Opening a local repository lazily initializes IndexedDB and seeds it when the `meta` store lacks `seededAt`. The familiar seed includes the RMIT workspace, creative teams, campaign boards, tasks, values, and collaboration records. The seed source is the reliable place to check exact current entities.
+Opening the local provider seeds IndexedDB when `meta.seededAt` is missing:
 
-The documented local walkthrough starts with Danh Nguyen (`danh@rmit.local`) and workspace `/workspace/rmit`. Local sign-in allows active demo users to enter without a password; pending onboarding and deactivated-user checks still apply.
+- the RMIT workspace, eight teams plus Admin, demo boards and their tasks;
+- 2025 history, collaboration records, trackers;
+- pending members Anh, Lucas and Mai, with fixed invitation tokens `demo-invite-<key>-2026`.
 
-Local data belongs to the browser profile and origin. `localhost:3000` and `localhost:3100` have separate browser storage. Another browser, private window, device, or origin does not automatically receive the same local workspace.
+Sign in from the account tiles (`login-<first name>`). No password is needed locally. Pending and deactivated checks still apply. Local data belongs to one browser profile and origin, so ports 3000, 3100 and 3200 each have their own store.
 
 ## 6. Routes and server endpoints
 
-Use `src/lib/routes.ts` for application links. Board and workspace slugs are distinct from entity IDs.
+Use `src/lib/routes.ts` for links. Slugs are distinct from ids.
 
-### Page routes
+### Page routes (27)
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Root entry point. |
-| `/login` | Sign-in screen. |
-| `/join/[token]` | Public onboarding screen. |
-| `/book/[slug]/[key]` | Public stakeholder booking wizard authorized by the workspace key. |
-| `/book/[slug]` | The same booking wizard for signed-in workspace members. |
-| `/share/[token]` | Public read-only board. |
-| `/share/item/[token]` | Read-only individual task share. |
-| `/portal/[token]` | Unified workspace stakeholder portal with stakeholder, range and grouping controls. |
-| `/portal/[token]/book` | Portal booking wizard, retaining the chosen stakeholder through `?for=`. |
-| `/workspace/[workspaceSlug]` | Workspace home. |
-| `/workspace/[workspaceSlug]/boards/[boardSlug]` | Board and selected view. |
-| `/workspace/[workspaceSlug]/boards/[boardSlug]/archive` | Paginated archived tasks, detail, restore and delete actions. |
-| `/workspace/[workspaceSlug]/browse` | Phone directory of teams, boards, favourites and trackers. |
-| `/workspace/[workspaceSlug]/more` | Phone navigation to less frequent destinations and account controls. |
-| `/workspace/[workspaceSlug]/my-work` | Assigned work across boards. |
-| `/workspace/[workspaceSlug]/inbox` | Notifications and quiet updates. |
-| `/workspace/[workspaceSlug]/dashboard` | The live delivery dashboard across every board the reader can see. |
-| `/dashboard/[token]` | Public, full-screen, read-only dashboard behind a share token. |
-| `/workspace/[workspaceSlug]/book` | Stakeholder Portal management and form editor for administrators; other members redirect to `/book/[slug]`. |
-| `/workspace/[workspaceSlug]/members` | Member directory and administration. |
-| `/workspace/[workspaceSlug]/people/[userId]` | Person profile. |
-| `/workspace/[workspaceSlug]/messages` | Direct-message threads. |
-| `/workspace/[workspaceSlug]/teams/[teamId]` | Team page. |
-| `/workspace/[workspaceSlug]/trackers` | Tracker collection. |
-| `/workspace/[workspaceSlug]/trackers/[trackerId]` | Tracker and selected sheet. |
-| `/workspace/[workspaceSlug]/settings` | Workspace settings. |
+| `/` | Loading screen ("Checking your session…"), then the workspace or `/login`. |
+| `/login` | Sign-in. Signed-in visitors see the loader, never the form (v0.45.2). `?next=` follows same-site paths only. |
+| `/join/[token]` | Onboarding: preview, password (≥8), profile, photo. |
+| `/book/[slug]/[key]` | Public booking wizard behind the workspace key. |
+| `/book/[slug]` | The same wizard for a signed-in member. |
+| `/portal/[token]` | The workspace portal. |
+| `/portal/[token]/book` | Booking from the portal (opens in a new tab). |
+| `/share/[token]`, `/share/item/[token]` | Read-only board / task share. |
+| `/dashboard/[token]` | Public full-screen dashboard. |
+| `/workspace/[slug]` | Home. |
+| `/workspace/[slug]/boards/[boardSlug]` | Board and view (`?view=`, `?item=`). |
+| `/workspace/[slug]/boards/[boardSlug]/archive` | Archived tasks (`?item=`). |
+| `/workspace/[slug]/my-work`, `/inbox`, `/messages` (`?to=`) | Personal work, notifications, direct messages. |
+| `/workspace/[slug]/dashboard` | The live dashboard. |
+| `/workspace/[slug]/automations` | Workspace automations page. |
+| `/workspace/[slug]/book` | Portal and Booking (admins); others are redirected to `/book/[slug]`. |
+| `/workspace/[slug]/members`, `/people/[userId]`, `/teams/[teamId]` | People and teams. |
+| `/workspace/[slug]/trackers`, `/trackers/[trackerId]` (`?sheet=`) | Trackers. |
+| `/workspace/[slug]/settings` (`?section=`, `&guide=`) | Settings and the in-app guide. |
+| `/workspace/[slug]/browse`, `/more` | Phone directory and phone "More". |
 
-Relevant query parameters are `view` and `item` on boards, `item` on archives, `task`, `view`, `for`, `range`, and `group` on portals, `sheet` on trackers, `to` on messages, `next` on login, and `section` plus `guide` on settings. Portal task deep links use `task`, not the internal board's `item` parameter. Settings `section=rates` displays Lists.
+Portal parameters are `?for` (department id), `?range`, `?group=board|status|stakeholder`, `?view` and `?task`. `routes.board()` omits `view=table`.
 
-Search - both a board's own box (`matchesSearch`) and the command palette (`SearchService`) - matches an item's booking code as well as its name, with the hyphen optional, so `TA-7441`, `ta7441` and `7441` all find the same task. The palette shows the code it matched on. `routes.board()` omits `view=table`, the default view. An `item` deep link allows a task panel to reopen after refresh.
+### HTTP endpoints (29 route files)
 
-### HTTP endpoints
+Every handler awaits its promised `params`. `src/server/http.ts` wraps them:
 
-| Endpoint | Methods | Behavior and access |
+- `HttpError` statuses are kept.
+- Zod failures and malformed JSON become 400.
+- Anything else is logged and returned as a generic 500.
+- JSON carries `Cache-Control: no-store`.
+
+| Endpoint | Methods | Access and behaviour |
 | --- | --- | --- |
-| `/api/version` | GET | Reports server build identity. |
-| `/api/invitations` | POST | Adds a pending member; requires an active workspace administrator. |
-| `/api/invitations/regenerate` | POST | Renews an invitation for a pending member. |
-| `/api/invitations/cancel` | POST | Cancels a pending invitation/membership through the onboarding service. |
-| `/api/invitations/reinitiate` | POST | Starts onboarding again for an existing member. |
-| `/api/join/[token]` | GET, POST | Previews an invitation, then completes profile/password setup. |
-| `/api/book/[slug]` | GET, POST | Loads a booking form or creates a booking using a valid key or active-member session. |
-| `/api/share/[token]` | GET, POST | GET reports the access gate; POST returns the board after password validation. |
-| `/api/share/item/[token]` | GET, POST | Gate and scoped task payload; member-only links also verify an active membership in the task's workspace. |
-| `/api/dashboard/[token]` | GET, POST | GET reports the dashboard link's gate; POST returns the trimmed workspace snapshot after password validation. |
-| `/api/portal/[token]` | GET | Reports the unified portal gate; legacy department links report replacement/revocation. |
-| `/api/portal/[token]/board` | POST | Synthetic board for the admitted workspace, narrowed by stakeholder and range. |
-| `/api/portal/[token]/tasks` | POST | Cursor-paged requests and totals for the selected scope; search spans all dates. |
-| `/api/portal/[token]/tasks/[itemId]` | POST | One request, after checking it belongs to this portal. |
-| `/api/portal/[token]/book` | PUT, POST | PUT loads the booking form behind the gate; POST submits, idempotent on a submission key. |
-| `/api/portal/[token]/comments` | POST | Staff-only update; re-checks the gate, the portal scope and a board seat. |
-| `/api/portal/[token]/assets` | POST | Staff-only deliverable edit; also verifies the asset belongs to the named item. |
-
-Dynamic handlers shown in the implementation use promised route parameters and await them. The repository's `AGENTS.md` requires reading the relevant installed Next.js guides in `node_modules/next/dist/docs/` before writing Next.js code; do not substitute assumptions from older releases.
-
-`src/server/http.ts` wraps handlers. Explicit `HttpError` status codes are preserved, Zod failures become HTTP 400, malformed JSON becomes HTTP 400, and unhandled errors are logged and returned as a generic HTTP 500. Standard JSON responses use `Cache-Control: no-store`.
-
-Booking POST accepts a body containing `key` and `request`; the key is a query parameter for GET. The share password is sent in a POST body, not in the URL. Share failures additionally expose a reason used by the gate UI; wrong passwords produce 401 and unavailable links produce 404 in the payload-loading path.
+| `/api/version` | GET | Public. `{version, buildId, builtAt}` of the running server. |
+| `/api/changelog?since=` | GET | Public. Entries newer than `since` (or the latest one). |
+| `/api/invitations`, `/cancel`, `/regenerate`, `/reinitiate` | POST | Active workspace admin. Add a pending member; cancel; renew; start onboarding again (not for yourself). |
+| `/api/join/[token]` | GET, POST | Invitation token. Preview, then complete (password via the Auth Admin API). |
+| `/api/book/[slug]` | GET, POST (201) | Booking key, or an active member's session. A wrong key is 403 even with a session; no key and no session is 401; an unknown slug is 404. |
+| `/api/book/[slug]/requester` | POST | Same gate. `{email}` → `{name}` for a person the workspace has; exact email match. |
+| `/api/share/[token]`, `/api/share/item/[token]` | GET, POST | Share token (+ password). GET reports the gate; POST returns the payload. Member-only links need the caller's bearer. |
+| `/api/dashboard/[token]` | GET, POST | Dashboard token (+ password). Trimmed snapshot. |
+| `/api/portal/[token]` | GET | Portal gate. |
+| `/api/portal/[token]/board`, `/tasks`, `/tasks/[itemId]`, `/tasks/[itemId]/journey`, `/requester` | POST | Portal grant (token, switch, credential version, password). |
+| `/api/portal/[token]/book` | PUT, POST | PUT reads the form behind the gate; POST books, idempotent on a submission key. `departmentId` may be null (resolved by name, v0.49.1). |
+| `/api/portal/[token]/comments`, `/assets` | POST | Portal grant plus a signed-in, active member with an OWNER/EDITOR seat on the task's board. No UI calls them yet. |
+| `/api/automations/run` | GET, POST | Runner secret (Bearer or `x-automation-secret`): full tick. Otherwise any valid Supabase session: drain only (≤50 events, no sweep, no schedules, no heartbeat). 503 when no secret is configured and no session is given. |
+| `/api/automations/run-now` | POST | Member session with edit rights on the board. Fires a quick run on up to 50 tasks. |
+| `/api/snapshots` | GET, POST | Admin/owner. List; take (name ≤120). |
+| `/api/snapshots/[id]` | DELETE | Admin/owner. |
+| `/api/snapshots/[id]/download` | GET | Admin/owner. `application/gzip` file. |
+| `/api/snapshots/[id]/restore` | POST | Admin/owner. `{workspaceId, confirm:"RESTORE"}`. |
+| `/api/snapshots/upload` | POST | Admin/owner. Raw body ≤4 MiB, `.json.gz` or `.json`. |
+| `/api/snapshots/wipe-boards` | POST | Admin/owner. `{workspaceId, password, resetTickets}`. |
 
 ## 7. Domain and persistence
 
 ### Principal entities
 
-| Domain | Key records and relationships |
+| Domain | Records |
 | --- | --- |
-| Identity | User/profile, auth session, workspace membership, invitation. |
-| Organization | Workspace, team, team membership. |
-| Board | Board, board membership, favourite, visit, group, column, public share. |
-| Task | Item, parent item, typed column value, item link, asset, read marker. |
-| Collaboration | Comment, activity, notification, notification preferences, direct message. |
-| Booking | Published workspace form, editor draft, service types and brief blocks, named templates, saved blocks, request and receipt. |
-| Lists/reporting | Workspace asset types, stakeholder groups, output rates, dashboard snapshot and share. |
-| Tracker | Tracker/workbook, ordered sheet, column definition, row, primitive cell value. |
-| Stakeholder portal | Durable department identity; one unified portal per workspace in `department_portals` with null `departmentId`; request provenance and submission claims. Legacy per-department credential rows are retained but refused. |
+| Identity | Profile (`profiles.id` = `auth.users.id`), session, workspace membership (ACTIVE/INVITED/DEACTIVATED), invitation. |
+| Organisation | Workspace (ticket prefix/counter, booking form + draft + published name, output rates, creative team name), team, team membership. |
+| Board | Board, membership, favourite, visit (with view settings), group, column (role, hidden, hiddenInPanel, removed), share, template. |
+| Task | Item (ticket, cover, `booking_brief`), typed value, link (exclusions, hand-made pairs), asset line, read marker. |
+| Collaboration | Comment (parent for replies, shared id), reaction, activity, notification, preferences, direct message. |
+| Booking and portal | Published form and draft, named templates, saved blocks; departments (durable ids); the portal link; request provenance; submission claims. |
+| Automations | Rule, event (queue), run (log), mark (depth), schedule receipt, heartbeat. |
+| Operations | Snapshot (`workspace_snapshots`, a gzipped JSON `bytea`). |
+| Tracker | Tracker, ordered sheet (columns, rows, frozen count). |
 
-Domain types use camelCase. SQL rows normally use snake_case. `src/data/supabase/rows.ts` performs conversion. JSON structures such as column settings, typed cell payloads, and tracker documents preserve their application shapes.
+Domain types are camelCase and SQL is snake_case; `src/data/supabase/rows.ts` converts between them. JSON columns keep their application shapes: column settings, typed values, rule JSON, tracker documents.
 
-### Repository contracts
+### Repository contracts (25)
 
-`Repositories` exposes `users`, `workspaces`, `onboarding`, `teams`, `boards`, `items`, `links`, `trackers`, `comments`, `itemAssets`, `workspaceLists`, `stakeholderPortals`, `bookingTemplates`, `bookingSavedBlocks`, `boardShares`, `itemShares`, `dashboardShares`, `itemReads`, `messages`, `activities`, `notifications`, `notificationPreferences`, and `admin`. Workspace-wide link reads use `links.listByWorkspace()`; targeted link reads chunk IDs and page results instead of constructing one oversized URL.
+`Repositories` (`src/data/repositories/index.ts`) exposes:
 
-A change to a contract can affect local repositories, Supabase repositories, the public memory adapter, service composition, and test fixtures. `NotFoundError` represents required missing entities; optional lookups return `null` where their contracts specify it.
+| Area | Repositories |
+| --- | --- |
+| Identity and organisation | `users`, `workspaces`, `onboarding`, `teams` |
+| Boards and tasks | `boards`, `items`, `links`, `itemAssets`, `itemReads` |
+| Trackers and collaboration | `trackers`, `comments`, `messages`, `activities`, `notifications`, `notificationPreferences` |
+| Lists, portal and booking | `workspaceLists`, `stakeholderPortals`, `bookingTemplates`, `bookingSavedBlocks` |
+| Templates and sharing | `boardTemplates`, `boardShares`, `itemShares`, `dashboardShares` |
+| Automations and admin | `automations`, `admin` |
+
+The Supabase provider keeps comments, activities, notifications, preferences and admin together in `misc-repositories.ts`. A contract change touches:
+
+- the local and Supabase implementations;
+- the memory adapter;
+- service composition;
+- test fixtures.
 
 ### Local database
 
-The IndexedDB database is named `rmit-streamline`, at schema version **15**. `LocalConnection` caches one opening promise per connection instance and injects a `getDb` function into repositories.
+IndexedDB `rmit-streamline`, **`DB_VERSION` 17**. Each version added:
 
-The schema covers users, workspaces, workspace members, invitations, local credentials, teams and memberships, boards and memberships, favourites, groups, columns, items, values, links, trackers and sheets, comments, assets, booking templates, shares, read markers, activity, notifications and preferences, direct messages, board visits, and metadata.
+| Version | Added |
+| --- | --- |
+| 2 | Links |
+| 3 | Trackers |
+| 4 | Messages |
+| 5 | Notification preferences |
+| 6 | Onboarding and credentials |
+| 7 | Read markers |
+| 8 | Assets |
+| 9 | Booking templates |
+| 10 | Board shares |
+| 11 | Dashboard shares |
+| 12 | Workspace lists |
+| 13 | Item shares |
+| 14 | Four portal stores |
+| 15 | Saved blocks |
+| 16 | Automation stores: `automationRules`, `automationEvents`, `automationRuns`, `automationMarks`, `automationScheduleFires`; the heartbeat lives in `meta` |
+| 17 | `boardTemplates` |
 
-Incremental IndexedDB upgrades added links in v2, trackers in v3, messages in v4, notification preferences in v5, onboarding/credentials in v6, read markers in v7, assets in v8, booking templates in v9, board shares in v10, dashboard shares in v11, workspace lists in v12, item shares in v13, four portal stores in v14, and booking saved blocks in v15. Workspace JSON fields such as form drafts and output rates do not require separate object stores. Upgrade callbacks log when another open tab blocks progress.
+Tickets, column roles, hidden-in-panel, link pairs and reactions are plain fields on existing stores; reactions live on the comment record. Upgrade callbacks log when another open tab blocks them.
 
 ### Supabase database
 
-`profiles.id` corresponds to `auth.users.id`. The initial migration creates the profile-creation trigger and base relational schema. Later migrations extend that schema. Do not reconstruct the current database from `0001_initial_schema.sql` alone.
+- **Size.** 44 public tables.
+- **Build order.** Always build from `supabase/sequence.txt` order (§17), never from `0001` alone.
+- **Triggers that matter:**
 
-Database triggers enforce relationships such as group/board consistency and item-column board consistency. Item-asset migrations add their own board and assignee-related maintenance. RLS provides server-side access enforcement.
+| Trigger | What it enforces |
+| --- | --- |
+| `enforce_value_same_board` | A value belongs to its item's board. `item_column_values.board_id` is denormalised and indexed (0036). |
+| `workspace_keeps_an_owner` (0043) | A deferred constraint: every workspace keeps one active OWNER. |
+| `enforce_listed_department` (0074) | A STAKEHOLDER value must name an ACTIVE department. Values that don't change pass. Workspaces with no departments are skipped. |
+| `automation_capture_*` (0052–0057) | Items, values and comments raise queue rows, but only when an enabled rule on the board listens. |
+| `comments_set_updated_at` | Keeps `updated_at` current. |
+| `rewrite_ticket_prefix`, `next_ticket_numbers` | SQL functions for the ticket counter and prefix changes. |
 
-`src/data/supabase/client.ts` centralizes PostgREST response handling. Supabase returns many errors in a response object rather than rejecting automatically; `unwrap`, `unwrapList`, `unwrapMaybe`, and `assertOk` convert those responses into consistent domain-facing results or exceptions. Long ID lists are chunked with `ID_CHUNK = 200`.
+- **Snapshot restore** runs with `session_replication_role = replica`, which bypasses all of these triggers.
+- **Response handling.** `src/data/supabase/client.ts` normalises PostgREST responses (`unwrap`, `unwrapList`, `unwrapMaybe`, `assertOk`).
+  - Long id lists are chunked (`ID_CHUNK = 200`).
+  - `unwrapAll()` pages past PostgREST's row limit.
+  - Workspace-wide reads query by `workspace_id` or `board_id`. They must never build `or(in…)` URLs over many ids, because Node's fetch rejects headers over ~16 KB.
 
-### Export and reset boundaries
+### Export, import and reset
 
-Local `exportAll()` produces an envelope with `format: "streamline-export"`, `version: 1`, an export timestamp, and all stores. It is a full local-store export, including the onboarding/credential stores; it is not just a selected board export.
-
-Local `importAll()` clears existing stores before loading supplied rows. Local `resetToSeed()` clears the database contents and reseeds them. Both replace local state rather than merging it.
-
-The Supabase admin repository rejects reset, whole-database export, and whole-database import with `NotSupportedError`. Postgres backup/restore and the repository's database scripts are separate operational paths. Tracker `.xlsx` export is independent of these full-database operations.
+- **Local mode.** `exportAll()`, `importAll()` and `resetToSeed()` still exist, but only **Reset demo data** has a control (the user menu). The Settings → Storage section that held Export and Import was removed in v0.47.3.
+- **Supabase.** The admin repository refuses reset, export and import. Supabase uses Snapshots (§17) instead.
+- **Tracker files.** Tracker `.xlsx` interchange is separate from all of these.
 
 ## 8. Authentication and onboarding
 
 ### Local authentication
 
-`LocalAuthProvider` stores its session under `streamline.local-session` in localStorage. It resolves the account by normalized email, rejects missing/deactivated users, and rejects users whose memberships indicate pending onboarding.
+`LocalAuthProvider` keeps its session in localStorage under `streamline.local-session`.
 
-If a password is supplied and local onboarding stored a credential, the password is checked. Omitting a password remains allowed for local demo sign-in. This provider is a development convenience, not production authentication.
+- It refuses missing and deactivated users, and anyone whose membership is pending.
+- A password is checked only if local onboarding stored one.
+- Storage events keep tabs in step.
 
-The provider listens for storage changes so sign-in/out changes can be observed by other tabs on the same origin. Session restoration rechecks that the user still exists and is eligible under its local checks.
+It is a development convenience, not production authentication.
 
 ### Supabase authentication
 
-`SupabaseAuthProvider` uses `signInWithPassword`, session retrieval, sign-out, and auth-state subscriptions from the Supabase client. Passwords are required. Domain-facing errors use `AuthError`, with sign-in wording normalized by `src/lib/auth/auth-messages.ts`.
+`SupabaseAuthProvider` uses `signInWithPassword`, session retrieval, sign-out and auth-state events. Messages are normalised by `src/lib/auth/auth-messages.ts`. Workspace access additionally depends on membership and RLS.
 
-Workspace access is additionally governed by membership and RLS. A successful Auth session and an active workspace membership are related but different facts.
+Deactivation (audit F-001, 9 September) takes the active role away before ownership or explicit seats can grant anything. Policies 0014/0015 enforce this.
 
 ### Invitation lifecycle
 
-An administrator adds a person through the members feature. The Supabase server path verifies the bearer token with Auth and verifies active OWNER/ADMIN membership in the requested workspace. It can create an Auth account without a password, obtain its profile, create an `INVITED` membership, and create an invitation token.
+1. An admin adds a person (Members → Add member). On Supabase, the server verifies the admin's session and creates:
+   - an Auth account with no password;
+   - an INVITED membership;
+   - a 30-day invitation token.
+2. The admin passes on the `/join/<token>` link. No email is sent.
+3. The join page previews the invitation, sets the password (at least 8 characters) through the Auth Admin API, saves the profile, and activates the membership.
 
-The join screen previews the token without requiring a session. Completion validates the link and input, sets the password through the Auth Admin API, updates profile data, and activates the membership. The product returns a link for the administrator to distribute; the onboarding workflow does not automatically send an email.
+| Invitation state | Meaning |
+| --- | --- |
+| PENDING | Open and usable. |
+| ACCEPTED | Onboarding is complete. |
+| EXPIRED | The exact 30-day timestamp has passed. |
+| REVOKED | The invitation was cancelled. |
+| INVALID | The token is not recognised. |
 
-New invitations have a 30-day lifetime, and the shared password minimum is eight characters. Invitation status distinguishes PENDING, ACCEPTED, EXPIRED, REVOKED, and INVALID. Unlike the date-only board-share expiry, invitation expiry uses an exact timestamp and expires when that timestamp is reached. Regenerating a link replaces the old credential rather than extending that old URL.
+- **Regenerate** replaces the credential; the old link stops working.
+- **Reinitiate** is for someone already onboarded; you cannot reinitiate yourself.
+- **Cancel** can remove membership and account state. Read `src/server/onboarding.ts` before treating it as "hide the link".
 
-Regeneration applies to pending members. Reinitiation is a separate path for someone who has already completed onboarding; the server rejects self-reinitiation. Cancellation can remove membership and related account state according to the server's existing-account checks. Read `src/server/onboarding.ts` before treating cancellation as merely hiding a link.
+**Pending members from bookings (v0.48).** A public booking whose email the workspace does not know creates a pending member through the same `inviteMember` path. An admin can later pass that person a join link.
 
-Pending and deactivated people remain resolvable for history. `WorkspaceProvider` separately exposes `activeUsers` for assignment, mentions, and messaging: members must be ACTIVE and their profiles must not be deactivated.
+**People lists.**
+
+- Pending and deactivated people stay resolvable for history.
+- `activeUsers` feeds pickers, mentions and messages.
+- Requester cells and hover cards show pending people too.
 
 ## 9. Authorization
 
 ### Workspace and team roles
 
-Workspace roles are OWNER, ADMIN, MEMBER, and GUEST. Membership states are ACTIVE, INVITED, and DEACTIVATED. Team roles are LEAD and MEMBER. Board roles are OWNER, EDITOR, and VIEWER.
+| Kind | Values |
+| --- | --- |
+| Workspace roles | OWNER, ADMIN, MEMBER, GUEST |
+| Membership states | ACTIVE, INVITED, DEACTIVATED |
+| Team roles | LEAD, MEMBER |
+| Board roles | OWNER, EDITOR, VIEWER |
 
-`buildPermissionContext()` resolves the active workspace role, team IDs, explicit board roles, and user ID. OWNER and ADMIN count as workspace administrators. Administrators manage workspace settings and people. Non-guest active workspace members can create boards and edit trackers. Team-management helpers allow workspace administrators or members of that team.
+`buildPermissionContext()` resolves the active role, team ids, explicit board roles and the user.
+
+- OWNER and ADMIN are workspace administrators with the same powers inside a workspace. This is deliberate; the two diverge only when multi-workspace arrives.
+- Non-guest active members can create boards and teams and edit trackers.
 
 ### Effective board role: exact precedence
 
-`boardRoleFor()` applies these checks in order:
+`boardRoleFor()`, mirrored by `private.board_role_for()` (policy 0015):
 
-1. If the board is a system board and the user is not a workspace administrator, deny access.
-2. If no active workspace role exists, deny access, including ownership and explicit seats.
-3. If the user is the literal board owner, return OWNER.
-4. If an explicit board membership exists, return its role.
-5. If the user is a workspace administrator, return EDITOR.
-6. For WORKSPACE visibility, return VIEWER for a non-guest; guests receive no inherited role.
-7. For TEAM visibility, return EDITOR if the user belongs to the board's team; otherwise deny.
-8. For PRIVATE visibility, deny inherited access.
+1. System board and not an administrator → no access.
+2. No active workspace role → no access (ownership and seats included).
+3. Literal board owner → OWNER.
+4. Explicit board membership → its role.
+5. Workspace administrator → EDITOR.
+6. WORKSPACE visibility → VIEWER for non-guests; guests get nothing inherited.
+7. TEAM visibility → EDITOR for a member of the board's team; otherwise nothing.
+8. PRIVATE → nothing inherited.
 
-Policy 0014 introduced membership-before-ownership. The current SQL implementation is `supabase/policies/0015_boards_select_without_reread.sql`: `private.board_role_for()` receives board fields directly, while `private.board_role()` delegates for existing rows. The board SELECT policy avoids rereading the new row during `INSERT ... RETURNING`, fixing application board creation under RLS. Policy 0008 is historical, not the final definition.
+- **Edit and manage.** `canEditBoard()` needs OWNER or EDITOR. `canManageBoard()` allows OWNER or a workspace administrator.
+- **Delete.** `canDeleteBoard()` needs literal ownership or administration, plus an active role. `BoardService` separately protects system boards.
+- **Precedence surprises.** An explicit VIEWER beats a later inherited EDITOR. Team membership adds no editing on a WORKSPACE-visible board.
 
-| Situation after earlier precedence checks | Result |
-| --- | --- |
-| Ordinary member sees a workspace-visible board | VIEWER |
-| Team member sees that team's TEAM-visible board | EDITOR |
-| Explicit VIEWER membership | VIEWER, even if a later rule would grant editing |
-| Guest without ownership or explicit membership | No visibility-derived access |
-| Private board without ownership, membership, or admin access | No access |
-| System board and non-admin | No access, even if ownership/membership would otherwise help |
+### Feature permissions (UI / service / database)
 
-Team membership alone does not add an extra editing rule to a WORKSPACE-visible board: that branch returns VIEWER. Board **type** (`MAIN`, `PRIVATE`, `SHAREABLE`) is not the same property as board **visibility** (`WORKSPACE`, `TEAM`, `PRIVATE`), and public share links are managed separately.
-
-`canEditBoard()` requires effective OWNER or EDITOR. `canManageBoard()` allows effective OWNER or a workspace administrator. `canDeleteBoard()` checks literal ownership or workspace administration, while `BoardService` separately protects system boards against archive/delete operations. Do not rely on a single helper to describe every operational constraint.
-
-### Membership subtleties
-
-Deactivation removes the active workspace role before ownership or explicit board seats can grant access. `canDeleteBoard()` also requires an active workspace role. Existing ownership and seat records can remain for history without overriding that rule. Verify deployed SQL through 0015 when testing this behavior against Supabase.
-
-Comment editing is author-only in the shared helper. Comment deletion allows the author or workspace administrator. SQL policies also determine whether the caller can reach and operate on the underlying record.
+| Action | Who | Where it is enforced |
+| --- | --- | --- |
+| Create, edit, delete or toggle automation rules and quick runs | Board OWNER or workspace admin (`canManageBoard`) | UI + RLS 0017 |
+| Run a quick run | Board editor (`canEditBoard`) | Server `run-now`. The Run button is shown to viewers, who get a 403 (F-172). |
+| Read rules, runs, pending events | Anyone who can view the board | RLS 0017/0018 |
+| Save a template | Any member (RLS 0019 allows guests too) | UI + RLS |
+| Delete / overwrite a template | Its creator or an admin | UI + RLS 0019 |
+| Snapshots, restore, wipe | Active OWNER/ADMIN (`requireSnapshotAdmin`). Wipe also needs the admin's password | Server only. Settings shows the Data group only on Supabase, to admins |
+| Ticket prefix | Workspace admin | UI + RLS (`workspaces_update`) + RPC check |
+| Allocate from Task Allocation | Admins (system board gate). Target boards offered by *view* rights (F-160) | UI + RLS |
+| Portal and form editor | Admins | UI + RLS 0013 |
+| Comment | Board editors (`comments_insert` = `can_edit_item`) | UI + RLS |
+| Edit a comment | Its author | UI + RLS. The policy doesn't pin `item_id`; see F-104 and the proposed 0079/0020 |
+| Delete a comment | Its author or an admin | UI + RLS |
+| React | UI: board editors. RLS 0070: anyone who can view the task ("viewers included") | Both |
+| Edit trackers | Active non-guests | UI + RLS |
 
 ### View as
 
-An administrator can preview a colleague's visibility through `WorkspaceProvider`. The effective display permissions change, but the actual signed-in user remains `currentUser`, and writes retain that real actor. `ownPermissions` preserves the signed-in person's permissions separately.
-
-The preview ID uses sessionStorage key `streamline.view-as`; it survives reload in the same tab. It is a UI preview, not a Supabase login as the colleague, and is not a substitute for testing RLS using that person's authenticated session.
+An administrator can preview a colleague's visibility (`streamline.view-as` in sessionStorage). Displayed permissions change; the signed-in actor and writes do not. It is not a Supabase sign-in as that person.
 
 ### RLS and privileged endpoints
 
-Browser Supabase operations use the signed-in user's session. Privileged server routes use the service-role client and therefore must enforce their own token/admin checks and output scope. Public access to booking or sharing does not mean anonymous PostgREST access to arbitrary workspace tables.
-
-Keep TypeScript permission rules and SQL helpers aligned when changing authorization. Apply all policy files in order before judging backend behavior.
+Browser operations run as the signed-in user. Service-role routes enforce their own token and role checks, and scope their own output. Keep `permissions.ts` and the SQL helpers aligned, and read the policies in sequence order.
 
 ## 10. Boards, columns, and views
 
 ### Board lifecycle
 
-`BoardService` supports template-based creation, metadata updates, slug changes, archive/restore, deletion, duplication, favourites, membership management, group operations, and column operations. Built-in templates live in `src/features/boards/templates.ts`.
+`BoardService` covers the board's whole life:
 
-Boards have a workspace, optional team, owner, type, visibility, visual identity, description, archive marker, and optional system marker. Groups have order and collapse state. Items and columns have their own positions; sorting a rendered view and changing stored positions are separate operations.
-
-The built-in Admin team and Task Allocation board are recognized by `system` values, not their names. They can be renamed. Administrative workspace loading calls `ensureSystemEntities()` to create/repair required entities, the booking key, expected columns, and related palettes.
-
-### Column types at the committed snapshot
-
-| Type | Stored meaning |
+| Operation | Behaviour |
 | --- | --- |
-| `TEXT` | Short string. |
-| `LONG_TEXT` | Longer text payload. |
-| `STATUS` | Label ID in that column's status settings. |
-| `PERSON` | Array of user IDs; settings control multiple assignment. |
-| `DATE` | Nullable ISO date. |
-| `TIMELINE` | Nullable start and end dates. |
-| `NUMBER` | Nullable number with unit/decimal display settings. |
-| `PRIORITY` | Label ID in that column's priority settings. |
-| `CHECKBOX` | Boolean checked state. |
-| `LINK` | URL and optional display text. |
-| `TAGS` | Array of tag names. |
-| `SIZE` | Nullable XS, S, M, L, or XL. |
-| `ASSETS_RECAP` | Derived line, quantity, type, people, next-due, and overdue figures. |
-| `DEPENDENCY` | Array of item IDs on the relevant board. |
-| `STAKEHOLDER` | Nullable stakeholder-group name (`group`), selected from the workspace list. Used for portal publication and reporting; distinct from generic TEXT/TAGS. |
+| Create | Unique slug. The creator becomes OWNER. Logs `BOARD_CREATED`. Ends with `ensureSpecialColumns`. |
+| Update | A blank name is refused. A rename changes the slug and replaces the URL. System boards refuse team and visibility changes. |
+| Archive / restore | Archive toasts with an undo. |
+| Delete | You must type the board's name. |
+| Duplicate | Creates "{name} (copy)". Copies groups, columns (including removed ones), live items and values, remapping dependencies. Does **not** copy rules, asset lines, covers, tickets, the booking brief, roles or hidden-in-panel. |
+| Other | Favourites, members, groups, columns. |
 
-`FILES` is absent from the current TypeScript column union. Historical attachment documentation should not be used to add a current Files-column workflow.
+**Board menu** (`board-menu.tsx`), top to bottom:
 
-`emptyValueFor()` and `isEmptyValue()` centralize empty-value behavior. Numeric zero is a populated NUMBER value; an unchecked checkbox counts as empty for the domain helper. Avoid truthiness checks that erase legitimate values.
+1. Open; Open as Kanban; **View archived items**; Add to / Remove from favourites.
+2. Board settings; Automations; Manage members; Share by link…
+3. Rename; Colour & icon; Move to team; Duplicate; **Save as template…**; Mute / Resume notifications.
+4. Archive / Restore; Delete.
 
-### Labels and tags
+The built-in Admin team and Task Allocation board are recognised by `system`, not by name. `ensureSystemEntities()` repairs them on admin load.
 
-Status labels carry semantic roles through `doneLabelIds`, `stuckLabelIds`, and `progressLabelIds`. Completion depends on those IDs, not the visible word “Done.” Stuck styling also depends on semantic role. Renaming a label should preserve its intended role.
+### Column types (25)
 
-Tags store names rather than palette IDs. Renaming a tag therefore requires remapping existing tag values. Label definition synchronization and column renaming across linked boards have dedicated service logic; a UI-only label rename is insufficient.
+Sources:
+
+- `src/domain/board/column.ts`: types, labels, widths, defaults, purpose text;
+- `src/domain/item/item.ts`: value shapes;
+- `cells/cell-renderer.tsx`: cells;
+- `board-filtering.ts`: sort keys.
+
+| Type | Picker label | Stored value | Special | Notes |
+| --- | --- | --- | --- | --- |
+| TEXT | Text | `{text}` | — | Enter/blur saves, Esc cancels. |
+| LONG_TEXT | Long text | `{text}` | — | http(s) links are live. |
+| RICH_TEXT | Rich text | `{type:"RICH_TEXT",text}` (Markdown subset) | — | H1/H2, bold, italic, underline, lists, links (`safeHref`), `---`, up to 3 indents. Pop-up with Copy and **Download as Word**. |
+| BRIEF | Brief | stored as RICH_TEXT | yes | The booking's brief. Compact (just "Brief") under 160 px. Filled from `items.booking_brief` when added. |
+| STATUS | Status | `{labelId}` | yes | Labels with done/stuck/progress roles. Stuck labels striped; the chip is tinted by deliverable progress. |
+| DROPDOWN | Dropdown | `{labelId}` | — | Labels without meanings. Kanban lanes and chart dimensions. |
+| PERSON | **PIC** | `{userIds}` | yes | The person in charge. Feeds workload, My Work and the person filter. |
+| REQUESTER | Requester | `{type:"REQUESTER",userIds}` (one) | yes | Filled by bookings. Pending people shown with a hover card. |
+| PEOPLE | People | `{userIds}` | — | People with no bearing on the work. Never in workload or My Work. |
+| DATE | **Due date** | `{date}` | yes | The deadline. Overdue (red) only when not done. No Format menu. |
+| TIMELINE | Timeline | `{start,end}` | yes | Gantt and Timeline placement. |
+| NUMBER | Number | `{number}` | — | Shows the unit if set. Zero is a value. There is no UI for unit or decimals. |
+| PLAIN_DATE | **Date** | `{date}` | — | A day with no deadline meaning. Format: short "Sep 16", medium "16 Sep 2026", numeric "16/09/2026", iso. |
+| TIME | Time | `{time:"HH:MM"}` | — | 24h "19:06" or 12h "7:06 PM". |
+| DATETIME | Date + Time | `{at:ISO}` | — | Compact "Sep 16, 19:06". Picking a day keeps the time (default 09:00). Shown in the viewer's zone. |
+| COUNTDOWN | Countdown | `{at:ISO}` | — | Time left to a moment, redrawn every 15 s. Typed as `45m`, `3d 4h`, `2mo`, `in 45m` (v0.49.1); "m" is minutes, "mo" months. Quick picks 15m/1h/1d/1w/1mo. Format: style, units, what it says when time is up, when it turns amber. |
+| PRIORITY | Priority | `{labelId}` | yes | Four fixed steps (critical/high/medium/low) on every board. |
+| CHECKBOX | Checkbox | `{checked}` | — | Unchecked counts as empty. |
+| LINK | Link | `{url,text}` | — | The icon opens only http(s)/mailto, with a bare domain read as https (v0.49.1). Clicking the cell edits it. |
+| TAGS | Tags | `{tags}` (names) | — | Palette on the column; a rename remaps values. |
+| STAKEHOLDER | **Department** | `{group}` | yes | Only listed ACTIVE departments (UI; trigger 0074 on Supabase). |
+| SIZE | Size | `{size}` XS–XL | yes | T-shirt sizing. |
+| ASSETS_RECAP | Assets recap | cached recap | yes | Read-only. Computed from live lines, shared ones included. Click opens Assets. |
+| BOOKED_AT | **Booking time** | nothing stored; reads `item.createdAt` | system (Task Allocation only) | Never editable. `addColumn` refuses it elsewhere; Duplicate and templates can still carry it (F-134). |
+| DEPENDENCY | Dependency | `{itemIds}` | — | Same-board, top-level tasks. "Blocked" while any is not done. Never synced. |
+
+`emptyValueFor()` and `isEmptyValue()` define emptiness. Zero is a value; an unchecked box is empty. Check with these helpers, not with truthiness.
+
+### Special columns
+
+- **`SYSTEM_COLUMN_TYPES`** — STATUS, PERSON, REQUESTER, DATE, TIMELINE, PRIORITY, STAKEHOLDER, SIZE, ASSETS_RECAP, BRIEF, BOOKED_AT.
+  - **`SPECIAL_BOARD_COLUMN_TYPES`** is the same list minus BOOKED_AT.
+  - **`ONE_PER_BOARD_COLUMN_TYPES`** is all of them.
+- **Every board holds one of each.**
+  - `BoardService.ensureSpecialColumns` adds missing ones to new boards. It names each after its type label, or "{Label} (special)" if that name is taken.
+  - `npm run db:special-columns [-- --dry]` backfills existing boards.
+  - It is not called by `duplicateBoard` or for Task Allocation's creation.
+- **Deleting a special column only removes it from the board.**
+  - It sets `board_columns.removed` (0075) and asks "Remove “X” from the board? Nothing is lost. Add it back any time and its values return."
+  - Re-adding the type restores the same column id and its values. The optimistic update appends it, then it jumps back to its old place (F-144).
+  - Plain columns are deleted with their values after a confirmation. Board settings → Columns deletes them *without* one (F-133).
+- **Removed columns are hidden** from the board model, views, filters, sort, the task panel, the Hide menu, board settings, automation pickers, board and task shares, and templates saved without the layout part.
+- **Removed columns are still read** by the dashboard, the portal, My Work (removed PIC columns), booking and allocation mapping, link sync, and the default status on create.
+- **The column type picker** has two groups:
+  - "This board's own, as many as you like" (green-free);
+  - "One each, read by the dashboard and portal" (green icons).
+  - A type the board already has shows "Already added. Click to move “{name}” here."; a removed one shows "Removed from this board. Click to put it back."
+- **Only roles are unique in the database.** Special types are unique per board by convention. Two tabs adding the same type at once can duplicate it (F-145).
+
+### Column roles
+
+`board_columns.role` (0048) gives 13 known roles, one holder per role per board (unique index). `setColumnRole` releases the previous holder first.
+
+`resolveColumnRoles()` is the only way to find a board's status, due date, requester and so on:
+
+1. an explicit role;
+2. otherwise the first column of the implied type;
+3. otherwise a hinted type whose name matches (requester: "requester, requested by, stakeholder, client, booked by"; department: "department, school, faculty…").
+
+"Used as" lives only in the column header's chevron menu. "Nothing in particular" can't clear a role the type implies, because the guess picks it again (F-138).
+
+### Formats and layout
+
+- **Format menu.** In the header and right-click menus: Date (PLAIN_DATE, DATETIME, BOOKED_AT), Time (TIME, DATETIME, BOOKED_AT), Countdown (style, units, ending, amber). It applies to the whole column.
+- **Column widths.** Drag 80–600 px, saved on release.
+- **Item column.** Drag 320–800 px; double-click resets. Stored per browser per board in `streamline.ui.itemColumnWidths`. Not resizable on the phone grid.
+- **Hidden columns.**
+  - `hidden` works board-wide (header menu, toolbar Hide, "+" menu → Hidden columns).
+  - `hiddenInPanel` (0044) is independent. It is set from a panel row's menu: On the board / On this panel / Both. The panel menu offers restore items.
+  - The Ticket slot (92 px) is a per-person view setting (`toggle-ticket-column`).
+- **Name cell.**
+  - The name uses the whole cell at rest; row actions take room only on hover or focus.
+  - A clipped name fades rather than ending in "…", and shows its full text in a tooltip.
+  - Renaming spans the cell, and nothing drags while you rename (items, columns, groups).
+  - Done tasks are muted, not struck through.
+- **Folded group.** One summary row (`group-summary`):
+  - label bars for Status/Dropdown/Priority;
+  - avatars for people columns;
+  - a date span and "N late" for Due date; a span for Timeline;
+  - the sum for Number; ticked x/y for Checkbox; the top tags; sizes; departments;
+  - "filled" for text types.
+  - Date/time types, Countdown, Assets recap, Booking time and Dependency get blank summaries.
+  - An editor's fold is stored for everyone; a reader's lasts the visit.
+- **Alignment.** Long text, rich text, Brief and Dependency are left-aligned; everything else is centred.
+
+### Board templates (v0.47)
+
+- **Storage:** `board_templates` (0077), unique on (workspace, lower(trim(name))). Policy 0019: members read and insert as themselves; the creator or an admin updates or deletes. The local store is `boardTemplates` (v17), with no name uniqueness.
+- **Spec** (`src/domain/board/board-template.ts`, version 1):
+  - Columns, with name, type and role, always travel.
+  - Optional `TEMPLATE_PARTS`: groups, columnSettings, layout (widths, hidden, hiddenInPanel, removed), automations, tasks (names and subitems only — never values or tickets), look (colour, icon, description).
+  - `normaliseTemplateParts` drops automations unless groups and columnSettings are both chosen.
+  - Groups and columns keep their source ids as `key`; `remapTemplateIds` rewrites every UUID in the rules through the new board's id map.
+- **`BoardTemplateService.createBoard`** runs in this order:
+  1. groups (or one "Group 1") and columns;
+  2. special columns;
+  3. **tasks**;
+  4. **automations** — last since v0.49.1, so a template's own tasks do not wake its creation rules.
+
+  Rules arrive enabled, as saved, and are not re-validated.
+- **Names:** trimmed, required, ≤80 characters. A case-insensitive match saves over the existing template.
+- **UI:**
+  - One `SaveBoardTemplateHost` lives in the app shell, opened with `useSaveTemplateDialog.show(boardId)` from the board menu or from Create board ("Save a board as a template…").
+  - Create board's template dropdown: "Built in" (Blank only) and "Saved". A delete button appears for the creator or an admin.
+  - Picking a saved template also picks its colour and icon.
+
+### Task Allocation
+
+The admin-only intake board:
+
+- Red, inbox icon, TEAM visibility in the Admin team.
+- Groups: Incoming, Allocated, Closed.
+- Columns (`taskAllocationColumns`): Requester (REQUESTER), Email, Department (STAKEHOLDER), Service and Asset type (TAGS), Brief (BRIEF), Assets & specs, Status, Priority, Due Date, Reference (LINK), Assets recap, **Booking time** (BOOKED_AT), PIC, Timeline, Size.
+
+v0.47.4 dropped Requester department, Requested team and Allocated to. The top-up (`workspace-service.ts`) restores only special types, and doesn't delete old columns on existing boards.
 
 ### Seven views
 
-| View | Main use |
-| --- | --- |
-| Main Table | Grouped task rows, subitems, typed cell editing, selection, and bulk actions. |
-| Kanban | Lane-based cards, grouping, and drag/drop movement. |
-| Timeline | Work spans on a date axis, with undated work handled separately. |
-| Calendar | Date-oriented work in month/week layouts. |
-| Gantt | Hierarchy, dates, progress, milestones, and dependency visualization. |
-| Workload | Assignments distributed across people and time periods. |
-| Chart | Aggregated counts, numeric sums, or asset-unit metrics across selected categories. |
+| View | Main use | Reads |
+| --- | --- | --- |
+| Main Table | Grouped rows, subitems, typed editing, bulk actions | Every visible column |
+| Kanban | Lanes and cards | Lanes by Status, Priority, PIC (first PIC column), Group or any Dropdown. Person lanes include pending and deactivated owners (v0.49.1). |
+| Timeline | Spans on a date axis | Timeline role, else Due date |
+| Calendar | Month/week | Timeline, else Due date |
+| Gantt | Hierarchy, dependencies, milestones | Timeline / Due date, Dependency |
+| Workload | Per person per week | PIC only |
+| Chart | Counts, sums, asset units | Status, priority, group, person, tags, size, due week, each Dropdown; measures items / number sums / asset units |
 
-These are views over the same task data. The board model, filtering helpers, view settings, and aggregate functions translate one snapshot into the appropriate display. Editing a card or date should flow through the same mutation/service paths used by the table.
+**View choice** is resolved in this order:
+
+1. `?view=`;
+2. localStorage `streamline.board-view` (`{user}:{board}`);
+3. the board visit.
+
+**Per-view settings** live in `streamline.view-settings` (`{user}:{board}:{view}`) and sync to the server after 600 ms.
+
+Search, filter, sort and Hide sit on the table toolbar, but filters apply to every view.
 
 ### Filtering and sorting
 
-Per-board UI state includes search, person/status/priority/group/tag/date filters, sort, selection, expanded items, and Kanban lane override. Filter dimensions combine as requirements; selections within person and tag filters use matching-any semantics.
+- **Board UI state** (Zustand, transient): search, person/status/priority/group/tag/date filters, sort, selection, expanded items, Kanban lane.
+- **How filters combine.** Filter dimensions AND together. Person and tag filters match any of the chosen values.
+- **What they read.**
+  - The person filter reads PIC columns only.
+  - Status and priority come from the resolved role columns.
+  - Date buckets use `primaryDueDate`: the Due-date role, falling back to the Timeline end.
+  - "This week" includes today.
+- **Search** (`matchesSearch`) matches name and ticket. The board's box does not fold accents; the palette does (F-129).
+- **Sorting** uses typed keys:
+  - labels by the board's label order; people by display name;
+  - rich text by its plain text; date/time types by epoch; SIZE XS→XL; recap by quantity; dependency by count; Booking time by `createdAt`;
+  - empty cells last from the header. The toolbar's descending Priority/Status sort puts them first (F-131).
 
-The pure `matchesSearch()` helper matches item names and booking references case-insensitively, including references without a hyphen. The command palette is a separate search surface with the same reference support. My Work and archive search have their own rules. The primary due date is the first DATE column's populated value, falling back to the first TIMELINE column's end. The “this week” filter also includes today.
+### Large tables and the archive
 
-Column sorting uses typed values: labels follow palette rank, people resolve to names, and empty values sort last. SIZE has its defined XS-to-XL order. The underlying stored item position is not the same as the active sort order.
+- `GroupRows` virtualises groups with more than 25 rows and renders them in full while you drag.
+- The archive has its own route, not an eighth view.
+  - `loadArchivePage()` pages 10/25/50 (default 50), newest-archived first or by name, with an exact filtered count.
+  - Group, person, status, priority and tag filters run over the whole archive.
+  - Search is a plain substring on name and ticket, so "cp14" does not find CP_014 here (F-129).
+  - Editors can restore or delete permanently.
+- **Linked items.** Archiving selected linked items offers `cascade` (archive direct counterparts too) or `break` (unlink first). The panel's "Archive task" skips that question (F-149).
 
-Board filters/search/selection are transient Zustand state. Remembered view selection is persisted separately, using both browser storage and board-visit data.
-
-### Large tables and archived tasks
-
-`GroupRows` in `virtual-rows.tsx` uses TanStack Virtual above **25 rows** per group, measuring against the shared table scroll container. During drag operations it renders the full group so drag targets exist. This bounds rendered rows, not the size of the ordinary board snapshot.
-
-Archive is a separate route, `/workspace/<slug>/boards/<boardSlug>/archive`, not an eighth board view. `loadArchivePage()` fetches one page of archived top-level tasks, then their values and links, with an exact filtered count. Page sizes are **10, 25 or 50**, default **50**. Ordering is archived timestamp descending by default, or name, with an ID tie-break. Search matches name/reference substrings; unlike normal board reference search, it does not normalize away the hyphen. Group, person, status, priority and tag filters run over the whole archive before paging. Date-bucket filters are absent.
-
-The archive has read-only cells and task details. Editors on an active board can restore or permanently delete selected items. `?item=` can fetch a same-board detail outside the current page without adding it to the page count. Page/filter choices are component state; the route and focused item survive refresh, not every pager selection.
-
-Archiving sets `archivedAt`; restoration clears it and retains original group/position. Activity records identify archive/restore actions. For selected linked items the dialog offers `cascade` (also archive directly connected counterparts) or `break` (unlink selected items before archiving). Without an explicit policy the service preserves links. The current impact collection visits direct links, not an arbitrary transitive closure; do not promise that selecting one end archives an entire long chain. Archive/restore patch the selected item IDs and do not implicitly rewrite all descendants' archive timestamps.
-
-### Workspace lists and built-in help
-
-Settings → Lists manages ASSET_TYPES and STAKEHOLDER_GROUPS, defaulting from domain definitions where no stored list exists. Options are names/colors/order. Saving replaces list rows, so their IDs are not durable identities. Renames rewrite matching asset types or STAKEHOLDER cells; removal can preserve historical words, replace them or clear them. Department reconciliation maintains separate durable stakeholder IDs. `list-draft.ts` tracks edits and rename intent; output rates are edited alongside asset types and stored on the workspace.
-
-Settings → Documentation is a separate in-app user guide, backed by `guide-content.ts` and `documentation-section.tsx`. It includes stakeholder/admin/manager quick starts, searchable articles, copy and Markdown download. Deep links use `?section=documentation&guide=<articleId>`. It is not generated from this technical knowledge base; maintain both when changing user workflows.
-
-## 11. Items, links, and assets
+## 11. Items, tickets, links, and assets
 
 ### Item identity and lifecycle
 
-An item has a stable entity ID, board ID, group ID, optional parent, name, description, position, creator, timestamps, archive marker, optional cover, and optional booking reference. `ItemService` orchestrates create, rename, description/reference changes, typed value changes, moves, archive/restore, deletion, and duplication.
+An item has an id, board, group, optional parent, name, description, position, creator, timestamps, archive marker, optional cover, optional ticket and, for bookings, `booking_brief`.
 
-`loadBoardSnapshot()` reads the board, groups, columns, items, values, and links. Item-panel concerns such as comments and assets also have dedicated queries. Do not assume the board snapshot contains every detail rendered in the panel.
+- **Operations.** `ItemService` does create, rename, move, archive/restore, delete, duplicate and value writes.
+- **Board snapshots.** `loadBoardSnapshot()` reads the board, groups, columns, items, values and links. Comments and assets have their own queries.
 
-Move and delete operations need to account for subitems and associated values. Use the service/repository implementation rather than updating one item row in isolation. Activity and notification side effects vary by operation; not every metadata write follows the same fan-out path.
+### Tickets (v0.20 → v0.46)
 
-### Booking references
+- **Format.**
+  - `PREFIX_NNN`: the prefix matches `^[A-Z0-9]{1,8}$` and defaults to `CP`.
+  - Numbers have at least 3 digits and never truncate (CP_1000).
+  - `TICKET_MAX` 18 characters; stored shape `^([A-Z0-9]{1,8})_(\d{1,9})$`; the number is ≥ 1.
+- **Issuing.**
+  - `next_ticket_numbers(workspace, count)` bumps `workspaces.ticket_counter` in one statement under a row lock. The local provider does the same inside one transaction.
+  - A number that is taken is spent even if the write then fails. Gaps are by design.
+  - Bookings take a ticket before the task is written. "Add a ticket" in the panel takes the next one.
+  - Duplicates, template tasks and duplicated boards get none.
+- **Typing a ticket.**
+  - Double-clicking the panel chip opens the input.
+  - Spaces and dashes become "_", so "cp-14" is accepted and becomes CP_014. "cp14" is refused.
+  - `TicketService.setTicket` refuses a code held by any other task in the workspace, except across links that carry the ticket.
+  - **Only `setTicket` checks uniqueness** (F-123), and there is no unique index.
+- **Links.** Writing a ticket propagates it along ticket-carrying links. Linking takes the seed side's ticket. Unlinking renumbers nothing (F-124).
+- **Prefix change** (Settings → Tickets, admins):
+  - "Rewrite N" or "Use for new tickets".
+  - The rewrite is one statement, `rewrite_ticket_prefix`. On Supabase it truncates numbers above 999 (F-107; fix proposed as 0081).
+- **Counter resets.** A wipe can restart the series at `001` (`resetTickets`); a restore brings the counter back with everything else.
+- **`npm run tickets:dedupe [-- --apply]`** renumbers shared tickets outside link chains. It groups across workspaces (F-125).
+- **Display.**
+  - The ticket slot sits in front of the name; click it to copy.
+  - It also shows on mobile cards, palette results, the journey header and the portal.
 
-References are separate from UUID identity, capped at seven characters, and normalized to trimmed uppercase by `normaliseItemReference()`. Ordinary newly created tasks need not have a reference. A new booking creates one referenced task; deliverable lines no longer produce additional referenced subitems.
+### The task panel
 
-Current `bookingReference()` calculates a deterministic FNV-1a-derived short hexadecimal code, prefixed with `TA-`. It is not a sequence number or security credential. Because the displayed suffix is short, it should not replace the item ID as a unique database key.
+- **Header** (`panel-header`), top to bottom:
+  1. cover;
+  2. breadcrumb (board, or Archived, then group and parent) with the icon row: journey, share (managers), menu, close;
+  3. the name;
+  4. the facts line: ticket, archived/shared badges, creator · time;
+  5. the assets recap strip.
+- **Widths.** Compact 300 / default 520 / wide 880. Drag the edge (snaps), double-click to reset, or use the arrow keys. Stored in `streamline.ui.itemPanelSize`.
+- **Panes.**
+  - Wide view and pop-up: Overview/Updates on the left (opening on Updates), Assets/Activity on the right.
+  - Single pane: Overview, Updates, Assets, Activity.
+- **Overview.** Description, "Columns" (every shown column as a draggable row with its own menu: Insert, Hide on board / in panel / both, Remove), Allocation, Linked items, Subitems.
+- **Pop-up mode.**
+  - "Open in pop-up" (row menu, panel menu) opens the task over the board, up to 1160 × 1040 px.
+  - The mode lives in the board UI store. Only one task is open at a time.
+  - Below 1024 px it falls back to the full-screen panel.
+  - The pop-up body isn't wrapped in `PanelSizeProvider` (F-148).
+- **Opening.** The panel is answered on the click and revealed once its comments, assets, links and share state have all loaded.
+  - `?item=` deep-links to a task.
+  - An archived task redirects to its board's archive.
+  - Escape closes the panel unless focus is in a field or a menu.
 
-Migrations 0021–0023 added and backfilled references. Migration 0023 uses an MD5 fragment for the specific legacy references it rewrites, so historical database references are not guaranteed to be reproducible by the current runtime helper. Display stored references instead of recomputing every row's code.
+### Task journey (v0.34 → v0.47.5)
+
+- **Opening.** The panel's icon (`open-task-journey`) opens the `task-journey` dialog.
+- **Contents:**
+  - the header: ticket, name, "Booked through the portal by X for Dept", and the total time;
+  - **Time in each status**, as one bar, longest segment first, with the current status striped. Segments of 16% or more carry their label; thinner ones point to it;
+  - the timeline of steps, with "X later" gaps.
+- **How it's built** (`src/features/journey/journey.ts`), from activities only:
+  - Booked or created.
+  - Allocated: the first move away from the queue.
+  - Moves, stages and statuses. "Done" comes from the board's done labels.
+  - Deliverables:
+    - lines added within 2 minutes of creation arrive with the task;
+    - adds within 10 minutes merge into one step;
+    - completions in a row within 10 minutes become one step, counted against the booking's lines ("5 of 8 delivered").
+  - Archived, restored.
+- **Portal.** `/api/portal/[token]/tasks/[itemId]/journey` returns 9 event types with whitelisted metadata, `requesterName` among it (F-153).
+- **Limits.** Activity is read unpaged, newest first, so a very long history loses its oldest rows on Supabase (F-151).
+
+### Undo (v0.26)
+
+One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
+
+| Action | Undo does |
+| --- | --- |
+| Rename | Rename back |
+| Add | **Hard delete** |
+| Move to a group, one or many | Move back |
+| Archive | Restore |
+| Duplicate | Delete the copy |
+
+- **Not offered for:** cell edits (since v0.37.2), delete, drag moves, descriptions, tickets, covers, columns, groups, links, assets, comments, allocation.
+- **Lifetime.**
+  - A new offer replaces the old one.
+  - Any board mutation clears it; so does a path change (query changes don't).
+  - Deliverable, comment, link and allocation actions do **not** clear it. Undoing "Added X" after adding deliverables deletes those too (F-116).
 
 ### Item linking
 
-Links connect separate items on different boards within one workspace. Endpoint IDs are normalized into a sorted pair so the reverse pair is not a second link.
+- **What it is.** A link joins items on different boards of one workspace. The endpoints are stored as a sorted pair.
+- **Refused links:**
+  - self, or a task's own subitem;
+  - the same board, or another workspace;
+  - Task Allocation;
+  - an existing link;
+  - a chain that would hold two items from one board.
+- **What syncs** (`src/services/item-link-sync.ts`, `mapColumns`):
+  - Excluded first: DEPENDENCY, ASSETS_RECAP and BOOKED_AT.
+  - Then pairs are made, in order:
+    1. hand-made pairs (`item_links.pairs`, 0045);
+    2. special types, when each side has exactly one — Status, PIC, Requester, Due date, Timeline, Priority, Department, Size, Brief — hidden and removed columns included;
+    3. same name with a compatible type (the text family TEXT/LONG_TEXT/RICH_TEXT/BRIEF counts as compatible);
+    4. a lone Status/Priority/PIC/Date/Timeline on each side.
+- **How values translate.**
+  - Labels translate by name; a missing label is skipped.
+  - Single-person targets keep the first person.
+  - Rich text is flattened into plain columns.
+- **Exclusions** (`item_links.excluded`): `name`, `description`, `ticket`, `updates`, column ids. The "Choose what syncs" dialog sets them; assets are always shared.
+- **Propagation** walks links breadth-first and stops at a link that excludes the field.
+- **Updates.** "Post to linked task(s)", on by default, copies an update across the chain with a shared id. Replies stay on their own task.
+- **Deliverables are shared across links.** A line lives on the task it was added to and shows on every linked task. `ItemAssetService.loadBoard()` returns `lines` (stored here, for totals) and `byItem` (shown, links included).
 
-Validation rejects self-links, missing items/boards, parent-to-own-subitem links, same-board links, cross-workspace links, and existing direct links. It also checks the combined connected set so a link chain cannot contain two different items from the same board.
+### Assets (deliverables)
 
-Links synchronize name, description, reference, compatible column values, and access to the Updates conversation, subject to exclusions. Exclusion keys include `name`, `description`, `reference`, `updates`, and column IDs from either side.
-
-### Column mapping across linked boards
-
-`src/services/item-link-sync.ts` applies these rules:
-
-1. Exclude DEPENDENCY and ASSETS_RECAP from generic synchronization.
-2. Match normalized column names when types are compatible.
-3. Treat TEXT and LONG_TEXT as compatible text payloads.
-4. For STATUS, PRIORITY, PERSON, DATE, and TIMELINE, use the single-column fallback when its source/remaining-target conditions identify a counterpart.
-5. Report unmapped source columns and target-only columns.
-
-Status and priority values translate by normalized label name, not by copying an ID from another board. A missing target label produces a skipped translation. A single-person destination retains only the first source user. Dependencies remain local to their board, and asset recaps remain derived from each item's own assets.
-
-Propagation traverses connected links and tracks the records involved. Use that service rather than recursively calling public mutation methods, which could duplicate activity or notifications and create loops.
-
-### Shared discussions
-
-Comments remain associated with their source item while the linked conversation can be read across the connected Updates chain. Excluding `updates` affects that conversation reachability. Historical `sharedId` support also exists for shared-comment identity. Do not implement synchronization by blindly copying the same comment onto every linked item.
-
-### Assets
-
-`ItemAsset` records a name, optional type, nullable quantity, multiple assignees, due date, completion timestamp, notes, order, creator, and item/board IDs. Assets support task-level deliverables without requiring a separate tracker workbook.
-
-`recapAssets()` counts lines, quantities, distinct types, distinct assignees, unassigned lines, completed lines and quantities, next due date, and overdue lines. Null quantity counts as one. Completed lines do not contribute to overdue or next-due figures. Next due is the earliest outstanding date on or after today.
-
-The compact recap formatter shows quantity and people, for example `14 assets · 2 PIC`; type counts still exist in the recap data. `ItemAssetService` updates cached ASSETS_RECAP values when asset lines change.
-
-**Linked tasks share one set of deliverables**, and the board asks two different questions about the same lines. `ItemAssetService.loadBoard()` answers both: `lines` is what is *stored* on the board — its own totals, where counting the other board's lines would be double counting — and `byItem` is what each row *shows*, its own lines plus everything reachable through links (the same walk `list()` does, so a chain of three linked tasks resolves the same way the panel does). The status chip's progress bar, the Kanban card, the recap cell and the chart/workload `assetUnits` measure all read `byItem`, so a linked task reads the same on the board as in the panel a few pixels away. Before this they counted only the lines stored on the board being looked at: a task with three deliverables here and one on the board it was linked to said "2 of 3 done" on the board and "2 of 4 done" in the panel, and a task whose deliverables all lived on the far side showed no progress bar at all. `loadBoard` also returns `linkedBoardIds`, which `useBoardAssets` subscribes to: a shared line is stored on whichever board it was added to, so ticking one off produces an event the near board's own filtered subscription never sees.
-
-Allocation moves the existing item and its asset records to the receiving board and recomputes the recap. Generic linked-field synchronization still does not synchronize the asset-line list or ASSETS_RECAP values.
-
-Assets also carry `previewUrl` and `artworkUrl` (Preview and Final artwork/FA), added in migration 0034. The shared asset composer is reused by item editing and booking. Service mutations record ASSET_ADDED, ASSET_UPDATED, ASSET_REMOVED, ASSET_COMPLETED and ASSET_REOPENED activity (migration 0025). Portal and dashboard projections exclude notes and both URLs; ordinary board and item shares carry their scoped asset records, so that exclusion does not apply to every share type.
+- **Shape.** An `ItemAsset` has name, asset type, quantity (null counts as 1), several assignees, due date, completion, notes (the spec), `previewUrl`, `artworkUrl` (internal) and position.
+- **Changes.** Each change logs `ASSET_*` activity and recomputes the cached recap of every task sharing the line.
+- **Recap strip.**
+  - Folded: "X of Y items done" with the bar across the line.
+  - Expanded: quantity, overdue, next due, faces, types.
+  - Progress counts lines, not units.
+- **Booking deliverables** are one-line rows: name ≤160, type, quantity 1–9999, spec ≤500. A booking holds at most 50.
+- **Portal and dashboard** projections drop notes and links.
 
 ### Covers and avatars
 
-| Media | Processing | Supabase storage | Local storage |
+| Media | Processing | Supabase | Local |
 | --- | --- | --- | --- |
-| Item cover | Image source up to 3 MiB; WebP at quality 0.85; longest edge at most 1600 px. | Public `item-covers` bucket, `<itemId>/cover.webp`. | Data URL saved on the item. |
-| Avatar | Image source up to 10 MiB; center-cropped square WebP at quality 0.82; at most 256 px. | Public `avatars` bucket, `<userId>/avatar.webp`. | Data URL saved on the user. |
+| Cover | ≤3 MiB source → WebP q0.85, ≤1600 px | public bucket `item-covers`, `<itemId>/cover.webp` | data URL |
+| Avatar | ≤10 MiB → square WebP q0.82, ≤256 px | public bucket `avatars`, `<userId>/avatar.webp` | data URL |
 
-Uploads use stable object paths with a cache-busting query parameter on the stored URL. Public bucket URLs do not inherit a private board's row visibility. Storage write policies and object availability must be checked separately from table RLS.
+Public bucket URLs don't inherit a private board's visibility.
 
 ## 12. Booking and allocation
 
-### Access paths
+### Ways in
 
-The same `BookingWizard` serves `/book/<slug>/<key>` for a public booking key, `/book/<slug>` for an authenticated member, and `/portal/<token>/book` through the portal gate. The in-app Stakeholder Portal destination is now an administrator management screen; members without management permission redirect to the standalone member form.
+One `BookingWizard` serves three routes:
 
-Generated booking keys contain 24 characters. The Supabase server checks the supplied key against the workspace. An explicitly invalid key is rejected rather than falling back to a session; a valid key permits public access. Without a key, the server requires an active workspace member and derives the actor from the verified session. Local mode runs directly against browser services and is a demo, not equivalent server authorization.
+- `/book/<slug>/<key>` — public, behind the workspace key;
+- `/book/<slug>` — signed-in members;
+- `/portal/<token>/book` — through the portal gate.
 
-### Wizard and validation
+`/workspace/<slug>/book` is the admins' Portal and Booking page; other members are redirected to `/book/<slug>`.
 
-The default sequence is **Details → Brief → Deliverables → Confirm**. Disabling the assets section removes Deliverables from the sequence. Details identifies the requester and service type; Brief changes with the selected service; Confirm reviews the assembled request before submission. The built-in services are Brand, Design and Production, configurable by administrators.
+How the server decides (`src/server/booking.ts`):
 
-The current `BookingFormTemplate` is version **2**. It contains standard fields, services with optional team routing and sub-services, service-specific blocks, asset settings and confirmation wording. Requester name, email and department remain required; the title is also a locked standard field. Brief block kinds are `short`, `long`, `multi`, `single`, `link`, `separator`, and `text`. Single choice supports chips or a dropdown; text supports heading, subheading and body. Separators and text are not numbered questions.
+| Request | Result |
+| --- | --- |
+| Unknown slug | 404 |
+| Wrong key, even with a session | 403 |
+| No key and no session | 401 |
+| A session that isn't an ACTIVE member | 403 |
+| A valid key plus an active member's session | Records that member as the booker |
 
-Answers are their own `BookingAnswer` union (text, choice, link), not board `ColumnValue` records. The service validates against the live template, drops unasked answer IDs and unoffered sub-services, and recomposes the brief from the configured questions. It does not trust the caller's composed brief or team selection. The brief is stored together in the item description and compatible Brief column; the current form does not create one board column per custom question. Existing historical columns and answers are not removed by this change.
+The local provider checks the key only when one is passed.
 
-`bookingRequestSchema` and template-aware validation are in `src/services/booking.ts`. Asset lines are capped at 50; specified booking quantities are positive integers up to 9999. Each line can carry its own asset type and specification. Version-1 forms are adapted on read by `migrateLegacyTemplate()` to a General service preserving supported wording and questions; named templates are normalized on read without immediately rewriting their stored rows.
+### The four steps
 
-### Destination and created records
+Details → Brief → Deliverables → Confirm. Deliverables is dropped when `assets.enabled` is false.
 
-1. Resolve existing system entities, repairing them only when absent.
-2. Resolve the selected service in the published form, then its configured active, non-system team in this workspace. A caller-supplied `teamId` does not override this.
-3. Use that team's valid active, non-system receiving board in the same workspace; otherwise use Task Allocation.
-4. Place the task in the first destination group by position, map compatible standard values and retain unmapped request details in the description.
-5. Create **one task and its structured asset lines**. New bookings no longer generate duplicate asset subitems. Each asset uses its own type, or the sole request-level type as fallback, and inherits the requested due date.
+- **Progress bar** (`booking-progress`) reads "Step i of n". You can jump only to steps already reached.
+- **Details:**
+  - requester name, email and department (all required);
+  - title (required);
+  - needed by (UI minimum today; the schema accepts past dates);
+  - priority;
+  - the **service** (Brand/Design/Production by default) and its sub-services (at least one when offered).
+  - The routing note says where it goes: "our allocation queue", "straight to {team}", or "marked for {team}".
+- **Department** is a select over the ACTIVE departments only, tinted with the department's colour. It shows "No departments set up yet" when there are none.
+- **Identity:**
+  - signed-in visitors see an account card (`booking-known-requester`) with "Booking for someone else?";
+  - typing over the account offers "Fill these in from my account";
+  - a visitor this browser remembers sees "Filled in from what this browser remembers";
+  - otherwise the form offers sign-in.
+- **Email check and name fill** (v0.48.1/v0.49):
+  - After a 350 ms debounce the wizard asks who the email is. A spinner shows while it checks.
+  - It then says "Used before. Name filled in." or "Used before as {name}. Use this name".
+  - The name is replaced only if it hasn't changed since the email last did.
+  - It runs signed in too, whenever the details aren't exactly the account's.
+- **Brief:**
+  - the chosen service's questions only;
+  - single-choice follow-ups one level deep (≤12 per option, numbered 4a, 4b);
+  - chips or a dropdown;
+  - only visible blocks are validated.
+- **Deliverables:** rows, type picker (types already named are shown fixed), skip, reference link.
+- **Confirm:** re-validates every step. The receipt shows the **ticket** (issued by the server), the task, where it went, and "Book another task".
 
-The form proposes an item ID to preview its reference. The service honors it only if free and returns the actual reference in the receipt. The receipt includes task/board identity, destination slug, direct-team name when applicable, reference, timestamp and asset-line count. Active administrators receive TASK_BOOKED notifications according to their notification preferences.
+### Browser memory
 
-Writes are multiple repository operations, not an enclosing database transaction. Portal submission claims add retry protection but do not make task/asset creation transactional; see section 13c for partial-failure boundaries.
+`booking-remember.ts` keeps, in localStorage `streamline.booking` (scoped `book:<slug>` or `portal:<token>`, never used while signed in):
 
-### Allocation from Task Allocation
+- the requester;
+- the last 5 bookings;
+- an unfinished draft, saved on every successful Next.
 
-`BookingService.allocate()` **moves the original task** to an active non-system destination board in the same workspace. It keeps the item ID, reference, description and portal provenance. The request leaves the allocation queue; no linked copy or new provenance record is created.
+Restoring a draft or repeating a past booking keeps each deliverable's type (v0.49.1).
 
-Before moving, the service maps and translates the parent task's column values using the shared link-mapping helpers. Values without destination columns are dropped; the description retains the submitted brief. `moveToBoard()` carries subitems and asset records, removes incompatible old column values, and updates denormalized board IDs. Allocation restores translated parent values, recomputes the asset recap and writes ITEM_MOVED activity. Existing subitems move, but their old column values are not individually remapped by this service. These writes are also not one transaction.
+### Who is the requester
 
-Generic cross-board item linking remains a separate feature for deliberately mirrored work. Candidate search excludes the allocation queue; old linked allocations can still exist in historical data.
+In `booking-service.ts`:
 
-### Drafts, publishing and reuse
+1. **A signed-in ACTIVE member** booking with a blank or their own email → that member, never renamed.
+2. **Otherwise** `RequesterDirectory.ensure()` looks the email up, exactly and lowercased, by `.eq` since v0.49.1:
+   - **A person this workspace has** is the requester, pending or joined, and **keeps their name**. Only someone new takes the typed name. v0.48.0 renamed anyone; v0.49.1 stopped it, on the owner's rule, because the form is public (F-102).
+   - **An account from outside the workspace** is invited as pending and never renamed.
+   - **A new email** becomes a pending MEMBER through `inviteMember`: a confirmed Auth user without a password, an INVITED membership and a 30-day join link.
+3. **If the directory fails**, the booking still goes through, and "Requester: …" lands in the description.
 
-Workspace `bookingForm` is live; `bookingFormDraft` is work in progress. `getDraft()` falls back to the live form, `saveDraft()` saves only the draft, `discardDraft()` restores the editor to the live form, and `publishForm()` replaces the live form and clears the draft. `resetForm()` clears both overrides. Publishing the exact built-in default stores a null override so future built-in improvements remain available.
+The lookup endpoints (`/api/book/[slug]/requester`, `/api/portal/[token]/requester`) return `{name}` for any person the workspace has, INVITED and deactivated included. They have no rate limit.
 
-The editor supports service selection, brief-block editing/reordering, choice configuration, preview and explicit publishing. Named `booking_templates` include descriptions; saving a name again case-insensitively replaces it. `booking_saved_blocks` holds reusable individual blocks, also replaced by normalized name; inserting one into a brief creates a copy with a fresh block ID, not a live link to all inserted copies. Both have local/Supabase repositories and dedicated query keys. SQL 0038 adds form drafts/template descriptions; 0039 and policy 0016 add saved blocks; IndexedDB v15 adds the block store.
+### Destination and what is written
 
-`booking-remember.ts` keeps requester name/email, the last five submitted bookings and an unfinished request in localStorage `streamline.booking`, scoped by portal or workspace. This is separate from the administrator's persisted form draft. It supports resuming, repeating and clearing browser-local details; it does not provide a shared server-side draft or submission ledger.
+1. The service comes from the **live** form. An unknown service is refused.
+2. The service's team's receiving board is used if it is active, non-system and in this workspace; otherwise Task Allocation. Either way the task goes into the first group.
+3. The server validates the request:
+   - answers are filtered to the service's questions, and sub-services to those offered;
+   - the department is checked against the ACTIVE list and stored in the list's spelling;
+   - the brief is recomposed on the server — the caller's brief and team are never trusted.
+4. The server writes:
+   - **One task** with its ticket.
+   - Its deliverable lines: each line keeps its own type, or takes the request's single type; its due date is the booking's.
+   - Values through `mapBookingToColumns`:
+     - Requester → REQUESTER;
+     - Department → STAKEHOLDER;
+     - Brief → the BRIEF column, and `items.booking_brief` (0068);
+     - anything that found no column → a "Request details" block in the description.
+5. TASK_BOOKED notifies the active admins, subject to their preferences, and `count_form_booking` bumps the published form's counter.
 
-## 13. Public board sharing
+These are several writes, not one transaction.
 
-A board has at most one share record, with a 22-character random token, enabled flag, PUBLIC/PRIVATE access, optional expiry date and salted password hash, creator and timestamps. New board and item links default to **PRIVATE**, meaning a signed-in active member of the relevant workspace. PUBLIC opens to a holder of the link who passes any password gate. This link access setting is separate from the board's visibility. Migration 0029 preserves older board links as PUBLIC.
+### Allocation
 
-GET reports the gate. POST checks token, enabled state, date expiry, member access where required and password before reading through the privileged server. PRIVATE requires workspace membership, not a separate edit seat on the source board, and grants read-only link access. Local share services supply a local-member stand-in; local tests do not prove the server membership check.
+- **Where.** Allocation is offered in three places:
+  - the panel's Allocation section (`allocation-target`, `allocation-submit`);
+  - the row menu ("Allocate to" → a submenu per team, always opening to its boards, plus "No team");
+  - the bulk bar.
+- **While it runs.** The row shows "Moving…" and a sweep until the task has left.
+- **What it does.** `BookingService.allocate()` **moves the original task**, keeping its id, ticket, assets, subitems and portal provenance.
+  - Values map as links do: hand-made pairs, then special types by type, then names.
+  - The brief travels as a value. It goes into the description only when the target has no Brief column.
+  - Then the recap is recomputed and `ITEM_MOVED` is logged.
+- **Caveats:**
+  - Bulk moves run in parallel (F-159).
+  - Trigger 0074 can refuse a department after the move (F-161).
+  - Target boards are listed by view rights (F-160).
 
-`refuseShare()` rejects when `expiresAt < today`, so the selected expiry day is inclusive. Disabling retains a token; regeneration replaces it; removing a share deletes its credential record. Board, item and dashboard passwords use `salt:hash` with one SHA-256 round from `password-hash.ts`; portal passwords use a different PBKDF2 scheme.
+### The form editor, drafts and templates
 
-The board payload includes board metadata, groups, columns, active items, values, scoped assets and comments, up to 200 recent board activities, workspace name, expiry and referenced people. Cross-board links are excluded unless both endpoints are in the payload. The read-only memory adapter supplies the board UI through `ShareGuestProviders` and a dedicated QueryClient.
+- **The page.** Portal and Booking has tabs "Portal" and "Form Editor".
+  - The editor writes `booking_form_draft` only.
+  - **Publish** asks for a name, defaulting to "<team> · d MMM yyyy, HH:mm". It stores the name and publish time (0059), resets the booking counter, and clears the draft. Publishing the built-in default stores null.
+- **Published card:** "N questions · M services", "Published …", "N tasks booked since".
+- **Templates** (`booking_templates`):
+  - save (name ≤80, description ≤280; the same name replaces, case-insensitively);
+  - load; update a loaded template in one click; load the published form; reset.
+- **Saved blocks** (`booking_saved_blocks`, 0039/0016) insert as copies with fresh ids.
+- **Preview** sends nothing.
+- **Service settings:** team routing ("Bookings go to"), sub-services, questions.
+- **Legacy forms.** `migrateLegacyTemplate()` reads version-1 forms as a General service.
 
-`toPublicUser()` now explicitly supplies ID, display name and avatar with blank/null values for email, job title, department, timezone, stakeholder group, working hours and other profile fields. It no longer spreads a complete user object. This does not redact contacts or other information typed into descriptions, columns, Updates, activity metadata or asset fields. Board sharing is broader than portal/dashboard projection.
+### Limits and retry boundaries
 
-Board and task share pages poll every **4 seconds** (`SHARE_REFRESH_MS`), stop interval refetching in background tabs and refetch on focus. `share-shell.tsx` holds common gate, theme, providers and readonly presentation.
+- **`bookingRequestSchema` limits:**
+  - name 2–120; email ≤200; title 3–200; brief ≤20k;
+  - ≤50 deliverables; quantity 1–9999; spec ≤500; ≤20 asset types;
+  - text answers ≤10k; choices ≤40.
+- **Portal submissions** use a key (8–100 characters, unique per portal). The flow is claim → book → complete:
+  - the same key with the same content replays the receipt;
+  - different content, or a claim still pending, gives 409;
+  - a failure releases the claim, but does not roll back a task already created.
+  - Department isn't part of the content hash (F-162).
+- **Public `/api/book` has no retry protection.** A resubmission books twice (F-158).
+- **Refusals** from `BookingService` (unlisted department, removed service, missing answer) reach Supabase callers as a generic 500 (F-113).
 
-## 13a. Individual task sharing
+## 13. Board and task sharing
 
-`ItemShareService` uses the same access/password/expiry model at `/share/item/<token>` and `/api/share/item/<token>`. `item_shares` and policy 0012 were added with migration 0029; local storage arrived in IndexedDB v13.
-
-The payload contains the selected unarchived task, its direct subitems and their values, scoped assets/comments, up to 100 activities from the selected task, and sanitized referenced users. It still includes the source board metadata, groups and columns needed to render the panel. It supplies no item links and no sibling tasks. An archived or missing selected task cannot be loaded through its item share. Do not describe this as a metadata-free or field-redacted export.
+- **Board shares.**
+  - A board has at most one share: a 22-character token, enabled flag, PUBLIC/PRIVATE access, optional expiry date and salted password (`salt:hash`, one SHA-256 round).
+  - New links default to PRIVATE, which means a signed-in active member of the workspace.
+  - Expiry is inclusive (`expiresAt < today` refuses). Disabling keeps the token; regenerating replaces it.
+- **The board payload:**
+  - metadata, groups, **columns that aren't removed** (their values filtered on the server too), active items, values, scoped assets and comments;
+  - up to 200 board activities (the journey uses them);
+  - referenced people as `toPublicUser()` (id, name, avatar; everything else blank).
+  - It doesn't redact what people type into descriptions, cells or Updates.
+- **Task shares** (`/share/item/<token>`) carry:
+  - the task, its direct subitems and their values;
+  - scoped assets and comments, and up to 100 activities;
+  - the board's metadata, groups and columns — no links and no siblings.
+  - An archived task can't be opened this way.
+- **Refresh.** Share pages poll every 4 s (`SHARE_REFRESH_MS`) while visible, and on focus.
 
 ## 13b. Workspace dashboard
 
-The dashboard is now **one scrolling report**, rendered by `DashboardBody` in `views/overview.tsx`. It combines headline figures, year comparison and mix, demand/delivery breakdowns, current operations and named workload. The old Overview / Demand & Delivery / Resourcing tab constants and some comments remain in source, but `DashboardScreen` renders the combined body rather than those three tabs.
+One scrolling report (`DashboardBody`): headline figures, the year comparison and mix, demand and delivery breakdowns, current operations and named workload.
 
 ### Snapshot and reporting contracts
 
-`DashboardService.loadSnapshot()` reads active boards available to the reader, their groups, columns, items (including archived items), values and assets, plus workspace output rates, teams, referenced users, stakeholder departments and scoped workspace links. `analytics.ts` builds facts; `metrics.ts` derives reporting contracts. The public loader uses the service role to load all active boards of the workspace before projection, not merely the administrator's currently visible subset.
+`DashboardService.loadSnapshot()` reads the active boards the reader can see, with groups, columns (removed ones included), items (archived ones included), values and assets, plus output rates, teams, users, departments and links. `analytics.ts` builds the facts and `metrics.ts` the reporting contracts. The rules that decide what counts:
 
-- A delivery task is top-level work outside Task Allocation. Linked copies collapse deterministically to one representative. Archived **items** count in history; archived **boards** remain excluded, so archiving a whole campaign board still removes its history from this report.
-- Asset units use `assetCount()` on deliverable lines; null quantity counts as one. Intake assets represent requests rather than duplicate delivered output.
-- Stakeholder attribution prefers a STAKEHOLDER cell resolved through the department registry. Legacy department-like TEXT fields and requester profile hints can supply inferred attribution; missing attribution has an explicit Unknown bucket. Check `buildFacts()` for precedence when adding a new field.
-- Periods are matched day ranges. Default reporting is created-date year-to-date against the same span of the previous year. Other controls support year, quarter, month and custom ranges. Partial periods are labelled; unreached months are not rendered as zero history.
-- Missing history is Unavailable; a real zero baseline reports an absolute difference without a fabricated percentage. Due-date reports exclude and separately count undated work.
-- Created and due are the supported reporting bases. A durable task-completion event and original committed deadline are not stored, so completed-date throughput and reliable on-time delivery remain unavailable.
-- Current operations do not take the historical reporting period. Overdue, blocked and other figures can overlap. Archiving alone does not mark a task done; current operational calculations still use the task's status and date facts.
+- **What counts as delivery.** A delivery task is top-level work outside Task Allocation. Intake items are requests, not delivery. Linked copies count once.
+- **Archiving.** Archived items count in history; archived boards drop out entirely.
+- **Asset units.** A line with no quantity counts as 1.
+- **Departments.** Work is attributed from the STAKEHOLDER cell through the department registry, then requester hints, else Unknown.
+- **Periods** are matched day ranges. The default is created-date year to date against the same span last year.
+- **Comparisons.**
+  - Missing history reads "Unavailable".
+  - A base under 5 shows the difference but no percentage (`MIN_PERCENT_BASE`, v0.46.1).
+  - A zero base shows "no % comparison".
+- **Not reportable.** Nothing records a completion event or an original deadline, so neither completion-date throughput nor on-time delivery can be reported.
 
 ### Effort, workload and rates
 
-The page-wide measure is **Tasks**, **Asset units**, or **Effort**. Effort is offered only when output rates exist; an old saved effort selection falls back to Tasks if rates disappear. Headline cards can also select the measure.
+- **Measures.** The page measures Tasks, Asset units or Effort. Effort appears only when output rates exist.
+- **Rates** live in `workspaces.asset_rates` and are edited in Settings → Asset types as `{qty, every, per}`, with an 8-hour day and a 5-day week.
+- **Workload** shows each person split by department, over 2, 4 or 8 weeks. A task with several people counts once for each of them.
 
-Rates live in `workspaces.asset_rates` and are edited beside asset types in Settings → Lists. A rate `{qty, every, per}` means `qty` outputs every `every` hours/days/weeks. `hoursPerUnit = every × unitHours / qty`; a working day is **8 hours**, a week **5 working days / 40 hours**. Effort sums units times this rate, matched case-insensitively by asset-type name. Unrated types contribute no estimated hours and coverage gaps are reported. Changing a rate recalculates historical estimates; no actual time-tracking records are written.
+### Presentation (v0.32–v0.46)
 
-Workload shows associations per person, split by stakeholder group, in the selected measure and a 2/4/8-week window. A multiply assigned task contributes to each person's row; those rows are not additive unique-task totals. Unassigned work and former members with assignments are represented. Profile pages reuse the stakeholder split with a non-polling borrowed dashboard query. Output-rate estimates and profile working-hour fields are not a capacity/leave/commitment model; there is no reliable capacity percentage.
+- **Motion.** Motion waits for load and a visible tab (`DashboardReveal`): shapes grow in and big figures count up. Reduced motion shows everything at rest.
+- **Thin data.** Every panel says when there's nothing yet ("No {unit} in {period} yet.").
+- **Scales.** Chart scales count in whole numbers.
+- **Links.** On the signed-in page, names open profiles and team pages, and a department narrows the workload panel.
+- **Preferences** are stored in `streamline.dashboard.v2`, keyed `<user>:<workspace>`. The settings menu hides panels (`PANEL_IDS`).
 
-### Preferences and freshness
+### Freshness and the public link
 
-Preferences use `streamline.dashboard.v2`, keyed by `<userId>:<workspaceId>`, hydrated after mount. They include reporting period, comparison, measure, basis, team filter, workload weeks and stakeholder filter. Invalid team selections are dropped.
+| Surface | Refresh | Notes |
+| --- | --- | --- |
+| In-app dashboard | Every 60 s, **visible only**; on focus | Realtime on 10 tables, coalesced over 2 s, at most once every 20 s |
+| Profile's department split | A borrowed snapshot | No polling |
+| Public link `/dashboard/<token>` | Every 60 s, **including background tabs** | About 4.5 MB per snapshot (F-119) |
 
-The internal snapshot safety refresh is **60 seconds**, with background polling disabled and focus refresh enabled. Realtime listens to items, values, assets, groups, columns, boards, teams, links, workspaces and workspace lists. Events coalesce for **2 seconds**, with at least **20 seconds** between invalidations scheduled by that realtime hook. These limits do not prevent explicit mutation invalidations or other refetch triggers. Borrowed profile queries have a 60-second stale time and no interval. Migration 0035 publishes workspace changes so output-rate edits can be observed.
+The public link is one per workspace, managed by admins, with an optional password and expiry. `publicDashboardSnapshot()` strips from what it sends:
 
-### Public dashboard
+- descriptions and covers;
+- asset notes and links;
+- emails and job titles;
+- every TEXT value except department-like columns;
+- LONG_TEXT, LINK and DEPENDENCY values.
 
-One dashboard share exists per workspace, managed by workspace administrators, with an optional password and expiry. Its link is public-only at `/dashboard/<token>`, uses `/api/dashboard/<token>`, and refreshes every **60 seconds**. It renders the same combined report without callbacks that navigate into internal tasks and boards.
-
-`publicDashboardSnapshot()` is an explicit projection, but it **does include named workload**: PERSON values, asset assignee IDs, output rates and user names/avatars travel. User projection also retains timezone, deactivation marker and timestamps; it is not an anonymous aggregate. It clears email, job title and department, omits working-hour/stakeholder-profile fields, replaces board owner/task creator identities, clears task descriptions and covers, and strips asset notes, Preview and Final artwork URLs. Allowed column types include STATUS, PRIORITY, DATE, TIMELINE, TAGS, SIZE, NUMBER, CHECKBOX, ASSETS_RECAP, STAKEHOLDER and PERSON, plus department-like TEXT. LONG_TEXT, LINK and DEPENDENCY are excluded. Board/task names, grouping metadata and permitted raw values remain in the payload.
-
-Historical dashboard design reports describe earlier versions, including a people-free public snapshot and three tabs. Use current `dashboard.ts`, `DashboardScreen`, `DashboardBody` and regression tests as evidence for present behavior.
+Named workload stays.
 
 ## 13c. Stakeholder portal
 
 ### One workspace link
 
-The portal now has **one link per workspace**, `/portal/<token>`. Its credential admits the workspace's publishable request set; the stakeholder selector is a filter, not a department access boundary. Anyone admitted can select another stakeholder or All. It is not intended to isolate departments from each other.
+- One `department_portals` row per workspace with `department_id` null (0037), created switched off, with a 32-character token.
+- Old per-department links answer "This link has been replaced". Portal pages set noindex and no-referrer.
+- The **admin card**, in Portal and Booking:
+  - Open / Closed;
+  - a password popover (add, change, remove);
+  - "New link" (with a confirmation);
+  - two tiles, each with copy and open buttons and a gear:
+    - the portal link — its figure is the number of departments;
+    - the booking link — its figure is requests booked; it shows "Not serving" when closed or not taking requests.
+- **Settings dialogs** (`portal-portal-settings`, `portal-booking-settings`) edit a draft. Save writes every change in one call; Discard resets; closing with unsaved changes asks first.
+- **Portal settings:**
+  - team name (≤60), opening view, **default range** (1w/2w/1m/3m/6m, 0058), default theme and whether visitors may switch it;
+  - the columns shown; figures; the boards' own groups (`show_item_groups`, off by default).
+- **Booking settings:**
+  - accept bookings; theme and switch;
+  - headline (≤80) and lead (≤240) for the portal booking page;
+  - the sign-in offer;
+  - **interface size 80–150%** and whether visitors may change it (0060/0061).
+- The portal `description` field is stored but has no UI (F-166).
 
-The database table remains `department_portals`. A unified row has `department_id = null`; migration 0037 adds a partial unique index for one such row per workspace, disables enabled legacy department rows and bumps their credential versions. Services refuse every legacy row with a non-null department ID and report that the link was replaced. The migration does not automatically publish a new unified link: management creates one, initially disabled.
+### Gate
 
-Administrators manage the single link, password, enabled state and presentation in Stakeholder Portal at `/workspace/<slug>/book`, alongside the form editor. `creativeTeamName` changes the portal's display identity without renaming the workspace or its slug. Ordinary members redirect to the member booking form.
+`StakeholderPortalService.resolve()` checks, in order:
 
-### Department identity and publication scope
+1. the token's shape;
+2. that it is the unified row;
+3. that the link is enabled;
+4. the credential version (password changes and New link bump it);
+5. the password: PBKDF2-SHA256, 210,000 iterations, 16-byte salt, verified on every call, with no attempt limit (F-165).
 
-Settings → Lists remains the editing surface for stakeholder groups. List rows are replaced on save, so `stakeholder_departments` maintains durable IDs. Reconciliation uses the editor's explicit rename map: rename preserves identity, removal disables the old department, and later adding the same name creates a new department rather than reviving old provenance. Existing labels can still match an active department by name; provenance and label matching are distinct rules.
+A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
-`scopeWithItems()` combines workspace STAKEHOLDER-labelled tasks with `portal_requests` provenance. It reads STAKEHOLDER by **column type**, not its display name, and matches group names trimmed and case-insensitively. A label takes precedence over provenance for stakeholder attribution. Without a label, provenance attributes the request to its still-active department. Disabled/unrecognized departments resolve to no active stakeholder; their eligible work may remain visible in All, so disabling a department is not a global portal revocation control.
+### Departments and publication scope
 
-Only unarchived top-level candidates become request rows. Linked candidates collapse to one representative, preferring an item with provenance and otherwise the earliest creation. This still matters for manually linked work and historical allocations, even though current allocation moves the original item. A labelled task without provenance has no public brief. `items.description` is never used as a substitute: it can contain requester contact details appended by booking.
+- `stakeholder_departments` keeps durable ids through renames, via `reconcileDepartments` and the editor's rename map.
+  - A removed department is disabled, never deleted. Re-adding its name makes a new one.
+  - Settings → Departments is the only editing surface: ≤60 entries, names ≤40 characters.
+- `scopeWithItems()` publishes unarchived top-level tasks that either:
+  - carry a STAKEHOLDER value (read by column type; the label wins for attribution); or
+  - have portal provenance.
 
-Adding or editing a stakeholder label changes the request set the unified portal publishes. Hiding a column, narrowing a date range or selecting one stakeholder does not change that authorization. Scope and output projection must be reviewed separately.
+  Linked candidates collapse to one.
+- Department and range choices filter; they are not authorisation.
 
-### Gate and writing permissions
+### Board presentation
 
-`StakeholderPortalService.resolve()` checks token shape, unified-row status, enabled flag, credential version and password before scoped operations. Tokens are generated with 32 characters. Regeneration and password changes bump `credentialVersion`; stale grants are refused on the next request. Unknown/disabled links are unavailable, and superseded or stale links report revocation. Password errors map to HTTP 401, other portal access errors to 404; submission conflicts map to 409.
+- The portal renders as the app's own read-only board, with all 7 views. Its columns:
+  - Requested; Department (only with All and more than one department);
+  - Status, Priority, PIC, Due date;
+  - then Timeline, Assets recap, Asset type and Brief where there is data.
+  - The Brief row keeps its headings (`portalBriefMarkdown`).
+- **Always withheld:** descriptions, requester contacts and profile details, asset notes and links.
+- **Published:** update threads (without mention metadata) and the task journey.
+- **Awaiting banner:** "Waiting for allocation · With {team}".
+- **Header and toolbar:**
+  - department picker (lists only departments with work, plus All); range picker (with an all-time warning); group by board/status/department; status order (`streamline.portal-status-order:<token>`);
+  - Book a task; theme; staff sign-in.
 
-Portal passwords use PBKDF2-SHA256 with 210,000 iterations when newly set, a 16-byte salt and a 256-bit key, encoded as `pbkdf2$<iterations>$<salt>$<hash>`. Verification reads the encoded count. Passwords travel in request bodies, not URLs. Policy 0013 lets authenticated workspace administrators manage portal credentials and provenance, and lets active members read stakeholder departments; department insert/update also requires administration. Ordinary members and anonymous callers cannot read credentials or provenance directly. Submission claims have RLS with no browser policy and are service-role only. Scoped public reads and writes pass through the application endpoints.
+### Ranges, search, refresh and theme
 
-Visitors can read and book when enabled. Comment or deliverable writes additionally require a verified session, active membership in the item's workspace and OWNER/EDITOR access on that concrete item's board; asset writes verify item ownership. Supabase resolves the actor from the bearer token, never a browser actor claim. The token itself grants no edit permission. The local provider exercises services directly and cannot establish deployed RLS behavior.
+- **URL parameters:**
+  - `?range` defaults to the link's own default, then 3 months;
+  - search widens the range to all time;
+  - `?task` opens a task from the current payload only, so a request outside the range shows "Item not found" (F-163).
+- **Refresh.** The board polls every 4 s while visible and refetches on focus. It also polls on the booking page, because it supplies the department list.
+- **Theme.**
+  - The link's theme beats the visitor's app theme.
+  - A visitor's own choice is stored per token and page (`streamline.portal-theme:<token>:<board|booking>` as `{theme, over}`) and lapses when the team changes the link's setting.
+  - The theme is applied to `<html>` while the page is mounted; the app theme returns on leaving.
+- **Booking size.** A visitor's size is stored in `streamline.portal-scale:<token>` as `{scale, over}`.
 
-### Projection and board presentation
+### Booking from the portal
 
-`portal-projection.ts` maps source-board status/priority, dates, people and deliverables into allowlisted `PortalTask` fields. `portal-board.ts` then builds a synthetic `PublicBoardPayload`, rendered by the normal board views and item panel through readonly memory repositories. All seven views are available, with the normal search/filter/sort tools.
-
-Published data includes task title/reference, stored public brief, stakeholder, status and semantic role, priority, dates, display names, deliverable summaries, subitem summaries and scoped Updates. General item descriptions, requester contacts, profile directory fields, activity history, asset notes and asset URLs are excluded. Comments on published tasks do travel in the board projection; the prose staff put in Updates is therefore visible to portal readers. Mention metadata is removed, but this is not a semantic redactor for sensitive prose.
-
-Statuses normalize by meaning across boards. Priorities map to the application's fixed four-level palette. Requested dates are displayed as TEXT to avoid a due-date cell marking historical request dates overdue. Columns without values can be omitted. Optional presentation keys are `requested`, `priority`, `people`, `due`, `timeline`, `assets`, and `asset-types`; hidden columns are presentation only.
-
-Presentation settings include description (280 characters), default view, default theme, hidden columns, `allowBooking`, `showRecap` and **`showItemGroups`**. SQL 0040 defaults item groups off: status grouping is the default and the board grouping option is hidden. When enabled, board/source groups are available and are the default; visitors may also group by stakeholder. Grouping lives in `?group=board|status|stakeholder`; visitors can reorder status groups with order saved per token in `streamline.portal-status-order:<token>`.
-
-### Ranges, search and refresh
-
-`?for=<departmentId>` selects a stakeholder; omission shows All. `?range=` supports configured rolling week/month windows, a four-digit year or `all`; the default UI/HTTP range is the **last three months**. Direct service calls can deliberately use the full set. Range filtering uses provenance `bookedAt`, falling back to item creation time, rather than due dates. An unknown stakeholder narrows to nothing.
-
-Portal search widens the time range to All while retaining the stakeholder filter. `?task=<itemId>` opens a request independently of the current time window; `?view=` overrides the configured opening view. `/portal/<token>/book` opens the booking wizard separately and can retain `?for=`. Browser Back and reload preserve URL selections.
-
-The synthetic board poll runs every **4 seconds**, pauses interval reads in background tabs, and refetches on focus/reconnect. Changing stakeholder/range keeps the prior board visible with a loading indication until the new response arrives. Theme choice is isolated under `streamline.portal-theme:<token>`, not the internal workspace theme.
-
-### Booking and retry boundaries
-
-The unified portal requires a **department ID in the booking request**, validates that it is an active department of this workspace, then overwrites the request's department name with the trusted registry name. The department is no longer inferred from a per-department token. The service composes and captures the public brief separately, then uses the same published wizard template and booking service as other booking paths. `allowBooking=false` is enforced by the service, not just by hiding a button.
-
-A client submission key of 8–100 characters is unique per portal. The service hashes the request, claims the key, creates the booking, associates provenance and records the receipt. The same completed key/content replays the receipt; different content or a pending claim is refused. A caught failure attempts to release the claim. This compensates the claim only: it does **not** roll back an already created task or its assets, and a process failure can leave a pending claim. Inspect partial records before retrying a failed multi-write booking.
-
-### Read scaling and sources
-
-Portal scope/projection batch item, value, link and comment reads. Portal batches are 80 IDs; Supabase targeted link reads use 100-ID chunks because both endpoints repeat the filter, then page and deduplicate results. `unwrapAll()` pages growing result sets past PostgREST's default response limit; chunking bounds URLs but does not itself guarantee all rows were returned. The synthetic board endpoint returns the selected board set, while the tasks endpoint uses cursors. Totals and stakeholder counts are not merely counts of the current visible page.
-
-Primary sources are `stakeholder-portal-service.ts`, `portal-projection.ts`, `portal-board.ts`, `portal-view.ts`, the portal feature screens, `src/server/portal.ts`, migrations 0030–0032/0037/0040 and policy 0013. Some comments and older design documents still describe department-isolated credentials, provenance-only publication or linked-copy allocation; those descriptions have been superseded by the executable paths above.
+1. The wizard offers every ACTIVE department on the list.
+2. On submit, the page sends the department's id when its filters have one.
+3. **Since v0.49.1** it sends null otherwise, and the service finds the department on the list by the request's name (`departmentNamed`).
+   - Before that, every department with no work yet — so every department after a wipe — failed with "Pick which department this is for." (F-101).
+4. Either way the server checks the department is ACTIVE and writes its name over whatever the body said.
+5. `allowBooking = false` is enforced by the service: a closed link answers 404, "This portal is not taking new requests at the moment."
 
 ## 13d. The phone experience
 
-Below 768 CSS pixels the application mounts a phone interface of its own. At 768 and above it uses the desktop shell. Historical rebuild screenshots describe that earlier comparison, not a guarantee that the current desktop matches every prior release.
+**The boundary and the shell.**
 
-**One boundary, one hook.** `useIsMobile()` (`src/hooks/use-mobile.ts`) is the only place 767 appears. It reads a media query through `useSyncExternalStore` whose server snapshot is `false`, so the server renders the desktop branch, hydration matches, and the swap lands on the first commit. Width, never the user agent.
+- Below 768 CSS px `useIsMobile()` (the only place 767 appears; `useSyncExternalStore`, server snapshot `false`) switches `AppShell` to the phone shell: a top bar (brand, title, search) and five destinations — Home, My Work, Browse, Inbox, More. The desktop frame is not mounted at all.
+- `browse` and `more` carry what the sidebar holds on desktop. Automations sit under More, with a running mark on the More tab.
+- Only 16 files are phone-aware. Every other page relies on responsive CSS. `Test_prompts/audits/2026-09-26-full-e2e/MOBILE_AUDIT.md` records a page-by-page audit and the plan for a full phone revamp.
 
-**One shell is mounted, not two.** `AppShell` branches on that hook and returns either the phone shell (`src/components/layout/mobile-shell.tsx`: a compact top bar and five destinations - Home, My Work, Browse, Inbox, More) or the existing frame. The other is absent from the tree rather than hidden with CSS, so its queries, subscriptions and focusable controls never exist. Providers, notifications, the command palette and the version watcher sit above the branch and are shared.
+**The phone board.**
 
-**Two new routes**, `browse` and `more`, carry what the sidebar used to: teams, boards, favourites, trackers, people; and Dashboard, Book, Messages, Members, Settings, Profile, theme, About, sign out. Every other destination keeps its existing URL.
+- **Header:** back, name, favourite, a menu sheet (members, invite, activity, the whole board menu, a rename sheet).
+- **Tools strip:** views, search, filter, sort, columns, plus Cards/Grid and Select.
+- **Cards** (`mobile-item-card`):
+  - status, priority and date chips open bottom sheets;
+  - the date sheet's Today, Tomorrow and Next week use the phone's own day since v0.49.1 (F-111);
+  - a floating **New item** button (`mobile-new-item`), a bulk bar in select mode, and a subitems toggle.
+- **The grid** lazy-loads the desktop table in a compact layout.
+- **Kanban** shows one lane at a time, with "Move to".
+- The other views reuse their desktop implementations.
+- **Tasks** open full screen. Cell editors open as sheets (`cell-shell.tsx`), and automation dialogs become bottom sheets.
 
-**Boards.** The Main Table becomes a grouped card list carrying status, priority, owners, due date, overdue, blocked state and the booking code; the real grid stays one tap away and scrolls inside its own box. Kanban shows one lane at a time with an explicit "Move to" control instead of dragging. Timeline, Calendar, Gantt, Workload and Chart reuse their existing implementations within the screen. Task details open full screen with stacked fields; `PopoverCell` uses a Sheet below 768 for touch editing. Trackers provide a mobile row editor while preserving the workbook model.
+**Preferences and trackers.**
 
-**Presentation is new; logic is reused.** Nothing is reimplemented: the mobile board reads the same `BoardModel`, writes the same `useBoardMutations`, and drives the same `board-ui-store`. Where a rule lived inside a desktop component it was extracted rather than copied - Kanban lane building into `useKanbanLanes`, the member row's mutations into `MemberActions`.
+- Phone-only choices are stored in `streamline.mobile-view`. The sidebar's narrow-screen fold is derived, never persisted.
+- Trackers get a row editor.
 
-**Touch sizing lives in the primitives.** Button, Input, Textarea, Select, Tabs and dropdown rows provide narrow-screen touch sizing and readable input text. Inspect the actual primitive variants when adding compact or icon-only controls rather than assuming every instance has identical dimensions.
+**Known gaps** (details in `MOBILE_AUDIT.md`):
 
-**State isolation** is the rebuild's one non-negotiable, and it has three parts. The narrow-screen sidebar fold is derived (`preferCollapsed || autoCollapsed`), never persisted - the old shell wrote `setSidebarCollapsed(true)` into the shared preference, which then followed the reader back to their desktop. Phone-only presentation choices (cards or grid, the mobile Kanban's lane) live under `streamline.mobile-view`. Explicit view switches still go through the normal `setView`, and deep-linked `?view=` and `?item=` keep working on both.
+- update and reply controls revealed only by hover;
+- several desktop dialogs and popovers without sheet variants;
+- dense settings, form-editor and dashboard layouts;
+- the phone "Ticket" toggle changes the desktop setting.
 
-Related: `useUiStore.persist.rehydrate()` runs in a parent effect while the sidebar's team auto-expand runs in a child one, and child effects run first. Opening straight onto a board therefore used to persist the session's defaults over the reader's saved sidebar width; the auto-expand now waits for hydration.
+## 13e. Automations
+
+### Model
+
+`src/domain/automation/automation.ts` defines a rule: `{name, enabled, trigger, conditionMatch: all|any, conditions[], actions[]}` plus `lastRunAt`, `runCount` and `lastError`. Rules are stored as jsonb.
+
+| Timing | Trigger kinds |
+| --- | --- |
+| Event (17) | `item_created` (optional group), `subitem_created`, `item_renamed`, `name_contains`, `comment_contains`, `column_contains`, `column_changed`, `column_set_to` (label / tick / text), `column_cleared`, `number_crosses` (above/below a threshold), `person_assigned`, `person_unassigned`, `item_moved_to_group`, `item_moved_from_group`, `comment_added` (replies too), `item_archived`, `item_restored` |
+| Schedule (3) | `date_arrives` (column, offset days, hour), `column_unchanged_for` (column, 1–365 days, hour), `recurring` (daily/weekdays/weekly/monthly, hour) |
+| Manual (1) | `manual`: a quick run |
+
+**Conditions.** There are four kinds: column, group, actor, and item kind (task/subitem). Each takes one of eleven operations: is, is_not, is_empty, is_not_empty, contains, not_contains, greater_than, less_than, before, after, is_overdue.
+
+**Actions (23)**
+
+| Category | Actions |
+| --- | --- |
+| Set or clear values | set_value, clear_value, copy_value, adjust_number, add_tags, remove_tags |
+| Groups and people | move_to_group, assign_person, unassign_person |
+| Dates | shift_date, set_date_relative |
+| Names and descriptions | set_name, set_description |
+| Parent and subitems | set_parent_value, set_subitems_value |
+| Messages | notify, add_comment |
+| Create | create_item, create_subitem, duplicate_item |
+| Lifecycle | archive_item, restore_item |
+| External | send_webhook |
+
+**Notify audiences.**
+
+- The audiences are people_on_item (PIC and People columns, not Requester), column, creator, actor, board_owners, board_members and specific.
+- The actor is removed from every audience except actor and specific, so a rule you test on yourself logs "Nobody to tell". Delivery is type ASSIGNED, subject to each person's preferences.
+
+**Placeholders.**
+
+- `{item} {board} {group} {ticket} {actor} {today} {column:Name}`.
+- Unknown placeholders stay as typed.
+
+**Validation** (`automation-service.ts`):
+
+- **Limits.**
+  - A rule has 1–10 actions and at most 10 conditions.
+  - Hours are integers 0–23; weekly rules need a weekday 0–6 and monthly rules a day 1–28.
+  - Rules that only run on the clock may use only notify, create_item and send_webhook.
+- **Webhooks** must be https, with no credentials in the URL and no private host or IP range.
+- **Loop guards.**
+  - A creation or name trigger can't create tasks on its own board.
+  - A value trigger can't write its own column.
+  - Chains stop at depth 3 (`MAX_EVENT_DEPTH`). The depth mark is `automation_marks` on Supabase (120 s).
+  - Tasks *created* by actions carry no mark, so a duplicate-on-Done rule can loop (F-114).
+- **Names.**
+  - A rule with no name is saved as its auto-generated sentence.
+  - Names are cut to 200 characters on create, and on edit since v0.49.1 (F-168).
+
+### The runner
+
+1. **Raising events (Supabase).** SECURITY DEFINER triggers insert `automation_events` rows, but only when an enabled rule on the board listens (`private.automation_board_listens`):
+   - items raise `item_created`, archived, restored, moved or renamed;
+   - values raise `value_changed` with `{before, after}`, passed through `jsonb_strip_nulls`;
+   - comments raise `comment_added`.
+2. **Draining.** `/api/automations/run` drains the queue with `AutomationEngine.drain()`:
+   - It claims up to 200 events and splits them into lanes, one per task, up to 8 at a time.
+   - For each event it reads the board's rules once, then builds the context, checks depth and conditions, and acts.
+   - Actions write through the ordinary services, attributed to the actor, else the board owner. Each action logs one `automation_runs` row.
+3. **Stripped payloads.** The engine reads a payload value as `wholeValue()` — `{...emptyValueFor(type), ...value}` — since v0.49.1. Before that, `column_cleared` never fired on Supabase for null-emptied types (F-106).
+4. **Re-draining.** While a pass fires something (up to 3 more passes, within half the 50 s budget), the runner drains again, so chains finish in one tick.
+5. **Schedules.** `recurring` rules fire in their hour, `column_unchanged_for` per quiet value, and `date_arrives` per task whose date matches. The clock reads `AUTOMATION_TIMEZONE` through `Intl`, so 9 am stays 9 am across daylight saving. String hours in jsonb are coerced to numbers.
+6. **Receipts.** `automation_schedule_fires` stops the same firing twice. Recurring receipts fail on Supabase today because `item_id` sits in the primary key (F-105; fix proposed as 0080).
+7. **Heartbeat and sweep.** The runner writes `automation_heartbeat` on scheduler ticks only. `automation_sweep(30)` clears old queue rows, runs and receipts. The workspace page and the board dialog flag a runner that has been silent for 20 minutes (`HEARTBEAT_STALE_MINUTES`).
+8. **Member nudges.** Board and comment mutations nudge the runner 150 ms after they settle (POST `?sweep=0` with the member's session), so rules fire within about a second without waiting for the clock.
+9. **Drivers.**
+   - The production driver is `pg_cron` in the database: job `streamline-automations`, every minute, via `pg_net` (`supabase/optional/automations_pg_cron.sql`, set up by hand on 20 September).
+   - `.github/workflows/automations.yml` (every 5 minutes) is kept but has never run on schedule.
+   - `vercel.json` deliberately has no `crons` block.
+10. **Local provider.** It queues events but nothing drains them: only quick runs execute, in the browser, with no permission check (F-181).
+
+### Quick runs
+
+- **What they are.** A quick run is a `manual` rule: a saved group of actions fired from a board dialog's Quick runs tab against up to 50 chosen tasks (`/api/automations/run-now`).
+- **How it runs.** It runs under the caller's own session, which needs `canEditBoard`. Conditions are ignored.
+- **Refusals:**
+  - "That quick run no longer exists."
+  - "Only a quick run can be started by hand."
+  - A switched-off run reaches the UI as a generic 500 (F-172).
+
+### Screens
+
+| Screen | Contents |
+| --- | --- |
+| Workspace page (`/workspace/<slug>/automations`) | **Runner strip:** "The runner is live" / "Nothing is running these", with running / ran-today / with-errors figures. **Tabs:** Board automations (search, board filter, cards with toggle, open and remove — remove doesn't confirm, F-173), Recipes (10, managers only), Activity (refreshes every 30 s) |
+| Board dialog | Rules ("When something changes" / "On the clock"), Quick runs, Activity (refreshes every 15 s). Runner pill, stale banner |
+| Builder (`useRuleEditor`) | When → Only if → Then |
+| Running indicator (Supabase only) | Realtime on `automation_events` keeps a busy board lit for ≥1.5 s: a ring on the board's Zap button, an orbit on the sidebar tile for other boards. On phones, a ring on the board menu and the More tab |
+
+**The 10 recipes:** notify-on-done, deadline-reminder, overdue-chase, stuck-escalation, welcome-new-task, assign-on-create, weekly-review, stale-flag, subitems-follow-parent, archive-done.
+
+### Persistence
+
+**Tables** (0052–0057):
+
+| Table | Holds |
+| --- | --- |
+| `automation_rules` | Rules. `trigger_kind` and `trigger_column_id` are generated columns |
+| `automation_events` | The queue: bigint identity, payload, depth, claimed/processed stamps, attempts, error |
+| `automation_marks` | Depth marks |
+| `automation_schedule_fires` | Schedule receipts |
+| `automation_runs` | The run log |
+| `automation_heartbeat` | One row |
+
+**Policies:**
+
+- 0017: rules readable by board viewers, writable by board managers; runs readable by viewers.
+- 0018: board viewers can read pending events.
+- Marks and receipts have RLS on and no policies.
 
 ## 14. Personal work and collaboration
 
-### Home and My Work
+### Home, My Work and search
 
-Home combines workspace activity, teams, favourites, recent boards, and personal work. Board visits store recent-access information and remembered view preferences.
+- **Home** shows recent boards, your work, favourites, teams and workspace activity.
+- **My Work** (`MyWorkService.listAssigned`) reads every PIC column, removed ones included.
+  - **Sections:** Overdue / Today / This week / Later / No date / Completed. Linked copies collapse.
+  - **Filters** (`src/features/my-work/filters.ts`): search by kind (Items / People / Boards), PIC, board, status, priority by name, due bucket, type.
+  - **Refresh:** every 30 s while visible.
+- **Palette** (Ctrl/⌘ K or F, or the phone's search button):
+  - **Kinds and scope.** Kinds are All, Items, Boards, Teams, People. "Search in" [this board] / Everywhere; an Archived chip.
+  - **Matching.** `SearchService` folds accents (and đ). Every word typed must appear.
+  - **Ranking** (lower is better):
 
-`MyWorkService.listAssigned()` considers non-archived boards and tasks returned by their repositories, checking every PERSON column for the requested user. It uses the first STATUS and PRIORITY columns for their summaries, the first DATE value with TIMELINE-end fallback for due dates, and semantic done-label IDs for completion.
+    | Match | Score |
+    | --- | --- |
+    | Exact | 0 |
+    | Ticket quoted in full | 0 |
+    | Prefix | 1 |
+    | Every word starts a word | 2 |
+    | Contains, or a ticket that merely contains it | 3 |
+    | Board description | 4 |
+    | Person by email or title | name score + 3 |
+    | Archived | +0.5 |
 
-Sections are Overdue, Today, This Week, Later, No Date, and Completed. Completion takes precedence over date grouping. Results sort by due date and then name. Linked entries present in the assignment result collapse into one representative row, with other linked boards recorded alongside it.
-
-Asset-line assignment and task PERSON-column assignment are different records. Do not assume assigning an asset automatically gives the containing task a My Work assignment.
-
-My Work has separate item-name, person-name and board/group search modes; a search is active only after its kind is chosen. Filters include boards (including linked boards), status/priority by normalized name, people, due bucket and items/subitems. It polls every **30 seconds**, refetches on focus, and coalesces Supabase invalidations over **250 ms**. Its item search is name-only, unlike the board's booking-reference search.
+  - **Tickets.** Since v0.49.1 a query needs a digit to match a ticket at all, so typing "c" or "cp" no longer returns every ticketed task (F-112). "CP_014", "cp14", "cp-14", "14" and "014" all find CP_014.
+  - **Results.** Groups of 6, items 12. Pending people are marked "Pending onboarding". People open their profile; archived tasks open in the board archive.
 
 ### Notifications
 
 | Event | Default delivery |
 | --- | --- |
-| MENTION | NOTIFICATION |
-| ASSIGNED | NOTIFICATION |
-| COMMENT | NOTIFICATION |
-| BOARD_INVITE | NOTIFICATION |
-| TASK_BOOKED | NOTIFICATION |
-| STATUS_CHANGED | UPDATE |
-| DUE_DATE_CHANGED | UPDATE |
-| ITEM_LINKED | UPDATE |
+| MENTION, ASSIGNED, COMMENT (a reply to your update), BOARD_INVITE, TASK_BOOKED | NOTIFICATION |
+| STATUS_CHANGED, DUE_DATE_CHANGED, ITEM_LINKED | UPDATE |
 
-NOTIFICATION is the prominent inbox class that can raise an OS notification. UPDATE is a quiet inbox class. OFF writes no notification row. `NotificationService` applies the recipient's preferences when the event is written.
+Automation notify actions deliver as ASSIGNED.
 
-Muted board IDs override event delivery to OFF. Muting does not revoke board access. Browser notification delivery defaults to disabled and additionally requires browser permission. Quiet updates are not OS interruptions.
+- **Delivery classes.**
+  - NOTIFICATION is the prominent class and can raise an OS notification: browser delivery must be switched on, the browser must allow it, and a tab must be open.
+  - UPDATE is quiet.
+  - OFF writes nothing.
+- **Muting a board** turns its events off; it doesn't change access.
+- **Inbox.**
+  - Tabs: All / Notifications / Updates. Controls: unread only, Mark all read, Clear (per tab, with a confirmation).
+  - The Notification settings dialog holds the delivery choices, board subscriptions, browser notifications and a test.
+  - The bell moves on the workspace channel; the Inbox also polls every 120 s, background included.
+  - The tab title carries the loud count (`99+` cap).
+- **Mismatch.** The COMMENT preference is worded "Comments on my items", but only replies emit it (F-185).
 
-`countUnread()` splits unread counts by stored delivery. Notifications arrive on the workspace channel, filtered to the signed-in person, so the bell moves within a second of a write wherever in the app the reader is; the inbox query also polls every **120 seconds** with background refetching allowed, as a backstop for what a websocket cannot cover (a dropped channel, a row written straight against the database). Notification read state and item Updates read state are separate concepts.
+### Updates: threads, replies, reactions (v0.35 → v0.41)
 
-Inbox Clear deletes the current user's records for the selected delivery tab (or all deliveries on All), including read records hidden by the unread-only filter. It does not delete tasks/comments and is distinct from Mark all read. The browser title displays only the loud notification count, capped at `99+`; the favicon is unchanged (`use-tab-badge.ts`).
+- **Composer.**
+  - It rests as one line and opens into the full editor. Ctrl/⌘+Enter posts.
+  - `@` mentions active people and notifies MENTION.
+  - "Post to linked task(s)" is on by default.
+- **Order.** Updates are newest first; replies oldest first.
+- **Threads.**
+  - `comments.parent_id` (0062) keeps threads one level deep: a reply to a reply is filed under the root.
+  - Only the latest 3 replies show, behind "Show N earlier replies".
+  - Replies start as a plain "Write a reply…" box that opens into the full editor.
+  - The root's author is told of a reply (COMMENT), unless they wrote it or were mentioned. Replies are not copied to linked tasks.
+- **Collapsing.**
+  - A chevron or a click on the header folds one update; "Collapse all" / "Expand all" folds them all (for the visit only).
+  - A collapsed card shows the author and time, the reaction tally, "N replies" and two lines of text.
+- **Delete** turns the bin into a red "Delete?" badge; a second click deletes. Blur, Escape or 4 s stands it down. Replies and shared copies go too.
+- **Edit.** Only the author can edit. Edited updates show "(edited)", and the edit sends no notifications.
+- **Reactions** (0070, `comment_reactions`):
+  - 16 emoji: 👍 👎 ❤️ 🎉 😄 😂 😮 😢 😡 🤔 👀 🙏 👏 🔥 🚀 ✅.
+  - One per person per emoji; click a chip to toggle it; the tooltip names who reacted. They are live for everyone.
+  - The add button is revealed on hover for replies (F-120).
+- **Read markers.** Item read markers drive the updates badge, which is separate from the Inbox.
 
-### Item Updates and rich text
+### Direct messages, profiles and hover cards
 
-Rich-text editing and rendering use shared components and Tiptap. The domain helpers in `src/lib/rich-text.ts` and `src/lib/rich-text-doc.ts` support conversion and document interpretation. Mentions have semantic user IDs used by notification behavior, not just visible `@name` text.
-
-Comments use the service layer for posting, editing, deleting, and notification handling. Item read markers record when a person caught up on an item's Updates. The updates badge combines relevant comments/read information rather than acting as the workspace notification counter.
-
-### Direct messages and profiles
-
-Direct messages are one-to-one workspace threads with sender/recipient identity and read tracking. `routes.messages()` supports selecting a conversation with `?to=<userId>`. `MessageService` and the message repositories implement thread loading, creation, read marking, and deletion.
-
-Profiles combine person information and related work. Avatar processing is provider-aware as described earlier. Historical users remain available for resolving names even when they are not eligible for new assignments or mentions.
-
-Profiles also support stakeholder group and work-hours start/end (migration 0028), alongside department/timezone. A person's profile stakeholder group is distinct from a task's STAKEHOLDER value. The profile workload panel uses dashboard-derived assignment splits by stakeholder, with a borrowed non-polling snapshot.
+- **Messages** are one-to-one workspace threads (`?to=`) with read state, between active people.
+- **Profile** (`/people/<id>`):
+  - **Header:** role, pending/deactivated badges, department chip, teams, Message, Edit (yourself or an admin).
+  - **Figures:** open tasks, overdue, assets done x/y, assets overdue.
+  - **Splits:** open work by due date, by board (top 5), and by department.
+  - **Tabs:** tasks (open/done), assets, boards, activity (from the workspace's latest 300 events).
+- **Hover card** (v0.49, `person-card.tsx`): avatars and single-person cells open a card after 350 ms.
+  - It shows the name, title, pending/deactivated status, email, department, teams, local time and "View profile".
+  - Outside the workspace layout (shares, portal) it falls back to a name tooltip.
 
 ## 15. Trackers and Excel interchange
 
-Trackers are lightweight workbook documents, not board columns in another layout. Each sheet stores its columns and rows as a document, designed for moderate-sized team sheets rather than hundreds of thousands of rows.
-
-### Data model and editing
-
-Tracker cell values are strings, numbers, booleans, or null. Column types are text, longText, list, date, url, number, and checkbox. Rows are data, section, or subsection; the latter two render as full-width bands. Each sheet has an order and a leading frozen-column count.
-
-Dropdown columns support options and colors. Number formats include plain, integer, decimal, currency, and percent. Summary kinds include none, filled count, empty count, sum, average, min, max, checked count, and percent checked.
-
-`TrackerService` manages workbook metadata, sheet creation/copying/renaming/deletion/reordering, and saving. `sheet-view.ts`, `grid-model.ts`, and the grid components handle visible presentation and interaction. Sheet display preferences such as stripes, wrap, grid lines, density, and crosshair are separate UI preferences.
-
-`canEditTrackers()` permits active workspace roles except GUEST. A tracker `teamId` organizes it but the shared editing helper describes workspace-wide editing; it is not board-style TEAM/PRIVATE visibility.
-
-### Autosave and undo
-
-`useSheetEditor()` keeps a local draft and debounces persistence by **600 ms**. It saves columns, rows, and frozen-column state, exposes idle/pending/saving/error states, and retains approximately 50 prior snapshots for undo. Redo uses a separate future stack.
-
-A new server version replaces the draft only while no local dirty work is pending. Persistence is a sheet-document write; there is no cell-level collaborative merge algorithm in that hook. Concurrent editing of the same sheet therefore requires attention to last-write behavior.
-
-The hook registers unsaved work during the debounce/write interval. Unmount now invokes `flush.current?.()`, clears the outstanding timer and starts the pending save immediately, including on sheet switches. This is an asynchronous, fire-and-forget write, not a guarantee against network failure or browser termination. `tests/unit/components/tracker-flush.test.tsx` covers the regression; the previous cancel-only behavior is no longer current.
-
-### `.xlsx` export and import
-
-`src/services/tracker-xlsx.ts` uses ExcelJS. Export carries sheet structure, headers, section rows, widths, frozen panes, display formats, dropdown validations, color formatting, and summary formulas. Footer formulas include COUNTA, COUNTBLANK, SUM, AVERAGE, MIN, MAX, and checkbox-related COUNTIF expressions.
-
-Import reads workbook content back into the tracker model and infers supported structures. It recognizes totals/formula rows so they do not simply become ordinary data rows. Formula cells are read through their cached result; a formula without a result can become null. This is not a general in-app Excel calculation engine.
-
-The dropdown importer handles literal-list validation; range references to another sheet are not imported as option lists by that helper. Do not assume arbitrary Excel features, macros, formulas, or formatting round-trip without loss. Test representative user workbooks against the supported model.
-
-Tracker export/import is independent of whole-workspace local JSON export/import and of Postgres backups.
+- **What a tracker is.** A workbook of ordered sheets, each holding its columns, rows (data, section, subsection) and a frozen-column count.
+- **Column types:** text, longText, list (options with colours), date, url, number (plain, integer, decimal, currency, percent), checkbox.
+- **Summaries:** filled, empty, sum, average, min, max, checked and percent checked.
+- **Saving.** `useSheetEditor()` debounces saves by 600 ms and flushes on unmount (audit F-004, 9 September). Undo keeps about 50 snapshots, with a separate redo stack. There is no cell-level merge, so the last write wins.
+- **Excel.** `tracker-xlsx.ts` (ExcelJS):
+  - **Export** carries structure, formats, dropdowns and summary formulas.
+  - **Import** reads cached formula results and literal-list validations; arbitrary Excel features do not round-trip.
+  - CSV export covers the current sheet only.
+- **Permissions.** Active non-guests edit.
+- **Wipe.** The danger zone's wipe deletes every tracker (v0.47.1).
 
 ## 16. State, synchronization, and saving
 
-### Cache identity
+### Cache identity and optimistic writes
 
-`src/lib/query/keys.ts` centralizes query keys. Use those keys for reads, optimistic writes, and invalidation so surfaces agree about which records changed.
+- **Query keys** are centralised in `src/lib/query/keys.ts`.
+- **Board mutations** follow one cycle:
+  1. cancel the snapshot query;
+  2. keep the previous state;
+  3. patch optimistically;
+  4. call the service;
+  5. reconcile new ids;
+  6. refetch once no mutations are pending.
 
-Board mutations cancel the current snapshot query, keep the previous snapshot, apply an optimistic patch, execute the service call, reconcile newly created IDs when needed, and refetch when the pending mutation count reaches zero. Errors restore the captured snapshot and display a toast.
+  Errors restore the old state and toast.
+- **Knock-on invalidations** cover linked boards, links, My Work, activity and notifications.
 
-Related invalidations include linked-board snapshots, item links, My Work, activity, and notifications. This reconciliation matters because one edit can affect more than the board currently visible.
+### Local cross-tab sync
 
-### Local cross-tab synchronization
-
-`src/lib/realtime/local-realtime.ts` publishes compact invalidation hints through BroadcastChannel `streamline.data-changes`. Messages include affected board/item IDs and coarse change kinds. A per-tab sender ID prevents a tab from processing its own message.
-
-The local synchronization component responds by invalidating queries. The channel is a freshness signal over a shared same-origin IndexedDB store; it is not cross-device synchronization or a replication transport.
+BroadcastChannel `streamline.data-changes` carries compact invalidation hints between tabs of one origin. It is not a replication transport.
 
 ### Supabase Realtime
 
-`useRealtime()` (`src/lib/realtime/use-realtime.ts`) is the single primitive: a channel name, a list of `{ table, filter?, keys }` bindings, and coalescing options. It opens one channel, invalidates the named query keys once per burst of events, re-reads everything the channel covers when a dropped subscription comes back, and stands down entirely under the local provider. Every subscription below is expressed through it.
+`useRealtime()` (`src/lib/realtime/use-realtime.ts`) does the following:
+
+- opens one channel per name;
+- invalidates the named keys once per burst of changes;
+- re-reads everything after a reconnect;
+- adds one unfiltered DELETE listener per filtered table. With RLS, a deletion arrives as its primary key only, so a filtered listener would never see it.
+
+Channels are shared and reference-counted.
 
 | Channel | Mounted by | Covers |
 | --- | --- | --- |
-| `workspace:<ws>:<user>` | `WorkspaceProvider` | workspace row, members, invitations, profiles, teams, team members, board members, boards, favourites, workspace lists, notifications and preferences, direct messages, trackers, item reads |
-| `board:<id>` | board page and board archive page | items, values, groups, columns (filtered by board), plus comments, assets, links and activity |
-| `board-linked-assets:<id>:<boards>` | any board with linked rows | `item_assets` on the boards holding deliverables shared into this one |
-| `dashboard:<ws>` | dashboard page | every table the snapshot is read from |
-| `my-work:<ws>:<user>` | My Work, home, mobile home | values, items, columns, boards |
-| `item-links:<item>` | item panel | values, items, links, assets, columns |
-| `tracker:<id>` | tracker page | that tracker and its sheets |
-| `workspace-activity:<ws>` | home page | the workspace activity feed |
-| `portal:<ws>` | portal card | portal settings, stakeholder groups, incoming requests |
-| `booking:<ws>` | booking editor | published form, templates, saved blocks |
+| `workspace:<ws>:<user>` | `WorkspaceProvider` | Workspace, members, invitations, profiles, teams and their members, board members, boards, favourites (self), lists, notifications and preferences (self), direct messages (to and from), trackers, item reads (self) |
+| `board:<id>` | Board and archive pages | Items, values, groups, columns (by board); comments, **reactions** (unfiltered, F-186), assets, links, activity |
+| `board-linked-assets:<id>:<boards>` | Boards with linked rows | Assets on the far boards |
+| `dashboard:<ws>` | Dashboard | The snapshot's tables (2 s coalesce, 20 s minimum) |
+| `my-work:<ws>:<user>`, `item-links:<item>`, `tracker:<id>`, `workspace-activity:<ws>`, `portal:<ws>`, `booking:<ws>` | Their pages | As named |
+| automations channels | Automations surfaces | Rules, runs, events (the running indicator), heartbeat |
 
-The workspace channel carries only low-traffic tables, because it is open on every page; items and their values stay filtered and scoped to the page that reads them. Item values have a denormalized `board_id` (migration 0036), maintained by the integrity trigger and move paths, so value events are filtered to the open board. Comments and links still use broader subscriptions where no board filter is present.
+**Publication history:** 0004 (board tables); 0005, 0015, 0024, 0026 and 0035 (messages, assets, boards, teams, lists, workspaces); **0049** (profiles, members, invitations, team and board members, favourites, item reads, preferences, booking templates and blocks, portal tables); 0052–0054 (automations); 0070 (reactions). Replica identity stays at its default.
 
-Events are coalesced (**400 ms** by default; 2 s on the dashboard, 1 s on a tracker sheet) so one service operation writing several rows does not force a separate refetch for every event. A `minIntervalMs` option bounds a long run of bursts, which is what a board being worked on steadily looks like.
+**Never live:**
 
-**Shared channels.** Supabase returns the channel it already has when a topic is asked for twice, and a subscribed channel refuses new `postgres_changes` callbacks — so two components asking for the same subscription would throw in the second. `useRealtime` keeps a ref-counted registry: callers of the same channel share one subscription, and the last one out closes it after a tick, so a remount does not churn the socket. The topic carries a digest of the bindings, so one topic always means one set of listeners. A board asks for its linked-assets channel from every row.
+- search;
+- share dialogs;
+- the booking draft (so it isn't replaced under an admin's cursor);
+- public pages, which poll instead.
 
-**Deletions.** With RLS on, Postgres has no old row to give Realtime, so a `DELETE` arrives as a primary key alone and a filter such as `board_id=eq.<id>` matches nothing. `useRealtime` therefore adds one unfiltered `DELETE` listener per filtered table, merging the keys of every binding on it. `replica identity full` would make the filter work instead, but deletions are not filtered by RLS, so the whole deleted row would reach every subscriber to the table — which is why it is not used.
+### Storage keys
 
-**What is deliberately not live.** Search results and link candidates (query-driven); share-link dialogs (opened on demand, 60-second stale time); the booking draft, which is what an admin is part-way through building and must not be replaced under their cursor; public portal, share and dashboard pages, which have no session for Realtime to ride on and poll instead.
-
-Publication: 0004 publishes the board tables, 0005/0015/0024/0026/0035 add messages, assets, boards, teams, lists and workspaces, and **0049** adds the rest — profiles, workspace members and invitations, team and board members, favourites, item reads, notification preferences, booking templates and blocks, and the portal tables. Replica identity is left at its default throughout, for the reason above.
-
-Freshness requires the appropriate tables in the realtime publication and permissions that allow the authenticated subscriber to read relevant rows. A working local BroadcastChannel test does not verify Supabase publication or RLS configuration: the BroadcastChannel fires under either provider, so a cross-tab check proves nothing about Supabase. Write a row straight into the database and watch the open page instead.
-
-### Storage keys and preference scope
-
-| State | Persistence |
+| State | Where |
 | --- | --- |
 | Local auth session | localStorage `streamline.local-session` |
-| Sidebar/tracker appearance preferences | localStorage `streamline.ui` |
-| View-as preview | sessionStorage `streamline.view-as` |
-| Remembered board view | localStorage `streamline.board-view`, keyed by person and board with legacy fallback |
-| Board visits and per-view settings | Admin repository / provider persistence |
-| Board filters, search, selection, expanded items | Transient Zustand state |
-| Dashboard preferences | localStorage `streamline.dashboard.v2`, keyed by user and workspace |
-| Phone cards/grid and Kanban lane | localStorage `streamline.mobile-view` |
-| Portal theme and status order | localStorage `streamline.portal-theme:<token>` and `streamline.portal-status-order:<token>` |
-| Booking requester, recent requests and unfinished request | localStorage `streamline.booking`, scoped by portal/workspace |
-| Published booking form / editor draft / output rates | Workspace repository fields; not browser-only preferences |
-| Task data | Selected repository provider |
+| UI preferences | `streamline.ui`: sidebar width 240–480 and collapse; item column widths; panel size; asset recap expanded; team counts |
+| Theme | `streamline.theme` (light / dim / dark / system) |
+| View as | sessionStorage `streamline.view-as` |
+| "Later" for a build | sessionStorage `streamline.version` |
+| Board view; per-view settings | `streamline.board-view`; `streamline.view-settings` (+ server after 600 ms) |
+| Dashboard preferences | `streamline.dashboard.v2` |
+| Phone-only choices | `streamline.mobile-view` |
+| Portal theme / status order / booking size | `streamline.portal-theme:<token>:<page>`, `streamline.portal-status-order:<token>`, `streamline.portal-scale:<token>` |
+| Booking memory | `streamline.booking` |
+| OS notifications already shown | `streamline.os-notifications.seen:<user>` |
 
-UI-store persistence hydrates after mount to avoid server/client markup mismatches. The sidebar width is constrained between 240 and 480 pixels.
+UI stores rehydrate after mount, to avoid hydration mismatches.
 
 ### Unsaved-work guard
 
-`beginUnsavedWork()` increments a shared in-flight count and returns an idempotent completion callback. While the count is positive, the beforeunload handler asks the browser to confirm leaving. Call completion in `finally` so failed operations do not leave the guard active forever.
-
-This mechanism protects registered in-flight work. It is not durable offline queuing, a guarantee that every draft is registered, or a transaction spanning network requests. Validate navigation and failure paths when adding debounced writes.
+`beginUnsavedWork()` counts in-flight saves. `beforeunload` asks the browser to confirm while the count is above zero. Tracker autosave uses it; it is not an offline queue.
 
 ## 17. Database operations
 
-### Current schema heads
+### Heads and order
 
-The repository contains **40 migrations**, through `supabase/migrations/0040_portal_item_groups.sql`, and **16 policies**, through `supabase/policies/0016_booking_saved_blocks_policies.sql`. IndexedDB is **DB_VERSION = 15**. These are repository heads, not verified applied versions of any database. Later SQL includes behavioral/data changes: 0037 retires department portal links and 0040 changes the default portal grouping. Do not assume every migration is purely additive or preserves old access behavior.
-
-New SQL takes the next free number in each directory. Add a follow-up file instead of editing applied SQL: the runner records checksums, warns about drift and skips already-ledgered files rather than reapplying them.
+- **Heads:** migrations **0001–0078** (77 files; there is no 0069), policies **0001–0019**.
+- **`supabase/sequence.txt`** lists all 96 files in the order they were first applied. The order was taken from git history, with rename detection off.
+- **Why the order matters.** Thirteen migrations (0005, 0010, 0013, 0015, 0043, 0050–0052, 0055–0057, 0059, 0070) call `private.*` helpers defined by policy files. "Every migration, then every policy" therefore stops at 0005 on an empty database (audit F-108).
 
 ### Migration runner
 
-`scripts/db-migrate.mjs` reads `.env.local` and `.env` when needed, connects with `SUPABASE_DB_URL`, and collects SQL from migrations followed by policies. Files are ordered lexicographically within each directory.
+`scripts/db-migrate.mjs` (the `db:migrate` script, and `predev`/`prebuild` with `--if-configured`):
 
-The runner uses a single connection and Postgres advisory lock `8163`, creates/maintains `public.schema_migrations`, and records a shortened SHA-256 checksum for each applied file. Each normal migration file and its ledger insertion run in one transaction.
+- **Configuration.** It fills unset variables from `.env.local`/`.env` and connects with `SUPABASE_DB_URL`.
+- **Locking and the ledger.** It takes advisory lock `8163` and keeps `public.schema_migrations` (name, sha256/16 checksum, applied_at; RLS on).
+- **Order.** Pending files run in **sequence order**. A file the list doesn't name runs after the listed ones, in directory order, with a warning. `tests/unit/sql-sequence.test.ts` fails until it is listed.
+- **Transactions.** Each file and its ledger row run in one transaction.
+- **Drift.** A changed checksum is reported, not re-run. Add a new file instead of editing an applied one.
 
 | Command | Meaning |
 | --- | --- |
-| `npm run db:migrate` | Apply pending SQL files. |
-| `npm run db:migrate -- --dry` | Report pending files without executing those migration bodies. |
-| `npm run db:migrate -- --baseline` | Record pending files as already applied without executing their bodies. |
-| `npm run db:setup` | Run migration, seed, and provider-switch workflow. |
-| `npm run db:setup -- --no-seed` | Migrate and switch existing `.env.local` to Supabase without reseeding. |
+| `npm run db:migrate` | Apply pending files in sequence order |
+| `npm run db:migrate -- --dry` | List pending files (still connects and ensures the ledger) |
+| `npm run db:migrate -- --baseline` | Record pending files as applied without running them |
+| `npm run db:setup [-- --no-seed]` | Migrate, seed, switch `.env.local` to Supabase |
 
-The dry path still connects, acquires the lock, and calls `ensureLedger()` before reporting pending files. It can create the ledger and enable its RLS; it is not literally zero-write inspection on an uninitialized database.
-
-A checksum mismatch is logged as drift; the runner does not automatically reapply the edited file or necessarily fail the command. Add a new migration/policy file to evolve an already deployed schema. Baseline only when the target database already has the intended schema, since it changes the ledger without installing missing objects.
+**Adding SQL:** next number in its directory → **append to `supabase/sequence.txt`** → `npm run db:migrate`. `npm run dev` and every Vercel build apply pending files against whatever `SUPABASE_DB_URL` names — in this repo's `.env.local`, production.
 
 ### Migration inventory
 
-| Prefix | Change |
+| # | Change |
 | --- | --- |
-| 0001 | Initial schema, enums, relational constraints, indexes, and profile trigger. |
-| 0002 | Item links. |
-| 0003 | Trackers and tracker sheets. |
-| 0004 | Realtime publication setup. |
-| 0005 | Direct messages and avatar-related storage setup. |
-| 0006 | Status-label roles. |
-| 0007 | Notification delivery and preferences. |
-| 0008 | Shared comment ID support. |
-| 0009 | Workspace invitations. |
-| 0010 | Item read markers. |
-| 0011 | Size column. |
-| 0012 | Removal of Files-column support/data covered by that migration. |
-| 0013 | Item covers and related storage setup. |
-| 0014 | Task booking and system-entity support. |
-| 0015 | Item assets. |
-| 0016 | Board-visit view persistence. |
-| 0017 | Multiple item-asset assignees. |
-| 0018 | Item-asset completion. |
-| 0019 | Booking form templates. |
-| 0020 | Board shares. |
-| 0021 | Item reference field. |
-| 0022 | Reference backfill. |
-| 0023 | Scrambling of selected legacy references. |
-| 0024 | Dashboard shares; boards and teams join the realtime publication. |
-| 0025 | Asset activity event types. |
-| 0026 | Workspace lists and their persistence. |
-| 0027 | STAKEHOLDER column type. |
-| 0028 | Profile stakeholder group and work-hour fields. |
-| 0029 | Item shares and board-share access modes; existing board links remain PUBLIC. |
-| 0030 | Durable departments, portal credentials, request provenance, submission records and creative-team name. |
-| 0031 | Portal description, hidden columns, default view, booking and recap controls. |
-| 0032 | Pending submission claims and receipt completion for portal idempotency. |
-| 0033 | Workspace asset output rates. |
-| 0034 | Asset Preview and Final artwork URLs. |
-| 0035 | Workspace rows in the Realtime publication. |
-| 0036 | Backfilled, required and indexed value `board_id`; integrity trigger maintenance. |
-| 0037 | Unified workspace portal, partial unique index and legacy-link revocation. |
-| 0038 | Booking form draft and named-template descriptions. |
-| 0039 | Reusable booking saved blocks. |
-| 0040 | Portal `show_item_groups`, false by default. |
-
-Policy files 0001–0010 cover base RLS, item links, trackers, notification preferences, invitations, system entities, booking templates, read-only workspace visibility, board shares, and dashboard shares. Later definitions may replace earlier helper functions.
+| 0001–0010 | Initial schema and profile trigger; item links; trackers; realtime publication; direct messages and avatars; status roles; notification delivery; shared comment ids; invitations; item reads |
+| 0011–0020 | Size column; Files column removed; covers; task booking and system entities; item assets; board-visit views; multiple assignees; asset completion; booking templates; board shares |
+| 0021–0030 | Item references, backfill, scramble (since renamed to tickets); dashboard shares; asset activity; workspace lists; STAKEHOLDER; profile details; item shares and share access; durable departments, portal credentials, provenance and submissions |
+| 0031–0040 | Portal presentation; submission claims; output rates; asset links; workspaces in realtime; value `board_id`; unified portal; form draft; saved blocks; `show_item_groups` |
+| 0041, 0042 | RICH_TEXT type; LONG_TEXT "Brief" columns become RICH_TEXT |
+| 0043 | `workspace_keeps_an_owner` deferred constraint trigger |
+| 0044 | `board_columns.hidden_in_panel` |
+| 0045 | `item_links.pairs` (hand-paired columns) |
+| 0046, 0047 | DROPDOWN, PEOPLE types |
+| 0048 | `board_columns.role` + unique (board, role) |
+| 0049 | 13 more tables into realtime |
+| 0050, 0051 | Tickets (`items.ticket`, prefix/counter, `next_ticket_numbers`); `rewrite_ticket_prefix` |
+| 0052–0057 | Automations: rules, queue, marks, receipts, runs, capture triggers, sweep; heartbeat; events visible and in realtime; more triggers; keyword triggers; subitem moves |
+| 0058 | Portal link settings (default range, theme switches, booking theme, headline, lead, sign-in) |
+| 0059 | Published form name, time and booking counter; `count_form_booking()` |
+| 0060, 0061 | Booking page scale 80–150 and its visitor switch |
+| 0062 | `comments.parent_id` (replies) |
+| 0063–0065 | "Stakeholder" columns renamed Department; Task Allocation description; duplicate Department column dropped |
+| 0066–0068 | BRIEF type; RICH_TEXT "Brief" columns become BRIEF; `items.booking_brief` + backfill |
+| 0070 | `comment_reactions` |
+| 0071 | `workspace_snapshots` (no FKs, RLS on, no policies) |
+| 0072, 0073 | PLAIN_DATE, TIME, DATETIME, BOOKED_AT; COUNTDOWN |
+| 0074 | `enforce_listed_department()` trigger |
+| 0075 | `board_columns.removed` |
+| 0076 | Snapshot kind `before_wipe` |
+| 0077 | `board_templates` |
+| 0078 | REQUESTER type |
 
 | Policy | Change |
 | --- | --- |
-| 0011 | Workspace-list access. |
-| 0012 | Individual item-share access. |
-| 0013 | Member department reads, administrator department/portal/provenance management, service-role-only submission claims. |
-| 0014 | Active membership before ownership/explicit board roles, including deletion. |
-| 0015 | Board SELECT policy evaluates supplied row fields for INSERT RETURNING; current board-role helper. |
-| 0016 | Booking saved blocks: active-member reads, administrator writes. |
+| 0001–0010 | Base RLS and helpers; links; trackers; notification preferences; invitations; system entities; booking templates; read-only visibility; board shares; dashboard shares |
+| 0011–0016 | Workspace lists; item shares; portal/departments/provenance (submission claims service-role only); membership before ownership; board SELECT without re-read (current `board_role_for`); saved blocks |
+| 0017 | Automation rules (view / manage board) and runs |
+| 0018 | `automation_events` readable by board viewers |
+| 0019 | Board templates: members read and insert as themselves; creator or admin updates/deletes |
 
-Storage-related SQL is advisory in places because the connected database role may not be able to alter Storage objects. A completed migration run should be followed by verification of the required buckets and policies when testing uploads.
+**Proposed and not applied:** `Test_prompts/audits/2026-09-26-full-e2e/proposed-sql/` holds migrations 0079 (comments stay put), 0080 (recurring receipts) and 0081 (prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). Test them on a disposable database, then move them in and append them to `sequence.txt`.
 
-### Seed modes and side effects
+`supabase/optional/automations_pg_cron.sql` is applied by hand only.
 
-`npm run db:seed` runs **`scripts/db-seed.mts`**, building from the TypeScript seed modules. It is not merely a wrapper that executes `supabase/seed.sql`.
+### Seeds and data scripts
 
-The full seed creates/updates demo Auth accounts, recreates pending accounts as needed, deletes the seeded workspace and specified seed-user notifications, and writes a fresh bundle. It can replace hand-edited work inside that seed workspace. Treat it as a reset of that demonstration dataset.
+| Command | What it does |
+| --- | --- |
+| `npm run db:seed` | **Replaces** the seed workspace: demo Auth accounts (`SEED_PASSWORD`, default `Password123!`; admin `ADMIN_PASSWORD`, default `admin123`), a fresh bundle, new invitation links. Keeps members who aren't in the seed. Fixed on 26 September (F-109). **Never against production.** |
+| `npm run db:seed:topup` | Adds seed extras with `on conflict do nothing`, mapping live groups and columns by name. The safe way to add demo content to a hand-edited workspace. |
+| `npm run db:special-columns [-- --dry]` | Adds missing special columns to every board, archived and system ones included. |
+| `npm run db:snapshot:rehearse [-- --snapshot <id\|latest>]` | Captures, refills every table inside a rolled-back transaction, and compares fingerprints (a schema-change round-trip test). Locks every table for about 10 s. |
+| `npm run tickets:dedupe [-- --apply]` | Renumbers tickets shared outside link chains. |
+| `scripts/add-user.mjs`, `refresh-demo-data.mjs`, `archive-fixture.mts`, `add-stakeholder-column.mjs` | Admin and fixture tools. They write data. |
 
-`npm run db:seed:topup` runs `scripts/db-seed-topup.mts`. It adapts extras to existing content, checks relationships, and inserts with `ON CONFLICT DO NOTHING`. It is designed to add demonstration content without updating existing rows.
+### Snapshots and restore (v0.40)
 
-The seed has built-in demonstration passwords and environment overrides. Read the script for those defaults when using an isolated demo environment; do not assume they match a separately administered deployment. Pending invitation links printed by seed tooling are credentials for completing those accounts.
+- **Where.** Settings → Snapshots, on Supabase only, for admins. The code is `src/server/snapshots.ts`, using a direct `postgres` connection.
+- **Capture:**
+  - one `repeatable read read only` transaction;
+  - every public base table except `schema_migrations` and `workspace_snapshots`, each as `json_agg`;
+  - a header `{format:"streamline-snapshot", version:1, name, createdAt, createdBy, appVersion, schemaVersion, tableCounts}`;
+  - gzip level 9, stored as `bytea`.
+  - Auth users and Storage files are **not** included.
+- **Actions:**
+  - download (`streamline-<name>-<time>.json.gz`);
+  - upload (≤4 MiB; gz or plain JSON; refuses damaged, foreign or newer-version files);
+  - delete.
+- **Restore:**
+  1. type **RESTORE** (the password check is off: `RESTORE_NEEDS_PASSWORD = false`);
+  2. take advisory lock 7 441 902 (409 if busy);
+  3. take a safety snapshot "Before restoring “…”";
+  4. in one transaction with `session_replication_role = replica` (triggers and FKs off; `statement_timeout` 55 s): TRUNCATE every current table, then refill from the file via `jsonb_populate_recordset … overriding system value`, keeping columns present in both;
+  5. reset identity sequences;
+  6. stamp `restored_at`.
+  - A blocking screen covers the initiating tab, then the page reloads.
+- **What a restore really means:**
+  - it covers the **whole database** — every workspace;
+  - tables absent from an older file come back **empty**;
+  - pending automation work is restored too;
+  - skipped tables aren't shown;
+  - the file contains live share, portal and invitation tokens and the booking key, so treat it as a secret (F-118).
 
-`scripts/add-user.mjs` is an administrative account/membership creation path with email, role, name, title, and password inputs. `scripts/refresh-demo-data.mjs` mutates demonstration wording/completion data; it is not a read-only report.
+### Danger zone: wipe all board data (v0.46)
 
-Seed modules also include deterministic 2025 history in `seed-archive.ts`, tested by `seed-archive.test.ts`; this historical seed is distinct from the paginated archive fixture. `scripts/archive-fixture.mts` creates an `archive-load-test` board with 300 archived and 12 live tasks; `--remove` deletes that fixture board. `scripts/add-stakeholder-column.mjs` is a database backfill utility. These are mutation tools, not documentation-verification commands.
+- **Who and what's needed.** Admins/owners only, with **their password** (checked by a throwaway sign-in). It shares the restore's lock and takes a "Before wiping board data" snapshot first (`before_wipe`, 0076).
+- **In one transaction it deletes:**
+  - activities, notifications, automation runs and portal submissions that pointed at boards or tasks;
+  - every non-system board (with cascades), and the tasks on built-in boards;
+  - every tracker.
+- **What stays:**
+  - Task Allocation keeps its columns, groups and rules;
+  - settings, lists, teams and people.
+- **Tickets.** "Start tickets again from CP_001" (`resetTickets`) sets the counter to 0.
+- **Knock-on effects:**
+  - team receiving boards are unset (FK), so bookings go to Task Allocation;
+  - portal provenance rows go (FK cascade);
+  - departments then have no work, which is what exposed F-101.
 
-### npm lifecycle consequences
+## 18. Deployment, build identity and updates
 
-Both `predev` and `prebuild` invoke migrations with `--if-configured`. The hook skips an absent database URL but does not inspect the app's local/Supabase provider choice. A normal build can therefore mutate a configured database before compiling application code.
-
-For documentation-only work or local UI work that must avoid database effects, do not run lifecycle commands casually. `SKIP_DB_MIGRATE=1` is the runner's supported bypass, not a replacement for applying required schema changes when deploying features that depend on them.
-
-## 18. Deployment and build identity
-
-`vercel.json` selects Next.js, installs with `npm ci --legacy-peer-deps --include=dev`, builds with `npm run build`, and requests region `sin1`. This is application hosting configuration; it does not establish the Supabase database's actual region.
-
-The repository names `https://rmit-streamline.vercel.app` as its deployed application and uses it as the deployment-test default. That URL was not contacted during this documentation task.
-
-`next.config.ts` creates build identity from package version, build ID, and build timestamp. Build ID precedence is `VERCEL_GIT_COMMIT_SHA`, `GITHUB_SHA`, `BUILD_ID`, local Git revision, then a generated local fallback. Environment/Git IDs are shortened to 12 characters where implemented.
-
-The client receives `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_BUILD_ID`, `NEXT_PUBLIC_BUILT_AT`, and `NEXT_PUBLIC_DEPLOY_ENV`. `/api/version` supplies the server identity. `isNewerBuild()` detects differing version or build ID; despite its name, it does not compare chronological deployment order.
-
-`VersionWatcher` checks immediately and then every 30 seconds while the tab is visible, and checks again on visibility, focus, or online events. A detected change offers Reload or Later. It does not force a page reload, and Later suppresses the notice for that build.
-
-The GitHub workflow `.github/workflows/db-migrate.yml` applies pending SQL on matching pushes to `main` and supports manual dispatch. It uses Node 22 and the repository secret `SUPABASE_DB_URL`, serializes its migration jobs, and calls the same migration runner. Its configured scope is database migration, not a claim that all test suites run in CI.
-
-`.github/workflows/supabase-keep-alive.yml` runs at 00:17, 06:17, 12:17 and 18:17 UTC, or manually. It uses the same repository database secret, requires SSL, and issues `SELECT 1` with up to three attempts. It neither reads application records nor applies migrations. Its presence does not prove the workflow is enabled, secrets are configured or a paused project has resumed. Build/version information is also shown on signed-out screens; the full-page loader does not carry it.
+- **Vercel** (`vercel.json`): Next.js, `npm ci --legacy-peer-deps --include=dev`, `npm run build`, functions in `sin1`, no `crons`. `prebuild` applies pending SQL whenever `SUPABASE_DB_URL` is set; `SKIP_DB_MIGRATE=1` bypasses it.
+- **Production:** `https://rmit-streamline.vercel.app`, on Supabase project `lfkvrhycyrjgeqkyaiou` in ap-southeast-1.
+  - `SUPABASE_DB_URL` must be the session pooler: the direct host is IPv6-only.
+  - `NEXT_PUBLIC_*` values are Vercel "Config", not Secrets.
+- **GitHub workflows:**
+  - `db-migrate.yml` applies SQL on pushes to `main` that touch it, or on manual dispatch.
+  - `supabase-keep-alive.yml` runs `SELECT 1` four times a day.
+  - `automations.yml` (every 5 minutes) is kept but idle.
+  - The automation driver is pg_cron (§13e).
+- **Build identity.** `next.config.ts` bakes the version, build id and timestamp into the build.
+  - The build id is the first of `VERCEL_GIT_COMMIT_SHA`, `GITHUB_SHA`, `BUILD_ID`, `git rev-parse` or `local-…`, cut to 12 characters.
+  - `/api/version` reports what the server is running.
+- **Update notice.**
+  - **Watching.** `VersionWatcher` (app shell only) checks on mount, every 30 s while the tab is visible, and on visibility, focus and online events. Any different build id or version counts as new, a rollback included.
+  - **The card.** A compact card in the corner reads "v{x} is ready"; What's new fetches `/api/changelog?since=<running>`. Later is remembered per build and tab; Refresh reloads.
+  - **Where it's absent.** Portal, share, booking and public-dashboard pages never check (F-190).
+- **Changelog.** `src/lib/changelog.ts` gets an entry for every version bump. `tests/unit/changelog.test.ts` requires the top entry to equal `package.json`'s version. Small changes bump the patch; features bump the minor.
 
 ## 19. Testing and verification
 
@@ -1071,266 +1656,265 @@ The GitHub workflow `.github/workflows/db-migrate.yml` applies pending SQL on ma
 
 | Command | Scope |
 | --- | --- |
-| `npm run lint` | ESLint over the project. |
-| `npm run typecheck` | TypeScript without emitted application output. |
-| `npm test` | Vitest unit/component suite. |
-| `npm run test:watch` | Vitest watch mode. |
-| `npm run check` | Lint, typecheck, then unit/component tests. |
-| `npm run test:e2e` | Standard Playwright suite with the local provider by default. |
-| `npm run test:e2e:supabase` | Supabase smoke/audit runner and provider selection. |
-| `npm run test:e2e:deployment` | Smoke tests against a deployed URL. |
-| `npm run build` | Production compile, preceded by configured migration hook. |
+| `npm run lint`, `npm run typecheck`, `npm test`, `npm run check` | ESLint; `tsc --noEmit` (tests included); Vitest; all three in turn |
+| `npm run test:e2e` | Playwright, local provider, `:3100`, one worker, Desktop Chrome 1440×900. Run it with `SKIP_DB_MIGRATE=1`: its web server is `npm run dev`, whose `predev` migrates the database `.env.local` names |
+| `npm run test:e2e:supabase` | `supabase-smoke.spec.ts` with `E2E_PROVIDER`/`PW_PROVIDER=supabase`. It loads `.env.local` into the test process, so run it only where that names a disposable database |
+| `npm run test:e2e:deployment` | Smoke tests against `E2E_BASE_URL` (defaults to production — it writes) |
 
-`npm run check` does not include Playwright or a production build. Type checking uses an incremental configuration, and build/test tools can create generated output; none were needed for this documentation-only change.
+`npm run check` includes no Playwright and no build. The baseline on 26 September: lint clean (6 warnings), typecheck clean, 950/954 unit tests. The 4 failures were 5 s timeouts under load (booking-wizard ×2, xlsx ×2); all pass when run alone (F-122).
 
-### Unit and component coverage
+### Coverage map
 
-Vitest uses happy-dom, React transformation, `tests/setup.ts`, and fake-indexeddb. The include patterns cover `tests/unit/**/*.test.{ts,tsx}` and `src/**/*.test.{ts,tsx}`, excluding E2E files.
+- **Unit (106 files after the audit), by area:**
 
-Existing suites cover permissions, repositories, dates/slugs, seed integrity/history/top-up, services, filtering, links and label sync, booking, onboarding, notifications, rich text, trackers and Excel export, views/aggregates, assets, references, public shares, version detection, and unsaved work. Component tests include status cells, person pickers, item details, label editing, and the board toolbar.
+  | Area | Files |
+  | --- | --- |
+  | Automations | `automation*.test.ts`, `quick-runs` |
+  | Booking | `booking*` |
+  | Portal | `portal-*`, `stakeholder-portal` |
+  | Tickets and search | `ticket`, `search-service` |
+  | Columns | `special-columns`, `column-roles`, `countdown-column`, `date-time-columns`, `dropdown-column` |
+  | Boards | `board-templates`, `board-service`, `board-archive`, `board-filtering` |
+  | Dashboard | `dashboard-*` |
+  | Tracker | `tracker-*` |
+  | Rich text | `rich-text*` |
+  | Collaboration | `comment-reactions`, `task-journey` |
+  | Snapshots | `snapshot-file` |
+  | Seeds | `seed-*` |
+  | Database | `sql-sequence` |
+  | Audit | `audit-2026-09-26`, `automation-stripped-payloads`, `guide-content` |
 
-### Regression coverage for recent changes
+  Plus component tests under `tests/unit/components`.
+- **E2E (32 specs):** auth and navigation, boards, groups and items, column types and layout, filters/sort/DnD, views, cross-view sync, permissions, teams and members, onboarding, account, notifications, updates, assets, covers, tickets, trackers, booking, the portal, board sharing, mobile layout, a large board, accessibility, the version check, and the Supabase and deployment smokes.
+- **Not covered by any test:**
+  - automations in the browser;
+  - replies, collapse and the delete badge;
+  - reaction UI;
+  - snapshots, restore and wipe (API or UI);
+  - saved templates in the UI;
+  - special-column remove/restore in the UI;
+  - Format menu and Countdown cells;
+  - "Used as";
+  - resizing (item column, sidebar);
+  - the loading screen;
+  - any `src/server/*` route;
+  - SQL triggers and policies added since 0040.
+- **Stale specs (F-193):** `boards-lifecycle` (old templates), `column-types` (a Link column named "Brief"), `booking` (expects a full requester name).
 
-| Area | Checked-in tests |
-| --- | --- |
-| Membership-first access and public-user allowlist | `tests/unit/audit-regressions.test.ts` |
-| Archive paging, filtering, focus, restore and linked policies | `tests/unit/board-archive.test.ts` |
-| Booking validation, service routing, allocation move and form lifecycle | `tests/unit/booking.test.ts`, `tests/unit/booking-wizard.test.tsx`, `tests/e2e/booking.spec.ts` |
-| Portal scope, gate, department selection, retry claims and projection | `tests/unit/stakeholder-portal.test.ts`, `tests/unit/portal-scope.test.ts`, `tests/unit/portal-booking.test.ts`, `tests/unit/portal-board.test.ts` |
-| Portal ranges, grouping, passwords and department identity | `tests/unit/portal-range.test.ts`, `tests/unit/portal-grouping.test.ts`, `tests/unit/portal-password.test.ts`, `tests/unit/department-reconciliation.test.ts` |
-| Dashboard contracts, public fields, effort and workload | `tests/unit/dashboard-analytics.test.ts`, `tests/unit/dashboard-metrics.test.ts`, `tests/unit/dashboard-share.test.ts`, `tests/unit/asset-rates.test.ts`, `tests/unit/workload-section.test.tsx` |
-| Charts and exact figure disclosures | `tests/unit/year-comparison.test.tsx`, `tests/unit/treemap.test.tsx`, `tests/unit/trend-line.test.tsx`, `tests/unit/headline-figure.test.tsx` |
-| Task shares and asset URLs | `tests/unit/item-share.test.ts`, `tests/unit/asset-links.test.tsx` |
-| Lists, personal filters and inbox clearing | `tests/unit/list-draft.test.ts`, `tests/unit/my-work-filters.test.ts`, `tests/unit/notifications-clear.test.ts` |
-| Paging large Supabase value/link reads | `tests/unit/supabase-paging.test.ts`, `tests/unit/supabase-link-paging.test.ts` |
-| Tracker unmount saves and phone boundaries | `tests/unit/components/tracker-flush.test.tsx`, `tests/unit/mobile-boundary.test.tsx`, `tests/unit/components/mobile-tracker-row.test.tsx` |
-| Historical seed | `tests/unit/seed-archive.test.ts`, `tests/unit/seed-history.test.ts` |
+### A disposable Supabase for backend tests
 
-These suites provide targeted starting points for regression work. Mocked repository tests and local browser tests are not deployed authorization or performance verification. Historical runs under `Test_prompts/audits/2026-09-09-full-operations` apply to their recorded revision and environment.
+Set this up whenever RLS, a server route, a trigger, the runner, a restore or a wipe needs a real database. It was proven on 26 September.
 
-### Local Playwright
+1. Start Docker Desktop. In a separate folder, run `npm i supabase`, then `npx supabase init`.
+   - In `config.toml`, switch off the dashboard section, `local_smtp`, `edge_runtime`, analytics, `storage.vector` and `db.seed`.
+   - Then run `npx supabase start`.
+2. `git worktree add --detach ../_streamline_sb HEAD`, then `npm ci` in the worktree.
+   - Give the worktree its own `.env.local` with **only** the local stack's URL, keys and `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. No script can then fall back to production.
+3. In the worktree: `node scripts/db-migrate.mjs`, `npx tsx scripts/db-seed.mts`, `npx tsx scripts/ensure-special-columns.mts`.
+4. Run the app with `SKIP_DB_MIGRATE=1 npx next dev --port 3300`.
+   - Point Playwright at it (with `E2E_PROVIDER=supabase`), or probe PostgREST with each persona's JWT from `/auth/v1/token?grant_type=password`.
+5. Reset with `npx supabase db reset`, then steps 3–4 again. Remove everything with `npx supabase stop` and `git worktree remove`.
 
-`playwright.config.ts` runs one worker with full parallelism disabled. It uses Desktop Chrome settings at 1440 × 900 and base URL `http://localhost:3100`. The web server starts through `npm run dev -- --port 3100`, with `NEXT_PUBLIC_DATA_PROVIDER` pinned to local unless `PW_PROVIDER` overrides it.
+### Evidence rules
 
-It reuses an existing server outside CI, retains traces on failure, and allows one retry in CI. If a server is reused, verify that server's actual provider; a configured launch environment does not reconfigure a process that is already running.
-
-Suites exercise board lifecycle, groups/items, columns, filters/sort/drag/drop, multiple views, deep links, cross-view sync, permissions, teams/members, onboarding, messages/account behavior, notifications, bookings, assets/covers, references, trackers, mobile layout, large boards, accessibility, and version notices.
-
-`tests/e2e/mobile-layout.spec.ts` covers the phone shell, the card list, all seven views, the contained grid, the explicit Kanban move, ID search, a full-screen item with its deep link and Back, and every destination for overflow; two of its cases assert the 767/768 boundary by resizing live, and a desktop-to-mobile-to-desktop round trip that leaves a non-default sidebar width alone. `tests/e2e/stakeholder-portal.spec.ts` defines local-provider coverage for the single workspace portal, per-stakeholder filtering and All, default three-month range, search across ranges, booking with a department, revocation/disable/password gates, presentation, theme isolation, deep links, all seven views and read-only stakeholder behavior. These are checked-in tests, not results from this documentation update.
-
-### Supabase and deployment tests
-
-`scripts/e2e-supabase.mjs` loads environment values, sets `E2E_PROVIDER=supabase` and `PW_PROVIDER=supabase`, and runs `supabase-smoke.spec.ts`. That suite includes direct API checks of RLS; it is skipped under the normal local-provider setting.
-
-Deployment tests use `playwright.deployment.config.ts`, start no server, and target `E2E_BASE_URL` or the repository's deployed default. They use configurable sign-in credentials, one worker, one retry, and a longer timeout for remote workflows.
-
-Both remote suites perform writes, including task lifecycle and collaboration operations. They are not passive health checks. Run them against an intended test environment and review their fixtures/cleanup before using a shared workspace.
-
-### Choosing evidence for a change
-
-Use pure/unit tests for mappings, permissions, date behavior, and transformations. Use component tests for interactive controls. Use local E2E for complete user workflows. Use Supabase tests for actual backend contracts and RLS. Use deployment smoke tests for deployed integration behavior.
-
-A successful local test cannot establish production RLS correctness, service-role availability, storage permissions, or migration state. Report exactly which verification ran rather than treating all test categories as interchangeable.
+- A local-provider test proves UI behaviour, not RLS, triggers or server routes.
+- View as is not a sign-in.
+- Record which environment each result came from; the audit's `COVERAGE.md` does.
 
 ## 20. Troubleshooting
 
-| Symptom | Likely area | Useful check |
+| Symptom | Likely area | Check |
 | --- | --- | --- |
-| App opens with unexpected demo content | Provider fallback or another browser origin | Inspect config warnings and provider environment; check port/browser profile. |
-| `npm run dev` fails before Next starts | Migration lifecycle hook | Check `SUPABASE_DB_URL`, runner output, and intended migration behavior. |
-| Workspace-visible board can be read but not edited | Current visibility rule | Check ownership, explicit role, admin role, and board visibility. |
-| Admin cannot edit a specific board | Explicit membership precedence | Check whether an explicit VIEWER membership wins before admin-derived EDITOR. |
-| Admin sees no Task Allocation | System initialization, RLS, or view-as | Check system markers, effective permissions, and `ensureSystemEntities()` warnings. |
-| Added person cannot sign in | Pending onboarding | Check invitation and membership status; finish the join workflow. |
-| Add member fails with server configuration error | Privileged server client | Verify service-role availability on the server and required migrations. |
-| Booking/share fails although ordinary boards work | Privileged public endpoint | Check server key, route logs, token/key validity, and schema. |
-| Booking lands on a team board | Service routing | Inspect the selected service's `teamId` and team's `bookingBoardId`. |
-| Booking remains on Task Allocation | No valid direct receiving board | Check service team routing and receiving board archive/system/workspace state. |
-| Booking error after a long wait | Multi-operation submission | Check whether task/assets were partly created before resubmitting. |
-| Linked status does not transfer | Label translation | Check target label names, mapping report, and excluded fields. |
-| Link creation is refused | Link-chain invariants | Check workspace, board, duplicate link, and one-item-per-board chain rules. |
-| Old linked task copies have different assets | Separate asset ownership | Generic links do not synchronize asset lists; current allocation moves one task instead. |
-| Completed-looking work remains in My Work | Status semantics | Inspect the first status column and its done-label IDs. |
-| Asset owner sees no task assignment | Different assignment model | Check task PERSON values separately from asset assignees. |
-| Inbox count differs from task updates badge | Different read-state models | Inspect delivery/read state and item-read markers separately. |
-| No OS notification | User preference/browser permission | Check loud delivery, board mute, browserEnabled, and browser permission. |
-| Another tab shows stale local data | Local broadcast/origin | Check same origin, BroadcastChannel support, and invalidation. |
-| Another user shows stale Supabase data | Realtime/RLS | Check publication, subscription, readable rows, and query invalidation. |
-| Local upgrade is blocked | Open IndexedDB connection | Check other tabs holding the prior database version. |
-| Avatar or cover upload fails | Conversion or Storage | Check source type/size, bucket existence, and write policies. |
-| A share reveals more detail than expected | Share-specific projection | Board/item shares include scoped content; portal publishes Updates; dashboard publishes named workload. Review the actual projection. |
-| Tracker formula imports as blank | Missing cached Excel result | Inspect the workbook's saved formula result and import support. |
-| Tracker edit disappears around navigation | Persistence failure | Unmount now flushes; inspect save errors, concurrent writes and browser termination. |
-| Migration says a file changed after application | Checksum drift | Add a follow-up migration; do not assume the changed file reran. |
-| Deployment notice appears after a rollback | Build identity comparison | Any differing build/version counts as a change. |
-| Old department link says it was replaced | Unified portal migration | Use the newly managed workspace portal; changing a filter cannot restore an old token. |
-| A portal seems to omit an older request | Default range / stakeholder / archive | Check All time, stakeholder selection, label/provenance and item archive state. |
-| Form edits do not appear to stakeholders | Draft versus live | Check whether the saved draft has been published. |
-| Board creation fails RLS despite valid membership | INSERT RETURNING policy | Verify policy 0015 is applied; older board SELECT helpers reread the new row. |
-| Effort is missing or incomplete | Output-rate coverage | Check Settings → Lists → Asset types and current rate keys. |
-| Archived task affects dashboard operations | Status/date facts | Archive is not completion; check its semantic status and active-board membership. |
+| Unexpected demo content | Provider fallback / another origin | Config warning; port and profile |
+| `npm run dev` fails before Next starts | Migration hook | `SUPABASE_DB_URL`, runner output, `SKIP_DB_MIGRATE` |
+| Fresh database stops at `0005` ("schema private does not exist") | Order | Use the current runner (`supabase/sequence.txt`) |
+| `db:seed` crashes with `UNDEFINED_VALUE` | Old seed script | Use the fixed `scripts/db-seed.mts` |
+| New SQL file warns "not in supabase/sequence.txt" | Sequence | Append it; `sql-sequence.test.ts` fails meanwhile |
+| Portal booking says "Pick which department this is for." | F-101 before v0.49.1 | Update; or the name isn't on Settings → Departments |
+| A colleague's name changed after a booking | F-102 before v0.49.1 | Update; rename them back in their profile |
+| Searching "c" or "cp" shows every ticketed task | F-112 before v0.49.1 | Update |
+| An automation "does not fire" | Runner or rule | Is something calling the runner (heartbeat, `cron.job`)? Is the queue growing (`automation_events where processed_at is null`)? What does `automation_runs` say — skipped runs carry the reason |
+| A notify rule tested on yourself does nothing | Actor exclusion | "Nobody to tell": test with a second person |
+| A recurring rule fails every hour | F-105 | Apply proposed 0080 |
+| "When a column is cleared" never fires on Supabase | F-106 before v0.49.1 | Update |
+| The board's automation ring never stops | Stuck claimed events (F-115) | Release old `claimed_at` rows |
+| Automations never fire in local mode | By design (F-181) | Only quick runs run locally |
+| A special column vanished | Removed, not deleted | Add the type back from the picker: its values return |
+| "A Booking time column belongs on Task Allocation only." | BOOKED_AT guard | Use a Date + Time column |
+| Department value refused | Trigger 0074 | Add it to Settings → Departments, or pick a listed one |
+| Ticket refused as "already …" | Uniqueness | Another task holds it; typed tickets are checked workspace-wide |
+| Prefix change produced duplicate tickets | F-107 on Supabase | Apply proposed 0081; `tickets:dedupe` |
+| Board can be read but not edited | Visibility precedence | Ownership, explicit seat, admin, team visibility |
+| Added person cannot sign in | Pending onboarding | Finish the join link |
+| Booking, share or member creation fails while boards work | Service-role routes | Server key, route logs, token/key, migrations |
+| Snapshot restore emptied a table | Older file | Restore the automatic "Before restoring" snapshot |
+| Restore or wipe says another is running | Advisory lock | Wait; one runs at a time |
+| Tab shows an update card after a rollback | Build identity | Any different build counts as new |
+| Avatar or cover upload fails | Storage | Size and type, the bucket, write policies |
+| Another person sees stale data | Realtime / RLS | Publication, subscription, readable rows |
+| Tracker formula imports blank | Cached results | Save the workbook with results |
 
-For a persistence defect, capture the provider, route, user role, board/item IDs, operation, and exact error. Follow the flow from feature hook to service, repository, row conversion, and database policy. Avoid beginning with a full seed/reset when the issue may be configuration, cache, or access.
+For a persistence defect, capture the provider, route, role, ids, operation and exact error. Follow the path hook → service → repository → row mapping → policy. Don't start with a reset.
 
 ## 21. Development change guides
 
 ### Adding a column type
 
-Update the domain column list and typed value union, default/empty-value helpers, settings and width defaults, picker/icon/renderer support, filtering/sorting/display/export rules, and any view aggregates using that value. Decide explicitly whether item links may map it and whether booking forms may expose it.
+Touch, at least:
 
-Add a forward SQL migration for schema/enum changes, update row handling and local compatibility where needed, and cover the behavior with meaningful unit and browser tests. A picker entry alone is not a complete new column implementation.
+- `COLUMN_TYPES`, labels, widths and default settings, and `COLUMN_TYPE_PURPOSE` (`column.ts`);
+- the value union with `emptyValueFor`/`isEmptyValue` (`item.ts`);
+- `column-type-icons.ts`; alignment in `board-model.ts`; the sort key in `board-filtering.ts`; `column-display.ts`;
+- `item-link-sync.ts` (map it? translate it?);
+- **`cell-renderer.tsx`** — its switch has no exhaustiveness guard, so typecheck won't catch a missing case;
+- `group-summary-row.tsx`; the Format menu if it has a format; `column-type-picker.tsx` (which group; one per board?);
+- automation set-value support in `rule-builder.tsx`; booking and portal mapping if it carries booking data;
+- a forward migration for the enum value, appended to `sequence.txt`.
+
+A special type also needs `SYSTEM_COLUMN_TYPES`, `ensureSpecialColumns` and `db:special-columns`.
+
+### Adding an automation trigger or action
+
+1. Extend `AUTOMATION_TRIGGER_KINDS`/`TRIGGER_TIMING` or the action union (`automation.ts`).
+2. Add matching or execution in `automation-engine.ts`.
+3. Validate it in `automation-service.ts`.
+4. Describe it in `describeRule`, and add a builder control in `rule-builder.tsx`.
+5. Raise the event in the Supabase capture trigger (a migration) **and** in the local repositories' `raise()`.
+6. Test it on the local provider **and** against the stripped-null payload shape the database sends (see `automation-stripped-payloads.test.ts`).
+
+jsonb enforces no types: coerce numbers read from rules.
+
+### Changing SQL
+
+1. Add the next number in its directory.
+2. Append it to `supabase/sequence.txt`.
+3. Make it idempotent (`if not exists`, `create or replace`).
+4. Test it on a disposable database (§19).
+5. Run `npm run db:snapshot:rehearse` when a table changes, so snapshots still round-trip.
+
+Pushing to `main` applies it to production.
 
 ### Changing permissions
 
-Update `permissions.ts` and the database helper/policies together. Preserve deliberate precedence or document the change. Exercise owner, explicit editor/viewer, administrator, member, guest, team, private-board, system-board, and inactive-membership cases relevant to the change.
+Change `permissions.ts` and the SQL helpers and policies together. Exercise these cases:
 
-Use an actual authenticated Supabase session for backend enforcement checks. View-as and local UI behavior alone cannot verify RLS.
+- owner, explicit editor, explicit viewer;
+- admin, member, guest;
+- team member, private board, system board;
+- inactive member.
+
+Use real Supabase sessions; View as and the local provider can't verify RLS.
 
 ### Adding a repository capability
 
-Start from `src/data/repositories/index.ts`, then implement local and Supabase behavior and decide the public memory adapter's bounded read or read-only response. Connect it through service composition, query keys, feature hooks, and related invalidation.
+1. Start from `src/data/repositories/index.ts`.
+2. Implement it for local, Supabase and memory (read-only).
+3. Wire it into `createServices`, the query keys and invalidation.
+4. A new local store needs a `DB_VERSION` bump, an upgrade step, export/import handling and seeding. SQL persistence needs a migration, policies and a sequence entry.
 
-For a new local object store, increment the IndexedDB version and add an upgrade step, export/import coverage, and seed support if appropriate. For SQL persistence, add an ordered migration and policies rather than editing previously applied files.
+### Changing booking or the portal
 
-### Changing booking fields
+- **What to review, together:**
+  - the version-2 template and legacy migration;
+  - Zod and template validation;
+  - service routing and `mapBookingToColumns`;
+  - the requester directory (local **and** `src/server/requesters.ts`);
+  - brief composition;
+  - wizard steps and browser memory;
+  - editor draft and publish, templates and saved blocks;
+  - allocation mapping;
+  - the portal's gate, `scopeWithItems`, projection and synthetic board.
+- **What to test:** the public-key, member and portal paths, with and without department ids, and direct routing versus Task Allocation.
+- **Trust rule:** never trust an actor, team or department id from the body.
 
-Review version-2 template definitions, legacy migration, Zod/template validation, service routing, brief composition, wizard steps, editor draft/publish behavior, named templates/saved blocks, browser memory, board mapping and portal public-brief projection. Retain historical answers when changing questions. Cover allocation as an identity-preserving move, including asset board IDs and provenance.
+### Changing sharing, templates or snapshots
 
-Test public-key, active-member and unified-portal paths, with service-configured direct reception and Task Allocation fallback. Do not trust actor IDs supplied by an unauthenticated browser.
-
-### Changing the stakeholder portal
-
-Review the unified credential gate, `scopeWithItems()` publication rules (labels plus provenance), the allowlisted `portal-view.ts` model, `portal-projection.ts` mapping and `portal-board.ts` synthetic board together. Stakeholder/range/group choices are not authorization. Add published fields explicitly and test both inclusion and exclusion; do not infer current behavior from comments describing the old department-only design.
-
-Every scoped call must go through `StakeholderPortalService.resolve()` to check the token, unified portal row, enabled state, credential version and password. Booking separately validates the selected department against active departments in the admitted workspace. A write additionally re-checks the portal scope and a seat on the concrete item's own board, and never trusts an actor id from the body.
-
-Changing department identity means changing `reconcileDepartments()`, which is pure and unit-tested. Keep Settings -> Lists as the only editing surface, and keep identity flowing through the rename map rather than matching names - the tests in `tests/unit/department-reconciliation.test.ts` pin the cases where guessing would hand one department's history to another.
-
-### Changing links or shared Updates
-
-Review validation, mapping, translation, exclusions, chain traversal, comment reachability, label-definition synchronization, notification behavior, and multi-board query invalidation together. Include asymmetric column names, missing labels, single-person destinations, exclusions, and chains in regression coverage.
-
-### Adding a board view
-
-Extend the view kind, view switcher, routing validation, remembered-view handling, settings persistence, shared-board compatibility, and cross-view mutation behavior. Reuse board snapshot/filtering rather than inventing a second source of task truth.
-
-### Changing public sharing
-
-Review the token gate, password handling, expiry behavior, privileged server access, payload projection, memory repositories, public contexts, and refresh behavior. Test rejection and payload scope as well as successful rendering. A disabled edit button does not substitute for read-only service/repository behavior.
+- **Shares.** Review the gate, password and expiry, the projection, and removed-column filtering.
+- **Templates.** Keep `remapTemplateIds` covering every id a new part can carry.
+- **Snapshots.** Keep `EXCLUDED_TABLES` and the restore column intersection in mind, and rehearse.
 
 ### Working with this Next.js version
 
-Before changing Next.js code, follow `AGENTS.md` and read relevant installed guides under `node_modules/next/dist/docs/`. The existing handlers already demonstrate awaited `params`. The package version and repository instructions explicitly caution against carrying older conventions forward without checking.
+Follow `AGENTS.md`: read the relevant guide under `node_modules/next/dist/docs/` before changing Next.js code. Route params are promises; await them.
 
 ### Keeping documentation current
 
-Update this file, its snapshot and source index when provider defaults, roles, routes, scripts, domain types, persistence versions or supported workflows change. Also review README and `src/features/workspace/documentation/guide-content.ts` for user-facing drift; historical design/audit reports should remain labelled as historical evidence. Distinguish implementation, intended behavior, tested behavior, and deployed behavior. Prefer explaining a rule and naming its source over copying long code blocks that will drift.
+Update this file, `README.md` and the in-app guide (`src/features/workspace/documentation/guide-content.ts`; `tests/unit/guide-content.test.ts` checks its structure) when you change:
+
+- routes, roles, scripts, schema heads, providers or domain types;
+- user workflows.
+
+Historical design notes in `docs/` and audits in `Test_prompts/` stay dated.
 
 ## 22. Documentation discrepancies and implementation limits
 
-This reference describes source at the snapshot named above. README prose, in-app guide text, design reports, historical audits and source comments may describe earlier behavior. In particular, do not carry these superseded assumptions forward:
-
 | Earlier assumption | Current implementation |
 | --- | --- |
-| Local is the default backend, or Supabase is a stub | Supabase is the default complete provider, falling back to local when public credentials are missing. |
-| Board ownership survives workspace deactivation | Active membership is checked first in TypeScript and policies 0014/0015. |
-| WORKSPACE visibility grants editing | Visibility alone grants non-guests VIEWER; explicit seats, ownership, administration and TEAM visibility have separate precedence. |
-| Allocation creates a linked copy | It moves the original task and assets, preserving the ID and portal provenance. |
-| Booking deliverables also become subitems | New bookings write asset lines only. Historical subitems are not automatically removed. |
-| Stakeholders choose a team directly | The chosen service's configured team determines routing. |
-| Editing the form immediately changes public booking | Draft saves are separate; publishing replaces the live form. |
-| Each department has its own private portal | One workspace-wide credential admits all publishable stakeholders; selectors are filters. Old department tokens are refused. |
-| Portal publication is provenance-only | STAKEHOLDER labels also publish tasks and take precedence for attribution. |
-| Removing a department hides every task it ever owned | Provenance remains; eligible work can appear in All without an active stakeholder attribution. |
-| The portal lacks board views or refreshes every 15 seconds | It reuses all seven views and polls every 4 seconds while visible. |
-| Portal columns or date filters are authorization boundaries | They control presentation/selection after the token gate. |
-| Updates are internal on a published task | The portal board projection includes Updates; activity logs remain internal. |
-| New board and item links are always anonymous | New links default PRIVATE and require active workspace membership; PUBLIC is a separate choice. |
-| Public board/item users are complete profiles with email removed | `toPublicUser()` explicitly constructs sanitized fields. Content typed elsewhere is not redacted. |
-| Dashboard is three tabs or measures only tasks/assets | It is one report with optional rate-derived Effort and named workload. |
-| Dashboard history excludes archived items | Archived items count; archived boards remain excluded. |
-| Public dashboard contains no people | It includes assignment IDs and projected names/avatars for workload, plus some user metadata. |
-| Effort is logged time or available capacity | It is estimated from current asset output rates; leave and commitments are not modeled. |
-| Tracker navigation cancels the pending save | Unmount starts the pending save immediately; it still depends on successful persistence. |
-| Chunking a request guarantees complete results | ID chunks bound URLs; response paging is also needed on growing result sets. |
-| Editing an applied SQL file reruns it, or drift always fails the command | The runner logs drift and skips ledgered files; create a forward migration. |
-| Migration dry-run is guaranteed zero-write | It skips migration bodies but ensures the ledger and its RLS. |
-| Switching providers transfers data | It selects another store; no transfer occurs. |
+| Migrations then policies is a valid order | Only `supabase/sequence.txt` order builds an empty database |
+| Tickets look like `TA-7441` | `CP_014`, from a counter; `TA-` references were renumbered by 0050 |
+| Linked tasks keep separate deliverables | They share one set of lines (v0.19) |
+| A board may have several Status or Due date columns | One of each special type; others are plain Date columns |
+| Deleting any column deletes its values | Special columns are only removed from the board |
+| The booking brief is copied into the description | It lives in the Brief column (and `booking_brief`); the description holds only what found no column |
+| A booking keeps whatever name was typed for anyone | Nobody in the member list is renamed; only someone new takes the typed name (v0.49.1) |
+| The portal can book only for departments with work | Any listed department, by id or by name (v0.49.1) |
+| The dashboard is three tabs, refreshed every 15 s | One report, 60 s while visible; the public link polls in the background too |
+| Automations run in the browser | A server drains a database queue; the local provider never does |
+| GitHub Actions drives automations | pg_cron does; the workflow is idle |
+| Settings has Lists, View and Data (Storage) | Workspace (Overview, Tickets, Teams), Lists (Departments, Asset types), People (Roles), You (Appearance), Data (Snapshots, Danger zone; Supabase admins only), Help (Guide, About) |
+| Local mode can export and import its data | The controls went with Settings → Storage (v0.47.3); only Reset demo data remains |
+| Restore asks for your password | It asks you to type RESTORE (the password check is switched off) |
+| Two tasks can be open at once (changelog 0.20.0) | One task at a time; the release meant two browser tabs |
+| Every folded column gets a summary (changelog 0.29.0) | Seven types show none |
 
-Practical limits to retain in change reviews:
+Limits to keep in mind:
 
-- Normal board snapshots still read board data as a whole, even when the table virtualizes rows. Supabase `listValuesByBoard()` can include archived-item values; row virtualization alone does not remove that read cost.
-- Archive cascades currently cover directly connected counterparts, and item archive timestamps do not automatically cascade to descendants. Restore/delete UI and backend access must be assessed together.
-- Booking, allocation, list rewrites and portal submission are multiple persistence operations. Claim cleanup is not rollback of every created record; a failed or interrupted operation can leave partial state.
-- Public board/item shares carry substantially more task content than portal or dashboard allowlists. Public media bucket URLs have their own access behavior. Hidden columns are not a general redaction mechanism.
-- Historical dashboard counts depend on the current active-board set, current labels and current rates. Completion-date and reliable on-time reports need additional durable event/deadline data.
-- Local data belongs to the browser origin/profile. Whole-store import/reset replaces it; Supabase whole-database export/reset is unsupported by the admin repository. Tracker import reads cached formula results rather than implementing Excel.
-- The local provider, view-as preview and checked-in tests do not establish deployed RLS, storage policy, migration, performance or availability results. No live environment was audited for this update.
+- **Board reads.** Board snapshots read whole boards; virtualisation bounds rendering, not reading.
+- **No transactions.** Booking, allocation, list rewrites and portal submission are several writes each.
+- **Shares don't redact.** Board and task shares carry typed content unredacted, and public bucket URLs are public.
+- **History depends on today.** Dashboard history depends on the current boards, labels and rates.
+- **Restore is database-wide.** Snapshots and restore cover the whole database and must be narrowed to one workspace before multi-workspace.
+- **Public endpoints aren't rate-limited.** That covers booking, lookup, portal passwords and pending-member creation.
+- **Local data is per origin.** One browser origin, one store; the local provider enforces no permissions and runs no automations.
+- **Open defects** from the 26 September audit are in `Test_prompts/audits/2026-09-26-full-e2e/FINDINGS.md`.
 
 ## 23. Source index
 
-The following paths are repository-relative source references. Start with the indicated file and follow its imports when implementing a change.
-
 | Question | Source |
 | --- | --- |
-| Which scripts and versions are declared? | `package.json`, `package-lock.json` |
-| How does provider fallback work? | `src/lib/config.ts` |
-| Where are dependencies composed? | `src/features/data/data-context.tsx`, `src/services/index.ts` |
-| Which persistence methods exist? | `src/data/repositories/index.ts` |
-| What is the local schema version? | `src/data/local/database.ts` |
-| How is the local seed initialized? | `src/data/local/connection.ts`, `src/data/seed/apply-seed.ts` |
-| How are Supabase rows converted? | `src/data/supabase/rows.ts` |
-| How are backend errors handled? | `src/data/supabase/client.ts`, `src/server/http.ts` |
-| Where are routes constructed? | `src/lib/routes.ts` |
-| What are effective board permissions? | `src/lib/permissions/permissions.ts`, `supabase/policies/0015_boards_select_without_reread.sql` |
-| How does workspace context/view-as work? | `src/features/workspace/workspace-context.tsx` |
-| How are system entities created? | `src/services/workspace-service.ts` |
-| Where are board templates? | `src/features/boards/templates.ts` |
-| How are board snapshots and mutations implemented? | `src/services/item-service.ts`, `src/features/boards/hooks/use-board-mutations.ts` |
-| How do filters and sort work? | `src/features/boards/board-filtering.ts`, `src/stores/board-ui-store.ts` |
-| Where are view aggregates? | `src/features/boards/components/views/view-aggregates.ts` |
-| What does a typed value contain? | `src/domain/board/column.ts`, `src/domain/item/item.ts` |
-| What can an item link carry? | `src/domain/item/item-link.ts`, `src/services/item-link-sync.ts`, `src/services/item-link-service.ts` |
-| How are assets counted? | `src/domain/item/item-asset.ts`, `src/services/item-asset-service.ts` |
-| How are booking references generated? | `src/domain/booking/booking.ts` |
-| How are bookings validated and mapped? | `src/services/booking.ts`, `src/services/booking-service.ts` |
-| How is public booking authorized? | `src/server/booking.ts` |
-| How are booking templates represented? | `src/domain/booking/booking-template.ts`, `src/features/booking/editor` |
-| How is a share payload scoped? | `src/services/board-share-service.ts`, `src/domain/board/board-share.ts` |
-| How do public boards reuse the UI? | `src/data/memory/index.ts`, `src/features/share/shared-board-page.tsx` |
-| How is onboarding authorized and completed? | `src/server/onboarding.ts`, `src/domain/workspace/invitation.ts` |
-| How does local login differ? | `src/features/auth/providers/local-auth-provider.ts` |
-| How does Supabase login work? | `src/features/auth/providers/supabase-auth-provider.ts` |
-| How is My Work grouped? | `src/services/my-work-service.ts`, `src/lib/dates/dates.ts` |
-| How is notification delivery chosen? | `src/domain/notification/notification.ts`, `src/services/notification-service.ts` |
-| How are Updates and read markers handled? | `src/features/comments/updates.ts`, `src/features/items/updates-badge.tsx`, `src/services/comment-service.ts` |
-| How do direct messages work? | `src/services/message-service.ts`, `src/features/messages/hooks.ts` |
-| How do tracker editing and saves work? | `src/domain/tracker/tracker.ts`, `src/features/trackers/hooks.ts`, `src/services/tracker-service.ts` |
-| How are Excel files converted? | `src/services/tracker-xlsx.ts` |
-| Where are query identities defined? | `src/lib/query/keys.ts` |
-| How do local tabs refresh? | `src/lib/realtime/local-realtime.ts`, `src/features/data/local-realtime-sync.tsx` |
-| How do Supabase boards refresh? | `src/features/boards/hooks/use-board-realtime.ts` |
-| How does everything else stay live? | `src/lib/realtime/use-realtime.ts`, `src/features/workspace/use-workspace-realtime.ts` |
-| How is pending work guarded? | `src/lib/unsaved-work.ts` |
-| How are media files processed? | `src/features/items/cover-upload.ts`, `src/features/profile/avatar-upload.ts` |
-| What do migration/seed commands actually do? | `scripts/db-migrate.mjs`, `scripts/db-seed.mts`, `scripts/db-seed-topup.mts`, `scripts/db-setup.mjs` |
-| How is build identity generated? | `next.config.ts`, `src/lib/version.ts`, `src/features/version/version-watcher.tsx` |
-| What deployment settings are checked in? | `vercel.json`, `.github/workflows/db-migrate.yml` |
-| What are the test harness defaults? | `vitest.config.mts`, `playwright.config.ts`, `playwright.deployment.config.ts`, `tests/setup.ts` |
-| What instructions govern Next.js edits? | `AGENTS.md`, relevant guides in `node_modules/next/dist/docs/` |
-| How are archived tasks paged and restored? | `src/domain/item/item-archive.ts`, `src/services/item-service.ts`, `src/features/boards/archive` |
-| How are table rows virtualized? | `src/features/boards/components/table/virtual-rows.tsx` |
-| Where are lists, renames and rate settings managed? | `src/domain/workspace/workspace-list.ts`, `src/domain/workspace/asset-rate.ts`, `src/services/workspace-list-service.ts`, `src/features/workspace/list-draft.ts`, `src/features/workspace/lists-section.tsx` |
-| How does the wizard save and publish forms? | `src/domain/booking/booking-template.ts`, `src/services/booking-service.ts`, `src/features/booking/book-task-page.tsx`, `src/features/booking/editor`, `src/features/booking/wizard` |
-| Where are personal booking drafts/repeats stored? | `src/features/booking/booking-remember.ts` |
-| Where are saved brief blocks persisted? | `src/data/local/repositories/booking-saved-block-repository.ts`, `src/data/supabase/repositories/booking-saved-block-repository.ts` |
-| How is an individual task link scoped? | `src/services/item-share-service.ts`, `src/server/share.ts`, `src/features/share/shared-item-page.tsx`, `src/features/share/share-shell.tsx` |
-| What does the unified portal authorize and publish? | `src/services/stakeholder-portal-service.ts`, `src/services/portal/portal-projection.ts`, `src/services/portal/portal-board.ts`, `src/domain/portal/portal-view.ts` |
-| How do portal routes validate visitors and writes? | `src/server/portal.ts`, `src/data/supabase/portal-transport.ts`, `src/lib/auth/portal-password.ts` |
-| How do portal filters and grouping work? | `src/domain/portal/stakeholder-portal.ts`, `src/features/portal/portal-page.tsx`, `src/features/portal/portal-grouping.ts`, `src/features/portal/portal-board-screen.tsx` |
-| What does the dashboard count and share? | `src/services/dashboard-service.ts`, `src/domain/dashboard/dashboard.ts`, `src/features/dashboard/analytics.ts`, `src/features/dashboard/metrics.ts` |
-| Where is the current one-page dashboard assembled? | `src/features/dashboard/dashboard-screen.tsx`, `src/features/dashboard/views/overview.tsx`, `src/features/dashboard/views/workload-section.tsx` |
-| How are dashboard preferences and refreshes bounded? | `src/features/dashboard/prefs.ts`, `src/features/dashboard/hooks.ts`, `src/features/dashboard/public-dashboard-page.tsx` |
-| How do the phone shell and touch views work? | `src/hooks/use-mobile.ts`, `src/components/layout/mobile-shell.tsx`, `src/features/boards/components/mobile`, `src/features/trackers/mobile-row-editor.tsx` |
-| Where is the built-in user guide maintained? | `src/features/workspace/documentation/guide-content.ts`, `src/features/workspace/documentation/documentation-section.tsx` |
-| What keeps the database connection active in CI? | `.github/workflows/supabase-keep-alive.yml` |
+| Scripts and versions | `package.json`, `package-lock.json` |
+| Provider fallback | `src/lib/config.ts` |
+| Composition | `src/features/data/data-context.tsx`, `src/services/index.ts` |
+| Repository contracts | `src/data/repositories/index.ts` |
+| Local schema | `src/data/local/database.ts` |
+| Supabase rows and errors | `src/data/supabase/rows.ts`, `src/data/supabase/client.ts`, `src/server/http.ts` |
+| Routes | `src/lib/routes.ts`, `src/app/**/page.tsx`, `src/app/api/**/route.ts` |
+| Permissions | `src/lib/permissions/permissions.ts`, `supabase/policies/0015_boards_select_without_reread.sql` |
+| Column types and special columns | `src/domain/board/column.ts`, `src/domain/item/item.ts`, `src/features/boards/components/cells/cell-renderer.tsx`, `column-type-picker.tsx` |
+| Column roles | `src/domain/board/column-role.ts` |
+| Date/time and countdown formats | `src/domain/board/date-time-format.ts`, `src/domain/board/countdown.ts` |
+| Board lifecycle and templates | `src/services/board-service.ts`, `src/services/board-template-service.ts`, `src/domain/board/board-template.ts`, `src/features/boards/board-templates.tsx` |
+| Views and lanes | `src/features/boards/components/views/*`, `kanban-lanes.ts`, `view-aggregates.ts` |
+| Filtering and sorting | `src/features/boards/board-filtering.ts`, `src/stores/board-ui-store.ts` |
+| Task panel, pop-up, journey | `src/features/items/item-detail-panel.tsx`, `panel-size.tsx`, `src/features/journey/*` |
+| Tickets | `src/domain/item/ticket.ts`, `src/services/ticket-service.ts`, `src/features/workspace/ticket-settings.tsx`, migrations 0050/0051 |
+| Undo | `src/stores/undo-store.ts`, `src/features/undo/undo-bar.tsx` |
+| Search | `src/services/search-service.ts`, `src/features/search/command-palette.tsx` |
+| Links and assets | `src/services/item-link-service.ts`, `src/services/item-link-sync.ts`, `src/services/item-asset-service.ts`, `src/domain/item/item-asset.ts` |
+| Booking | `src/services/booking.ts`, `src/services/booking-service.ts`, `src/server/booking.ts`, `src/server/requesters.ts`, `src/features/booking/**` |
+| Portal | `src/services/stakeholder-portal-service.ts`, `src/services/portal/*`, `src/server/portal.ts`, `src/features/portal/*` |
+| Dashboard | `src/services/dashboard-service.ts`, `src/features/dashboard/*` |
+| Automations | `src/domain/automation/automation.ts`, `src/services/automation-service.ts`, `src/services/automation-engine.ts`, `src/server/automations.ts`, `src/features/automations/*`, migrations 0052–0057, `supabase/optional/*` |
+| Comments, replies, reactions | `src/services/comment-service.ts`, `src/features/items/item-updates.tsx`, `src/domain/comment/comment.ts` |
+| Notifications | `src/domain/notification/notification.ts`, `src/services/notification-service.ts` |
+| Profiles and hover cards | `src/features/profile/*`, `src/features/members/person-card.tsx`, `src/services/profile-service.ts` |
+| Settings and guide | `src/features/workspace/settings-page.tsx`, `src/features/workspace/documentation/*` |
+| Snapshots and wipe | `src/server/snapshots.ts`, `src/app/api/snapshots/**`, `src/features/workspace/snapshots-section.tsx`, `danger-zone-section.tsx`, `scripts/snapshot-rehearsal.mts` |
+| Version and changelog | `next.config.ts`, `src/lib/version.ts`, `src/lib/changelog.ts`, `src/features/version/*` |
+| Phone | `src/hooks/use-mobile.ts`, `src/components/layout/mobile-shell.tsx`, `src/features/mobile/*`, `src/features/boards/components/mobile/*` |
+| Trackers | `src/domain/tracker/tracker.ts`, `src/features/trackers/hooks.ts`, `src/services/tracker-service.ts`, `src/services/tracker-xlsx.ts` |
+| Realtime | `src/lib/realtime/use-realtime.ts`, `src/features/workspace/use-workspace-realtime.ts`, `src/features/boards/hooks/use-board-realtime.ts` |
+| Migrations and seeds | `scripts/db-migrate.mjs`, `supabase/sequence.txt`, `scripts/db-seed.mts`, `scripts/db-seed-topup.mts`, `scripts/ensure-special-columns.mts` |
+| Deployment | `vercel.json`, `.github/workflows/*` |
+| Test harness | `vitest.config.mts`, `playwright.config.ts`, `playwright.deployment.config.ts`, `tests/setup.ts`, `tests/e2e/helpers.ts` |
+| The 26 September audit | `Test_prompts/audits/2026-09-26-full-e2e/` |

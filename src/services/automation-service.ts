@@ -136,7 +136,14 @@ export class AutomationService {
     // A rule being switched off is the one change that never needs checking —
     // and the one most likely to be reached for when a rule is misbehaving.
     if (patch.trigger || patch.conditions || patch.actions) validate(merged, vocabulary, existing.boardId);
-    return this.repos.automations.updateRule(id, patch);
+    // Named the way `create` names it: a blank name reads the rule back as a
+    // sentence, and either is cut to the 200 characters the table allows —
+    // without the cut, a long sentence saved on create failed on every edit.
+    const named =
+      patch.name === undefined
+        ? patch
+        : { ...patch, name: (patch.name.trim() || describeRule(merged.trigger, merged.conditions, merged.actions, patch.conditionMatch ?? existing.conditionMatch, vocabulary)).slice(0, 200) };
+    return this.repos.automations.updateRule(id, named);
   }
 
   setEnabled(id: EntityId, enabled: boolean): Promise<AutomationRule> {

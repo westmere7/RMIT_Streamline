@@ -1,30 +1,39 @@
 # Streamline
 
-Work management for the RMIT creative and marketing team: plan tasks, receive stakeholder briefs, allocate work, track deliverables, and keep discussions alongside the work.
+Work management for the RMIT creative and marketing team. Stakeholders book work through one portal, the team plans and delivers it on boards, automations do the routine follow-up, and a live dashboard shows who is carrying what.
 
-Streamline runs on **Next.js 16, React 19, and TypeScript**, with a shared Supabase backend or a browser-local IndexedDB demo. Both modes use the same feature screens and service interfaces.
+Streamline runs on **Next.js 16, React 19 and TypeScript**. It has two backends behind the same screens and services: a shared Supabase backend, or a browser-local IndexedDB demo.
 
-[Application](https://rmit-streamline.vercel.app) · [Detailed knowledge base](KNOWLEDGE_BASE.md) · [Development instructions](AGENTS.md)
+[Application](https://rmit-streamline.vercel.app) · [Knowledge base](KNOWLEDGE_BASE.md) · [Development instructions](AGENTS.md) · [Latest audit](Test_prompts/audits/2026-09-26-full-e2e/README.md)
 
 ## What the app does
 
-- **Task boards:** groups, items and subitems, configurable columns, filters, sorting, drag and drop, bulk actions, favourites, and activity history.
-- **Seven board views:** Main Table, Kanban, Timeline, Calendar, Gantt, Workload, and Chart, all built from the same task data.
-- **Linked tasks:** synchronize supported fields between items on different boards, with field exclusions and shared Updates conversations.
-- **Deliverables:** item asset lists with quantities, multiple assignees, due dates, completion, notes, and an optional Assets recap column.
-- **Stakeholder booking:** public forms, configurable questions and saved templates, booking references, direct team-board reception, and an administrator-only Task Allocation queue.
-- **Public board sharing:** read-only links with optional passwords and expiry dates.
-- **Dashboard:** what every team delivers in tasks and asset units, asset mix and distribution, workload across the year, stakeholder requests, people and boards, live from the boards, with span, team, unit and date-basis settings and a public full-screen share link.
-- **Personal work:** assignments across boards, date buckets, completion tracking, and collapsed linked copies in My Work.
-- **Collaboration:** rich-text Updates with mentions, inbox notifications and quiet updates, browser notifications, and direct messages.
-- **Trackers:** spreadsheet-style workbooks with typed cells, dropdowns, summaries, autosave, and `.xlsx` import/export.
-- **Workspace administration:** teams, profiles, member roles, deactivation, and invitation-link onboarding without automatic email delivery.
+- **Boards.**
+  - Groups, tasks and subitems; 25 column types; filters, sort, search, drag and drop; bulk actions; favourites; archive; activity.
+  - Every board holds the 10 special columns the workspace reads: Status, PIC, Requester, Due date, Timeline, Priority, Department, Size, Assets recap, Brief. Deleting one only takes it off the board.
+- **Seven views.** Main Table, Kanban, Timeline, Calendar, Gantt, Workload and Chart, all over the same tasks.
+- **Tickets.** Every task can carry a quotable code such as `CP_014`, from a per-workspace counter with a prefix set in Settings.
+- **The task panel.** Name first; three widths or a pop-up over the board; every column as a row; deliverables; Updates; Activity; and a **task journey** from booking to archive.
+- **Collaboration.** Threaded updates with replies, 16 reactions, @mentions, an Inbox with per-event delivery, browser notifications, direct messages, and profile hover cards.
+- **Deliverables.** Asset lines with type, quantity, several owners, due date, completion, spec and links. Linked tasks share them.
+- **Linked tasks.** Selected fields and the conversation stay in sync between tasks on different boards. Columns are paired automatically or by hand.
+- **Booking and the portal.**
+  - One portal link per workspace. Visitors see the work by department and period, and book new work in a four-step wizard driven by service types.
+  - The requester becomes a person on the task: a known email is that person, a new one becomes a pending member.
+  - Bookings land on the service's team board, or in the admin-only **Task Allocation** queue for an admin to allocate.
+- **Automations.** "When this, then that" board rules: 21 triggers, 23 actions, 10 recipes, and quick runs fired by hand. They run on the server from a database queue, whether or not anyone has the app open.
+- **Board templates.** Save a board's layout with chosen parts, and start new boards from it.
+- **Dashboard.** Tasks, asset units or estimated effort by team, department and person, against last year. It can be shared as a public, full-screen link.
+- **Trackers.** Spreadsheet-style workbooks with typed cells, summaries, autosave, and `.xlsx` import/export.
+- **Administration.**
+  - Teams, members and roles, onboarding by join link (no email), departments, asset types and output rates, ticket prefix.
+  - **Snapshots** of the whole database, with download, upload and restore.
+  - A **Danger zone** that wipes all board data behind a password.
+- **Everywhere.** Live updates across tabs and people; light, dim and dark themes; a phone layout; an in-app guide (Settings → Guide); and a new-version card with What's new.
 
 ## Run a local demo
 
 Use **Node.js 22.x** and npm. From the repository root:
-
-### PowerShell
 
 ```powershell
 npm ci
@@ -33,28 +42,29 @@ $env:SKIP_DB_MIGRATE = '1'
 npm run dev
 ```
 
-### macOS / Linux
-
 ```bash
 npm ci
 NEXT_PUBLIC_DATA_PROVIDER=local SKIP_DB_MIGRATE=1 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Sign in as **Danh Nguyen** using `danh@rmit.local`; no password is required for the local demo. Open the RMIT workspace and a board such as **RMITinerary 2026** to explore tasks, views, Updates, and assets.
+Open [localhost:3000](http://localhost:3000) and choose an account tile, such as **Danh Nguyen**. The local demo needs no password.
 
-The first local session seeds the browser database automatically. Completed writes survive refresh. Browser data is specific to its origin and profile: ports 3000 and 3100 have separate stores, and another device does not receive the same local data.
+- The first visit seeds the browser's database: the RMIT workspace, its teams and boards, a year of history and trackers.
+- Completed writes survive a refresh.
+- Each origin has its own store, so `:3000` and `:3100` differ.
+- Automations do not run in local mode; only quick runs do.
 
-The repository's `.npmrc` enables `legacy-peer-deps=true`; `npm ci` uses that setting.
+**Why `SKIP_DB_MIGRATE`?** `npm run dev` and `npm run build` both run the migration runner first, against whatever `SUPABASE_DB_URL` names. That happens even when the app uses the local provider. The skip keeps a local demo away from any database.
 
-**Why set `SKIP_DB_MIGRATE`?** Both `npm run dev` and `npm run build` have a migration hook. If `SUPABASE_DB_URL` is configured, that hook can apply database changes even when the app uses the local provider. The local commands above explicitly bypass it. In PowerShell, those environment assignments remain in the current shell until removed or the shell closes.
+To run a second dev server beside your own, give it a separate build folder: `NEXT_DIST_DIR=.next-preview npm run dev -- --port 3200` (this is `.claude/launch.json`'s `dev-preview`).
 
 ## Connect Supabase
 
-Supabase provides Postgres persistence, password sign-in, row-level security, realtime updates, and media storage. Public booking, public sharing, and onboarding also use the application's server routes.
+Supabase provides Postgres, password sign-in, row-level security, Realtime and Storage. Booking, the portal, shares, onboarding, snapshots and the automation runner also use the app's server routes.
 
 ### 1. Configure the environment
 
-Create `.env.local` from [.env.example](.env.example) if it does not already exist. Fill in the appropriate values for the target Supabase project:
+Create `.env.local` from [.env.example](.env.example):
 
 ```dotenv
 NEXT_PUBLIC_DATA_PROVIDER=supabase
@@ -62,169 +72,187 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_KEY
 NEXT_PUBLIC_SUPABASE_REGION=
 
-SUPABASE_DB_URL=YOUR_POSTGRES_CONNECTION_URI
+SUPABASE_DB_URL=YOUR_POSTGRES_SESSION_POOLER_URI
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+
+AUTOMATION_SECRET=A_LONG_RANDOM_STRING
+AUTOMATION_TIMEZONE=Australia/Melbourne
 ```
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_DATA_PROVIDER` | Selects `local` or `supabase`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser-visible Supabase project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-visible public key; user access is enforced by RLS. |
-| `NEXT_PUBLIC_SUPABASE_REGION` | Optional region label shown in the About UI. |
-| `SUPABASE_DB_URL` | Server/script-only connection URI for migrations and seed operations. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged key for onboarding, public booking, public sharing, and seed administration. |
-| `SKIP_DB_MIGRATE` | Set to `1` to bypass the migration runner. |
+| `NEXT_PUBLIC_DATA_PROVIDER` | `local` or `supabase` (the default). |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-visible project URL and public key. Access is enforced by RLS. |
+| `NEXT_PUBLIC_SUPABASE_REGION` | Optional label shown in About. |
+| `SUPABASE_DB_URL` | Server/script only. Used by migrations, seeds, snapshots, restore and wipe. Use the **session pooler** URI; the direct host is IPv6-only. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Used by onboarding, booking, the portal, shares, the public dashboard, the automation runner and seeds. |
+| `AUTOMATION_SECRET` | The automation runner's secret. The same value goes wherever the runner is called from (pg_cron, GitHub Actions or Vercel cron). |
+| `AUTOMATION_TIMEZONE` | The zone scheduled rules read the clock in. |
+| `SKIP_DB_MIGRATE` | `1` bypasses the migration runner. |
 
-Keep privileged keys out of `NEXT_PUBLIC_*` variables and out of version control.
+Never put privileged keys in `NEXT_PUBLIC_*` variables or in version control.
 
-The actual provider default is **Supabase**. If its public URL or key is missing, [configuration](src/lib/config.ts) logs a warning and falls back to local mode. Check that warning when an environment unexpectedly shows demo content. Changing providers selects another store; it does not migrate data between them.
+If the public URL or key is missing, [configuration](src/lib/config.ts) warns and falls back to local mode. Switching providers moves no data.
 
 ### 2. Apply the schema
-
-If continuing in the PowerShell session used for the local demo, clear its overrides first:
-
-```powershell
-Remove-Item Env:NEXT_PUBLIC_DATA_PROVIDER -ErrorAction SilentlyContinue
-Remove-Item Env:SKIP_DB_MIGRATE -ErrorAction SilentlyContinue
-```
-
-Then apply pending migrations and policies:
 
 ```bash
 npm run db:migrate
 ```
 
-The runner applies files from `supabase/migrations` and then `supabase/policies`, in order, recording them in `public.schema_migrations`. Each applied file runs in its own transaction. All policy files matter: later files replace earlier permission definitions.
+- **Order.** The runner applies pending files from `supabase/migrations` and `supabase/policies` in the order [`supabase/sequence.txt`](supabase/sequence.txt) gives: the order they were first applied. That is the only order that builds an empty database, because some migrations use helpers that policy files define.
+- **Ledger.** Applied files are recorded in `public.schema_migrations`. Each file runs in its own transaction.
+- **Drift.** Editing an applied file is reported as drift, never re-run.
 
-For an existing database that already has matching schema but no migration ledger, review the [migration guidance](KNOWLEDGE_BASE.md#17-database-operations) before using `--baseline`.
+`--dry` lists pending files. `--baseline` marks them applied without running them, for a database that already has the schema. See [database operations](KNOWLEDGE_BASE.md#17-database-operations).
 
 ### 3. Choose whether to seed
 
-For a disposable demo or test workspace:
+For a **disposable** demo or test database only:
 
 ```bash
 npm run db:seed
 ```
 
-**Full seeding replaces the seeded workspace's data** and creates or updates demonstration Auth accounts. It is not an additive operation. The executable seed is [scripts/db-seed.mts](scripts/db-seed.mts), which builds from the TypeScript seed modules. Password overrides include `SEED_PASSWORD` and `ADMIN_PASSWORD`; `SEED_APP_URL` controls the base URL printed for invitation links.
+Full seeding **replaces** the seed workspace:
 
-To add supported seed extras while preserving existing rows:
+- It creates or updates the demo Auth accounts. Passwords: `SEED_PASSWORD`, default `Password123!`; the admin uses `ADMIN_PASSWORD`, default `admin123`.
+- It prints fresh join links for the pending members.
 
-```bash
-npm run db:seed:topup
-```
+Never run it against a workspace people use.
 
-The top-up script inserts with `ON CONFLICT DO NOTHING`. For an already populated project, seeding is optional; use the existing accounts or the repository's administrative account tooling as appropriate.
+To add demo content without replacing anything, use `npm run db:seed:topup` (it inserts with `on conflict do nothing`). `npm run db:special-columns` gives every board its special columns.
 
-The convenience command `npm run db:setup` combines migration, full seed, and switching an existing `.env.local` to Supabase. Use `npm run db:setup -- --no-seed` when that workflow should preserve the current dataset.
+### 4. Start the automation runner
 
-### 4. Start and verify
+Rules are fired by a server draining a database queue, so something must call `/api/automations/run` on a timer. With the runner secret, a call runs a full tick. The options are in [supabase/optional/README.md](supabase/optional/README.md):
+
+- **pg_cron in the database**, every minute. Production uses this.
+- **Vercel cron**, on paid plans.
+- **The GitHub Actions workflow**, every 5 minutes.
+
+Without a driver, rules still fire when someone edits a board: the app nudges the runner with that person's session. Schedules and the heartbeat, though, need the timer.
+
+### 5. Start and verify
 
 ```bash
 npm run dev
 ```
 
-Sign in with a provisioned Supabase account and password. Confirm that the expected workspace loads. For image uploads, verify the `avatars` and `item-covers` buckets and their write policies; storage setup in migrations may require separate attention when the database role cannot alter Storage objects.
+Sign in with a provisioned account and confirm the workspace loads. For image uploads, check the `avatars` and `item-covers` buckets and their write policies.
 
 ## Common workflows
 
 ### Work on a task
 
-Open a board, add an item to a group, assign someone in a PERSON column, and set its status and due date. Open the item panel for details, Updates, assets, and activity. Board links can include `?item=<id>` to reopen the task panel and `?view=<view>` to select a view.
+1. Open a board and add a task to a group.
+2. Set its PIC, Status and Due date.
+3. Open it for the details, the deliverables and the Updates thread.
 
-Current column types are Text, Long text, Status, Person, Date, Timeline, Number, Priority, Checkbox, Link, Tags, Size, Assets recap, and Dependency. Status completion uses configured label roles rather than the word “Done.”
+- `?item=<id>` reopens a task after a refresh; `?view=<view>` opens a view.
+- Completion follows the label's *done* role, not the word "Done".
 
-### Receive and allocate a booking
+### Book, then allocate
 
-A stakeholder opens `/book/<workspaceSlug>/<key>`; signed-in members can use **Book a task** inside the workspace. A selected team's valid receiving board takes the booking directly. Otherwise, it goes to the built-in **Task Allocation** board, visible to workspace administrators.
+A stakeholder books in one of three ways:
 
-Booking creates a task, a short reference, asset subitems, and structured asset lines. An administrator can allocate a queued request to a team board, creating a linked task and copying its subitems and assets. The parent tasks synchronize supported fields; asset lists and copied subitems are not automatically synchronized by that link.
+- through the portal (`/portal/<token>` → Book a task);
+- through the public link (`/book/<slug>/<key>`);
+- signed in, at `/book/<slug>`.
 
-Booking keys authorize access to the form. Short task references are labels for follow-up, not access credentials.
+What happens next:
+
+1. The service chosen in step one decides the brief questions and where the booking goes: the service team's receiving board, or **Task Allocation**.
+2. The booking creates one task, with its ticket, deliverable lines, the brief in its Brief column, the department, and the requester as a person.
+3. An admin allocates queued work to a team board from the task panel, the row menu or in bulk. Allocation moves the task itself: its id, ticket, deliverables and brief are kept.
 
 ### Add a member
 
-An administrator adds a person from Members and shares the generated `/join/<token>` link. The person sets their password and completes their profile, activating membership. The app does not send the invitation email automatically.
+1. An admin adds the person from Members.
+2. The admin passes on the generated `/join/<token>` link. No email is sent.
+3. The person sets a password and completes their profile.
 
-Pending members cannot use normal sign-in before completing onboarding. Administrators can renew invitation links or manage member status from the members workflow.
+Pending people can't sign in until they do. A public booking with a new email also creates a pending member.
 
-### Share a board
+### Automate a board
 
-Create a read-only board link and optionally set a password and expiry. Visitors can inspect the board's views and item details without joining the workspace. Disable or regenerate the link to revoke its current access.
+Open the board's **Automations** (the lightning button):
 
-The shared payload includes board content such as columns, descriptions, Updates, assets, and recent activity. Review that content when sharing externally; public sharing is not a field-redaction feature. See [public sharing details](KNOWLEDGE_BASE.md#13-public-board-sharing).
+- start from a recipe, or write a rule: When → Only if → Then;
+- save a quick run to fire by hand on chosen tasks;
+- the workspace **Automations** page lists every rule and what has run, and warns when the runner has stopped.
 
-### Read the dashboard
+Notify actions skip the person who caused them. Test with a second person.
 
-Open Dashboard under Inbox. Every figure is computed in the browser from a snapshot of the boards you can see, refreshed as they change (Supabase Realtime, or the cross-tab channel in local mode). Filter by team, choose Total / Year / Half / Quarter, switch between asset units and tasks, and pick which date places work on the calendar (due, created or completed) from the settings menu, which also hides panels you do not need. Admins can Share the dashboard: a `/dashboard/<token>` link opens a full-screen, read-only copy with no sign-in that refreshes every 15 seconds. The public snapshot carries figures only: descriptions, asset notes, emails, links and every text cell except departments are stripped before it leaves the server. See [dashboard details](KNOWLEDGE_BASE.md#13b-workspace-dashboard).
+### Share, template, snapshot
 
-### Use a tracker
+- **Board or task:** share read-only, for members or anyone, with an optional password and expiry.
+- **Dashboard:** admins can publish a full-screen dashboard link.
+- **Template:** "Save as template…" in a board's menu, then pick it in Create board.
+- **Snapshot:** Settings → Snapshots (Supabase, admins) takes, downloads, uploads and restores snapshots.
 
-Create or import a workbook, edit typed cells, and organize rows with sections and subsections. Sheets autosave after a short debounce; wait for a successful save before leaving. Export creates `.xlsx` files with supported formatting, dropdowns, and summary formulas.
-
-The tracker model is smaller than Excel's. Imported formulas use cached results, and arbitrary workbook features do not necessarily round-trip. See [tracker behavior and limitations](KNOWLEDGE_BASE.md#15-trackers-and-excel-interchange).
+Restore replaces **every** table, for every workspace, and first saves the current state. Snapshot files contain live links and keys, so keep them private.
 
 ## Access model
 
-Workspace roles are OWNER, ADMIN, MEMBER, and GUEST. Board roles are OWNER, EDITOR, and VIEWER. Board visibility and board membership are separate decisions.
+| Kind | Roles |
+| --- | --- |
+| Workspace | OWNER, ADMIN, MEMBER, GUEST. OWNER and ADMIN have the same powers inside one workspace, on purpose. |
+| Board | OWNER, EDITOR, VIEWER |
 
-For a normal board, effective access is resolved in this order:
+A board's effective role is resolved in this order:
 
-1. Literal board ownership grants OWNER.
-2. Explicit board membership supplies its assigned role.
-3. Workspace administration grants EDITOR.
-4. Active non-guest membership grants VIEWER on a WORKSPACE-visible board.
-5. Team membership grants EDITOR on a matching TEAM-visible board.
-6. PRIVATE visibility grants no additional inherited access.
+1. System boards (Task Allocation) are admin-only.
+2. No active membership, no access.
+3. The literal board owner is OWNER.
+4. An explicit board seat gives its role.
+5. A workspace admin is EDITOR.
+6. A WORKSPACE-visible board gives non-guests VIEWER.
+7. A TEAM-visible board gives members of its team EDITOR.
+8. PRIVATE gives nothing further.
 
-System boards have an earlier administrator-only gate. Explicit VIEWER membership can override a later inherited editing role. Team association alone does not grant editing to a WORKSPACE-visible board. Guests need ownership or explicit board membership for ordinary board access.
+Beyond board roles:
 
-Management and deletion have additional checks, including protection for built-in system entities. Use [permissions.ts](src/lib/permissions/permissions.ts) and the [current SQL visibility policy](supabase/policies/0008_visibility_is_read_only.sql) as the implementation references. Keep application helpers and SQL policies aligned when changing authorization.
+- **Automations:** managing a board's automations needs its owner or an admin. Quick runs need edit rights.
+- **Templates:** anyone can save one; the saver or an admin deletes it.
+- **Admins only:** snapshots, the Danger zone, the portal, Task Allocation and the ticket prefix.
 
-Local mode exercises UI behavior; Supabase RLS enforces access on backend requests. An administrator's **View as** feature previews a colleague's visibility but retains the administrator's actual session and write identity.
+The helpers are in [permissions.ts](src/lib/permissions/permissions.ts); the database side is the policies in `supabase/policies`. Services themselves check nothing: RLS and the server routes are the gate. The local provider enforces only what the UI offers. **View as** previews a colleague's visibility; it doesn't sign you in as them.
 
 ## Architecture
 
 ```text
-App Router pages and layouts
-  -> Feature screens, contexts, and query hooks
-  -> Services: use cases, mapping, activity, notifications
-  -> Repository interfaces
-     -> Local: IndexedDB
-     -> Supabase: Postgres / Auth / Realtime
+App Router pages -> feature screens and hooks (TanStack Query, Zustand)
+  -> services (use cases)  -> repository contracts
+     -> Local: IndexedDB   | Supabase: Postgres / Auth / Realtime / Storage
 
-Public board payload
-  -> Read-only memory repositories
-  -> Shared board views and item panels
+Public pages (shares, portal, dashboard link) -> server routes (service role) -> projections
+  -> read-only memory repositories -> the same board views and panels
+
+Automations: any write -> Postgres trigger -> automation_events
+  -> /api/automations/run (pg_cron, or a member's nudge) -> AutomationEngine -> ordinary services
 ```
 
-[DataProviderContext](src/features/data/data-context.tsx) constructs the repository, service, and auth graph. [createServices](src/services/index.ts) wires shared services such as notifications, item linking, booking, assets, and personal work.
-
-TanStack Query owns fetched data and optimistic reconciliation. Zustand owns interaction state and selected UI preferences. Local tabs announce changes through BroadcastChannel; Supabase boards subscribe to database changes and coalesce invalidations before refetching. Public shared boards periodically refresh a bounded read-only payload.
-
-Use services and repository contracts for normal task data. Keep pure transformations in domain or service helpers, use centralized query keys, and use shared permission functions. Some explicit provider-aware helpers, including avatar and cover uploads, access Storage directly.
+- **Composition.** [DataProviderContext](src/features/data/data-context.tsx) builds the repositories, services and auth provider, and [createServices](src/services/index.ts) wires the services together.
+- **Freshness.**
+  - Local tabs signal each other through BroadcastChannel.
+  - Supabase pages subscribe to Realtime and coalesce refetches.
+  - Public pages poll.
 
 ### Repository map
 
 | Path | Responsibility |
 | --- | --- |
-| `src/app` | Routes, layouts, providers, global styles, HTTP endpoints. |
-| `src/domain` | Types, typed column values, constants, and pure domain helpers. |
-| `src/services` | Board/task workflows, booking, links, assets, messages, and trackers. |
-| `src/data/repositories` | Persistence contracts shared by providers. |
-| `src/data/local` | IndexedDB schema and repositories. |
-| `src/data/supabase` | Supabase repositories, row mapping, and HTTP transports. |
-| `src/data/memory` | Bounded read-only repositories for public boards. |
-| `src/features/dashboard` | Dashboard analytics, charts, panels, pages and the share dialog. |
-| `src/data/seed` | Demo data, history, tracker fixtures, and local seed application. |
-| `src/features` | Product screens, feature hooks, editors, and contexts. |
-| `src/components` | Layout, shared controls, and UI primitives. |
-| `src/server` | Privileged onboarding, booking, sharing, and HTTP support. |
-| `src/lib`, `src/stores` | Routes, config, permissions, dates, query keys, and UI state. |
-| `supabase` | Ordered migrations, policies, and historical SQL seed material. |
-| `scripts` | Migration, seed, setup, account, and test-runner tooling. |
-| `tests/unit`, `tests/e2e` | Unit/component and browser regression suites. |
+| `src/app` | Routes, layouts, providers, styles; 29 HTTP route handlers under `api/`. |
+| `src/domain` | Types and pure helpers (columns, tickets, automations, booking, portal, templates). |
+| `src/services` | Use cases, including the automation engine, booking, portal, tickets and search. |
+| `src/server` | Service-role code: booking, requesters, portal, sharing, onboarding, the automation runner, snapshots. |
+| `src/data` | Repository contracts; local (IndexedDB v17), Supabase and read-only memory implementations; seeds. |
+| `src/features`, `src/components` | Screens, feature hooks and UI. |
+| `src/lib`, `src/stores`, `src/hooks` | Config, routes, permissions, dates, rich text, realtime, changelog; UI state. |
+| `supabase` | 77 migrations, 19 policies, `sequence.txt`, optional SQL. |
+| `scripts` | Migration, seeds, special columns, snapshot rehearsal, ticket dedupe, test runners. |
+| `tests/unit`, `tests/e2e` | Vitest and Playwright suites. |
 
 ### Main technologies
 
@@ -232,96 +260,82 @@ Use services and repository contracts for normal task data. Keep pure transforma
 | --- | --- |
 | Runtime | Node.js 22.x |
 | Framework | Next.js 16.3.4, React 19.2.8 |
-| Language | TypeScript with strict checking |
-| UI | Tailwind CSS 4, Radix UI, Lucide, Sonner |
-| Data and state | TanStack Query, Zustand, idb, Supabase JS |
-| Editing | Tiptap, React Hook Form, Zod, dnd-kit |
-| Dates and workbooks | date-fns, react-day-picker, ExcelJS |
+| Language | TypeScript 5.9 (strict) |
+| UI | Tailwind CSS 4, Radix UI, Lucide, Sonner, cmdk |
+| Data and state | TanStack Query and Virtual, Zustand, idb, Supabase JS, postgres |
+| Editing | Tiptap, React Hook Form, Zod 4, dnd-kit |
+| Files | ExcelJS (trackers), jszip (Word export of briefs) |
+| Dates | date-fns, react-day-picker |
+| Hosting | Vercel (functions in `sin1`), Supabase (ap-southeast-1), pg_cron |
 | Testing | Vitest, Testing Library, happy-dom, fake-indexeddb, Playwright |
-
-See [package.json](package.json) for declared versions and [package-lock.json](package-lock.json) for resolved dependencies.
 
 ## Commands and tests
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Development server; preceded by the configured migration hook. |
-| `npm run build` | Production build; preceded by the configured migration hook. |
-| `npm run start` | Serve an existing production build. |
-| `npm run lint` | ESLint. |
-| `npm run typecheck` | TypeScript checks. |
-| `npm test` | Vitest unit and component tests. |
-| `npm run test:watch` | Vitest watch mode. |
-| `npm run check` | Lint, typecheck, then unit/component tests. |
-| `npm run test:e2e` | Local-provider Playwright workflows by default. |
-| `npm run test:e2e:supabase` | Supabase smoke/audit suite, including backend access checks. |
-| `npm run test:e2e:deployment` | Smoke tests against a deployed URL. |
-| `npm run db:migrate` | Apply pending schema and policy files. |
-| `npm run db:seed` | Replace the seeded demonstration workspace. |
-| `npm run db:seed:topup` | Add seed extras without replacing existing rows. |
-| `npm run db:setup` | Migrate, seed, and switch an existing environment file to Supabase. |
+| `npm run dev` / `build` / `start` | Development, production build, serve. `dev` and `build` migrate first unless `SKIP_DB_MIGRATE=1`. |
+| `npm run lint` / `typecheck` / `test` | ESLint; TypeScript (tests included); Vitest. |
+| `npm run check` | Lint, typecheck and unit tests. |
+| `npm run test:e2e` | Playwright on the local provider (`:3100`). |
+| `npm run test:e2e:supabase` | Supabase smoke suite, including direct RLS checks. |
+| `npm run test:e2e:deployment` | Smoke tests against a deployed URL. Defaults to production, and writes. |
+| `npm run db:migrate` | Apply pending SQL in `supabase/sequence.txt` order. |
+| `npm run db:seed` / `db:seed:topup` | Replace the demo workspace (disposable databases only) / add demo extras. |
+| `npm run db:special-columns` | Give every board its special columns. |
+| `npm run db:snapshot:rehearse` | Check that a snapshot still round-trips the current schema (rolled back). |
+| `npm run tickets:dedupe` | Find, and with `--apply` renumber, shared tickets. |
+| `npm run db:setup` | Migrate, seed and switch `.env.local` to Supabase. |
 
-For ordinary code changes, start with:
-
-```bash
-npm run check
-```
-
-Install the Playwright browser when needed, then run browser workflows:
+For ordinary changes run `npm run check`. Then, for browser workflows:
 
 ```bash
 npx playwright install chromium
-npm run test:e2e
+SKIP_DB_MIGRATE=1 npm run test:e2e
 ```
 
-The standard Playwright configuration uses one worker, Desktop Chrome, and `http://localhost:3100`. It launches a local-provider dev server unless overridden and can reuse an existing server outside CI. Check the provider of an already running server before reusing it. Its dev command still has the npm migration hook described above.
-
-The Supabase runner uses `E2E_PROVIDER` and `PW_PROVIDER` to select its audit path. Deployment tests use `E2E_BASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD`, start no server, and default to the application URL linked above. Remote suites create and modify data; choose their target workspace deliberately.
-
-`npm run check` does not include E2E tests or a production build. Local tests verify local behavior; backend permissions, public endpoints, and Storage also need Supabase integration verification. The [knowledge base test guide](KNOWLEDGE_BASE.md#19-testing-and-verification) maps suites to their responsibilities.
-
-## Database maintenance
-
-Add new numbered files for deployed schema or policy changes. The migration runner uses a database advisory lock and a checksum ledger. Editing an already applied file produces a drift warning; it does not reapply that file automatically.
-
-```bash
-npm run db:migrate -- --dry
-```
-
-This reports pending migration bodies without executing them, but still connects and ensures the migration ledger and its RLS. It is not a completely write-free operation on an uninitialized database.
-
-Local JSON export/import, tracker Excel interchange, and Postgres backup/restore are separate mechanisms. Local import and reset replace browser data. Supabase does not support the local repository's whole-database export/import/reset methods; use database backup tooling and the appropriate administrative scripts.
-
-See [database operations](KNOWLEDGE_BASE.md#17-database-operations) for migration order, seed behavior, lifecycle hooks, and environment details.
+- **Playwright.** One worker, Desktop Chrome, `http://localhost:3100`. It launches a local-provider dev server unless one is already running there.
+  - That server is `npm run dev`, so its `predev` step migrates whatever database `.env.local` names, even though the app uses local data. Hence the `SKIP_DB_MIGRATE=1`.
+  - `test:e2e:supabase` loads `.env.local` into the tests as well. Run it only where `.env.local` names a disposable database.
+- **Supabase suites.** Local tests can't verify RLS, triggers, server routes or the automation runner. For those, use a disposable Supabase database: the [knowledge base](KNOWLEDGE_BASE.md#19-testing-and-verification) describes a Docker stack plus a separate worktree that cannot reach production.
+- **SQL.** Adding a SQL file? Append it to `supabase/sequence.txt`; `tests/unit/sql-sequence.test.ts` fails until you do.
 
 ## Deployment
 
-[Vercel configuration](vercel.json) selects Next.js, installs development dependencies with legacy peer resolution, runs `npm run build`, and requests application region `sin1`. Configure public Supabase values for the build and the service-role key for server routes. The app's region setting does not determine the database's region.
+[Vercel configuration](vercel.json):
 
-When `SUPABASE_DB_URL` is present, the build hook applies pending migrations unless `SKIP_DB_MIGRATE=1`. The [database migration workflow](.github/workflows/db-migrate.yml) also applies pending files for matching pushes to `main`, using the repository's `SUPABASE_DB_URL` secret. Decide which deployment environment each connection targets.
+- installs with legacy peer resolution;
+- runs `npm run build`, which applies pending SQL when `SUPABASE_DB_URL` is set;
+- places functions in `sin1`;
+- has no `crons` block, on purpose: a disallowed schedule would fail the deploy.
 
-Every build carries a version, build ID, and timestamp. `/api/version` lets an open tab detect a different deployment and offer Reload or Later; updates do not force an immediate reload.
+The [database migration workflow](.github/workflows/db-migrate.yml) also applies SQL on pushes to `main`. Pushing a migration therefore changes production's schema.
+
+Every build carries a version, build id and timestamp. `/api/version` lets open tabs notice a new deployment and show a card with **What's new** (from `src/lib/changelog.ts`), so people can refresh when it suits them. Each version bump needs its changelog entry: `tests/unit/changelog.test.ts` checks this.
 
 ## Troubleshooting
 
 | Symptom | First check |
 | --- | --- |
-| Unexpected local/demo content | Missing public Supabase config, provider warning, or different browser origin. |
-| Dev/build fails before compilation | Migration hook, database connection, or pending SQL failure. |
-| Board opens but cannot be edited | Visibility-only VIEWER access or explicit VIEWER membership. |
-| New member cannot sign in | Pending invitation/onboarding state. |
-| Booking, sharing, or member creation fails while boards work | Server service-role configuration, token/key, and required migrations. |
-| Linked value does not update | Field exclusions, compatible column mapping, and target label names. |
-| Avatar/cover upload fails | Image size/type, bucket existence, and Storage write policies. |
-| Another tab or person sees stale data | Provider-specific broadcast/realtime setup and query invalidation. |
-| Tracker content differs after import | Supported types, cached formula results, and workbook feature limitations. |
+| Unexpected demo content | Missing public Supabase config, the provider warning, or a different browser origin. |
+| Dev or build fails before compiling | The migration hook, the database connection, or a pending SQL failure. |
+| A fresh database stops at migration 0005 | Use the runner that follows `supabase/sequence.txt`. |
+| Board opens but can't be edited | VIEWER from visibility, or an explicit VIEWER seat. |
+| New member can't sign in | Pending onboarding: finish the join link. |
+| Booking, sharing or member creation fails while boards work | The server's service-role key, the token or key, and migrations. |
+| An automation doesn't fire | Is the runner being called (Automations page heartbeat)? Is the queue growing? What does the rule's activity say? Notify skips the actor. |
+| A special column disappeared | It was removed, not deleted: add its type back and its values return. |
+| A department value is refused | Add it to Settings → Departments. |
+| Linked value doesn't update | Exclusions, column pairing, label names. |
+| Avatar or cover upload fails | Image size and type, the bucket, Storage policies. |
+| Tracker content differs after import | Supported types, cached formula results. |
 
-For deeper investigation, use the [troubleshooting reference](KNOWLEDGE_BASE.md#20-troubleshooting) and its source index. Preserve the original data while investigating a configuration or access problem.
+The [troubleshooting reference](KNOWLEDGE_BASE.md#20-troubleshooting) goes deeper.
 
 ## Development guidance
 
-Read [AGENTS.md](AGENTS.md) before changing the application. For Next.js changes, it requires checking the relevant installed guides under `node_modules/next/dist/docs/`; this version may differ from conventions in earlier releases.
+Read [AGENTS.md](AGENTS.md) before changing the application. It requires checking the installed Next.js guides under `node_modules/next/dist/docs/`; this version differs from earlier releases.
 
-Keep persistence changes consistent across local and Supabase providers and the public memory adapter where applicable. Keep authorization helpers and SQL policies aligned. Include affected views, link mapping, booking, and export behavior when changing a domain value or column type.
-
-The [knowledge base](KNOWLEDGE_BASE.md) contains the full domain model, route and API catalog, synchronization behavior, migration inventory, known implementation limits, and change guides. This README provides the starting workflow; that document provides the detailed maintenance reference.
+- **Providers.** Keep local, Supabase and the memory adapter consistent.
+- **Permissions.** Keep `permissions.ts` and the SQL policies aligned.
+- **Column types.** A new column type touches the cell renderer, sorting, filters, link sync, folded summaries, the picker, automations and booking mapping (see the [change guides](KNOWLEDGE_BASE.md#21-development-change-guides)).
+- **Docs.** Update the [knowledge base](KNOWLEDGE_BASE.md) and the in-app guide (`src/features/workspace/documentation/guide-content.ts`) along with the behaviour they describe.

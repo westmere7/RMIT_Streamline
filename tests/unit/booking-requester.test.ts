@@ -66,25 +66,27 @@ describe("the requester of a booking", () => {
     expect(await requesterOf(receipt.itemId)).toEqual([priya!.id]);
   });
 
-  it("is the same person the next time, with the name as they typed it this time", async () => {
+  it("is the same person the next time, keeping the name they were first booked with", async () => {
     await bookPublicly();
     const priya = await services.repos.users.getByEmail("priya.nair@rmit.edu.au");
     const users = (await services.repos.users.list()).length;
-    // A different case is the same email (the form trims it before sending); the name has been corrected.
+    // A different case is the same email (the form trims it before sending). A different name renames nobody.
     const second = await bookPublicly({ requesterName: "Priya S. Nair", requesterEmail: "Priya.Nair@RMIT.edu.au" });
     expect((await services.repos.users.list()).length).toBe(users);
     expect(await requesterOf(second.itemId)).toEqual([priya!.id]);
-    expect((await services.repos.users.getById(priya!.id))?.displayName).toBe("Priya S. Nair");
+    expect((await services.repos.users.getById(priya!.id))?.displayName).toBe("Priya Nair");
     // Still one pending membership and one live link, not a second invitation.
     const invitations = (await services.repos.onboarding.listInvitations(WS)).filter((i) => i.userId === priya!.id && !i.acceptedAt && !i.revokedAt);
     expect(invitations).toHaveLength(1);
   });
 
-  it("is an existing member when the email is theirs, renamed as submitted and still a full member", async () => {
+  it("is an existing member when the email is theirs, keeping the name they have and still a full member", async () => {
+    // The public form checks nobody's email: whoever types a colleague's
+    // address books for that colleague, but cannot rename them.
     const emily = (await services.repos.users.getById(SEED_USER_IDS.emily))!;
     const receipt = await bookPublicly({ requesterName: "Emily Carter-Smith", requesterEmail: emily.email });
     expect(await requesterOf(receipt.itemId)).toEqual([emily.id]);
-    expect((await services.repos.users.getById(emily.id))?.displayName).toBe("Emily Carter-Smith");
+    expect((await services.repos.users.getById(emily.id))?.displayName).toBe(emily.displayName);
     expect((await membershipOf(emily.id))?.status).toBe("ACTIVE");
   });
 

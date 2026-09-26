@@ -137,11 +137,14 @@ export async function runAutomations(options: { limit?: number; sweep?: boolean;
   // budget allows, go round again. The depth guard bounds the chain, so this
   // bounds the loop; schedules and the heartbeat ran on the first pass and
   // are not repeated.
-  for (let pass = 0; pass < MAX_EVENT_DEPTH && report.ran > 0 && Date.now() - started < RUN_BUDGET_MS / 2; pass += 1) {
+  // Whether the pass just made fired anything, apart from the tick's total.
+  let lastRan = report.ran;
+  for (let pass = 0; pass < MAX_EVENT_DEPTH && lastRan > 0 && Date.now() - started < RUN_BUDGET_MS / 2; pass += 1) {
     const more = await services.automationEngine.drain(limit, { schedules: false });
     if (more.events === 0) break;
+    lastRan = more.ran;
     report.events += more.events;
-    report.ran = more.ran;
+    report.ran += more.ran;
     report.skipped += more.skipped;
     report.failed += more.failed;
   }

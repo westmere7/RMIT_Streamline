@@ -376,7 +376,9 @@ function PermissionsSection() {
     ["Manage members and roles", "✓", "✓", "—", "—"],
     ["Edit any board", "✓", "✓", "If editor", "If editor"],
     ["Delete boards", "✓", "✓", "Own boards", "—"],
-    ["Reset demo data", "✓", "✓", "—", "—"],
+    ["Automations on a board", "✓", "✓", "Own boards", "—"],
+    ["Allocate requests, run the portal", "✓", "✓", "—", "—"],
+    ["Snapshots and the Danger zone", "✓", "✓", "—", "—"],
   ];
   return (
     <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">

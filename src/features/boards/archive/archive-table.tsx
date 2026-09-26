@@ -206,7 +206,7 @@ function ArchiveRow({
                   </span>
                 </SimpleTooltip>
               )}
-              <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+              <div className="ml-auto flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                 {canManage && (
                   <SimpleTooltip label="Restore to board">
                     <button

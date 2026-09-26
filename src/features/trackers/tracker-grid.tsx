@@ -826,7 +826,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
             <button
               type="button"
               aria-label={`${column.name} column options`}
-              className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded text-white/60 opacity-0 hover:bg-white/15 hover:text-white group-hover/col:opacity-100 data-[state=open]:opacity-100"
+              className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded text-white/60 opacity-0 hover:bg-white/15 hover:text-white group-hover/col:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <ChevronDown className="size-3.5" />
@@ -1320,7 +1320,7 @@ const GridCell = React.memo(function GridCell({
                   aria-label="Open dropdown"
                   onClick={onDoubleClick}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/chip:opacity-100 hover:bg-foreground/10 hover:text-foreground"
+                  className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/chip:opacity-100 hover:bg-foreground/10 hover:text-foreground pointer-coarse:opacity-100"
                 >
                   <ChevronDown className="size-3.5" />
                 </button>

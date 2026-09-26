@@ -1163,7 +1163,7 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
           <button
             type="button"
             aria-label={`Options for ${column.name}`}
-            className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/row:opacity-100 data-[state=open]:opacity-100"
+            className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
             data-testid={`panel-column-menu-${column.id}`}
           >
             <MoreVertical className="size-3.5" />

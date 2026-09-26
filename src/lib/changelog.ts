@@ -18,6 +18,25 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.49.1",
+    date: "2026-09-26",
+    title: "Portal booking for every department",
+    changes: [
+      "Booking from the portal works for a department that has no requests yet, and so after a wipe.",
+      "A public booking no longer renames anyone already in the member list. The name typed is used only for someone new.",
+      "Typing a letter or two in search finds names again, not every ticket.",
+      "“When a column is cleared” fires for statuses, dates and numbers too.",
+      "A board made from a template no longer wakes its own automations for every task it starts with.",
+      "Kanban by person keeps tasks whose owner is pending or has left.",
+      "On a phone, Today and Tomorrow in the date sheet are your own days.",
+      "On a touch screen, the buttons that appear on hover are always there: editing, deleting and reacting to updates, column and group menus, cover and archive actions.",
+      "Long dialogs scroll inside the screen instead of running off it.",
+      "Link cells open web and email addresses only. Countdown takes “in 45m”.",
+      "A booking picked up from a draft keeps each deliverable's type.",
+      "The in-app guide covers what the app does today.",
+    ],
+  },
+  {
     version: "0.49.0",
     date: "2026-09-26",
     title: "Profile cards on hover",

@@ -237,8 +237,9 @@ export class AutomationEngine {
         return event.kind === "value_changed" && event.columnId === trigger.columnId;
       case "column_cleared": {
         if (event.kind !== "value_changed" || event.columnId !== trigger.columnId) return false;
-        const before = event.payload.before ?? null;
-        const after = event.payload.after ?? null;
+        // Whole values: a cleared date comes from the database as { type: "DATE" }.
+        const before = wholeValue(event.payload.before);
+        const after = wholeValue(event.payload.after);
         return !!before && !isEmptyValue(before) && (!after || isEmptyValue(after));
       }
       case "number_crosses": {
@@ -980,6 +981,20 @@ function peopleIn(value: ColumnValue | null): EntityId[] {
   if (!value) return [];
   if (value.type === "PERSON" || value.type === "PEOPLE") return value.userIds;
   return [];
+}
+
+/**
+ * A value in the shape the app writes it.
+ *
+ * Supabase's capture trigger sends every change through jsonb_strip_nulls,
+ * which drops each null field: a cleared date arrives as { type: "DATE" }, not
+ * { type: "DATE", date: null }. isEmptyValue reads a missing field as one that
+ * is set, so without this `column_cleared` never fired there for a status,
+ * dropdown, priority, date, timeline, number, time, countdown, department or
+ * size. The local provider keeps the fields, which is why its tests passed.
+ */
+export function wholeValue(value: ColumnValue | null | undefined): ColumnValue | null {
+  return value ? ({ ...emptyValueFor(value.type), ...value } as ColumnValue) : null;
 }
 
 /** The words a value holds, for a keyword to be found in. Labels are not words: `column_set_to` names those. */
