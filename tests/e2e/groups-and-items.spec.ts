@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const UNICODE = "Duong sach · 日本語 · emoji 🎉 · <script>alert(1)</script> · quoted & apostrophe";
 
@@ -114,7 +114,7 @@ test.describe("groups, items and subitems", () => {
 
   test("duplicate copies the values, archive and delete remove the row", async ({ page }) => {
     const source = row(page, "RMITinerary Pragmatist");
-    await source.getByRole("button", { name: /More actions for RMITinerary Pragmatist/ }).click();
+    await clickRowButton(source, /More actions for RMITinerary Pragmatist/);
     await page.getByRole("menuitem", { name: "Duplicate" }).click();
     const copy = page.locator('[data-item-name="RMITinerary Pragmatist (copy)"]');
     await expect(copy).toBeVisible({ timeout: 15000 });
@@ -122,14 +122,14 @@ test.describe("groups, items and subitems", () => {
     await page.reload();
     await expect(copy).toBeVisible({ timeout: 15000 });
 
-    await copy.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(copy, /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(copy).toHaveCount(0, { timeout: 15000 });
     await page.reload();
     await expect(copy).toHaveCount(0);
 
     const victim = row(page, "RMITinerary Independent");
-    await victim.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(victim, /More actions/);
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
     await expect(victim).toHaveCount(0, { timeout: 15000 });
@@ -139,7 +139,7 @@ test.describe("groups, items and subitems", () => {
 
   test("moving an item between groups through the menu persists", async ({ page }) => {
     const item = row(page, "Accessibility review of PDF export");
-    await item.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(item, /More actions/);
     await page.getByRole("menuitem", { name: /move to group/i }).hover();
     await page.getByRole("menuitem", { name: /^\s*Production\s*$/ }).click();
     await expect(page.getByTestId("group-Production").locator('[data-item-name="Accessibility review of PDF export"]')).toBeVisible({ timeout: 15000 });
@@ -169,7 +169,7 @@ test.describe("groups, items and subitems", () => {
     expect(await order(page)).not.toContain("Sub one");
 
     // Deleting the parent removes the subitems as well.
-    await parent.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(parent, /More actions/);
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
     await expect(parent).toHaveCount(0, { timeout: 15000 });

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -104,7 +104,7 @@ test.describe("columns: alignment, dragging and renaming", () => {
 
   test("renaming a column renames the matching one on a linked board", async ({ page }) => {
     // Link an item on this board to one on another board.
-    await row(page, ITEM).getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: /link to another item/i }).click();
     const dialog = page.getByTestId("link-item-dialog");
     await expect(dialog).toBeVisible({ timeout: 20000 });
@@ -146,7 +146,7 @@ test.describe("renaming an item from a menu", () => {
 
   test("the field stays open after the menu closes, wherever the pointer goes", async ({ page }) => {
     const item = row(page, ITEM);
-    await item.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(item, /More actions/);
     await page.getByRole("menuitem", { name: "Rename" }).click();
 
     const input = page.locator('input[aria-label="Item name"]');

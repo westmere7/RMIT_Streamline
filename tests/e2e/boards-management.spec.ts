@@ -40,7 +40,8 @@ test.describe("board management", () => {
     await page.getByTestId("user-menu").click();
     await page.getByRole("menuitem", { name: "Reset demo data" }).click();
     await page.getByRole("button", { name: "Reset data" }).click();
-    await expect(page).toHaveURL(/\/workspace\/rmit$/);
+    // The whole local database is seeded again first.
+    await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 30000 });
     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
     await expect(page.getByTestId("group-Backlog")).toBeVisible();
     await expect(page.locator('[data-item-name="Temporary item"]')).toHaveCount(0);

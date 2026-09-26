@@ -91,6 +91,9 @@ test.describe("sharing a board by link", () => {
   test("a password stands in front of the board, and a wrong one does not get in", async ({ page, context }) => {
     const url = await createShareLink(page);
     const dialog = page.getByTestId("share-dialog");
+    // A workspace link has no password (signing in is the check); one anyone can open does.
+    await dialog.getByTestId("share-access-public").click();
+    await expect(dialog.getByTestId("share-access-public")).toHaveAttribute("aria-pressed", "true");
     await dialog.getByTestId("share-password").fill("letmein");
     await dialog.getByTestId("share-password-set").click();
     await expect(dialog.getByTestId("share-password-remove")).toBeVisible({ timeout: 15000 });

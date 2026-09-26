@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchAccount, switchView } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs, switchAccount, switchView } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -26,7 +26,7 @@ test.describe("changes reaching every view", () => {
 
     // The item panel agrees.
     await switchView(page, "table");
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await expect(page.getByTestId("item-panel")).toContainText("Stuck");
     await page.getByTestId("close-panel").click();
 
@@ -109,7 +109,7 @@ test.describe("changes reaching every view", () => {
     await expect(page.getByTestId("my-work-completed")).toContainText(ITEM, { timeout: 15000 });
 
     await openBoard(page);
-    await row(page, ITEM).getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(row(page, ITEM)).toHaveCount(0, { timeout: 15000 });
     await page.goto("/workspace/rmit/my-work");
@@ -120,7 +120,7 @@ test.describe("changes reaching every view", () => {
 
   test("updates: post, edit, delete, and refuse an empty one", async ({ page }) => {
     await openBoard(page);
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     const input = page.getByTestId("comment-input");
     await expect(page.getByTestId("comment-submit")).toBeDisabled();
@@ -162,7 +162,7 @@ test.describe("changes reaching every view", () => {
 
   test("someone else's update cannot be edited or deleted by a non-admin", async ({ page }) => {
     await openBoard(page);
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     await page.getByTestId("comment-input").fill("Danh was here");
     await page.getByTestId("comment-submit").click();
@@ -182,7 +182,7 @@ test.describe("changes reaching every view", () => {
   test("activity records what changed, with the old and new values", async ({ page }) => {
     await openBoard(page);
     await setStatus(page, ITEM, "Stuck");
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     const panel = page.getByTestId("item-panel");
     await panel.getByRole("tab", { name: /activity/i }).click();
     await expect(panel).toContainText(/Status/i, { timeout: 15000 });

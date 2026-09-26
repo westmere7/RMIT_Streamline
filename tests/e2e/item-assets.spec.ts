@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { BOARD_URL, openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { BOARD_URL, clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 /**
  * The Assets tab on an item and the "Assets recap" column that summarises it:
@@ -129,7 +129,7 @@ test.describe("asset lines and the recap column", () => {
     // Everything survives a reload, and the badge on the tab counts the lines.
     await page.reload();
     await expect(row(page, name).getByTestId("assets-recap-cell")).toHaveAttribute("aria-label", /4 assets · 1 PIC/, { timeout: 20_000 });
-    await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
+    await clickRowButton(row(page, name), `Open ${name}`);
     await expect(panel(page).getByTestId("tab-assets")).toContainText("2");
 
     // Ticking the poster off fills the bar by its three, and the closed row still
@@ -161,7 +161,7 @@ test.describe("asset lines and the recap column", () => {
     const url = "/workspace/rmit/boards/dooh-production";
     await openBoard(page, url);
     const name = "Shopping centre network – 6 sites";
-    await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
+    await clickRowButton(row(page, name), `Open ${name}`);
     await panel(page).getByTestId("tab-assets").click();
     await panel(page).getByTestId("asset-add-input").fill("Banner");
     await panel(page).getByTestId("asset-add-submit").click();
@@ -169,7 +169,7 @@ test.describe("asset lines and the recap column", () => {
 
     await switchTo(page, "Jun Tanaka");
     await openBoard(page, url);
-    await row(page, name).getByRole("button", { name: `Open ${name}` }).click();
+    await clickRowButton(row(page, name), `Open ${name}`);
     await panel(page).getByTestId("tab-assets").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
     await expect(panel(page).getByTestId("asset-add-input")).toHaveCount(0);

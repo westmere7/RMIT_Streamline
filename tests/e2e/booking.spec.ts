@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, resetLocalData, row, signInAs } from "./helpers";
 
 /**
  * Task booking: the built-in Admin team and Task Allocation board, the four-step
@@ -34,6 +34,22 @@ async function openEditorTab(page: Page) {
   if (await bookTab.isVisible().catch(() => false)) await bookTab.click();
 }
 
+/** A stakeholder has no account here: signed in, the session answers for them and the form asks no name. */
+async function signOut(page: Page) {
+  await page.getByTestId("user-menu").click();
+  await page.getByRole("menuitem", { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+}
+
+/** What step one asks for besides the title and the service: the department, how urgent, and by when. */
+async function fillRequestBasics(page: Page) {
+  await page.getByTestId("booking-department").click();
+  await page.getByRole("option").first().click();
+  await page.getByTestId("booking-priority").click();
+  await page.getByTestId("booking-priority-high").click();
+  await page.getByTestId("booking-due").fill("2026-12-01");
+}
+
 test.describe("task booking", () => {
   test.beforeEach(async ({ page }) => {
     await resetLocalData(page);
@@ -42,9 +58,10 @@ test.describe("task booking", () => {
   test("an admin gets the built-in Admin team and Task Allocation board, which cannot be archived", async ({ page }) => {
     await signInAs(page, "Danh");
     // Created on first load; the sidebar picks it up once the context refreshes.
-    const sidebar = page.getByRole("complementary").first();
-    await expect(sidebar.getByRole("link", { name: "Admin", exact: true })).toBeVisible({ timeout: 15_000 });
-    await sidebar.getByRole("link", { name: "Admin", exact: true }).click();
+    // A panel of its own under the primary items, the name beside an "Admins" badge.
+    const admin = page.getByTestId("sidebar-admin");
+    await expect(admin).toBeVisible({ timeout: 15_000 });
+    await admin.getByRole("link", { name: /^Admin\b/ }).first().click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Admin");
     await expect(page.getByTestId("team-built-in")).toBeVisible();
     await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
@@ -67,8 +84,7 @@ test.describe("task booking", () => {
     await page.getByTestId("user-menu").click();
     await page.getByRole("menuitem", { name: /sign out/i }).click();
     await signInAs(page, "Jun");
-    const sidebar = page.getByRole("complementary").first();
-    await expect(sidebar.getByRole("link", { name: "Admin", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("sidebar-admin")).toHaveCount(0);
     await expect(page.getByTestId("sidebar-book-task")).toBeVisible();
     await page.goto(TASK_ALLOCATION_URL);
     await expect(page.getByText(/board not found|this board is private/i)).toBeVisible();
@@ -81,6 +97,7 @@ test.describe("task booking", () => {
     await expect(link).toHaveAttribute("href", /\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
     const publicUrl = (await link.getAttribute("href"))!;
 
+    await signOut(page);
     await page.goto(publicUrl);
     await expect(page.getByTestId("booking-card")).toBeVisible();
 
@@ -146,6 +163,7 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("booking-auto-reply")).toContainText("we have your request");
 
     // Back inside: the request is on Task Allocation with its answers in the columns.
+    await signInAs(page, "Danh");
     await page.goto(TASK_ALLOCATION_URL);
     const request = row(page, "Open Day wayfinding posters");
     await expect(request).toBeVisible();
@@ -154,7 +172,7 @@ test.describe("task booking", () => {
     await expect(request).toContainText("High");
     // The asset lines are deliverables on the Assets tab, not subitems on the board.
     await expect(request.getByRole("button", { name: /subitems/i })).toHaveCount(0);
-    await request.getByRole("button", { name: "Open Open Day wayfinding posters" }).click();
+    await clickRowButton(request, "Open Open Day wayfinding posters");
     const panel = page.getByTestId("item-panel");
     // The brief is the description, composed from the service and the answers.
     await expect(panel).toContainText("Service: Design");
@@ -169,7 +187,9 @@ test.describe("task booking", () => {
     await signInAs(page, "Danh");
     await openBookingForm(page);
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
+    await fillRequestBasics(page);
     await page.getByTestId("booking-service-design").click();
+    await page.getByTestId("booking-sub-print").click();
     await page.getByTestId("booking-next").click();
     await page.getByTestId("booking-answer-design-what").fill("Cover artwork for the spring alumni magazine.");
     await page.getByTestId("booking-answer-design-specs").fill("Portrait, with masthead space at the top.");
@@ -201,7 +221,9 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("booking-known-requester")).toContainText("Danh Nguyen");
     await expect(page.getByTestId("booking-name")).toHaveCount(0);
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
+    await fillRequestBasics(page);
     await page.getByTestId("booking-service-design").click();
+    await page.getByTestId("booking-sub-print").click();
     await page.getByTestId("booking-next").click();
     await page.getByTestId("booking-answer-design-what").fill("Cover artwork for the spring alumni magazine.");
     await page.getByTestId("booking-answer-design-specs").fill("Portrait, with masthead space at the top.");
@@ -239,11 +261,11 @@ test.describe("task booking", () => {
     await expect(panel).toBeVisible();
     await panel.getByTestId("editor-service-name-new-service").fill("Web");
     await page.getByTestId("editor-service-subs-web-add").click();
-    await page.getByLabel("Choice").last().fill("Landing page");
+    await page.getByLabel("Choice", { exact: true }).last().fill("Landing page");
     // Enter finishes a choice rather than starting another, so a second one is
     // added the way a person adds it.
     await page.getByTestId("editor-service-subs-web-add").click();
-    await page.getByLabel("Choice").last().fill("Microsite");
+    await page.getByLabel("Choice", { exact: true }).last().fill("Microsite");
     await page.getByTestId("editor-service-brief-web").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();
     // Step two shows the branches as tabs, and Web is the one open.
@@ -269,10 +291,12 @@ test.describe("task booking", () => {
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(page.getByTestId("booking-editor-draft-waiting")).toHaveCount(0, { timeout: 15_000 });
 
+    await signOut(page);
     await page.goto(publicUrl);
     await page.getByTestId("booking-name").fill("Priya Nair");
     await page.getByTestId("booking-email").fill("priya.nair@rmit.edu.au");
     await page.getByTestId("booking-title").fill("Open Day landing page");
+    await fillRequestBasics(page);
     await page.getByTestId("booking-service-web").click();
     await page.getByTestId("booking-sub-landing-page").click();
     await page.getByTestId("booking-next").click();
@@ -286,11 +310,12 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-submit").click();
     await expect(page.getByTestId("booking-receipt")).toBeVisible();
 
+    await signInAs(page, "Danh");
     await page.goto(TASK_ALLOCATION_URL);
     await expect(page.getByTestId("board-table")).toBeVisible();
     const request = row(page, "Open Day landing page");
     await expect(request).toContainText("Web");
-    await request.getByRole("button", { name: "Open Open Day landing page" }).click();
+    await clickRowButton(request, "Open Open Day landing page");
     await expect(page.getByTestId("item-panel")).toContainText("The Open Day hub page");
   });
 

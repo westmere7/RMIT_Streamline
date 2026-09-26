@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { openBoard, resetLocalData, row, signInAs } from "./helpers";
 
-async function createBoard(page: import("@playwright/test").Page, name: string, template: string) {
+/** A board from the dialog, on the Blank template it opens with. */
+async function createBoard(page: import("@playwright/test").Page, name: string) {
   await page.getByTestId("sidebar-add-new").click();
   await page.getByTestId("sidebar-add-board").click();
   await page.getByLabel("Board name").fill(name);
-  await page.getByRole("radio", { name: new RegExp(template, "i") }).click().catch(async () => {
-    await page.getByText(template, { exact: false }).first().click();
-  });
+  await expect(page.getByTestId("board-template")).toContainText("Blank");
   await page.getByRole("button", { name: /create board/i }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 15000 });
 }
@@ -18,20 +17,13 @@ test.describe("board lifecycle", () => {
     await signInAs(page, "Danh");
   });
 
-  test("each template builds the groups and columns it promises", async ({ page }) => {
+  test("the Blank template builds the groups and columns it promises", async ({ page }) => {
+    // The one built-in template; the others are ones the workspace saved (board-templates).
     const expected: Record<string, { groups: string[]; columns: string[] }> = {
       Blank: { groups: ["Group 1"], columns: ["Owner", "Status", "Due Date"] },
-      Campaign: {
-        groups: ["Planning", "Production", "Review", "Live", "Completed"],
-        columns: ["Owner", "Status", "Priority", "Timeline", "Channel"],
-      },
-      "Creative Production": {
-        groups: ["Briefing", "Design", "Internal Review", "Department Review", "Approved", "Delivered"],
-        columns: ["Designer", "Status", "Priority", "Due Date", "Format", "Market"],
-      },
     };
     for (const [template, want] of Object.entries(expected)) {
-      await createBoard(page, `T ${template}`, template);
+      await createBoard(page, `T ${template}`);
       for (const group of want.groups) {
         await expect(page.getByTestId(`group-${group}`), `${template} should have group ${group}`).toBeVisible();
       }
@@ -72,7 +64,7 @@ test.describe("board lifecycle", () => {
   });
 
   test("archive hides a board from the sidebar and restore brings it back", async ({ page }) => {
-    await createBoard(page, "Archive me", "Blank");
+    await createBoard(page, "Archive me");
     const url = page.url();
     await page.getByTestId("board-menu").click();
     await page.getByRole("menuitem", { name: /archive board/i }).click();
@@ -90,7 +82,7 @@ test.describe("board lifecycle", () => {
   });
 
   test("deleting a board removes it and its URL stops working", async ({ page }) => {
-    await createBoard(page, "Delete me", "Blank");
+    await createBoard(page, "Delete me");
     const url = page.url();
     await page.getByTestId("board-menu").click();
     await page.getByRole("menuitem", { name: /delete board/i }).click();

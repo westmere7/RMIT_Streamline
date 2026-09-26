@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -54,7 +54,7 @@ test.describe("data integrity under stress", () => {
     await input.press("Enter");
     const created = row(page, "Ephemeral");
     await expect(created).toBeVisible({ timeout: 15000 });
-    await created.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(created, /More actions/);
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
     await expect(created).toHaveCount(0, { timeout: 15000 });
@@ -76,7 +76,7 @@ test.describe("data integrity under stress", () => {
 
   test("archived items stay out of the board, kanban, My Work and search", async ({ page }) => {
     await openBoard(page);
-    await row(page, ITEM).getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(row(page, ITEM)).toHaveCount(0, { timeout: 15000 });
 

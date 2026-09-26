@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 import { buildSeed, SEED_USER_IDS } from "@/data/seed/seed-data";
 
 const INBOX = "/workspace/rmit/inbox";
@@ -30,7 +30,7 @@ async function switchTo(page: Page, name: string) {
 /** Posts an update mentioning someone, as whoever is signed in. */
 async function mention(page: Page, itemName: string, displayName: string, text: string) {
   await openBoard(page);
-  await row(page, itemName).getByRole("button", { name: `Open ${itemName}` }).click();
+  await clickRowButton(row(page, itemName), `Open ${itemName}`);
   await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
   await page.getByTestId("comment-input").fill(`@${displayName} ${text}`);
   await page.getByTestId("comment-submit").click();

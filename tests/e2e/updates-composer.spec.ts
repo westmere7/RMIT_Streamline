@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
 async function openUpdates(page: Page, item = ITEM) {
   await openBoard(page);
-  await row(page, item).getByRole("button", { name: `Open ${item}` }).click();
+  await clickRowButton(row(page, item), `Open ${item}`);
   await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
   await expect(page.getByTestId("comment-input")).toBeVisible({ timeout: 15000 });
 }
@@ -215,7 +215,7 @@ test.describe("an update posted to a linked task", () => {
     await openBoard(page);
 
     // Link this item to one on another board.
-    await row(page, ITEM).getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(row(page, ITEM), /More actions/);
     await page.getByRole("menuitem", { name: /link to another item/i }).click();
     await expect(page.getByTestId("link-item-dialog")).toBeVisible({ timeout: 20000 });
     await page.getByTestId("link-search").fill("Campus banner");
@@ -239,7 +239,7 @@ test.describe("an update posted to a linked task", () => {
     await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 20000 });
     // Linking keeps the two items in sync, name included, so the copy is on the
     // item that now carries this name.
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     const copy = page.getByTestId("comment").filter({ hasText: "Shared across both boards" }).first();
     await expect(copy).toBeVisible({ timeout: 20000 });
@@ -271,7 +271,7 @@ test.describe("an update posted to a linked task", () => {
 
     await page.goto("/workspace/rmit/boards/open-day-2026");
     await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 20000 });
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
     await expect(page.getByText("Only here")).toHaveCount(0);
   });

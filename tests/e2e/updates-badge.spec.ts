@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs, switchAccount } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 const OTHER = "Cover concept – final artwork";
 
 async function postUpdate(page: Page, item: string, body: string) {
-  await row(page, item).getByRole("button", { name: `Open ${item}` }).click();
+  await clickRowButton(row(page, item), `Open ${item}`);
   await page.getByTestId("item-panel").getByRole("tab", { name: /updates/i }).click();
   await page.getByTestId("comment-input").fill(body);
   await page.getByTestId("comment-submit").click();

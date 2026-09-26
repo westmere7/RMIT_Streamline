@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const BOARD_URL = "/workspace/rmit/boards/rmitinerary-2026";
 
@@ -50,4 +50,13 @@ export async function switchView(page: Page, kind: "table" | "kanban" | "timelin
 
 export function row(page: Page, name: string) {
   return page.locator(`[data-testid="item-row"][data-item-name="${name}"]`);
+}
+
+/**
+ * Clicks one of a row's own buttons (Open, More actions). They take no room
+ * until the row is hovered, so the row is hovered first, as a mouse would.
+ */
+export async function clickRowButton(itemRow: Locator, name: string | RegExp): Promise<void> {
+  await itemRow.hover();
+  await itemRow.getByRole("button", { name }).click();
 }

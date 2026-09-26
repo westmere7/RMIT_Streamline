@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -44,7 +44,7 @@ test.describe("the ticket column", () => {
   });
 
   test("is edited from the item panel, and the board follows", async ({ page }) => {
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     const panel = page.getByTestId("item-panel");
     await expect(panel).toBeVisible();
     const before = await panel.getByTestId("panel-ticket").textContent();
@@ -66,7 +66,7 @@ test.describe("the ticket column", () => {
   test("refuses a ticket another task already holds, and says which", async ({ page }) => {
     // Whatever the first row answers to, the second may not.
     const taken = (await page.getByTestId("item-ticket").first().textContent())!.trim();
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     const panel = page.getByTestId("item-panel");
     const mine = (await panel.getByTestId("panel-ticket").textContent())!.trim();
     test.skip(mine === taken, "the first row is the one already open");

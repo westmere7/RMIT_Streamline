@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -103,7 +103,7 @@ test.describe("column types", () => {
     await expect(row(page, ITEM).getByTestId("priority-cell")).toContainText("Medium", { timeout: 15000 });
 
     // The item panel shows the same value.
-    await row(page, ITEM).getByRole("button", { name: `Open ${ITEM}` }).click();
+    await clickRowButton(row(page, ITEM), `Open ${ITEM}`);
     await expect(page.getByTestId("item-panel")).toContainText("Medium");
     await page.getByTestId("close-panel").click();
 
@@ -126,20 +126,21 @@ test.describe("column types", () => {
   });
 
   test("link: stores a url, shows display text, and can be removed", async ({ page }) => {
-    await addColumn(page, "Link", "Brief");
-    await cell(page, "Brief").click();
+    // Not "Brief": every board has a special Brief column of its own.
+    await addColumn(page, "Link", "Reference");
+    await cell(page, "Reference").click();
     await page.getByLabel("URL").fill("https://example.com/brief.pdf");
     await page.getByLabel("Link text").fill("The brief");
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(cell(page, "Brief")).toContainText("The brief");
+    await expect(cell(page, "Reference")).toContainText("The brief");
     await page.reload();
     // The address opens from the icon; the cell itself belongs to the editor.
     const link = row(page, ITEM).getByRole("link", { name: "Open The brief" });
     await expect(link).toHaveAttribute("href", "https://example.com/brief.pdf", { timeout: 15000 });
     await expect(link).toHaveAttribute("rel", /noreferrer/);
-    await expect(cell(page, "Brief")).toContainText("The brief");
+    await expect(cell(page, "Reference")).toContainText("The brief");
 
-    await cell(page, "Brief").click();
+    await cell(page, "Reference").click();
     await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Remove" }).click();
     await expect(row(page, ITEM).getByRole("link")).toHaveCount(0, { timeout: 15000 });
     await page.reload();
@@ -206,7 +207,7 @@ test.describe("column types", () => {
 
     // Deleting the dependency target must not leave a dangling reference.
     const target = row(page, "Cover concept – final artwork");
-    await target.getByRole("button", { name: /More actions/ }).click();
+    await clickRowButton(target, /More actions/);
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /delete/i }).click();
     // Wait for the delete to land: reloading inside the write window would only

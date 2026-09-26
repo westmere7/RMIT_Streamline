@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
+import { clickRowButton, openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
 
 const ITEM = "RMITinerary Explorer";
 
@@ -18,7 +18,7 @@ async function pngFile(page: Page, name: string) {
 }
 
 async function openItem(page: Page, item = ITEM) {
-  await row(page, item).getByRole("button", { name: `Open ${item}` }).click();
+  await clickRowButton(row(page, item), `Open ${item}`);
   await expect(page.getByTestId("item-panel")).toBeVisible();
 }
 

@@ -7,7 +7,8 @@ test.describe("signing in and out", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("nobody@example.com");
     await page.getByRole("button", { name: /continue|sign in/i }).click();
-    await expect(page.getByText(/no account|not found|unable/i)).toBeVisible({ timeout: 5000 });
+    // The first sign-in after a reset waits for the local seed.
+    await expect(page.getByText(/no account|not found|unable/i)).toBeVisible({ timeout: 20000 });
     await expect(page).toHaveURL(/\/login/);
   });
 
