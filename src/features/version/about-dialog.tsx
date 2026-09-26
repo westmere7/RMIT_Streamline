@@ -1,10 +1,11 @@
 "use client";
 
-import { Boxes, ChevronRight, Inbox, LayoutList, ShoppingBag, Sparkles, Table2 } from "lucide-react";
+import { Boxes, Bug, ChevronRight, Inbox, LayoutList, ShoppingBag, Sparkles, Table2 } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/features/auth/components/auth-shell";
+import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext } from "@/features/data/data-context";
 import { ChangelogDialog } from "@/features/version/changelog-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -24,6 +25,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const built = CURRENT_VERSION.builtAt ? new Date(CURRENT_VERSION.builtAt) : null;
   const projectRef = providerKind === "supabase" ? supabaseProjectRef(getAppConfig().supabaseUrl) : null;
   const [changelogOpen, setChangelogOpen] = React.useState(false);
+  const reportBug = useBugReportDialog((s) => s.show);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,6 +67,19 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
           >
             <Sparkles className="size-4 text-primary" />
             <span className="flex-1 font-medium">What&apos;s new</span>
+            <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              reportBug();
+            }}
+            className="group -mt-3 flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-border hover:bg-surface-strong/60"
+            data-testid="about-report-bug"
+          >
+            <Bug className="size-4 text-muted-foreground" />
+            <span className="flex-1 font-medium">Report a bug</span>
             <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>

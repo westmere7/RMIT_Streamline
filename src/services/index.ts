@@ -5,6 +5,7 @@ import { BoardService } from "./board-service";
 import { BoardTemplateService } from "./board-template-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
+import { BugReportService, type BugReportTransport } from "./bug-report-service";
 import { CommentService } from "./comment-service";
 import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
 import { ItemAssetService } from "./item-asset-service";
@@ -47,6 +48,8 @@ export interface Services {
   search: SearchService;
   trackers: TrackerService;
   booking: BookingService;
+  /** Bug reports, onto the App development board. */
+  bugReports: BugReportService;
   portals: StakeholderPortalService;
   tickets: TicketService;
 }
@@ -54,6 +57,8 @@ export interface Services {
 export interface ServiceOptions {
   /** How bookings reach the server when the browser cannot write them itself (Supabase). */
   bookingTransport?: BookingTransport | null;
+  /** How a bug report reaches the board its reporter cannot see (Supabase). */
+  bugReportTransport?: BugReportTransport | null;
   /** How a visitor without an account reads a shared board (Supabase). */
   shareTransport?: PublicShareTransport | null;
   /** The same for a single shared task. */
@@ -100,6 +105,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
     links,
     assets,
     booking,
+    bugReports: new BugReportService(repos, boards, items, notifications, options.bugReportTransport ?? null),
     tickets,
     comments,
     automations: new AutomationService(repos, automationEngine, options.automationTransport ?? null),

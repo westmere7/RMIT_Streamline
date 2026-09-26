@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
+import { Bug, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { useAuth } from "@/features/auth/auth-context";
+import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { AutomationOrbit } from "@/features/automations/activity-indicator";
 import { useAutomationActivity } from "@/features/automations/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -31,6 +32,7 @@ export function MorePage() {
   const { signOut } = useAuth();
   const [theme, setTheme] = useThemePreference();
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  const reportBug = useBugReportDialog((s) => s.show);
   const user = ws.currentUser;
   const automationsRunning = useAutomationActivity().size > 0;
 
@@ -100,6 +102,13 @@ export function MorePage() {
             <button type="button" onClick={() => setAboutOpen(true)} className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-accent/70" data-testid="more-about">
               <Info aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-[15px]">About Streamline</span>
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
+            </button>
+          </li>
+          <li>
+            <button type="button" onClick={reportBug} className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-accent/70" data-testid="more-report-bug">
+              <Bug aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-[15px]">Report a bug</span>
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
             </button>
           </li>

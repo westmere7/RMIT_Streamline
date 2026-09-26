@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo } from "react";
 import type { AuthProvider } from "@/domain";
 import { createRepositories } from "@/data/provider";
 import { HttpBookingTransport } from "@/data/supabase/booking-transport";
+import { HttpBugReportTransport } from "@/data/supabase/bug-report-transport";
 import { HttpDashboardTransport } from "@/data/supabase/dashboard-transport";
 import { HttpAutomationTransport } from "@/data/supabase/automation-transport";
 import { HttpPortalTransport } from "@/data/supabase/portal-transport";
@@ -32,6 +33,7 @@ export function DataProviderContext({ children, value }: { children: React.React
     const supabase = providerKind === "supabase";
     const services = createServices(repos, {
       bookingTransport: supabase ? new HttpBookingTransport() : null,
+      bugReportTransport: supabase ? new HttpBugReportTransport() : null,
       shareTransport: supabase ? new HttpShareTransport() : null,
       itemShareTransport: supabase ? new HttpItemShareTransport() : null,
       dashboardTransport: supabase ? new HttpDashboardTransport() : null,

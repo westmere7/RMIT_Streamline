@@ -2,6 +2,7 @@ import {
   Activity,
   BookOpen,
   Briefcase,
+  Bug,
   Building2,
   CalendarDays,
   Camera,
@@ -74,6 +75,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "message-square": MessageSquare,
   activity: Activity,
   "shield-check": ShieldCheck,
+  bug: Bug,
 };
 
 export const ICON_NAMES = Object.keys(ICON_MAP);

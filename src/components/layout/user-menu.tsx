@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
+import { Bug, Building2, Check, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useCurrentUser } from "@/features/auth/auth-context";
+import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -45,6 +46,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const unreadMessages = useUnreadMessages().data ?? 0;
   const showDevTools = IS_DEV || providerKind === "local";
   const setViewAsUserId = useUiStore((s) => s.setViewAsUserId);
+  const reportBug = useBugReportDialog((s) => s.show);
 
   const resetData = async () => {
     await services.repos.admin.resetToSeed();
@@ -178,6 +180,9 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
             </>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={reportBug} data-testid="menu-report-bug">
+            <Bug /> Report a bug
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void signOut().then(() => router.replace(routes.login()))}>
             <LogOut /> Sign out
           </DropdownMenuItem>

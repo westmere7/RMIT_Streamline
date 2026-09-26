@@ -881,12 +881,14 @@ export function LinkCell({ item, column, value, onChange, readOnly, width }: Cel
   // Only an address worth opening gets the open button: web and email, with a
   // bare "example.com" read as https. javascript:, data: and the rest stay text.
   const openHref = v.url ? normalizeLinkHref(v.url) : null;
+  // An image kept inline (a screenshot in local mode) is a megabyte of base64: said by its text, never read out.
+  const spoken = v.url.startsWith("data:") ? v.text || "an inline image" : v.url;
   return (
     <PopoverCell
       width={width ?? column.width}
       disabled={readOnly}
       align={columnAlign(column.type)}
-      ariaLabel={`${column.name}: ${v.url || "empty"} for ${item.name}`}
+      ariaLabel={`${column.name}: ${spoken || "empty"} for ${item.name}`}
       contentClassName="w-72 p-2"
       trigger={
         v.url ? (
