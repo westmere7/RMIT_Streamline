@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.54.0",
+    date: "2026-09-27",
+    title: "A join link for the team",
+    changes: ["Add member has a Join link: one link for everyone, where each person enters their own name and email and then sets a password. An email already in the workspace is turned away with what to do instead."],
+  },
+  {
     version: "0.53.1",
     date: "2026-09-27",
     title: "A simpler bug board",

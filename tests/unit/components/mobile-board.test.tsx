@@ -30,7 +30,8 @@ describe("the mobile board", () => {
     const done = cards.find((c) => c.textContent?.includes("RMITinerary High Achiever"));
     expect(done).toBeDefined();
     expect(done!).toHaveTextContent("Done");
-    expect(done!).toHaveTextContent(/Sep/);
+    // A date, whichever: the seed dates its tasks from today, so the month moves with the calendar.
+    expect(done!).toHaveTextContent(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{1,2}/);
     expect(within(done!).queryByTestId("mobile-card-priority")).toBeNull();
     // Low and medium are the ordinary case: a priority on a card is a high one.
     for (const chip of screen.queryAllByTestId("mobile-card-priority")) expect(chip).toHaveAccessibleName(/: (high|critical|urgent)$/i);
