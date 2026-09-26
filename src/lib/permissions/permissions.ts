@@ -144,7 +144,8 @@ export function canDeleteBoard(ctx: PermissionContext, board: BoardAccessInput):
   // ownership directly, so without it a deactivated owner could still delete
   // the board.
   if (ctx.workspaceRole === null) return false;
-  return board.ownerId === ctx.userId || (isWorkspaceAdmin(ctx) && boardRoleFor(ctx, board) !== null);
+  if (board.ownerId === ctx.userId) return true;
+  return !isMembersOnlyBoard(board) && isWorkspaceAdmin(ctx) && boardRoleFor(ctx, board) !== null;
 }
 
 export function canEditComment(ctx: PermissionContext, comment: { authorId: string }): boolean {

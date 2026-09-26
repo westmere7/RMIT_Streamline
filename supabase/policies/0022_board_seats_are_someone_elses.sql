@@ -7,8 +7,8 @@
 -- (canManageBoard, canEditBoardSeat) and BoardService:
 --
 --   can_manage_board()  on a members-only board (APP_DEVELOPMENT) the owner
---                       alone manages it; a seated admin is a member like any
---                       other. Elsewhere it is 0021's rule.
+--   can_delete_board()  alone manages or deletes it; a seated admin is a member
+--                       like any other. Elsewhere it is 0021's rule.
 --   board_members       nobody inserts, changes or deletes their own seat. The
 --                       one exception is a board's owner writing their own
 --                       OWNER seat, which is how a new board gets its first row.
@@ -26,6 +26,24 @@ as $$
     else private.board_role(p_board_id) = 'OWNER'
       or (private.is_workspace_admin(private.board_workspace(p_board_id)) and private.board_role(p_board_id) is not null)
   end
+$$;
+
+create or replace function private.can_delete_board(p_board_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+           select 1 from public.boards b
+           where b.id = p_board_id and b.owner_id = (select auth.uid())
+         )
+      or (
+        not exists (select 1 from public.boards b where b.id = p_board_id and b.system = 'APP_DEVELOPMENT')
+        and private.is_workspace_admin(private.board_workspace(p_board_id))
+        and private.board_role(p_board_id) is not null
+      )
 $$;
 
 create or replace function private.owns_board(p_board_id uuid)
