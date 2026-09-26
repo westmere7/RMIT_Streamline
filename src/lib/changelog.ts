@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.52.1",
+    date: "2026-09-26",
+    title: "Status in the task panel",
+    changes: ["In the task panel the status is centred with the other values, and wide enough to read at a glance."],
+  },
+  {
     version: "0.52.0",
     date: "2026-09-26",
     title: "Report a bug",

@@ -145,7 +145,8 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
   const w = width ?? column.width;
   // In the board's table the chip is a band down the cell, so a column of
   // statuses reads as one strip of colour. Anywhere else — the task panel, a
-  // phone's field list — it is a pill the size of its word, as on the cards.
+  // phone's field list — it is a pill, centred like the values around it and
+  // wide enough that a short word still reads as the status.
   const pill = useCellStretchMode() !== "table";
   // Work under way says how far along its deliverables are: the chip itself is
   // the track, and the done share is a slightly lighter tint of its own colour.
@@ -167,15 +168,15 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
       disabled={readOnly}
       ariaLabel={`${column.name}: ${label?.name ?? "not set"} for ${item.name}`}
       testId="status-cell"
-      align={pill ? "left" : columnAlign(column.type)}
+      align={columnAlign(column.type)}
       contentClassName="p-2"
       trigger={
         label ? (
-          <span className={cn("flex h-full w-full items-center", pill ? "py-1" : "p-1.5")}>
+          <span className={cn("flex h-full w-full items-center", pill ? "justify-center py-1" : "p-1.5")}>
             <span
               className={cn(
                 "relative flex items-center truncate font-medium shadow-xs",
-                pill ? "h-7 max-w-full rounded-md px-1 text-[13px]" : "h-full w-full justify-center rounded-lg text-xs",
+                pill ? "h-7 min-w-36 max-w-full justify-center rounded-md px-1 text-[13px]" : "h-full w-full justify-center rounded-lg text-xs",
                 colorClasses(label.color).solid,
                 stuck && "zebra",
               )}
@@ -193,8 +194,8 @@ export function StatusCell({ item, column, value, onChange, readOnly, width }: C
             </span>
           </span>
         ) : pill ? (
-          <span className="flex h-full w-full items-center py-1">
-            <span className="inline-flex h-7 items-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">Set status</span>
+          <span className="flex h-full w-full items-center justify-center py-1">
+            <span className="inline-flex h-7 min-w-36 items-center justify-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">Set status</span>
           </span>
         ) : (
           <span className="flex h-full w-full items-center p-1.5">
