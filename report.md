@@ -198,7 +198,7 @@ Severity: P1 is a core workflow broken or a security exposure; P2 is wrong behav
 | F-114 | A "Done → duplicate" rule can loop, because created tasks escape the depth limit | Open. Reproduce on E3 |
 | F-115 | Claimed automation events that never finish stay stuck; nothing retries | Open |
 | F-116 | Undo "Added X" deletes the task and everything added to it since | Open (product decision) |
-| F-117 | Public bookings can create unlimited accounts | Open (product decision) |
+| F-117 | Public bookings: an abuse guard is missing (held back until fixed) | Open (product decision) |
 | F-118 | Restore empties tables an older file lacks, replays pending automation work, and restores every workspace | Open. Documented |
 | F-119 | A public dashboard link left in a background tab downloads about 4.5 MB a minute, roughly 6.5 GB a day, against a 5 GB-a-month free-plan allowance | Open. One line to fix; confirm the wall-screen behaviour |
 | F-121 | The documentation described an older app | Rewritten (§5) |
@@ -220,7 +220,7 @@ Severity: P1 is a core workflow broken or a security exposure; P2 is wrong behav
 - **Workspace.** "RMIT VN MKT", ticket prefix CP26, counter **923**. 9 boards, 969 live tasks, 26 members, 1 automation rule and 1 template.
 - **Automation runner.** Its heartbeat was fresh, within the minute, when read.
 - **Schema.** At the repository head (0078).
-- **Pending members.** Three were created by public bookings on 25 September. This is the F-102/F-117 path in use.
+- **Pending members.** Three were created by public bookings on 25 September. This is the F-102 path in use.
 - **Activity.** In the last week it came from test accounts only.
 - **Snapshots.** Five. They show the Danger zone wipe used and immediately restored on 25 September, so both flows have worked in production at least once.
 
@@ -316,7 +316,7 @@ It was not built. The session could not run the app to see it, and UI built blin
    - 0081 must land before the first prefix change after ticket 999.
    - 0079 and 0020 close a cross-workspace write.
 3. **Decide what the public repository says.**
-   - `FINDINGS.md` describes open issues: unlimited pending accounts (F-117), unlimited portal password attempts (F-165), a guest burning ticket numbers (F-127), and any session nudging the runner (F-180).
+   - Four open issues (F-117, F-127, F-165, F-180) are held back from the public files until they are fixed.
    - Either fix them first, or push the audit with those reproduction steps held back.
    - The fixes for F-101 to F-106 should go out with the report.
 4. **Stop the background polling on the public dashboard link (F-119).** One idle wall screen can exhaust the month's egress.

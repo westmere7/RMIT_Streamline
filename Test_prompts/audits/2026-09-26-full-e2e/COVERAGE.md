@@ -211,7 +211,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
 | PORT-01 | BLOCKED | `stakeholder-portal` e2e not run |
-| PORT-02 | STATIC FAIL | F-165: the password is checked on every 4 s poll, with no attempt limit. `stakeholder-portal` and `portal-password` are green |
+| PORT-02 | STATIC FAIL | F-165 (held back until fixed). `stakeholder-portal` and `portal-password` are green |
 | PORT-03 | STATIC FAIL | F-163: `?task` outside the range shows "Item not found". `portal-board`, `portal-grouping`, `portal-range` and `portal-scope` are green |
 | PORT-04 | BLOCKED | Needs L |
 | PORT-05 | STATIC FAIL | **F-101 (P1)**: a department with no requests yet can't book. FX-01 adds the test |
@@ -237,7 +237,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | AUTO-01 | STATIC FAIL | F-173: Remove deletes at once and takes the run history with it |
 | AUTO-02 | BLOCKED | Needs L |
 | AUTO-03 | STATIC FAIL | F-114 (created tasks escape the depth limit); F-169 (`is` on five types compares null with null). `automations`, `automation-more`, `automation-subitems` and `automation-lanes` are green |
-| AUTO-04 | STATIC FAIL | F-180 (any Auth session can nudge a drain, without a membership check); F-179 (`CRON_SECRET` ignored when both secrets are set). `automation-runner` is green |
+| AUTO-04 | STATIC FAIL | F-180 (held back until fixed); F-179 (`CRON_SECRET` ignored when both secrets are set). `automation-runner` is green |
 | AUTO-05 | BLOCKED | Needs S (F-176 and F-182 are the known differences) |
 | AUTO-06 | STATIC FAIL | F-106: `jsonb_strip_nulls` hides cleared values from 12 types. FX-03 adds a test replaying the stripped payload |
 | AUTO-07 | **E3 FAIL** | F-105: a recurring rule's receipt can't be written (`item_id` NOT NULL; 23502). Proposed `0080`. Also F-174, F-175 |
@@ -303,9 +303,9 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | --- | --- | --- |
 | PERM matrix | BLOCKED | The TypeScript layer is UNIT (`permissions`, `audit-regressions`). The PostgREST pass with each persona's JWT not run |
 | SEC-01 | STATIC | Booking key 24, share 22, portal 32 characters. Whether any is logged was not checked end to end |
-| SEC-02 | STATIC FAIL | F-165: no attempt limit on portal passwords. Share passwords not checked for the same |
+| SEC-02 | STATIC FAIL | F-165 (held back until fixed) |
 | SEC-03 | BLOCKED | Needs S; F-180 found statically |
-| SEC-04 | STATIC FAIL | F-104 (comments' `item_id`), F-127 (a GUEST can burn ticket numbers), F-183 (viewers react) |
+| SEC-04 | STATIC FAIL | F-104 (comments' `item_id`), F-127 (held back until fixed), F-183 (viewers react) |
 | SEC-05 | STATIC FAIL | F-103 |
 | SEC-06 | STATIC FAIL | F-142. `rich-text` is green |
 | SEC-07 | STATIC | https only, no credentials, private literals and `.local`/`.internal` refused, redirects not followed. DNS names that resolve privately pass (documented in `webhookUrlProblem`) |

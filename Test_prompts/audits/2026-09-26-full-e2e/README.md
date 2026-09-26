@@ -64,4 +64,4 @@ See `ENVIRONMENT.md`. Revision `0649d71` on `main`; Node 22.14.0; Next 16.3.4; A
 
 ## Before pushing this folder
 
-The repository is public. `FINDINGS.md` describes open security issues: F-117, F-127, F-165 and F-180. `NEXT_SESSION.md` §9 lists the options. Push the fixes with it, and decide what to say about the open ones.
+The repository is public. Four open findings, F-117, F-127, F-165 and F-180, are described here only in general terms until they are fixed; the owner has the details.

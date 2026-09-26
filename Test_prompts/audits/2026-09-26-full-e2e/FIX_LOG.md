@@ -208,7 +208,7 @@ Moving one into `supabase/`:
 | F-114 automation loops through created tasks | Needs a depth mark on created items. Reproduce on E3 first |
 | F-115 stuck claims, no retries | Needs a claim timeout in the drain. Test on E3 with a killed tick |
 | F-116 undo deletes more than expected | A product decision: archive instead of delete, or clear the offer on any write |
-| F-117 unlimited pending accounts from public bookings | A product decision (rate limit, CAPTCHA, or don't invite until an admin does) |
+| F-117 (held back until fixed) | A product decision |
 | F-118 restore semantics | UI plus server work. Document first (done in the knowledge base draft) |
 | F-119 public dashboard polling in the background | One line (`refetchIntervalInBackground: false`), but it changes how a wall screen behaves. Confirm with the owner |
 | F-122/F-194 load-sensitive unit tests | Raise those four tests' timeouts, or split the xlsx round trip |

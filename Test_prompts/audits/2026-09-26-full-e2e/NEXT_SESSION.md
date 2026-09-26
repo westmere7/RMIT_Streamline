@@ -187,7 +187,7 @@ Follow `$D\DECK_UPDATE.md`:
 `FINDINGS.md` describes security issues in detail, and the repository is public. Decide with the owner which of these to do:
 
 - **Push the fixes and the findings together.** The fixed ones are F-101, F-102, F-103, F-106, F-110, F-111, F-112 and F-142, plus F-104 if 0079/0020 are in.
-- **Hold back or redact the open ones.** Those are F-117 (unlimited pending accounts), F-127 (a guest can burn ticket numbers), F-165 (unlimited portal password attempts) and F-180 (any session can nudge the runner). Fix them first, or keep the reproduction steps out of the public file.
+- **Hold back the open ones.** F-117, F-127, F-165 and F-180 are described here only in general terms until they are fixed.
 
 The owner asked for the audit report to be pushed. This is a question of timing and wording, not whether.
 

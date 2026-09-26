@@ -405,13 +405,13 @@ Check each action three ways:
 | ID | Area | Case | Method |
 | --- | --- | --- | --- |
 | SEC-01 | Credentials | Booking key 24, share 22, portal 32 characters; none logged or placed in URLs where it does not belong | STATIC |
-| SEC-02 | Passwords | Share: salted SHA-256. Portal: PBKDF2-SHA256 210k. Attempts are not rate-limited | STATIC |
+| SEC-02 | Passwords | Share: salted SHA-256. Portal: PBKDF2-SHA256 210k. Attempt limits | STATIC |
 | SEC-03 | Service-role routes | Each of the 29 route files refuses the wrong caller | S, Q |
 | SEC-04 | RLS | Guest, member and other-workspace JWTs against boards, items, values, comments (including updating `item_id`), reactions, templates, automation tables, `workspace_snapshots`, `schema_migrations` | S, Q |
 | SEC-05 | Enumeration | Requester lookup, slug existence, portal gate replies | S, Q |
 | SEC-06 | Injection | Rich text escaping; Link `href` schemes; mention text; Word export | U, L |
 | SEC-07 | SSRF | Webhook host checks; names that resolve to private addresses are not caught | STATIC |
-| SEC-08 | Public booking abuse | Unlimited pending members; renaming existing members | STATIC, S |
+| SEC-08 | Public booking abuse | Pending-member creation; renaming existing members | STATIC, S |
 | SEC-09 | Snapshot files | Contain live share/portal/invitation tokens and the booking key | STATIC |
 | DATA-01 | Invariants (SQL on S after every flow) | One special column per type per board; values on their own board; departments listed; ticket format; an owner per workspace; recap equals lines | Q |
 | DATA-02 | Migrations | An empty database builds from the repo; a rerun is a no-op; drift is reported | S |

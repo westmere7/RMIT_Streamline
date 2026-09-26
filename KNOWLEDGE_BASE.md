@@ -969,7 +969,7 @@ In `booking-service.ts`:
    - **A new email** becomes a pending MEMBER through `inviteMember`: a confirmed Auth user without a password, an INVITED membership and a 30-day join link.
 3. **If the directory fails**, the booking still goes through, and "Requester: …" lands in the description.
 
-The lookup endpoints (`/api/book/[slug]/requester`, `/api/portal/[token]/requester`) return `{name}` for any person the workspace has, INVITED and deactivated included. They have no rate limit.
+The lookup endpoints (`/api/book/[slug]/requester`, `/api/portal/[token]/requester`) return `{name}` for any person the workspace has, INVITED and deactivated included.
 
 ### Destination and what is written
 
@@ -1136,7 +1136,7 @@ Named workload stays.
 2. that it is the unified row;
 3. that the link is enabled;
 4. the credential version (password changes and New link bump it);
-5. the password: PBKDF2-SHA256, 210,000 iterations, 16-byte salt, verified on every call, with no attempt limit (F-165).
+5. the password: PBKDF2-SHA256, 210,000 iterations, 16-byte salt, verified on every call.
 
 A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
@@ -1874,7 +1874,6 @@ Limits to keep in mind:
 - **Shares don't redact.** Board and task shares carry typed content unredacted, and public bucket URLs are public.
 - **History depends on today.** Dashboard history depends on the current boards, labels and rates.
 - **Restore is database-wide.** Snapshots and restore cover the whole database and must be narrowed to one workspace before multi-workspace.
-- **Public endpoints aren't rate-limited.** That covers booking, lookup, portal passwords and pending-member creation.
 - **Local data is per origin.** One browser origin, one store; the local provider enforces no permissions and runs no automations.
 - **Open defects** from the 26 September audit are in `Test_prompts/audits/2026-09-26-full-e2e/FINDINGS.md`.
 
