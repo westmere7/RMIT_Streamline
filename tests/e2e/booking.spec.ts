@@ -65,7 +65,7 @@ test.describe("task booking", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Admin");
     await expect(page.getByTestId("team-built-in")).toBeVisible();
     await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /Task Allocation/ })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("link", { name: /Task Allocation/ })).toBeVisible();
 
     await page.goto(TASK_ALLOCATION_URL);
     await expect(page.getByTestId("board-table")).toBeVisible();
@@ -167,7 +167,9 @@ test.describe("task booking", () => {
     await page.goto(TASK_ALLOCATION_URL);
     const request = row(page, "Open Day wayfinding posters");
     await expect(request).toBeVisible();
-    await expect(request).toContainText("Priya Nair");
+    // The Requester cell: the person, first name and address.
+    await expect(request).toContainText("Priya");
+    await expect(request).toContainText("priya.nair@rmit.edu.au");
     await expect(request).toContainText("Design");
     await expect(request).toContainText("High");
     // The asset lines are deliverables on the Assets tab, not subitems on the board.
@@ -272,7 +274,7 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("editor-brief-service-web")).toHaveAttribute("aria-selected", "true");
     await page.getByTestId("brief-add-short").click();
     const block = page.locator('[data-testid^="editor-block-"]').first();
-    await block.getByLabel("Question").fill("Which page is it?");
+    await block.getByLabel("Question", { exact: true }).fill("Which page is it?");
     await block.getByRole("switch").click();
 
     // Saved, but not served: the public link is still on the form it was on.
