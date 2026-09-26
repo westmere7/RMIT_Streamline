@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { columnLabels, type BoardViewKind } from "@/domain";
+import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { VIEWS } from "@/features/boards/components/board-view-switcher";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -84,7 +84,7 @@ export function MobileBoardTools({
       <Sheet open={open === "views"} onOpenChange={(next) => !next && close()}>
         <SheetContent title="Views">
           <div role="menu" className="pb-2">
-            {VIEWS.map(({ id, label, hint, icon: Icon }) => (
+            {VIEWS.filter((v) => boardViewsFor(board).includes(v.id)).map(({ id, label, hint, icon: Icon }) => (
               <button
                 key={id}
                 type="button"

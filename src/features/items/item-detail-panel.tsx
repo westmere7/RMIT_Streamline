@@ -31,7 +31,7 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, Item, ItemAsset } from "@/domain";
-import { COLUMN_TYPE_LABELS, TICKET_MAX, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
@@ -223,11 +223,14 @@ export function ItemDetailPanel({
   // deliverables and the history on the right. They open on the updates and the
   // deliverables, the two that change while a task is being worked on.
   const [wideLeft, setWideLeft] = React.useState<WideLeftTab>("updates");
-  const [wideRight, setWideRight] = React.useState<WideRightTab>("assets");
+  // A bug report has no deliverables, so on App development there is no Assets tab to open on.
+  const deliverables = boardHasDeliverables(board);
+  const [wideRight, setWideRight] = React.useState<WideRightTab>(deliverables ? "assets" : "activity");
   const leftTab: WideLeftTab = requested === "overview" || requested === "updates" ? requested : wideLeft;
-  const rightTab: WideRightTab = requested === "assets" || requested === "activity" ? requested : wideRight;
+  const rightTab: WideRightTab = (requested === "assets" && deliverables) || requested === "activity" ? requested : deliverables ? wideRight : "activity";
   // What is on screen, for anything that has to know whether the updates are.
-  const tab = twoPane ? (leftTab === "updates" ? "updates" : rightTab) : (requested ?? localTab);
+  const picked = requested ?? localTab;
+  const tab = twoPane ? (leftTab === "updates" ? "updates" : rightTab) : picked === "assets" && !deliverables ? "overview" : picked;
   const setTab = (next: string) => {
     if (requestedTab) setRequestedItemTab(null);
     setLocalTab(next);
@@ -316,6 +319,7 @@ export function ItemDetailPanel({
             onRightChange={(next) => pickWide("right", next)}
             comments={comments.data?.length ?? 0}
             assets={assets.data?.length ?? 0}
+            deliverables={deliverables}
           />
         </>
       ) : (
@@ -334,10 +338,12 @@ export function ItemDetailPanel({
                 <MessageSquare className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Updates</span>
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="assets" data-testid="tab-assets" title={panel.size === "compact" ? "Assets" : undefined}>
-                <Package className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Assets</span>
-                {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
-              </UnderlineTabsTrigger>
+              {deliverables && (
+                <UnderlineTabsTrigger value="assets" data-testid="tab-assets" title={panel.size === "compact" ? "Assets" : undefined}>
+                  <Package className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Assets</span>
+                  {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
+                </UnderlineTabsTrigger>
+              )}
               <UnderlineTabsTrigger value="activity" title={panel.size === "compact" ? "Activity" : undefined}>
                 <History className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Activity</span>
               </UnderlineTabsTrigger>
@@ -348,9 +354,11 @@ export function ItemDetailPanel({
             <TabsContent value="updates" className="min-h-0 flex-1">
               <ItemUpdates itemId={item.id} canComment={canEdit} />
             </TabsContent>
-            <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-              <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
-            </TabsContent>
+            {deliverables && (
+              <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+                <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
+              </TabsContent>
+            )}
             <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
               <ItemActivity item={item} />
             </TabsContent>
@@ -425,6 +433,7 @@ function PopupBody({
   onRightChange,
   comments,
   assets,
+  deliverables,
 }: {
   item: Item;
   canEdit: boolean;
@@ -434,6 +443,8 @@ function PopupBody({
   onRightChange: (tab: string) => void;
   comments: number;
   assets: number;
+  /** False on App development: no Assets tab, the pane is the activity. */
+  deliverables: boolean;
 }) {
   return (
     // Two equal columns, whatever either one holds. As flex items the two asked
@@ -461,20 +472,24 @@ function PopupBody({
           </TabsContent>
         </Tabs>
       </section>
-      <section className="flex min-h-0 min-w-0 flex-col bg-surface-strong/15" aria-label="Assets and activity">
+      <section className="flex min-h-0 min-w-0 flex-col bg-surface-strong/15" aria-label={deliverables ? "Assets and activity" : "Activity"}>
         <Tabs value={rightTab} onValueChange={onRightChange} className="flex min-h-0 flex-1 flex-col">
           <UnderlineTabsList className="shrink-0 px-3">
-            <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
-              <Package className="size-3.5" /> Assets
-              {assets > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets}</span>}
-            </UnderlineTabsTrigger>
+            {deliverables && (
+              <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
+                <Package className="size-3.5" /> Assets
+                {assets > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets}</span>}
+              </UnderlineTabsTrigger>
+            )}
             <UnderlineTabsTrigger value="activity">
               <History className="size-3.5" /> Activity
             </UnderlineTabsTrigger>
           </UnderlineTabsList>
-          <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-            <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
-          </TabsContent>
+          {deliverables && (
+            <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+              <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
+            </TabsContent>
+          )}
           <TabsContent value="activity" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4">
             <ItemActivity item={item} />
           </TabsContent>

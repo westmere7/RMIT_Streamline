@@ -36,7 +36,7 @@ export interface ArchiveEntry {
 }
 
 /** One button naming the current view; opening it lists every view. */
-export function BoardViewSwitcher({ view, onChange, archive }: { view: BoardViewKind; onChange: (view: BoardViewKind) => void; archive?: ArchiveEntry | null }) {
+export function BoardViewSwitcher({ view, onChange, archive, views }: { view: BoardViewKind; onChange: (view: BoardViewKind) => void; archive?: ArchiveEntry | null; views?: readonly BoardViewKind[] }) {
   const current = VIEWS.find((v) => v.id === view) ?? VIEWS[0]!;
   const CurrentIcon = current.icon;
   return (
@@ -48,7 +48,7 @@ export function BoardViewSwitcher({ view, onChange, archive }: { view: BoardView
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>Views</DropdownMenuLabel>
-        {VIEWS.map(({ id, label, hint, icon: Icon }) => (
+        {VIEWS.filter((v) => !views || views.includes(v.id)).map(({ id, label, hint, icon: Icon }) => (
           <DropdownMenuItem key={id} onSelect={() => onChange(id)} data-testid={`view-${id}`} className="items-start py-1.5">
             <Icon className="mt-0.5" />
             <span className="flex min-w-0 flex-1 flex-col">

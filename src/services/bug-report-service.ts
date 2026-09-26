@@ -124,8 +124,10 @@ export class BugReportService {
     if (earlier) return this.repos.boards.update(earlier.id, { system: "APP_DEVELOPMENT" });
 
     const columns = bugBoardColumns();
-    // The special columns every board holds, which a bug has no use for, arrive hidden rather than left for the board to add in plain view.
-    const extras = SPECIAL_BOARD_COLUMN_TYPES.filter((type) => !columns.some((c) => c.type === type)).map((type) => ({ name: COLUMN_TYPE_LABELS[type], type, hidden: true }));
+    // The special columns every board holds that a bug has no use for (a due
+    // date, a timeline, a department, a size, deliverables) arrive taken off the
+    // board: a special column that has been taken off is not added back.
+    const extras = SPECIAL_BOARD_COLUMN_TYPES.filter((type) => !columns.some((c) => c.type === type)).map((type) => ({ name: COLUMN_TYPE_LABELS[type], type, hidden: true, removed: true }));
     let board: Board;
     try {
       ({ board } = await this.boards.createBoard(

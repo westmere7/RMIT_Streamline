@@ -10,7 +10,7 @@ import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BOARD_VIEWS, type BoardColumn, type BoardViewKind } from "@/domain";
+import { BOARD_VIEWS, boardViewsFor, type BoardColumn, type BoardViewKind } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
@@ -155,7 +155,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per board; a later choice goes through setView
   }, [boardId, ws.currentUser.id]);
-  const view: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
+  // A view this board does not offer (a link from before, a remembered choice) opens the table.
+  const wanted: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
+  const view: BoardViewKind = boardViewsFor(board).includes(wanted) ? wanted : "table";
 
   const urlItemId = searchParams.get("item");
 
@@ -357,7 +359,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
       )}
       {!contextValue && snapshot.isError && (
         <div className={boardBarClasses}>
-          <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} />
+          <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} views={boardViewsFor(board)} />
         </div>
       )}
       {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
@@ -365,7 +367,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
         <div className="relative flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
             <div className={boardBarClasses}>
-              <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} />
+              <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} views={boardViewsFor(board)} />
             </div>
             <BoardSkeleton />
           </div>

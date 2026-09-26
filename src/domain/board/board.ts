@@ -13,6 +13,20 @@ export type BoardRole = (typeof BOARD_ROLES)[number];
 export const BOARD_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
 export type BoardViewKind = (typeof BOARD_VIEWS)[number];
 
+/**
+ * The views a board offers. Bug reports have no dates to lay out and one
+ * person carrying them, so App development keeps the table, the lanes and the
+ * chart; every other board has all seven.
+ */
+export function boardViewsFor(board: { system?: BoardSystemKind | null }): readonly BoardViewKind[] {
+  return board.system === "APP_DEVELOPMENT" ? ["table", "kanban", "chart"] : BOARD_VIEWS;
+}
+
+/** What a board gives the Assets tab and the Assets recap: nothing for bug reports, which have no deliverables. */
+export function boardHasDeliverables(board: { system?: BoardSystemKind | null }): boolean {
+  return board.system !== "APP_DEVELOPMENT";
+}
+
 export interface Board extends Timestamps {
   id: EntityId;
   workspaceId: EntityId;

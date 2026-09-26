@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { columnLabels, type BoardViewKind } from "@/domain";
+import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { boardBarClasses, BoardViewSwitcher, type ArchiveEntry } from "@/features/boards/components/board-view-switcher";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -82,7 +82,7 @@ export function BoardToolbar({
     <div className={cn(boardBarClasses, "@container")} role="toolbar" aria-label="Board tools">
       {leading}
       {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
-      <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} />
+      <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} views={boardViewsFor(board)} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {tableTools && canEdit && <NewItemButton />}
       {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}

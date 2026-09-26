@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.53.1",
+    date: "2026-09-27",
+    title: "A simpler bug board",
+    changes: ["App development leaves out what bug reports do not need: no Assets tab or Assets recap, no due date, timeline, department or size, and only the Main Table, Kanban and Chart views."],
+  },
+  {
     version: "0.53.0",
     date: "2026-09-26",
     title: "One dashboard, bug tickets",

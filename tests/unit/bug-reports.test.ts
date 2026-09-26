@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { BUG_BOARD, BUG_BOARD_OWNER_EMAIL, bugReportTitle, type BugReportInput } from "@/domain";
+import { BUG_BOARD, BUG_BOARD_OWNER_EMAIL, boardHasDeliverables, boardViewsFor, bugReportTitle, type BugReportInput } from "@/domain";
 import { buildPermissionContext, canDeleteBoard, canManageBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { createServices } from "@/services";
 
@@ -54,9 +54,14 @@ describe("bug reports", () => {
     expect(brief?.type === "RICH_TEXT" && brief.text).toContain("## What happened\nThe Save button overlaps the footer");
     expect(brief?.type === "RICH_TEXT" && brief.text).toContain("**Category:** Looks wrong");
 
-    // The special columns every board holds are there, the ones a bug has no use for hidden.
-    expect(columns.find((c) => c.type === "SIZE")?.hidden).toBe(true);
-    expect(columns.find((c) => c.type === "BRIEF")?.hidden ?? false).toBe(false);
+    // The special columns a bug has no use for are taken off the board, and stay off.
+    for (const type of ["DATE", "TIMELINE", "STAKEHOLDER", "SIZE", "ASSETS_RECAP"] as const) expect(columns.find((c) => c.type === type)?.removed).toBe(true);
+    expect(columns.find((c) => c.type === "BRIEF")?.removed ?? false).toBe(false);
+    await services.boards.ensureSpecialColumns(board.id);
+    expect((await services.repos.boards.listColumns(board.id)).filter((c) => !c.removed && c.type === "SIZE")).toHaveLength(0);
+    // Its views and its panel leave out what needs dates, a workload or deliverables.
+    expect(boardViewsFor(board)).toEqual(["table", "kanban", "chart"]);
+    expect(boardHasDeliverables(board)).toBe(false);
 
     const told = await services.repos.notifications.listByUser(SEED_USER_IDS.danh);
     expect(item.ticket).toBe("BUG_001");
