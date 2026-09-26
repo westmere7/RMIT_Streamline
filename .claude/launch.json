@@ -61,6 +61,10 @@
         "SKIP_DB_MIGRATE": "1",
         "NEXT_DIST_DIR": ".next-preview"
       }
+    },
+    {
+      "name": "live-site",
+      "url": "https://rmit-streamline.vercel.app"
     }
   ]
 }
