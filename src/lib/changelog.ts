@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.55.0",
+    date: "2026-09-27",
+    title: "Members, for managers",
+    changes: [
+      "Members has filters by status, role and team, and a search that covers job titles and departments.",
+      "The table shows each person's department, when they joined or were invited, how many boards they are on, and when a pending invitation's link expires. Every column sorts.",
+      "Admins can select people and change their role, add them to or remove them from a team, deactivate or reactivate them, copy invite links or cancel invitations, all at once.",
+      "Export downloads the list as a spreadsheet.",
+    ],
+  },
+  {
     version: "0.54.0",
     date: "2026-09-27",
     title: "A join link for the team",

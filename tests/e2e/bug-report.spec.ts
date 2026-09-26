@@ -41,7 +41,8 @@ test.describe("reporting a bug", () => {
     await expect(dialog.getByTestId("bug-report-screenshot")).toHaveCount(2);
     await dialog.getByTestId("bug-report-send").click();
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByText("Bug reported. Thank you.")).toBeVisible();
+    // Its own ticket series: the first bug is BUG_001.
+    await expect(page.getByText("Bug reported as BUG_001. Thank you.")).toBeVisible();
 
     // Jun is not on the board.
     await expect(page.getByRole("link", { name: "App development" })).toHaveCount(0);
