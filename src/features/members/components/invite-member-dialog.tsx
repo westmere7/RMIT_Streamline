@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { WORKSPACE_ROLES } from "@/domain";
 import type { InviteResult } from "@/data/repositories";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMemberMutations } from "../hooks";
 import { InviteLinkPanel } from "./invite-link-panel";
+import { JoinLinkPanel } from "./join-link-panel";
 
 const schema = z.object({
   email: z.email("Enter a valid email"),
@@ -30,10 +32,10 @@ type FormValues = z.infer<typeof schema>;
 const EMPTY: FormValues = { email: "", firstName: "", lastName: "", jobTitle: "", role: "MEMBER", teamIds: [] };
 
 /**
- * Adds a person to the workspace. Two steps: the details, then the invitation
- * link to pass on. The person is a pending member from the moment the first
- * step succeeds; the second step is the only place the link is shown until it
- * is looked up again from the members list.
+ * Adds people to the workspace, two ways. "Add a person": the details, then the
+ * invitation link to pass on; the person is a pending member from the moment
+ * that step succeeds. "Join link": one link for the whole team, where each
+ * person enters their own details and is added the same way.
  */
 export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -50,6 +52,7 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
   const { invite } = useMemberMutations();
   const [result, setResult] = React.useState<InviteResult | null>(null);
+  const [mode, setMode] = React.useState<"person" | "link">("person");
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -88,9 +91,26 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>Add member</DialogTitle>
           <DialogDescription>
-            No email is sent. You will get a unique link to pass on; the person sets their own password when they open it.
+            {mode === "person" ? "No email is sent. You will get a unique link to pass on; the person sets their own password when they open it." : "Share one link and let each person add themselves."}
           </DialogDescription>
         </DialogHeader>
+        <Tabs value={mode} onValueChange={(next) => setMode(next as "person" | "link")}>
+          <UnderlineTabsList className="-mt-1">
+            <UnderlineTabsTrigger value="person" data-testid="invite-mode-person">Add a person</UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="link" data-testid="invite-mode-link">Join link</UnderlineTabsTrigger>
+          </UnderlineTabsList>
+        </Tabs>
+        {mode === "link" ? (
+          <>
+            <JoinLinkPanel />
+            <DialogFooter>
+              <Button onClick={onClose} data-testid="join-link-done">
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+        <>
         <form id="invite-form" className="grid gap-4" onSubmit={form.handleSubmit(submit)}>
           <div className="grid gap-1.5">
             <Label htmlFor="invite-email">Email</Label>
@@ -171,6 +191,8 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
             {invite.isPending ? "Adding…" : "Add and get link"}
           </Button>
         </DialogFooter>
+        </>
+        )}
       </>
     )}
     </>

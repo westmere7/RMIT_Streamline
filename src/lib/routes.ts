@@ -6,6 +6,8 @@ export const routes = {
   login: (next?: string) => `/login${next ? `?next=${encodeURIComponent(next)}` : ""}`,
   /** The onboarding page an invited person opens; needs no session. */
   join: (token: string) => `/join/${encodeURIComponent(token)}`,
+  /** The workspace's join link, handed round the team: each person adds themselves. Needs no session. */
+  selfJoin: (key: string) => `/invite/${encodeURIComponent(key)}`,
   /** A board someone shared by link. Read-only, needs no session, just the token. */
   share: (token: string) => `/share/${encodeURIComponent(token)}`,
   /** One task someone shared by link. */

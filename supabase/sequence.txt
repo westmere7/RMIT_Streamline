@@ -116,3 +116,4 @@ migrations/0083_app_development_board.sql
 migrations/0084_bug_tickets.sql
 policies/0022_board_seats_are_someone_elses.sql
 migrations/0085_app_development_columns.sql
+migrations/0086_workspace_join_link.sql

@@ -87,6 +87,42 @@ export interface CompleteOnboardingInput {
 
 export const PASSWORD_MIN_LENGTH = 8;
 
+/**
+ * The workspace's join link: one address the team hands round, where each
+ * person types their own name and email and is added exactly as "Add member"
+ * would add them, a pending member with a personal link of their own. Only a
+ * new email gets that far; see `selfJoin` on OnboardingRepository.
+ */
+export interface SelfJoinInput {
+  key: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+/**
+ * Why the join link will not add somebody, as they are told it.
+ *
+ * Only an email the app has never seen goes through. One it knows is not the
+ * link holder's to take over: a pending member's personal link, or an account
+ * that already has a password, would let anybody who knows a colleague's
+ * address set theirs.
+ */
+export type SelfJoinRefusal = "off" | "member" | "pending" | "known";
+
+export const SELF_JOIN_MESSAGES: Record<SelfJoinRefusal, string> = {
+  off: "This join link is not working any more. Ask the team for the current one.",
+  member: "This email already has an account here. Sign in with it instead.",
+  pending: "An invitation for this email is already waiting. Ask a workspace admin for your personal join link.",
+  known: "This email already has a Streamline account. Ask a workspace admin to add you.",
+};
+
+/** What the join link's page may show before anybody types anything. */
+export interface SelfJoinPreview {
+  valid: boolean;
+  workspaceName: string | null;
+}
+
 /** Base64url of 32 random bytes: unguessable, and safe in a URL path. */
 export function generateInvitationToken(random: (bytes: Uint8Array) => void = (b) => crypto.getRandomValues(b)): string {
   const bytes = new Uint8Array(32);

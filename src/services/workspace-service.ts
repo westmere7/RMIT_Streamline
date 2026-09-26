@@ -6,6 +6,8 @@ import type {
   EntityId,
   InvitationPreview,
   InviteMemberInput,
+  SelfJoinInput,
+  SelfJoinPreview,
   Team,
   TeamInput,
   TeamMember,
@@ -16,7 +18,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, generateBookingKey, invitationStatus, isSystemColumnType } from "@/domain";
+import { defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -120,6 +122,21 @@ export class WorkspaceService {
   /** What the join page shows for a link. Safe while signed out. */
   async previewInvitation(token: string): Promise<InvitationPreview> {
     return this.repos.onboarding.preview(token);
+  }
+
+  /** What the workspace's join link shows before anybody types. Safe while signed out. */
+  async previewSelfJoin(key: string): Promise<SelfJoinPreview> {
+    return this.repos.onboarding.previewSelfJoin(key.trim());
+  }
+
+  /** Someone who opened the join link adds themselves; they finish on their own personal link. */
+  async selfJoin(input: SelfJoinInput): Promise<{ token: string }> {
+    return this.repos.onboarding.selfJoin({ ...input, key: input.key.trim(), email: input.email.trim().toLowerCase(), firstName: input.firstName.trim(), lastName: input.lastName.trim() });
+  }
+
+  /** Turns the join link on with a new key, or off. Off forgets the key, so turning it on again makes a new link. */
+  async setJoinLink(workspaceId: EntityId, on: boolean): Promise<Workspace> {
+    return this.repos.workspaces.update(workspaceId, { joinKey: on ? generateInvitationToken() : null });
   }
 
   /** The invited person sets their password and details; their membership becomes ACTIVE. */

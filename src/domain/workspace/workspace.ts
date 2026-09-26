@@ -62,6 +62,8 @@ export interface Workspace extends Timestamps {
    * people the same one is the fault this whole system exists to avoid.
    */
   ticketCounter?: number | null;
+  /** The secret in the workspace's join link (/invite/<key>), which lets people add themselves as pending members. Null when it is off. */
+  joinKey?: string | null;
   /** How many bug tickets (BUG_001, …) this workspace has handed out; a series apart from `ticketCounter`. */
   bugTicketCounter?: number | null;
   /** The App development board bug reports land on, beside its built-in kind. Null until the first report makes it. */

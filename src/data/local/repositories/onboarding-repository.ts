@@ -1,12 +1,15 @@
 import {
   INVITATION_TTL_DAYS,
   PASSWORD_MIN_LENGTH,
+  SELF_JOIN_MESSAGES,
   generateInvitationToken,
   invitationStatus,
   invitationStatusMessage,
   type CompleteOnboardingInput,
   type InvitationPreview,
   type InviteMemberInput,
+  type SelfJoinInput,
+  type SelfJoinPreview,
   type TeamMember,
   type User,
   type WorkspaceInvitation,
@@ -92,6 +95,35 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     await tx.objectStore("workspaceInvitations").put(invitation);
     await tx.done;
     return { user: resolved, member, invitation };
+  }
+
+  async previewSelfJoin(key: string): Promise<SelfJoinPreview> {
+    const workspace = await this.workspaceByJoinKey(key);
+    return { valid: !!workspace, workspaceName: workspace?.name ?? null };
+  }
+
+  async selfJoin(input: SelfJoinInput): Promise<{ token: string }> {
+    const workspace = await this.workspaceByJoinKey(input.key);
+    if (!workspace) throw new Error(SELF_JOIN_MESSAGES.off);
+    const db = await this.conn.getDb();
+    const email = input.email.trim().toLowerCase();
+    const memberships = await db.getAllFromIndex("workspaceMembers", "byWorkspace", workspace.id);
+    const known = await db.getFromIndex("users", "byEmail", email);
+    if (known) {
+      const member = memberships.find((m) => m.userId === known.id);
+      throw new Error(SELF_JOIN_MESSAGES[member?.status === "ACTIVE" ? "member" : member ? "pending" : "known"]);
+    }
+    // Recorded as added by the workspace's owner: the link is theirs to hand out.
+    const owner = memberships.find((m) => m.role === "OWNER" && m.status === "ACTIVE") ?? memberships.find((m) => m.role === "OWNER");
+    const result = await this.invite({ workspaceId: workspace.id, invitedBy: owner?.userId ?? "", email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
+    return { token: result.invitation.token };
+  }
+
+  private async workspaceByJoinKey(key: string) {
+    const clean = key.trim();
+    if (!clean) return null;
+    const db = await this.conn.getDb();
+    return (await db.getAll("workspaces")).find((w) => w.joinKey === clean) ?? null;
   }
 
   async listInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {

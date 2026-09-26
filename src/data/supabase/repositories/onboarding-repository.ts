@@ -1,4 +1,4 @@
-import type { CompleteOnboardingInput, InvitationPreview, InviteMemberInput, WorkspaceInvitation } from "@/domain";
+import type { CompleteOnboardingInput, InvitationPreview, InviteMemberInput, SelfJoinInput, SelfJoinPreview, WorkspaceInvitation } from "@/domain";
 import type { InviteResult, OnboardingRepository } from "@/data/repositories";
 import { callApi } from "../api-call";
 import { db, unwrapList } from "../client";
@@ -36,6 +36,15 @@ export class SupabaseOnboardingRepository implements OnboardingRepository {
 
   async cancel(workspaceId: string, userId: string): Promise<void> {
     await callApi<{ ok: true }>("/api/invitations/cancel", { method: "POST", body: JSON.stringify({ workspaceId, userId }) }, { auth: "required" });
+  }
+
+  async previewSelfJoin(key: string): Promise<SelfJoinPreview> {
+    return callApi<SelfJoinPreview>(`/api/invite/${encodeURIComponent(key)}`, { method: "GET" }, { auth: "none" });
+  }
+
+  async selfJoin(input: SelfJoinInput): Promise<{ token: string }> {
+    const { key, ...body } = input;
+    return callApi<{ token: string }>(`/api/invite/${encodeURIComponent(key)}`, { method: "POST", body: JSON.stringify(body) }, { auth: "none" });
   }
 
   async preview(token: string): Promise<InvitationPreview> {

@@ -49,7 +49,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -119,6 +119,16 @@ export interface OnboardingRepository {
    * to INVITED and a fresh link is issued. They set a new password when they open it.
    */
   reinitiate(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation>;
+  /** What the workspace's join link may show; safe to call signed out. */
+  previewSelfJoin(key: string): Promise<SelfJoinPreview>;
+  /**
+   * Adds whoever opened the join link as a pending member, as "Add member" does,
+   * and hands back the token of their personal link, where they finish as anyone
+   * invited does. Only for an email the app has never seen: one it knows is
+   * refused with what to do instead, because an existing account is not the
+   * link holder's to set a password on.
+   */
+  selfJoin(input: SelfJoinInput): Promise<{ token: string }>;
   /** What the join page may show for a token; safe to call signed out. */
   preview(token: string): Promise<InvitationPreview>;
   /** Sets the password and profile, activates the membership and burns the token. Returns the sign-in email. */

@@ -76,6 +76,8 @@ export function createMemoryRepositories(
       reinitiate: readOnly("re-inviting someone"),
       preview: readOnly("opening an invitation"),
       complete: readOnly("finishing onboarding"),
+      previewSelfJoin: async () => ({ valid: false, workspaceName: null }),
+      selfJoin: readOnly("joining a workspace"),
     },
     teams: {
       listByWorkspace: async () => [],
