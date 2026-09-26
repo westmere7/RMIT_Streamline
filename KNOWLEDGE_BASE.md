@@ -16,10 +16,10 @@ This document is the technical and operational reference for developers, maintai
 **Snapshot.** This document was rewritten on 26 September 2026.
 
 - **Base:** revision `0649d71`, package `0.49.0`.
-- **On top of it:** the changes of that day's audit, released as `0.49.1`. They are listed in `Test_prompts/audits/2026-09-26-full-e2e/FIX_LOG.md`.
+- **On top of it:** the changes of that day's audit, released as `0.49.1` and listed in `Test_prompts/audits/2026-09-26-full-e2e/FIX_LOG.md`, and the phone revamp, released as `0.50.0`.
 - **Where the audit changed behaviour**, this document describes the new behaviour and says so. Examples: portal booking by department name, requester renaming, ticket search, `column_cleared`.
-- **Proposed SQL** that is not yet applied is described as proposed.
-- **Repository heads:** migration **0078**, policy **0019**, `supabase/sequence.txt` listing all 96 SQL files, IndexedDB **17**.
+- **The audit's SQL** (migrations 0079–0081 and policy 0020) is in `supabase/` and applies on the next deploy. It is described here as current.
+- **Repository heads:** migration **0081**, policy **0020**, `supabase/sequence.txt` listing all 100 SQL files, IndexedDB **17**.
 
 **Evidence precedence.** When sources disagree, trust them in this order:
 
@@ -44,7 +44,7 @@ What was executed for this rewrite, and what was only read, is recorded in the a
 | Boards | Saved board templates with chosen parts (0077). Folded groups become one summary row. Item column resize. Board menu regrouped. |
 | Administration | Settings regrouped (Workspace / Lists / People / You / Data / Help). Snapshots with download, upload and restore (0071). Danger zone wipe (0076). New-version card with a changelog. Undo offer. Resizable sidebar. |
 | Everywhere | Realtime on the remaining workspace tables (0049); "Department" is the only word for who work is for (0063/0065). |
-| Phone | Card list with quick sheets and a New item button; grid and Kanban fitted to a phone (v0.24–v0.25). |
+| Phone | Card list with quick sheets and a New item button; grid and Kanban fitted to a phone (v0.24–v0.25). In v0.50: dialogs as bottom sheets, full-screen search, My Work search and filters, Settings as a list, calmer task cards, installable to a home screen, an offline bar. |
 | Operations | The migration runner applies `supabase/sequence.txt` order, so an empty database can be built from the repo; `db:seed` works again (audit fixes F-108, F-109). |
 
 ### Navigation
@@ -542,7 +542,7 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 | Allocate from Task Allocation | Admins (system board gate). Target boards offered by *view* rights (F-160) | UI + RLS |
 | Portal and form editor | Admins | UI + RLS 0013 |
 | Comment | Board editors (`comments_insert` = `can_edit_item`) | UI + RLS |
-| Edit a comment | Its author | UI + RLS. The policy doesn't pin `item_id`; see F-104 and the proposed 0079/0020 |
+| Edit a comment | Its author, while they can edit its task | UI + RLS: policy 0020 needs edit rights, and migration 0079 freezes `item_id`, `author_id`, `shared_id` and `parent_id` (F-104) |
 | Delete a comment | Its author or an admin | UI + RLS |
 | React | UI: board editors. RLS 0070: anyone who can view the task ("viewers included") | Both |
 | Edit trackers | Active non-guests | UI + RLS |
@@ -781,7 +781,7 @@ An item has an id, board, group, optional parent, name, description, position, c
 - **Links.** Writing a ticket propagates it along ticket-carrying links. Linking takes the seed side's ticket. Unlinking renumbers nothing (F-124).
 - **Prefix change** (Settings → Tickets, admins):
   - "Rewrite N" or "Use for new tickets".
-  - The rewrite is one statement, `rewrite_ticket_prefix`. On Supabase it truncates numbers above 999 (F-107; fix proposed as 0081).
+  - The rewrite is one statement, `rewrite_ticket_prefix`. Since 0081 it pads to the number's own length, so CP_1234 becomes PROD_1234 rather than PROD_123 (F-107).
 - **Counter resets.** A wipe can restart the series at `001` (`resetTickets`); a restore brings the counter back with everything else.
 - **`npm run tickets:dedupe [-- --apply]`** renumbers shared tickets outside link chains. It groups across workspaces (F-125).
 - **Display.**
@@ -1194,20 +1194,30 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 - Below 768 CSS px `useIsMobile()` (the only place 767 appears; `useSyncExternalStore`, server snapshot `false`) switches `AppShell` to the phone shell: a top bar (brand, title, search) and five destinations — Home, My Work, Browse, Inbox, More. The desktop frame is not mounted at all.
 - `browse` and `more` carry what the sidebar holds on desktop. Automations sit under More, with a running mark on the More tab.
-- Only 16 files are phone-aware. Every other page relies on responsive CSS. `Test_prompts/audits/2026-09-26-full-e2e/MOBILE_AUDIT.md` records a page-by-page audit and the plan for a full phone revamp.
+- **Overlays (v0.50).** `DialogContent` and `AlertDialogContent` carry phone classes (`max-md:`): a bottom sheet, full width, up to 92dvh, a grabber, a 44 px close button, the safe area below. Every dialog took that shape at once, with no per-caller change. Search (`command.tsx`) is full screen with Cancel. Popovers and dropdown menus are capped to the space Radix reports (`--radix-popover-content-available-height`) and to the screen's width.
+- **App-like (v0.50).** `src/app/manifest.ts` (standalone, start `/`, 192/512/maskable icons from the logo), an Apple touch icon, `viewport.themeColor` for light and dark, and `appleWebApp` metadata. An offline bar (`offline-banner.tsx`) shows in both shells; mutations pause offline and resume. On an iPhone or iPad outside the installed app, Notification settings says to add Streamline to the Home Screen (`homeScreenNeeded` in `browser-notifications.ts`). The restore and wipe screens hold a screen wake lock.
+- `Test_prompts/audits/2026-09-26-full-e2e/MOBILE_AUDIT.md` has the page-by-page audit, what v0.50 built, and what is left.
 
 **The phone board.**
 
 - **Header:** back, name, favourite, a menu sheet (members, invite, activity, the whole board menu, a rename sheet).
 - **Tools strip:** views, search, filter, sort, columns, plus Cards/Grid and Select.
-- **Cards** (`mobile-item-card`):
-  - status, priority and date chips open bottom sheets;
+- **Cards** (`mobile-item-card`), each its own box edged in its group's colour:
+  - the name, then status and date chips that open bottom sheets; the priority chip only for a high priority on unfinished work; the owners at the end. The ticket and link count are in the task;
   - the date sheet's Today, Tomorrow and Next week use the phone's own day since v0.49.1 (F-111);
   - a floating **New item** button (`mobile-new-item`), a bulk bar in select mode, and a subitems toggle.
 - **The grid** lazy-loads the desktop table in a compact layout.
 - **Kanban** shows one lane at a time, with "Move to".
 - The other views reuse their desktop implementations.
-- **Tasks** open full screen. Cell editors open as sheets (`cell-shell.tsx`), and automation dialogs become bottom sheets.
+- **Tasks** open full screen. Cell editors open as sheets (`cell-shell.tsx`), and automation dialogs become bottom sheets. The status is a pill in the task panel on every screen size (`useCellStretchMode()`); only the board's table draws it as a band.
+- The Columns sheet hides and shows columns for the whole board (managers only). It has no Ticket switch: the phone grid has no ticket slot.
+
+**The phone pages (v0.50).**
+
+- **Home and My Work** list your tasks as cards: the name, the status as a pill, the due date (red when late) and the board.
+- **My Work** has a search box and a Filters sheet with the desktop's filters (search in, due, status, priority, board, shared with, type), a count and Clear.
+- **Settings** is a grouped list; each section opens as its own page with Back (`settings-row-*`, `settings-back`).
+- **Browse** has New board. The **form editor** keeps its save and publish panel above the form.
 
 **Preferences and trackers.**
 
@@ -1216,10 +1226,10 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 **Known gaps** (details in `MOBILE_AUDIT.md`):
 
-- update and reply controls revealed only by hover;
-- several desktop dialogs and popovers without sheet variants;
-- dense settings, form-editor and dashboard layouts;
-- the phone "Ticket" toggle changes the desktop setting.
+- the dashboard has no phone order yet, and its workload tables scroll inside their own box;
+- a month calendar's chips are smaller than 44 px;
+- the portal can show its own sign-in hint and the wizard's offer together (M-17);
+- not yet checked on a real iPhone and Android.
 
 ## 13e. Automations
 
@@ -1288,7 +1298,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 3. **Stripped payloads.** The engine reads a payload value as `wholeValue()` — `{...emptyValueFor(type), ...value}` — since v0.49.1. Before that, `column_cleared` never fired on Supabase for null-emptied types (F-106).
 4. **Re-draining.** While a pass fires something (up to 3 more passes, within half the 50 s budget), the runner drains again, so chains finish in one tick.
 5. **Schedules.** `recurring` rules fire in their hour, `column_unchanged_for` per quiet value, and `date_arrives` per task whose date matches. The clock reads `AUTOMATION_TIMEZONE` through `Intl`, so 9 am stays 9 am across daylight saving. String hours in jsonb are coerced to numbers.
-6. **Receipts.** `automation_schedule_fires` stops the same firing twice. Recurring receipts fail on Supabase today because `item_id` sits in the primary key (F-105; fix proposed as 0080).
+6. **Receipts.** `automation_schedule_fires` stops the same firing twice. Since 0080 its uniqueness is two partial unique indexes, one each side of a null `item_id`, so a recurring rule's receipt (no task) can be written; before, `item_id` sat in the primary key and every recurring rule failed (F-105).
 7. **Heartbeat and sweep.** The runner writes `automation_heartbeat` on scheduler ticks only. `automation_sweep(30)` clears old queue rows, runs and receipts. The workspace page and the board dialog flag a runner that has been silent for 20 minutes (`HEARTBEAT_STALE_MINUTES`).
 8. **Member nudges.** Board and comment mutations nudge the runner 150 ms after they settle (POST `?sweep=0` with the member's session), so rules fire within about a second without waiting for the clock.
 9. **Drivers.**
@@ -1494,6 +1504,7 @@ Channels are shared and reference-counted.
 | Board view; per-view settings | `streamline.board-view`; `streamline.view-settings` (+ server after 600 ms) |
 | Dashboard preferences | `streamline.dashboard.v2` |
 | Phone-only choices | `streamline.mobile-view` |
+| Last version this browser ran, and whether the "App updated" card is on | `streamline.version.seen`, `streamline.version.notice` |
 | Portal theme / status order / booking size | `streamline.portal-theme:<token>:<page>`, `streamline.portal-status-order:<token>`, `streamline.portal-scale:<token>` |
 | Booking memory | `streamline.booking` |
 | OS notifications already shown | `streamline.os-notifications.seen:<user>` |
@@ -1571,7 +1582,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0018 | `automation_events` readable by board viewers |
 | 0019 | Board templates: members read and insert as themselves; creator or admin updates/deletes |
 
-**Proposed and not applied:** `Test_prompts/audits/2026-09-26-full-e2e/proposed-sql/` holds migrations 0079 (comments stay put), 0080 (recurring receipts) and 0081 (prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). Test them on a disposable database, then move them in and append them to `sequence.txt`.
+**From the 26 September audit** (checked on a disposable stack first): migrations 0079 (comments stay on their task), 0080 (recurring receipts) and 0081 (a prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). They are the last four lines of `sequence.txt`.
 
 `supabase/optional/automations_pg_cron.sql` is applied by hand only.
 
@@ -1735,7 +1746,7 @@ Set this up whenever RLS, a server route, a trigger, the runner, a restore or a 
 | Searching "c" or "cp" shows every ticketed task | F-112 before v0.49.1 | Update |
 | An automation "does not fire" | Runner or rule | Is something calling the runner (heartbeat, `cron.job`)? Is the queue growing (`automation_events where processed_at is null`)? What does `automation_runs` say — skipped runs carry the reason |
 | A notify rule tested on yourself does nothing | Actor exclusion | "Nobody to tell": test with a second person |
-| A recurring rule fails every hour | F-105 | Apply proposed 0080 |
+| A recurring rule fails every hour | F-105, before 0080 | Deploy, so 0080 applies |
 | "When a column is cleared" never fires on Supabase | F-106 before v0.49.1 | Update |
 | The board's automation ring never stops | Stuck claimed events (F-115) | Release old `claimed_at` rows |
 | Automations never fire in local mode | By design (F-181) | Only quick runs run locally |
@@ -1743,7 +1754,7 @@ Set this up whenever RLS, a server route, a trigger, the runner, a restore or a 
 | "A Booking time column belongs on Task Allocation only." | BOOKED_AT guard | Use a Date + Time column |
 | Department value refused | Trigger 0074 | Add it to Settings → Departments, or pick a listed one |
 | Ticket refused as "already …" | Uniqueness | Another task holds it; typed tickets are checked workspace-wide |
-| Prefix change produced duplicate tickets | F-107 on Supabase | Apply proposed 0081; `tickets:dedupe` |
+| Prefix change produced duplicate tickets | F-107, before 0081 | Deploy, so 0081 applies; then `tickets:dedupe` |
 | Board can be read but not edited | Visibility precedence | Ownership, explicit seat, admin, team visibility |
 | Added person cannot sign in | Pending onboarding | Finish the join link |
 | Booking, share or member creation fails while boards work | Service-role routes | Server key, route logs, token/key, migrations |

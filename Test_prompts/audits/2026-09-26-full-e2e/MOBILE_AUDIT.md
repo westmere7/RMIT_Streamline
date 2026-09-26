@@ -1,6 +1,6 @@
 # The phone: audit and revamp plan
 
-26 September 2026, revision `0649d71`.
+26 September 2026, revision `0649d71`. Built the same day in v0.50.0: see [What was built](#what-was-built-v0500).
 
 The brief asked for a revamp so that the phone version is "robust, perfectly usable", because it will be used as much as the desktop. This document has four parts:
 
@@ -8,6 +8,59 @@ The brief asked for a revamp so that the phone version is "robust, perfectly usa
 2. The fixes already prepared (FX-06, FX-17, FX-18).
 3. The revamp specification.
 4. How to prove it works.
+
+## What was built (v0.50.0)
+
+Later the same day the revamp was built, looked at in the browser at phone sizes, and tested. The rest of this document is the audit and plan as first written; this section says where each part landed.
+
+### The findings
+
+| ID | Now | What was done |
+| --- | --- | --- |
+| M-01 | **Fixed** | Every dialog is capped at the screen and scrolls inside itself (FX-17, v0.49.1). On a phone it is also a sheet (M-02). The phone e2e makes a board in landscape and reaches the button |
+| M-02 | **Fixed** | `DialogContent` and `AlertDialogContent` rise from the bottom on a phone: full width, up to 92dvh, a grabber, a 44 px close button, the safe area below. One change in the component rather than a `ResponsiveDialog` migration of about 40 callers, so every dialog took the shape at once |
+| M-03 | **Fixed, differently** | Popovers and dropdown menus stay popovers but are capped to the space Radix reports and to the screen's width, and scroll inside themselves. Cell editors were already sheets |
+| M-04 | **Fixed** | Hover-only controls show on coarse pointers (FX-18, v0.49.1). The phone e2e edits, reacts to and deletes an update by touch, and checks the controls are fully opaque |
+| M-05 | **Fixed** | The date sheet uses the local day (FX-06, v0.49.1) |
+| M-06 | **Fixed** | The phone's Columns sheet no longer has a Ticket switch; it only ever changed the desktop table |
+| M-07 | **Fixed** | My Work has a search box and a Filters sheet: search in, due, status, priority, board, shared with and type, with a count and Clear |
+| M-08 | **Fixed** | Search opens full screen, with Cancel, and its list fills the height above the keyboard |
+| M-09 | **Fixed** | Settings is a grouped list; each section opens as its own page, with Back. Snapshots and the Danger zone are reachable (where the provider offers them) |
+| M-10 | **Fixed** | The form editor keeps its save and publish panel above the form on a phone, with one line saying it works best on a larger screen. The portal card and its settings dialogs are sheets through M-02 |
+| M-11 | **Partly** | The measure controls are 40 px. The workload tables still scroll inside their own box, and there is no phone order or list form yet (R-11) |
+| M-12 | **Fixed** | The tracker's name field is `max-w-full`; its header and actions wrap |
+| M-13 | **Checked** | Every context menu on a phone screen has a visible twin: board and Kanban cards (`mobile-item-menu`), archive rows (their "…" shows on touch), tracker sheet tabs (`mobile-sheet-actions`) and tracker rows (the toolbar) |
+| M-14 | **Fixed** | `src/app/manifest.ts`, 192/512/maskable icons from the logo, an Apple touch icon, `themeColor` for light and dark, and `appleWebApp` metadata. Streamline installs to a home screen and opens full screen |
+| M-15 | **Fixed** | On an iPhone or iPad outside the installed app, Notification settings says to add Streamline to the Home Screen (`homeScreenNeeded`, unit-tested). Still to check on a device |
+| M-16 | **Fixed** | The journey, the Word download and the rich-text pop-up are dialogs, so they are sheets too |
+| M-17 | Open | The portal's own sign-in hint and the wizard's offer can still both show |
+| M-18 | **Fixed** | The restore and wipe screens already said "Keep this tab open". They now also hold a screen wake lock, so a phone left alone does not sleep through the end |
+
+### Beyond the findings
+
+- **Task cards, on the owner's word:** name first, the status as a pill, the due date (red when late) and the board; the priority only when it is high. Each card is its own box, edged in its group's colour on a board. The task panel shows the status as a pill on every screen size; the board's table keeps its band.
+- **An offline bar** in both shells. Changes made offline wait and are sent when the connection returns.
+- **New board** on the Browse page; the phone has no sidebar to make one from.
+- **Bigger targets:** switches, chips, list colour dots, remove buttons and team links have larger invisible hit areas; view selects and the timeline's Unscheduled toggle are 40 px and 16 px text, so iOS does not zoom in.
+- **Narrow screens:** the permissions table and the archive pager fit 360 px.
+- **F-200**, found by the phone suite: the sidebar and panel preferences were reset on every reload. Fixed in the store.
+- **"App updated"**, a card listing what changed since the version a browser last ran. Off for now; Settings → Appearance turns it on.
+
+### Not built, by choice
+
+- **R-2 and R-3 as components.** Styling the dialog, alert dialog, popover and menu primitives themselves reached every caller in one change.
+- **R-5, the `MobilePage` scaffold.** The phone pages kept their own headers; Settings got its Back.
+- **R-11**, the dashboard's phone order and list forms of its tables.
+- **The update composer above the keyboard** (`env(keyboard-inset-height)`), and a full-screen deliverables editor.
+
+### The proof
+
+- **The sweep**, `mobile-sweep.cjs` over 42 routes and the task panel, at 390 × 844, 360 × 780 and 844 × 390 (landscape):
+  - **no page scrolls sideways** on any route at any size;
+  - at 360, the permissions table and the archive pager ran past the edge. Both are fixed and checked. What remains past the edge are decorative blurs their parent clips;
+  - the small targets left are the chips, switches, dots and links with larger hit areas (the script measures the box, not the hit area), the month calendar's chips (47 × 24; a month does not fit seven 44 px columns in 390 px), and inline text links.
+- **Phone e2e:** `tests/e2e/mobile-flows.spec.ts` runs on a Pixel 7 profile with touch and a coarse pointer. It covers the task panel's pill; an update written, edited, reacted to and deleted by touch; a status changed from a card; search; My Work search and filters; every settings section and back; a board made in landscape; the offline bar; the form editor's panel; and a four-step booking. `mobile-layout.spec.ts` covers the shell and the 768 boundary.
+- **On devices:** still to do — one iPhone and one Android for installing, notifications, the keyboard, safe areas and dark mode.
 
 ## How this audit was made — and what it is not
 

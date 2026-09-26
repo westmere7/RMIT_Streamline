@@ -1,12 +1,27 @@
 # Fix log — end-to-end audit, 26 September 2026
 
+## Where they stand now
+
+Everything below was written before any of it ran. Later the same day:
+
+| Kind | Now |
+| --- | --- |
+| RUN-1, RUN-2 (the runner and the seed) | Committed in v0.49.1 (`b91a73b`) |
+| FX-01 … FX-18 | Applied by `apply-fixes.mjs` (all 55 snippets matched), committed in v0.49.1 (`b91a73b`). The unit suite passed, and the fixes for F-101, F-102, F-103 and F-106 were checked on the disposable stack (`COVERAGE.md`) |
+| The SQL | Checked on the disposable stack, then moved into `supabase/` and appended to `sequence.txt` (`5ea3de4`). The next deploy applies it to production |
+| The phone revamp | v0.50.0 (`eb96121`); `MOBILE_AUDIT.md` says what was built |
+| F-200 (UI preferences reset on reload) | Found by the phone suite; fixed in v0.50.0 |
+| Stale e2e specs (F-193 and more) | Caught up with the app (`9abeb29`) |
+
+## As first written
+
 Two kinds of fix, kept apart:
 
 | Kind | Where it is | State |
 | --- | --- | --- |
 | **In the working tree** | `scripts/db-migrate.mjs`, `scripts/db-seed.mts`, `supabase/sequence.txt`, `tests/unit/sql-sequence.test.ts` | Made before the permission block, each one **run and checked** |
 | **Prepared** (FX-01 … FX-18; there is no FX-04) | `deliverables/fixes/` as exact find/replace snippets, applied by `deliverables/apply-fixes.mjs`. Whole-file replacements, such as `src/server/requesters.ts`, are in `deliverables/repo/` | Written against `0649d71`, **never applied or run** |
-| **Proposed SQL** | `proposed-sql/` beside this file | Written, **never run**. Move into `supabase/` only after testing on E3 |
+| **Proposed SQL** | First `proposed-sql/` beside this file; now `supabase/` | Checked on E3, then shipped (see above) |
 
 Applying the prepared fixes:
 
@@ -187,10 +202,10 @@ Desktop-only hover controls are left alone: sidebar row menus, sort arrows, resi
 
 | File | Finding | What it does | Test on E3 before moving it |
 | --- | --- | --- | --- |
-| `proposed-sql/migrations/0079_comments_stay_put.sql` | F-104, F-164 | A `before update` trigger refuses changes to `item_id`, `author_id`, `shared_id` and `parent_id`. A `before insert` trigger refuses a reply whose parent belongs to another task | As a member, PATCH your own comment's `item_id` through PostgREST → refused. Edit its body → allowed. Reply to an update on another task → refused. Linked-task update copies still post |
-| `proposed-sql/policies/0020_comments_update_needs_edit_rights.sql` | F-104 | `comments_update_author` also needs `private.can_edit_item(item_id)` | A viewer who wrote a comment before losing edit rights can't edit it. An editor can |
-| `proposed-sql/migrations/0080_recurring_receipts.sql` | F-105 | Drops the primary key on `automation_schedule_fires`, lets `item_id` be null, and keeps uniqueness with two partial unique indexes | The insert with `item_id = null` that failed (23502) succeeds. A second identical insert is refused. **First read how the Supabase repository writes receipts:** an `onConflict` target has to match one of the new indexes |
-| `proposed-sql/migrations/0081_rewrite_ticket_prefix_long_numbers.sql` | F-107 | `create or replace` of the prefix rewrite, padding to `greatest(3, length(n))` | CP_1234 → PROD_1234. CP_014 → PROD_014 |
+| `supabase/migrations/0079_comments_stay_put.sql` | F-104, F-164 | A `before update` trigger refuses changes to `item_id`, `author_id`, `shared_id` and `parent_id`. A `before insert` trigger refuses a reply whose parent belongs to another task | As a member, PATCH your own comment's `item_id` through PostgREST → refused. Edit its body → allowed. Reply to an update on another task → refused. Linked-task update copies still post |
+| `supabase/policies/0020_comments_update_needs_edit_rights.sql` | F-104 | `comments_update_author` also needs `private.can_edit_item(item_id)` | A viewer who wrote a comment before losing edit rights can't edit it. An editor can |
+| `supabase/migrations/0080_recurring_receipts.sql` | F-105 | Drops the primary key on `automation_schedule_fires`, lets `item_id` be null, and keeps uniqueness with two partial unique indexes | The insert with `item_id = null` that failed (23502) succeeds. A second identical insert is refused. **First read how the Supabase repository writes receipts:** an `onConflict` target has to match one of the new indexes |
+| `supabase/migrations/0081_rewrite_ticket_prefix_long_numbers.sql` | F-107 | `create or replace` of the prefix rewrite, padding to `greatest(3, length(n))` | CP_1234 → PROD_1234. CP_014 → PROD_014 |
 
 Moving one into `supabase/`:
 

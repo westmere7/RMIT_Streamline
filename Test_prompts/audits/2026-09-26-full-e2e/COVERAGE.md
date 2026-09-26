@@ -11,8 +11,24 @@ Every row of `AUDIT_PLAN.md` §4 has a status here. Nothing counts as PASS on th
 | **STATIC FAIL** | The code path, read end to end, contradicts what the row expects. The finding is named. Not executed |
 | **STATIC** | The code path, read end to end, matches. Not executed |
 | **BLOCKED** | Needs the browser (E2) or a flow on E3, and the session's tool block stopped all execution (see README) |
+| **E2 PASS / E2 FAIL** | Run in the browser, in the second pass: the named spec's tests, or the phone sweep |
+| **FIXED** | The finding behind the row is fixed, with a unit test; the row's browser part did not run separately |
 
-## What actually ran
+## Second pass, later the same day
+
+Once the tools were back, everything above that had been written down was run:
+
+| Run | Result |
+| --- | --- |
+| **The fixes on E3** | 16 checks, all passing: F-101, F-102, F-103, F-106, and the SQL for F-104, F-105 and F-107. `report.md` §6.2 lists them |
+| **Snapshots on E3** | Access, take, download, upload, a damaged file, a wrong password, the wipe and a restore; `db:snapshot:rehearse` |
+| **Unit suite** | 106 files, 974 tests, all passing |
+| **Browser suite** (third run, against a production build) | 199 of 225 run passed; 17 more were skipped. Failing: `board` (3), `booking` (3), `cross-view-sync` (2), `data-integrity` (1), `filters-sort-and-dnd` (2), `groups-and-items` (2), `item-assets` (1), `large-board` (1), `mobile-flows` (1), `notifications` (2), `onboarding` (1), `permissions` (2), `stakeholder-portal` (4), `updates-composer` (1). None of these is a bug in the app: the booking three were already fixed in `55e4540`; the rest are specs the app has outgrown (archive now confirms, an update is deleted with a two-tap badge, the seed takes longer than 5 s, and the like; `report.md` §6.4), the drag-and-drop landing-slot flakes and the two OS-notification tests. So an **E2 FAIL** below means the spec needs updating, not that the flow is broken |
+| **Phone sweep** | 42 routes and the task panel at three sizes: no sideways scroll |
+
+The rows below changed status: AUTH-01, NAV-03, NAV-04, BRD-06, ITEM-01, ITEM-04, ITEM-06, COL-01, COL-06, VIEW-01, VIEW-02, PANEL-05, UPD-07, UPD-08, UPD-09, BOOK-01, BOOK-09, BOOK-15, PORT-01, PORT-05, AUTO-06, AUTO-07, SET-03, SNAP-01, SNAP-02, SNAP-03, SNAP-04, SNAP-05, SNAP-06, MOB-01, MOB-02, MOB-03, MOB-04, MOB-05, MOB-06, SEC-04, SEC-05, SEC-08, SYNC-01, PERF-01, OPS-01, OPS-02.
+
+## What actually ran (first pass)
 
 | Run | Result |
 | --- | --- |
@@ -33,13 +49,15 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | Status | Rows |
 | --- | --- |
-| E3 PASS | 2 (DATA-02, OPS-02 in part) |
-| E3 FAIL | 1 (AUTO-07) |
-| STATIC FAIL | 75 |
+| E3 PASS | 16 |
+| E2 PASS | 14 |
+| FIXED | 2 |
+| E2 FAIL | 7 |
+| STATIC FAIL | 59 |
 | STATIC | 4 |
-| UNIT | 43 |
-| BLOCKED | 62 |
-| **Total** | **187**, plus the permission matrix (BLOCKED) |
+| UNIT | 42 |
+| BLOCKED | 43 |
+| **Total** | **187**, plus the permission matrix |
 
 ---
 
@@ -47,7 +65,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| AUTH-01 | BLOCKED | `auth-and-navigation` e2e not run |
+| AUTH-01 | E2 PASS | `auth-and-navigation`: 8/8 in the third browser run |
 | AUTH-02 | UNIT | `auth-messages`. Supabase sign-in not run |
 | AUTH-03 | BLOCKED | Needs L and S |
 | AUTH-04 | UNIT | `audit-regressions` (a deactivated member loses every board role, 9 Sep). RLS 0014/0015 on S not run |
@@ -64,8 +82,8 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | --- | --- | --- |
 | NAV-01 | BLOCKED | Needs L |
 | NAV-02 | BLOCKED | Needs L |
-| NAV-03 | STATIC FAIL | F-112: one or two letters match every ticket and flood the palette. `search-service` is green, but no test types a short query over ticketed tasks. FX-07 adds one |
-| NAV-04 | BLOCKED | `views-and-routing` e2e not run |
+| NAV-03 | FIXED | F-112 fixed in v0.49.1 (FX-07), with a unit test that types a short query over ticketed tasks |
+| NAV-04 | E2 PASS | `views-and-routing`: 8/8 in the third browser run |
 | NAV-05 | BLOCKED | Needs L |
 | NAV-06 | STATIC FAIL | F-116: the "Added X" offer survives deliverable, update and link writes, and undoing hard-deletes the task. `components/undo` is green |
 | NAV-07 | UNIT | `components/person-card`. Touch has no hover, so the phone needs a tap target (MOBILE_AUDIT) |
@@ -79,7 +97,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | BRD-03 | STATIC FAIL | F-141: "Save over it" is offered where RLS refuses; the picker lists boards the saver can't open (local) |
 | BRD-04 | STATIC FAIL | F-136 (TEAM board moved to No team); F-137 (Task Allocation's team and visibility controls aren't disabled) |
 | BRD-05 | STATIC FAIL | F-134 (Booking time column through Duplicate); F-139 (stale recap; subitems of archived parents). `board-service` is green |
-| BRD-06 | BLOCKED | `boards-lifecycle` not run, and stale (F-193) |
+| BRD-06 | E2 PASS | `boards-lifecycle`: 7/7 in the third browser run |
 | BRD-07 | UNIT | `permissions`. RLS not run |
 | BRD-08 | BLOCKED | Needs L |
 | BRD-09 | BLOCKED | Needs L |
@@ -89,12 +107,12 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| ITEM-01 | BLOCKED | `groups-and-items` not run |
+| ITEM-01 | E2 FAIL | `groups-and-items`: 7/9 in the third browser run |
 | ITEM-02 | BLOCKED | Needs L |
 | ITEM-03 | BLOCKED | Needs L |
-| ITEM-04 | BLOCKED | `filters-sort-and-dnd` not run (two drag tests are known to flake on a clean `main`) |
+| ITEM-04 | E2 FAIL | `filters-sort-and-dnd`: 6/8 in the third browser run |
 | ITEM-05 | STATIC FAIL | F-159: bulk allocation runs in parallel, moves share a position, and one failure hides the success toast |
-| ITEM-06 | STATIC FAIL | F-107 (CP_1234 truncated by a Supabase rewrite); F-123 (uniqueness only checked on typing); F-124 (unlink leaves a shared ticket); F-125 (`tickets:dedupe` spans workspaces); F-126 ("Add a ticket" stuck after one use). `ticket` is green |
+| ITEM-06 | STATIC FAIL | F-107 (CP_1234 truncated by a Supabase rewrite); F-123 (uniqueness only checked on typing); F-124 (unlink leaves a shared ticket); F-125 (`tickets:dedupe` spans workspaces); F-126 ("Add a ticket" stuck after one use). `ticket` is green. F-107 is fixed by 0081 and checked on E3 |
 | ITEM-07 | BLOCKED | Needs L |
 | ITEM-08 | BLOCKED | Needs L |
 
@@ -102,12 +120,12 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| COL-01 | BLOCKED | `column-types` not run |
+| COL-01 | E2 PASS | `column-types`: 11/11 in the third browser run |
 | COL-02 | UNIT | `rich-text`, `rich-text-doc`, `rich-text-docx` |
 | COL-03 | UNIT | `status-label-roles`, `components/status-cell`, `components/edit-labels-dialog` |
 | COL-04 | UNIT | `dropdown-column` |
 | COL-05 | BLOCKED | Needs L |
-| COL-06 | STATIC FAIL | F-102: a public booking renames an active member. `booking-requester` is green because it asserts the rename. FX-02 changes that test |
+| COL-06 | E3 PASS | F-102 fixed in v0.49.1: members keep their names; only someone new takes the typed name. `booking-requester` asserts the new rule |
 | COL-07 | UNIT | `system-column-types` |
 | COL-08 | BLOCKED | Needs L |
 | COL-09 | STATIC | No decimals UI, as the plan records (F-147) |
@@ -130,8 +148,8 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| VIEW-01 | BLOCKED | `large-board` not run |
-| VIEW-02 | STATIC FAIL | F-110: a task whose only PIC is pending or deactivated is in no lane. FX-05 |
+| VIEW-01 | E2 FAIL | `large-board`: 0/1 in the third browser run |
+| VIEW-02 | FIXED | F-110 fixed in v0.49.1 (FX-05), with a unit test |
 | VIEW-03 | STATIC FAIL | F-146 (wording only): "Timeline or Date column" where Due date is meant |
 | VIEW-04 | STATIC FAIL | F-146 (wording only): "People column" where PIC is meant. `view-aggregates` and `workload-section` are green |
 | VIEW-05 | BLOCKED | Needs L |
@@ -148,7 +166,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | PANEL-02 | STATIC FAIL | F-148: the pop-up body isn't in `PanelSizeProvider` |
 | PANEL-03 | STATIC FAIL | F-150: hidden-in-panel restore shown to viewers |
 | PANEL-04 | STATIC FAIL | F-151 (unpaged activity loses the oldest events); F-152 ("arrived with" includes the partner's lines). `task-journey` is green |
-| PANEL-05 | BLOCKED | `item-cover` not run |
+| PANEL-05 | E2 PASS | `item-cover`: 2/2 in the third browser run |
 | PANEL-06 | STATIC FAIL | F-149: the panel's Archive skips the link question |
 
 ## 4.8 Updates, replies and reactions
@@ -161,9 +179,9 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | UPD-04 | BLOCKED | Needs L |
 | UPD-05 | BLOCKED | Needs L; the RLS side is UPD-08 |
 | UPD-06 | STATIC FAIL | F-183 (policy lets viewers react; admins can't remove others'); F-186 (unfiltered realtime refetch). `comment-reactions` is green |
-| UPD-07 | BLOCKED | `updates-badge` not run |
-| UPD-08 | STATIC FAIL | F-104, F-164. Proposed `0079` and policy `0020`, not run |
-| UPD-09 | STATIC FAIL | F-120/M-04: edit, delete and the reply reaction are hover-only. FX-18 |
+| UPD-07 | E2 PASS | `updates-badge`: 2/2 in the third browser run |
+| UPD-08 | E3 PASS | 0079 and policy 0020: editing still works; moving an update to another task, and replying to another task's update, are refused |
+| UPD-09 | E2 PASS | FX-18 (v0.49.1). `mobile-flows` edits, reacts to and deletes an update by touch, and checks the controls are fully opaque |
 
 ## 4.9 Deliverables and links
 
@@ -179,7 +197,7 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| BOOK-01 | BLOCKED | `booking` e2e not run, and stale (F-193) |
+| BOOK-01 | E2 FAIL | `booking`: 5/8 in the third browser run |
 | BOOK-02 | UNIT | `booking-wizard` ("will not go past step one…"). The past-date API probe not run |
 | BOOK-03 | UNIT | `booking-wizard` (answers from the account; booking for someone else) |
 | BOOK-04 | UNIT | `booking-wizard` (spinner; known email fills the name; a corrected name left alone) |
@@ -187,13 +205,13 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | BOOK-06 | UNIT | `booking-wizard` (one line each with a type; skip). The 51st-line refusal not checked |
 | BOOK-07 | BLOCKED | Needs L |
 | BOOK-08 | STATIC FAIL | F-157: restored rows drop their asset type. FX-12 |
-| BOOK-09 | STATIC FAIL | F-102. FX-02 |
+| BOOK-09 | E3 PASS | F-102 fixed in v0.49.1 |
 | BOOK-10 | UNIT | `booking` |
 | BOOK-11 | UNIT | `booking` |
 | BOOK-12 | BLOCKED | Needs L |
 | BOOK-13 | STATIC FAIL | F-113: refusals become a generic 500 |
 | BOOK-14 | STATIC FAIL | F-162: same key with a different department replays the first receipt. F-158 (a public retry duplicates) is recorded as expected. `portal-booking` is green |
-| BOOK-15 | STATIC FAIL | F-103: `ilike` takes `%` and `_`. FX-02 |
+| BOOK-15 | E3 PASS | F-103 fixed in v0.49.1: only the exact address matches; `a%@…` and `j_smith@…` find nobody |
 
 ## 4.11 Allocation and the form editor
 
@@ -210,11 +228,11 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| PORT-01 | BLOCKED | `stakeholder-portal` e2e not run |
+| PORT-01 | E2 FAIL | `stakeholder-portal`: 14/18 in the third browser run |
 | PORT-02 | STATIC FAIL | F-165 (held back until fixed). `stakeholder-portal` and `portal-password` are green |
 | PORT-03 | STATIC FAIL | F-163: `?task` outside the range shows "Item not found". `portal-board`, `portal-grouping`, `portal-range` and `portal-scope` are green |
 | PORT-04 | BLOCKED | Needs L |
-| PORT-05 | STATIC FAIL | **F-101 (P1)**: a department with no requests yet can't book. FX-01 adds the test |
+| PORT-05 | E3 PASS | **F-101** fixed in v0.49.1: a department with no requests books by name, and so straight after a wipe |
 | PORT-06 | STATIC FAIL | F-153: the portal journey carries requester name, department and actor id. `portal-scope` and `portal-board` are green |
 | PORT-07 | BLOCKED | Needs L |
 
@@ -239,8 +257,8 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | AUTO-03 | STATIC FAIL | F-114 (created tasks escape the depth limit); F-169 (`is` on five types compares null with null). `automations`, `automation-more`, `automation-subitems` and `automation-lanes` are green |
 | AUTO-04 | STATIC FAIL | F-180 (held back until fixed); F-179 (`CRON_SECRET` ignored when both secrets are set). `automation-runner` is green |
 | AUTO-05 | BLOCKED | Needs S (F-176 and F-182 are the known differences) |
-| AUTO-06 | STATIC FAIL | F-106: `jsonb_strip_nulls` hides cleared values from 12 types. FX-03 adds a test replaying the stripped payload |
-| AUTO-07 | **E3 FAIL** | F-105: a recurring rule's receipt can't be written (`item_id` NOT NULL; 23502). Proposed `0080`. Also F-174, F-175 |
+| AUTO-06 | E3 PASS | F-106 fixed in v0.49.1: clearing a status, a date and a number fires the rule on the stripped payload |
+| AUTO-07 | E3 PASS | F-105 fixed by 0080: a recurring rule fires once, and a duplicate receipt is refused (23505). F-174 and F-175 stay open |
 | AUTO-08 | STATIC FAIL | F-172: viewers are offered Run (then 403); a switched-off run returns a generic 500. `quick-runs` and `components/quick-run-picker` are green |
 | AUTO-09 | UNIT | `automation-runner` ("tells the people on a task, and not whoever set the change off"), `automation-more`. F-178 is a side effect |
 | AUTO-10 | UNIT | `automation-more`: https only, localhost, private literals and credentials refused. STATIC: redirects not followed; a name that resolves to a private address passes, as the code's comment says |
@@ -268,19 +286,19 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | --- | --- | --- |
 | SET-01 | BLOCKED | Needs L |
 | SET-02 | STATIC FAIL | F-189: the Overview Teams tile and the Teams list count different sets |
-| SET-03 | STATIC FAIL | F-107 on Supabase; F-128 ("1 tickets"). `ticket` is green |
+| SET-03 | STATIC FAIL | F-107 on Supabase; F-128 ("1 tickets"). `ticket` is green. F-107 is fixed by 0081 and checked on E3 |
 | SET-04 | STATIC FAIL | F-167. `department-reconciliation` and `list-draft` are green |
 | SET-05 | UNIT | `asset-rates` |
 | SET-06 | BLOCKED | Needs L |
 | SET-07 | STATIC FAIL | F-121/F-198: the guide describes an older app. The rewrite and `guide-content.test.ts` are prepared, not run |
 | SET-08 | BLOCKED | Needs L |
 | SET-09 | STATIC FAIL | F-187: "Reset demo data" is still listed. FX-14 |
-| SNAP-01 | BLOCKED | Needs S |
-| SNAP-02 | UNIT | `snapshot-file` |
-| SNAP-03 | STATIC FAIL | F-118: tables missing from an older file come back empty; skipped tables aren't shown; pending automation work is replayed |
-| SNAP-04 | BLOCKED | Needs S. Production's ledger shows a wipe and a restore completing on 25 September; this audit did not run either |
-| SNAP-05 | BLOCKED | Needs S |
-| SNAP-06 | BLOCKED | `db:snapshot:rehearse` not run |
+| SNAP-01 | E3 PASS | Take, download and upload |
+| SNAP-02 | E3 PASS | Upload; a damaged file refused. `snapshot-file` is green |
+| SNAP-03 | E3 PASS | RESTORE typed; every count back; a safety snapshot first. F-118's semantics stay open |
+| SNAP-04 | E3 PASS | Behind the password (a wrong one refused, 403); Task Allocation kept; a safety snapshot first |
+| SNAP-05 | E3 PASS | 401 anonymous, 403 member, 200 admin |
+| SNAP-06 | E3 PASS | `db:snapshot:rehearse`: the fingerprints matched (after the local-TLS fix) |
 | TRK-01 | UNIT | `trackers` (the xlsx round trip timed out under load, passes alone) |
 | TRK-02 | UNIT | `components/tracker-flush` |
 | TRK-03 | UNIT | `tracker-export` (timed out under load, passes alone) |
@@ -290,12 +308,12 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 
 | ID | Status | Evidence / reason |
 | --- | --- | --- |
-| MOB-01 | BLOCKED | `mobile-layout` not run. STATIC: `h-dvh` and safe-area padding are there |
-| MOB-02 | STATIC FAIL | M-01 (dialogs can't scroll; FX-17), M-02, M-03, M-12. The sweep not run |
-| MOB-03 | STATIC FAIL | M-05/F-111 (Today is the UTC day; FX-06); M-06/F-143 (Ticket toggle) |
-| MOB-04 | STATIC FAIL | M-04/F-120: hover-only controls on the task. FX-18 |
-| MOB-05 | STATIC FAIL | M-07 (My Work filters), M-08 (search), M-09 (settings), M-10 (form editor), M-11 (dashboard tables) |
-| MOB-06 | STATIC FAIL | M-01 in landscape |
+| MOB-01 | E2 PASS | `mobile-layout`: 13/13 in the third browser run |
+| MOB-02 | E2 PASS | The sweep at 390 × 844, 360 × 780 and 844 × 390: no sideways scroll on any route; dialogs are sheets (M-01, M-02). The small targets left have larger hit areas, or are month-calendar chips |
+| MOB-03 | E2 PASS | `mobile-layout` and `mobile-flows`: cards, the status sheet, the grid, Kanban's Move to. Today is the local day (FX-06); the Ticket switch is gone (M-06) |
+| MOB-04 | E2 PASS | `mobile-flows`: the task full screen; edit, react and delete by touch |
+| MOB-05 | E2 PASS (in part) | My Work, search, Settings and the form editor are fixed (M-07 … M-10). The dashboard's phone order is not built (M-11) |
+| MOB-06 | E2 PASS | A board made in landscape (`mobile-flows`); the 360 px sweep |
 
 ## 4.18 Cross-cutting
 
@@ -305,21 +323,21 @@ The prepared fixes (FX-01 … FX-18), the rewritten documentation and the three 
 | SEC-01 | STATIC | Booking key 24, share 22, portal 32 characters. Whether any is logged was not checked end to end |
 | SEC-02 | STATIC FAIL | F-165 (held back until fixed) |
 | SEC-03 | BLOCKED | Needs S; F-180 found statically |
-| SEC-04 | STATIC FAIL | F-104 (comments' `item_id`), F-127 (held back until fixed), F-183 (viewers react) |
-| SEC-05 | STATIC FAIL | F-103 |
+| SEC-04 | STATIC FAIL | F-104 (comments' `item_id`), F-127 (held back until fixed), F-183 (viewers react). F-104 is fixed by 0079 and policy 0020, checked on E3 |
+| SEC-05 | E3 PASS | F-103 fixed in v0.49.1 |
 | SEC-06 | STATIC FAIL | F-142. `rich-text` is green |
 | SEC-07 | STATIC | https only, no credentials, private literals and `.local`/`.internal` refused, redirects not followed. DNS names that resolve privately pass (documented in `webhookUrlProblem`) |
-| SEC-08 | STATIC FAIL | F-102, F-117 |
+| SEC-08 | STATIC FAIL | F-102, F-117. F-102 is fixed and checked on E3 |
 | SEC-09 | STATIC | Snapshot files hold live share, portal and invitation tokens and the booking key (F-118; the knowledge base draft says so) |
 | DATA-01 | BLOCKED | The flows didn't run. After seeding, `db:special-columns` found nothing to add, so one special column per type per board held on E3 |
 | DATA-02 | **E3 PASS** | F-108: FAIL at `0005` before the fix, then 96/96, a no-op rerun and `--dry` |
-| SYNC-01 | BLOCKED | `cross-view-sync` not run |
+| SYNC-01 | E2 FAIL | `cross-view-sync`: 6/8 in the third browser run |
 | SYNC-02 | BLOCKED | Needs S (F-186 found statically) |
-| PERF-01 | BLOCKED | `large-board` not run |
+| PERF-01 | E2 FAIL | `large-board`: 0/1 in the third browser run |
 | PERF-02 | STATIC FAIL | F-119 |
 | RES-01 | BLOCKED | Needs L |
-| OPS-01 | BLOCKED | `next build` not run |
-| OPS-02 | **E3 PASS** (in part) | `db:migrate` fresh, rerun and `--dry`; `db:seed` after F-109; `db:special-columns`. `db:snapshot:rehearse` not run; `tickets:dedupe` not run (F-125 found statically) |
+| OPS-01 | E2 PASS | `next build` with `SKIP_DB_MIGRATE=1` and the local provider, then served for the browser run |
+| OPS-02 | E3 PASS | `db:migrate` fresh, rerun and `--dry`; `db:seed` after F-109; `db:special-columns`; `db:snapshot:rehearse`. `tickets:dedupe` not run (F-125 found statically) |
 
 ---
 

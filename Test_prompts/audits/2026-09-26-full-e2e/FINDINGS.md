@@ -2,6 +2,8 @@
 
 Revision `0649d71`, package `0.49.0`. IDs continue from the 9 September audit (F-001…F-006 there).
 
+Updated later the same day, once the fixes shipped in v0.49.1 and v0.50.0: the Status column says where each one stands now.
+
 ## How to read this
 
 **Evidence** says how each finding was established:
@@ -17,8 +19,9 @@ Revision `0649d71`, package `0.49.0`. IDs continue from the 9 September audit (F
 | Status | Meaning |
 | --- | --- |
 | OPEN | Not fixed. |
-| FIXED+VERIFIED | Fixed in the working tree and checked by running it. |
-| PROPOSED | A fix is written in this deliverables folder but not applied or run. |
+| FIXED | Fixed in the repository, with a test, in the version named. |
+| FIXED+VERIFIED | Fixed, and checked by running the real thing: on the disposable Supabase database (E3) or in the browser (E2). |
+| PROPOSED | A fix is described but not made. |
 | DOC | Only the documentation changes. |
 | ACCEPTED? | Looks deliberate. Needs the product owner's word. |
 
@@ -28,18 +31,18 @@ Severity uses the plan's scale: P0 is data loss or broken access, P1 a core work
 
 | ID | Title | Sev | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| F-101 | Portal booking fails for any department that has no work yet, which is every department after a wipe | **P1** | STATIC | PROPOSED |
-| F-102 | A public booker can rename any existing member, and can add any other account to the workspace as pending | **P1** | STATIC | PROPOSED |
-| F-103 | Requester lookup matches email *patterns*: `%` and `_` pass the validation, so names can be enumerated | P2 | STATIC | PROPOSED |
-| F-104 | A comment's author can move the comment onto any item, even in another workspace | P2 | STATIC | PROPOSED (SQL) |
-| F-105 | Recurring automations fail every hour they are due: the receipt's `item_id` is a primary-key column | P2 | **DB** | PROPOSED (SQL) |
-| F-106 | `column_cleared` never fires on Supabase for 12 column types (payload goes through `jsonb_strip_nulls`) | P2 | STATIC | PROPOSED |
-| F-107 | Changing the ticket prefix on Supabase truncates numbers above 999 (`lpad(…,3)`); live counter is at 923 | P2 | STATIC | PROPOSED (SQL) |
+| F-101 | Portal booking fails for any department that has no work yet, which is every department after a wipe | **P1** | STATIC | FIXED+VERIFIED (v0.49.1, E3) |
+| F-102 | A public booker can rename any existing member, and can add any other account to the workspace as pending | **P1** | STATIC | FIXED+VERIFIED (v0.49.1, E3) |
+| F-103 | Requester lookup matches email *patterns*: `%` and `_` pass the validation, so names can be enumerated | P2 | STATIC | FIXED+VERIFIED (v0.49.1, E3) |
+| F-104 | A comment's author can move the comment onto any item, even in another workspace | P2 | STATIC | FIXED+VERIFIED (SQL 0079 + policy 0020, E3) |
+| F-105 | Recurring automations fail every hour they are due: the receipt's `item_id` is a primary-key column | P2 | **DB** | FIXED+VERIFIED (SQL 0080, E3) |
+| F-106 | `column_cleared` never fires on Supabase for 12 column types (payload goes through `jsonb_strip_nulls`) | P2 | STATIC | FIXED+VERIFIED (v0.49.1, E3) |
+| F-107 | Changing the ticket prefix on Supabase truncates numbers above 999 (`lpad(…,3)`); live counter is at 923 | P2 | STATIC | FIXED+VERIFIED (SQL 0081, E3) |
 | F-108 | The repo's SQL cannot build an empty database: migrations need policy helpers | P2 | **DB** | FIXED+VERIFIED |
 | F-109 | `npm run db:seed` crashes on the current schema (`UNDEFINED_VALUE`) | P2 | **DB** | FIXED+VERIFIED |
-| F-110 | Kanban person lanes drop tasks whose only PIC is pending or deactivated | P2 | STATIC | PROPOSED |
-| F-111 | Phone date sheet's Today, Tomorrow and Next week use the UTC date, so they are a day early on Melbourne and Vietnam mornings | P2 | STATIC | PROPOSED |
-| F-112 | Palette search is flooded by tickets: typing "c", "p", "cp" or a digit ranks every ticketed task first | P2 | STATIC | PROPOSED |
+| F-110 | Kanban person lanes drop tasks whose only PIC is pending or deactivated | P2 | STATIC | FIXED (v0.49.1) |
+| F-111 | Phone date sheet's Today, Tomorrow and Next week use the UTC date, so they are a day early on Melbourne and Vietnam mornings | P2 | STATIC | FIXED (v0.49.1) |
+| F-112 | Palette search is flooded by tickets: typing "c", "p", "cp" or a digit ranks every ticketed task first | P2 | STATIC | FIXED (v0.49.1) |
 | F-113 | Booking refusals reach stakeholders as a generic 500 ("Something went wrong on the server…") on Supabase | P2 | STATIC | OPEN |
 | F-114 | Automation chains that create tasks are not bounded by the depth limit, so a duplicate-on-Done rule can loop | P2 | STATIC | OPEN (verify on E3) |
 | F-115 | Claimed automation events that never finish stay claimed for good; failed events are never retried | P2 | STATIC | OPEN |
@@ -47,10 +50,11 @@ Severity uses the plan's scale: P0 is data loss or broken access, P1 a core work
 | F-117 | Public bookings: an abuse guard is missing (held back until fixed) | P2 | STATIC | OPEN |
 | F-118 | Snapshot restore: empties tables missing from an older file, replays pending automation work, hides skipped tables | P2 | STATIC | OPEN / DOC |
 | F-119 | Public dashboard link polls the ~4.5 MB snapshot every 60 s even in a background tab | P2 | STATIC | OPEN (known) |
-| F-120 | Edit, delete and reaction controls on updates are revealed on hover only, so they can't be reached on touch | P2 | STATIC | Mobile revamp |
-| F-121 | The in-app guide, knowledge base and README describe a much older app | P2 | STATIC | DOC (prepared) |
+| F-120 | Edit, delete and reaction controls on updates are revealed on hover only, so they can't be reached on touch | P2 | STATIC | FIXED+VERIFIED (v0.49.1, phone e2e) |
+| F-121 | The in-app guide, knowledge base and README describe a much older app | P2 | STATIC | DOC (done, v0.49.1) |
 | F-122 | Four unit tests pass alone but time out under load (default 5 s) | P3 | REPRO (E1) | OPEN |
 | F-123…F-199 | Minor defects and stale text (tables below) | P3 | STATIC | mostly OPEN |
+| F-200 | Sidebar width, open teams, panel sizes and the tracker view were reset on every reload | P2 | REPRO (E2) | FIXED+VERIFIED (v0.50.0, E2) |
 
 ---
 
@@ -77,7 +81,7 @@ Severity uses the plan's scale: P0 is data loss or broken access, P1 a core work
 - Production today: the wipe run on 25 September at 15:59:30Z was restored at 15:59:58Z, and 969 live tasks are back. So the departments with past requests can book. The next wipe, the one the Danger zone exists for when going live, breaks all of them.
 - Public `/book/<slug>/<key>` and the signed-in `/book/<slug>` are not affected. They send the department's name, and the booking service checks it against the list.
 
-**Fix (PROPOSED):** let the server resolve the department by name when the client has no id.
+**Fix (FIXED in v0.49.1, FX-01; checked on E3):** let the server resolve the department by name when the client has no id.
 
 - The service's portal `book()` accepts `departmentId: string | null`. When it is null it looks up an ACTIVE department with that name. The id path is unchanged.
 - The client sends the id when it has one, and null otherwise.
@@ -102,7 +106,7 @@ See `FIX_LOG.md` FX-01.
 
 **Consequence:** anyone holding the public booking or portal link can rename the workspace owner or any colleague, or pull an unrelated account holder into the workspace as a pending member.
 
-**Fix (FX-02):** an anonymous form never rewrites an existing identity.
+**Fix (FIXED in v0.49.1, FX-02; checked on E3):** an anonymous form never rewrites an existing identity.
 
 - Nobody already in the member list is renamed: joined, pending or deactivated.
 - An account that belongs to someone else's workspace is invited without being renamed.
@@ -121,7 +125,7 @@ See `FIX_LOG.md` FX-01.
   - The endpoints include INVITED and deactivated people.
   - There is no rate limit.
   - `_` also makes `j_smith@…` match `j.smith@…` when *booking*, which attributes the task to (and, per F-102, renames) the wrong person.
-- **Fix (PROPOSED, FX-02):** match `profiles.email` exactly (`.eq`) against the trimmed, lowercased address. Auth stores emails lowercased; the seed and onboarding do too.
+- **Fix (FIXED in v0.49.1, FX-02; checked on E3):** match `profiles.email` exactly (`.eq`) against the trimmed, lowercased address. Auth stores emails lowercased; the seed and onboarding do too.
 
 ### F-104 — Comment authors can re-point their comments
 
@@ -137,7 +141,7 @@ See `FIX_LOG.md` FX-01.
   No trigger freezes `item_id` or `parent_id`. Only `comments_set_updated_at` and the automation capture exist.
 
 - **Consequence:** with the anon key and their own session, an author can PATCH `item_id` to any item id, on a private board or in another workspace. The comment then shows up in that task's Updates, attributed to them, and fires nothing. `parent_id` can likewise be pointed at another item's update. This makes a thread whose count shows in badges but which no one can see (F-164).
-- **Fix (PROPOSED SQL `proposed-migrations/0079_comments_stay_put.sql`):**
+- **Fix (FIXED: `supabase/migrations/0079_comments_stay_put.sql` and `supabase/policies/0020_comments_update_needs_edit_rights.sql`; checked on E3):**
   - Rewrite the policy's `with check` to `author_id = auth.uid() and private.can_edit_item(item_id)`.
   - Add a `before update` trigger that refuses changes to `item_id`, `author_id`, `shared_id` or `parent_id`.
   - Test on E3 before moving it into `supabase/migrations`.
@@ -150,7 +154,7 @@ See `FIX_LOG.md` FX-01.
   - `pg_attribute.attnotnull` for `item_id` is `true`.
   - `insert … (rule_id, item_id, fire_key) values (…, null, '2026-09-26T09')` fails with `null value in column "item_id" … violates not-null constraint` (23502).
 - **Consequence:** every recurring rule, including the "Weekly review" recipe, fails every hour it is due and records `lastError`. The local provider has no such constraint, so the unit tests pass.
-- **Fix (PROPOSED SQL `proposed-migrations/0080_recurring_receipts.sql`):**
+- **Fix (FIXED: `supabase/migrations/0080_recurring_receipts.sql`; checked on E3):**
   - Drop the primary key and let `item_id` be null.
   - Keep uniqueness with two partial unique indexes, one for `item_id is not null` and the existing one for null.
   - Check how the repository writes receipts first. If it names a conflict target, the target must match one of those indexes (see NEXT_SESSION §4).
@@ -165,13 +169,13 @@ See `FIX_LOG.md` FX-01.
 - **Affected types (12):** STATUS, DROPDOWN, PRIORITY, DATE, TIMELINE, NUMBER, PLAIN_DATE, TIME, DATETIME, COUNTDOWN, STAKEHOLDER, SIZE.
 - **Not affected:** TEXT, PERSON and TAGS, because an empty string or array is not null.
 - **Why the tests missed it:** they run on the local provider, which does not strip nulls.
-- **Fix (PROPOSED, FX-03):** the engine restores the value's full shape before reading it: `{ ...emptyValueFor(v.type), ...v }` (`emptyValueFor` is already imported). No migration is needed.
+- **Fix (FIXED in v0.49.1, FX-03; checked on E3):** the engine restores the value's full shape before reading it: `{ ...emptyValueFor(v.type), ...v }` (`emptyValueFor` is already imported). No migration is needed.
 
 ### F-107 — Ticket prefix rewrite truncates four-digit numbers on Supabase
 
 - **Where:** `supabase/migrations/0051_rewrite_ticket_prefix.sql:51` pads with `lpad(n::text, 3, '0')`. Postgres `lpad` *truncates* a longer string to the length given, so CP_1234 becomes PROD_123 and collides with PROD_123. The local provider pads correctly (`formatTicket`).
 - **Consequence:** the live workspace's counter was 923 on 26 September. Once tickets pass 999, any prefix change with "Rewrite" silently renumbers tasks into duplicates.
-- **Fix (PROPOSED SQL `proposed-migrations/0081_rewrite_ticket_prefix_long_numbers.sql`):** `create or replace` the function to pad with `lpad(n, greatest(3, length(n)), '0')`.
+- **Fix (FIXED: `supabase/migrations/0081_rewrite_ticket_prefix_long_numbers.sql`; checked on E3):** `create or replace` the function to pad with `lpad(n, greatest(3, length(n)), '0')`.
 
 ### F-108 — The repo cannot build an empty database · FIXED+VERIFIED
 
@@ -202,19 +206,19 @@ See `FIX_LOG.md` FX-01.
 
 - **Where:** `src/features/boards/components/views/kanban-lanes.ts:65,103-116` builds person lanes from active users only.
 - **Consequence:** a task whose only PIC is a pending requester or a departed colleague is in no lane. It vanishes from Kanban while still on the board.
-- **Fix (PROPOSED, FX-05):** also give a lane to any person who appears on the board's data. Mark pending and deactivated lanes as such, or fold them into "Someone else".
+- **Fix (FIXED in v0.49.1, FX-05):** also give a lane to any person who appears on the board's data. Mark pending and deactivated lanes as such, or fold them into "Someone else".
 
 ### F-111 — Phone date sheet quick picks are a day early in the morning
 
 - **Where:** `src/features/boards/components/mobile/mobile-item-card.tsx:315-320` builds Today, Tomorrow and Next week with `new Date().toISOString().slice(0,10)`, the UTC date. The desktop picker uses local time.
 - **Consequence:** in Melbourne (UTC+10/+11), "Today" means yesterday before 10–11 am. In Ho Chi Minh City (UTC+7) it does before 7 am.
-- **Fix (PROPOSED, FX-06):** use the local-date helper the desktop picker uses.
+- **Fix (FIXED in v0.49.1, FX-06):** use the local-date helper the desktop picker uses.
 
 ### F-112 — Ticket matches flood the palette
 
 - **Where:** `src/services/search-service.ts`. A ticket match scores 0, the same as an exact name. The raw ticket substring test means "c", "p", "cp", "_" or any digit matches **every** ticketed task.
 - **Consequence:** the first keystroke of most searches fills all 12 item slots with arbitrary tasks. Every task has a ticket, so "Campaign" can't be found while it is being typed.
-- **Fix (PROPOSED, FX-07):**
+- **Fix (FIXED in v0.49.1, FX-07):**
   - Count a ticket match only for a ticket-shaped query: it contains a digit and the whole query matches the normalised ticket from its start.
   - Rank it 0 only when the whole ticket matches, else 1.
 
@@ -285,7 +289,7 @@ Held back from this public repository until it is fixed; the owner has the full 
 
 - **Where:** `src/features/items/item-updates.tsx`: edit and delete on an update, the add-reaction button on replies, and row actions in the table are revealed on hover.
 - **Consequence:** on a phone they can't be reached at all. They stay invisible even after a tap.
-- **Fix:** part of the mobile revamp (`MOBILE_AUDIT.md` M-04).
+- **Fix (FIXED):** v0.49.1 shows them on touch screens (FX-18), and v0.50.0's phone tests edit, delete and react to an update by touch.
 
 ### F-121 — Documentation describes an older app
 
@@ -298,7 +302,15 @@ Held back from this public repository until it is fixed; the owner has the full 
     - says linked tasks don't share assets
     - lists a Settings layout that no longer exists
     - points local users to an Export that was removed
-- **Fix:** full rewrites are prepared in `deliverables/repo` (DOC).
+- **Fix (DOC, done in v0.49.1):** all three rewritten, with `guide-content.test.ts` to keep the guide honest.
+
+### F-200 — UI preferences reset on every reload · FIXED+VERIFIED
+
+- **Where:** `src/stores/ui-store.ts` (persisted with `skipHydration`), the sidebar's effect that clears `navPending`, and `AppShell`'s effect that rehydrates the store.
+- **What happens:** React runs a child's effects before its parent's. The sidebar's effect called a store setter before `AppShell` had rehydrated the store, so zustand's persist wrote the in-memory defaults over what was saved, and the rehydrate that followed read those defaults back.
+- **Consequence:** every reload lost the sidebar's width and collapsed state, the open teams and Favourites, the task panel's size and column widths, and the tracker view. Since `da326e2` (13 September).
+- **Found by:** `mobile-layout.spec.ts`, "a desktop → mobile → desktop round trip leaves the sidebar preference alone", which failed in both e2e runs. A trace of the writes to `localStorage` named `setNavPending`.
+- **Fix (FIXED in v0.50.0; the test passes):** the store's storage ignores writes until it has hydrated. The commit that fixed it (`eb96121`) calls it F-196 by mistake; F-196 is the stale code comments.
 
 ---
 

@@ -29,7 +29,8 @@ Streamline runs on **Next.js 16, React 19 and TypeScript**. It has two backends 
   - Teams, members and roles, onboarding by join link (no email), departments, asset types and output rates, ticket prefix.
   - **Snapshots** of the whole database, with download, upload and restore.
   - A **Danger zone** that wipes all board data behind a password.
-- **Everywhere.** Live updates across tabs and people; light, dim and dark themes; a phone layout; an in-app guide (Settings → Guide); and a new-version card with What's new.
+- **Everywhere.** Live updates across tabs and people; light, dim and dark themes; an in-app guide (Settings → Guide); and a new-version card with What's new.
+- **On a phone.** Its own layout below 768 px: bottom tabs, boards as cards, dialogs that rise from the bottom, full-screen search, My Work filters and Settings as a list. It installs to a home screen, and a bar says when the connection drops.
 
 ## Run a local demo
 
