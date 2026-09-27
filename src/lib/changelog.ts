@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.67.0",
+    date: "2026-09-27",
+    title: "Starred tasks",
+    changes: [
+      "Star a task from its panel, or from any My Work row, and it is kept in My Work's new Starred tab, read like your own work whatever board it is on.",
+      "Done starred tasks fold into Done at the foot of the tab, with Clear done to unstar them all; the sidebar's Favourites has one Starred tasks link instead of a growing list.",
+    ],
+  },
+  {
     version: "0.66.0",
     date: "2026-09-27",
     title: "Follow boards and tasks",

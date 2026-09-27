@@ -63,6 +63,7 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { FollowControl } from "@/features/notifications/follow-control";
+import { StarTaskButton } from "@/features/my-work/star-task-button";
 
 const FIELD_WIDTH = 260;
 
@@ -587,6 +588,7 @@ function PanelHeader({
               </SimpleTooltip>
             )}
             {/* Anyone who can see the task can follow it, on it or not. */}
+            {!shared && <StarTaskButton item={item} />}
             {!shared && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
             {!shared && canManage && (
               <SimpleTooltip label="Share this task by link">

@@ -22,6 +22,7 @@ import type {
   Item,
   ItemAsset,
   ItemColumnValue,
+  ItemFavourite,
   ItemLink,
   Notification,
   NotificationPreferences,
@@ -133,6 +134,7 @@ export interface StreamlineDB extends DBSchema {
   notifications: { key: string; value: Notification; indexes: { byUser: string } };
   notificationPreferences: { key: string; value: NotificationPreferences };
   subscriptions: { key: string; value: Subscription; indexes: { byUser: string; byBoard: string } };
+  itemFavourites: { key: string; value: ItemFavourite; indexes: { byUser: string } };
   directMessages: {
     key: string;
     value: DirectMessage;
@@ -185,6 +187,7 @@ export const ALL_STORES: StoreName[] = [
   "notifications",
   "notificationPreferences",
   "subscriptions",
+  "itemFavourites",
   "directMessages",
   "boardVisits",
   "meta",
@@ -192,7 +195,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 18;
+export const DB_VERSION = 19;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -435,6 +438,11 @@ function createSubscriptionsStore(db: IDBPDatabase<StreamlineDB>): void {
   subscriptions.createIndex("byBoard", "boardId");
 }
 
+function createItemFavouritesStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("itemFavourites")) return;
+  db.createObjectStore("itemFavourites", { keyPath: "id" }).createIndex("byUser", "userId");
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -455,6 +463,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 16) createAutomationStores(db);
   if (oldVersion < 17) createBoardTemplatesStore(db);
   if (oldVersion < 18) createSubscriptionsStore(db);
+  if (oldVersion < 19) createItemFavouritesStore(db);
 }
 
 export interface OpenDatabaseOptions {

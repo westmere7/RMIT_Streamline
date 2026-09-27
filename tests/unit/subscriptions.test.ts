@@ -77,3 +77,26 @@ describe("following boards and tasks", () => {
     expect(subscriptionEventFor({ eventType: "BOARD_RENAMED", metadata: {} })).toBeNull();
   });
 });
+
+describe("starred tasks", () => {
+  it("lists what was starred like My Work, marks done ones, and unstars in one go", async () => {
+    const { repos, services, item, other, setStatus } = await setup();
+    const me = SEED_USER_IDS.jun;
+    await services.myWork.star(me, item);
+    await services.myWork.star(me, other);
+    await services.myWork.star(me, item);
+    let starred = await services.myWork.listStarred(SEED_WORKSPACE_ID, me);
+    expect(starred.map((e) => e.item.id).sort()).toEqual([item.id, other.id].sort());
+    expect((await services.myWork.starredIds(me)).get(item.id)).toBe(item.boardId);
+
+    // Done by the board's own status: it is still starred, and says it is done.
+    const status = (await repos.boards.listColumns(item.boardId)).find((c) => c.type === "STATUS")!;
+    const doneIndex = status.settings.kind === "status" ? columnLabels(status).findIndex((l) => status.settings.kind === "status" && status.settings.doneLabelIds.includes(l.id)) : -1;
+    await setStatus(item, doneIndex, SEED_USER_IDS.danh);
+    starred = await services.myWork.listStarred(SEED_WORKSPACE_ID, me);
+    expect(starred.find((e) => e.item.id === item.id)?.isDone).toBe(true);
+
+    await services.myWork.unstar(me, [item.id, other.id]);
+    expect(await services.myWork.listStarred(SEED_WORKSPACE_ID, me)).toEqual([]);
+  });
+});

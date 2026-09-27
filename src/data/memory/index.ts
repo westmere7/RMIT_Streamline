@@ -248,6 +248,11 @@ export function createMemoryRepositories(
       update: readOnly("saving a board template"),
       delete: readOnly("deleting a board template"),
     },
+    itemFavourites: {
+      listByUser: async () => [],
+      add: readOnly("starring a task"),
+      remove: readOnly("unstarring a task"),
+    },
     // Nobody follows anything from a shared page.
     subscriptions: {
       listByUser: async () => [],

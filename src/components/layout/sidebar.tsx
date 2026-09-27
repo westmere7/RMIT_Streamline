@@ -33,6 +33,7 @@ import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
 import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
+import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
@@ -173,6 +174,10 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const accessibleBoards = ws.boards.filter((b) => canViewBoard(ws.permissions, b));
   const visibleBoards = accessibleBoards.filter((b) => b.archivedAt === null);
   const favouriteBoards = visibleBoards.filter((b) => ws.isFavourite(b.id));
+  // Starred tasks are not listed here, where they would pile up: one link to
+  // My Work's Starred tab, counting this workspace's.
+  const starred = useStarredIds(ws.currentUser.id);
+  const starredHere = starred.data ? [...starred.data.values()].filter((boardId) => visibleBoards.some((b) => b.id === boardId)).length : 0;
   const allTeams = ws.teams.filter((t) => t.archivedAt === null);
   // The Admin team is the app's own, not one of the teams the work is divided
   // between, so it is not listed with them: it has a place of its own under the
@@ -323,12 +328,27 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         )}
 
         <Section title="Favourites" icon={Star} collapsed={collapsed} storeKey="favourites">
-          {favouriteBoards.length === 0 ? (
+          {favouriteBoards.length === 0 && starredHere === 0 ? (
             !collapsed && <p className="px-2 py-1 text-2xs text-muted-foreground">Star a board to pin it here.</p>
           ) : (
             favouriteBoards.map((board) => (
               <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={favouriteOpen === board.slug && activeBoardSlug === board.slug} collapsed={collapsed} fromFavourites />
             ))
+          )}
+          {starredHere > 0 && (
+            <li>
+              <SimpleTooltip label={`Starred tasks · ${starredHere}`} side="right" disabled={!collapsed}>
+                <Link href={`${routes.myWork(ws.slug)}?tab=starred`} className={cn(navItemClasses(false), "h-8 font-normal", collapsed ? "justify-center px-0" : "pr-2")} data-testid="sidebar-starred-tasks">
+                  <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
+                  {!collapsed && (
+                    <>
+                      <span className="min-w-0 flex-1 truncate">Starred tasks</span>
+                      <span className="text-2xs text-muted-foreground tabular">{starredHere}</span>
+                    </>
+                  )}
+                </Link>
+              </SimpleTooltip>
+            </li>
           )}
         </Section>
 

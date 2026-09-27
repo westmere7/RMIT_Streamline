@@ -13,6 +13,7 @@ import type {
   BoardColumn,
   BoardColumnInput,
   BoardFavourite,
+  ItemFavourite,
   BoardGroup,
   BoardInput,
   BoardMember,
@@ -451,6 +452,13 @@ export interface BoardTemplateRepository {
 }
 
 /** Blocks of a brief kept under a name, per workspace, to be dropped into any service's brief. */
+/** Starred tasks, one person's own. */
+export interface ItemFavouriteRepository {
+  listByUser(userId: EntityId): Promise<ItemFavourite[]>;
+  add(input: Pick<ItemFavourite, "userId" | "itemId" | "boardId">): Promise<ItemFavourite>;
+  remove(userId: EntityId, itemIds: EntityId[]): Promise<void>;
+}
+
 /** Who follows which boards and tasks (see `@/domain/notification/subscription`). */
 export interface SubscriptionRepository {
   /** Everything one person follows in a workspace. */
@@ -662,6 +670,7 @@ export interface Repositories {
   boardTemplates: BoardTemplateRepository;
   bookingSavedBlocks: BookingSavedBlockRepository;
   subscriptions: SubscriptionRepository;
+  itemFavourites: ItemFavouriteRepository;
   boardShares: BoardShareRepository;
   itemShares: ItemShareRepository;
   dashboardShares: DashboardShareRepository;

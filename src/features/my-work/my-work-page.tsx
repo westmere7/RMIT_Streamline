@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Filter, Layers, Link2, ListTodo, Search, SquareKanban, UserRound, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Filter, Layers, Link2, ListTodo, Search, SquareKanban, Star, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -20,8 +20,10 @@ import { Switch } from "@/components/ui/switch";
 import type { User } from "@/domain";
 import { isStuckLabel } from "@/domain";
 import { EMPTY_MY_WORK_FILTERS, MY_WORK_DUE_BUCKETS, MY_WORK_KINDS, MY_WORK_KIND_LABELS, MY_WORK_SEARCH_KINDS, MY_WORK_SEARCH_KIND_LABELS, activeMyWorkFilterCount, filterMyWork, myWorkLabelNames, type MyWorkFilters, type MyWorkSearchKind } from "@/features/my-work/filters";
-import { useMyAssets, useMyWork } from "@/features/my-work/hooks";
-import { MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
+import { useMyAssets, useMyStarred, useMyWork, useStar } from "@/features/my-work/hooks";
+import { StarTaskButton } from "@/features/my-work/star-task-button";
+import { MY_WORK_TABS, MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
+import { useSearchParams } from "next/navigation";
 import { MyWorkSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MyWorkMobile } from "@/features/mobile/my-work-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -40,9 +42,12 @@ export function MyWorkPage() {
 function MyWorkDesktop() {
   const ws = useWorkspace();
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
-  const [tab, setTab] = React.useState<MyWorkTab>("tasks");
+  const params = useSearchParams();
+  const [tab, setTab] = React.useState<MyWorkTab>(() => (MY_WORK_TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as MyWorkTab) : "tasks");
   const myAssets = useMyAssets(ws.workspace.id, ws.currentUser.id, tab === "assets");
   const assetCount = openAssetCount(myAssets.data);
+  const myStarred = useMyStarred(ws.workspace.id, ws.currentUser.id, tab === "starred");
+  const starredCount = myStarred.data ? myStarred.data.filter((e) => !e.isDone).length : null;
   const [showCompleted, setShowCompleted] = React.useState(false);
   const [filters, setFilters] = React.useState<MyWorkFilters>(EMPTY_MY_WORK_FILTERS);
   const now = React.useMemo(() => new Date(), []);
@@ -77,7 +82,9 @@ function MyWorkDesktop() {
           // Counted, or a blank line waiting to be one. "0 open items"
           // while the list is still being read is a figure, and it is wrong.
           description={
-            tab === "assets" ? (
+            tab === "starred" ? (
+              starredCount !== null ? `${starredCount} starred ${starredCount === 1 ? "task" : "tasks"} still open.` : <SkeletonLine className="w-72 max-w-full" />
+            ) : tab === "assets" ? (
               assetCount !== null ? `${assetCount} open ${assetCount === 1 ? "asset" : "assets"} on you across ${ws.workspace.name}.` : <SkeletonLine className="w-72 max-w-full" />
             ) : myWork.data ? (
               `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`
@@ -86,18 +93,21 @@ function MyWorkDesktop() {
             )
           }
           actions={
+            // Starred folds its done tasks away itself.
+            tab !== "starred" && (
             <div className="flex items-center gap-2">
               <Switch id="show-completed" aria-label="Show completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
               <Label htmlFor="show-completed" className="text-[13px] font-normal">
                 Show completed
               </Label>
             </div>
+            )
           }
         />
         {/* The bar: what to search and the words, then one button per thing to
             narrow by. Like a board's toolbar, so nobody learns a second one. */}
         <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 sm:px-6" data-testid="my-work-filters">
-          <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} className="mr-1" />
+          <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} starred={starredCount} className="mr-1" />
           {tab === "tasks" && (
           <>
           <SearchBox kind={filters.searchKind} value={filters.search} onKind={(searchKind) => patch({ searchKind })} onValue={(search) => patch({ search })} />
@@ -150,7 +160,7 @@ function MyWorkDesktop() {
       </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-8 sm:px-6">
         <div className="mx-auto w-full max-w-7xl">
-          {tab === "assets" ? <MyAssetsView query={myAssets} showCompleted={showCompleted} /> : <>
+          {tab === "starred" ? <StarredView query={myStarred} now={now} /> : tab === "assets" ? <MyAssetsView query={myAssets} showCompleted={showCompleted} /> : <>
           {myWork.isLoading && <MyWorkSkeleton />}
           {myWork.isError && <ErrorState title="Could not load your work." error={myWork.error} onRetry={() => myWork.refetch()} />}
           {myWork.data && all.length === 0 && <EmptyState icon={ListTodo} title="Nothing assigned to you" description="Items where you are set as an owner will appear here, grouped by due date." />}
@@ -344,6 +354,42 @@ function ChoiceFilter<T extends string>({
   );
 }
 
+/**
+ * Starred tasks: the open ones in the usual due-date sections, and the done
+ * ones folded away at the foot with a way to unstar them all, so the list
+ * does not silt up with finished work.
+ */
+function StarredView({ query, now }: { query: ReturnType<typeof useMyStarred>; now: Date }) {
+  const ws = useWorkspace();
+  const star = useStar(ws.currentUser.id);
+  const [showDone, setShowDone] = React.useState(false);
+  const entries = React.useMemo(() => query.data ?? [], [query.data]);
+  const grouped = React.useMemo(() => groupBy(entries, (entry) => sectionFor(entry, now)), [entries, now]);
+  const done = grouped.get("completed") ?? [];
+  if (query.isLoading) return <MyWorkSkeleton />;
+  if (query.isError) return <ErrorState title="Could not load your starred tasks." error={query.error} onRetry={() => query.refetch()} />;
+  if (entries.length === 0) return <EmptyState icon={Star} title="Nothing starred" description="Star a task from its panel to keep it here." />;
+  return (
+    <div data-testid="my-starred">
+      {MY_WORK_SECTIONS.filter((s) => s !== "completed").map((section) => {
+        const list = grouped.get(section) ?? [];
+        return list.length > 0 ? <WorkSection key={section} section={section} entries={list} now={now} /> : null;
+      })}
+      {done.length > 0 && (
+        <div className="mt-6 flex items-center gap-2" data-testid="my-starred-done">
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone}>
+            <ChevronDown className={cn("transition-transform", !showDone && "-rotate-90")} /> Done · {done.length}
+          </Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => star.mutate({ items: done.map((e) => e.item), on: false })} data-testid="my-starred-clear-done">
+            Clear done
+          </Button>
+        </div>
+      )}
+      {showDone && done.length > 0 && <WorkSection section="completed" entries={done} now={now} />}
+    </div>
+  );
+}
+
 function WorkSection({ section, entries, now }: { section: MyWorkSection; entries: MyWorkItem[]; now: Date }) {
   const ws = useWorkspace();
   return (
@@ -353,23 +399,24 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
         <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-2xs font-medium tabular">{entries.length}</span>
       </h2>
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-        <div className="hidden h-9 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_88px_130px_110px_90px] items-center gap-3 border-b border-border/70 bg-surface/70 px-4 text-2xs font-medium text-muted-foreground md:grid">
+        <div className="hidden h-9 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_88px_130px_110px_90px_28px] items-center gap-3 border-b border-border/70 bg-surface/70 px-4 text-2xs font-medium text-muted-foreground md:grid">
           <span>Item</span>
           <span>Board · Group</span>
           <span>PIC</span>
           <span>Status</span>
           <span>Priority</span>
           <span className="text-right">Due</span>
+          <span />
         </div>
         <ul className="divide-y divide-border/60">
           {entries.map((entry) => {
             const others = entry.people.filter((id) => id !== ws.currentUser.id).map((id) => ws.userById(id)).filter((u): u is User => !!u);
             return (
-              <li key={entry.item.id}>
+              <li key={entry.item.id} className="relative">
                 <Link
                   href={ws.boardPath(entry.board, { itemId: entry.item.id })}
                   className={cn(
-                    "grid min-h-10 grid-cols-[minmax(0,1fr)_90px] items-center gap-3 px-3 py-1.5 text-[13px] hover:bg-accent md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_88px_130px_110px_90px]",
+                    "grid min-h-10 grid-cols-[minmax(0,1fr)_90px_28px] items-center gap-3 px-3 py-1.5 text-[13px] hover:bg-accent md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_88px_130px_110px_90px_28px]",
                     entry.isDone && "text-muted-foreground",
                   )}
                   data-testid="my-work-row"
@@ -399,7 +446,10 @@ function WorkSection({ section, entries, now }: { section: MyWorkSection; entrie
                     <PriorityPill label={entry.priority} emptyText="—" />
                   </span>
                   <span className={cn("text-right text-xs tabular", section === "overdue" ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{entry.dueDate ? formatShortDate(entry.dueDate, now) : "—"}</span>
+                  {/* Room for the star, which sits over the link rather than in it. */}
+                  <span aria-hidden />
                 </Link>
+                <StarTaskButton item={entry.item} className="absolute top-1/2 right-2 -translate-y-1/2" />
               </li>
             );
           })}

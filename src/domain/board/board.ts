@@ -61,6 +61,16 @@ export interface BoardMember {
   role: BoardRole;
 }
 
+/** A task someone starred, for My Work's Starred tab. Strictly theirs. */
+export interface ItemFavourite {
+  id: EntityId;
+  userId: EntityId;
+  itemId: EntityId;
+  /** The task's board, so a workspace's stars are read without the items. */
+  boardId: EntityId;
+  createdAt: string;
+}
+
 export interface BoardFavourite {
   id: EntityId;
   boardId: EntityId;

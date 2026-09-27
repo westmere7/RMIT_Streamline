@@ -1,7 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
+import { toast } from "sonner";
+import type { Item } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
@@ -68,6 +70,74 @@ export function useMyAssets(workspaceId: string, userId: string, enabled: boolea
 }
 
 /**
+ * The tasks this person starred, as My Work rows. Read while the Starred tab
+ * is open, and followed like the rest of My Work.
+ */
+export function useMyStarred(workspaceId: string, userId: string, enabled: boolean) {
+  const services = useServices();
+  const checks = useWorkspaceRowChecks();
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!workspaceId || !userId) return [];
+    const keys = [queryKeys.myStarred(workspaceId, userId)];
+    return [
+      { table: "item_column_values", keys, accept: checks.onBoard },
+      { table: "items", keys, accept: checks.onBoard },
+    ];
+  }, [workspaceId, userId, checks]);
+  useRealtime(enabled && workspaceId && userId ? `my-starred:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  return useQuery({
+    queryKey: queryKeys.myStarred(workspaceId, userId),
+    queryFn: () => services.myWork.listStarred(workspaceId, userId),
+    enabled,
+    staleTime: 0,
+    refetchInterval: enabled ? REFRESH_MS : false,
+    refetchOnWindowFocus: enabled,
+  });
+}
+
+/** Which tasks this person starred, each with its board, for the stars on the panel and the rows. */
+export function useStarredIds(userId: string) {
+  const services = useServices();
+  return useQuery({
+    queryKey: queryKeys.itemFavourites(userId),
+    queryFn: () => services.myWork.starredIds(userId),
+    staleTime: 60_000,
+  });
+}
+
+/** Stars or unstars tasks, the star turning at once. */
+export function useStar(userId: string) {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const key = queryKeys.itemFavourites(userId);
+  return useMutation({
+    mutationFn: async ({ items, on }: { items: Array<Pick<Item, "id" | "boardId">>; on: boolean }) => {
+      if (on) for (const item of items) await services.myWork.star(userId, item);
+      else await services.myWork.unstar(userId, items.map((i) => i.id));
+    },
+    onMutate: async ({ items, on }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Map<string, string>>(key);
+      const next = new Map(previous ?? []);
+      for (const item of items) {
+        if (on) next.set(item.id, item.boardId);
+        else next.delete(item.id);
+      }
+      queryClient.setQueryData(key, next);
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+      toast.error(error instanceof Error ? error.message : "Could not change the star");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({ queryKey: ["my-starred"] });
+    },
+  });
+}
+
+/**
  * Invalidates this person's work when the rows it is read from move.
  *
  * `item_column_values` is where an assignment is written, and it arrives
@@ -78,7 +148,7 @@ export function useMyAssets(workspaceId: string, userId: string, enabled: boolea
  * In local mode the BroadcastChannel sync invalidates the same key, so this does
  * nothing there.
  */
-function useMyWorkRealtime(workspaceId: string, userId: string): void {
+function useMyWorkRealtime(workspaceId: string, userId: string): void {
   const checks = useWorkspaceRowChecks();
   const bindings = React.useMemo<RealtimeBinding[]>(() => {
     if (!workspaceId || !userId) return [];

@@ -21,8 +21,9 @@ import {
   myWorkLabelNames,
   type MyWorkFilters,
 } from "@/features/my-work/filters";
-import { useMyAssets, useMyWork } from "@/features/my-work/hooks";
-import { MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
+import { useMyAssets, useMyStarred, useMyWork, useStar } from "@/features/my-work/hooks";
+import { useSearchParams } from "next/navigation";
+import { MY_WORK_TABS, MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
 import { MyWorkMobileSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MobileTaskList, MobileTaskRow } from "@/features/mobile/task-row";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -44,9 +45,12 @@ const PHONE_START: MyWorkFilters = { ...EMPTY_MY_WORK_FILTERS, searchKind: "item
 export function MyWorkMobile() {
   const ws = useWorkspace();
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
-  const [tab, setTab] = React.useState<MyWorkTab>("tasks");
+  const params = useSearchParams();
+  const [tab, setTab] = React.useState<MyWorkTab>(() => (MY_WORK_TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as MyWorkTab) : "tasks");
   const myAssets = useMyAssets(ws.workspace.id, ws.currentUser.id, tab === "assets");
   const assetCount = openAssetCount(myAssets.data);
+  const myStarred = useMyStarred(ws.workspace.id, ws.currentUser.id, tab === "starred");
+  const starredCount = myStarred.data ? myStarred.data.filter((e) => !e.isDone).length : null;
   const [showCompleted, setShowCompleted] = React.useState(false);
   const [filters, setFilters] = React.useState<MyWorkFilters>(PHONE_START);
   const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -71,7 +75,9 @@ export function MyWorkMobile() {
         {/* The count waits for the list. Nobody has nought items assigned for
             the second and a half before the first read comes back. */}
         <p className="mb-3 text-[13px] text-muted-foreground">
-          {tab === "assets" ? (
+          {tab === "starred" ? (
+            starredCount !== null ? `${starredCount} starred ${starredCount === 1 ? "task" : "tasks"} still open.` : <SkeletonLine className="w-52 max-w-full" />
+          ) : tab === "assets" ? (
             assetCount !== null ? `${assetCount} open ${assetCount === 1 ? "asset" : "assets"} on you.` : <SkeletonLine className="w-52 max-w-full" />
           ) : myWork.data ? (
             `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you.`
@@ -80,7 +86,9 @@ export function MyWorkMobile() {
           )}
         </p>
 
-        <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} className="mb-3" />
+        <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} starred={starredCount} className="mb-3" />
+
+        {tab === "starred" && <StarredMobile query={myStarred} now={now} />}
 
         {tab === "assets" && (
           <>
@@ -185,6 +193,39 @@ export function MyWorkMobile() {
 
       <FilterSheet open={sheetOpen} onOpenChange={setSheetOpen} all={all} filters={filters} patch={patch} onClear={clear} shown={shown.length} />
     </div>
+  );
+}
+
+/** Starred tasks on a phone: open ones by due date, done ones folded with a way to clear them. */
+function StarredMobile({ query, now }: { query: ReturnType<typeof useMyStarred>; now: Date }) {
+  const ws = useWorkspace();
+  const star = useStar(ws.currentUser.id);
+  const [showDone, setShowDone] = React.useState(false);
+  const entries = React.useMemo(() => query.data ?? [], [query.data]);
+  const grouped = React.useMemo(() => groupBy(entries, (entry) => sectionFor(entry, now)), [entries, now]);
+  const done = grouped.get("completed") ?? [];
+  if (query.isLoading) return <MyWorkMobileSkeleton />;
+  if (query.isError) return <ErrorState title="Could not load your starred tasks." error={query.error} onRetry={() => query.refetch()} />;
+  if (entries.length === 0) return <EmptyState icon={ListTodo} title="Nothing starred" description="Star a task from its panel to keep it here." />;
+  return (
+    <>
+      {MY_WORK_SECTIONS.filter((s) => s !== "completed").map((section) => {
+        const list = grouped.get(section) ?? [];
+        return list.length > 0 ? <Section key={section} section={section} entries={list} now={now} /> : null;
+      })}
+      {done.length > 0 && (
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} className="flex h-11 flex-1 items-center justify-between rounded-xl border border-border/70 px-3 text-[13px] font-medium active:bg-accent/70">
+            {showDone ? "Hide done" : "Show done"}
+            <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs tabular">{done.length}</span>
+          </button>
+          <button type="button" onClick={() => star.mutate({ items: done.map((e) => e.item), on: false })} className="flex h-11 items-center rounded-xl border border-border/70 px-3 text-[13px] font-medium active:bg-accent/70">
+            Clear done
+          </button>
+        </div>
+      )}
+      {showDone && done.length > 0 && <Section section="completed" entries={done} now={now} />}
+    </>
   );
 }
 

@@ -16,13 +16,16 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { cn, groupBy } from "@/lib/utils";
 import { MY_WORK_SECTION_LABELS, MY_WORK_SECTIONS, sectionFor, type MyWorkAsset, type MyWorkSection } from "@/services/my-work-service";
 
-export type MyWorkTab = "tasks" | "assets";
+export type MyWorkTab = "tasks" | "assets" | "starred";
+
+export const MY_WORK_TABS: readonly MyWorkTab[] = ["tasks", "assets", "starred"];
 
 /** Tasks or assets: the same person's work, counted two ways. */
-export function MyWorkTabs({ tab, onTab, tasks, assets, className }: { tab: MyWorkTab; onTab: (tab: MyWorkTab) => void; tasks: number | null; assets: number | null; className?: string }) {
+export function MyWorkTabs({ tab, onTab, tasks, assets, starred, className }: { tab: MyWorkTab; onTab: (tab: MyWorkTab) => void; tasks: number | null; assets: number | null; starred: number | null; className?: string }) {
   const options: Array<{ id: MyWorkTab; label: string; count: number | null }> = [
     { id: "tasks", label: "Tasks", count: tasks },
     { id: "assets", label: "Assets", count: assets },
+    { id: "starred", label: "Starred", count: starred },
   ];
   return (
     <div role="tablist" aria-label="What to list" className={cn("inline-flex items-center rounded-full border border-border/70 p-0.5", className)} data-testid="my-work-tabs">
