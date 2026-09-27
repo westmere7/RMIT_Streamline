@@ -40,8 +40,11 @@ test.describe("member onboarding", () => {
     await page.goto("/workspace/rmit/members");
     await expect(page.getByTestId("members-summary")).toContainText(/3 pending onboarding/);
     const anh = await memberRow(page, "Anh Pham");
-    await expect(anh.getByTestId("member-status")).toHaveText("Pending onboarding");
-    await expect(anh.getByTestId("invite-link-button")).toBeVisible();
+    await expect(anh.getByTestId("member-status")).toHaveText("Pending");
+    // The link lives in the row menu.
+    await anh.getByRole("button", { name: "Actions for Anh Pham" }).click();
+    await expect(page.getByTestId("invite-link-button")).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // Not assignable: the owner picker on a board does not offer them.
     await page.goto("/workspace/rmit/boards/rmitinerary-2026");
@@ -74,17 +77,18 @@ test.describe("member onboarding", () => {
     expect(link).toMatch(/^http:\/\/localhost:\d+\/join\/[A-Za-z0-9_-]{40,}$/);
     await page.getByTestId("invite-done").click();
 
-    // Listed as pending straight away, with the link available again from the row.
+    // Listed as pending straight away, with the link available again from the row menu.
     const sam = await memberRow(page, "Sam Rivera");
-    await expect(sam.getByTestId("member-status")).toHaveText("Pending onboarding");
+    await expect(sam.getByTestId("member-status")).toHaveText("Pending");
     await expect(sam).toContainText("sam.rivera@rmit.edu.au");
-    await sam.getByTestId("invite-link-button").click();
+    await sam.getByRole("button", { name: "Actions for Sam Rivera" }).click();
+    await page.getByTestId("invite-link-button").click();
     await expect(page.getByTestId("invite-link-dialog").getByTestId("invite-link")).toHaveValue(link);
     await page.getByTestId("invite-link-dialog").getByRole("button", { name: "Done" }).click();
 
     // Reload: still pending, still there.
     await page.reload();
-    await expect((await memberRow(page, "Sam Rivera")).getByTestId("member-status")).toHaveText("Pending onboarding");
+    await expect((await memberRow(page, "Sam Rivera")).getByTestId("member-status")).toHaveText("Pending");
 
     // The invited person opens the link.
     await signOut(page);
@@ -123,7 +127,9 @@ test.describe("member onboarding", () => {
     // Their profile carries the details and the photo; the member list shows them active.
     await page.goto("/workspace/rmit/members");
     const row = await memberRow(page, "Samuel Rivera");
-    await expect(row.getByTestId("member-status")).toHaveText("Active");
+    // Active is the norm and carries no chip.
+    await expect(row).toHaveAttribute("data-member-status", "ACTIVE");
+    await expect(row.getByTestId("member-status")).toHaveCount(0);
     await expect(row).toContainText("Senior Producer");
     await expect(row.locator("img")).toHaveCount(1);
 
@@ -157,7 +163,9 @@ test.describe("member onboarding", () => {
     await signInAs(page, "Danh");
     await page.goto("/workspace/rmit/members");
     await expect(page.getByTestId("members-summary")).toContainText(/2 pending onboarding/);
-    await expect((await memberRow(page, "Anh Pham")).getByTestId("member-status")).toHaveText("Active");
+    const anh = await memberRow(page, "Anh Pham");
+    await expect(anh).toHaveAttribute("data-member-status", "ACTIVE");
+    await expect(anh.getByTestId("member-status")).toHaveCount(0);
   });
 
   test("links can be renewed and invitations cancelled", async ({ page }) => {
@@ -166,7 +174,8 @@ test.describe("member onboarding", () => {
 
     // Renew: the old seeded link stops working, the new one works.
     const lucas = await memberRow(page, "Lucas Reid");
-    await lucas.getByTestId("invite-link-button").click();
+    await lucas.getByRole("button", { name: "Actions for Lucas Reid" }).click();
+    await page.getByTestId("invite-link-button").click();
     const linkDialog = page.getByTestId("invite-link-dialog");
     const before = await linkDialog.getByTestId("invite-link").inputValue();
     expect(before).toContain("demo-invite-lucas-reid-2026");

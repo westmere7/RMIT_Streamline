@@ -59,16 +59,22 @@ type SortKey = "name" | "jobTitle" | "department" | "teams" | "role" | "status" 
 type SortDirection = "asc" | "desc";
 type Sort = { key: SortKey; direction: SortDirection };
 
-const COLUMNS: Array<{ key: SortKey; label: string }> = [
-  { key: "name", label: "Name" },
-  { key: "jobTitle", label: "Job title" },
-  { key: "department", label: "Department" },
-  { key: "teams", label: "Teams" },
-  { key: "role", label: "Workspace role" },
-  { key: "status", label: "Status" },
-  { key: "joined", label: "Joined" },
-  { key: "boards", label: "Boards" },
+type Column = { sorts: Array<{ key: SortKey; label: string }>; width?: string; align?: "right" };
+
+/** Short columns get fixed widths so nothing drifts apart; name and title share what is left. */
+const COLUMNS: Column[] = [
+  { sorts: [{ key: "name", label: "Name" }] },
+  // Title and department share a column, each still sortable on its own.
+  { sorts: [{ key: "jobTitle", label: "Title" }, { key: "department", label: "Department" }] },
+  { sorts: [{ key: "teams", label: "Teams" }], width: "w-56" },
+  { sorts: [{ key: "role", label: "Role" }], width: "w-24" },
+  { sorts: [{ key: "status", label: "Status" }], width: "w-28" },
+  { sorts: [{ key: "joined", label: "Joined" }], width: "w-28" },
+  { sorts: [{ key: "boards", label: "Boards" }], width: "w-20", align: "right" },
 ];
+
+/** Team chips a row shows before the rest fold into "+N". */
+const TEAM_CHIPS = 2;
 
 type Row = { member: WorkspaceMember; user: User; teams: Team[]; department: string | null; boards: number };
 
@@ -100,6 +106,27 @@ function compareRows(a: Row, b: Row, key: SortKey): number {
 /** "Joined 3 Sep", or when a pending person was added: their membership starts at the invitation. */
 function joinedLabel(member: WorkspaceMember): string {
   return formatShortDate(member.joinedAt.slice(0, 10));
+}
+
+/**
+ * Only the exceptions get a chip. Nearly everyone is active, so a green chip on
+ * every row said nothing; pending and deactivated people stand out instead.
+ */
+function StatusChip({ member, invitation }: { member: WorkspaceMember; invitation: WorkspaceInvitation | null }) {
+  if (member.status === "ACTIVE") return null;
+  if (member.status === "DEACTIVATED") {
+    return (
+      <Badge variant="muted" data-testid="member-status">
+        Deactivated
+      </Badge>
+    );
+  }
+  const chip = (
+    <Badge variant="warning" data-testid="member-status">
+      Pending
+    </Badge>
+  );
+  return invitation ? <SimpleTooltip label={`Invite link valid to ${formatShortDate(invitation.expiresAt.slice(0, 10))}`}>{chip}</SimpleTooltip> : chip;
 }
 
 /**
@@ -210,7 +237,9 @@ export function MembersPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header and list share one capped width, so on a wide screen the columns stay close together. */}
       <PageHeader
+        className="mx-auto w-full max-w-7xl"
         title="Members"
         description={
           <span data-testid="members-summary">
@@ -226,133 +255,143 @@ export function MembersPage() {
           )
         }
       />
-      <div className="scrollbar-thin flex-1 overflow-auto px-4 pb-8 sm:px-7">
-        <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="members-filters">
-          <div className="relative min-w-0 flex-1 sm:max-w-72">
-            <Search className="pointer-events-none absolute top-2 left-2 size-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search name, email, title or department"
-              className="w-full pl-7"
-              aria-label="Search members"
-            />
-          </div>
-          <FilterMenu label="Status" count={statuses.size} testId="members-filter-status">
-            {STATUS_ORDER.map((status) => (
-              <DropdownMenuCheckboxItem key={status} checked={statuses.has(status)} onCheckedChange={() => (setStatuses(toggleIn(statuses, status)), setPage(1))} onSelect={(e) => e.preventDefault()}>
-                {STATUS_LABEL[status]}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </FilterMenu>
-          <FilterMenu label="Role" count={roles.size} testId="members-filter-role">
-            {WORKSPACE_ROLES.map((role) => (
-              <DropdownMenuCheckboxItem key={role} checked={roles.has(role)} onCheckedChange={() => (setRoles(toggleIn(roles, role)), setPage(1))} onSelect={(e) => e.preventDefault()}>
-                {ROLE_LABEL[role]}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </FilterMenu>
-          <FilterMenu label={teamFilter === null ? "Team" : teamFilter === NO_TEAM ? "No team" : (ws.teamById(teamFilter)?.name ?? "Team")} count={teamFilter === null ? 0 : 1} testId="members-filter-team">
-            <DropdownMenuRadioGroup value={teamFilter ?? ""} onValueChange={(v) => (setTeamFilter(v || null), setPage(1))}>
-              <DropdownMenuRadioItem value="">Any team</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value={NO_TEAM}>No team</DropdownMenuRadioItem>
-              <DropdownMenuSeparator />
-              {liveTeams.map((team) => (
-                <DropdownMenuRadioItem key={team.id} value={team.id}>
-                  {team.name}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </FilterMenu>
-          {(filtered || query) && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="members-clear-filters">
-              <X /> Clear
-            </Button>
-          )}
-          <span className="ml-auto flex items-center gap-2">
-            <span className="text-2xs text-muted-foreground tabular" data-testid="members-count">
-              {rows.length === allRows.length ? `${rows.length} people` : `${rows.length} of ${allRows.length}`}
-            </span>
-            {manage && (
-              <SimpleTooltip label="Download what is listed as a spreadsheet (.csv)">
-                <Button variant="outline" size="sm" onClick={() => exportCsv(rows, ws.workspace.name)} data-testid="members-export">
-                  <Download /> Export
-                </Button>
-              </SimpleTooltip>
-            )}
-          </span>
-        </div>
-
-        {manage && selectedRows.length > 0 && <BulkBar rows={selectedRows} invitations={invitations.data ?? null} onClear={() => setSelected(new Set())} />}
-
-        {rows.length === 0 ? (
-          <EmptyState icon={Users} title="No members match" description="Try a different name, or clear the filters." />
-        ) : isMobile ? (
-          <>
-            <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
-              {pageRows.map((row) => (
-                <MobileMemberCard key={row.member.id} row={row} manage={manage} invitation={invitations.data?.get(row.user.id) ?? null} />
-              ))}
-            </ul>
-            {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
-          </>
-        ) : (
-          <div className="inline-block min-w-full align-top">
-            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-              {/* Every cell stays on one line; the table grows as wide as its content and the page scrolls sideways. */}
-              <table className="w-max min-w-full whitespace-nowrap text-[13px]">
-                <thead className="bg-surface text-left text-2xs font-medium text-muted-foreground">
-                  <tr className="h-8">
-                    {manage && (
-                      <th className="w-9 pl-3">
-                        <Checkbox
-                          aria-label="Select everyone listed"
-                          checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
-                          onCheckedChange={(next) => setSelected((now) => {
-                            const out = new Set(now);
-                            for (const r of pageRows) {
-                              if (next === true) out.add(r.member.id);
-                              else out.delete(r.member.id);
-                            }
-                            return out;
-                          })}
-                          data-testid="members-select-all"
-                        />
-                      </th>
-                    )}
-                    {COLUMNS.map((column) => (
-                      <SortableHeader key={column.key} label={column.label} active={sort.key === column.key} direction={sort.direction} onClick={() => toggleSort(column.key)} />
-                    ))}
-                    {manage && <th className="w-10 px-3" />}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {pageRows.map((row) => (
-                    <MemberRow
-                      key={row.member.id}
-                      row={row}
-                      manage={manage}
-                      invitation={invitations.data?.get(row.user.id) ?? null}
-                      selected={selected.has(row.member.id)}
-                      onSelect={(on) =>
-                        setSelected((now) => {
-                          const next = new Set(now);
-                          if (on) next.add(row.member.id);
-                          else next.delete(row.member.id);
-                          return next;
-                        })
-                      }
-                    />
-                  ))}
-                </tbody>
-              </table>
+      <div className="scrollbar-thin flex-1 overflow-auto pb-8">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-7">
+          <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="members-filters">
+            <div className="relative min-w-0 flex-1 sm:max-w-72">
+              <Search className="pointer-events-none absolute top-2 left-2 size-4 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search name, email, title or department"
+                className="w-full pl-7"
+                aria-label="Search members"
+              />
             </div>
-            {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
+            <FilterMenu label="Status" count={statuses.size} testId="members-filter-status">
+              {STATUS_ORDER.map((status) => (
+                <DropdownMenuCheckboxItem key={status} checked={statuses.has(status)} onCheckedChange={() => (setStatuses(toggleIn(statuses, status)), setPage(1))} onSelect={(e) => e.preventDefault()}>
+                  {STATUS_LABEL[status]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </FilterMenu>
+            <FilterMenu label="Role" count={roles.size} testId="members-filter-role">
+              {WORKSPACE_ROLES.map((role) => (
+                <DropdownMenuCheckboxItem key={role} checked={roles.has(role)} onCheckedChange={() => (setRoles(toggleIn(roles, role)), setPage(1))} onSelect={(e) => e.preventDefault()}>
+                  {ROLE_LABEL[role]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </FilterMenu>
+            <FilterMenu label={teamFilter === null ? "Team" : teamFilter === NO_TEAM ? "No team" : (ws.teamById(teamFilter)?.name ?? "Team")} count={teamFilter === null ? 0 : 1} testId="members-filter-team">
+              <DropdownMenuRadioGroup value={teamFilter ?? ""} onValueChange={(v) => (setTeamFilter(v || null), setPage(1))}>
+                <DropdownMenuRadioItem value="">Any team</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value={NO_TEAM}>No team</DropdownMenuRadioItem>
+                <DropdownMenuSeparator />
+                {liveTeams.map((team) => (
+                  <DropdownMenuRadioItem key={team.id} value={team.id}>
+                    {team.name}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </FilterMenu>
+            {(filtered || query) && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="members-clear-filters">
+                <X /> Clear
+              </Button>
+            )}
+            <span className="ml-auto flex items-center gap-2">
+              <span className="text-2xs text-muted-foreground tabular" data-testid="members-count">
+                {rows.length === allRows.length ? `${rows.length} people` : `${rows.length} of ${allRows.length}`}
+              </span>
+              {manage && (
+                <SimpleTooltip label="Download what is listed as a spreadsheet (.csv)">
+                  <Button variant="outline" size="sm" onClick={() => exportCsv(rows, ws.workspace.name)} data-testid="members-export">
+                    <Download /> Export
+                  </Button>
+                </SimpleTooltip>
+              )}
+            </span>
           </div>
-        )}
+
+          {manage && selectedRows.length > 0 && <BulkBar rows={selectedRows} invitations={invitations.data ?? null} onClear={() => setSelected(new Set())} />}
+
+          {rows.length === 0 ? (
+            <EmptyState icon={Users} title="No members match" description="Try a different name, or clear the filters." />
+          ) : isMobile ? (
+            <>
+              <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
+                {pageRows.map((row) => (
+                  <MobileMemberCard key={row.member.id} row={row} manage={manage} invitation={invitations.data?.get(row.user.id) ?? null} />
+                ))}
+              </ul>
+              {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
+            </>
+          ) : (
+            // Below this width the page scrolls sideways rather than squeezing names to nothing.
+            <div className="min-w-[66rem]">
+              <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+                {/* Fixed layout: the widths come from the colgroup, and long text truncates instead of pushing columns apart. */}
+                <table className="w-full table-fixed whitespace-nowrap text-[13px]">
+                  <colgroup>
+                    {manage && <col className="w-10" />}
+                    {COLUMNS.map((column, i) => (
+                      <col key={i} className={column.width} />
+                    ))}
+                    {manage && <col className="w-12" />}
+                  </colgroup>
+                  <thead className="bg-surface text-left text-2xs font-medium text-muted-foreground">
+                    <tr className="h-8">
+                      {manage && (
+                        <th className="pl-3">
+                          <Checkbox
+                            aria-label="Select everyone listed"
+                            checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
+                            onCheckedChange={(next) => setSelected((now) => {
+                              const out = new Set(now);
+                              for (const r of pageRows) {
+                                if (next === true) out.add(r.member.id);
+                                else out.delete(r.member.id);
+                              }
+                              return out;
+                            })}
+                            data-testid="members-select-all"
+                          />
+                        </th>
+                      )}
+                      {COLUMNS.map((column, i) => (
+                        <SortableHeader key={i} column={column} sort={sort} onSort={toggleSort} />
+                      ))}
+                      {manage && <th />}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {pageRows.map((row) => (
+                      <MemberRow
+                        key={row.member.id}
+                        row={row}
+                        manage={manage}
+                        invitation={invitations.data?.get(row.user.id) ?? null}
+                        selected={selected.has(row.member.id)}
+                        onSelect={(on) =>
+                          setSelected((now) => {
+                            const next = new Set(now);
+                            if (on) next.add(row.member.id);
+                            else next.delete(row.member.id);
+                            return next;
+                          })
+                        }
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
+            </div>
+          )}
+        </div>
       </div>
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
@@ -538,22 +577,38 @@ function BulkBar({ rows, invitations, onClear }: { rows: Row[]; invitations: Map
   );
 }
 
-function SortableHeader({ label, active, direction, onClick }: { label: string; active: boolean; direction: SortDirection; onClick: () => void }) {
-  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
+/** A column's header: one sort button, or one for each field when two share the column. */
+function SortableHeader({ column, sort, onSort }: { column: Column; sort: Sort; onSort: (key: SortKey) => void }) {
+  const right = column.align === "right";
+  const active = column.sorts.some((s) => s.key === sort.key);
   return (
-    <th className="px-0 font-medium" aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}>
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          "group flex h-8 w-full items-center gap-1 px-3 text-left font-medium hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
-          active && "text-foreground",
-        )}
-        data-testid={`sort-${label.toLowerCase().replace(/\s+/g, "-")}`}
-      >
-        {label}
-        <Icon className={cn("size-3 shrink-0", active ? "opacity-100" : "opacity-0 group-hover:opacity-60")} aria-hidden />
-      </button>
+    <th className="px-0 font-medium" aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
+      <span className="flex h-8 items-center px-1.5">
+        {column.sorts.map(({ key, label }, i) => {
+          const on = sort.key === key;
+          const Icon = !on ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+          return (
+            <React.Fragment key={key}>
+              {i > 0 && <span aria-hidden className="text-muted-foreground/60">·</span>}
+              <button
+                type="button"
+                onClick={() => onSort(key)}
+                className={cn(
+                  "group flex h-full min-w-0 items-center gap-1 px-1.5 font-medium hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+                  column.sorts.length === 1 && "flex-1",
+                  // The icon goes on the inside, so a right-aligned label lines up with the numbers under it.
+                  right && "flex-row-reverse",
+                  on && "text-foreground",
+                )}
+                data-testid={`sort-${label.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <span className="truncate">{label}</span>
+                <Icon className={cn("size-3 shrink-0", on ? "opacity-100" : "opacity-0 group-hover:opacity-60")} aria-hidden />
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </span>
     </th>
   );
 }
@@ -605,51 +660,65 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
         </td>
       )}
       <td className="px-3">
-        <Link href={routes.person(ws.slug, user.id)} className="group flex items-center gap-2.5" data-testid="member-profile-link">
+        <Link href={routes.person(ws.slug, user.id)} className="group flex min-w-0 items-center gap-2.5" data-testid="member-profile-link">
           <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
           <span className="min-w-0 leading-tight">
-            <span className="block font-medium group-hover:underline">
+            <span className="block truncate font-medium group-hover:underline">
               {user.displayName}
               {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
             </span>
-            <span className="block text-2xs text-muted-foreground">{user.email}</span>
+            <span className="block truncate text-2xs text-muted-foreground" title={user.email}>
+              {user.email}
+            </span>
           </span>
         </Link>
       </td>
-      <td className="px-3">{user.jobTitle ?? <span className="text-muted-foreground">&mdash;</span>}</td>
-      <td className="px-3">{department ?? <span className="text-muted-foreground">&mdash;</span>}</td>
       <td className="px-3">
-        <span className="flex items-center gap-1">
-          {teams.length === 0 ? (
-            <span className="text-muted-foreground">&mdash;</span>
-          ) : (
-            teams.map((t) => (
-              <Badge key={t.id} variant="muted">
+        {user.jobTitle || department ? (
+          <span className="block leading-tight">
+            {user.jobTitle && (
+              <span className="block truncate" title={user.jobTitle}>
+                {user.jobTitle}
+              </span>
+            )}
+            {department && (
+              <span className="block truncate text-2xs text-muted-foreground" title={department}>
+                {department}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">&mdash;</span>
+        )}
+      </td>
+      <td className="px-3">
+        {teams.length === 0 ? (
+          <span className="text-muted-foreground">&mdash;</span>
+        ) : (
+          <span className="flex items-center gap-1">
+            {teams.slice(0, TEAM_CHIPS).map((t) => (
+              <Badge key={t.id} variant="muted" className="inline-block min-w-0 truncate" title={t.name}>
                 {t.name}
               </Badge>
-            ))
-          )}
-        </span>
+            ))}
+            {teams.length > TEAM_CHIPS && (
+              <SimpleTooltip label={teams.slice(TEAM_CHIPS).map((t) => t.name).join(", ")}>
+                <Badge variant="muted" className="shrink-0 tabular" data-testid="member-more-teams">
+                  +{teams.length - TEAM_CHIPS}
+                </Badge>
+              </SimpleTooltip>
+            )}
+          </span>
+        )}
       </td>
-      <td className="px-3">{ROLE_LABEL[member.role]}</td>
+      <td className="truncate px-3">{ROLE_LABEL[member.role]}</td>
       <td className="px-3">
-        <span className="flex items-center gap-1.5">
-          <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
-            {STATUS_LABEL[member.status]}
-          </Badge>
-          {pending && invitation && (
-            <SimpleTooltip label={`Link expires ${formatDateTime(invitation.expiresAt)}`}>
-              <span className="text-2xs text-muted-foreground" data-testid="member-invite-expiry">
-                link to {formatShortDate(invitation.expiresAt.slice(0, 10))}
-              </span>
-            </SimpleTooltip>
-          )}
-        </span>
+        <StatusChip member={member} invitation={invitation} />
       </td>
-      <td className="px-3 tabular">
+      <td className="truncate px-3 tabular">
+        {/* The Pending chip already says it is an invitation, so the date alone, muted. */}
         <SimpleTooltip label={`${pending ? "Invited" : "Joined"} ${formatDateTime(member.joinedAt)}`}>
-          <span data-testid="member-joined">
-            {pending && <span className="text-muted-foreground">Invited </span>}
+          <span className={cn(pending && "text-muted-foreground")} data-testid="member-joined">
             {joinedLabel(member)}
           </span>
         </SimpleTooltip>
@@ -658,10 +727,8 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
         {boards || <span className="text-muted-foreground">0</span>}
       </td>
       {manage && (
-        <td className="px-3">
-          <div className="flex items-center justify-end gap-1">
-            <MemberActions row={row} invitation={invitation} />
-          </div>
+        <td className="px-2 text-right">
+          <MemberActions row={row} invitation={invitation} />
         </td>
       )}
     </tr>
@@ -692,9 +759,7 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
           </span>
           <span className="block truncate text-[13px] text-muted-foreground">{[user.jobTitle ?? user.email, department].filter(Boolean).join(" · ")}</span>
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Badge variant={member.status === "ACTIVE" ? "success" : pending ? "warning" : "muted"} data-testid="member-status">
-              {STATUS_LABEL[member.status]}
-            </Badge>
+            <StatusChip member={member} invitation={invitation} />
             <Badge variant="outline">{ROLE_LABEL[member.role]}</Badge>
             {teams.map((t) => (
               <Badge key={t.id} variant="muted">
@@ -788,11 +853,6 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
 
   return (
     <>
-      {pending && (
-        <Button variant="ghost" size="icon-sm" aria-label={`Invitation link for ${user.displayName}`} onClick={() => setLinkOpen(true)} data-testid="invite-link-button">
-          <Link2 />
-        </Button>
-      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${user.displayName}`}>
@@ -806,7 +866,9 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
               <DropdownMenuItem disabled={!invitation} onSelect={() => invitation && void copyToClipboard(invitationUrl(invitation))}>
                 Copy invite link
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setLinkOpen(true)}>Show or renew link</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLinkOpen(true)} data-testid="invite-link-button">
+                Show or renew link
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
           )}
