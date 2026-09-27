@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Activity, ArrowUpRight, Check, Hash, LayoutGrid, Pencil, Plus, ShieldCheck, Trash2, UserCog, Users, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -11,12 +11,14 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SkeletonLine } from "@/components/ui/skeleton";
 import type { Workspace } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useAllWorkspaces, useNewWorkspaceDialog, useOwners, useWorkspaceAdmin } from "@/features/workspace/workspaces";
-import { formatShortDate } from "@/lib/dates/dates";
+import { formatRelative, formatShortDate } from "@/lib/dates/dates";
 import { routes } from "@/lib/routes";
+import { pluralize } from "@/lib/utils";
 
 /**
  * Settings → Workspaces, for Owners: every workspace, renamed or deleted from
@@ -99,7 +101,39 @@ function WorkspaceRow({ workspace, current, onlyOne }: { workspace: Workspace; c
   const [name, setName] = React.useState(workspace.name);
   const [deleting, setDeleting] = React.useState(false);
   const [typed, setTyped] = React.useState("");
-  const members = useQuery({ queryKey: ["workspace-member-count", workspace.id], queryFn: async () => (await services.repos.workspaces.listMembers(workspace.id)).filter((m) => m.status === "ACTIVE").length, staleTime: 60_000 });
+  // What is in it, at a glance. Owners are in every workspace, so the admins
+  // named are the people who run this one.
+  const overview = useQuery({
+    queryKey: ["workspace-overview", workspace.id],
+    queryFn: async () => {
+      const [members, teams, boards, latest] = await Promise.all([
+        services.repos.workspaces.listMembers(workspace.id),
+        services.repos.teams.listByWorkspace(workspace.id),
+        services.repos.boards.listByWorkspace(workspace.id),
+        services.repos.activities.listByWorkspace(workspace.id, 1),
+      ]);
+      const active = members.filter((m) => m.status === "ACTIVE");
+      return {
+        members: active.length,
+        adminIds: active.filter((m) => m.role === "ADMIN").map((m) => m.userId),
+        teams: teams.filter((t) => !t.archivedAt && !t.system).length,
+        boards: boards.filter((b) => !b.archivedAt && !b.system).length,
+        lastActive: latest[0]?.createdAt ?? null,
+      };
+    },
+    staleTime: 60_000,
+  });
+  const o = overview.data;
+  const admins = (o?.adminIds ?? []).map((id) => ws.userById(id)?.displayName).filter((n): n is string => !!n);
+  const figures: Array<{ icon: LucideIcon; label: string; testId: string }> = o
+    ? [
+        { icon: UserCog, label: pluralize(o.members, "member"), testId: "members" },
+        { icon: Users, label: pluralize(o.teams, "team"), testId: "teams" },
+        { icon: LayoutGrid, label: pluralize(o.boards, "board"), testId: "boards" },
+        { icon: Hash, label: pluralize(workspace.ticketCounter ?? 0, "ticket"), testId: "tickets" },
+        { icon: Activity, label: o.lastActive ? `Active ${formatRelative(o.lastActive)}` : "No activity yet", testId: "active" },
+      ]
+    : [];
 
   const save = () => {
     const next = name.trim();
@@ -141,7 +175,25 @@ function WorkspaceRow({ workspace, current, onlyOne }: { workspace: Workspace; c
           </span>
         )}
         <span className="block truncate text-2xs text-muted-foreground">
-          /workspace/{workspace.slug} · {members.data ?? "…"} {members.data === 1 ? "member" : "members"} · since {formatShortDate(workspace.createdAt.slice(0, 10))}
+          /workspace/{workspace.slug} · since {formatShortDate(workspace.createdAt.slice(0, 10))}
+        </span>
+        <span className="mt-1.5 flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground" data-testid="workspace-row-figures">
+          {o ? (
+            <>
+              {figures.map(({ icon: Icon, label, testId }) => (
+                <span key={testId} className="inline-flex items-center gap-1 animate-in fade-in-0 duration-200" data-testid={`workspace-figure-${testId}`}>
+                  <Icon className="size-3" aria-hidden />
+                  {label}
+                </span>
+              ))}
+              <span className="inline-flex min-w-0 items-center gap-1 animate-in fade-in-0 duration-200" data-testid="workspace-figure-admins">
+                <ShieldCheck className="size-3 shrink-0" aria-hidden />
+                <span className="truncate">{admins.length ? `Admins: ${admins.join(", ")}` : "No admins"}</span>
+              </span>
+            </>
+          ) : (
+            <SkeletonLine className="w-72" />
+          )}
         </span>
       </span>
       {!editing && (

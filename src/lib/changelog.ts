@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.57.4",
+    date: "2026-09-27",
+    title: "More on each workspace",
+    changes: ["Settings → Workspaces shows each workspace's members, teams, boards, tickets, when it was last active and who its admins are."],
+  },
+  {
     version: "0.57.3",
     date: "2026-09-27",
     title: "Smoother workspace menu",
