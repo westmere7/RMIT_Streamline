@@ -5,6 +5,7 @@ import { toISODate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
 import type { SeedExtrasContext } from "./seed-extras";
 import { emptySeedBundle, type BoardKey, type SeedBundle, type UserKey } from "./seed-data";
+import { planRework } from "./seed-rework";
 
 /**
  * Months of history for the demo boards, so every view has a past and a future
@@ -1167,6 +1168,15 @@ export function buildSeedHistory(ctx: SeedExtrasContext): SeedBundle {
     const at = new Date(candidate.createdAt);
     const read = at < fiveDaysAgo || rng.chance(0.4);
     bundle.notifications.push({ ...candidate, id: sid("historyNotification"), delivery: deliveryFor(candidate.type), readAt: read ? iso(clamp(addMinutes(at, rng.int(20, 600)))) : null });
+  }
+
+  // Some finished work went back once on its way (see seed-rework.ts). Last,
+  // so none of the random draws above move and the ids come after the rest.
+  const statusHistory = bundle.activities
+    .filter((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED" && a.metadata.columnType === "STATUS" && a.itemId)
+    .map((a) => ({ itemId: a.itemId!, boardId: a.boardId, workspaceId: a.workspaceId, actorId: a.actorId, at: a.createdAt, metadata: a.metadata }));
+  for (const change of planRework(statusHistory, undefined, new Map(bundle.items.map((i) => [i.id, i.createdAt])))) {
+    bundle.activities.push({ id: sid("historyActivity"), workspaceId: change.workspaceId, boardId: change.boardId, itemId: change.itemId, actorId: change.actorId, eventType: change.eventType, metadata: change.metadata, createdAt: change.at });
   }
 
   return bundle;

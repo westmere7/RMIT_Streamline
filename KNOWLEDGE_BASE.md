@@ -1632,6 +1632,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | --- | --- |
 | `npm run db:seed` | **Replaces** the seed workspace: demo Auth accounts (`SEED_PASSWORD`, default `Password123!`; admin `ADMIN_PASSWORD`, default `admin123`), a fresh bundle, new invitation links. Keeps members who aren't in the seed. Fixed on 26 September (F-109). **Never against production.** |
 | `npm run db:seed:topup` | Adds seed extras with `on conflict do nothing`, mapping live groups and columns by name. The safe way to add demo content to a hand-edited workspace. |
+| `npm run db:seed:rework` | Dry run by default; `--apply` inserts status changes that send some finished demo work back (to review, or reopened) before its final Done, so the dashboard's Sent back has data (`seed-rework.ts`, also run by the local seed). `--share` sets the fraction of eligible tasks. Only adds rows; a rerun adds nothing. Applied live 2026-09-27 with `--share 0.8`: 224 changes on 112 tasks, from 1.6% to about 28% of finished work. |
 | `npm run db:special-columns [-- --dry]` | Adds missing special columns to every board, archived and system ones included. |
 | `npm run db:snapshot:rehearse [-- --snapshot <id\|latest>]` | Captures, refills every table inside a rolled-back transaction, and compares fingerprints (a schema-change round-trip test). Locks every table for about 10 s. |
 | `npm run tickets:dedupe [-- --apply]` | Renumbers tickets shared outside link chains. |

@@ -192,9 +192,10 @@ describe("the generated seed history", () => {
     const statusChanges = activities.filter((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED" && a.metadata.columnType === "STATUS");
     expect(statusChanges.length).toBeGreaterThan(done.length);
     for (const item of done) {
-      const own = statusChanges.filter((a) => a.itemId === item.id);
+      // In time order: a return added by seed-rework comes last in the list but before the final Done.
+      const own = statusChanges.filter((a) => a.itemId === item.id).sort((x, y) => x.createdAt.localeCompare(y.createdAt));
       expect(own.length, item.name).toBeGreaterThanOrEqual(1);
-      expect(own.length).toBeLessThanOrEqual(4);
+      expect(own.length).toBeLessThanOrEqual(6);
       expect(own[own.length - 1]!.metadata.to).toBe("Done");
       for (const a of own) expect(a.createdAt >= item.createdAt).toBe(true);
     }
