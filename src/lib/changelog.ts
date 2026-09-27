@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.59.1",
+    date: "2026-09-27",
+    title: "A calmer members list",
+    changes: ["Members shows a chip only for Pending and Deactivated, puts title and department in one column, shows two teams and a count, and keeps the invite link in each row's menu."],
+  },
+  {
     version: "0.58.1",
     date: "2026-09-27",
     title: "Steadier dashboard charts",

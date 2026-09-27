@@ -66,7 +66,7 @@ const COLUMNS: Column[] = [
   { sorts: [{ key: "name", label: "Name" }] },
   // Title and department share a column, each still sortable on its own.
   { sorts: [{ key: "jobTitle", label: "Title" }, { key: "department", label: "Department" }] },
-  { sorts: [{ key: "teams", label: "Teams" }], width: "w-56" },
+  { sorts: [{ key: "teams", label: "Teams" }], width: "w-72" },
   { sorts: [{ key: "role", label: "Role" }], width: "w-24" },
   { sorts: [{ key: "status", label: "Status" }], width: "w-28" },
   { sorts: [{ key: "joined", label: "Joined" }], width: "w-28" },
@@ -331,7 +331,7 @@ export function MembersPage() {
             </>
           ) : (
             // Below this width the page scrolls sideways rather than squeezing names to nothing.
-            <div className="min-w-[66rem]">
+            <div className="min-w-[70rem]">
               <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
                 {/* Fixed layout: the widths come from the colgroup, and long text truncates instead of pushing columns apart. */}
                 <table className="w-full table-fixed whitespace-nowrap text-[13px]">
