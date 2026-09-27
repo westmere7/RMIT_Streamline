@@ -210,6 +210,7 @@ export function AssetComposer({
         blocks={blocksOn && !inBlock ? blocks : undefined}
         inBlock={blocksOn && inBlock}
         detailed={detailed}
+        peopleColumn={on.people}
         // Level with the lines inside a block, whose box insets them.
         inset={!inBlock && blocks.length > 0}
       />
@@ -369,6 +370,7 @@ function AssetRowCard({
   inBlock = false,
   inset = false,
   detailed = false,
+  peopleColumn,
 }: {
   row: AssetComposerRow;
   number: number;
@@ -388,6 +390,8 @@ function AssetRowCard({
   /** Set in by a block's border and padding, so a line on its own lines up with the lines in a block. */
   inset?: boolean;
   detailed?: boolean;
+  /** Whether the list has a people column at all. A line in a block has none of its own, but keeps the gap so it lines up with the rest. */
+  peopleColumn?: boolean;
 }) {
   // What the open form is holding. It starts from the row each time the row is
   // opened, so Discard is simply "close it again".
@@ -424,6 +428,9 @@ function AssetRowCard({
   // The links are in the menu, however many there are.
   const showPeople = fields.people && assignees.length > 0;
   const showDue = fields.due && !!shown.dueDate;
+  const hasPeopleColumn = peopleColumn ?? fields.people;
+  // Quantity, type, people, due: the same widths on every row of the list.
+  const columnTemplate = ["2rem", fields.type ? "6.5rem" : null, hasPeopleColumn ? "3rem" : null, fields.due ? "4.75rem" : null].filter(Boolean).join(" ");
   const [renaming, setRenaming] = React.useState(false);
   const [dueOpen, setDueOpen] = React.useState(false);
   // Rename opens a field, so it waits for the menu to finish closing rather than
@@ -512,11 +519,12 @@ function AssetRowCard({
         </span>
       )}
 
-      {/* The row's standing as a straight line the height of the card, so the
-          shape of a long list reads down the margin before anyone reads a date:
-          green for done, red for late, and a neutral rail for the rest — which
-          is a rail rather than nothing, so the column is unbroken. */}
-      {!detailed && <span aria-hidden className={cn("w-1 shrink-0 transition-colors", done ? "bg-emerald-500" : overdue ? "bg-red-500" : "bg-muted-foreground/30")} data-testid="asset-standing" />}
+      {/* The row's standing as a straight line the height of the card, so what
+          is late reads down the margin before anyone reads a date: red for late,
+          a neutral rail for the rest and a fainter one once done — the tick and
+          the struck name already say that, and a second colour for it made a
+          long list loud. A rail rather than nothing, so the column is unbroken. */}
+      {!detailed && <span aria-hidden className={cn("w-1 shrink-0 transition-colors", overdue ? "bg-red-500" : done ? "bg-muted-foreground/15" : "bg-muted-foreground/30")} data-testid="asset-standing" />}
 
       <div
         className={cn(
@@ -575,11 +583,11 @@ function AssetRowCard({
 
             {/* What the deliverable is, against its name: how many, and of what. */}
             {!open && !renaming && !detailed && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-summary">
+              <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground @max-[28rem]/assets:hidden @min-[32rem]/assets:hidden" data-testid="asset-summary">
                 {/* A count only when there is more than one: "×1" down every row
                     of the list is a column of noise. */}
                 {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular text-muted-foreground">×{count}</span>}
-                {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-28 px-1.5 text-[10px]" />}
+                {fields.type && typeLabel && <span className="max-w-28 truncate">{typeLabel.name}</span>}
               </span>
             )}
           </div>
@@ -591,7 +599,7 @@ function AssetRowCard({
           {!open && !renaming && detailed && shown.dueDate && <DueText dueDate={shown.dueDate} done={done} overdue={overdue} />}
 
           {!open && !renaming && !detailed && (showPeople || showDue) && (
-            <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-meta">
+            <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden @min-[32rem]/assets:hidden" data-testid="asset-meta">
               {showPeople && (
                 <span className="flex -space-x-1">
                   {assignees.slice(0, 3).map((u) => (
@@ -603,6 +611,27 @@ function AssetRowCard({
                 <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
                   {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
                   {formatShortDate(shown.dueDate)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ---- With room: the same details in columns of their own, each the
+              same width on every row, so the list reads down as a table. A
+              detail a line does not have leaves its column empty. */}
+          {!open && !renaming && !detailed && (
+            <div className="hidden shrink-0 items-center gap-2.5 text-2xs text-muted-foreground @min-[32rem]/assets:grid" style={{ gridTemplateColumns: columnTemplate }} data-testid="asset-columns">
+              <span className="text-right tabular">{count > 1 ? `×${count}` : ""}</span>
+              {fields.type && <span className="truncate" title={typeLabel?.name}>{typeLabel?.name ?? ""}</span>}
+              {hasPeopleColumn && (
+                <span className="flex -space-x-1">
+                  {showPeople && assignees.slice(0, 3).map((u) => <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />)}
+                </span>
+              )}
+              {fields.due && (
+                <span className={cn("flex items-center justify-end gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+                  {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                  {shown.dueDate ? formatShortDate(shown.dueDate) : ""}
                 </span>
               )}
             </div>
@@ -638,7 +667,7 @@ function AssetRowCard({
         {!open && !renaming && !detailed && (count > 1 || (fields.type && typeLabel) || showPeople || showDue) && (
           <div className={cn("hidden flex-wrap items-center gap-x-2 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground @max-[28rem]/assets:flex", fields.done ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-summary-compact">
             {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{count}</span>}
-            {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
+            {fields.type && typeLabel && <span className="max-w-32 truncate">{typeLabel.name}</span>}
             {showPeople && (
               <span className="flex -space-x-1">
                 {assignees.slice(0, 3).map((u) => (

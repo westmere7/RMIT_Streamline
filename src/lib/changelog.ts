@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.65.1",
+    date: "2026-09-27",
+    title: "Tidier asset lists",
+    changes: ["A task's asset lines put quantity, type, people and due date in columns that line up down the list, types are plain text rather than tinted chips, and the margin rail is only red for what is late."],
+  },
+  {
     version: "0.65.0",
     date: "2026-09-27",
     title: "My Work: Tasks and Assets",

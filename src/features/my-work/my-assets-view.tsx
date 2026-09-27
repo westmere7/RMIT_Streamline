@@ -6,7 +6,6 @@ import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { LabelPill } from "@/components/shared/label-pill";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import type { useMyAssets } from "@/features/my-work/hooks";
 import { MyWorkMobileSkeleton, MyWorkSkeleton } from "@/features/my-work/my-work-skeleton";
@@ -151,7 +150,7 @@ function AssetSection({ section, entries, now, mobile }: { section: MyWorkSectio
                       {entry.group ? <span className="text-muted-foreground/70"> · {entry.group.name}</span> : null}
                     </span>
                   </span>
-                  <span className="min-w-0">{type ? <LabelPill label={type} appearance="soft" size="sm" /> : <span className="text-muted-foreground">—</span>}</span>
+                  <span className="truncate text-muted-foreground" title={type?.name}>{type?.name ?? "—"}</span>
                   <span className="text-right text-xs tabular text-muted-foreground">{entry.asset.quantity ?? "—"}</span>
                   <span className={cn("text-right text-xs tabular", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{entry.dueDate ? formatShortDate(entry.dueDate, now) : "—"}</span>
                 </Link>
