@@ -5,6 +5,7 @@ import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServices, type Services } from "@/services";
+import { BookingValidationError } from "@/services/booking-service";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
 import { serverRequesterDirectory } from "./requesters";
@@ -43,7 +44,17 @@ export async function lookupRequester(request: Request, slug: string, key: strin
 
 export async function submitBooking(request: Request, slug: string, key: string | null, booking: BookingRequest): Promise<BookingReceipt> {
   const { workspaceId, memberId } = await authorise(request, slug, key);
-  return serverServices().booking.book(workspaceId, booking, memberId);
+  try {
+    return await serverServices().booking.book(workspaceId, booking, memberId);
+  } catch (error) {
+    asBookingHttpError(error);
+  }
+}
+
+/** A booking the form's rules refuse is the caller's to fix: a 400 with the reason, not a 500. */
+export function asBookingHttpError(error: unknown): never {
+  if (error instanceof BookingValidationError) throw new HttpError(400, error.message);
+  throw error;
 }
 
 /** The services, pointed at the service-role client. Built per call; the client underneath is a singleton. */

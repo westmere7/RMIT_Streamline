@@ -54,6 +54,7 @@ import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-pass
 import { todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { composeBrief, resolveBookingTemplate } from "./booking";
+import { BookingValidationError } from "./booking-service";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import {
   matchesPortalSearch,
@@ -892,10 +893,10 @@ export class StakeholderPortalService {
     if (!resolved.portal.allowBooking) throw new PortalAccessError("off", "This portal is not taking new requests at the moment.");
 
     const key = input.submissionKey.trim();
-    if (key.length < 8 || key.length > 100) throw new Error("A booking needs a submission key of its own.");
+    if (key.length < 8 || key.length > 100) throw new BookingValidationError("A booking needs a submission key of its own.");
 
     const department = input.departmentId ? await this.requireDepartment(resolved.workspaceId, input.departmentId) : await this.departmentNamed(resolved.workspaceId, input.request.department);
-    if (department.status !== "ACTIVE") throw new Error("That department is no longer taking requests.");
+    if (department.status !== "ACTIVE") throw new BookingValidationError("That department is no longer taking requests.");
 
     // The stakeholder is written over whatever arrived in the body: the name on
     // the request is the one belonging to the id that was just checked, never a
@@ -972,7 +973,7 @@ export class StakeholderPortalService {
 
   private async requireDepartment(workspaceId: EntityId, departmentId: EntityId): Promise<StakeholderDepartment> {
     const department = await this.repos.stakeholderPortals.getDepartment(departmentId);
-    if (!department || department.workspaceId !== workspaceId) throw new Error("That department is not part of this workspace.");
+    if (!department || department.workspaceId !== workspaceId) throw new BookingValidationError("That department is not part of this workspace.");
     return department;
   }
 
@@ -986,7 +987,7 @@ export class StakeholderPortalService {
   private async departmentNamed(workspaceId: EntityId, name: string | null): Promise<StakeholderDepartment> {
     const wanted = (name ?? "").trim().toLowerCase();
     const department = wanted ? (await this.ensureDepartments(workspaceId)).find((d) => d.status === "ACTIVE" && d.name.trim().toLowerCase() === wanted) : undefined;
-    if (!department) throw new Error("Pick which department this is for.");
+    if (!department) throw new BookingValidationError("Pick which department this is for.");
     return department;
   }
 

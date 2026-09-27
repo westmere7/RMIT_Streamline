@@ -19,7 +19,7 @@ import {
   validateBookingAgainstTemplate,
   validateBookingStep,
 } from "@/services/booking";
-import { taskAllocationColumns } from "@/services/booking-service";
+import { BookingValidationError, taskAllocationColumns } from "@/services/booking-service";
 
 const column = (name: string, type: ColumnType, position: number, settings = defaultSettingsFor(type)): BoardColumn => ({
   id: `col-${position}`,
@@ -648,9 +648,10 @@ describe("booking a task", () => {
   });
 
   it("refuses a booking that leaves a required question of its service blank", async () => {
-    await expect(
-      services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ answers: { ...DESIGN_ANSWERS, "design-what": { kind: "text", text: "" } } }) }),
-    ).rejects.toThrow(/What are you asking for\? is required/);
+    const blank = services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ answers: { ...DESIGN_ANSWERS, "design-what": { kind: "text", text: "" } } }) });
+    await expect(blank).rejects.toThrow(/What are you asking for\? is required/);
+    // Typed, so the route answers 400 with the message rather than a 500.
+    await expect(blank).rejects.toBeInstanceOf(BookingValidationError);
   });
 
   it("records a signed-in member as the requester, and ignores a stranger's id", async () => {
@@ -664,7 +665,9 @@ describe("booking a task", () => {
     await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, owner);
     await expect(services.booking.getForm({ workspaceSlug: "rmit", key: "wrong-key-wrong-key-wrong" })).rejects.toThrow(/no longer valid/);
     await expect(services.booking.getForm({ workspaceSlug: "nowhere", key: null })).rejects.toThrow(/does not point/);
-    await expect(services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ serviceTypeId: "svc-gone" }) })).rejects.toThrow(/no longer on the form/);
+    const gone = services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ serviceTypeId: "svc-gone" }) });
+    await expect(gone).rejects.toThrow(/no longer on the form/);
+    await expect(gone).rejects.toBeInstanceOf(BookingValidationError);
   });
 
   it("routes by the service, not by anything the caller sends, and lands on the team's own board", async () => {

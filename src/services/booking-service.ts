@@ -137,6 +137,18 @@ export class BookingAccessError extends Error {
   }
 }
 
+/**
+ * A booking the form's own rules refuse: an answer missing, a department or a
+ * service not on the list, a board with nowhere to put it. The HTTP layer turns
+ * it into a 400 with this message; a plain Error there read as a server fault.
+ */
+export class BookingValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BookingValidationError";
+  }
+}
+
 export class BookingService {
   private requesterDirectory: RequesterDirectory | null = null;
 
@@ -260,10 +272,10 @@ export class BookingService {
    */
   private async resolveDepartment(workspaceId: EntityId, name: string | null | undefined): Promise<string> {
     const departments = await this.activeDepartments(workspaceId);
-    if (departments.length === 0) throw new Error("No departments are set up yet. Add them in Settings → Departments.");
+    if (departments.length === 0) throw new BookingValidationError("No departments are set up yet. Add them in Settings → Departments.");
     const wanted = (name ?? "").trim().toLowerCase();
     const found = departments.find((d) => d.name.trim().toLowerCase() === wanted);
-    if (!found) throw new Error(wanted ? `“${name!.trim()}” is not one of the departments. Pick one from the list.` : "Pick your department from the list.");
+    if (!found) throw new BookingValidationError(wanted ? `“${name!.trim()}” is not one of the departments. Pick one from the list.` : "Pick your department from the list.");
     return found.name;
   }
 
@@ -277,7 +289,7 @@ export class BookingService {
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
     const template = resolveBookingTemplate(workspace);
     const service = serviceById(template, request.serviceTypeId);
-    if (request.serviceTypeId && !service) throw new Error("That kind of work is no longer on the form. Start again and pick another.");
+    if (request.serviceTypeId && !service) throw new BookingValidationError("That kind of work is no longer on the form. Start again and pick another.");
 
     // Routing is the service's, never the caller's. The stakeholder was not
     // asked which team should do this and cannot be allowed to answer it: the
@@ -296,7 +308,7 @@ export class BookingService {
 
     // The form's own rules: what it marked required, answered in the shape it asked for.
     const problems = validateBookingAgainstTemplate(request, template);
-    if (Object.keys(problems).length) throw new Error(Object.values(problems).join(". "));
+    if (Object.keys(problems).length) throw new BookingValidationError(Object.values(problems).join(". "));
 
     // The department is one of the workspace's own, from Settings → Departments,
     // on every link: the dashboard reads it, and a word that is not on the list
@@ -317,7 +329,7 @@ export class BookingService {
     const [columns, groups, members] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.repos.workspaces.listMembers(workspaceId)]);
     const actorId = this.actorFor(members, board, memberId);
     const group = groups.slice().sort((a, b) => a.position - b.position)[0];
-    if (!group) throw new Error(`${board.name} has no group to receive bookings.`);
+    if (!group) throw new BookingValidationError(`${board.name} has no group to receive bookings.`);
 
     // Who asked, as a person. A member signed in and booking as themselves is
     // themselves; booking for someone else, or with no account, the email on the

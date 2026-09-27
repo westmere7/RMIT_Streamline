@@ -7,6 +7,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServices, type Services } from "@/services";
 import { PortalAccessError, PortalSubmissionError, type PortalViewer, type ResolvedPortal } from "@/services/stakeholder-portal-service";
 import { bookingRequestSchema } from "@/services/booking";
+import { asBookingHttpError } from "./booking";
 import { HttpError } from "./http";
 
 /**
@@ -161,9 +162,10 @@ export function portalErrorStatus(error: PortalAccessError): number {
  * A submission conflict is a 409: the server refused on purpose, and the
  * message says what to do about it. Left to bubble it became a 500 with a
  * generic body, which reads as a fault in the server rather than an answer.
+ * A booking the form's rules refuse is a 400, as on the booking link.
  */
 export function asPortalHttpError(error: unknown): never {
   if (error instanceof PortalAccessError) throw new HttpError(portalErrorStatus(error), error.message);
   if (error instanceof PortalSubmissionError) throw new HttpError(409, error.message);
-  throw error;
+  asBookingHttpError(error);
 }

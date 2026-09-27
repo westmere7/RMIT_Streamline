@@ -3,7 +3,7 @@ import { createLocalRepositories } from "@/data/local";
 import { EVERY_PORTAL_RANGE } from "@/domain";
 import { SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BookingRequest, StakeholderDepartment } from "@/domain";
-import { createServices, PortalSubmissionError, type Services } from "@/services";
+import { BookingValidationError, createServices, PortalSubmissionError, type Services } from "@/services";
 import type { ResolvedPortal } from "@/services";
 
 let counter = 0;
@@ -108,7 +108,7 @@ describe("booking through a portal", () => {
     expect(await groupOn(item.id, item.boardId)).toBe(other.name);
 
     await expect(services.booking.book(WS, request({ department: "School of Design" }))).rejects.toThrow("not one of the departments");
-    await expect(services.booking.book(WS, request({ department: null }))).rejects.toThrow();
+    await expect(services.booking.book(WS, request({ department: null }))).rejects.toBeInstanceOf(BookingValidationError);
   });
 
   it("books for a department picked by name when the portal has no id for it, such as one with no work yet", async () => {
@@ -123,6 +123,7 @@ describe("booking through a portal", () => {
 
     // A name that is not on the list is still refused.
     await expect(services.portals.book(resolved, { submissionKey: "key-000000021", departmentId: null, request: request({ department: "School of Design" }), booking: services.booking })).rejects.toThrow("Pick which department this is for.");
+    await expect(services.portals.book(resolved, { submissionKey: "key-000000022", departmentId: null, request: request({ department: "School of Design" }), booking: services.booking })).rejects.toBeInstanceOf(BookingValidationError);
   });
 
   it("publishes the brief the form composed, and keeps their contact details internal", async () => {

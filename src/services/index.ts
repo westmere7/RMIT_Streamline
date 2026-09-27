@@ -148,4 +148,4 @@ export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } f
 export type { PublicItemTransport } from "./item-share-service";
 export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";
 export { ShareAccessError, shareAccessMessage } from "./board-share-service";
-export { BookingAccessError } from "./booking-service";
+export { BookingAccessError, BookingValidationError } from "./booking-service";

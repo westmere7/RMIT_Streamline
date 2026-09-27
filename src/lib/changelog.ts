@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.57.1",
+    date: "2026-09-27",
+    title: "Clearer booking refusals",
+    changes: ["A booking missing an answer, or naming a department or service that is not on the form, now says why instead of reporting a server error."],
+  },
+  {
     version: "0.57.0",
     date: "2026-09-27",
     title: "Several workspaces",
