@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.62.0",
+    date: "2026-09-27",
+    title: "Export the dashboard as a PDF",
+    changes: ["Export PDF on the dashboard downloads a branded report: every chart drawn sharp, beside what it shows, how it's counted, how to read it and what to do, with the period, filters and time it was made."],
+  },
+  {
     version: "0.61.2",
     date: "2026-09-27",
     title: "Current operations, in detail",

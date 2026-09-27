@@ -8,7 +8,9 @@ import { DashboardReveal } from "@/features/dashboard/charts/motion";
 import type { DashboardLinks } from "@/features/dashboard/components/dash-link";
 import { MeasureToggle, ScopeToolbar } from "@/features/dashboard/dashboard-controls";
 import { useToday } from "@/features/dashboard/hooks";
-import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport, BUSINESS_TIMEZONE, MEASURE_UNITS, type ReportingPeriod } from "@/features/dashboard/metrics";
+import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport, BUSINESS_TIMEZONE, MEASURE_LABELS, MEASURE_UNITS, type ReportingPeriod } from "@/features/dashboard/metrics";
+import { ExportDashboardButton } from "@/features/dashboard/export-button";
+import type { ExportMeta } from "@/features/dashboard/export-pdf";
 import { useDashboardPrefs } from "@/features/dashboard/prefs";
 import { DashboardBody } from "@/features/dashboard/views/overview";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
@@ -92,6 +94,18 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
   const scopedTasks = report.current.tasks;
   const gaps = React.useMemo(() => coverage(scopedTasks), [scopedTasks]);
 
+  // What the PDF says it is about: the same period, measure and filters the screen shows.
+  const exportMeta: ExportMeta = {
+    workspaceName: snapshot.workspace.name,
+    workspaceSlug: snapshot.workspace.slug,
+    periodLabel: resolved.label,
+    comparisonLabel: resolved.comparisonLabel,
+    measureLabel: MEASURE_LABELS[measure],
+    basisLabel: prefs.basis === "created" ? "When the work was requested" : "When the work is due",
+    teamsLabel: prefs.teamIds ? facts.teams.filter((t) => prefs.teamIds!.includes(t.id)).map((t) => t.name).join(", ") || "Chosen teams" : "All teams",
+    generatedBy: facts.users.get(viewerId)?.displayName ?? null,
+    timezone: BUSINESS_TIMEZONE,
+  };
   const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard, links };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
@@ -104,6 +118,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
         </div>
         <div className="ml-auto flex items-center gap-2">
           {freshness}
+          <ExportDashboardButton view={shared} meta={exportMeta} />
           {toolbarExtras}
         </div>
       </header>

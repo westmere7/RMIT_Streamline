@@ -1127,6 +1127,19 @@ The bottom of the page: Turnaround, On time and Sent back stacked in a column to
 - **Links.** On the signed-in page, names open profiles and team pages, and a department narrows the workload panel.
 - **Preferences** are stored in `streamline.dashboard.v2`, keyed `<user>:<workspace>`. The settings menu hides panels (`PANEL_IDS`).
 
+### PDF export (v0.62.0)
+
+Export PDF in the dashboard header (`export-button.tsx`, `export-pdf.ts`). It draws every panel again with jsPDF as vector shapes and text from the same view props and analytics calls, not screenshots, so the report cannot disagree with the screen and ignores the reader's theme. It uses A4 landscape in RMIT navy `#000054` and red `#e61e2a`.
+
+- **Cover:** the period, measure, basis, teams, a timestamp in the business timezone and who generated it, a contents list with page numbers, and five at-a-glance figures.
+- **Panels:** each is drawn beside its four-part explanation from `help.ts`. Wide panels (asset types, workload, the matrix, in and out) sit across the page with the explanation in four columns.
+- **Footer:** on every page, with the timestamp and page n of N.
+- **File name:** `dashboard-<slug>-YYYY-MM-DD-HHmm.pdf`.
+- **Font:** Helvetica is WinAnsi only, so `pdfSafe` turns arrows and minus signs into ASCII and strips accents it cannot print.
+- **RMIT logo:** not in the repo. It is drawn from `public/brand/rmit-logo.png` if that file exists.
+- **Tests:** `tests/unit/dashboard-export.test.ts` builds the report from the seeded workspace; set `EXPORT_PDF=<path>` to write it out.
+- **Screenshot export dropped:** a first version captured the page with html-to-image. It was dropped because that library copies no computed styles into SVG children, so Tailwind fill classes came out black, and it waits on animation frames, so it hangs in a background tab.
+
 ### Freshness and the public link
 
 | Surface | Refresh | Notes |
