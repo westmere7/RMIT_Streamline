@@ -205,11 +205,13 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       dueDate: asset.dueDate,
       completedAt: asset.completedAt,
       notes: null,
-      // Neither link travels. A review link is working material and a final
-      // file is the team's to hand over deliberately, not by being on a page
-      // somebody was sent.
-      previewUrl: null,
-      artworkUrl: null,
+      // No link travels, nor the name of the block a line sits in. A review
+      // link is working material and a final file is the team's to hand over
+      // deliberately, not by being on a page somebody was sent.
+      links: [],
+      blockId: null,
+      blockName: null,
+      blockLinks: [],
       position: asset.position,
       createdBy: PUBLIC_NOBODY,
       createdAt: asset.createdAt,
@@ -292,7 +294,7 @@ export function viewerDashboardSnapshot(snapshot: DashboardSnapshot, openBoardId
     columns: snapshot.columns.filter((column) => !closed.has(column.boardId) || publishable.has(column.id)),
     items: snapshot.items.map((item) => (closed.has(item.boardId) ? { ...item, name: "", description: null, coverUrl: null, ticket: null } : item)),
     values: snapshot.values.filter((value) => !closedItems.has(value.itemId) || publishable.has(value.columnId)),
-    assets: snapshot.assets.map((asset) => (closed.has(asset.boardId) ? { ...asset, name: "", notes: null, previewUrl: null, artworkUrl: null } : asset)),
+    assets: snapshot.assets.map((asset) => (closed.has(asset.boardId) ? { ...asset, name: "", notes: null, links: [], blockName: null, blockLinks: [] } : asset)),
   };
 }
 

@@ -1,8 +1,9 @@
-import type { ActivityEventType, ActivityInput, ActivityMetadata, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { ActivityEventType, ActivityInput, ActivityMetadata, AssetLink, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import { recapAssets, recapColumnValue } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { todayISO } from "@/lib/dates/dates";
+import { newId } from "@/lib/ids";
 
 /**
  * A task's asset lines, and the "Assets recap" cells that summarise them.
@@ -172,19 +173,131 @@ export class ItemAssetService {
     return created;
   }
 
-  /** Several lines at once, in order — a booking's deliverables, or a copy of another item's list. */
+  /**
+   * Several lines at once, in order, after whatever the item already lists — a
+   * booking's deliverables, a copy of another item's list, or a new block.
+   */
   async addMany(lines: Array<Omit<ItemAssetInput, "position" | "createdBy">>, actorId: EntityId): Promise<ItemAsset[]> {
     const kept = lines.filter((line) => line.name.trim());
     if (kept.length === 0) return [];
-    const created = await Promise.all(kept.map((line, index) => this.repos.itemAssets.create({ ...line, position: index, createdBy: actorId })));
+    const existing = await this.repos.itemAssets.listByItem(kept[0]!.itemId);
+    const start = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
+    const created = await Promise.all(kept.map((line, index) => this.repos.itemAssets.create({ ...line, position: start + index, createdBy: actorId })));
     const first = created[0]!;
     await this.recompute(first.itemId, first.boardId);
     // One entry for the batch: a booking with a dozen deliverables should read as
-    // one arrival, not a dozen.
+    // one arrival, not a dozen. A block arrives under its own name.
+    const block = created.every((line) => line.blockId && line.blockId === first.blockId) ? first.blockName : null;
     await this.record(first.itemId, first.boardId, actorId, [
-      created.length === 1 ? { eventType: "ASSET_ADDED", metadata: { assetName: first.name } } : { eventType: "ASSET_ADDED", metadata: { count: created.length } },
+      created.length === 1 || block ? { eventType: "ASSET_ADDED", metadata: { assetName: block ?? first.name } } : { eventType: "ASSET_ADDED", metadata: { count: created.length } },
     ]);
     return created;
+  }
+
+  /**
+   * Renames a block, changes who is in charge of all of it, or takes its lines
+   * out of it. Every line is written, since each carries the block, and the
+   * feed gets one entry for the block rather than one per line.
+   */
+  async updateBlock(itemId: EntityId, blockId: EntityId, patch: { name?: string; assigneeIds?: EntityId[]; links?: AssetLink[]; ungroup?: boolean }, actorId: EntityId): Promise<ItemAsset[]> {
+    if (patch.name !== undefined && !patch.name.trim()) throw new Error("Name the block");
+    const lines = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    if (lines.length === 0) throw new NotFoundError("Block", blockId);
+    const first = lines[0]!;
+    const linePatch: ItemAssetPatch = {};
+    if (patch.ungroup) Object.assign(linePatch, { blockId: null, blockName: null, blockLinks: [] });
+    else {
+      if (patch.name !== undefined) linePatch.blockName = patch.name.trim();
+      if (patch.links !== undefined) linePatch.blockLinks = patch.links;
+    }
+    if (patch.assigneeIds !== undefined) linePatch.assigneeIds = patch.assigneeIds;
+    const updated = await Promise.all(lines.map((line) => this.repos.itemAssets.update(line.id, linePatch)));
+    await this.recompute(first.itemId, first.boardId);
+
+    const blockName = first.blockName ?? "Block";
+    const events: AssetEvent[] = [];
+    if (!patch.ungroup && patch.name !== undefined && patch.name.trim() !== blockName) {
+      events.push({ eventType: "ASSET_UPDATED", metadata: { assetName: blockName, assetField: "the block name", from: blockName, to: patch.name.trim() } });
+    }
+    if (patch.assigneeIds !== undefined) {
+      const before = new Set(lines.flatMap((line) => line.assigneeIds));
+      const added = patch.assigneeIds.filter((id) => !before.has(id));
+      const removed = [...before].filter((id) => !patch.assigneeIds!.includes(id));
+      if (added.length || removed.length) events.push({ eventType: "ASSET_UPDATED", metadata: { assetName: patch.name?.trim() || blockName, assetField: "who is in charge", addedUserIds: added, removedUserIds: removed } });
+    }
+    await this.record(first.itemId, first.boardId, actorId, events);
+    return updated;
+  }
+
+  /**
+   * Everything the block dialog edits, in one go: the block's name, people and
+   * links, each line's name, type, quantity and due date, lines added and lines
+   * taken off. The recap is rewritten once, at the end.
+   */
+  async saveBlock(itemId: EntityId, blockId: EntityId, form: SavedBlock, actorId: EntityId): Promise<void> {
+    const blockName = form.name.trim();
+    if (!blockName) throw new Error("Name the block");
+    const current = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    if (current.length === 0) throw new NotFoundError("Block", blockId);
+    const first = current[0]!;
+    const shared: ItemAssetPatch = { blockName, assigneeIds: form.assigneeIds, blockLinks: form.links };
+    const events: AssetEvent[] = [];
+
+    const oldName = first.blockName ?? "Block";
+    if (blockName !== oldName) events.push({ eventType: "ASSET_UPDATED", metadata: { assetName: oldName, assetField: "the block name", from: oldName, to: blockName } });
+    const before = new Set(current.flatMap((line) => line.assigneeIds));
+    const added = form.assigneeIds.filter((id) => !before.has(id));
+    const removed = [...before].filter((id) => !form.assigneeIds.includes(id));
+    if (added.length || removed.length) events.push({ eventType: "ASSET_UPDATED", metadata: { assetName: blockName, assetField: "who is in charge", addedUserIds: added, removedUserIds: removed } });
+
+    const kept = new Set(form.lines.flatMap((line) => (line.id ? [line.id] : [])));
+    for (const line of form.lines) {
+      if (!line.id || !line.name.trim()) continue;
+      const was = current.find((c) => c.id === line.id);
+      if (!was) continue;
+      const after = await this.repos.itemAssets.update(line.id, { ...shared, name: line.name.trim(), assetType: line.assetType, quantity: line.quantity, dueDate: line.dueDate });
+      // Who is in charge is the block's, and was said once above.
+      events.push(...changeEvents(was, after).filter((event) => event.metadata.assetField !== "who is in charge"));
+    }
+    for (const line of current) {
+      if (kept.has(line.id)) continue;
+      await this.repos.itemAssets.delete(line.id);
+      events.push({ eventType: "ASSET_REMOVED", metadata: { assetName: line.name } });
+    }
+    const fresh = form.lines.filter((line) => !line.id && line.name.trim());
+    if (fresh.length) {
+      const existing = await this.repos.itemAssets.listByItem(first.itemId);
+      const start = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
+      for (const [index, line] of fresh.entries()) {
+        const created = await this.repos.itemAssets.create({
+          itemId: first.itemId,
+          boardId: first.boardId,
+          name: line.name.trim(),
+          assetType: line.assetType,
+          quantity: line.quantity,
+          dueDate: line.dueDate,
+          assigneeIds: form.assigneeIds,
+          blockId,
+          blockName,
+          blockLinks: form.links,
+          position: start + index,
+          createdBy: actorId,
+        });
+        events.push({ eventType: "ASSET_ADDED", metadata: { assetName: created.name } });
+      }
+    }
+    await this.recompute(first.itemId, first.boardId);
+    await this.record(first.itemId, first.boardId, actorId, events);
+  }
+
+  /** Removes a block and every line in it. */
+  async removeBlock(itemId: EntityId, blockId: EntityId, actorId: EntityId): Promise<void> {
+    const lines = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    if (lines.length === 0) return;
+    const first = lines[0]!;
+    await Promise.all(lines.map((line) => this.repos.itemAssets.delete(line.id)));
+    await this.recompute(first.itemId, first.boardId);
+    await this.record(first.itemId, first.boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: first.blockName ?? "a block" } }]);
   }
 
   async update(id: EntityId, patch: ItemAssetPatch, actorId: EntityId): Promise<ItemAsset> {
@@ -204,11 +317,32 @@ export class ItemAssetService {
     await this.record(itemId, boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: before?.name } }]);
   }
 
-  /** Copies one item's lines onto another (an allocated request onto its team-board mirror). */
+  /**
+   * Copies one item's lines onto another (an allocated request onto its
+   * team-board mirror). Blocks come across as blocks of their own: a new id for
+   * each, so the copy and the original can be regrouped apart.
+   */
   async copyTo(fromItemId: EntityId, toItemId: EntityId, toBoardId: EntityId, actorId: EntityId): Promise<ItemAsset[]> {
     const lines = await this.repos.itemAssets.listByItem(fromItemId);
+    const blocks = new Map<EntityId, EntityId>();
+    const blockOf = (id: EntityId | null) => {
+      if (!id) return null;
+      if (!blocks.has(id)) blocks.set(id, newId());
+      return blocks.get(id)!;
+    };
     return this.addMany(
-      lines.map((line) => ({ itemId: toItemId, boardId: toBoardId, name: line.name, assetType: line.assetType, quantity: line.quantity, assigneeIds: line.assigneeIds, dueDate: line.dueDate, notes: line.notes })),
+      lines.map((line) => ({
+        itemId: toItemId,
+        boardId: toBoardId,
+        name: line.name,
+        assetType: line.assetType,
+        quantity: line.quantity,
+        assigneeIds: line.assigneeIds,
+        dueDate: line.dueDate,
+        notes: line.notes,
+        blockId: blockOf(line.blockId),
+        blockName: line.blockId ? line.blockName : null,
+      })),
       actorId,
     );
   }
@@ -254,6 +388,14 @@ export class ItemAssetService {
     }
     if (writes.length) await this.repos.items.setValues(writes);
   }
+}
+
+/** What the block dialog hands back. A line without an id is a new one; a line of the block missing from `lines` was taken off. */
+export interface SavedBlock {
+  name: string;
+  assigneeIds: EntityId[];
+  links: AssetLink[];
+  lines: Array<{ id: EntityId | null; name: string; assetType: string | null; quantity: number | null; dueDate: string | null }>;
 }
 
 interface AssetEvent {

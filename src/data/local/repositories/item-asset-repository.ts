@@ -1,4 +1,5 @@
 import type { ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import { legacyAssetLinks, normalizeAssetLinks } from "@/domain";
 import type { ItemAssetRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -6,11 +7,23 @@ import type { LocalConnection } from "../connection";
 
 const byPosition = (a: ItemAsset, b: ItemAsset) => a.position - b.position || a.createdAt.localeCompare(b.createdAt);
 
-/** Rows written before a line could have more than one person in charge. */
+/**
+ * Rows written by an older build: before a line could have more than one person
+ * in charge, and before its links were a list and it could sit in a block.
+ */
 function normalize(asset: ItemAsset): ItemAsset {
-  if (Array.isArray(asset.assigneeIds)) return asset.completedAt === undefined ? { ...asset, completedAt: null } : asset;
-  const legacy = (asset as ItemAsset & { assigneeId?: string | null }).assigneeId;
-  return { ...asset, assigneeIds: legacy ? [legacy] : [], completedAt: asset.completedAt ?? null, previewUrl: asset.previewUrl ?? null, artworkUrl: asset.artworkUrl ?? null };
+  const stored = asset as ItemAsset & { assigneeId?: string | null; previewUrl?: string | null; artworkUrl?: string | null };
+  const legacy = stored.assigneeId;
+  const { previewUrl, artworkUrl, ...rest } = stored;
+  return {
+    ...rest,
+    assigneeIds: Array.isArray(asset.assigneeIds) ? asset.assigneeIds : legacy ? [legacy] : [],
+    completedAt: asset.completedAt ?? null,
+    links: Array.isArray(asset.links) ? normalizeAssetLinks(asset.links) : legacyAssetLinks(previewUrl, artworkUrl),
+    blockId: asset.blockId ?? null,
+    blockName: asset.blockId ? asset.blockName ?? null : null,
+    blockLinks: asset.blockId && Array.isArray(asset.blockLinks) ? normalizeAssetLinks(asset.blockLinks) : [],
+  };
 }
 
 export class LocalItemAssetRepository implements ItemAssetRepository {
@@ -56,8 +69,10 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
       dueDate: input.dueDate ?? null,
       completedAt: null,
       notes: input.notes?.trim() || null,
-      previewUrl: input.previewUrl?.trim() || null,
-      artworkUrl: input.artworkUrl?.trim() || null,
+      links: normalizeAssetLinks(input.links ?? []),
+      blockId: input.blockId ?? null,
+      blockName: input.blockId ? input.blockName?.trim() || null : null,
+      blockLinks: input.blockId ? normalizeAssetLinks(input.blockLinks ?? []) : [],
       position: input.position ?? 0,
       createdBy: input.createdBy,
       createdAt: now,
@@ -71,12 +86,16 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     const db = await this.conn.getDb();
     const existing = await db.get("itemAssets", id);
     if (!existing) throw new NotFoundError("Asset", id);
+    const base = normalize(existing);
     const updated: ItemAsset = {
-      ...normalize(existing),
+      ...base,
       ...patch,
-      name: patch.name !== undefined ? patch.name.trim() : existing.name,
-      assetType: patch.assetType !== undefined ? patch.assetType?.trim() || null : existing.assetType,
-      notes: patch.notes !== undefined ? patch.notes?.trim() || null : existing.notes,
+      name: patch.name !== undefined ? patch.name.trim() : base.name,
+      assetType: patch.assetType !== undefined ? patch.assetType?.trim() || null : base.assetType,
+      notes: patch.notes !== undefined ? patch.notes?.trim() || null : base.notes,
+      links: patch.links !== undefined ? normalizeAssetLinks(patch.links) : base.links,
+      blockName: patch.blockName !== undefined ? patch.blockName?.trim() || null : base.blockName,
+      blockLinks: patch.blockLinks !== undefined ? normalizeAssetLinks(patch.blockLinks) : base.blockLinks,
       updatedAt: nowIso(),
     };
     await db.put("itemAssets", updated);

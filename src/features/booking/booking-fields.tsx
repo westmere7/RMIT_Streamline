@@ -43,14 +43,18 @@ export const SPAN: Record<BookingFieldWidth, string> = { full: "sm:col-span-6", 
 /** What the wizard is holding: the request being built, and the deliverable rows. */
 export type BookingDraft = BookingRequest;
 
-/** A deliverable on a booking, in the shape the asset composer edits. */
-export type AssetRow = AssetComposerRow;
+/**
+ * A deliverable on a booking: what it is, what kind, how many and the spec. No
+ * links, no people, no dates — a stakeholder has none of those to give, and the
+ * team adds them on the item once the request is in.
+ */
+export type AssetRow = Pick<AssetComposerRow, "id" | "name" | "assetType" | "quantity" | "notes">;
 
 let assetKey = 0;
 
 /** A new row for the composer to open: quantity one, everything else to be filled in. */
 export function newAssetRow(name: string): AssetRow {
-  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, assigneeIds: [], dueDate: null, notes: null, previewUrl: null, artworkUrl: null, completedAt: null };
+  return { id: `asset-${++assetKey}`, name, assetType: null, quantity: 1, notes: null };
 }
 
 // ---- the shell every question wears -------------------------------------------

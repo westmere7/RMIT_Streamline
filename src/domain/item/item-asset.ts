@@ -30,39 +30,126 @@ export interface ItemAsset extends Timestamps {
   /** Size, format, dimensions, colour, duration… free text. */
   notes: string | null;
   /**
-   * Where to look at this deliverable, and where the final file is.
+   * Where to look at this deliverable: a preview to review, the final artwork,
+   * a folder, a video… as many as it needs, in the order they were put in.
    *
-   * Two links rather than one with a flag, because a deliverable normally
-   * acquires them in order and then has both: something to review while it is
-   * being made, and the signed-off artwork once it is done. Which of the two
-   * exist is what the closed row reports.
-   *
-   * Internal, like `notes`. Neither reaches a stakeholder portal or a public
-   * dashboard — a review link is working material, and a final file is the
-   * team's to hand over deliberately rather than by being on a page.
+   * Internal, like `notes`. None of them reaches a stakeholder portal or a
+   * public dashboard — a review link is working material, and a final file is
+   * the team's to hand over deliberately rather than by being on a page.
    */
-  previewUrl: string | null;
-  artworkUrl: string | null;
+  links: AssetLink[];
+  /**
+   * The block this line belongs to, or null for a line on its own. A block is
+   * several lines under one name and one person in charge — one designer's
+   * poster, tiles and banner, each due on its own day. Every line in it is still
+   * a line, counted like any other; the block is only how the list shows them.
+   */
+  blockId: EntityId | null;
+  /** The block's name, kept on each of its lines. Null outside a block. */
+  blockName: string | null;
+  /** Links for the whole block (a shared folder, the brief), kept on each of its lines. Empty outside a block. */
+  blockLinks: AssetLink[];
   position: number;
   createdBy: EntityId;
 }
 
 export type ItemAssetInput = Pick<ItemAsset, "itemId" | "boardId" | "name" | "createdBy"> &
-  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "previewUrl" | "artworkUrl" | "position">>;
+  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position">>;
 
-export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "previewUrl" | "artworkUrl" | "position">>;
+export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position">>;
 
-/** The two kinds of link a deliverable carries. */
-export const ASSET_LINK_KINDS = ["preview", "artwork"] as const;
-export type AssetLinkKind = (typeof ASSET_LINK_KINDS)[number];
+/** One link on a deliverable. */
+export interface AssetLink {
+  id: string;
+  /** "Preview", "Final artwork", "Drive folder"… */
+  label: string;
+  url: string;
+  icon: AssetLinkIcon;
+}
 
-/** Which field each kind is stored in, so the editor and the row agree. */
-export const ASSET_LINK_FIELD: Record<AssetLinkKind, "previewUrl" | "artworkUrl"> = { preview: "previewUrl", artwork: "artworkUrl" };
+/** The icons a link can wear. Keys rather than component names, so the stored value outlives a rename in the icon set. */
+export const ASSET_LINK_ICONS = ["eye", "file-check", "link", "folder", "image", "video", "file-text", "pen", "message", "cloud"] as const;
+export type AssetLinkIcon = (typeof ASSET_LINK_ICONS)[number];
 
-export const ASSET_LINK_LABELS: Record<AssetLinkKind, { short: string; long: string }> = {
-  preview: { short: "Preview", long: "Preview" },
-  artwork: { short: "FA", long: "Final artwork" },
-};
+/** The links most deliverables get, offered first when one is added. */
+export const ASSET_LINK_PRESETS: ReadonlyArray<{ label: string; icon: AssetLinkIcon }> = [
+  { label: "Preview", icon: "eye" },
+  { label: "Final artwork", icon: "file-check" },
+];
+
+export const ASSET_LINK_LIMIT = 20;
+export const ASSET_LINK_URL_MAX = 2000;
+export const ASSET_LINK_LABEL_MAX = 60;
+
+/**
+ * Links as stored, made safe to read: anything that is not an object with a
+ * url is dropped, a missing label or an unknown icon gets a plain one. The
+ * column is jsonb, and a row written by hand or by an older build should not
+ * break the list.
+ */
+export function normalizeAssetLinks(value: unknown): AssetLink[] {
+  if (!Array.isArray(value)) return [];
+  const links: AssetLink[] = [];
+  for (const [index, raw] of value.entries()) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Record<string, unknown>;
+    const url = typeof entry.url === "string" ? entry.url.trim() : "";
+    if (!url) continue;
+    const icon = ASSET_LINK_ICONS.includes(entry.icon as AssetLinkIcon) ? (entry.icon as AssetLinkIcon) : "link";
+    const label = typeof entry.label === "string" && entry.label.trim() ? entry.label.trim().slice(0, ASSET_LINK_LABEL_MAX) : "Link";
+    links.push({ id: typeof entry.id === "string" && entry.id ? entry.id : `link-${index}`, label, url: url.slice(0, ASSET_LINK_URL_MAX), icon });
+  }
+  return links.slice(0, ASSET_LINK_LIMIT);
+}
+
+/**
+ * Where a link may be opened, or null where it may not. A bare address gets
+ * https:// in front; any scheme other than http, https or mailto — javascript:,
+ * data:, a drive letter — is never made into an anchor. It can still be copied.
+ */
+export function assetLinkHref(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (/^(https?:\/\/|mailto:)/i.test(trimmed)) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return null;
+  if (trimmed.startsWith("\\") || trimmed.startsWith("/")) return null;
+  return `https://${trimmed}`;
+}
+
+/** What a line written before links were a list carried, as the list. */
+export function legacyAssetLinks(previewUrl: string | null | undefined, artworkUrl: string | null | undefined): AssetLink[] {
+  const links: AssetLink[] = [];
+  if (previewUrl?.trim()) links.push({ id: "preview", label: "Preview", url: previewUrl.trim(), icon: "eye" });
+  if (artworkUrl?.trim()) links.push({ id: "artwork", label: "Final artwork", url: artworkUrl.trim(), icon: "file-check" });
+  return links;
+}
+
+/**
+ * A list read as it is shown: lines on their own and blocks, in the order of
+ * the first line of each. A block sits where its first line sits, and its lines
+ * keep their own order inside it.
+ */
+export type AssetListEntry<T> = { kind: "line"; line: T } | { kind: "block"; blockId: string; name: string; lines: T[] };
+
+export function groupAssetBlocks<T extends { blockId: string | null; blockName: string | null }>(lines: readonly T[]): AssetListEntry<T>[] {
+  const entries: AssetListEntry<T>[] = [];
+  const blocks = new Map<string, Extract<AssetListEntry<T>, { kind: "block" }>>();
+  for (const line of lines) {
+    if (!line.blockId) {
+      entries.push({ kind: "line", line });
+      continue;
+    }
+    const block = blocks.get(line.blockId);
+    if (block) {
+      block.lines.push(line);
+      continue;
+    }
+    const created = { kind: "block" as const, blockId: line.blockId, name: line.blockName?.trim() || "Block", lines: [line] };
+    blocks.set(line.blockId, created);
+    entries.push(created);
+  }
+  return entries;
+}
 
 /** The palette the asset-type picker offers; anything else can still be typed. */
 export const ASSET_TYPE_OPTIONS: readonly TagOption[] = BOOKING_ASSET_TYPES;

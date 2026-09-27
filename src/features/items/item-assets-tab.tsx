@@ -39,14 +39,32 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         assetTypes={assetTypes}
         users={ws.users}
         canEdit={canEdit}
-        emptyText={canEdit ? "No items yet. Add one above, then open it to set its type, who is in charge, how many and when it is due." : "No items listed."}
-        onAdd={(name) => mutations.add.mutate({ name, quantity: 1 })}
+        emptyText={canEdit ? "No items yet." : "No items listed."}
+        onAdd={(name, block) =>
+          mutations.add.mutate(block ? { name, quantity: 1, blockId: block.blockId, blockName: block.blockName, assigneeIds: block.assigneeIds, blockLinks: block.blockLinks } : { name, quantity: 1 })
+        }
+        onAddBlock={(block) =>
+          mutations.addBlock.mutate({ name: block.name, assigneeIds: block.assigneeIds, links: block.links, lines: block.lines.map(({ name, assetType, quantity, dueDate }) => ({ name, assetType, quantity, dueDate })) })
+        }
+        onSaveBlock={(blockId, form) => mutations.saveBlock.mutate({ blockId, form })}
+        onPatchBlock={(blockId, patch) => mutations.updateBlock.mutate({ blockId, patch })}
+        onRemoveBlock={(blockId) => mutations.removeBlock.mutate(blockId)}
         onPatch={(id, patch) => mutations.update.mutate({ id, patch })}
         // A duplicate is another thing to make, so it takes the specification
         // and not the links: a preview belongs to the copy it was made from, and
-        // a final artwork to the one that was signed off.
+        // a final artwork to the one that was signed off. It stays in its block.
         onDuplicate={(row) =>
-          mutations.add.mutate({ name: row.name, assetType: row.assetType, quantity: row.quantity, assigneeIds: row.assigneeIds, dueDate: row.dueDate, notes: row.notes })
+          mutations.add.mutate({
+            name: row.name,
+            assetType: row.assetType,
+            quantity: row.quantity,
+            assigneeIds: row.assigneeIds,
+            dueDate: row.dueDate,
+            notes: row.notes,
+            blockId: row.blockId,
+            blockName: row.blockName,
+            blockLinks: row.blockLinks,
+          })
         }
         onRemove={(id) => mutations.remove.mutate(id)}
       />

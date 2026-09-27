@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Item, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { AssetLink, Item, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { SavedBlock } from "@/services/item-asset-service";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newId, nowIso } from "@/lib/ids";
@@ -137,34 +138,124 @@ export function useAssetMutations(item: Item) {
     toast.error(error instanceof Error ? error.message : fallback);
   };
 
+  /** A line as it is shown until the server has answered. */
+  const tempLine = (line: NewAssetLine, position: number): ItemAsset => {
+    const now = nowIso();
+    return {
+      id: newId(),
+      itemId: item.id,
+      boardId: item.boardId,
+      name: line.name.trim(),
+      assetType: line.assetType ?? null,
+      quantity: line.quantity ?? null,
+      assigneeIds: line.assigneeIds ?? [],
+      dueDate: line.dueDate ?? null,
+      completedAt: null,
+      notes: line.notes ?? null,
+      links: line.links ?? [],
+      blockId: line.blockId ?? null,
+      blockName: line.blockId ? line.blockName ?? null : null,
+      blockLinks: line.blockId ? line.blockLinks ?? [] : [],
+      position,
+      createdBy: user.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+  };
+  const nextPosition = (previous: ItemAsset[] | undefined) => (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1;
+
   const add = useMutation({
     mutationFn: (line: NewAssetLine) => services.assets.add({ ...line, itemId: item.id, boardId: item.boardId }, user.id),
     onMutate: async (line) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ItemAsset[]>(key);
-      const now = nowIso();
-      const temp: ItemAsset = {
-        id: newId(),
-        itemId: item.id,
-        boardId: item.boardId,
-        name: line.name.trim(),
-        assetType: line.assetType ?? null,
-        quantity: line.quantity ?? null,
-        assigneeIds: line.assigneeIds ?? [],
-        dueDate: line.dueDate ?? null,
-        completedAt: null,
-        notes: line.notes ?? null,
-        previewUrl: null,
-        artworkUrl: null,
-        position: (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1,
-        createdBy: user.id,
-        createdAt: now,
-        updatedAt: now,
-      };
-      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [...old, temp]);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [...old, tempLine(line, nextPosition(previous))]);
       return { previous };
     },
     onError: (error, _line, ctx) => rollback(ctx?.previous, error, "Could not add the asset"),
+    onSettled: settle,
+  });
+
+  /** A new block: its lines, all under one name and the same people. */
+  const addBlock = useMutation({
+    mutationFn: ({ name, assigneeIds, links, lines }: { name: string; assigneeIds: string[]; links: AssetLink[]; lines: NewAssetLine[] }) => {
+      const blockId = newId();
+      return services.assets.addMany(
+        lines.map((line) => ({ ...line, itemId: item.id, boardId: item.boardId, assigneeIds, blockId, blockName: name.trim(), blockLinks: links })),
+        user.id,
+      );
+    },
+    onMutate: async ({ name, assigneeIds, links, lines }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      const blockId = newId();
+      const start = nextPosition(previous);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [...old, ...lines.map((line, i) => tempLine({ ...line, assigneeIds, blockId, blockName: name.trim(), blockLinks: links }, start + i))]);
+      return { previous };
+    },
+    onError: (error, _v, ctx) => rollback(ctx?.previous, error, "Could not add the block"),
+    onSettled: settle,
+  });
+
+  /** Rename a block, change who is on all of it, or take its lines out of it. */
+  const updateBlock = useMutation({
+    mutationFn: ({ blockId, patch }: { blockId: string; patch: { name?: string; assigneeIds?: string[]; links?: AssetLink[]; ungroup?: boolean } }) => services.assets.updateBlock(item.id, blockId, patch, user.id),
+    onMutate: async ({ blockId, patch }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) =>
+        old.map((a) => {
+          if (a.blockId !== blockId) return a;
+          const next = { ...a, updatedAt: nowIso() };
+          if (patch.ungroup) Object.assign(next, { blockId: null, blockName: null, blockLinks: [] });
+          else {
+            if (patch.name !== undefined) next.blockName = patch.name.trim();
+            if (patch.links !== undefined) next.blockLinks = patch.links;
+          }
+          if (patch.assigneeIds !== undefined) next.assigneeIds = patch.assigneeIds;
+          return next;
+        }),
+      );
+      return { previous };
+    },
+    onError: (error, _v, ctx) => rollback(ctx?.previous, error, "Could not change the block"),
+    onSettled: settle,
+  });
+
+  /** Everything the block dialog changed, at once. */
+  const saveBlock = useMutation({
+    mutationFn: ({ blockId, form }: { blockId: string; form: SavedBlock }) => services.assets.saveBlock(item.id, blockId, form, user.id),
+    onMutate: async ({ blockId, form }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      const shared = { blockName: form.name.trim(), assigneeIds: form.assigneeIds, blockLinks: form.links };
+      const byId = new Map(form.lines.flatMap((line) => (line.id ? [[line.id, line] as const] : [])));
+      const start = nextPosition(previous);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [
+        ...old.flatMap((a) => {
+          if (a.blockId !== blockId) return [a];
+          const line = byId.get(a.id);
+          return line ? [{ ...a, ...shared, name: line.name.trim() || a.name, assetType: line.assetType, quantity: line.quantity, dueDate: line.dueDate }] : [];
+        }),
+        ...form.lines
+          .filter((line) => !line.id && line.name.trim())
+          .map((line, i) => tempLine({ name: line.name, assetType: line.assetType, quantity: line.quantity, dueDate: line.dueDate, ...shared, blockId }, start + i)),
+      ]);
+      return { previous };
+    },
+    onError: (error, _v, ctx) => rollback(ctx?.previous, error, "Could not save the block"),
+    onSettled: settle,
+  });
+
+  const removeBlock = useMutation({
+    mutationFn: (blockId: string) => services.assets.removeBlock(item.id, blockId, user.id),
+    onMutate: async (blockId) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+      queryClient.setQueryData<ItemAsset[]>(key, (old = []) => old.filter((a) => a.blockId !== blockId));
+      return { previous };
+    },
+    onError: (error, _id, ctx) => rollback(ctx?.previous, error, "Could not remove the block"),
     onSettled: settle,
   });
 
@@ -192,5 +283,5 @@ export function useAssetMutations(item: Item) {
     onSettled: settle,
   });
 
-  return { add, update, remove };
+  return { add, addBlock, update, updateBlock, saveBlock, remove, removeBlock };
 }

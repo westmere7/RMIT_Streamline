@@ -41,7 +41,7 @@ function value(itemId: string, columnId: string, v: ItemColumnValue["value"]): I
   return { id: `${itemId}:${columnId}`, itemId, columnId, value: v, updatedAt: now };
 }
 function asset(id: string, itemId: string, boardId: string, type: string | null, quantity: number | null, completedAt: string | null = null, dueDate: string | null = null): ItemAsset {
-  return { id, itemId, boardId, name: id, assetType: type, quantity, assigneeIds: ["u-tuyet"], dueDate, completedAt, notes: "1080×1080", previewUrl: null, artworkUrl: null, position: 0, createdBy: "u-danh", createdAt: now, updatedAt: now };
+  return { id, itemId, boardId, name: id, assetType: type, quantity, assigneeIds: ["u-tuyet"], dueDate, completedAt, notes: "1080×1080", links: [], blockId: null, blockName: null, blockLinks: [], position: 0, createdBy: "u-danh", createdAt: now, updatedAt: now };
 }
 function user(id: string, displayName: string, department: string | null = null): User {
   return { id, email: `${id}@rmit.local`, firstName: displayName, lastName: "", displayName, avatarUrl: null, jobTitle: "Designer", department, timezone: "Australia/Melbourne", deactivatedAt: null, createdAt: now, updatedAt: now };
@@ -320,7 +320,7 @@ describe("the public dashboard payload", () => {
     expect(published.items.every((i) => i.description === null)).toBe(true);
     expect(published.assets.every((a) => a.notes === null)).toBe(true);
     expect(published.teams.every((t) => t.description === null)).toBe(true);
-    expect(published.assets.every((a) => a.previewUrl === null && a.artworkUrl === null)).toBe(true);
+    expect(published.assets.every((a) => a.links.length === 0 && a.blockName === null)).toBe(true);
     // A LONG_TEXT or LINK column is somebody's writing; its values never travel.
     const publishedColumns = new Set(published.columns.map((c) => c.id));
     const internal = snapshot();
@@ -371,5 +371,52 @@ describe("requesters on a People column", () => {
     const a2 = facts.tasks.find((t) => t.id === "a2")!;
     expect(a2.owners).toEqual(["u-tuyet", "u-duc"]);
     expect(a2.request?.requesterName ?? null).toBeNull();
+  });
+});
+
+describe("a block of deliverables", () => {
+  // One person, three different things, each due on its own day: three lines
+  // that share a block, not one line.
+  function withBlock(): DashboardSnapshot {
+    const base = snapshot();
+    const inBlock = (id: string, type: string, quantity: number, dueDate: string, completedAt: string | null = null): ItemAsset => ({
+      ...asset(id, "a3", "b-a", type, quantity, completedAt, dueDate),
+      assigneeIds: ["u-duc"],
+      blockId: "blk-1",
+      blockName: "Duc's event kit",
+      links: [{ id: "k1", label: "Preview", url: "https://example.com/proof.pdf", icon: "eye" }],
+      blockLinks: [{ id: "k2", label: "Folder", url: "https://example.com/kit", icon: "folder" }],
+    });
+    return {
+      ...base,
+      assets: [...base.assets, inBlock("bl1", "Print", 2, "2026-03-01", "2026-02-27T00:00:00.000Z"), inBlock("bl2", "Social", 6, "2026-03-10"), inBlock("bl3", "Video", 1, "2026-04-02")],
+    };
+  }
+
+  it("counts each of its lines, with its own type, units, date and person", () => {
+    const facts = buildFacts(withBlock());
+    const lines = facts.assets.filter((a) => a.id.startsWith("bl"));
+    expect(lines.map((a) => [a.id, a.type, a.units, a.dueDate, a.done, a.assignees])).toEqual([
+      ["bl1", "Print", 2, "2026-03-01", true, ["u-duc"]],
+      ["bl2", "Social", 6, "2026-03-10", false, ["u-duc"]],
+      ["bl3", "Video", 1, "2026-04-02", false, ["u-duc"]],
+    ]);
+    expect(facts.tasks.find((t) => t.id === "a3")).toMatchObject({ assetUnits: 9, doneAssetUnits: 2 });
+    const mix = assetMix(assetsInScope(facts.assets, year2026));
+    expect(mix.find((r) => r.name === "Print")?.value).toBe(16);
+    expect(mix.find((r) => r.name === "Video")?.value).toBe(1);
+  });
+
+  it("travels to a public dashboard without its name or its links", () => {
+    const published = publicDashboardSnapshot(withBlock());
+    const lines = published.assets.filter((a) => a.id.startsWith("bl"));
+    expect(lines).toHaveLength(3);
+    expect(lines.every((a) => a.links.length === 0 && a.blockLinks.length === 0 && a.blockName === null && a.blockId === null)).toBe(true);
+    // Still counted the same way.
+    expect(lines.map((a) => [a.assetType, a.quantity, a.dueDate])).toEqual([
+      ["Print", 2, "2026-03-01"],
+      ["Social", 6, "2026-03-10"],
+      ["Video", 1, "2026-04-02"],
+    ]);
   });
 });

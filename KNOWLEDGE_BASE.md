@@ -875,7 +875,9 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
 
 ### Assets (deliverables)
 
-- **Shape.** An `ItemAsset` has name, asset type, quantity (null counts as 1), several assignees, due date, completion, notes (the spec), `previewUrl`, `artworkUrl` (internal) and position.
+- **Shape.** An `ItemAsset` has name, asset type, quantity (null counts as 1), several assignees, due date, completion, notes (the spec), `links`, `blockId`/`blockName`/`blockLinks` and position.
+- **Links** (migration 0087) are a list of `{ id, label, url, icon }`, ordered, at most 20. The old `preview_url`/`artwork_url` columns were copied in and are no longer read; a later migration drops them. They live in the row's "…" menu (open, copy, copy all), never on the row. `assetLinkHref()` opens only http(s) and mailto. Booking rows carry no links.
+- **Blocks** (0087, 0088) group lines under one name, one person in charge and their own links. Each line stays an ordinary line with its own type, quantity, due date and tick, so the recap, board, portal and dashboard count them as before. The block exists only through its lines (`block_id` shared, name and links copied on each); it goes with its last line. The Block button and the block's name open one dialog for everything (`ItemAssetService.saveBlock`).
 - **Changes.** Each change logs `ASSET_*` activity and recomputes the cached recap of every task sharing the line.
 - **Recap strip.**
   - Folded: "X of Y items done" with the bar across the line.

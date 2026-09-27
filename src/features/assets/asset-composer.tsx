@@ -1,15 +1,18 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, Eye, FileCheck2, Hash, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ColorDot, LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { TagOption, User } from "@/domain";
-import { ASSET_LINK_KINDS, ASSET_LINK_LABELS, ASSET_TYPE_OPTIONS, assetCount, type AssetLinkKind } from "@/domain";
+import type { AssetLink, TagOption, User } from "@/domain";
+import { ASSET_TYPE_OPTIONS, assetCount, groupAssetBlocks } from "@/domain";
+import { AssetBlockDialog, type AssetBlockForm } from "@/features/assets/asset-block-dialog";
+import { cleanDraftLinks, LinksEditor, linkMenuActions, sameLinks } from "@/features/assets/asset-links";
 import { DatePicker } from "@/features/boards/components/pickers/date-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
@@ -30,10 +33,13 @@ export interface AssetComposerRow {
   assigneeIds: string[];
   dueDate: string | null;
   notes: string | null;
-  /** Something to look at while it is being made. */
-  previewUrl: string | null;
-  /** The signed-off final artwork. */
-  artworkUrl: string | null;
+  /** Previews, final artwork, folders… in the order they are listed. */
+  links: AssetLink[];
+  /** The block the line sits in, if any. */
+  blockId: string | null;
+  blockName: string | null;
+  /** The block's own links, the same on each of its lines. */
+  blockLinks: AssetLink[];
   completedAt: string | null;
 }
 
@@ -49,11 +55,28 @@ export interface AssetComposerFields {
   type?: boolean;
   people?: boolean;
   due?: boolean;
-  /** The preview and final-artwork links. Off where nobody has any yet, as on a booking. */
+  /** The links. Off where nobody has any yet. */
   links?: boolean;
+  /** Blocks: several lines under one name and one person in charge. */
+  blocks?: boolean;
 }
 
-const ALL_FIELDS: Required<AssetComposerFields> = { done: true, type: true, people: true, due: true, links: true };
+const ALL_FIELDS: Required<AssetComposerFields> = { done: true, type: true, people: true, due: true, links: true, blocks: true };
+
+/** Where a line added inside a block goes, and who it is on. */
+export interface AssetBlockTarget {
+  blockId: string;
+  blockName: string;
+  assigneeIds: string[];
+  blockLinks: AssetLink[];
+}
+
+export interface AssetBlockPatch {
+  name?: string;
+  assigneeIds?: string[];
+  links?: AssetLink[];
+  ungroup?: boolean;
+}
 
 /**
  * The asset composer: a list of deliverables, one row each, with a box above it
@@ -81,6 +104,10 @@ export function AssetComposer({
   addPlaceholder = "Add an item, e.g. A1 poster",
   emptyText,
   onAdd,
+  onAddBlock,
+  onPatchBlock,
+  onSaveBlock,
+  onRemoveBlock,
   onPatch,
   onDuplicate,
   onRemove,
@@ -96,13 +123,26 @@ export function AssetComposer({
   disabled?: boolean;
   addPlaceholder?: string;
   emptyText?: string;
-  onAdd: (name: string) => void;
+  /** A new line: on its own, or at the end of a block. */
+  onAdd: (name: string, block?: AssetBlockTarget) => void;
+  onAddBlock?: (block: AssetBlockForm) => void;
+  onPatchBlock?: (blockId: string, patch: AssetBlockPatch) => void;
+  /** Everything the block dialog changed. Without it a block cannot be reopened in the dialog. */
+  onSaveBlock?: (blockId: string, block: AssetBlockForm) => void;
+  onRemoveBlock?: (blockId: string) => void;
   onPatch: (id: string, patch: AssetComposerPatch) => void;
   onDuplicate: (row: AssetComposerRow) => void;
   onRemove: (id: string) => void;
 }) {
   const on = { ...ALL_FIELDS, ...fields };
+  const blocksOn = on.blocks && !!onAddBlock && !!onPatchBlock && !!onRemoveBlock;
   const [newName, setNewName] = React.useState("");
+  const [blockDialog, setBlockDialog] = React.useState(false);
+  const entries = React.useMemo(() => (blocksOn ? groupAssetBlocks(rows) : rows.map((line) => ({ kind: "line" as const, line }))), [rows, blocksOn]);
+  const blocks = React.useMemo(
+    () => entries.flatMap((entry) => (entry.kind === "block" ? [blockTarget(entry.blockId, entry.name, entry.lines)] : [])),
+    [entries],
+  );
   // Which of them are open. One added just now opens itself, since the next
   // thing anyone does is fill in its details.
   const [open, setOpen] = React.useState<ReadonlySet<string>>(() => new Set<string>());
@@ -124,6 +164,43 @@ export function AssetComposer({
     setNewName("");
   };
 
+  const addInto = (block: AssetBlockTarget, name: string) => {
+    onAdd(name, block);
+    setJustAdded(name);
+  };
+
+  // Lines are numbered down the whole list, blocks included.
+  const numbers = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of entries) for (const line of entry.kind === "line" ? [entry.line] : entry.lines) map.set(line.id, map.size + 1);
+    return map;
+  }, [entries]);
+  const lineCard = (row: AssetComposerRow, inBlock: boolean) => {
+    return (
+      <AssetRowCard
+        key={row.id}
+        row={row}
+        number={numbers.get(row.id) ?? 0}
+        fields={inBlock ? { ...on, people: false } : on}
+        assetTypes={assetTypes}
+        users={users}
+        canEdit={canEdit && !disabled}
+        open={open.has(row.id) || row.name === justAdded}
+        onToggle={() => {
+          if (row.name === justAdded) setJustAdded(null);
+          else toggle(row.id);
+        }}
+        onChange={(patch) => onPatch(row.id, patch)}
+        onDuplicate={() => onDuplicate(row)}
+        onRemove={() => onRemove(row.id)}
+        blocks={blocksOn && !inBlock ? blocks : undefined}
+        inBlock={blocksOn && inBlock}
+        // Level with the lines inside a block, whose box insets them.
+        inset={!inBlock && blocks.length > 0}
+      />
+    );
+  };
+
   return (
     // Laid out against its own width rather than the window's: the same list sits
     // in a 300px task panel, half of the wide one, a booking form and a phone. Under 28rem a
@@ -133,7 +210,8 @@ export function AssetComposer({
       {/* Not a <form>: the booking page already is one, and a form inside a form
           is invalid — Enter is handled on the field instead. */}
       {canEdit && (
-        <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-ring">
+        <div className="flex items-stretch gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-ring">
           <Plus className="size-3.5 shrink-0 text-muted-foreground/60" />
           <input
             value={newName}
@@ -153,28 +231,51 @@ export function AssetComposer({
             Add
           </Button>
         </div>
+          {/* The other way in, beside the field rather than in it: several
+              things, one person, each due on its own day. */}
+          {blocksOn && (
+            <Button type="button" onClick={() => setBlockDialog(true)} variant="outline" className="h-auto shrink-0 self-stretch rounded-xl px-3 shadow-xs" disabled={disabled} title="Several items for one person" data-testid="asset-add-block">
+              <Layers /> Block
+            </Button>
+          )}
+        </div>
+      )}
+      {blocksOn && canEdit && (
+        <AssetBlockDialog
+          open={blockDialog}
+          onOpenChange={(next) => {
+            setBlockDialog(next);
+            if (!next) setNewName("");
+          }}
+          initialName={newName.trim()}
+          assetTypes={assetTypes}
+          users={users}
+          onSubmit={(block) => onAddBlock!(block)}
+        />
       )}
 
       <ul className={cn("space-y-1.5", canEdit && "mt-2")} data-testid="asset-lines">
-        {rows.map((row, index) => (
-          <AssetRowCard
-            key={row.id}
-            row={row}
-            number={index + 1}
-            fields={on}
-            assetTypes={assetTypes}
-            users={users}
-            canEdit={canEdit && !disabled}
-            open={open.has(row.id) || row.name === justAdded}
-            onToggle={() => {
-              if (row.name === justAdded) setJustAdded(null);
-              else toggle(row.id);
-            }}
-            onChange={(patch) => onPatch(row.id, patch)}
-            onDuplicate={() => onDuplicate(row)}
-            onRemove={() => onRemove(row.id)}
-          />
-        ))}
+        {entries.map((entry) =>
+          entry.kind === "line" ? (
+            lineCard(entry.line, false)
+          ) : (
+            <AssetBlockCard
+              key={entry.blockId}
+              name={entry.name}
+              lines={entry.lines}
+              fields={on}
+              assetTypes={assetTypes}
+              users={users}
+              canEdit={canEdit && !disabled}
+              onAdd={(name) => addInto(blockTarget(entry.blockId, entry.name, entry.lines), name)}
+              onPatch={(patch) => onPatchBlock!(entry.blockId, patch)}
+              onSave={onSaveBlock ? (block) => onSaveBlock(entry.blockId, block) : undefined}
+              onRemove={() => onRemoveBlock!(entry.blockId)}
+            >
+              {entry.lines.map((line) => lineCard(line, true))}
+            </AssetBlockCard>
+          ),
+        )}
         {rows.length === 0 && emptyText && (
           <li className="rounded-xl border border-dashed border-border/80 px-4 py-4 text-center text-[13px] text-muted-foreground" data-testid="assets-empty">
             {emptyText}
@@ -192,12 +293,11 @@ interface AssetDraft {
   quantity: number | null;
   dueDate: string | null;
   notes: string | null;
-  previewUrl: string | null;
-  artworkUrl: string | null;
+  links: AssetLink[];
 }
 
 function draftOf(row: AssetComposerRow): AssetDraft {
-  return { assetType: row.assetType, assigneeIds: row.assigneeIds, quantity: row.quantity, dueDate: row.dueDate, notes: row.notes, previewUrl: row.previewUrl, artworkUrl: row.artworkUrl };
+  return { assetType: row.assetType, assigneeIds: row.assigneeIds, quantity: row.quantity, dueDate: row.dueDate, notes: row.notes, links: row.links };
 }
 
 /** Only what the draft actually changed, so Update writes nothing it does not have to. */
@@ -207,8 +307,10 @@ function draftPatch(row: AssetComposerRow, draft: AssetDraft): AssetComposerPatc
   if (draft.quantity !== row.quantity) patch.quantity = draft.quantity;
   if (draft.dueDate !== row.dueDate) patch.dueDate = draft.dueDate;
   if (draft.notes !== row.notes) patch.notes = draft.notes;
-  if (draft.previewUrl !== row.previewUrl) patch.previewUrl = draft.previewUrl;
-  if (draft.artworkUrl !== row.artworkUrl) patch.artworkUrl = draft.artworkUrl;
+  // Links with nothing in the address are not links; an empty one left in the
+  // editor is not a change.
+  const links = cleanDraftLinks(draft.links);
+  if (!sameLinks(links, row.links)) patch.links = links;
   if (draft.assigneeIds.length !== row.assigneeIds.length || draft.assigneeIds.some((id, i) => id !== row.assigneeIds[i])) patch.assigneeIds = draft.assigneeIds;
   return patch;
 }
@@ -245,6 +347,9 @@ function AssetRowCard({
   onChange,
   onDuplicate,
   onRemove,
+  blocks,
+  inBlock = false,
+  inset = false,
 }: {
   row: AssetComposerRow;
   number: number;
@@ -257,6 +362,12 @@ function AssetRowCard({
   onChange: (patch: AssetComposerPatch) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  /** The list's blocks, which a line on its own can be moved into. */
+  blocks?: readonly AssetBlockTarget[];
+  /** In a block: the line can be taken out of it, and its people are the block's. */
+  inBlock?: boolean;
+  /** Set in by a block's border and padding, so a line on its own lines up with the lines in a block. */
+  inset?: boolean;
 }) {
   // What the open form is holding. It starts from the row each time the row is
   // opened, so Discard is simply "close it again".
@@ -289,12 +400,10 @@ function AssetRowCard({
   const typeLabel = assetTypeLabel(shown.assetType, assetTypes);
   const count = assetCount(shown);
   const inCharge = assignees.length === 0 ? "Not set" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`;
-  // What the closed row shows on its right: who it is on, when it is due, and
-  // the links it holds. Each is asked for on its own, because the divider
-  // between them only earns its pixel when there is something either side.
+  // What the closed row shows on its right: who it is on and when it is due.
+  // The links are in the menu, however many there are.
   const showPeople = fields.people && assignees.length > 0;
   const showDue = fields.due && !!shown.dueDate;
-  const showLinks = !open && fields.links;
   const [renaming, setRenaming] = React.useState(false);
   const [dueOpen, setDueOpen] = React.useState(false);
   // Rename opens a field, so it waits for the menu to finish closing rather than
@@ -340,15 +449,41 @@ function AssetRowCard({
   // Everything that changes the row rather than says something about it. Off the
   // line, where it is not competing with the type or the date, but always one
   // tap away rather than one hover.
+  const linkActions = fields.links ? linkMenuActions(row.links) : [];
   const menuActions: MenuAction[] = [
-    { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)), testId: "asset-rename" },
-    { type: "item", label: "Duplicate", icon: <Copy />, onSelect: onDuplicate, testId: "asset-duplicate" },
-    { type: "separator" },
-    { type: "item", label: "Remove", icon: <Trash2 />, destructive: true, onSelect: onRemove, testId: "asset-menu-remove" },
+    ...linkActions,
+    ...(canEdit
+      ? ([
+          ...(linkActions.length ? [{ type: "separator" as const }] : []),
+          { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)), testId: "asset-rename" },
+          { type: "item", label: "Duplicate", icon: <Copy />, onSelect: onDuplicate, testId: "asset-duplicate" },
+          ...(inBlock
+            ? [{ type: "item" as const, label: "Take out of block", icon: <FolderOutput />, onSelect: () => onChange({ blockId: null, blockName: null, blockLinks: [] }), testId: "asset-leave-block" }]
+            : blocks && blocks.length > 0
+              ? [
+                  {
+                    type: "sub" as const,
+                    label: "Move to block",
+                    icon: <FolderInput />,
+                    items: blocks.map((block) => ({
+                      type: "item" as const,
+                      label: block.blockName,
+                      icon: <Layers />,
+                      // Into the block and onto its people: a block is one person's.
+                      onSelect: () => onChange({ blockId: block.blockId, blockName: block.blockName, assigneeIds: block.assigneeIds, blockLinks: block.blockLinks }),
+                      testId: "asset-move-to-block",
+                    })),
+                  },
+                ]
+              : []),
+          { type: "separator" },
+          { type: "item", label: "Remove", icon: <Trash2 />, destructive: true, onSelect: onRemove, testId: "asset-menu-remove" },
+        ] satisfies MenuAction[])
+      : []),
   ];
 
   return (
-    <li className="flex items-stretch gap-1.5" data-testid="asset-line" data-asset-name={row.name} data-asset-done={done ? "true" : "false"}>
+    <li className={cn("flex items-stretch gap-1.5", inset && "px-[calc(0.375rem+1px)]")} data-testid="asset-line" data-asset-name={row.name} data-asset-done={done ? "true" : "false"}>
       {/* The count is about the list, not about the deliverable, so it is kept
           out of the card and set in the margin the list reads down. */}
       <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden data-testid="asset-number">
@@ -449,19 +584,11 @@ function AssetRowCard({
             </div>
           )}
 
-          {/* The links this deliverable holds, then everything else behind a "…".
-              All of it sits on the row at rest: a control that only exists under a
-              pointer is a control a touchscreen never offers, and a rail that
-              opens on hover shifts the row out from under the finger aiming at
-              it. */}
+          {/* Everything else behind a "…", links included. It sits on the row at
+              rest: a control that only exists under a pointer is a control a
+              touchscreen never offers. */}
           <div className="flex shrink-0 items-center gap-0.5 pl-1.5">
-            {showLinks && !renaming && (
-              <span className="flex @max-[28rem]/assets:hidden">
-                <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} />
-              </span>
-            )}
-
-            {canEdit && !renaming && (
+            {menuActions.length > 0 && !renaming && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button type="button" aria-label={`Options for ${row.name}`} title="More" data-testid="asset-menu" className={rowActionClass}>
@@ -484,7 +611,7 @@ function AssetRowCard({
 
         {/* ---- Narrow: the same details, on a line of their own under the name.
             Squeezed onto the name's line they ran into it and each other. */}
-        {!open && !renaming && (count > 1 || (fields.type && typeLabel) || showPeople || showDue || showLinks) && (
+        {!open && !renaming && (count > 1 || (fields.type && typeLabel) || showPeople || showDue) && (
           <div className={cn("hidden flex-wrap items-center gap-x-2 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground @max-[28rem]/assets:flex", fields.done ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-summary-compact">
             {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{count}</span>}
             {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
@@ -499,11 +626,6 @@ function AssetRowCard({
               <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
                 {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
                 {formatShortDate(shown.dueDate)}
-              </span>
-            )}
-            {showLinks && (
-              <span className="ml-auto">
-                <LinkChips preview={shown.previewUrl} artwork={shown.artworkUrl} name={row.name} idPrefix="asset-compact-link-chip" />
               </span>
             )}
           </div>
@@ -643,13 +765,13 @@ function AssetRowCard({
               />
             </Detail>
 
-            {/* One line for two links, because a deliverable acquires them in
-                order: something to review, then the artwork that was signed off.
-                The switch says which one the box is holding, and each side shows
-                a tick once it has a link, so both are visible without toggling. */}
-            <Detail label="Link" stacked className={cn("col-span-2 @max-[28rem]/assets:col-span-1", (!fields.links || (!canEdit && !draft.previewUrl && !draft.artworkUrl)) && "hidden")}>
-              <LinkField draft={draft} saved={row} canEdit={canEdit} onChange={edit} />
-            </Detail>
+            {/* As many links as it needs, each with its own label and icon, in the
+                order they are listed here — which is the order the menu shows. */}
+            {fields.links && (canEdit || draft.links.length > 0) && (
+              <Detail label="Links" stacked className="col-span-2 @max-[28rem]/assets:col-span-1">
+                <LinksEditor links={draft.links} canEdit={canEdit} onChange={(links) => edit({ links })} />
+              </Detail>
+            )}
 
             {/* Throwing the row away sits apart from keeping the edits or putting them back. */}
             {canEdit && (
@@ -683,188 +805,235 @@ function AssetRowCard({
   );
 }
 
-const LINK_ICON: Record<AssetLinkKind, typeof Eye> = { preview: Eye, artwork: FileCheck2 };
+/** A block as a line added to it, or moved into it, needs it. */
+function blockTarget(blockId: string, blockName: string, lines: readonly AssetComposerRow[]): AssetBlockTarget {
+  return { blockId, blockName, assigneeIds: blockAssignees(lines), blockLinks: lines[0]?.blockLinks ?? [] };
+}
 
-/**
- * The two links a deliverable can carry, as a fixed pair of icons on the closed
- * row: something to review while it is being made, and the artwork that was
- * signed off.
- *
- * Both slots are always there. An icon that turns up only once the link does
- * moves everything beside it and leaves nowhere to look for what is still owed;
- * a faint mark says the same thing without shifting the row. The one that exists
- * is green and is an anchor rather than a button, so a click opens the
- * thing itself — and is stopped from reaching the row, which would open the
- * editor.
- */
-function LinkChips({ preview, artwork, name, idPrefix = "asset-link-chip" }: { preview: string | null; artwork: string | null; name: string; idPrefix?: string }) {
-  return (
-    <span className="flex shrink-0 items-center gap-0.5" data-testid={`${idPrefix}s`}>
-      {ASSET_LINK_KINDS.map((kind) => {
-        const Icon = LINK_ICON[kind];
-        const href = kind === "preview" ? preview : artwork;
-        const label = ASSET_LINK_LABELS[kind].long;
-        return href ? (
-          <a
-            key={kind}
-            href={href}
-            target="_blank"
-            rel="noreferrer noopener"
-            onClick={(event) => event.stopPropagation()}
-            title={`${label} for ${name}`}
-            aria-label={`${label} for ${name}`}
-            className={cn(rowActionClass, "p-0.5 text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400")}
-            data-testid={`${idPrefix}-${kind}`}
-            data-filled="true"
-          >
-            <Icon className="size-3" />
-          </a>
-        ) : (
-          <span key={kind} aria-hidden title={`No ${label.toLowerCase()} for ${name} yet`} className="shrink-0 rounded-md p-0.5 text-muted-foreground/30" data-testid={`${idPrefix}-${kind}`} data-filled="false">
-            <Icon className="size-3" />
-          </span>
-        );
-      })}
-    </span>
-  );
+/** Who a block is on: everyone in charge of any of its lines, in the order they first appear. */
+function blockAssignees(lines: readonly AssetComposerRow[]): string[] {
+  const ids: string[] = [];
+  for (const line of lines) for (const id of line.assigneeIds) if (!ids.includes(id)) ids.push(id);
+  return ids;
 }
 
 /**
- * The two links, a line each: something to review while the deliverable is being
- * made, and the artwork that was signed off. Two lines rather than one box with a
- * switch, because the pair is the point — what a deliverable is missing should be
- * readable without toggling anything.
+ * A block: several lines under one name and one person in charge — one
+ * designer's poster, tiles and banner, each with its own type, quantity and
+ * due date. The header holds what the lines share; each line underneath is an
+ * ordinary line, opened, ticked off and counted like any other.
  */
-function LinkField({
-  draft,
-  saved,
+function AssetBlockCard({
+  name,
+  lines,
+  fields,
+  assetTypes,
+  users,
   canEdit,
-  onChange,
+  onAdd,
+  onPatch,
+  onSave,
+  onRemove,
+  children,
 }: {
-  draft: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">;
-  /** What is stored, which is where the cross puts the line back to. */
-  saved: Pick<AssetComposerRow, "previewUrl" | "artworkUrl">;
+  name: string;
+  lines: readonly AssetComposerRow[];
+  fields: Required<AssetComposerFields>;
+  assetTypes: readonly TagOption[];
+  users: User[];
   canEdit: boolean;
-  onChange: (patch: AssetComposerPatch) => void;
+  onAdd: (name: string) => void;
+  onPatch: (patch: AssetBlockPatch) => void;
+  onSave?: (block: AssetBlockForm) => void;
+  onRemove: () => void;
+  children: React.ReactNode;
 }) {
-  return (
-    <div className="grid gap-1.5" data-testid="asset-link-rows">
-      {ASSET_LINK_KINDS.map((kind) => {
-        const key = kind === "preview" ? "previewUrl" : "artworkUrl";
-        return <LinkRow key={kind} kind={kind} value={draft[key]} saved={saved[key]} canEdit={canEdit} onChange={(next) => onChange({ [key]: next })} />;
-      })}
-    </div>
-  );
-}
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [renaming, setRenaming] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
+  const blockLinks = lines[0]?.blockLinks ?? [];
+  const canOpen = canEdit && !!onSave;
+  const [newName, setNewName] = React.useState("");
+  const menuFocus = useMenuFocusGuard();
 
-/**
- * One link. The label is the link itself once there is one — in green,
- * opening in its own tab — and the box beside it is committed with the tick (or
- * Enter, or by leaving it) and put back to what is stored with the cross.
- *
- * Both buttons hold the focus where it is on the way down, so the blur they would
- * otherwise cause does not commit the very edit the cross is there to undo.
- */
-function LinkRow({
-  kind,
-  value,
-  saved,
-  canEdit,
-  onChange,
-}: {
-  kind: AssetLinkKind;
-  value: string | null;
-  saved: string | null;
-  canEdit: boolean;
-  onChange: (next: string | null) => void;
-}) {
-  const [text, setText] = React.useState(value ?? "");
-  // A change from outside — Discard, or a save elsewhere — replaces what is typed.
-  const [seen, setSeen] = React.useState(value);
-  if (value !== seen) {
-    setSeen(value);
-    setText(value ?? "");
-  }
-  const Icon = LINK_ICON[kind];
-  const label = ASSET_LINK_LABELS[kind].long;
-  const commit = () => onChange(text.trim() || null);
-  const revert = () => {
-    setText(saved ?? "");
-    onChange(saved);
+  const assigneeIds = blockAssignees(lines);
+  const assignees = assigneeIds.map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
+  const done = lines.filter((line) => line.completedAt !== null).length;
+  const outstanding = lines.filter((line) => line.completedAt === null && line.dueDate);
+  const overdue = outstanding.some((line) => isOverdue(line.dueDate));
+  const nextDue = outstanding.map((line) => line.dueDate!).sort()[0] ?? null;
+
+  const add = () => {
+    const line = newName.trim();
+    if (!line) return;
+    onAdd(line);
+    setNewName("");
   };
-  const uncommitted = text.trim() !== (value ?? "");
-  const changed = text.trim() !== (saved ?? "") || value !== saved;
+
+  const linkActions = fields.links ? linkMenuActions(blockLinks) : [];
+  const menuActions: MenuAction[] = [
+    ...linkActions,
+    ...(canEdit
+      ? ([
+          ...(linkActions.length ? [{ type: "separator" as const }] : []),
+          canOpen
+            ? { type: "item", label: "Edit block", icon: <Pencil />, onSelect: () => menuFocus.run(() => setEditing(true)), testId: "asset-block-edit" }
+            : { type: "item", label: "Rename block", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)), testId: "asset-block-rename" },
+          { type: "item", label: "Ungroup", icon: <Ungroup />, onSelect: () => onPatch({ ungroup: true }), testId: "asset-block-ungroup" },
+          { type: "separator" },
+          { type: "item", label: "Remove block", icon: <Trash2 />, destructive: true, onSelect: () => setConfirming(true), testId: "asset-block-remove" },
+        ] satisfies MenuAction[])
+      : []),
+  ];
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5" data-testid={`asset-link-row-${kind}`}>
-      {value ? (
-        <a
-          href={value}
-          target="_blank"
-          rel="noreferrer noopener"
-          title={`Open the ${label.toLowerCase()}`}
-          className="flex w-[4.5rem] shrink-0 items-center gap-1 rounded-md px-1 py-1 text-2xs font-medium text-emerald-600 hover:bg-accent dark:text-emerald-400 @max-[28rem]/assets:w-auto"
-          data-testid={`asset-link-open-${kind}`}
-        >
-          <Icon className="size-3.5 shrink-0" />
-          <span className="@max-[28rem]/assets:sr-only">{ASSET_LINK_LABELS[kind].short}</span>
-        </a>
-      ) : (
-        <span className="flex w-[4.5rem] shrink-0 items-center gap-1 px-1 py-1 text-2xs font-medium text-muted-foreground/60 @max-[28rem]/assets:w-auto" title={label}>
-          <Icon className="size-3.5 shrink-0" />
-          <span className="@max-[28rem]/assets:sr-only">{ASSET_LINK_LABELS[kind].short}</span>
+    <li className="rounded-2xl border border-border/70 bg-muted/30 p-1.5" data-testid="asset-block" data-block-name={name}>
+      {/* Padded on the right like a line card (its border and px-2.5), so the
+          header's menu and chevron sit in the same column as the lines'. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1 pr-[0.6875rem] pl-1.5">
+        <Layers className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        {renaming && canEdit ? (
+          <TextField
+            value={name}
+            placeholder="Block"
+            ariaLabel={`Block name: ${name}`}
+            canEdit
+            autoFocus
+            onCommit={(next) => next.trim() && next.trim() !== name && onPatch({ name: next.trim() })}
+            onDone={() => setRenaming(false)}
+            testId="asset-block-title"
+            className="min-w-0 flex-1 font-semibold"
+          />
+        ) : (
+          // The name opens the block's dialog, where everything about it is
+          // edited at once; the chevron folds it.
+          <button
+            type="button"
+            onClick={() => (canOpen ? setEditing(true) : setCollapsed((c) => !c))}
+            onDoubleClick={() => canEdit && !canOpen && setRenaming(true)}
+            aria-expanded={canOpen ? undefined : !collapsed}
+            title={canOpen ? "Edit block" : undefined}
+            className="min-w-[4rem] flex-1 truncate py-0.5 text-left text-[13px] font-semibold select-none"
+            data-testid="asset-block-title"
+          >
+            {name}
+          </button>
+        )}
+
+        <span className="flex shrink-0 items-center gap-2 text-2xs text-muted-foreground">
+          <span className="tabular" data-testid="asset-block-progress">
+            {done}/{lines.length}
+          </span>
+          {fields.due && nextDue && (
+            <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
+              {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+              {formatShortDate(nextDue)}
+            </span>
+          )}
         </span>
+
+        {/* The one thing every line in the block shares, set in one place. */}
+        {fields.people && (
+          <Popover>
+            <PopoverTrigger asChild disabled={!canEdit}>
+              <button
+                type="button"
+                className="flex h-7 max-w-40 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 text-xs transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-background"
+                aria-label={`Block in charge: ${assignees.length > 0 ? assignees.map((u) => u.displayName).join(", ") : "nobody"}`}
+                data-testid="asset-block-assignee"
+              >
+                {assignees.length > 0 ? (
+                  <span className="flex shrink-0 -space-x-1">
+                    {assignees.slice(0, 3).map((u) => (
+                      <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                    ))}
+                  </span>
+                ) : (
+                  <UserRound className="size-3 shrink-0 opacity-60" />
+                )}
+                <span className={cn("truncate", assignees.length === 0 && "text-muted-foreground/80")}>
+                  {assignees.length === 0 ? "In charge" : assignees.length === 1 ? assignees[0]!.firstName : `${assignees.length} people`}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-0">
+              <PersonPicker users={users} value={assigneeIds} onChange={(ids) => onPatch({ assigneeIds: ids })} />
+            </PopoverContent>
+          </Popover>
+        )}
+
+        <span className="flex shrink-0 items-center gap-0.5">
+          {menuActions.length > 0 && !renaming && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label={`Options for ${name}`} title="More" data-testid="asset-block-menu" className={rowActionClass}>
+                  <MoreVertical className="size-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44" onCloseAutoFocus={menuFocus.onCloseAutoFocus}>
+                {renderDropdown(menuActions)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <button type="button" onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed} aria-label={collapsed ? `Show ${name}` : `Fold ${name}`} data-testid="asset-block-toggle" className={rowActionClass}>
+            <ChevronRight className={cn("size-3.5 transition-transform", !collapsed && "rotate-90")} />
+          </button>
+        </span>
+      </div>
+
+      {!collapsed && (
+        <>
+          <ul className="mt-1 space-y-1.5" data-testid="asset-block-lines">
+            {children}
+          </ul>
+          {canEdit && (
+            <div className="mt-1.5 flex items-center gap-2 rounded-xl px-2.5 py-1 focus-within:bg-background focus-within:ring-2 focus-within:ring-ring @min-[28rem]/assets:ml-[1.625rem]">
+              <Plus className="size-3.5 shrink-0 text-muted-foreground/60" />
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  add();
+                }}
+                placeholder="Add to this block"
+                aria-label={`Add an item to ${name}`}
+                data-testid="asset-block-add-input"
+                className="h-7 min-w-0 flex-1 truncate bg-transparent text-xs outline-none placeholder:text-muted-foreground/70"
+              />
+            </div>
+          )}
+        </>
       )}
 
-      {canEdit ? (
-        <>
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") {
-                revert();
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            placeholder={`Paste the ${label.toLowerCase()} link…`}
-            aria-label={`${label} link: ${value ?? "none"}`}
-            data-testid={`asset-link-${kind}`}
-            className="h-8 w-full min-w-0 rounded-lg border border-border/70 bg-background px-2 text-xs outline-none placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring"
-          />
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={commit}
-            disabled={!uncommitted}
-            aria-label={`Set the ${label.toLowerCase()} link`}
-            title="Set"
-            data-testid={`asset-link-commit-${kind}`}
-            className={cn(rowActionClass, "disabled:pointer-events-none disabled:opacity-30", uncommitted && "text-emerald-600 dark:text-emerald-400")}
-          >
-            <Check className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={revert}
-            disabled={!changed}
-            aria-label={`Put the ${label.toLowerCase()} link back`}
-            title="Cancel"
-            data-testid={`asset-link-cancel-${kind}`}
-            className={cn(rowActionClass, "disabled:pointer-events-none disabled:opacity-30")}
-          >
-            <X className="size-3.5" />
-          </button>
-        </>
-      ) : (
-        <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid={`asset-link-${kind}`}>
-          {value || <span className="text-muted-foreground/70">—</span>}
-        </span>
+      {canOpen && (
+        <AssetBlockDialog
+          open={editing}
+          onOpenChange={setEditing}
+          block={{
+            name,
+            assigneeIds,
+            links: blockLinks,
+            lines: lines.map((line) => ({ id: line.id, name: line.name, assetType: line.assetType, quantity: line.quantity, dueDate: line.dueDate })),
+          }}
+          assetTypes={assetTypes}
+          users={users}
+          onSubmit={onSave!}
+        />
       )}
-    </div>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Remove ${name}?`}
+        description={lines.length === 1 ? "Its one item goes with it." : `All ${lines.length} items in it go with it.`}
+        confirmLabel="Remove"
+        destructive
+        onConfirm={onRemove}
+      />
+    </li>
   );
 }
 

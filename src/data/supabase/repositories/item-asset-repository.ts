@@ -1,9 +1,10 @@
-import type { ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import type { AssetLink, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
+import { normalizeAssetLinks } from "@/domain";
 import type { ItemAssetRepository } from "@/data/repositories";
 import { assertOk, chunk, db, unwrap, unwrapList } from "../client";
 
 const ASSET =
-  "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, preview_url, artwork_url, position, created_by, created_at, updated_at";
+  "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, links, block_id, block_name, block_links, position, created_by, created_at, updated_at";
 
 interface ItemAssetRow {
   id: string;
@@ -16,8 +17,10 @@ interface ItemAssetRow {
   due_date: string | null;
   completed_at: string | null;
   notes: string | null;
-  preview_url: string | null;
-  artwork_url: string | null;
+  links: unknown;
+  block_id: string | null;
+  block_name: string | null;
+  block_links: unknown;
   position: number;
   created_by: string;
   created_at: string;
@@ -36,8 +39,10 @@ function toItemAsset(row: ItemAssetRow): ItemAsset {
     dueDate: row.due_date,
     completedAt: row.completed_at,
     notes: row.notes,
-    previewUrl: row.preview_url,
-    artworkUrl: row.artwork_url,
+    links: normalizeAssetLinks(row.links),
+    blockId: row.block_id,
+    blockName: row.block_name,
+    blockLinks: normalizeAssetLinks(row.block_links),
     position: row.position,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -91,8 +96,10 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
       due_date: input.dueDate ?? null,
       completed_at: null,
       notes: input.notes?.trim() || null,
-      preview_url: input.previewUrl?.trim() || null,
-      artwork_url: input.artworkUrl?.trim() || null,
+      links: cleanLinks(input.links ?? []),
+      block_id: input.blockId ?? null,
+      block_name: input.blockId ? input.blockName?.trim() || null : null,
+      block_links: input.blockId ? cleanLinks(input.blockLinks ?? []) : [],
       position: input.position ?? 0,
       created_by: input.createdBy,
     };
@@ -108,8 +115,10 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
     if (patch.assigneeIds !== undefined) payload.assignee_ids = patch.assigneeIds;
     if (patch.dueDate !== undefined) payload.due_date = patch.dueDate;
     if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
-    if (patch.previewUrl !== undefined) payload.preview_url = patch.previewUrl?.trim() || null;
-    if (patch.artworkUrl !== undefined) payload.artwork_url = patch.artworkUrl?.trim() || null;
+    if (patch.links !== undefined) payload.links = cleanLinks(patch.links);
+    if (patch.blockId !== undefined) payload.block_id = patch.blockId;
+    if (patch.blockName !== undefined) payload.block_name = patch.blockName?.trim() || null;
+    if (patch.blockLinks !== undefined) payload.block_links = cleanLinks(patch.blockLinks);
     if (patch.notes !== undefined) payload.notes = patch.notes?.trim() || null;
     if (patch.position !== undefined) payload.position = patch.position;
     const result = await db().from("item_assets").update(payload).eq("id", id).select(ASSET).single();
@@ -119,4 +128,9 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
   async delete(id: string): Promise<void> {
     assertOk(await db().from("item_assets").delete().eq("id", id), "item_assets.delete");
   }
+}
+
+/** What is written: the same list, trimmed, with empty links left out. */
+function cleanLinks(links: readonly AssetLink[]): AssetLink[] {
+  return normalizeAssetLinks(links);
 }

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.56.0",
+    date: "2026-09-27",
+    title: "Asset links and blocks",
+    changes: [
+      "An asset can hold any number of links, each with its own label and icon, in the order you set. They are in the row's menu, where each one opens or copies.",
+      "Blocks group several assets under one person, each with its own type, quantity and due date. Add one with Block, and click its name to edit it all at once. A block can have its own links.",
+      "The booking form's deliverables take no links.",
+    ],
+  },
+  {
     version: "0.55.1",
     date: "2026-09-27",
     title: "Add member, on one screen",
