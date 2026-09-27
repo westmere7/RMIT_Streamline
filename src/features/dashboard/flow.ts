@@ -1,12 +1,12 @@
 import type { ISODate } from "@/domain";
 import { MONTH_LABELS } from "./charts/chart-utils";
-import { NO_TEAM, teamHex, type DashboardFacts, type NamedCount, type StatusBucket, type TaskFact, type TeamRef } from "./analytics";
+import { NO_TEAM, teamHex, type DashboardFacts, type NamedCount, type TaskFact, type TeamRef } from "./analytics";
 import { addDays, covered, departmentHex, inRange, type DateRange, type ResolvedPeriod } from "./metrics";
 
 /**
  * How work moves, rather than how much of it there is: how long it takes, how
- * often it lands on time, where it waits, how often it comes back, and whether
- * more is arriving than leaving.
+ * often it lands on time, how often it comes back, and whether more is arriving
+ * than leaving.
  *
  * All of it is read from when work finished, not from the page's basis
  * (requested or scheduled): "how long did the work finished in March take" is
@@ -128,35 +128,6 @@ export function sentBack(facts: DashboardFacts, period: ResolvedPeriod, teamIds:
     byTeam: grouped(now, byTeam, sentBackShare, "task"),
     byDepartment: grouped(now, byDepartment, sentBackShare, "task"),
   };
-}
-
-const ROLE_COLORS: Record<StatusBucket, string> = { done: "#10b981", progress: "#3b82f6", stuck: "#ef4444", other: "#f59e0b", none: "#94a3b8" };
-
-/**
- * How long work sits in each status, as a median in days, over the stretches
- * that ended in the period — and those still running, when the period reaches
- * today, measured to now. Done is left out: it is where work stops, not a wait.
- */
-export function timeInStatus(facts: DashboardFacts, period: ResolvedPeriod, teamIds: string[] | null, now: Date = new Date()): NamedCount[] {
-  const today = now.toISOString().slice(0, 10);
-  const running = inRange(today, period.current);
-  const stretches = new Map<string, { name: string; role: StatusBucket; days: number[] }>();
-  for (const task of facts.tasks) {
-    if (!inTeams(task.team, teamIds)) continue;
-    for (const span of task.flow.spans) {
-      if (span.role === "done") continue;
-      const ended = span.to ? inRange(dayOf(span.to), period.current) : running;
-      if (!ended) continue;
-      const days = Math.max(0, ((span.to ? Date.parse(span.to) : now.getTime()) - Date.parse(span.from)) / DAY_MS);
-      const key = span.label.trim().toLowerCase();
-      const entry = stretches.get(key) ?? { name: span.label, role: span.role, days: [] };
-      entry.days.push(days);
-      stretches.set(key, entry);
-    }
-  }
-  return [...stretches.entries()]
-    .map(([key, s]) => ({ id: key, name: s.name, color: ROLE_COLORS[s.role], value: median(s.days)!, detail: `${s.days.length} ${s.days.length === 1 ? "time" : "times"} · longest ${formatDays(Math.max(...s.days))}` }))
-    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
 export interface FlowBucket {

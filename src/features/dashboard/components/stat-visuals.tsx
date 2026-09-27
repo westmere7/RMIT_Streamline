@@ -92,6 +92,7 @@ export function StatBar({
   tone = "neutral",
   onSelect,
   hint,
+  size = "md",
   testId,
 }: {
   value: number;
@@ -100,6 +101,8 @@ export function StatBar({
   tone?: "neutral" | "urgent" | "good";
   onSelect?: () => void;
   hint?: string;
+  /** "lg" for a tile that has a panel's worth of room: a bigger figure, and it fills its cell. */
+  size?: "md" | "lg";
   testId?: string;
 }) {
   const revealed = useRevealed();
@@ -110,16 +113,17 @@ export function StatBar({
       {...(onSelect && value > 0 ? { type: "button" as const, onClick: onSelect } : {})}
       title={hint}
       className={cn(
-        "flex flex-col items-start rounded-xl border border-border/50 bg-surface/50 px-3 py-2.5 text-left transition-colors",
+        "flex flex-col items-start rounded-xl border border-border/50 bg-surface/50 text-left transition-colors",
+        size === "lg" ? "h-full justify-between px-4 py-4" : "px-3 py-2.5",
         onSelect && value > 0 && "hover:border-border hover:bg-surface-strong/60",
       )}
       data-testid={testId}
     >
-      <span className={cn("text-2xl font-semibold leading-none tabular tracking-tight", tone === "urgent" && value > 0 && "text-destructive", tone === "good" && "text-emerald-600 dark:text-emerald-400")}>
+      <span className={cn("font-semibold leading-none tabular tracking-tight", size === "lg" ? "text-[2.75rem] sm:text-5xl" : "text-2xl", tone === "urgent" && value > 0 && "text-destructive", tone === "good" && "text-emerald-600 dark:text-emerald-400")}>
         <KineticNumber value={value} format={formatCount} />
       </span>
-      <span className="mt-1 text-2xs leading-tight text-muted-foreground">{label}</span>
-      <span aria-hidden className="mt-2 h-1 w-full overflow-hidden rounded-full bg-border/60">
+      <span className={cn("leading-tight text-muted-foreground", size === "lg" ? "mt-2 text-xs" : "mt-1 text-2xs")}>{label}</span>
+      <span aria-hidden className={cn("w-full overflow-hidden rounded-full bg-border/60", size === "lg" ? "mt-3 h-1.5" : "mt-2 h-1")}>
         <span
           className={cn("block h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/50")}
           style={{ width: `${share * 100}%` }}

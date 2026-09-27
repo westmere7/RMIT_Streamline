@@ -212,13 +212,17 @@ export function OperationsStrip({
   asOf,
   items,
   onSelect,
+  layout = "strip",
 }: {
   asOf: string;
   items: Array<{ key: string; label: string; count: number; tone?: "urgent" | "neutral"; hint: string }>;
   onSelect?: (key: string) => void;
+  /** "grid": two rows of big figures, filling a panel's column instead of running along the page. */
+  layout?: "strip" | "grid";
 }) {
+  const grid = layout === "grid";
   return (
-    <section className="rounded-2xl border border-border/60 bg-card px-4 py-3 shadow-xs sm:px-5" data-testid="dashboard-operations">
+    <section className={cn("rounded-2xl border border-border/60 bg-card px-4 py-3 shadow-xs sm:px-5", grid && "flex h-full min-h-0 flex-col p-4 sm:p-5")} data-testid="dashboard-operations">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="flex items-center gap-1.5 text-[13px] font-semibold">
           Current operations
@@ -231,7 +235,7 @@ export function OperationsStrip({
       {/* Each count against the largest of them. They do not sum — a task can be
           overdue and blocked — so the bar compares rather than apportions, and
           the shape of the morning is visible without reading four numbers. */}
-      <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className={cn("mt-2.5 grid grid-cols-2 gap-2", grid ? "flex-1 auto-rows-fr gap-3" : "sm:grid-cols-4")}>
         {items.map((item) => (
           <StatBar
             key={item.key}
@@ -241,6 +245,7 @@ export function OperationsStrip({
             tone={item.tone}
             hint={item.hint}
             onSelect={onSelect ? () => onSelect(item.key) : undefined}
+            size={grid ? "lg" : "md"}
             testId={`dashboard-op-${item.key}`}
           />
         ))}

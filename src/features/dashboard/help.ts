@@ -11,8 +11,6 @@ export type HelpTopic =
   | "byTeam"
   | "byDepartment"
   | "priority"
-  | "requestsIn"
-  | "breakdown"
   | "assetTypes"
   | "operations"
   | "workload"
@@ -20,8 +18,7 @@ export type HelpTopic =
   | "turnaround"
   | "onTime"
   | "sentBack"
-  | "inAndOut"
-  | "timeInStatus";
+  | "inAndOut";
 
 export const DASHBOARD_HELP: Record<HelpTopic, { shows: string; means: string }> = {
   effort: {
@@ -52,14 +49,6 @@ export const DASHBOARD_HELP: Record<HelpTopic, { shows: string; means: string }>
     shows: "How the period's tasks split by priority.",
     means: "If most work is high or critical, priority has stopped meaning anything. Agree with requesters what earns it.",
   },
-  requestsIn: {
-    shows: "Requests that arrived in the period and in the same stretch last year, and those still waiting with no team or person.",
-    means: "The demand on the team. Waiting requests are people who have not heard back yet, so clear them first.",
-  },
-  breakdown: {
-    shows: "This period against the last, team by team or department by department.",
-    means: "Where demand grew and where it shrank, so planning follows the change rather than last year's split.",
-  },
   assetTypes: {
     shows: "The period's deliverables by type. The bigger the area, the more units, or hours when reading in effort.",
     means: "What the team spends its time making. A type that dominates may be worth a template, or an owner of its own.",
@@ -78,7 +67,7 @@ export const DASHBOARD_HELP: Record<HelpTopic, { shows: string; means: string }>
   },
   turnaround: {
     shows: "The median days from a task being made to its last move into Done, for work finished in the period.",
-    means: "What to tell requesters to expect. When it rises, work is waiting longer somewhere, and Time in each status shows where.",
+    means: "What to tell requesters to expect. When it rises, work is waiting longer somewhere: look at what is blocked or waiting on approval.",
   },
   onTime: {
     shows: "Of the work finished in the period that had a due date, the share done on or before it.",
@@ -91,9 +80,5 @@ export const DASHBOARD_HELP: Record<HelpTopic, { shows: string; means: string }>
   inAndOut: {
     shows: "New tasks against finished tasks, month by month, and what each month did to the backlog.",
     means: "More in than out, month after month, means the backlog is growing and deadlines will slip unless something gives.",
-  },
-  timeInStatus: {
-    shows: "How long work sits in each status before it moves on, as the middle value, counting work still sitting there today.",
-    means: "Where the bottleneck is. Long waits in Waiting or In Review usually sit with approvers, not with the team.",
   },
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Board, BoardColumn, DashboardSnapshot, Item, ItemColumnValue, StatusChange, Team } from "@/domain";
 import { defaultSettingsFor } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
-import { formatDays, inAndOut, onTime, sentBack, timeInStatus, turnaround } from "@/features/dashboard/flow";
+import { formatDays, inAndOut, onTime, sentBack, turnaround } from "@/features/dashboard/flow";
 import { resolvePeriod } from "@/features/dashboard/metrics";
 
 const WS = "ws-1";
@@ -105,13 +105,6 @@ describe("the flow figures", () => {
     const figure = sentBack(facts, march, null);
     expect(figure.value).toBe(50);
     expect(figure.times).toBe(2);
-  });
-
-  it("time in each status leaves done out and measures a stretch still running to now", () => {
-    const rows = timeInStatus(facts, march, null, new Date("2026-03-20T09:00:00.000Z"));
-    expect(rows.map((r) => r.name)).not.toContain("Done");
-    // Twice for x, twice for w, and z, in progress since the 3rd: 17 days and counting.
-    expect(rows.find((r) => r.name === "In Progress")?.detail).toBe("5 times · longest 17 d");
   });
 
   it("in and out counts new and finished work by week for a month", () => {

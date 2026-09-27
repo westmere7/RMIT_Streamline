@@ -4,7 +4,7 @@ import * as React from "react";
 import { BRAND_RED, ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { formatDays, formatPercent, inAndOut, onTime, sentBack, timeInStatus, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import { formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
 import type { HelpTopic } from "@/features/dashboard/help";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ import type { DashboardViewProps } from "./types";
 
 /**
  * How the work moves: how long it takes, whether it lands on time, how often
- * it comes back, whether more arrives than leaves, and where it waits.
+ * it comes back, and whether more arrives than leaves.
  *
  * Below everything else on purpose. The page above is volume and who carries
  * it; this is delivery, and it is read from when work finished rather than
@@ -26,13 +26,14 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
   const punctual = React.useMemo(() => onTime(facts, period, teamIds), [facts, period, teamIds]);
   const returned = React.useMemo(() => sentBack(facts, period, teamIds), [facts, period, teamIds]);
   const flow = React.useMemo(() => inAndOut(facts, period, teamIds, today), [facts, period, teamIds, today]);
-  const waits = React.useMemo(() => timeInStatus(facts, period, teamIds), [facts, period, teamIds]);
   const net = flow.totalIn - flow.totalOut;
   const teamHref = links ? (id: string) => links.team(id) : undefined;
 
   return (
-    <>
-      <div className="grid gap-3 xl:grid-cols-3" data-testid="dashboard-flow-rates">
+    // The three delivery figures down the left, the flow beside them: read
+    // across, the chart is the why behind the numbers.
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <div className="grid gap-3" data-testid="dashboard-flow-rates">
         <RatePanel
           title="Turnaround"
           subtitle="Median days, made to done"
@@ -73,30 +74,25 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         />
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <Panel
-          title="In and out"
-          subtitle={`New and finished tasks by ${flow.weekly ? "week" : "month"} · ${period.label}`}
-          help="inAndOut"
-          action={
-            <span className="text-2xs text-muted-foreground tabular" data-testid="dashboard-in-out-net">
-              {formatCount(flow.totalIn)} in · {formatCount(flow.totalOut)} out ·{" "}
-              <span className={cn("font-medium", net > 0 ? "text-destructive" : net < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
-                backlog {net > 0 ? "+" : ""}
-                {formatCount(net)}
-              </span>
+      <Panel
+        title="In and out"
+        subtitle={`New and finished tasks by ${flow.weekly ? "week" : "month"} · ${period.label}`}
+        help="inAndOut"
+        action={
+          <span className="text-2xs text-muted-foreground tabular" data-testid="dashboard-in-out-net">
+            {formatCount(flow.totalIn)} in · {formatCount(flow.totalOut)} out ·{" "}
+            <span className={cn("font-medium", net > 0 ? "text-destructive" : net < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+              backlog {net > 0 ? "+" : ""}
+              {formatCount(net)}
             </span>
-          }
-          className="p-4"
-          testId="dashboard-in-out"
-        >
-          <InOutChart buckets={flow.buckets} />
-        </Panel>
-        <Panel title="Time in each status" subtitle="Median days, done left out" help="timeInStatus" className="p-4" testId="dashboard-time-in-status">
-          <RankedBars data={waits.slice(0, 8)} format={formatDays} valueLabel="median" compact emptyMessage="No status changes in this period." />
-        </Panel>
-      </div>
-    </>
+          </span>
+        }
+        className="p-4"
+        testId="dashboard-in-out"
+      >
+        <InOutChart buckets={flow.buckets} />
+      </Panel>
+    </div>
   );
 }
 

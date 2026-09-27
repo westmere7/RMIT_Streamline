@@ -1087,7 +1087,7 @@ These are several writes, not one transaction.
 
 ## 13b. Workspace dashboard
 
-One scrolling report (`DashboardBody`): headline figures, the year comparison and mix, demand and delivery breakdowns, current operations and named workload.
+One scrolling report (`DashboardBody`): headline figures, the year comparison and mix, current operations (a 2×2 grid beside Asset types) and asset types, named workload, then flow. Every panel has a ? explaining what it shows and what it means for the team (`help.ts`). Requests in, the team/department comparison and Per-person figures were removed on 2026-09-27.
 
 ### Snapshot and reporting contracts
 
@@ -1106,12 +1106,12 @@ One scrolling report (`DashboardBody`): headline figures, the year comparison an
 
 ### Flow (v0.59.0)
 
-The bottom of the page: Turnaround, On time, Sent back, In and out, Time in each status (`views/flow-section.tsx`, `flow.ts`).
+The bottom of the page: Turnaround, On time and Sent back stacked in a column to the left of In and out (`views/flow-section.tsx`, `flow.ts`). Time in each status was removed on 2026-09-27; the stretches (`flow.spans`) are still built.
 
 - **Source.** The snapshot carries `statusChanges`: every ITEM_COLUMN_VALUE_UPDATED on a STATUS column, trimmed to item, time, column name, from and to labels (`activities.listStatusChanges`, paged; about 1,100 rows, ~120 KB, on 2026-09-27). The public payload lists the fields one by one.
 - **Per task** (`TaskFact.flow`): `finishedAt` is the last move into a done label, else the old `completedAt`; `spans` are the stretches in each status, read against the board's labels by name; `sentBack` is each move out of Done into an open status, or from a review-like label (review, approval, feedback, proof, sign-off) back to progress or the default label. Only the board's status role column is read.
 - **Dating.** Everything is dated by `finishedAt`, not by the page's basis. The team filter applies. `completedAt`, and every figure above the flow section, is unchanged.
-- **Figures.** Turnaround is the median of made to done. On time is the share of finished work with a due date done by it. Sent back is the share of finished work that went back at least once. In and out counts tasks made against tasks finished, by week for a period of 100 days or less, otherwise by month. Time in each status is the median per label, done left out, running stretches measured to now.
+- **Figures.** Turnaround is the median of made to done. On time is the share of finished work with a due date done by it. Sent back is the share of finished work that went back at least once. In and out counts tasks made against tasks finished, by week for a period of 100 days or less, otherwise by month.
 
 ### Effort, workload and rates
 

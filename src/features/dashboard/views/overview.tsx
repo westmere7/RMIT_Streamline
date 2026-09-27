@@ -12,7 +12,6 @@ import { YearComparisonChart } from "@/features/dashboard/components/year-compar
 import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
-import { DemandSection } from "./demand-section";
 import { FlowSection } from "./flow-section";
 import type { DashboardViewProps } from "./types";
 import { WorkloadSection } from "./workload-section";
@@ -93,6 +92,12 @@ export function DashboardBody(props: DashboardViewProps) {
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
   if (gaps.withoutStatus > 0) coverageLines.push(`${gaps.withoutStatus} have no status`);
   if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Asset types");
+  const operationsItems = [
+    { key: "overdue", label: "open and overdue", count: ops.overdue.length, tone: "urgent" as const, hint: "Open, non-done work with a due date before today." },
+    { key: "week", label: "due within 7 days", count: ops.dueThisWeek.length, hint: "Open work due in the next seven days." },
+    { key: "unallocated", label: "awaiting allocation", count: ops.unallocated.length, hint: "Requests with no team and nobody assigned." },
+    { key: "blocked", label: "blocked", count: ops.blocked.length, hint: "Work whose board says it is stuck." },
+  ];
 
   return (
     <div className="flex flex-col gap-3">
@@ -193,9 +198,9 @@ export function DashboardBody(props: DashboardViewProps) {
             given a column span fills it, and in a flex column that height wins
             against `flex-1` and the first panel eats the lot. Grid rows size
             the panels instead, and `h-full` then means the row it is in. */}
-        <div className="grid min-h-0 grid-rows-[auto_1fr] gap-3">
-          <DemandSection {...props} />
-        </div>
+        {/* What is true right now, beside what the period was made of: two
+            rows of big figures, so the morning's four numbers read at a glance. */}
+        <OperationsStrip asOf={ops.asOf} items={operationsItems} layout="grid" />
         {/* The one split that cannot answer in tasks: one task holds three
             types, so a count of tasks by type does not add up to the tasks
             there are. Reading the page in tasks, this stays in units and the
@@ -222,16 +227,6 @@ export function DashboardBody(props: DashboardViewProps) {
           />
         </Panel>
       </div>
-
-      <OperationsStrip
-        asOf={ops.asOf}
-        items={[
-          { key: "overdue", label: "open and overdue", count: ops.overdue.length, tone: "urgent", hint: "Open, non-done work with a due date before today." },
-          { key: "week", label: "due within 7 days", count: ops.dueThisWeek.length, hint: "Open work due in the next seven days." },
-          { key: "unallocated", label: "awaiting allocation", count: ops.unallocated.length, hint: "Requests with no team and nobody assigned." },
-          { key: "blocked", label: "blocked", count: ops.blocked.length, hint: "Work whose board says it is stuck." },
-        ]}
-      />
 
       {/* Who is carrying it. */}
       <WorkloadSection {...props} />
