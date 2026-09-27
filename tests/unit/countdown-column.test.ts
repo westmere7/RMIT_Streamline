@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, countdownSettings, DEFAULT_COUNTDOWN_SETTINGS, defaultSettingsFor, emptyValueFor, isEmptyValue, parseCountdownDuration, readCountdown } from "@/domain";
+import { addMonths, countdownRemaining, countdownSettings, DEFAULT_COUNTDOWN_SETTINGS, defaultSettingsFor, emptyValueFor, isEmptyValue, parseCountdownDuration, readCountdown } from "@/domain";
 import { displayValue } from "@/services/column-display";
 
 const now = new Date(2026, 8, 25, 12, 0);
@@ -83,5 +83,30 @@ describe("the Countdown column", () => {
   it("logs the end moment, not the time left", () => {
     const column = { id: "c", boardId: "b", name: "Launch", type: "COUNTDOWN" as const, settings: DEFAULT_COUNTDOWN_SETTINGS, position: 0, width: 110, hidden: false, createdAt: "" };
     expect(displayValue(column, { type: "COUNTDOWN", at: new Date(new Date().getFullYear(), 8, 16, 19, 6).toISOString() }, [])).toBe("Sep 16, 19:06");
+  });
+});
+
+describe("the countdown ring", () => {
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  it("is the share of the time left since it was set", () => {
+    expect(countdownRemaining(later(DAY), ago(DAY), now)).toBeCloseTo(0.5);
+    expect(countdownRemaining(later(3 * HOUR), ago(HOUR), now)).toBeCloseTo(0.75);
+  });
+  it("is empty once the end has passed, and full when set a moment ago", () => {
+    expect(countdownRemaining(ago(HOUR), ago(DAY), now)).toBe(0);
+    expect(countdownRemaining(later(DAY), now.toISOString(), now)).toBe(1);
+  });
+  it("has nothing to measure without an end, or a start before it", () => {
+    expect(countdownRemaining(null, ago(DAY), now)).toBeNull();
+    expect(countdownRemaining(later(DAY), null, now)).toBeNull();
+    expect(countdownRemaining(later(DAY), later(2 * DAY), now)).toBeNull();
+  });
+});
+
+describe("what a countdown shows", () => {
+  it("is the ring and the time unless the column says otherwise", () => {
+    expect(countdownSettings(null).display).toBe("both");
+    expect(countdownSettings({ kind: "countdown", display: "ring" } as never).display).toBe("ring");
+    expect(countdownSettings({ kind: "countdown", display: "sideways" } as never).display).toBe("both");
   });
 });

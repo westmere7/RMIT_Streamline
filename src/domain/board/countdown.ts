@@ -25,21 +25,27 @@ export type CountdownEnding = (typeof COUNTDOWN_ENDINGS)[number];
 export const COUNTDOWN_WARNINGS = ["none", "1h", "1d", "3d", "1w"] as const;
 export type CountdownWarning = (typeof COUNTDOWN_WARNINGS)[number];
 
+/** What the cell shows: the ring of time left and the words, or one of them. */
+export const COUNTDOWN_DISPLAYS = ["both", "text", "ring"] as const;
+export type CountdownDisplay = (typeof COUNTDOWN_DISPLAYS)[number];
+
 export interface CountdownColumnSettings {
   kind: "countdown";
   style: CountdownStyle;
   precision: CountdownPrecision;
   ending: CountdownEnding;
   warnWithin: CountdownWarning;
+  display: CountdownDisplay;
 }
 
-export const DEFAULT_COUNTDOWN_SETTINGS: CountdownColumnSettings = { kind: "countdown", style: "compact", precision: 2, ending: "over", warnWithin: "1d" };
+export const DEFAULT_COUNTDOWN_SETTINGS: CountdownColumnSettings = { kind: "countdown", style: "compact", precision: 2, ending: "over", warnWithin: "1d", display: "both" };
 
 /** What each choice looks like, for the menu that picks one. */
 export const COUNTDOWN_STYLE_LABELS: Record<CountdownStyle, string> = { compact: "3d 4h", words: "3 days 4 hours" };
 export const COUNTDOWN_PRECISION_LABELS: Record<CountdownPrecision, string> = { 1: "Largest unit only", 2: "Two units" };
 export const COUNTDOWN_ENDING_LABELS: Record<CountdownEnding, string> = { over: "Count up: 2h over", ended: "Say “Ended”" };
 export const COUNTDOWN_WARNING_LABELS: Record<CountdownWarning, string> = { none: "Never", "1h": "Last hour", "1d": "Last day", "3d": "Last 3 days", "1w": "Last week" };
+export const COUNTDOWN_DISPLAY_LABELS: Record<CountdownDisplay, string> = { both: "Ring and time", text: "Time only", ring: "Ring only" };
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -64,6 +70,7 @@ export function countdownSettings(settings: { kind: string } | null | undefined)
     precision: pick(COUNTDOWN_PRECISIONS, s.precision, DEFAULT_COUNTDOWN_SETTINGS.precision),
     ending: pick(COUNTDOWN_ENDINGS, s.ending, DEFAULT_COUNTDOWN_SETTINGS.ending),
     warnWithin: pick(COUNTDOWN_WARNINGS, s.warnWithin, DEFAULT_COUNTDOWN_SETTINGS.warnWithin),
+    display: pick(COUNTDOWN_DISPLAYS, s.display, DEFAULT_COUNTDOWN_SETTINGS.display),
   };
 }
 
@@ -164,4 +171,17 @@ export function parseCountdownDuration(input: string, now: Date = new Date()): D
   }
   if (months === 0 && ms < MINUTE) return null;
   return new Date(addMonths(now, months).getTime() + ms);
+}
+
+/**
+ * How much of a countdown is left, from 1 when it was set to 0 at its end.
+ * `from` is when it started counting; null when there is no end, or no start
+ * before it to measure against.
+ */
+export function countdownRemaining(at: string | null | undefined, from: string | null | undefined, now: Date = new Date()): number | null {
+  if (!at || !from) return null;
+  const end = new Date(at).getTime();
+  const start = new Date(from).getTime();
+  if (Number.isNaN(end) || Number.isNaN(start) || start >= end) return null;
+  return Math.min(1, Math.max(0, (end - now.getTime()) / (end - start)));
 }

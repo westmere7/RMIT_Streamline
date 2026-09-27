@@ -8,6 +8,8 @@ import {
   COUNTDOWN_ENDING_LABELS,
   COUNTDOWN_ENDINGS,
   COUNTDOWN_PRECISION_LABELS,
+  COUNTDOWN_DISPLAY_LABELS,
+  COUNTDOWN_DISPLAYS,
   COUNTDOWN_PRECISIONS,
   COUNTDOWN_STYLE_LABELS,
   COUNTDOWN_STYLES,
@@ -100,8 +102,9 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
 
 /**
  * A countdown's Format: how it writes the time left, how much of it, what it
- * says once the moment has passed, and how close to the end it turns amber.
- * The menu stays open between choices, since there are four to make.
+ * says once the moment has passed, how close to the end it turns amber, and
+ * whether it shows the ring, the words, or both. The menu stays open between choices, since there are
+ * several to make.
  */
 function CountdownFormatMenu({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
   const { mutations } = useBoardContext();
@@ -138,6 +141,8 @@ function CountdownFormatMenu({ column, primitives }: { column: BoardColumn; prim
         {section("When it ends", "ending", COUNTDOWN_ENDINGS, COUNTDOWN_ENDING_LABELS)}
         <Separator />
         {section("Turn amber", "warnWithin", COUNTDOWN_WARNINGS, COUNTDOWN_WARNING_LABELS)}
+        <Separator />
+        {section("Show", "display", COUNTDOWN_DISPLAYS, COUNTDOWN_DISPLAY_LABELS)}
       </SubContent>
     </Sub>
   );

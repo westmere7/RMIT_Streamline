@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.58.0",
+    date: "2026-09-27",
+    title: "Countdown ring",
+    changes: ["Countdown cells show a small ring of the time left: green, amber near the end, red once over. Choose ring and time, time only or ring only under the column's Format."],
+  },
+  {
     version: "0.57.4",
     date: "2026-09-27",
     title: "More on each workspace",

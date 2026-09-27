@@ -5,7 +5,7 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
+import { columnLabels, columnTagOptions, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -522,6 +522,28 @@ const COUNTDOWN_TONES: Record<CountdownTone, string> = {
   ended: "text-muted-foreground",
 };
 
+/** The ring's colour: green while there is time, amber in the warning window, red once over. */
+const COUNTDOWN_RING_TONES: Record<CountdownTone, string> = {
+  normal: "text-emerald-600 dark:text-emerald-400",
+  warning: "text-amber-600 dark:text-amber-400",
+  over: "text-destructive",
+  ended: "text-muted-foreground",
+};
+
+/**
+ * How much of the time is left, as a small ring that empties clockwise from
+ * the top. Once it is over the ring is whole again, in the colour that says so.
+ */
+function CountdownRing({ remaining, tone }: { remaining: number; tone: CountdownTone }) {
+  const shown = tone === "over" || tone === "ended" ? 1 : remaining;
+  return (
+    <svg viewBox="0 0 16 16" className={cn("size-3 shrink-0 -rotate-90", COUNTDOWN_RING_TONES[tone])} aria-hidden data-testid="countdown-ring" data-remaining={shown.toFixed(2)}>
+      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth="2.5" />
+      {shown > 0 && <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" pathLength={100} strokeDasharray={`${shown * 100} 100`} />}
+    </svg>
+  );
+}
+
 /**
  * Time left until the moment the cell holds, in the unit that suits it, and
  * redrawn as it runs down. The end itself is in the label and the tooltip.
@@ -529,13 +551,26 @@ const COUNTDOWN_TONES: Record<CountdownTone, string> = {
 export function CountdownCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   useClockTick();
   const v = valueOf("COUNTDOWN", value);
-  const reading = readCountdown(v.at, countdownSettings(column.settings));
+  const settings = countdownSettings(column.settings);
+  const reading = readCountdown(v.at, settings);
   const ends = formatDateTime(v.at, dateTimeSettings(null));
+  // Measured from when it was set; one set before that was kept counts from the task's creation.
+  const remaining = countdownRemaining(v.at, v.from ?? item.createdAt) ?? 1;
   return (
     <PopoverCell width={width ?? column.width} disabled={readOnly} align={columnAlign(column.type)} ariaLabel={`${column.name}: ${reading ? `${reading.text}, ends ${ends}` : "not set"} for ${item.name}`} testId="countdown-cell"
-      trigger={reading ? <span title={`Ends ${ends}`} className={cn("truncate text-xs tabular", COUNTDOWN_TONES[reading.tone])}>{reading.text}</span> : EMPTY_DASH}
+      trigger={
+        reading ? (
+          // With the ring alone, the time left moves to the tooltip.
+          <span title={settings.display === "ring" ? `${reading.text} · Ends ${ends}` : `Ends ${ends}`} className="inline-flex min-w-0 items-center gap-1.5">
+            {settings.display !== "text" && <CountdownRing remaining={remaining} tone={reading.tone} />}
+            {settings.display !== "ring" && <span className={cn("truncate text-xs tabular", COUNTDOWN_TONES[reading.tone])}>{reading.text}</span>}
+          </span>
+        ) : (
+          EMPTY_DASH
+        )
+      }
     >
-      {(close) => <CountdownPicker value={v.at} onChange={(at) => onChange({ type: "COUNTDOWN", at })} onDone={close} />}
+      {(close) => <CountdownPicker value={v.at} onChange={(at) => onChange({ type: "COUNTDOWN", at, from: at ? new Date().toISOString() : null })} onDone={close} />}
     </PopoverCell>
   );
 }

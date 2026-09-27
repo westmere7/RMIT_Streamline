@@ -60,8 +60,13 @@ export type ColumnValue =
   | { type: "TIME"; time: string | null }
   /** A moment: an ISO timestamp, shown in the viewer's own time zone. */
   | { type: "DATETIME"; at: string | null }
-  /** The moment a countdown ends, as an ISO timestamp. The time left is worked out when shown. */
-  | { type: "COUNTDOWN"; at: string | null }
+  /**
+   * The moment a countdown ends, as an ISO timestamp. The time left is worked
+   * out when shown. `from` is when it was set, for the ring that shows how much
+   * of the time is left; values set before it was kept, and by automations, go
+   * without it.
+   */
+  | { type: "COUNTDOWN"; at: string | null; from?: string | null }
   | { type: "PRIORITY"; labelId: string | null }
   | { type: "CHECKBOX"; checked: boolean }
   | { type: "LINK"; url: string; text: string | null }
