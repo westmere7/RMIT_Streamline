@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
-import { useSpring, useSprings } from "@/features/dashboard/charts/motion";
+import { useSprings } from "@/features/dashboard/charts/motion";
 import type { MonthlyComparisonRow } from "@/features/dashboard/metrics";
 import { ChangeChip } from "./figures";
 import { cn } from "@/lib/utils";
@@ -61,11 +61,18 @@ export function YearComparisonChart({
   const roomy = height >= 260;
   const generous = height >= 340;
   const { top: targetTop, ticks } = niceScale(peak, generous ? 8 : roomy ? 6 : 4);
-  // The bars and the scale ride springs: a new period or measure grows and
-  // shrinks the columns in place, with a little overshoot, instead of redrawing.
-  const top = Math.max(1e-6, useSpring(targetTop, "smooth", "hold"));
-  const sprung = useSprings(Object.fromEntries(rows.flatMap((r) => [[`c${r.month}`, r.current ?? 0], [`p${r.month}`, r.comparison ?? 0], [`o${r.month}`, r.outlook ?? 0]])));
-  const live = (key: "c" | "p" | "o", row: MonthlyComparisonRow, fallback: number) => Math.max(0, sprung[`${key}${row.month}`] ?? fallback);
+  // The bars ride springs as a share of the scale, not in units: a new period
+  // or measure grows and shrinks the columns in place instead of redrawing.
+  // Springing the value and the scale apart let them fall at different speeds,
+  // so going from thousands of hours to tens of tasks drew the old columns
+  // against the new scale, far above the plot, until they caught up. A share
+  // runs between two heights that both fit, and the springs never overshoot.
+  const top = Math.max(1e-6, targetTop);
+  const sprung = useSprings(Object.fromEntries(rows.flatMap((r) => [[`c${r.month}`, (r.current ?? 0) / top], [`p${r.month}`, (r.comparison ?? 0) / top], [`o${r.month}`, (r.outlook ?? 0) / top]])));
+  const live = (key: "c" | "p" | "o", row: MonthlyComparisonRow, fallback: number | null) => {
+    const share = sprung[`${key}${row.month}`];
+    return share === undefined ? Math.max(0, fallback ?? 0) : Math.min(1, Math.max(0, share)) * top;
+  };
 
   const lastAnswered = rows.reduce((last, row, index) => (row.current === null ? last : index), -1);
   const peakIndex = rows.reduce((best, row, index) => (row.current !== null && row.current > (rows[best]?.current ?? -1) ? index : best), -1);

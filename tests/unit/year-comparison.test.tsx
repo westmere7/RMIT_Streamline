@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MonthlyComparisonRow } from "@/features/dashboard/metrics";
 import { YearComparisonChart } from "@/features/dashboard/components/year-comparison";
 
@@ -103,5 +103,35 @@ describe("the same chart in a short panel", () => {
     // The bars and their months are still there — that is the chart.
     expect(text).toContain("Aug");
     expect([...container.querySelectorAll("rect")].length).toBeGreaterThan(12);
+  });
+});
+
+describe("the same chart when the measure changes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps every column inside the plot on the way from hours to tasks", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "setTimeout", "clearTimeout", "Date"] });
+    restore = sized(1100, 620);
+    // Effort runs to thousands of hours; the same year in tasks is a few hundred at most.
+    const hours = rows.map((row) => ({ ...row, current: row.current === null ? null : row.current * 40, comparison: row.comparison === null ? null : row.comparison * 40, outlook: row.outlook === null ? null : row.outlook * 40 }));
+    const chart = (data: MonthlyComparisonRow[]) => <YearComparisonChart rows={data} currentLabel="2026 to 10 Sep" comparisonLabel="2025 to 10 Sep" unitWord="tasks" />;
+    const { container, rerender } = render(chart(hours));
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    rerender(chart(rows));
+    let highest = Infinity;
+    for (let frame = 0; frame < 150; frame++) {
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+      for (const rect of container.querySelectorAll("rect")) {
+        if (Number(rect.getAttribute("height")) > 0.5) highest = Math.min(highest, Number(rect.getAttribute("y")));
+      }
+    }
+    // The plot starts below its top padding; a column above y = 0 has left the panel.
+    expect(highest).toBeGreaterThanOrEqual(0);
   });
 });

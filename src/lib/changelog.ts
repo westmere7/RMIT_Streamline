@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.58.1",
+    date: "2026-09-27",
+    title: "Steadier dashboard charts",
+    changes: ["Switching the dashboard between effort, tasks and asset units no longer throws the monthly columns off the top of the chart."],
+  },
+  {
     version: "0.58.0",
     date: "2026-09-27",
     title: "Countdown ring",
