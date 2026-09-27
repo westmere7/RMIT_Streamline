@@ -1,5 +1,5 @@
 import { Tooltip as RadixTooltip } from "radix-ui";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import * as React from "react";
@@ -147,16 +147,10 @@ describe("the workload section", () => {
     expect(screen.getByText("1 late")).toBeInTheDocument();
   });
 
-  it("gives the exact counts a panel of their own, on the page rather than behind a click", () => {
+  it("has no per-person table of figures: the bars and their hover card carry them", () => {
     inProvider(<WorkloadSection {...props} />);
-    // A manager reporting upwards needs the exact figures, and a disclosure at
-    // the foot of the bars is where they went unread.
-    const figures = screen.getByTestId("dashboard-workload-figures");
-    expect(figures).toHaveTextContent("Per-person figures");
-    expect(within(figures).getByRole("table")).toBeInTheDocument();
-    // Work nobody has picked up is not a person: it stays a bar above and a
-    // line in the note, and is not a row in a table of people.
-    expect(figures).not.toHaveTextContent("Nobody assigned");
+    expect(screen.queryByTestId("dashboard-workload-figures")).toBeNull();
+    expect(screen.queryByText("Per-person figures")).toBeNull();
   });
 
   it("says these are association counts, because a task with two owners is counted twice", () => {

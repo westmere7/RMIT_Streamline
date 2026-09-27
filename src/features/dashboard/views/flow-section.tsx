@@ -5,6 +5,7 @@ import { BRAND_RED, ChartTooltip, compactCount, formatCount, niceScale, useSize 
 import { KineticNumber, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { formatDays, formatPercent, inAndOut, onTime, sentBack, timeInStatus, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import type { HelpTopic } from "@/features/dashboard/help";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import type { DashboardViewProps } from "./types";
@@ -35,7 +36,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         <RatePanel
           title="Turnaround"
           subtitle="Median days, made to done"
-          info="Days from a task being made to its last move into Done, for work finished in the period."
+          help="turnaround"
           figure={speed}
           format={formatDays}
           better="lower"
@@ -47,7 +48,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         <RatePanel
           title="On time"
           subtitle="Finished by the due date"
-          info="Of the work finished in the period that had a due date, the share done on or before it."
+          help="onTime"
           figure={punctual}
           format={formatPercent}
           max={100}
@@ -60,7 +61,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         <RatePanel
           title="Sent back"
           subtitle={`Reopened, or returned from review · ${formatCount(returned.times)} ${returned.times === 1 ? "time" : "times"}`}
-          info="Of the work finished in the period, the share that went back at least once: out of Done, or from review back to work."
+          help="sentBack"
           figure={returned}
           format={formatPercent}
           max={100}
@@ -76,7 +77,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         <Panel
           title="In and out"
           subtitle={`New and finished tasks by ${flow.weekly ? "week" : "month"} · ${period.label}`}
-          info="More in than out means the backlog is growing."
+          help="inAndOut"
           action={
             <span className="text-2xs text-muted-foreground tabular" data-testid="dashboard-in-out-net">
               {formatCount(flow.totalIn)} in · {formatCount(flow.totalOut)} out ·{" "}
@@ -91,7 +92,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
         >
           <InOutChart buckets={flow.buckets} />
         </Panel>
-        <Panel title="Time in each status" subtitle="Median days, done left out" info="How long work sits in each status before it moves on, including work still sitting there today." className="p-4" testId="dashboard-time-in-status">
+        <Panel title="Time in each status" subtitle="Median days, done left out" help="timeInStatus" className="p-4" testId="dashboard-time-in-status">
           <RankedBars data={waits.slice(0, 8)} format={formatDays} valueLabel="median" compact emptyMessage="No status changes in this period." />
         </Panel>
       </div>
@@ -108,7 +109,7 @@ const DIMENSIONS = [
 function RatePanel({
   title,
   subtitle,
-  info,
+  help,
   figure,
   format,
   max,
@@ -120,7 +121,7 @@ function RatePanel({
 }: {
   title: string;
   subtitle: string;
-  info: string;
+  help: HelpTopic;
   figure: RateFigure;
   format: (value: number) => string;
   max?: number;
@@ -139,7 +140,7 @@ function RatePanel({
     <Panel
       title={title}
       subtitle={subtitle}
-      info={info}
+      help={help}
       action={
         <div role="radiogroup" aria-label={`Break ${title.toLowerCase()} down by`} className="inline-flex items-center rounded-full border border-border/70 p-0.5">
           {DIMENSIONS.map((d) => (

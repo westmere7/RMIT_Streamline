@@ -116,6 +116,7 @@ export function DashboardBody(props: DashboardViewProps) {
             trendLabels={monthlyEffort.map((row) => row.label)}
             accent={measure === "effort"}
             onSelect={() => set({ measure: "effort" })}
+            help="effort"
             testId="dashboard-headline-effort"
           />
         )}
@@ -130,6 +131,7 @@ export function DashboardBody(props: DashboardViewProps) {
           trendLabels={monthlyTasks.map((row) => row.label)}
           accent={measure === "tasks"}
           onSelect={() => set({ measure: "tasks" })}
+          help="tasks"
           testId="dashboard-headline-tasks"
         />
         <HeadlineFigure
@@ -143,6 +145,7 @@ export function DashboardBody(props: DashboardViewProps) {
           trendLabels={monthlyAssets.map((row) => row.label)}
           accent={measure === "assets"}
           onSelect={() => set({ measure: "assets" })}
+          help="assets"
           testId="dashboard-headline-assets"
         />
       </div>
@@ -156,6 +159,7 @@ export function DashboardBody(props: DashboardViewProps) {
           title={`${MEASURE_LABELS[measure]} by month`}
           subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
           className="p-4"
+          help="byMonth"
           testId="dashboard-year-comparison"
         >
           <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
@@ -166,13 +170,13 @@ export function DashboardBody(props: DashboardViewProps) {
             to grow into. The two share-of-whole splits sit on their own line
             underneath for that reason. */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
-          <Panel title="By team" subtitle={unitWord} className="p-4" testId="dashboard-by-team">
+          <Panel title="By team" subtitle={unitWord} help="byTeam" className="p-4" testId="dashboard-by-team">
             <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." hrefOf={links ? (row) => (row.id ? links.team(row.id) : null) : undefined} />
           </Panel>
-          <Panel title="By department" subtitle={unitWord} className="p-4" testId="dashboard-by-department">
+          <Panel title="By department" subtitle={unitWord} help="byDepartment" className="p-4" testId="dashboard-by-department">
             <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />
           </Panel>
-          <Panel title="Priority" subtitle="tasks" className="p-4" testId="dashboard-fourth-mix">
+          <Panel title="Priority" subtitle="tasks" help="priority" className="p-4" testId="dashboard-fourth-mix">
             <RankedBars data={priority.slice(0, 5)} compact emptyMessage="Nothing to split yet." />
           </Panel>
         </div>
@@ -205,6 +209,7 @@ export function DashboardBody(props: DashboardViewProps) {
           }
           className="p-4 xl:col-span-2"
           bodyClassName="flex min-h-0 flex-1 flex-col"
+          help="assetTypes"
           testId="dashboard-asset-mix"
         >
           <TreemapChart

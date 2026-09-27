@@ -61,7 +61,7 @@ export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf
   // bars capped at 26rem and inches of nothing to the right.
   return (
     <>
-      <Panel title="Requests in" subtitle="By the day they arrived" className="flex flex-col p-4" bodyClassName="flex flex-1 flex-col justify-center" testId="dashboard-demand-requests">
+      <Panel title="Requests in" subtitle="By the day they arrived" help="requestsIn" className="flex flex-col p-4" bodyClassName="flex flex-1 flex-col justify-center" testId="dashboard-demand-requests">
         {/* Three bordered cards with a 2xl figure each was a lot of furniture
             for three numbers in a narrow column. One row apiece: the figure, its
             label, and a rule underneath showing it against the larger of the two
@@ -101,6 +101,7 @@ export function DemandSection({ facts, report, ops, prefs, set, measure, valueOf
             ))}
           </div>
         }
+        help="breakdown"
         testId="dashboard-dimension-panel"
       >
         {/* This period only. The bar answers "which is biggest"; last year's

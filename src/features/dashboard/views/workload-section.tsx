@@ -94,7 +94,6 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
   // One group chosen already answers "per group", so the grid is only worth a
   // column — and a second table of one column beside it would be a waste.
   const showMatrix = !group && groups.length > 1;
-  const users = facts.users;
   // Work nobody has picked up is not a person and gets no row of its own on
   // any of this: it is a line in the note under the bars, where it reads as
   // the exception it is rather than as somebody's workload.
@@ -109,11 +108,9 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
   const measuredOwners = (query.trim() ? measuredRows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())) : measuredRows).filter((row) => row.userId !== null);
   const measuredPeople = measuredOwners.some((row) => row.total > 0) ? measuredOwners : [];
   const measuredGroups = React.useMemo(() => workloadDepartments(measured), [measured]);
-  const figuresReadout = useTableReadout<WorkloadRow>();
   // Every bar against the busiest person, so the lengths mean something.
   const tablePeak = Math.max(1, ...people.map((row) => row.tasks));
   const revealed = useRevealed();
-  const measuredPeak = Math.max(1, ...measuredPeople.map((row) => row.total));
   const hoveredRow = hovered === null ? null : (people.find((row) => row.userId === hovered) ?? null);
 
   return (
@@ -154,6 +151,7 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
           </label>
         </div>
       }
+      help="workload"
       testId="dashboard-workload"
     >
       <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground" aria-hidden>
@@ -314,88 +312,8 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
       </div>
     </Panel>
 
-    {/* The exact figures, in cards of their own rather than two disclosures at
-        the foot of the bars, and stacked rather than side by side: two dense
-        tables on one line is a wall, and each of these is wide enough to want
-        the whole width to itself. */}
+    {/* The exact figures, person by department, in a card of its own. */}
     <div className="grid gap-3">
-      <Panel
-        title="Per-person figures"
-        subtitle={`${group ? `${group.name} · ` : ""}${MEASURE_LABELS[measure]}, by the state the work is in`}
-        className="p-4"
-        testId="dashboard-workload-figures"
-      >
-        <div className="scrollbar-thin relative overflow-x-auto" {...figuresReadout.bind}>
-          <table className="w-full min-w-[36rem] text-left text-xs">
-            <thead>
-              <tr className="border-b border-border/60 text-[10px] tracking-wide text-muted-foreground uppercase">
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Person
-                </th>
-                {BANDS.map((band) => (
-                  <th key={band.key} scope="col" className="py-2 pr-3 text-right font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden className={cn("size-1.5 rounded-sm", band.className)} />
-                      {band.label}
-                    </span>
-                  </th>
-                ))}
-                <th scope="col" className="py-2 text-right font-medium">
-                  {MEASURE_UNITS[measure]}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {measuredPeople.map((row) => {
-                const user = row.userId ? users.get(row.userId) : undefined;
-                return (
-                  <tr
-                    key={row.userId ?? "unassigned"}
-                    className={cn(
-                      "border-b border-border/40 transition-colors last:border-0 hover:bg-accent/60",
-                      row.userId === null ? "bg-surface/60" : "odd:bg-surface/25",
-                    )}
-                    onMouseEnter={() => figuresReadout.setOver(row)}
-                  >
-                    <th scope="row" className="py-1.5 pr-3 font-normal">
-                      <span className="flex items-center gap-2">
-                        {user ? (
-                          <UserAvatar user={user as User} size="xs" />
-                        ) : (
-                          <span aria-hidden className="size-5 shrink-0 rounded-full border border-dashed border-border" />
-                        )}
-                        <DashLink href={personHref(row.userId)} className="max-w-[12rem] truncate">
-                          <span title={row.name}>{row.name}</span>
-                        </DashLink>
-                      </span>
-                    </th>
-                    {BANDS.map((band) => (
-                      <Cell key={band.key} value={row[band.key]} format={format} tone={band.key === "overdue" ? "urgent" : undefined} />
-                    ))}
-                    {/* The busiest person's row fills; everyone else's is a
-                        share of it, so the column can be read down as well as
-                        across without leaving the table for the bars above. */}
-                    <Cell value={row.total} format={format} strong last share={row.total / measuredPeak} />
-                  </tr>
-                );
-              })}
-              {measuredPeople.length === 0 && (
-                <tr>
-                  <td colSpan={BANDS.length + 2} className="py-6 text-center text-muted-foreground">
-                    {query.trim() ? <>Nobody matches “{query}”.</> : <>No work to count in this window yet.</>}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          {figuresReadout.at && figuresReadout.over && (
-            <ChartTooltip x={figuresReadout.at.x} y={figuresReadout.at.y} width={figuresReadout.box.width || 0} height={figuresReadout.box.height || 0}>
-              <RowReadout row={figuresReadout.over} measure={measure} format={format} />
-            </ChartTooltip>
-          )}
-        </div>
-      </Panel>
-
       {showMatrix && <DepartmentMatrix rows={measuredPeople} groups={measuredGroups} users={facts.users} measure={measure} format={format} personHref={personHref} onPickGroup={(stakeholderGroup) => set({ stakeholderGroup })} />}
     </div>
     </>
@@ -499,6 +417,7 @@ function DepartmentMatrix({
       title="Per person, per department"
       subtitle={`${MEASURE_LABELS[measure]} each person holds for each of ${groups.length} departments`}
       className="p-4"
+      help="matrix"
       testId="dashboard-workload-matrix"
     >
       <div className="scrollbar-thin relative overflow-x-auto" {...readout.bind}>

@@ -4,9 +4,11 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import * as React from "react";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber } from "@/features/dashboard/charts/motion";
+import type { HelpTopic } from "@/features/dashboard/help";
 import type { Comparison } from "@/features/dashboard/metrics";
 import { cn } from "@/lib/utils";
 import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
+import { PanelHelp } from "./panel-help";
 import { StatBar, TrendLine } from "./stat-visuals";
 
 /**
@@ -37,6 +39,7 @@ export function HeadlineFigure({
   valueFormat = formatCount,
   accent,
   onSelect,
+  help,
   testId,
 }: {
   label: string;
@@ -61,6 +64,7 @@ export function HeadlineFigure({
   accent?: boolean;
   /** Makes the whole card a way to switch the page to this measure. */
   onSelect?: () => void;
+  help?: HelpTopic;
   testId?: string;
 }) {
   const { current, comparison: previous, delta, percent } = comparison;
@@ -106,6 +110,7 @@ export function HeadlineFigure({
           <h2 className={cn("flex items-center gap-1.5 text-[13px] font-medium", accent ? "text-foreground/80" : "text-muted-foreground")}>
             {accent && <span aria-hidden className="size-1.5 rounded-full bg-primary" />}
             {label}
+            {help && <PanelHelp topic={help} title={label} />}
           </h2>
           <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
             {/* Big, because this is the figure the team reports upwards. */}
@@ -215,7 +220,10 @@ export function OperationsStrip({
   return (
     <section className="rounded-2xl border border-border/60 bg-card px-4 py-3 shadow-xs sm:px-5" data-testid="dashboard-operations">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-[13px] font-semibold">Current operations</h3>
+        <h3 className="flex items-center gap-1.5 text-[13px] font-semibold">
+          Current operations
+          <PanelHelp topic="operations" title="Current operations" />
+        </h3>
         <p className="text-2xs text-muted-foreground">
           as of {asOf} · these overlap and are not a total
         </p>
