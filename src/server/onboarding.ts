@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   INVITATION_TTL_DAYS,
   PASSWORD_MIN_LENGTH,
-  WORKSPACE_ROLES,
   generateInvitationToken,
   invitationStatus,
   invitationStatusMessage,
@@ -46,7 +45,7 @@ export const inviteSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
   jobTitle: z.string().trim().max(120).nullable().optional(),
-  role: z.enum(WORKSPACE_ROLES),
+  role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
   teamIds: z.array(z.uuid()).max(50).default([]),
 });
 
@@ -69,10 +68,10 @@ function fail(context: string, error: { message: string } | null): never {
 }
 
 /** Resolves the signed-in caller from the bearer token and checks they administer the workspace. */
-export async function requireWorkspaceAdmin(request: Request, workspaceId: string): Promise<string> {
+export async function requireWorkspaceAdmin(request: Request, workspaceId: string, doing = "manage members"): Promise<string> {
   const header = request.headers.get("authorization") ?? "";
   const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!jwt) throw new HttpError(401, "Sign in to manage members.");
+  if (!jwt) throw new HttpError(401, `Sign in to ${doing}.`);
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data.user) throw new HttpError(401, "Your session has expired. Sign in again.");
@@ -80,7 +79,7 @@ export async function requireWorkspaceAdmin(request: Request, workspaceId: strin
   if (membership.error) fail("workspace_members.lookup", membership.error);
   const row = membership.data as { role: string; status: string } | null;
   if (!row || row.status !== "ACTIVE" || (row.role !== "OWNER" && row.role !== "ADMIN")) {
-    throw new HttpError(403, "Only workspace admins can manage members.");
+    throw new HttpError(403, `Only workspace admins can ${doing}.`);
   }
   return data.user.id;
 }
@@ -134,6 +133,10 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
   const displayName = `${input.firstName} ${input.lastName}`.trim();
 
   let profile = await profileByEmail(admin, input.email);
+  if (profile) {
+    const existing = await addKnownAccount(admin, input, profile);
+    if (existing) return existing;
+  }
   if (profile?.deactivated_at) {
     throw new HttpError(409, `${profile.display_name} has a deactivated account. Reactivate it from the members list instead.`);
   }
@@ -175,19 +178,54 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
     .single();
   if (member.error || !member.data) fail("workspace_members.insert", member.error);
 
-  if (input.teamIds.length) {
-    // Only teams of this workspace; a stray id from another workspace is dropped, not an error.
-    const teams = await admin.from("teams").select("id").eq("workspace_id", input.workspaceId).in("id", input.teamIds);
-    if (teams.error) fail("teams.lookup", teams.error);
-    const rows = ((teams.data ?? []) as Array<{ id: string }>).map((t) => ({ team_id: t.id, user_id: profile!.id, role: "MEMBER" }));
-    if (rows.length) {
-      const inserted = await admin.from("team_members").upsert(rows, { onConflict: "team_id,user_id", ignoreDuplicates: true });
-      if (inserted.error) fail("team_members.insert", inserted.error);
-    }
-  }
+  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds);
 
   const invitation = await insertInvitation(admin, input.workspaceId, profile.id, invitedBy);
   return { user: toUser(profile), member: toWorkspaceMember(member.data as WorkspaceMemberRow), invitation };
+}
+
+/**
+ * One person, one account, across every workspace. Somebody who has joined a
+ * workspace before is given access to this one at once: no link, because a
+ * link sets the password, and the password is theirs already. Somebody still
+ * pending elsewhere finishes joining first. Null when neither applies (an
+ * account with no workspace at all), which goes through the ordinary link.
+ */
+async function addKnownAccount(admin: Admin, input: z.infer<typeof inviteSchema>, profile: ProfileRow): Promise<InviteResult | null> {
+  const seats = await admin.from("workspace_members").select("workspace_id, status").eq("user_id", profile.id);
+  if (seats.error) fail("workspace_members.byUser", seats.error);
+  const rows = (seats.data ?? []) as Array<{ workspace_id: string; status: string }>;
+  const here = rows.find((row) => row.workspace_id === input.workspaceId);
+  if (here?.status === "DEACTIVATED") throw new HttpError(409, `${profile.display_name} is deactivated in this workspace. Reactivate them from the members list instead.`);
+  if (here) throw new HttpError(409, `${profile.display_name} is already a member of this workspace`);
+  const joinedBefore = rows.some((row) => row.status === "ACTIVE" || row.status === "DEACTIVATED");
+  if (!joinedBefore) {
+    if (rows.some((row) => row.status === "INVITED")) throw new HttpError(409, `${profile.display_name} has been added to another workspace and has not finished joining yet. Add them here once they have.`);
+    return null;
+  }
+  if (profile.deactivated_at) {
+    const revived = await admin.from("profiles").update({ deactivated_at: null }).eq("id", profile.id);
+    if (revived.error) fail("profiles.reactivate", revived.error);
+  }
+  const member = await admin
+    .from("workspace_members")
+    .insert({ workspace_id: input.workspaceId, user_id: profile.id, role: input.role, status: "ACTIVE", joined_at: new Date().toISOString() })
+    .select(MEMBER_COLUMNS)
+    .single();
+  if (member.error || !member.data) fail("workspace_members.insert", member.error);
+  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds);
+  return { user: toUser({ ...profile, deactivated_at: null }), member: toWorkspaceMember(member.data as WorkspaceMemberRow), invitation: null };
+}
+
+/** Only teams of this workspace; a stray id from another workspace is dropped, not an error. */
+async function addToTeams(admin: Admin, workspaceId: string, userId: string, teamIds: readonly string[]): Promise<void> {
+  if (!teamIds.length) return;
+  const teams = await admin.from("teams").select("id").eq("workspace_id", workspaceId).in("id", [...teamIds]);
+  if (teams.error) fail("teams.lookup", teams.error);
+  const rows = ((teams.data ?? []) as Array<{ id: string }>).map((t) => ({ team_id: t.id, user_id: userId, role: "MEMBER" }));
+  if (!rows.length) return;
+  const inserted = await admin.from("team_members").upsert(rows, { onConflict: "team_id,user_id", ignoreDuplicates: true });
+  if (inserted.error) fail("team_members.insert", inserted.error);
 }
 
 async function requirePendingMember(admin: Admin, workspaceId: string, userId: string): Promise<WorkspaceMemberRow> {
@@ -216,6 +254,16 @@ export async function reinitiateMember(workspaceId: string, userId: string, call
   const member = await memberOf(admin, workspaceId, userId);
   if (!member) throw new HttpError(404, "That person is not a member of this workspace.");
   if (member.status === "INVITED") throw new HttpError(409, "This person has not finished onboarding yet; renew their existing link instead.");
+  // The link sets the account's password, and the account is the same in every
+  // workspace. An admin here may only reset somebody who is in no other
+  // workspace; anyone else's is the Owners' to reset.
+  const elsewhere = await admin.from("workspace_members").select("id").eq("user_id", userId).eq("status", "ACTIVE").neq("workspace_id", workspaceId).limit(1);
+  if (elsewhere.error) fail("workspace_members.elsewhere", elsewhere.error);
+  if ((elsewhere.data ?? []).length > 0) {
+    const owner = await admin.from("app_owners").select("user_id").eq("user_id", callerId).maybeSingle();
+    if (owner.error) fail("app_owners.lookup", owner.error);
+    if (!owner.data) throw new HttpError(403, "This person also uses another workspace. Only an Owner can reset their account.");
+  }
 
   await revokeLiveInvitations(admin, workspaceId, userId);
   const reset = await admin.from("workspace_members").update({ status: "INVITED" }).eq("id", member.id);

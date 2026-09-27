@@ -1,6 +1,6 @@
 "use client";
 
-import { Bug, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
+import { Bug, Building2, Check, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Plus, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -12,7 +12,8 @@ import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { AutomationOrbit } from "@/features/automations/activity-indicator";
 import { useAutomationActivity } from "@/features/automations/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { canManageMembers, canManageWorkspace } from "@/lib/permissions/permissions";
+import { useMyWorkspaces, useNewWorkspaceDialog } from "@/features/workspace/workspaces";
+import { canManageMembers, canManageWorkspace, canManageWorkspaces } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { useThemePreference, THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,8 @@ export function MorePage() {
           <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Portal and Booking" />
           <Row href={routes.messages(ws.slug)} icon={MessageSquare} label="Messages" />
         </Group>
+
+        <WorkspacesGroup />
 
         <Group title="Workspace">
           <Row href={routes.members(ws.slug)} icon={Users} label={canManageMembers(ws.permissions) ? "Members and invitations" : "Members"} />
@@ -126,6 +129,37 @@ export function MorePage() {
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
+  );
+}
+
+/** The workspaces this person can open, when there is more than one, and for Owners a way to make another. */
+function WorkspacesGroup() {
+  const ws = useWorkspace();
+  const mine = useMyWorkspaces();
+  const showNew = useNewWorkspaceDialog((state) => state.show);
+  const owner = canManageWorkspaces(ws.permissions);
+  const list = mine.data ?? [ws.workspace];
+  if (list.length <= 1 && !owner) return null;
+  return (
+    <Group title="Workspaces">
+      {list.map((workspace) => (
+        <li key={workspace.id}>
+          <Link href={routes.workspace(workspace.slug)} className="flex min-h-14 items-center gap-3 px-3 py-2 active:bg-accent/70" data-testid="more-workspace" data-workspace-slug={workspace.slug}>
+            <Building2 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-[15px]">{workspace.name}</span>
+            {workspace.id === ws.workspace.id && <Check aria-label="Current workspace" className="size-4 shrink-0" />}
+          </Link>
+        </li>
+      ))}
+      {owner && (
+        <li>
+          <button type="button" onClick={showNew} className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-accent/70" data-testid="more-workspace-new">
+            <Plus aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-[15px]">New workspace</span>
+          </button>
+        </li>
+      )}
+    </Group>
   );
 }
 

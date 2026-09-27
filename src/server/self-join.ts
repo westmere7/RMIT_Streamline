@@ -47,6 +47,8 @@ export async function selfJoin(key: string, input: z.infer<typeof selfJoinSchema
   if (!ownerId) throw new HttpError(500, "This workspace has no owner to add people on behalf of.");
 
   const result = await inviteMember({ workspaceId: workspace.id, email: input.email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] }, ownerId);
+  // Only a brand-new email reaches this far, and a new person always gets a link.
+  if (!result.invitation) throw new HttpError(409, SELF_JOIN_MESSAGES.known);
   return { token: result.invitation.token };
 }
 

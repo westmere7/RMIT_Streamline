@@ -39,6 +39,12 @@ export interface ShareViewer {
   userId: EntityId;
   /** True when they are an active member of the workspace the link belongs to. */
   isWorkspaceMember: boolean;
+  /**
+   * The workspaces they are active in, when known. With several workspaces a
+   * member of one is nobody to another's private link, so the check asks for
+   * the link's own workspace among these.
+   */
+  workspaceIds?: readonly EntityId[] | null;
 }
 
 export type ShareFailure = ShareRefusal | "password";
@@ -70,9 +76,9 @@ export function shareAccessMessage(reason: ShareFailure): string {
 }
 
 /** Stops a private link short of anyone who is not a signed-in member. */
-export function checkShareAccess(share: ShareLike, viewer: ShareViewer | null): void {
+export function checkShareAccess(share: ShareLike, viewer: ShareViewer | null, workspaceId?: EntityId | null): void {
   if (share.access !== "PRIVATE") return;
-  if (viewer?.isWorkspaceMember) return;
+  if (viewer?.isWorkspaceMember && (!viewer.workspaceIds || !workspaceId || viewer.workspaceIds.includes(workspaceId))) return;
   throw new ShareAccessError("signin", shareAccessMessage("signin"));
 }
 
@@ -198,10 +204,9 @@ export function shareGate(share: ShareLike | null): BoardShareGate {
  */
 export async function loadSharedBoard(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<PublicBoardPayload> {
   const share = await resolveShare(repos, token);
-  checkShareAccess(share, viewer);
-  await checkSharePassword(share, password);
-
   const board = await repos.boards.getById(share.boardId);
+  checkShareAccess(share, viewer, board?.workspaceId);
+  await checkSharePassword(share, password);
   if (!board) throw new NotFoundError("Board", share.boardId);
 
   const [workspace, groups, allColumns, items, allValues, assets, activities, users] = await Promise.all([

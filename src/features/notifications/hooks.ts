@@ -5,13 +5,26 @@ import { toast } from "sonner";
 import type { Notification, NotificationPreferences, NotificationPreferencesInput, StoredDelivery, UnreadCounts } from "@/domain";
 import { countUnread, defaultNotificationPreferences } from "@/domain";
 import { useServices } from "@/features/data/data-context";
+import { useWorkspaceOptional } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 
+/** Whether a notification belongs in this workspace's inbox. One that names no workspace shows in every one. */
+export function inWorkspace(notification: Pick<Notification, "workspaceId">, workspaceId: string | null | undefined): boolean {
+  return !workspaceId || !notification.workspaceId || notification.workspaceId === workspaceId;
+}
+
+/**
+ * This person's notifications, in the workspace on screen: each workspace keeps
+ * its own inbox. One read for all of them, narrowed here, so switching
+ * workspace does not refetch.
+ */
 export function useNotifications(userId: string) {
   const services = useServices();
+  const workspaceId = useWorkspaceOptional()?.workspace.id ?? null;
   return useQuery({
     queryKey: queryKeys.notifications(userId),
     queryFn: () => services.repos.notifications.listByUser(userId),
+    select: (list: Notification[]) => (workspaceId ? list.filter((n) => inWorkspace(n, workspaceId)) : list),
     staleTime: 10_000,
     // A safety net under realtime rather than the thing that delivers.
     // `notifications` is on the workspace channel, filtered to this person
@@ -100,6 +113,7 @@ export function useNotificationMutations(userId: string) {
   const services = useServices();
   const queryClient = useQueryClient();
   const key = queryKeys.notifications(userId);
+  const workspaceId = useWorkspaceOptional()?.workspace.id ?? undefined;
 
   const markRead = useMutation({
     mutationFn: ({ id, read }: { id: string; read: boolean }) => services.repos.notifications.markRead(id, read),
@@ -119,13 +133,13 @@ export function useNotificationMutations(userId: string) {
 
   /** Without a delivery this clears both badges; with one it clears just that badge. */
   const markAllRead = useMutation({
-    mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.markAllRead(userId, delivery),
+    mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.markAllRead(userId, delivery, workspaceId),
     onMutate: async (delivery) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<Notification[]>(key);
       const now = new Date().toISOString();
       queryClient.setQueryData<Notification[]>(key, (old) =>
-        old?.map((n) => (n.readAt || (delivery && n.delivery !== delivery) ? n : { ...n, readAt: now })),
+        old?.map((n) => (n.readAt || (delivery && n.delivery !== delivery) || !inWorkspace(n, workspaceId) ? n : { ...n, readAt: now })),
       );
       return { previous };
     },
@@ -144,11 +158,11 @@ export function useNotificationMutations(userId: string) {
    * clearing the loud list leaves the quiet updates alone.
    */
   const clearAll = useMutation({
-    mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.deleteAll(userId, delivery),
+    mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.deleteAll(userId, delivery, workspaceId),
     onMutate: async (delivery) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<Notification[]>(key);
-      queryClient.setQueryData<Notification[]>(key, (old) => old?.filter((n) => (delivery ? n.delivery !== delivery : false)) ?? []);
+      queryClient.setQueryData<Notification[]>(key, (old) => old?.filter((n) => !inWorkspace(n, workspaceId) || (delivery ? n.delivery !== delivery : false)) ?? []);
       return { previous };
     },
     onError: (_e, _v, ctx) => {

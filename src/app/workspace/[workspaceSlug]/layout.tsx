@@ -12,6 +12,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { renderPersonCard } from "@/features/members/person-card";
 import { WorkspaceProvider } from "@/features/workspace/workspace-context";
+import { rememberWorkspace } from "@/features/workspace/workspaces";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
@@ -40,6 +41,12 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     enabled: !!workspaceQuery.data && !!user,
   });
 
+  // The workspace to come back to next time: this one, once it has let them in.
+  const admitted = membershipQuery.data?.status === "ACTIVE";
+  useEffect(() => {
+    if (admitted) rememberWorkspace(slug);
+  }, [admitted, slug]);
+
   if (status === "loading" || status === "signed-out" || !user) return <FullPageLoader label="Checking your session…" />;
   if (workspaceQuery.isLoading) return <FullPageLoader label="Opening workspace…" />;
   if (workspaceQuery.isError) return <ErrorState title="Could not load this workspace." error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />;
@@ -61,10 +68,15 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface text-center">
         <p className="text-base font-semibold">You do not have access to {workspace.name}</p>
-        <p className="text-[13px] text-muted-foreground">Ask a workspace admin to invite you, or sign in with another account.</p>
-        <Button variant="outline" onClick={() => void signOut()}>
-          Sign out
-        </Button>
+        <p className="text-[13px] text-muted-foreground">Ask a workspace admin to add you, or open one of your other workspaces.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.replace(routes.root())} data-testid="no-access-my-workspaces">
+            My workspaces
+          </Button>
+          <Button variant="ghost" onClick={() => void signOut()}>
+            Sign out
+          </Button>
+        </div>
       </div>
     );
   }

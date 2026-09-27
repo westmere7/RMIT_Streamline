@@ -70,6 +70,25 @@ export interface WorkspaceRepository {
   getBySlug(slug: string): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;
   /**
+   * A new workspace. Every Owner is seated in it as OWNER on the way in (the
+   * database does this in Supabase; the local provider does it here), so it is
+   * never without somebody who can run it.
+   */
+  create(input: { name: string; slug: string }): Promise<Workspace>;
+  /** Deletes a workspace and everything in it. Refused for the last one. Owners only. */
+  delete(id: EntityId): Promise<void>;
+  /**
+   * The Owners: the people above every workspace. Kept apart from member roles
+   * so that no workspace admin can make or unmake one.
+   */
+  listOwners(): Promise<EntityId[]>;
+  /** Everyone who has finished joining some workspace: the people an admin can give access to without a new account. */
+  listDirectory(): Promise<EntityId[]>;
+  /** Makes an onboarded, active person an Owner, which seats them as OWNER in every workspace. */
+  addOwner(userId: EntityId, grantedBy: EntityId): Promise<void>;
+  /** Unmakes an Owner; their seats stay as MEMBER. Refused for the last Owner. */
+  removeOwner(userId: EntityId): Promise<void>;
+  /**
    * Takes the next `count` ticket numbers and returns the first of them.
    *
    * The whole of the "no two tasks share a ticket" guarantee rests here: it has
@@ -89,11 +108,16 @@ export interface WorkspaceRepository {
   removeMember(id: EntityId): Promise<void>;
 }
 
-/** The result of adding someone to a workspace: the person, their pending membership and the link to send them. */
+/**
+ * The result of adding someone to a workspace: the person, their membership,
+ * and the link to send them. Somebody who already has an account (they joined
+ * another workspace before) is let in at once and needs no link: `invitation`
+ * is null and the membership is ACTIVE.
+ */
 export interface InviteResult {
   user: User;
   member: WorkspaceMember;
-  invitation: WorkspaceInvitation;
+  invitation: WorkspaceInvitation | null;
 }
 
 /**
@@ -118,7 +142,8 @@ export interface OnboardingRepository {
    * Sends an existing member through onboarding again: their membership goes back
    * to INVITED and a fresh link is issued. They set a new password when they open it.
    */
-  reinitiate(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation>;
+  /** `actorId` is who asks; the server reads it from the session instead. */
+  reinitiate(workspaceId: EntityId, userId: EntityId, actorId?: EntityId): Promise<WorkspaceInvitation>;
   /** What the workspace's join link may show; safe to call signed out. */
   previewSelfJoin(key: string): Promise<SelfJoinPreview>;
   /**
@@ -539,7 +564,7 @@ export interface NotificationRepository {
   createMany(inputs: DeliverableNotification[]): Promise<Notification[]>;
   markRead(id: EntityId, read: boolean): Promise<Notification>;
   /** Marks read; `delivery` narrows it to one badge (used by "mark all read"). */
-  markAllRead(userId: EntityId, delivery?: StoredDelivery): Promise<void>;
+  markAllRead(userId: EntityId, delivery?: StoredDelivery, workspaceId?: EntityId): Promise<void>;
   /**
    * Throws the notifications away, rather than marking them read.
    *
@@ -548,7 +573,7 @@ export interface NotificationRepository {
    * told, not the thing they were told about — the task, comment or mention it
    * points at is untouched — which is why this is a delete and not an archive.
    */
-  deleteAll(userId: EntityId, delivery?: StoredDelivery): Promise<void>;
+  deleteAll(userId: EntityId, delivery?: StoredDelivery, workspaceId?: EntityId): Promise<void>;
 }
 
 /**

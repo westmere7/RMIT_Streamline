@@ -17,6 +17,20 @@ export interface RemoveListOption {
 }
 
 /**
+ * How a shared list reaches every workspace when the caller cannot write the
+ * others themselves (Supabase: an admin of one workspace may not touch the
+ * cells of another). The server runs this same service with the service role.
+ */
+export interface SharedListTransport {
+  saveDepartments(workspaceId: EntityId, options: readonly TagOption[], renames: Record<string, string>): Promise<void>;
+  removeDepartment(workspaceId: EntityId, name: string, replaceWith: string | null | undefined): Promise<void>;
+  departmentUsage(workspaceId: EntityId, name: string): Promise<ListOptionUsage>;
+}
+
+/** The lists every workspace shares. Everything else in a workspace is its own. */
+export const SHARED_LIST_KEYS: ReadonlySet<WorkspaceListKey> = new Set(["STAKEHOLDER_GROUPS"]);
+
+/**
  * The workspace's shared lists: the asset types a deliverable can be, the
  * stakeholder groups a request comes from.
  *
@@ -41,6 +55,13 @@ export class WorkspaceListService {
      * drifting apart.
      */
     private readonly portals?: { syncDepartments(workspaceId: EntityId, options: readonly TagOption[], renames?: Readonly<Record<string, string>>): Promise<unknown> },
+    /**
+     * Where department changes go when they cannot be made here. Departments
+     * are one list for every workspace: a rename in one renames the tasks of
+     * all of them. Null does it in place, across every workspace this service
+     * can reach (the local provider, and the server).
+     */
+    private readonly shared: SharedListTransport | null = null,
   ) {}
 
   /** Every list, defaults included. */
@@ -54,6 +75,37 @@ export class WorkspaceListService {
    * never quietly strand the things it names.
    */
   async save(workspaceId: EntityId, listKey: WorkspaceListKey, options: readonly TagOption[], renames: Record<string, string> = {}): Promise<WorkspaceLists> {
+    if (SHARED_LIST_KEYS.has(listKey)) {
+      if (this.shared) await this.shared.saveDepartments(workspaceId, options, renames);
+      else for (const id of await this.everyWorkspace(workspaceId)) await this.saveOne(id, listKey, options, renames);
+      return this.lists(workspaceId);
+    }
+    return this.saveOne(workspaceId, listKey, options, renames);
+  }
+
+  /**
+   * A new workspace takes the shared lists as they stand: from `fromWorkspaceId`
+   * when given, otherwise from any other workspace.
+   */
+  async adoptShared(workspaceId: EntityId, fromWorkspaceId: EntityId | null): Promise<void> {
+    const source = fromWorkspaceId ?? (await this.repos.workspaces.list()).find((w) => w.id !== workspaceId)?.id ?? null;
+    if (!source) return;
+    const lists = await this.lists(source);
+    for (const key of SHARED_LIST_KEYS) {
+      const rows = await this.repos.workspaceLists.listByWorkspace(source);
+      // A list nobody edited is the defaults everywhere; nothing to copy.
+      if (!rows.some((row) => row.listKey === key)) continue;
+      await this.saveOne(workspaceId, key, lists[key]);
+    }
+  }
+
+  /** The workspaces a shared list is written to: every one there is, with the caller's own first. */
+  private async everyWorkspace(workspaceId: EntityId): Promise<EntityId[]> {
+    const all = (await this.repos.workspaces.list()).map((w) => w.id);
+    return [workspaceId, ...all.filter((id) => id !== workspaceId)];
+  }
+
+  private async saveOne(workspaceId: EntityId, listKey: WorkspaceListKey, options: readonly TagOption[], renames: Record<string, string> = {}): Promise<WorkspaceLists> {
     const cleaned = cleanListOptions(options);
     const departments = listKey === "STAKEHOLDER_GROUPS";
     const before = departments ? (await this.lists(workspaceId))[listKey] : [];
@@ -87,8 +139,11 @@ export class WorkspaceListService {
   /** How many rows still carry this option. */
   async usage(workspaceId: EntityId, listKey: WorkspaceListKey, name: string): Promise<ListOptionUsage> {
     if (listKey === "STAKEHOLDER_GROUPS") {
-      const cells = await this.stakeholderCells(workspaceId, name);
-      return { count: cells.length, noun: cells.length === 1 ? "task" : "tasks" };
+      // Every workspace's tasks: the list is theirs as much as this one's.
+      if (this.shared) return this.shared.departmentUsage(workspaceId, name);
+      let count = 0;
+      for (const id of await this.everyWorkspace(workspaceId)) count += (await this.stakeholderCells(id, name)).length;
+      return { count, noun: count === 1 ? "task" : "tasks" };
     }
     const assets = await this.assetsWithType(workspaceId, name);
     return { count: assets.length, noun: assets.length === 1 ? "deliverable" : "deliverables" };
@@ -102,13 +157,24 @@ export class WorkspaceListService {
    * the list may label work.
    */
   async remove(workspaceId: EntityId, listKey: WorkspaceListKey, name: string, options: RemoveListOption = {}): Promise<WorkspaceLists> {
+    if (SHARED_LIST_KEYS.has(listKey)) {
+      if (this.shared) await this.shared.removeDepartment(workspaceId, name, options.replaceWith);
+      else {
+        const current = (await this.lists(workspaceId))[listKey];
+        const kept = current.filter((option) => option.name.toLowerCase() !== name.toLowerCase());
+        const workspaces = await this.everyWorkspace(workspaceId);
+        if (options.replaceWith !== undefined) for (const id of workspaces) await this.rewrite(id, listKey, name, options.replaceWith);
+        for (const id of workspaces) await this.saveOne(id, listKey, kept);
+      }
+      return this.lists(workspaceId);
+    }
     const current = (await this.lists(workspaceId))[listKey];
     const kept = current.filter((option) => option.name.toLowerCase() !== name.toLowerCase());
     // Moved while the word is still on the list, then the list is saved without
     // it: the other way round, a department's tasks would be cleared by the
     // save before they could be moved.
     if (options.replaceWith !== undefined) await this.rewrite(workspaceId, listKey, name, options.replaceWith);
-    await this.save(workspaceId, listKey, kept);
+    await this.saveOne(workspaceId, listKey, kept);
     return this.lists(workspaceId);
   }
 

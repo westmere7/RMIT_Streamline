@@ -15,6 +15,7 @@ import { AuthShell, SessionProgress } from "@/features/auth/components/auth-shel
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { IS_DEV } from "@/lib/config";
 import { queryKeys } from "@/lib/query/keys";
+import { pickWorkspace } from "@/features/workspace/workspaces";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,7 @@ export function LoginScreen() {
     queryFn: () => services.workspace.listWorkspacesForUser(user!.id),
     enabled: status === "signed-in" && !!user,
   });
-  const destination = workspaces.data?.[0];
+  const destination = workspaces.data ? pickWorkspace(workspaces.data) : undefined;
   const noWorkspace = status === "signed-in" && workspaces.isSuccess && !destination;
   // A shared link sends people here to sign in; they belong back on it. Only a
   // path on this site is followed, so the parameter cannot send anyone away.

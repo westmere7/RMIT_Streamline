@@ -36,7 +36,7 @@ import {
 // The reactions come embedded, so a thread is still one request.
 const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at, comment_reactions(user_id, emoji, created_at)";
 const ACTIVITY = "id, workspace_id, board_id, item_id, actor_id, event_type, metadata, created_at";
-const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, actor_id, read_at, created_at";
+const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, workspace_id, actor_id, read_at, created_at";
 const NOTIFICATION_PREFERENCES = "user_id, types, muted_board_ids, browser_enabled, updated_at";
 
 export class SupabaseCommentRepository implements CommentRepository {
@@ -209,18 +209,21 @@ export class SupabaseNotificationRepository implements NotificationRepository {
     return toNotification(unwrap<NotificationRow>(result, "notifications.markRead"));
   }
 
-  async markAllRead(userId: string, delivery?: StoredDelivery): Promise<void> {
+  async markAllRead(userId: string, delivery?: StoredDelivery, workspaceId?: string): Promise<void> {
     let query = db().from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null);
     if (delivery) query = query.eq("delivery", delivery);
+    // This workspace's inbox, and the few rows that name none.
+    if (workspaceId) query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
     assertOk(await query, "notifications.markAllRead");
   }
 
-  async deleteAll(userId: string, delivery?: StoredDelivery): Promise<void> {
+  async deleteAll(userId: string, delivery?: StoredDelivery, workspaceId?: string): Promise<void> {
     // Held to the caller's own rows by notifications_delete in
     // policies/0001_rls_policies.sql; the filter here narrows it to one tab,
     // and is not what makes it safe.
     let query = db().from("notifications").delete().eq("user_id", userId);
     if (delivery) query = query.eq("delivery", delivery);
+    if (workspaceId) query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
     assertOk(await query, "notifications.deleteAll");
   }
 }

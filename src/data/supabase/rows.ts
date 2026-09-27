@@ -596,6 +596,7 @@ export function toActivity(row: ActivityRow): Activity {
 export interface NotificationRow {
   id: string;
   user_id: string;
+  workspace_id?: string | null;
   type: NotificationType;
   delivery: StoredDelivery | null;
   title: string;
@@ -620,6 +621,7 @@ export function toNotification(row: NotificationRow): Notification {
     entityType: row.entity_type,
     entityId: row.entity_id,
     boardId: row.board_id,
+    workspaceId: row.workspace_id ?? null,
     actorId: row.actor_id,
     readAt: row.read_at,
     createdAt: row.created_at,

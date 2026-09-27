@@ -119,3 +119,4 @@ migrations/0085_app_development_columns.sql
 migrations/0086_workspace_join_link.sql
 migrations/0087_asset_links_and_blocks.sql
 migrations/0088_asset_block_links.sql
+migrations/0089_multi_workspace.sql

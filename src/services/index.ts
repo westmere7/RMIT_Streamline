@@ -20,7 +20,7 @@ import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
 import { StakeholderPortalService, type PortalTransport } from "./stakeholder-portal-service";
 import { TicketService } from "./ticket-service";
-import { WorkspaceListService } from "./workspace-list-service";
+import { WorkspaceListService, type SharedListTransport } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
 
 export interface Services {
@@ -69,6 +69,8 @@ export interface ServiceOptions {
   portalTransport?: PortalTransport | null;
   /** The zone every "at 9am" in an automation is read in. The runner sets it; a browser has no use for it. */
   automationTimezone?: string;
+  /** How a department change reaches every workspace (Supabase). Null makes it in place (local, and the server itself). */
+  sharedListTransport?: SharedListTransport | null;
   /** How a quick run reaches the server (Supabase). Null runs the engine in place (local). */
   automationTransport?: AutomationRunTransport | null;
 }
@@ -90,11 +92,14 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   // started from a server: see src/server/automations.ts.
   const automationEngine = new AutomationEngine(repos, items, comments, notifications, { timezone: options.automationTimezone });
   const boards = new BoardService(repos, notifications);
+  const lists = new WorkspaceListService(repos, portals, options.sharedListTransport ?? null);
+  // A new workspace starts with the departments every workspace shares.
+  workspace.whenCreated((workspaceId, fromWorkspaceId) => lists.adoptShared(workspaceId, fromWorkspaceId));
   return {
     repos,
     notifications,
     workspace,
-    lists: new WorkspaceListService(repos, portals),
+    lists,
     portals,
     boards,
     boardTemplates: new BoardTemplateService(repos, boards, items),

@@ -21,9 +21,10 @@ import { HttpError } from "@/server/http";
  * every table in one, with triggers held off so refilling a table does not
  * fire the automations the rows once fired.
  *
- * The workspace id scopes who may see a snapshot, not what is in it. There is
- * one workspace today; when there are several, capture and restore have to be
- * narrowed to one workspace's rows.
+ * A snapshot is of every workspace at once, and a restore puts every
+ * workspace back. That is why snapshots are the Owners' alone: an admin runs
+ * one workspace, and neither sees nor rolls back the others. The workspace id
+ * on a snapshot records where it was taken from, nothing more.
  */
 
 /** Never in a snapshot: the migration ledger belongs to the schema, the snapshots to themselves. */
@@ -58,7 +59,7 @@ export const wipeBoardsSchema = z.object({
 export interface SnapshotSummary {
   id: string;
   name: string;
-  kind: "manual" | "before_restore" | "before_wipe" | "upload";
+  kind: "manual" | "before_restore" | "before_wipe" | "before_delete" | "upload";
   createdAt: string;
   createdByName: string | null;
   appVersion: string | null;
@@ -98,6 +99,22 @@ function db(): postgres.Sql {
 function ident(name: string): string {
   if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new HttpError(500, `Unexpected identifier: ${name}`);
   return `"${name}"`;
+}
+
+/** The signed-in caller, who must be an Owner: snapshots hold and restore every workspace. */
+export async function requireSnapshotOwner(request: Request): Promise<Caller> {
+  const header = request.headers.get("authorization") ?? "";
+  const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!jwt) throw new HttpError(401, "Sign in to manage snapshots.");
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.auth.getUser(jwt);
+  if (error || !data.user) throw new HttpError(401, "Your session has expired. Sign in again.");
+  const [owner] = await db()<{ display_name: string | null; deactivated_at: Date | null }[]>`
+    select p.display_name, p.deactivated_at
+    from public.app_owners o join public.profiles p on p.id = o.user_id
+    where o.user_id = ${data.user.id}`;
+  if (!owner || owner.deactivated_at) throw new HttpError(403, "Only Owners can manage snapshots.");
+  return { userId: data.user.id, email: data.user.email ?? null, name: owner.display_name ?? data.user.email ?? "An Owner" };
 }
 
 /** The signed-in caller, who must be an active owner or admin of the workspace. */
@@ -230,9 +247,10 @@ function summary(row: SnapshotRow): SnapshotSummary {
 
 const SUMMARY_COLUMNS = ["id", "name", "kind", "created_at", "created_by_name", "app_version", "schema_version", "size_bytes", "row_count", "table_counts", "restored_at", "restored_by_name"];
 
-export async function listSnapshots(workspaceId: string): Promise<SnapshotSummary[]> {
+/** Every snapshot, whichever workspace it was taken from: each one holds them all. */
+export async function listSnapshots(_workspaceId?: string): Promise<SnapshotSummary[]> {
   const sql = db();
-  const rows = await sql<SnapshotRow[]>`select ${sql(SUMMARY_COLUMNS)} from public.workspace_snapshots where workspace_id = ${workspaceId} order by created_at desc`;
+  const rows = await sql<SnapshotRow[]>`select ${sql(SUMMARY_COLUMNS)} from public.workspace_snapshots order by created_at desc`;
   return rows.map(summary);
 }
 
@@ -255,14 +273,14 @@ export async function createSnapshot(workspaceId: string, caller: Caller, name?:
   return store(workspaceId, caller, kind, title, captured, process.env.NEXT_PUBLIC_APP_VERSION ?? null);
 }
 
-export async function snapshotFile(workspaceId: string, id: string): Promise<{ name: string; createdAt: string; file: Buffer }> {
-  const [row] = await db()<{ name: string; created_at: Date; file: Buffer }[]>`select name, created_at, file from public.workspace_snapshots where id = ${id} and workspace_id = ${workspaceId}`;
+export async function snapshotFile(_workspaceId: string, id: string): Promise<{ name: string; createdAt: string; file: Buffer }> {
+  const [row] = await db()<{ name: string; created_at: Date; file: Buffer }[]>`select name, created_at, file from public.workspace_snapshots where id = ${id}`;
   if (!row) throw new HttpError(404, "That snapshot no longer exists.");
   return { name: row.name, createdAt: row.created_at.toISOString(), file: row.file };
 }
 
-export async function deleteSnapshot(workspaceId: string, id: string): Promise<void> {
-  const rows = await db()`delete from public.workspace_snapshots where id = ${id} and workspace_id = ${workspaceId} returning id`;
+export async function deleteSnapshot(_workspaceId: string, id: string): Promise<void> {
+  const rows = await db()`delete from public.workspace_snapshots where id = ${id} returning id`;
   if (rows.length === 0) throw new HttpError(404, "That snapshot no longer exists.");
 }
 
@@ -335,7 +353,7 @@ export async function restoreSnapshot(workspaceId: string, id: string, caller: C
   } else if (proof.confirm?.trim() !== RESTORE_CONFIRM_WORD) {
     throw new HttpError(400, `Type ${RESTORE_CONFIRM_WORD} to confirm.`);
   }
-  const [row] = await db()<(SnapshotRow & { file: Buffer })[]>`select ${db()([...SUMMARY_COLUMNS, "file"])} from public.workspace_snapshots where id = ${id} and workspace_id = ${workspaceId}`;
+  const [row] = await db()<(SnapshotRow & { file: Buffer })[]>`select ${db()([...SUMMARY_COLUMNS, "file"])} from public.workspace_snapshots where id = ${id}`;
   if (!row) throw new HttpError(404, "That snapshot no longer exists.");
   const doc = readSnapshotFile(row.file);
 
@@ -459,6 +477,30 @@ export async function wipeBoardData(workspaceId: string, caller: Caller, passwor
       return { boards: others.length, tasks: items?.n ?? 0, trackers: trackers?.n ?? 0, ticketsReset: !!options.resetTickets };
     });
     return { safetySnapshot, ...counts };
+  } finally {
+    await db()`select pg_advisory_unlock(${RESTORE_LOCK})`.catch(() => undefined);
+  }
+}
+
+/**
+ * Deletes a workspace and everything in it, Owners only. A snapshot of the
+ * whole database is taken first, so it can be brought back from Settings →
+ * Snapshots; the last workspace cannot go (the database refuses it too).
+ */
+export async function deleteWorkspace(workspaceId: string, caller: Caller): Promise<{ snapshot: SnapshotSummary }> {
+  const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
+  if (!lock?.ok) throw new HttpError(409, "A restore, wipe or delete is already running. Try again once it has finished.");
+  try {
+    const [workspace] = await db()<{ name: string }[]>`select name from public.workspaces where id = ${workspaceId}`;
+    if (!workspace) throw new HttpError(404, "That workspace no longer exists.");
+    const [count] = await db()<{ n: number }[]>`select count(*)::int as n from public.workspaces`;
+    if ((count?.n ?? 0) <= 1) throw new HttpError(409, "The last workspace cannot be deleted.");
+    const snapshot = await createSnapshot(workspaceId, caller, `Before deleting “${workspace.name}”`, "before_delete");
+    await db().begin(async (tx) => {
+      await tx`set local statement_timeout = '55s'`;
+      await tx`delete from public.workspaces where id = ${workspaceId}`;
+    });
+    return { snapshot };
   } finally {
     await db()`select pg_advisory_unlock(${RESTORE_LOCK})`.catch(() => undefined);
   }

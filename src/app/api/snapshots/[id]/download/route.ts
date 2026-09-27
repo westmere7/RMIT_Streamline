@@ -1,5 +1,5 @@
 import { handleRoute } from "@/server/http";
-import { requireSnapshotAdmin, snapshotFile, snapshotWorkspaceSchema } from "@/server/snapshots";
+import { requireSnapshotOwner, snapshotFile, snapshotWorkspaceSchema } from "@/server/snapshots";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ type Context = { params: Promise<{ id: string }> };
 export const GET = handleRoute(async (request: Request, { params }: Context) => {
   const { id } = await params;
   const { workspaceId } = snapshotWorkspaceSchema.parse({ workspaceId: new URL(request.url).searchParams.get("workspaceId") });
-  await requireSnapshotAdmin(request, workspaceId);
+  await requireSnapshotOwner(request);
   const { name, createdAt, file } = await snapshotFile(workspaceId, id);
   const stamp = createdAt.slice(0, 16).replace(/[:T]/g, "-");
   const safe = name.replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "snapshot";

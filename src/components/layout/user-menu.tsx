@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, Building2, Check, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
+import { Bug, Building2, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { IS_DEV } from "@/lib/config";
 import { canManageMembers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
@@ -89,17 +90,14 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
             <span className="block text-2xs font-normal text-muted-foreground">{user.email}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {/* Which workspace this is. One exists today; switching between them lands here. */}
+          {/* Which workspace this is, and the others this person can open. */}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger data-testid="menu-workspace">
               <Building2 /> Workspace
               <span className="ml-auto max-w-28 truncate text-2xs text-muted-foreground">{ws.workspace.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-56">
-              <DropdownMenuItem onSelect={() => router.push(routes.workspace(ws.slug))} data-testid="menu-workspace-current">
-                <span className="truncate">{ws.workspace.name}</span>
-                <Check className="ml-auto size-3.5" />
-              </DropdownMenuItem>
+              <WorkspaceMenuItems />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />

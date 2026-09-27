@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { useServices } from "@/features/data/data-context";
+import { pickWorkspace } from "@/features/workspace/workspaces";
 import { routes } from "@/lib/routes";
 
 /**
@@ -27,11 +28,11 @@ export default function RootPage() {
   useEffect(() => {
     if (status === "signed-out") router.replace(routes.login());
     else if (status === "signed-in" && workspaces.data) {
-      const first = workspaces.data[0];
+      const first = pickWorkspace(workspaces.data);
       router.replace(first ? routes.workspace(first.slug) : routes.login());
     }
   }, [status, workspaces.data, router]);
 
-  const destination = workspaces.data?.[0];
+  const destination = workspaces.data ? pickWorkspace(workspaces.data) : null;
   return <FullPageLoader label={status === "signed-in" ? (destination ? `Opening ${destination.name}…` : "Opening workspace…") : "Checking your session…"} />;
 }

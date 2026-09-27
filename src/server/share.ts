@@ -49,8 +49,10 @@ export async function shareViewer(request: Request): Promise<ShareViewer | null>
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data.user) return null;
-  const membership = await admin.from("workspace_members").select("status").eq("user_id", data.user.id).eq("status", "ACTIVE").limit(1);
-  return { userId: data.user.id, isWorkspaceMember: (membership.data?.length ?? 0) > 0 };
+  // Every workspace they are active in: a private link opens only for members of its own.
+  const membership = await admin.from("workspace_members").select("workspace_id").eq("user_id", data.user.id).eq("status", "ACTIVE");
+  const workspaceIds = ((membership.data ?? []) as Array<{ workspace_id: string }>).map((row) => row.workspace_id);
+  return { userId: data.user.id, isWorkspaceMember: workspaceIds.length > 0, workspaceIds };
 }
 
 /** The status a refused visit deserves: a wrong password or a missing sign-in is 401, a dead link is 404. */

@@ -9,6 +9,7 @@ import { HttpDashboardTransport } from "@/data/supabase/dashboard-transport";
 import { HttpAutomationTransport } from "@/data/supabase/automation-transport";
 import { HttpPortalTransport } from "@/data/supabase/portal-transport";
 import { HttpItemShareTransport, HttpShareTransport } from "@/data/supabase/share-transport";
+import { HttpSharedListTransport } from "@/data/supabase/shared-list-transport";
 import { createAuthProvider } from "@/features/auth/auth-provider-factory";
 import { getAppConfig, type DataProviderKind } from "@/lib/config";
 import { createServices, type Services } from "@/services";
@@ -39,6 +40,7 @@ export function DataProviderContext({ children, value }: { children: React.React
       dashboardTransport: supabase ? new HttpDashboardTransport() : null,
       portalTransport: supabase ? new HttpPortalTransport() : null,
       automationTransport: supabase ? new HttpAutomationTransport() : null,
+      sharedListTransport: supabase ? new HttpSharedListTransport() : null,
     });
     const auth = createAuthProvider(providerKind, repos);
     return { providerKind, services, auth };

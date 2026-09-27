@@ -53,7 +53,12 @@ export class CommentService {
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     const board = await this.repos.boards.getById(item.boardId);
-    const mentionUserIds = extractMentions(trimmed, users);
+    // Only people active in this task's workspace can be mentioned. Callers
+    // with the service role hand over every profile there is, and with several
+    // workspaces an "@Name" must never reach somebody in another one.
+    const members = board ? await this.repos.workspaces.listMembers(board.workspaceId) : [];
+    const here = new Set(members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
+    const mentionUserIds = extractMentions(trimmed, users.filter((u) => here.has(u.id)));
 
     // Copies posted to linked items in one action share an id, which is how an
     // edit later finds them and how the update says it lives on more than one

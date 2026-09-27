@@ -110,12 +110,12 @@ export async function loadSharedItem(repos: Repositories, token: string, passwor
   const share = isPlausibleShareToken(token) ? await repos.itemShares.getByToken(token) : null;
   const refusal = refuseShare(share, todayISO());
   if (refusal || !share) throw new ShareAccessError(refusal ?? "unknown", shareAccessMessage(refusal ?? "unknown"));
-  checkShareAccess(share, viewer);
+  const item = await repos.items.getById(share.itemId);
+  const board = item ? await repos.boards.getById(item.boardId) : null;
+  checkShareAccess(share, viewer, board?.workspaceId);
   await checkSharePassword(share, password);
 
-  const item = await repos.items.getById(share.itemId);
   if (!item || item.archivedAt !== null) throw new ShareAccessError("unknown", shareAccessMessage("unknown"));
-  const board = await repos.boards.getById(item.boardId);
   if (!board) throw new NotFoundError("Board", item.boardId);
 
   const [workspace, groups, allColumns, boardItems, assets, activities, users] = await Promise.all([

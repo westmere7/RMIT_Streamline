@@ -48,6 +48,11 @@ export interface Notification {
   entityId: EntityId;
   /** Board id for building deep links to items. */
   boardId: EntityId | null;
+  /**
+   * The workspace it happened in, taken from the board. Each workspace's inbox
+   * shows its own. Absent on rows written before there were several.
+   */
+  workspaceId?: EntityId | null;
   actorId: EntityId | null;
   readAt: string | null;
   createdAt: string;

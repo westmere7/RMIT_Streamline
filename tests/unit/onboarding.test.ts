@@ -104,13 +104,13 @@ describe("onboarding through the local store", () => {
     await expect(auth.signIn({ email: user.email })).rejects.toThrow(PENDING_SIGN_IN_MESSAGE);
 
     // The join page sees the details the admin entered.
-    const preview = await services.workspace.previewInvitation(invitation.token);
+    const preview = await services.workspace.previewInvitation(invitation!.token);
     expect(preview.status).toBe("PENDING");
     if (preview.status !== "PENDING") throw new Error("unreachable");
     expect(preview).toMatchObject({ workspaceName: "RMIT Creative Team", workspaceSlug: "rmit", email: user.email, firstName: "Sam", lastName: "Rivera", jobTitle: "Producer" });
 
     // Completing sets the password, tidies the profile and activates the membership.
-    const result = await services.workspace.completeOnboarding({ token: invitation.token, password: "correct horse battery", firstName: "Samuel", lastName: "Rivera", jobTitle: "Senior Producer" });
+    const result = await services.workspace.completeOnboarding({ token: invitation!.token, password: "correct horse battery", firstName: "Samuel", lastName: "Rivera", jobTitle: "Senior Producer" });
     expect(result).toEqual({ email: user.email, userId: user.id });
 
     const updated = await repos.users.getById(user.id);
@@ -121,8 +121,8 @@ describe("onboarding through the local store", () => {
     expect((await services.workspace.listSignInAccounts()).some((u) => u.id === user.id)).toBe(true);
 
     // The link is single-use.
-    expect((await services.workspace.previewInvitation(invitation.token)).status).toBe("ACCEPTED");
-    await expect(services.workspace.completeOnboarding({ token: invitation.token, password: "another password", firstName: "X", lastName: "Y", jobTitle: null })).rejects.toThrow(/already been used/);
+    expect((await services.workspace.previewInvitation(invitation!.token)).status).toBe("ACCEPTED");
+    await expect(services.workspace.completeOnboarding({ token: invitation!.token, password: "another password", firstName: "X", lastName: "Y", jobTitle: null })).rejects.toThrow(/already been used/);
 
     // Signing in works now, with the right password only.
     await expect(auth.signIn({ email: user.email, password: "wrong password!" })).rejects.toThrow(/not right/);
@@ -132,9 +132,9 @@ describe("onboarding through the local store", () => {
 
   it("rejects bad input on completion without burning the link", async () => {
     const { invitation } = await inviteSam(services);
-    await expect(services.workspace.completeOnboarding({ token: invitation.token, password: "short", firstName: "Sam", lastName: "Rivera", jobTitle: null })).rejects.toThrow(/at least 8/);
-    await expect(services.workspace.completeOnboarding({ token: invitation.token, password: "long enough password", firstName: "", lastName: "Rivera", jobTitle: null })).rejects.toThrow(/name/);
-    expect((await services.workspace.previewInvitation(invitation.token)).status).toBe("PENDING");
+    await expect(services.workspace.completeOnboarding({ token: invitation!.token, password: "short", firstName: "Sam", lastName: "Rivera", jobTitle: null })).rejects.toThrow(/at least 8/);
+    await expect(services.workspace.completeOnboarding({ token: invitation!.token, password: "long enough password", firstName: "", lastName: "Rivera", jobTitle: null })).rejects.toThrow(/name/);
+    expect((await services.workspace.previewInvitation(invitation!.token)).status).toBe("PENDING");
   });
 
   it("treats unknown, expired and revoked links as unusable", async () => {
@@ -143,13 +143,13 @@ describe("onboarding through the local store", () => {
 
     const { user, invitation } = await inviteSam(services);
     const db = await repos.connection.getDb();
-    await db.put("workspaceInvitations", { ...invitation, expiresAt: new Date(Date.now() - 1000).toISOString() });
-    expect((await services.workspace.previewInvitation(invitation.token)).status).toBe("EXPIRED");
+    await db.put("workspaceInvitations", { ...invitation!, expiresAt: new Date(Date.now() - 1000).toISOString() });
+    expect((await services.workspace.previewInvitation(invitation!.token)).status).toBe("EXPIRED");
     expect((await services.workspace.listLiveInvitations(WS)).has(user.id)).toBe(false);
 
     // A new link replaces the old one and works.
     const renewed = await services.workspace.regenerateInvitation(WS, user.id);
-    expect(renewed.token).not.toBe(invitation.token);
+    expect(renewed.token).not.toBe(invitation!.token);
     expect((await services.workspace.previewInvitation(renewed.token)).status).toBe("PENDING");
     expect((await services.workspace.listLiveInvitations(WS)).get(user.id)?.id).toBe(renewed.id);
 
@@ -187,14 +187,14 @@ describe("onboarding through the local store", () => {
 
   it("reinitiating an active member makes them pending again with a fresh link, and a deactivated one comes back", async () => {
     const { user, invitation } = await inviteSam(services);
-    await services.workspace.completeOnboarding({ token: invitation.token, password: "correct horse battery", firstName: "Sam", lastName: "Rivera", jobTitle: null });
+    await services.workspace.completeOnboarding({ token: invitation!.token, password: "correct horse battery", firstName: "Sam", lastName: "Rivera", jobTitle: null });
     // Not for people who never finished onboarding; they renew their link instead.
     const { user: pendingUser } = await inviteSam(services, { email: "pending@rmit.edu.au", firstName: "Pat", lastName: "Pending", teamIds: [] });
     await expect(services.workspace.reinitiateMember(WS, pendingUser.id)).rejects.toThrow(/renew/);
 
     const fresh = await services.workspace.reinitiateMember(WS, user.id);
     expect(invitationStatus(fresh)).toBe("PENDING");
-    expect(fresh.token).not.toBe(invitation.token);
+    expect(fresh.token).not.toBe(invitation!.token);
     const membership = (await repos.workspaces.listMembers(WS)).find((m) => m.userId === user.id);
     expect(membership?.status).toBe("INVITED");
     expect((await services.workspace.listLiveInvitations(WS)).get(user.id)?.id).toBe(fresh.id);
@@ -218,7 +218,7 @@ describe("onboarding through the local store", () => {
     const { user, invitation } = await inviteSam(services);
     window.localStorage.setItem("streamline.local-session", JSON.stringify({ userId: user.id, email: user.email, provider: "local" }));
     expect(await auth.getSession()).toBeNull();
-    await services.workspace.completeOnboarding({ token: invitation.token, password: "long enough password", firstName: "Sam", lastName: "Rivera", jobTitle: null });
+    await services.workspace.completeOnboarding({ token: invitation!.token, password: "long enough password", firstName: "Sam", lastName: "Rivera", jobTitle: null });
     window.localStorage.setItem("streamline.local-session", JSON.stringify({ userId: user.id, email: user.email, provider: "local" }));
     expect((await auth.getSession())?.userId).toBe(user.id);
   });

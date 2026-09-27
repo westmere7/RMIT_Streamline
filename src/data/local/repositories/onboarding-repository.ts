@@ -57,6 +57,32 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     const now = nowIso();
 
     let user = (await db.getFromIndex("users", "byEmail", email)) ?? null;
+    // One person, one account, across every workspace: somebody who joined a
+    // workspace before is let in here at once, with no link (a link sets the
+    // password, and theirs is set). The same rules as src/server/onboarding.ts.
+    if (user) {
+      const known: User = user;
+      const seats = await db.getAllFromIndex("workspaceMembers", "byUser", known.id);
+      const here = seats.find((m) => m.workspaceId === input.workspaceId);
+      if (here?.status === "DEACTIVATED") throw new Error(`${known.displayName} is deactivated in this workspace. Reactivate them from the members list instead.`);
+      if (here) throw new Error(`${known.displayName} is already a member of this workspace`);
+      if (seats.some((m) => m.status === "ACTIVE" || m.status === "DEACTIVATED")) {
+        const revived: User = known.deactivatedAt ? { ...known, deactivatedAt: null, updatedAt: now } : known;
+        const member: WorkspaceMember = { id: newId(), workspaceId: input.workspaceId, userId: known.id, role: input.role, status: "ACTIVE", joinedAt: now };
+        const workspaceTeams = new Set((await db.getAllFromIndex("teams", "byWorkspace", input.workspaceId)).map((t) => t.id));
+        const tx = db.transaction(["users", "workspaceMembers", "teamMembers"], "readwrite");
+        if (revived !== known) await tx.objectStore("users").put(revived);
+        await tx.objectStore("workspaceMembers").put(member);
+        const existingTeams = await tx.objectStore("teamMembers").index("byUser").getAll(known.id);
+        for (const teamId of new Set(input.teamIds)) {
+          if (!workspaceTeams.has(teamId) || existingTeams.some((m) => m.teamId === teamId)) continue;
+          await tx.objectStore("teamMembers").put({ id: newId(), teamId, userId: known.id, role: "MEMBER" });
+        }
+        await tx.done;
+        return { user: revived, member, invitation: null };
+      }
+      if (seats.some((m) => m.status === "INVITED")) throw new Error(`${known.displayName} has been added to another workspace and has not finished joining yet. Add them here once they have.`);
+    }
     if (user?.deactivatedAt) throw new Error(`${user.displayName} has a deactivated account. Reactivate it from the members list instead.`);
     const isNew = user === null;
     if (!user) {
@@ -82,13 +108,15 @@ export class LocalOnboardingRepository implements OnboardingRepository {
 
     const member: WorkspaceMember = { id: newId(), workspaceId: input.workspaceId, userId: resolved.id, role: input.role, status: "INVITED", joinedAt: now };
     const invitation = newInvitation({ workspaceId: input.workspaceId, userId: resolved.id, createdBy: input.invitedBy });
+    const workspaceTeams = new Set((await db.getAllFromIndex("teams", "byWorkspace", input.workspaceId)).map((t) => t.id));
 
     const tx = db.transaction(["users", "workspaceMembers", "teamMembers", "workspaceInvitations"], "readwrite");
     if (isNew) await tx.objectStore("users").put(resolved);
     await tx.objectStore("workspaceMembers").put(member);
     const existingTeams = await tx.objectStore("teamMembers").index("byUser").getAll(resolved.id);
     for (const teamId of new Set(input.teamIds)) {
-      if (existingTeams.some((m) => m.teamId === teamId)) continue;
+      // Only teams of this workspace, as the server has it.
+      if (!workspaceTeams.has(teamId) || existingTeams.some((m) => m.teamId === teamId)) continue;
       const teamMember: TeamMember = { id: newId(), teamId, userId: resolved.id, role: "MEMBER" };
       await tx.objectStore("teamMembers").put(teamMember);
     }
@@ -116,6 +144,8 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     // Recorded as added by the workspace's owner: the link is theirs to hand out.
     const owner = memberships.find((m) => m.role === "OWNER" && m.status === "ACTIVE") ?? memberships.find((m) => m.role === "OWNER");
     const result = await this.invite({ workspaceId: workspace.id, invitedBy: owner?.userId ?? "", email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
+    // Only a brand-new email reaches this far, and a new person always gets a link.
+    if (!result.invitation) throw new Error(SELF_JOIN_MESSAGES.known);
     return { token: result.invitation.token };
   }
 
@@ -149,12 +179,18 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     return invitation;
   }
 
-  async reinitiate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
+  async reinitiate(workspaceId: string, userId: string, actorId?: string): Promise<WorkspaceInvitation> {
     const db = await this.conn.getDb();
     const members = await db.getAllFromIndex("workspaceMembers", "byWorkspace", workspaceId);
     const member = members.find((m) => m.userId === userId);
     if (!member) throw new NotFoundError("WorkspaceMember", userId);
     if (member.status === "INVITED") throw new Error("This person has not finished onboarding yet; renew their existing link instead.");
+    // The same rule as the server: an account used in another workspace is the Owners' to reset.
+    const elsewhere = (await db.getAllFromIndex("workspaceMembers", "byUser", userId)).some((m) => m.workspaceId !== workspaceId && m.status === "ACTIVE");
+    if (elsewhere) {
+      const owners = JSON.parse((await db.get("meta", "appOwners"))?.value ?? "[]") as string[];
+      if (!actorId || !owners.includes(actorId)) throw new Error("This person also uses another workspace. Only an Owner can reset their account.");
+    }
     const user = await db.get("users", userId);
     if (!user) throw new NotFoundError("User", userId);
     const now = nowIso();

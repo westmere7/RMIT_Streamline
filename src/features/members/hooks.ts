@@ -56,7 +56,7 @@ export function useMemberMutations() {
   });
 
   const reinitiate = useMutation({
-    mutationFn: (userId: string) => services.workspace.reinitiateMember(ws.workspace.id, userId),
+    mutationFn: (userId: string) => services.workspace.reinitiateMember(ws.workspace.id, userId, ws.currentUser.id),
     onSuccess: settle,
     onError: (error) => toast.error("Could not restart onboarding", { description: error instanceof Error ? error.message : undefined }),
   });

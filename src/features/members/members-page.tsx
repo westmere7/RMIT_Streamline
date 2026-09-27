@@ -37,13 +37,16 @@ import { copyToClipboard, invitationUrl, useLiveInvitations, useMemberMutations 
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDateTime, formatShortDate } from "@/lib/dates/dates";
-import { canManageMembers } from "@/lib/permissions/permissions";
+import { canManageMember, canManageMembers, isOwner } from "@/lib/permissions/permissions";
+import { useWorkspaceAdmin } from "@/features/workspace/workspaces";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<WorkspaceRole, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member", GUEST: "Guest" };
+/** The roles a workspace hands out. Owner is not one: Owners are made from their own menu entry, and are Owners of every workspace. */
+const ASSIGNABLE_ROLES = WORKSPACE_ROLES.filter((role): role is Exclude<WorkspaceRole, "OWNER"> => role !== "OWNER");
 const STATUS_LABEL: Record<WorkspaceMember["status"], string> = { ACTIVE: "Active", INVITED: "Pending onboarding", DEACTIVATED: "Deactivated" };
 /** Status sort order: active people first, then people still onboarding, then deactivated. */
 const STATUS_ORDER: WorkspaceMember["status"][] = ["ACTIVE", "INVITED", "DEACTIVATED"];
@@ -402,12 +405,14 @@ function BulkBar({ rows, invitations, onClear }: { rows: Row[]; invitations: Map
   const queryClient = useQueryClient();
   const [busy, setBusy] = React.useState(false);
   const [confirm, setConfirm] = React.useState<null | "deactivate" | "cancel">(null);
-  const others = rows.filter((r) => r.user.id !== ws.currentUser.id);
+  // Yourself, and Owners (whose seat only the Owner rules change), are left out of role and access changes.
+  const others = rows.filter((r) => r.user.id !== ws.currentUser.id && r.member.role !== "OWNER");
   const pending = rows.filter((r) => r.member.status === "INVITED");
   const active = others.filter((r) => r.member.status === "ACTIVE");
   const deactivated = rows.filter((r) => r.member.status === "DEACTIVATED");
   const liveTeams = ws.teams.filter((t) => t.archivedAt === null).sort((a, b) => a.name.localeCompare(b.name));
   const skippedSelf = rows.length !== others.length;
+  const skippedOwners = rows.some((r) => r.member.role === "OWNER" && r.user.id !== ws.currentUser.id);
 
   const run = async (label: string, targets: Row[], action: (row: Row) => Promise<unknown>) => {
     if (targets.length === 0) return;
@@ -442,7 +447,7 @@ function BulkBar({ rows, invitations, onClear }: { rows: Row[]; invitations: Map
   return (
     <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-ring/40 bg-card px-3 py-2 shadow-sm" data-testid="members-bulk-bar">
       <span className="text-[13px] font-medium tabular">{rows.length} selected</span>
-      {skippedSelf && <span className="text-2xs text-muted-foreground">You are left out of role and access changes.</span>}
+      {skippedSelf && <span className="text-2xs text-muted-foreground">{skippedOwners ? "You and Owners are left out of role and access changes." : "You are left out of role and access changes."}</span>}
       <span className="mx-1 h-4 w-px bg-border" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -452,7 +457,7 @@ function BulkBar({ rows, invitations, onClear }: { rows: Row[]; invitations: Map
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44">
           <DropdownMenuLabel>Make them</DropdownMenuLabel>
-          {WORKSPACE_ROLES.map((role) => (
+          {ASSIGNABLE_ROLES.map((role) => (
             <DropdownMenuItem key={role} onSelect={() => void run(`Made ${ROLE_LABEL[role].toLowerCase()}`, others.filter((r) => r.member.role !== role), (r) => services.workspace.changeMemberRole(r.member.id, role))}>
               {ROLE_LABEL[role]}
             </DropdownMenuItem>
@@ -721,8 +726,12 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const [confirmReinitiate, setConfirmReinitiate] = React.useState(false);
   const [linkOpen, setLinkOpen] = React.useState(false);
+  const [confirmOwner, setConfirmOwner] = React.useState<null | "make" | "remove">(null);
+  const { setOwner } = useWorkspaceAdmin();
   const isSelf = user.id === ws.currentUser.id;
   const pending = member.status === "INVITED";
+  const ownerRow = member.role === "OWNER";
+  const iAmOwner = isOwner(ws.permissions);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
 
   /**
@@ -763,6 +772,9 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
     onError: refused(`Could not change ${user.firstName}'s access`),
   });
 
+  // An Owner's seat is the Owners' business: an admin sees them, and that is all.
+  if (!canManageMember(ws.permissions, member)) return null;
+
   return (
     <>
       {pending && (
@@ -793,13 +805,24 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
           <DropdownMenuItem onSelect={() => void copyToClipboard(user.email, "Email copied")}>Copy email</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Workspace role</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
-            {WORKSPACE_ROLES.map((role) => (
-              <DropdownMenuRadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
-                {ROLE_LABEL[role]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          {ownerRow ? (
+            <DropdownMenuItem disabled data-testid="member-owner-note">
+              Owner of every workspace
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuRadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
+              {ASSIGNABLE_ROLES.map((role) => (
+                <DropdownMenuRadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
+                  {ROLE_LABEL[role]}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          )}
+          {iAmOwner && member.status === "ACTIVE" && (
+            <DropdownMenuItem onSelect={() => setConfirmOwner(ownerRow ? "remove" : "make")} data-testid={ownerRow ? "member-remove-owner" : "member-make-owner"}>
+              {ownerRow ? "Remove as Owner" : "Make Owner"}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Teams</DropdownMenuSubTrigger>
@@ -823,13 +846,13 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
             </DropdownMenuItem>
           ) : (
             <>
-              <DropdownMenuItem disabled={isSelf} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
+              <DropdownMenuItem disabled={isSelf || ownerRow} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
                 Reinitiate onboarding
               </DropdownMenuItem>
               {member.status === "DEACTIVATED" ? (
                 <DropdownMenuItem onSelect={() => setActive.mutate(true)}>Reactivate</DropdownMenuItem>
               ) : (
-                <DropdownMenuItem variant="destructive" disabled={isSelf} onSelect={() => setConfirmDeactivate(true)}>
+                <DropdownMenuItem variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmDeactivate(true)}>
                   Deactivate
                 </DropdownMenuItem>
               )}
@@ -838,10 +861,28 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmDialog
+        open={confirmOwner !== null}
+        onOpenChange={(open) => !open && setConfirmOwner(null)}
+        title={confirmOwner === "make" ? `Make ${user.displayName} an Owner?` : `Remove ${user.displayName} as an Owner?`}
+        description={
+          confirmOwner === "make"
+            ? "Owners are in every workspace, can create and delete workspaces, and restore snapshots of everything."
+            : "They stay in every workspace as a member."
+        }
+        confirmLabel={confirmOwner === "make" ? "Make Owner" : "Remove"}
+        destructive={confirmOwner === "remove"}
+        onConfirm={() =>
+          setOwner.mutateAsync({ userId: user.id, owner: confirmOwner === "make" }).then(() => {
+            toast.success(confirmOwner === "make" ? `${user.firstName} is now an Owner` : `${user.firstName} is no longer an Owner`);
+            setConfirmOwner(null);
+          })
+        }
+      />
+      <ConfirmDialog
         open={confirmDeactivate}
         onOpenChange={setConfirmDeactivate}
         title={`Deactivate ${user.displayName}?`}
-        description="They will no longer be able to sign in or be assigned to items. Their history is kept."
+        description="They lose access to this workspace and can no longer be assigned here. Their other workspaces are not affected. Their history is kept."
         confirmLabel="Deactivate"
         destructive
         onConfirm={() => setActive.mutateAsync(false).then(() => undefined)}

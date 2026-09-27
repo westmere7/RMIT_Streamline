@@ -41,6 +41,34 @@ export function canManageWorkspace(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }
 
+/**
+ * An Owner: above every workspace. Owners hold the OWNER seat in each one, and
+ * nobody else can (the database keeps it so: 0089), so the seat is the test.
+ */
+export function isOwner(ctx: PermissionContext): boolean {
+  return ctx.workspaceRole === "OWNER";
+}
+
+/** Creating, renaming across and deleting workspaces. */
+export function canManageWorkspaces(ctx: PermissionContext): boolean {
+  return isOwner(ctx);
+}
+
+/** Making and unmaking Owners. */
+export function canManageOwners(ctx: PermissionContext): boolean {
+  return isOwner(ctx);
+}
+
+/** Snapshots hold and restore the whole database, every workspace in it. */
+export function canUseSnapshots(ctx: PermissionContext): boolean {
+  return isOwner(ctx);
+}
+
+/** Whether this person may change that member's role, access or teams. An Owner's seat is only the Owners' to touch. */
+export function canManageMember(ctx: PermissionContext, target: Pick<WorkspaceMember, "role">): boolean {
+  return isWorkspaceAdmin(ctx) && (target.role !== "OWNER" || isOwner(ctx));
+}
+
 export function canManageMembers(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }

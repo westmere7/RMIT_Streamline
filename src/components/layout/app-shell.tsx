@@ -16,6 +16,7 @@ import { AppUpdatedNotice } from "@/features/version/app-updated-card";
 import { VersionWatcher } from "@/features/version/version-watcher";
 import { SaveBoardTemplateHost } from "@/features/boards/board-templates";
 import { BugReportHost } from "@/features/bug-report/bug-report-dialog";
+import { NewWorkspaceHost } from "@/features/workspace/workspaces";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -90,6 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppUpdatedNotice />
       <SaveBoardTemplateHost />
       <BugReportHost />
+      <NewWorkspaceHost />
     </>
   );
 

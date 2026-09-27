@@ -13,6 +13,7 @@ import {
   DatabaseBackup,
   Hash,
   Info,
+  Layers,
   LayoutGrid,
   Minus,
   Monitor,
@@ -47,20 +48,21 @@ import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
 import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
+import { WorkspacesSection } from "@/features/workspace/workspaces-section";
 import { TicketSettings } from "@/features/workspace/ticket-settings";
 import { DocumentationSection } from "@/features/workspace/documentation/documentation-section";
 import { useAppUpdatedNoticeSetting } from "@/features/version/app-updated-card";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
-import { canManageWorkspace } from "@/lib/permissions/permissions";
+import { canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "snapshots", "danger", "documentation"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -84,13 +86,14 @@ const SECTION_META: Record<Section, SectionMeta> = {
   general: { label: "Overview", icon: LayoutGrid, description: "The workspace's name, address and size.", width: "narrow" },
   tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow" },
   teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow" },
-  departments: { label: "Departments", icon: Building2, description: "Who the work is for: offered on the booking form, the portal and every Department column.", width: "wide" },
+  departments: { label: "Departments", icon: Building2, description: "Who the work is for, shared by every workspace: a change here changes them all.", width: "wide" },
   "asset-types": { label: "Asset types", icon: Shapes, description: "What a deliverable can be, and how long each one takes to make.", width: "wide" },
-  permissions: { label: "Roles", icon: ShieldCheck, description: "What each workspace role can do. Board roles refine it board by board.", width: "narrow" },
+  permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow" },
   view: { label: "Appearance", icon: Palette, description: "How the app looks for you, on this device.", width: "narrow" },
   documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true },
-  snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Everything the workspace holds, saved in one file. Download it, or restore to it.", width: "wide" },
-  danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and owners only.", width: "wide" },
+  workspaces: { label: "Workspaces", icon: Layers, description: "Every workspace, and who the Owners are. Owners only.", width: "wide" },
+  snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Every workspace, saved in one file. Download it, or restore everything to it. Owners only.", width: "wide" },
+  danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident, in this workspace. Admins and Owners only.", width: "wide" },
 };
 
 /** The side list, in groups of what the sections are about. */
@@ -99,7 +102,8 @@ const NAV_GROUPS: Array<{ label: string; sections: Section[]; members?: boolean;
   { label: "Lists", sections: ["departments", "asset-types"] },
   { label: "People", sections: ["permissions"], members: true },
   { label: "You", sections: ["view"] },
-  { label: "Data", sections: ["snapshots", "danger"] },
+  { label: "Owners", sections: ["workspaces", "snapshots"] },
+  { label: "Data", sections: ["danger"] },
   { label: "Help", sections: ["documentation"], about: true },
 ];
 
@@ -118,9 +122,11 @@ export function SettingsPage() {
   let section: Section = SECTIONS.includes(asked as Section) ? (asked as Section) : "general";
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const { providerKind } = useDataContext();
-  // Snapshots and the danger zone are the shared database's, and an admin's or owner's alone.
-  const snapshotsOn = providerKind === "supabase" && canManageWorkspace(ws.permissions);
-  const visible = (s: Section) => (s !== "snapshots" && s !== "danger") || snapshotsOn;
+  // Snapshots hold every workspace, so they are the Owners'; the danger zone
+  // clears this workspace alone, and is its admins'. Both need the server.
+  const snapshotsOn = providerKind === "supabase" && canUseSnapshots(ws.permissions);
+  const dangerOn = providerKind === "supabase" && canManageWorkspace(ws.permissions);
+  const visible = (s: Section) => (s === "snapshots" ? snapshotsOn : s === "danger" ? dangerOn : s === "workspaces" ? canManageWorkspaces(ws.permissions) : true);
   if (!visible(section)) section = "general";
   const meta = SECTION_META[section];
   // A section replaces the last on a desktop, so Back leaves the page; on a
@@ -193,6 +199,7 @@ export function SettingsPage() {
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}
+            {section === "workspaces" && <WorkspacesSection />}
             {section === "snapshots" && <SnapshotsSection />}
             {section === "danger" && <DangerZoneSection />}
           </div>
@@ -450,7 +457,11 @@ function PermissionsSection() {
     ["Delete boards", "✓", "✓", "Own boards", "—"],
     ["Automations on a board", "✓", "✓", "Own boards", "—"],
     ["Allocate requests, run the portal", "✓", "✓", "—", "—"],
-    ["Snapshots and the Danger zone", "✓", "✓", "—", "—"],
+    ["Edit departments (every workspace)", "✓", "✓", "—", "—"],
+    ["Danger zone (this workspace)", "✓", "✓", "—", "—"],
+    ["Every workspace, without being added", "✓", "—", "—", "—"],
+    ["Create and delete workspaces", "✓", "—", "—", "—"],
+    ["Make Owners, snapshots and restore", "✓", "—", "—", "—"],
   ];
   return (
     // Scrolls inside its own box on the narrowest phones rather than losing a column.

@@ -48,17 +48,129 @@ export interface WorkspaceContext {
   teamMembers: TeamMember[];
 }
 
+/** What a workspace address may be: lower-case letters, digits and dashes, 2 to 40 of them. */
+export const WORKSPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])$/;
+
+export interface NewWorkspaceInput {
+  name: string;
+  /** The address (/workspace/<slug>). Made from the name when left out. */
+  slug?: string | null;
+}
+
 export class WorkspaceService {
+  /**
+   * What else a new workspace is given, set by `createServices`: the shared
+   * departments, which live with the lists. Kept as a hook so this service
+   * does not have to know about lists or portals.
+   */
+  private onCreated: ((workspaceId: EntityId, fromWorkspaceId: EntityId | null) => Promise<void>) | null = null;
+
   constructor(private readonly repos: Repositories) {}
+
+  whenCreated(hook: (workspaceId: EntityId, fromWorkspaceId: EntityId | null) => Promise<void>): void {
+    this.onCreated = hook;
+  }
 
   async getWorkspaceBySlug(slug: string): Promise<Workspace | null> {
     return this.repos.workspaces.getBySlug(slug);
   }
 
+  /**
+   * The workspaces this person can open: where their seat is active, by name.
+   * A workspace they were deactivated in, or have not finished joining, is not
+   * one they can go to.
+   */
   async listWorkspacesForUser(userId: EntityId): Promise<Workspace[]> {
-    const memberships = await this.repos.workspaces.listMembershipsForUser(userId);
+    const memberships = (await this.repos.workspaces.listMembershipsForUser(userId)).filter((m) => m.status === "ACTIVE");
     const workspaces = await Promise.all(memberships.map((m) => this.repos.workspaces.getById(m.workspaceId)));
-    return workspaces.filter((w): w is Workspace => w !== null);
+    return workspaces.filter((w): w is Workspace => w !== null).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // ---- Workspaces and Owners -------------------------------------------------
+
+  /** The Owners' user ids. */
+  async listOwners(): Promise<EntityId[]> {
+    return this.repos.workspaces.listOwners();
+  }
+
+  private async requireOwner(actorId: EntityId, doing: string): Promise<void> {
+    if (!(await this.repos.workspaces.listOwners()).includes(actorId)) throw new Error(`Only Owners can ${doing}.`);
+  }
+
+  /**
+   * A new workspace, with everything a workspace starts with: every Owner in
+   * it, the shared departments, its Admin team and Task Allocation board, and
+   * a booking link. Everything else in it starts empty and is its own.
+   */
+  async createWorkspace(input: NewWorkspaceInput, actorId: EntityId, fromWorkspaceId: EntityId | null = null): Promise<Workspace> {
+    await this.requireOwner(actorId, "create workspaces");
+    const name = input.name.trim();
+    if (!name) throw new Error("Name the workspace");
+    if (name.length > 60) throw new Error("Keep the name to 60 characters");
+    const taken = new Set((await this.repos.workspaces.list()).map((w) => w.slug));
+    let slug: string;
+    if (input.slug?.trim()) {
+      slug = input.slug.trim().toLowerCase();
+      if (!WORKSPACE_SLUG_PATTERN.test(slug)) throw new Error("The address takes 2 to 40 lower-case letters, digits and dashes");
+      if (taken.has(slug) || (await this.repos.workspaces.getBySlug(slug))) throw new Error(`A workspace already uses the address "${slug}"`);
+    } else {
+      slug = uniqueSlug(slugify(name).slice(0, 40).replace(/-+$/, "") || "workspace", taken);
+      if (slug.length < 2) slug = `${slug}-ws`;
+    }
+    const workspace = await this.repos.workspaces.create({ name, slug });
+    await this.onCreated?.(workspace.id, fromWorkspaceId);
+    await this.ensureSystemEntities(workspace.id, actorId);
+    return (await this.repos.workspaces.getById(workspace.id)) ?? workspace;
+  }
+
+  /**
+   * Deletes a workspace and everything in it, for good. The name has to be
+   * typed back, and the last workspace cannot go.
+   */
+  async deleteWorkspace(workspaceId: EntityId, actorId: EntityId, typedName: string): Promise<void> {
+    await this.requireOwner(actorId, "delete workspaces");
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace", workspaceId);
+    if (typedName.trim() !== workspace.name.trim()) throw new Error("Type the workspace's name exactly to delete it");
+    await this.repos.workspaces.delete(workspaceId);
+  }
+
+  /** Makes someone an Owner. They must have finished joining, and they are seated as OWNER in every workspace. */
+  async grantOwner(userId: EntityId, actorId: EntityId): Promise<void> {
+    await this.requireOwner(actorId, "make Owners");
+    await this.repos.workspaces.addOwner(userId, actorId);
+  }
+
+  /** Unmakes an Owner. They stay in every workspace as a member, and each workspace's admins go on from there. */
+  async revokeOwner(userId: EntityId, actorId: EntityId): Promise<void> {
+    await this.requireOwner(actorId, "remove Owners");
+    await this.repos.workspaces.removeOwner(userId);
+  }
+
+  /**
+   * Gives somebody who already has an account access to this workspace: one
+   * person, one account, across every workspace. They must have finished
+   * joining somewhere; somebody still pending finishes first.
+   */
+  async addExistingMember(input: { workspaceId: EntityId; userId: EntityId; role: Exclude<WorkspaceRole, "OWNER">; teamIds?: EntityId[] }): Promise<WorkspaceMember> {
+    const user = await this.repos.users.getById(input.userId);
+    if (!user) throw new NotFoundError("User", input.userId);
+    const memberships = await this.repos.workspaces.listMembershipsForUser(input.userId);
+    const directory = new Set(await this.repos.workspaces.listDirectory());
+    const here = memberships.find((m) => m.workspaceId === input.workspaceId);
+    if (here?.status === "ACTIVE") throw new Error(`${user.displayName} is already a member of this workspace`);
+    if (here?.status === "INVITED") throw new Error(`${user.displayName} has been added here already and has not finished joining`);
+    if (!here && !directory.has(input.userId) && user.deactivatedAt === null) throw new Error(`${user.displayName} has not finished joining yet. Add them here once they have.`);
+    if (user.deactivatedAt) await this.repos.users.update(input.userId, { deactivatedAt: null });
+    const member = here
+      ? await this.repos.workspaces.updateMember(here.id, { role: input.role, status: "ACTIVE" })
+      : await this.repos.workspaces.addMember({ workspaceId: input.workspaceId, userId: input.userId, role: input.role, status: "ACTIVE", joinedAt: new Date().toISOString() });
+    const teams = new Set((await this.repos.teams.listByWorkspace(input.workspaceId)).map((t) => t.id));
+    const already = new Set((await this.repos.teams.listMembersByWorkspace(input.workspaceId)).filter((m) => m.userId === input.userId).map((m) => m.teamId));
+    for (const teamId of new Set(input.teamIds ?? [])) {
+      if (teams.has(teamId) && !already.has(teamId)) await this.repos.teams.addMember(teamId, input.userId, "MEMBER");
+    }
+    return member;
   }
 
   /** Everything the shell needs about people and teams, loaded once. */
@@ -110,8 +222,8 @@ export class WorkspaceService {
   }
 
   /** Puts an existing member back through onboarding with a fresh link; they set a new password when they open it. */
-  async reinitiateMember(workspaceId: EntityId, userId: EntityId): Promise<WorkspaceInvitation> {
-    return this.repos.onboarding.reinitiate(workspaceId, userId);
+  async reinitiateMember(workspaceId: EntityId, userId: EntityId, actorId?: EntityId): Promise<WorkspaceInvitation> {
+    return this.repos.onboarding.reinitiate(workspaceId, userId, actorId);
   }
 
   /** Takes a pending member out of the workspace again, before they ever signed in. */
@@ -158,13 +270,31 @@ export class WorkspaceService {
     return results.filter((u): u is User => u !== null);
   }
 
+  /** A role inside one workspace. Owner is not one of them: that is `grantOwner`, and an Owner's seat does not change here. */
   async changeMemberRole(memberId: EntityId, role: WorkspaceRole): Promise<WorkspaceMember> {
+    if (role === "OWNER") throw new Error("Only Owners hold the Owner role. Make them an Owner from Members instead.");
     return this.repos.workspaces.updateMember(memberId, { role });
   }
 
+  /**
+   * Turns someone's access to this workspace off or on again.
+   *
+   * Access is per workspace, so deactivating here leaves their other
+   * workspaces alone. Only when this was the last workspace they could open is
+   * the account itself switched off, so that they cannot sign in to nothing;
+   * reactivating anywhere switches it back on.
+   */
   async setMemberActive(memberId: EntityId, userId: EntityId, active: boolean): Promise<WorkspaceMember> {
-    await this.repos.users.update(userId, { deactivatedAt: active ? null : new Date().toISOString() });
-    return this.repos.workspaces.updateMember(memberId, { status: active ? "ACTIVE" : "DEACTIVATED" });
+    const member = await this.repos.workspaces.updateMember(memberId, { status: active ? "ACTIVE" : "DEACTIVATED" });
+    if (active) {
+      const user = await this.repos.users.getById(userId);
+      if (user?.deactivatedAt) await this.repos.users.update(userId, { deactivatedAt: null });
+      return member;
+    }
+    // The directory, not this person's memberships: an admin reads only the
+    // workspaces they are in themselves, and would miss the others.
+    if (!(await this.repos.workspaces.listDirectory()).includes(userId)) await this.repos.users.update(userId, { deactivatedAt: new Date().toISOString() });
+    return member;
   }
 
   // ---- Teams ---------------------------------------------------------------

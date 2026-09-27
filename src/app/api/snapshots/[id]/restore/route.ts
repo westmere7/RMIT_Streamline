@@ -1,5 +1,5 @@
 import { handleRoute, json, readJson } from "@/server/http";
-import { requireSnapshotAdmin, restoreSnapshot, restoreSnapshotSchema } from "@/server/snapshots";
+import { requireSnapshotOwner, restoreSnapshot, restoreSnapshotSchema } from "@/server/snapshots";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +10,6 @@ type Context = { params: Promise<{ id: string }> };
 export const POST = handleRoute(async (request: Request, { params }: Context) => {
   const { id } = await params;
   const { workspaceId, password, confirm } = restoreSnapshotSchema.parse(await readJson(request));
-  const caller = await requireSnapshotAdmin(request, workspaceId);
+  const caller = await requireSnapshotOwner(request);
   return json(await restoreSnapshot(workspaceId, id, caller, { password, confirm }));
 });

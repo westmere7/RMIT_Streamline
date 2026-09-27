@@ -1,5 +1,6 @@
 import type { Workspace, WorkspaceMember } from "@/domain";
 import type { WorkspaceRepository } from "@/data/repositories";
+import { callApi } from "../api-call";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import { pruneUndefined, toWorkspace, toWorkspaceMember, WORKSPACE_COLUMNS, type WorkspaceMemberRow, type WorkspaceRow } from "../rows";
 
@@ -28,6 +29,42 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, booking_form_name: patch.bookingFormName, booking_form_published_at: patch.bookingFormPublishedAt, booking_form_bookings: patch.bookingFormBookings, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates, ticket_prefix: patch.ticketPrefix, bug_board_id: patch.bugBoardId, join_key: patch.joinKey });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
     return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
+  }
+
+  /**
+   * Inserted without asking for the row back: the Owners are seated by a
+   * trigger at the end of the statement, and until then the new row is one the
+   * caller may not yet read. Read by slug once it is in.
+   */
+  async create(input: { name: string; slug: string }): Promise<Workspace> {
+    assertOk(await db().from("workspaces").insert({ name: input.name, slug: input.slug }), "workspaces.create");
+    const created = await this.getBySlug(input.slug);
+    if (!created) throw new Error("workspaces.create: the new workspace could not be read back");
+    return created;
+  }
+
+  /** Through the server, which takes a snapshot of everything first and then deletes with the service role. */
+  async delete(id: string): Promise<void> {
+    await callApi(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }, { auth: "required" });
+  }
+
+  async listOwners(): Promise<string[]> {
+    const result = await db().from("app_owners").select("user_id");
+    return unwrapList<{ user_id: string }>(result, "app_owners.list").map((row) => row.user_id);
+  }
+
+  async listDirectory(): Promise<string[]> {
+    const result = await db().rpc("directory_people");
+    if (result.error) throw new Error(`workspaces.listDirectory: ${result.error.message}`);
+    return ((result.data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id);
+  }
+
+  async addOwner(userId: string, grantedBy: string): Promise<void> {
+    assertOk(await db().from("app_owners").insert({ user_id: userId, granted_by: grantedBy }), "app_owners.add");
+  }
+
+  async removeOwner(userId: string): Promise<void> {
+    assertOk(await db().from("app_owners").delete().eq("user_id", userId), "app_owners.remove");
   }
 
   /**

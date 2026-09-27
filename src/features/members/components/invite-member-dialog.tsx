@@ -24,7 +24,8 @@ const schema = z.object({
   firstName: z.string().trim().min(1, "Required"),
   lastName: z.string().trim().min(1, "Required"),
   jobTitle: z.string().trim().optional(),
-  role: z.enum(WORKSPACE_ROLES),
+  // Owners are made from Members once someone has joined, never on the way in.
+  role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
   teamIds: z.array(z.string()),
 });
 
@@ -71,7 +72,24 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
 
   const activeTeams = ws.teams.filter((t) => t.archivedAt === null);
 
-  if (result) {
+  // Somebody who already had an account is in at once and needs no link.
+  if (result && !result.invitation) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>{result.user.displayName} now has access</DialogTitle>
+          <DialogDescription>They already have an account, so no link is needed. This workspace is in their workspace menu.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button onClick={onClose} data-testid="invite-done">
+            Done
+          </Button>
+        </DialogFooter>
+      </>
+    );
+  }
+
+  if (result?.invitation) {
     return (
       <>
         <DialogHeader>
@@ -128,7 +146,7 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {WORKSPACE_ROLES.map((role) => (
+                    {WORKSPACE_ROLES.filter((role) => role !== "OWNER").map((role) => (
                       <SelectItem key={role} value={role}>
                         {role.charAt(0) + role.slice(1).toLowerCase()}
                       </SelectItem>
