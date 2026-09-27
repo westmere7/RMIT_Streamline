@@ -1,6 +1,51 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Cloud, Copy, ExternalLink, Eye, FileCheck2, FileText, Folder, Image, Link2, MessageSquare, PenLine, Plus, Video, X, type LucideIcon } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  CalendarDays,
+  Camera,
+  Check,
+  Cloud,
+  Code,
+  Copy,
+  Download,
+  ExternalLink,
+  Eye,
+  FileArchive,
+  FileCheck2,
+  FileText,
+  Film,
+  Flag,
+  Folder,
+  Globe,
+  HardDrive,
+  Image,
+  Link2,
+  Lock,
+  Mail,
+  Megaphone,
+  MessageSquare,
+  Mic,
+  Monitor,
+  Music,
+  Newspaper,
+  Package,
+  Palette,
+  PenLine,
+  Plus,
+  Presentation,
+  Printer,
+  Share2,
+  Sheet,
+  Smartphone,
+  Star,
+  Type,
+  Video,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -21,6 +66,32 @@ export const LINK_ICON: Record<AssetLinkIcon, LucideIcon> = {
   pen: PenLine,
   message: MessageSquare,
   cloud: Cloud,
+  camera: Camera,
+  film: Film,
+  mic: Mic,
+  music: Music,
+  palette: Palette,
+  type: Type,
+  presentation: Presentation,
+  sheet: Sheet,
+  book: BookOpen,
+  newspaper: Newspaper,
+  archive: FileArchive,
+  package: Package,
+  globe: Globe,
+  monitor: Monitor,
+  smartphone: Smartphone,
+  printer: Printer,
+  mail: Mail,
+  megaphone: Megaphone,
+  download: Download,
+  share: Share2,
+  drive: HardDrive,
+  calendar: CalendarDays,
+  code: Code,
+  lock: Lock,
+  star: Star,
+  flag: Flag,
 };
 
 const ICON_NAMES: Record<AssetLinkIcon, string> = {
@@ -34,6 +105,32 @@ const ICON_NAMES: Record<AssetLinkIcon, string> = {
   pen: "Draft",
   message: "Feedback",
   cloud: "Cloud",
+  camera: "Photos",
+  film: "Film",
+  mic: "Audio",
+  music: "Music",
+  palette: "Design",
+  type: "Fonts",
+  presentation: "Slides",
+  sheet: "Spreadsheet",
+  book: "Guide",
+  newspaper: "Article",
+  archive: "Archive",
+  package: "Package",
+  globe: "Website",
+  monitor: "Screen",
+  smartphone: "Mobile",
+  printer: "Print",
+  mail: "Email",
+  megaphone: "Campaign",
+  download: "Download",
+  share: "Shared",
+  drive: "Drive",
+  calendar: "Schedule",
+  code: "Code",
+  lock: "Private",
+  star: "Favourite",
+  flag: "Milestone",
 };
 
 async function copy(text: string, what: string) {
@@ -203,7 +300,7 @@ function IconPicker({ value, onChange }: { value: AssetLinkIcon; onChange: (icon
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-1.5">
-        <div className="grid grid-cols-5 gap-0.5">
+        <div className="grid grid-cols-6 gap-0.5">
           {ASSET_LINK_ICONS.map((name) => {
             const Option = LINK_ICON[name];
             const active = name === value;

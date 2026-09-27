@@ -68,7 +68,44 @@ export interface AssetLink {
 }
 
 /** The icons a link can wear. Keys rather than component names, so the stored value outlives a rename in the icon set. */
-export const ASSET_LINK_ICONS = ["eye", "file-check", "link", "folder", "image", "video", "file-text", "pen", "message", "cloud"] as const;
+export const ASSET_LINK_ICONS = [
+  "eye",
+  "file-check",
+  "link",
+  "folder",
+  "image",
+  "video",
+  "file-text",
+  "pen",
+  "message",
+  "cloud",
+  "camera",
+  "film",
+  "mic",
+  "music",
+  "palette",
+  "type",
+  "presentation",
+  "sheet",
+  "book",
+  "newspaper",
+  "archive",
+  "package",
+  "globe",
+  "monitor",
+  "smartphone",
+  "printer",
+  "mail",
+  "megaphone",
+  "download",
+  "share",
+  "drive",
+  "calendar",
+  "code",
+  "lock",
+  "star",
+  "flag",
+] as const;
 export type AssetLinkIcon = (typeof ASSET_LINK_ICONS)[number];
 
 /** The links most deliverables get, offered first when one is added. */

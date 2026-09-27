@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.56.1",
+    date: "2026-09-27",
+    title: "More link icons",
+    changes: ["Links have 36 icons to choose from, including photos, slides, spreadsheets, website, email and print."],
+  },
+  {
     version: "0.56.0",
     date: "2026-09-27",
     title: "Asset links and blocks",
