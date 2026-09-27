@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, FileText, FolderInput, FolderOutput, Hash, Layers, Link2, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -133,7 +133,7 @@ export function AssetComposer({
   actions?: React.ReactNode;
   /** Line numbers from a longer list this view is part of, so a line keeps its number. */
   numbers?: ReadonlyMap<string, number>;
-  /** Closed rows spell out what they have — quantity, type, due and how far off, spec, links — on a line under the name. */
+  /** Closed rows spell out what they have: when it is due and how far off, then quantity, type, spec and links on one quiet line. No numbers or rails in the margin. */
   detailed?: boolean;
   /** A new line: on its own, or at the end of a block. */
   onAdd: (name: string, block?: AssetBlockTarget) => void;
@@ -506,15 +506,17 @@ function AssetRowCard({
     <li className={cn("flex items-stretch gap-1.5", inset && "px-[calc(0.375rem+1px)]")} data-testid="asset-line" data-asset-name={row.name} data-asset-done={done ? "true" : "false"}>
       {/* The count is about the list, not about the deliverable, so it is kept
           out of the card and set in the margin the list reads down. */}
-      <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden data-testid="asset-number">
-        {number}
-      </span>
+      {!detailed && (
+        <span className="w-4 shrink-0 pt-3.5 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden data-testid="asset-number">
+          {number}
+        </span>
+      )}
 
       {/* The row's standing as a straight line the height of the card, so the
           shape of a long list reads down the margin before anyone reads a date:
           green for done, red for late, and a neutral rail for the rest — which
           is a rail rather than nothing, so the column is unbroken. */}
-      <span aria-hidden className={cn("w-1 shrink-0 transition-colors", done ? "bg-emerald-500" : overdue ? "bg-red-500" : "bg-muted-foreground/30")} data-testid="asset-standing" />
+      {!detailed && <span aria-hidden className={cn("w-1 shrink-0 transition-colors", done ? "bg-emerald-500" : overdue ? "bg-red-500" : "bg-muted-foreground/30")} data-testid="asset-standing" />}
 
       <div
         className={cn(
@@ -586,6 +588,8 @@ function AssetRowCard({
               a deliverable nobody has opened. No calendar icon against the date —
               a date already looks like one — and a warning only once it has gone
               by. */}
+          {!open && !renaming && detailed && shown.dueDate && <DueText dueDate={shown.dueDate} done={done} overdue={overdue} />}
+
           {!open && !renaming && !detailed && (showPeople || showDue) && (
             <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-meta">
               {showPeople && (
@@ -652,7 +656,7 @@ function AssetRowCard({
         )}
 
         {/* ---- Detailed: everything the line has, and nothing it does not. */}
-        {!open && !renaming && detailed && <AssetDetailLine row={row} typeLabel={fields.type ? typeLabel : null} done={done} overdue={overdue} indent={fields.done} />}
+        {!open && !renaming && detailed && <AssetDetailLine row={row} type={fields.type ? typeLabel?.name ?? null : null} indent={fields.done} />}
 
         {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
         {open && (
@@ -839,34 +843,32 @@ function dueDistance(dueDate: string): string | null {
   return days === -1 ? "1 day late" : `${-days} days late`;
 }
 
-/** A closed line's details in full, each only when the line has it. */
-function AssetDetailLine({ row, typeLabel, done, overdue, indent }: { row: AssetComposerRow; typeLabel: ReturnType<typeof assetTypeLabel>; done: boolean; overdue: boolean; indent: boolean }) {
-  const links = row.links.length + row.blockLinks.length;
-  const distance = row.dueDate && !done ? dueDistance(row.dueDate) : null;
-  if (row.quantity === null && !typeLabel && !row.dueDate && !row.notes && links === 0) return null;
+/** When a line is due, on its row: the date, and how far off while it is open. */
+function DueText({ dueDate, done, overdue }: { dueDate: string; done: boolean; overdue: boolean }) {
+  const distance = done ? null : dueDistance(dueDate);
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground", indent ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-detail-line">
-      {row.quantity !== null && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{row.quantity}</span>}
-      {typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
-      {row.dueDate && (
-        <span className={cn("inline-flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")} data-testid="asset-detail-due">
-          {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0" />}
-          {formatShortDate(row.dueDate)}
-          {distance && <span className={cn(!overdue && "text-foreground/80")}>· {distance}</span>}
-        </span>
-      )}
-      {links > 0 && (
-        <span className="inline-flex items-center gap-1 tabular">
-          <Link2 className="size-3 shrink-0" /> {links} {links === 1 ? "link" : "links"}
-        </span>
-      )}
-      {row.notes && (
-        <span className="inline-flex min-w-0 basis-full items-center gap-1" title={row.notes}>
-          <FileText className="size-3 shrink-0" />
-          <span className="truncate">{row.notes}</span>
-        </span>
-      )}
-    </div>
+    <span className={cn("shrink-0 text-2xs tabular text-muted-foreground", overdue && "font-medium text-red-600 dark:text-red-400")} data-testid="asset-detail-due">
+      {formatShortDate(dueDate)}
+      {distance && ` · ${distance}`}
+    </span>
+  );
+}
+
+/** The rest of a closed line's details, as one quiet line of text, each only when the line has it. */
+function AssetDetailLine({ row, type, indent }: { row: AssetComposerRow; type: string | null; indent: boolean }) {
+  const links = row.links.length + row.blockLinks.length;
+  const parts = [
+    row.quantity !== null ? `×${row.quantity}` : null,
+    type,
+    row.notes?.trim() || null,
+    links > 0 ? `${links} ${links === 1 ? "link" : "links"}` : null,
+  ].filter((part): part is string => !!part);
+  if (parts.length === 0) return null;
+  const text = parts.join(" · ");
+  return (
+    <p className={cn("-mt-1 truncate pr-2.5 pb-2 text-2xs text-muted-foreground", indent ? "pl-[2.125rem]" : "pl-2.5")} title={text} data-testid="asset-detail-line">
+      {text}
+    </p>
   );
 }
 

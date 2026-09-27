@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Layers, ListChecks, TriangleAlert } from "lucide-react";
+import { Layers, ListChecks } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +10,6 @@ import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations } from "@/features/items/asset-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatShortDate, todayISO } from "@/lib/dates/dates";
-import { cn } from "@/lib/utils";
 
 /** A run of the viewer's lines: one block's, or lines on their own between blocks. */
 type Section = { key: string; block: { name: string } | null; lines: ItemAsset[] };
@@ -88,24 +87,17 @@ function MyAssetsBody({ item, rows, mine, assetTypes, canEdit }: { item: Item; r
       </DialogHeader>
 
       {recap.lines > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground tabular" data-testid="my-assets-summary">
-          <span className={cn("font-medium", todo === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
-            {todo === 0 ? "All done" : `${todo} to do`}
-          </span>
-          <span>
-            {recap.done} of {recap.lines} done
-          </span>
-          {recap.overdue > 0 && (
-            <span className="inline-flex items-center gap-1 font-medium text-red-600 dark:text-red-400">
-              <TriangleAlert className="size-3" /> {recap.overdue} overdue
-            </span>
+        <p className="-mt-2 text-xs text-muted-foreground tabular" data-testid="my-assets-summary">
+          {todo === 0 ? (
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">All done</span>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">{todo} to do</span>
+              {recap.overdue > 0 && <span className="font-medium text-red-600 dark:text-red-400"> · {recap.overdue} overdue</span>}
+              {recap.nextDue && <span> · next due {formatShortDate(recap.nextDue)}</span>}
+            </>
           )}
-          {recap.nextDue && (
-            <span className="inline-flex items-center gap-1">
-              <CalendarDays className="size-3" /> Next due {formatShortDate(recap.nextDue)}
-            </span>
-          )}
-        </div>
+        </p>
       )}
 
       {sections.length === 0 ? (

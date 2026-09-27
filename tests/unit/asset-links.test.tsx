@@ -255,12 +255,10 @@ describe("a detailed row, as To-do shows it", () => {
       const lines = screen.getAllByTestId("asset-detail-line");
       // The bare line has nothing to spell out, so it gets no line at all.
       expect(lines).toHaveLength(1);
-      const text = lines[0]!.textContent ?? "";
-      expect(text).toContain("×6");
-      expect(text).toContain("Print");
-      expect(text).toContain("In 3 days");
-      expect(text).toContain("1 link");
-      expect(text).toContain("A4, nothing else.");
+      // One quiet line: quantity, type, spec, links. The due date sits on the name's row.
+      expect(lines[0]!.textContent).toBe("×6 · Print · A4, nothing else. · 1 link");
+      expect(screen.getByTestId("asset-detail-due").textContent).toContain("In 3 days");
+      expect(screen.queryByTestId("asset-number")).toBeNull();
       expect(screen.queryByTestId("asset-add-input")).toBeNull();
     } finally {
       vi.useRealTimers();
