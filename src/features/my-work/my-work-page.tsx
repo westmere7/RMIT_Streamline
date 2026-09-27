@@ -20,7 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import type { User } from "@/domain";
 import { isStuckLabel } from "@/domain";
 import { EMPTY_MY_WORK_FILTERS, MY_WORK_DUE_BUCKETS, MY_WORK_KINDS, MY_WORK_KIND_LABELS, MY_WORK_SEARCH_KINDS, MY_WORK_SEARCH_KIND_LABELS, activeMyWorkFilterCount, filterMyWork, myWorkLabelNames, type MyWorkFilters, type MyWorkSearchKind } from "@/features/my-work/filters";
-import { useMyWork } from "@/features/my-work/hooks";
+import { useMyAssets, useMyWork } from "@/features/my-work/hooks";
+import { MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
 import { MyWorkSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MyWorkMobile } from "@/features/mobile/my-work-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -39,6 +40,9 @@ export function MyWorkPage() {
 function MyWorkDesktop() {
   const ws = useWorkspace();
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
+  const [tab, setTab] = React.useState<MyWorkTab>("tasks");
+  const myAssets = useMyAssets(ws.workspace.id, ws.currentUser.id, tab === "assets");
+  const assetCount = openAssetCount(myAssets.data);
   const [showCompleted, setShowCompleted] = React.useState(false);
   const [filters, setFilters] = React.useState<MyWorkFilters>(EMPTY_MY_WORK_FILTERS);
   const now = React.useMemo(() => new Date(), []);
@@ -72,7 +76,15 @@ function MyWorkDesktop() {
           title="My Work"
           // Counted, or a blank line waiting to be one. "0 open items"
           // while the list is still being read is a figure, and it is wrong.
-          description={myWork.data ? `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.` : <SkeletonLine className="w-72 max-w-full" />}
+          description={
+            tab === "assets" ? (
+              assetCount !== null ? `${assetCount} open ${assetCount === 1 ? "asset" : "assets"} on you across ${ws.workspace.name}.` : <SkeletonLine className="w-72 max-w-full" />
+            ) : myWork.data ? (
+              `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you across ${ws.workspace.name}.`
+            ) : (
+              <SkeletonLine className="w-72 max-w-full" />
+            )
+          }
           actions={
             <div className="flex items-center gap-2">
               <Switch id="show-completed" aria-label="Show completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
@@ -85,6 +97,9 @@ function MyWorkDesktop() {
         {/* The bar: what to search and the words, then one button per thing to
             narrow by. Like a board's toolbar, so nobody learns a second one. */}
         <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 sm:px-6" data-testid="my-work-filters">
+          <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} className="mr-1" />
+          {tab === "tasks" && (
+          <>
           <SearchBox kind={filters.searchKind} value={filters.search} onKind={(searchKind) => patch({ searchKind })} onValue={(search) => patch({ search })} />
           <span aria-hidden className="mx-1 h-5 w-px bg-border/70" />
           <ChecklistFilter
@@ -129,10 +144,13 @@ function MyWorkDesktop() {
               </Button>
             </>
           )}
+          </>
+          )}
         </div>
       </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-8 sm:px-6">
         <div className="mx-auto w-full max-w-7xl">
+          {tab === "assets" ? <MyAssetsView query={myAssets} showCompleted={showCompleted} /> : <>
           {myWork.isLoading && <MyWorkSkeleton />}
           {myWork.isError && <ErrorState title="Could not load your work." error={myWork.error} onRetry={() => myWork.refetch()} />}
           {myWork.data && all.length === 0 && <EmptyState icon={ListTodo} title="Nothing assigned to you" description="Items where you are set as an owner will appear here, grouped by due date." />}
@@ -154,6 +172,7 @@ function MyWorkDesktop() {
               if (entries.length === 0) return null;
               return <WorkSection key={section} section={section} entries={entries} now={now} />;
             })}
+          </>}
         </div>
       </div>
     </div>

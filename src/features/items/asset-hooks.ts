@@ -150,6 +150,9 @@ export function useAssetMutations(item: Item) {
     // the board on screen is actually being watched, so the rest are marked
     // stale and re-read when they are next opened.
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
+    // My Work lists the lines on you, and the PIC they may have just moved.
+    void queryClient.invalidateQueries({ queryKey: ["my-assets"] });
+    void queryClient.invalidateQueries({ queryKey: ["my-work"] });
     const linked = await services.links.connectedItemIds(item.id).catch(() => []);
     publishDataChange({ itemIds: [item.id, ...linked], boardIds: [item.boardId], kinds: ["assets", "board"] });
   };

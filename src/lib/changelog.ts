@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.65.0",
+    date: "2026-09-27",
+    title: "My Work: Tasks and Assets",
+    changes: ["My Work has two tabs: Tasks, as before, and Assets, every asset line you are in charge of across the workspace, grouped by when it is due, with the task and board it belongs to. Every row opens its task."],
+  },
+  {
     version: "0.64.3",
     date: "2026-09-27",
     title: "A tidier To-do",

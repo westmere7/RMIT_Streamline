@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BoardGroup, ColumnLabel, EntityId, ISODate, Item } from "@/domain";
+import type { Board, BoardColumn, BoardGroup, ColumnLabel, EntityId, ISODate, Item, ItemAsset } from "@/domain";
 import { columnLabels, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { bucketDate, type DateBucket } from "@/lib/dates/dates";
@@ -20,6 +20,16 @@ export interface MyWorkItem {
   people: EntityId[];
 }
 
+/** One asset line the reader is in charge of, with the task it belongs to. */
+export interface MyWorkAsset {
+  asset: ItemAsset;
+  item: Item;
+  board: Board;
+  group: BoardGroup | null;
+  isDone: boolean;
+  dueDate: ISODate | null;
+}
+
 export type MyWorkSection = DateBucket | "completed";
 
 export const MY_WORK_SECTIONS: MyWorkSection[] = ["overdue", "today", "thisWeek", "later", "noDate", "completed"];
@@ -33,7 +43,7 @@ export const MY_WORK_SECTION_LABELS: Record<MyWorkSection, string> = {
   completed: "Completed",
 };
 
-export function sectionFor(entry: MyWorkItem, now: Date): MyWorkSection {
+export function sectionFor(entry: Pick<MyWorkItem, "isDone" | "dueDate">, now: Date): MyWorkSection {
   if (entry.isDone) return "completed";
   return bucketDate(entry.dueDate, now);
 }
@@ -113,6 +123,36 @@ export class MyWorkService {
       return a.item.name.localeCompare(b.item.name);
     });
     return this.collapseLinked(results);
+  }
+
+  /**
+   * Every asset line across the workspace the user is in charge of, on tasks
+   * that are not archived, soonest due first.
+   *
+   * A line shared between linked tasks is stored on one of them and listed
+   * once, against that one. Only boards with such a line read their items.
+   */
+  async listAssignedAssets(workspaceId: EntityId, userId: EntityId): Promise<MyWorkAsset[]> {
+    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
+    const results: MyWorkAsset[] = [];
+    await Promise.all(
+      boards.map(async (board) => {
+        const lines = (await this.repos.itemAssets.listByBoard(board.id)).filter((line) => line.assigneeIds.includes(userId));
+        if (lines.length === 0) return;
+        const [items, groups] = await Promise.all([this.repos.items.listByBoard(board.id), this.repos.boards.listGroups(board.id)]);
+        const byId = new Map(items.map((item) => [item.id, item]));
+        for (const asset of lines) {
+          const item = byId.get(asset.itemId);
+          if (!item || item.archivedAt) continue;
+          results.push({ asset, item, board, group: groups.find((g) => g.id === item.groupId) ?? null, isDone: asset.completedAt !== null, dueDate: asset.dueDate });
+        }
+      }),
+    );
+    results.sort((a, b) => {
+      if (a.dueDate !== b.dueDate) return !a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.localeCompare(b.dueDate);
+      return a.item.name.localeCompare(b.item.name) || a.asset.position - b.asset.position;
+    });
+    return results;
   }
 
   /**

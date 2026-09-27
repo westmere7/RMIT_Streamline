@@ -42,6 +42,32 @@ export function useMyWork(workspaceId: string, userId: string) {
 }
 
 /**
+ * The asset lines this person is in charge of, across the workspace. Read
+ * only while the Assets tab is open (`enabled`), and kept for going back to it.
+ */
+export function useMyAssets(workspaceId: string, userId: string, enabled: boolean) {
+  const services = useServices();
+  const checks = useWorkspaceRowChecks();
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!workspaceId || !userId) return [];
+    const keys = [queryKeys.myAssets(workspaceId, userId)];
+    return [
+      { table: "item_assets", keys, accept: checks.onBoard },
+      { table: "items", keys, accept: checks.onBoard },
+    ];
+  }, [workspaceId, userId, checks]);
+  useRealtime(enabled && workspaceId && userId ? `my-assets:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  return useQuery({
+    queryKey: queryKeys.myAssets(workspaceId, userId),
+    queryFn: () => services.myWork.listAssignedAssets(workspaceId, userId),
+    enabled,
+    staleTime: 0,
+    refetchInterval: enabled ? REFRESH_MS : false,
+    refetchOnWindowFocus: enabled,
+  });
+}
+
+/**
  * Invalidates this person's work when the rows it is read from move.
  *
  * `item_column_values` is where an assignment is written, and it arrives

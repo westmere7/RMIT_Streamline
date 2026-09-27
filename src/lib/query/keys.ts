@@ -81,6 +81,7 @@ export const queryKeys = {
   messageThread: (workspaceId: string, userId: string, otherUserId: string) => ["message-thread", workspaceId, userId, otherUserId] as const,
   unreadMessages: (workspaceId: string, userId: string) => ["unread-messages", workspaceId, userId] as const,
   myWork: (workspaceId: string, userId: string) => ["my-work", workspaceId, userId] as const,
+  myAssets: (workspaceId: string, userId: string) => ["my-assets", workspaceId, userId] as const,
   search: (workspaceId: string, query: string) => ["search", workspaceId, query] as const,
   /** The booking form's options: null key from inside the app, the link's key on the public page. */
   bookingForm: (workspaceSlug: string, key: string | null) => ["booking-form", workspaceSlug, key] as const,

@@ -21,7 +21,8 @@ import {
   myWorkLabelNames,
   type MyWorkFilters,
 } from "@/features/my-work/filters";
-import { useMyWork } from "@/features/my-work/hooks";
+import { useMyAssets, useMyWork } from "@/features/my-work/hooks";
+import { MyAssetsView, MyWorkTabs, openAssetCount, type MyWorkTab } from "@/features/my-work/my-assets-view";
 import { MyWorkMobileSkeleton } from "@/features/my-work/my-work-skeleton";
 import { MobileTaskList, MobileTaskRow } from "@/features/mobile/task-row";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -43,6 +44,9 @@ const PHONE_START: MyWorkFilters = { ...EMPTY_MY_WORK_FILTERS, searchKind: "item
 export function MyWorkMobile() {
   const ws = useWorkspace();
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
+  const [tab, setTab] = React.useState<MyWorkTab>("tasks");
+  const myAssets = useMyAssets(ws.workspace.id, ws.currentUser.id, tab === "assets");
+  const assetCount = openAssetCount(myAssets.data);
   const [showCompleted, setShowCompleted] = React.useState(false);
   const [filters, setFilters] = React.useState<MyWorkFilters>(PHONE_START);
   const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -67,10 +71,35 @@ export function MyWorkMobile() {
         {/* The count waits for the list. Nobody has nought items assigned for
             the second and a half before the first read comes back. */}
         <p className="mb-3 text-[13px] text-muted-foreground">
-          {myWork.data ? `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you.` : <SkeletonLine className="w-52 max-w-full" />}
+          {tab === "assets" ? (
+            assetCount !== null ? `${assetCount} open ${assetCount === 1 ? "asset" : "assets"} on you.` : <SkeletonLine className="w-52 max-w-full" />
+          ) : myWork.data ? (
+            `${openCount} open ${openCount === 1 ? "item" : "items"} assigned to you.`
+          ) : (
+            <SkeletonLine className="w-52 max-w-full" />
+          )}
         </p>
 
-        {all.length > 0 && (
+        <MyWorkTabs tab={tab} onTab={setTab} tasks={myWork.data ? openCount : null} assets={assetCount} className="mb-3" />
+
+        {tab === "assets" && (
+          <>
+            <MyAssetsView query={myAssets} showCompleted={showCompleted} mobile />
+            {myAssets.data?.some((entry) => entry.isDone) && (
+              <button
+                type="button"
+                onClick={() => setShowCompleted((v) => !v)}
+                aria-expanded={showCompleted}
+                className="mt-5 flex h-11 w-full items-center justify-center rounded-xl border border-border/70 px-3 text-[13px] font-medium active:bg-accent/70"
+                data-testid="my-assets-toggle-completed"
+              >
+                {showCompleted ? "Hide completed" : "Show completed"}
+              </button>
+            )}
+          </>
+        )}
+
+        {tab === "tasks" && all.length > 0 && (
           <div className="mb-1 flex items-center gap-2" data-testid="my-work-filters">
             <label className="relative flex min-w-0 flex-1 items-center">
               <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
@@ -97,7 +126,7 @@ export function MyWorkMobile() {
             </button>
           </div>
         )}
-        {filterCount > 0 && (
+        {tab === "tasks" && filterCount > 0 && (
           <div className="flex items-center justify-between text-[13px] text-muted-foreground">
             <span className="tabular" data-testid="my-work-filter-count">
               {shown.length} of {all.length}
@@ -108,6 +137,8 @@ export function MyWorkMobile() {
           </div>
         )}
 
+        {tab === "tasks" && (
+          <>
         {myWork.isLoading && <MyWorkMobileSkeleton />}
         {myWork.isError && <ErrorState title="Could not load your work." error={myWork.error} onRetry={() => myWork.refetch()} />}
         {myWork.data && all.length === 0 && (
@@ -146,6 +177,8 @@ export function MyWorkMobile() {
               <span className="rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs tabular">{completed.length}</span>
             </button>
             {showCompleted && <Section section="completed" entries={completed} now={now} />}
+          </>
+        )}
           </>
         )}
       </div>
