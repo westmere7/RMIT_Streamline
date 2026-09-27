@@ -22,7 +22,7 @@ function fresh() {
 const A = SEED_WORKSPACE_ID;
 const { danh, emily, jun, anh } = SEED_USER_IDS;
 
-async function second(services: Services, name = "Hanoi Studio"): Promise<{ id: EntityId; slug: string; key: string }> {
+async function second(services: Services, name = "Hanoi Office"): Promise<{ id: EntityId; slug: string; key: string }> {
   const created = await services.workspace.createWorkspace({ name }, danh, A);
   const again = (await services.repos.workspaces.getById(created.id))!;
   return { id: created.id, slug: again.slug, key: again.bookingKey! };

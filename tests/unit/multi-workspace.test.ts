@@ -24,7 +24,7 @@ function fresh() {
 const A = SEED_WORKSPACE_ID;
 const { danh, admin, emily, jun, ben, anh } = SEED_USER_IDS;
 
-async function second(services: Services, name = "Second Studio"): Promise<EntityId> {
+async function second(services: Services, name = "Second Office"): Promise<EntityId> {
   return (await services.workspace.createWorkspace({ name }, danh, A)).id;
 }
 
@@ -116,12 +116,12 @@ describe("creating a workspace", () => {
 
   it("makes an address from the name, and refuses one that is taken or malformed", async () => {
     const { services } = fresh();
-    const made = await services.workspace.createWorkspace({ name: "Hanoi Studio!" }, danh);
-    expect(made.slug).toBe("hanoi-studio");
-    await expect(services.workspace.createWorkspace({ name: "Again", slug: "hanoi-studio" }, danh)).rejects.toThrow(/already uses/);
+    const made = await services.workspace.createWorkspace({ name: "Hanoi Office!" }, danh);
+    expect(made.slug).toBe("hanoi-office");
+    await expect(services.workspace.createWorkspace({ name: "Again", slug: "hanoi-office" }, danh)).rejects.toThrow(/already uses/);
     await expect(services.workspace.createWorkspace({ name: "Bad", slug: "Not OK" }, danh)).rejects.toThrow(/lower-case/);
     // A second one with the same name gets its own address.
-    expect((await services.workspace.createWorkspace({ name: "Hanoi Studio" }, danh)).slug).not.toBe("hanoi-studio");
+    expect((await services.workspace.createWorkspace({ name: "Hanoi Office" }, danh)).slug).not.toBe("hanoi-office");
   });
 
   it("starts with its own Admin team, Task Allocation board and booking link, and nothing else", async () => {
@@ -301,9 +301,9 @@ describe("deleting a workspace", () => {
     const boardsInA = (await repos.boards.listByWorkspace(A)).length;
     const usersBefore = (await repos.users.list()).length;
 
-    await expect(services.workspace.deleteWorkspace(b, emily, "Second Studio")).rejects.toThrow(/Only Owners/);
-    await expect(services.workspace.deleteWorkspace(b, danh, "second studio")).rejects.toThrow(/Type the workspace/);
-    await services.workspace.deleteWorkspace(b, danh, "Second Studio");
+    await expect(services.workspace.deleteWorkspace(b, emily, "Second Office")).rejects.toThrow(/Only Owners/);
+    await expect(services.workspace.deleteWorkspace(b, danh, "second office")).rejects.toThrow(/Type the workspace/);
+    await services.workspace.deleteWorkspace(b, danh, "Second Office");
 
     expect(await repos.workspaces.getById(b)).toBeNull();
     expect(await repos.boards.getById(bundle.board.id)).toBeNull();

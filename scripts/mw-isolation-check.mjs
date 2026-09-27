@@ -40,7 +40,7 @@ try {
     const [column] = await tx`insert into board_columns (board_id, name, type, settings, position) values (${board.id}, 'Notes', 'TEXT', '{"kind":"none"}'::jsonb, 0) returning id`;
     const [item] = await tx`insert into items (board_id, group_id, name, position, created_by) values (${board.id}, ${group.id}, 'B task', 0, ${danh}) returning id`;
     await tx`insert into item_column_values (item_id, column_id, value_json) values (${item.id}, ${column.id}, ${tx.json({ type: "TEXT", text: "secret of B" })})`;
-    const [comment] = await tx`insert into comments (item_id, author_id, body) values (${item.id}, ${danh}, 'B update') returning id`;
+    await tx`insert into comments (item_id, author_id, body) values (${item.id}, ${danh}, 'B update')`;
     await tx`insert into item_assets (item_id, board_id, name, created_by) values (${item.id}, ${board.id}, 'B poster', ${danh})`;
     await tx`insert into activities (workspace_id, board_id, item_id, actor_id, event_type, metadata) values (${B}, ${board.id}, ${item.id}, ${danh}, 'ITEM_CREATED', '{}'::jsonb)`;
     const [tracker] = await tx`insert into trackers (workspace_id, name, created_by) values (${B}, 'B tracker', ${danh}) returning id`;

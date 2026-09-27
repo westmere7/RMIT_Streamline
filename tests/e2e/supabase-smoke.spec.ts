@@ -197,6 +197,8 @@ test.describe("supabase provider", () => {
     });
     await page.keyboard.press("Escape");
     await expect(person).not.toHaveAttribute("aria-label", peopleBefore, { timeout: 20_000 });
+    // The person picker closes before the date cell is clicked, or that click only dismisses it.
+    await expect(picker).toBeHidden();
 
     // Date.
     await item.getByTestId("date-cell").click();
@@ -363,35 +365,39 @@ test.describe("supabase provider", () => {
 
     await page.getByTestId("member-profile-link").filter({ hasText: "Emily Carter" }).click();
     await expect(page.getByTestId("profile-name")).toHaveText("Emily Carter", { timeout: 30_000 });
-    // Contact details, and the three things a profile is for.
+    // Contact details, her teams, the figures, and her work.
     await expect(page.getByText("emily@rmit.local")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /^Teams/ })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /^Boards/ })).toBeVisible();
+    await expect(page.getByTestId("profile-teams")).toBeVisible();
+    await expect(page.getByTestId("profile-figures")).toBeVisible();
+    await expect(page.getByTestId("profile-tab-boards")).toBeVisible();
     await expect(page.getByTestId("profile-task").first()).toBeVisible({ timeout: 20_000 });
+    // She has joined, so her details are hers: not even an Owner edits them.
+    await expect(page.getByTestId("profile-edit")).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
-  test("edits contact details on a profile", async ({ page }) => {
+  test("edits your own contact details", async ({ page }) => {
     const errors = watchForErrors(page);
-    await page.goto(`/workspace/rmit/people/${EMILY_ID}`);
+    await page.goto(`/workspace/rmit/people/${ADMIN_ID}`);
     await expect(page.getByTestId("profile-name")).toBeVisible({ timeout: 30_000 });
 
-    const title = `Creative Lead ${RUN}`;
+    const title = `Administrator ${RUN}`;
     await page.getByTestId("profile-edit").click();
     await expect(page.getByTestId("edit-profile-dialog")).toBeVisible({ timeout: 10_000 });
+    const before = await page.getByLabel("Job title").inputValue();
     await page.getByLabel("Job title").fill(title);
     await expectWrite(page, "profiles", "PATCH", async () => {
       await page.getByTestId("profile-save").click();
     });
-    await expect(page.getByText(title)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#main").getByText(title)).toBeVisible({ timeout: 20_000 });
 
     // Stored, not just cached.
     await page.reload();
-    await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#main").getByText(title)).toBeVisible({ timeout: 30_000 });
 
     // Put it back.
     await page.getByTestId("profile-edit").click();
-    await page.getByLabel("Job title").fill("Creative Lead");
+    await page.getByLabel("Job title").fill(before);
     await expectWrite(page, "profiles", "PATCH", async () => {
       await page.getByTestId("profile-save").click();
     });
@@ -533,7 +539,6 @@ test.describe("supabase provider", () => {
    */
   test("notification settings round-trip and are private to their owner", async ({ page, request }) => {
     const errors = watchForErrors(page);
-    await signIn(page);
     await page.goto("/workspace/rmit/inbox");
     await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible({ timeout: 30_000 });
 
@@ -583,7 +588,6 @@ test.describe("supabase provider", () => {
 
   test("unsubscribing from a board is stored, and does not touch access to it", async ({ page }) => {
     const errors = watchForErrors(page);
-    await signIn(page);
     await page.goto(BOARD);
     await expect(page.getByTestId("board-table")).toBeVisible({ timeout: 30_000 });
 

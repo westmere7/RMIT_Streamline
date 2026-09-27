@@ -19,7 +19,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "0.57.0",
-    date: "2026-09-28",
+    date: "2026-09-27",
     title: "Several workspaces",
     changes: [
       "Owners can create more workspaces, from the Workspace menu. Each one has its own teams, boards, trackers, forms, portal, dashboard, automations and settings; the people and the departments are shared by all of them.",
@@ -27,8 +27,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Owners are above every workspace: they are in all of them, create, rename and delete workspaces in Settings → Workspaces, make other Owners from Members, and use snapshots. Admins run their own workspace.",
       "Adding someone who already has an account gives them access straight away, with no new account and no link.",
       "Deactivating someone removes this workspace only. Departments changed in one workspace change in all of them.",
-      "Admins can take Portal and Booking out of their workspace's menu, in Settings → Appearance.",
-      "Each workspace keeps its own inbox, and an update can only mention people in its own workspace.",
+      "Admins can take Portal and Booking out of their workspace's menu, in Settings → Overview.",
+      "Settings is grouped into this workspace, every workspace, and you. Each section says whom it reaches.",
+      "Each workspace keeps its own inbox, portal and booking form, and an update can only mention people in its own workspace. A booking never gives the requester access.",
+      "Remove completely, in Members: the person's account and history go, and their tasks, boards and deliverables pass to you. Owners can remove anyone but an Owner; admins only people in no other workspace.",
+      "Someone else's update can be deleted only by an admin or Owner who is a member of that board.",
+      "Once someone has joined, only they can edit their profile.",
     ],
   },
   {

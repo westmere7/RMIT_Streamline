@@ -644,9 +644,10 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "Change roles and offboard", steps: [
         "Reassign the person's open tasks and deliverables, and hand over the boards they own.",
         "Change their workspace role and board roles as needed.",
-        "Deactivate them in Members. Their name stays on past work; they can no longer sign in or be assigned.",
+        "Deactivate them in Members. That closes this workspace to them; their name stays on past work.",
         "Replace any share or portal links they should no longer hold.",
       ] },
+      { title: "Remove someone completely", paragraphs: ["Remove completely, in the person's row, deletes their account and their history: updates, reactions, messages, notifications and activity. Their work stays and passes to you: tasks, boards, deliverables, trackers, forms, templates and share links. Type their name to confirm; a snapshot is taken first.", "Owners can remove anyone except an Owner. An admin can remove only people who are in no other workspace."] },
       { title: "View as", paragraphs: ["Admins can preview what another person sees with View as. It does not sign you in as them: anything you change is still done by you."] },
     ],
     related: ["permissions", "collaboration", "sharing"],
@@ -679,6 +680,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Share links and the portal never give editing access.",
         "Running a quick run needs edit rights; changing automations needs the board's owner or an admin.",
         "Hiding a column, archiving a team, or muting a board does not change who can see what.",
+        "You can delete your own updates. An admin or Owner can delete someone else's only on a board they are a member of.",
+        "Once someone has joined, only they can edit their profile. Admins fill it in while they are pending.",
       ] },
       { title: "Sort out an access problem", steps: [
         "Check the account, the workspace, and that the membership is active.",

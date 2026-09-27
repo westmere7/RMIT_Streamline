@@ -37,12 +37,12 @@ test.beforeEach(async ({ page }) => {
 
 test("an Owner makes a workspace, lands in it, and switches between the two", async ({ page }) => {
   await signInAs(page, "Danh");
-  await createWorkspace(page, "Hanoi Studio", "hanoi");
+  await createWorkspace(page, "Hanoi Office", "hanoi");
   await expect(page).toHaveURL(/\/workspace\/hanoi$/, { timeout: 15000 });
   // It starts empty but for the Admin team and its intake board.
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Danh");
   await openWorkspaceMenu(page);
-  await expect(page.getByTestId("menu-workspace-current")).toContainText("Hanoi Studio");
+  await expect(page.getByTestId("menu-workspace-current")).toContainText("Hanoi Office");
   await page.getByTestId("menu-workspace-option").filter({ hasText: "RMIT Creative Team" }).click();
   await expect(page).toHaveURL(/\/workspace\/rmit$/);
   // A board of RMIT is not a board of Hanoi.
@@ -78,12 +78,12 @@ test("an admin of one workspace gets none of the Owners' controls", async ({ pag
 
 test("nobody reaches a workspace they were not added to, and an Owner adds them without a new account", async ({ page }) => {
   await signInAs(page, "Danh");
-  await createWorkspace(page, "Hanoi Studio", "hanoi");
+  await createWorkspace(page, "Hanoi Office", "hanoi");
   await expect(page).toHaveURL(/\/workspace\/hanoi$/, { timeout: 15000 });
 
   await switchAccount(page, "Jun");
   await page.goto("/workspace/hanoi");
-  await expect(page.getByText("You do not have access to Hanoi Studio")).toBeVisible();
+  await expect(page.getByText("You do not have access to Hanoi Office")).toBeVisible();
   await page.getByTestId("no-access-my-workspaces").click();
   await expect(page).toHaveURL(/\/workspace\/rmit$/);
 
@@ -128,16 +128,16 @@ test("an Owner renames and deletes a workspace, typing its name to confirm", asy
   await page.goto("/workspace/rmit/settings?section=workspaces");
   const row = page.getByTestId("workspace-row").filter({ hasText: "/workspace/doomed" });
   await row.getByTestId("workspace-rename").click();
-  await row.getByTestId("workspace-rename-input").fill("Doomed Studio");
+  await row.getByTestId("workspace-rename-input").fill("Doomed Office");
   await row.getByTestId("workspace-rename-save").click();
-  await expect(row.getByTestId("workspace-row-name")).toHaveText("Doomed Studio");
+  await expect(row.getByTestId("workspace-row-name")).toHaveText("Doomed Office");
 
   await row.getByTestId("workspace-delete").click();
   const confirm = page.getByTestId("confirm-dialog");
   const button = confirm.getByRole("button", { name: "Delete workspace" });
   await confirm.getByTestId("workspace-delete-confirm").fill("Doomed");
   await expect(button).toBeDisabled();
-  await confirm.getByTestId("workspace-delete-confirm").fill("Doomed Studio");
+  await confirm.getByTestId("workspace-delete-confirm").fill("Doomed Office");
   await button.click();
   await expect(page.getByTestId("workspace-row").filter({ hasText: "/workspace/doomed" })).toHaveCount(0);
   // The last one cannot go.
