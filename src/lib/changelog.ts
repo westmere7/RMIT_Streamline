@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.57.2",
+    date: "2026-09-27",
+    title: "Settings without Members",
+    changes: ["Members is no longer listed in Settings; it is in your account menu, or More on a phone."],
+  },
+  {
     version: "0.57.1",
     date: "2026-09-27",
     title: "Clearer booking refusals",

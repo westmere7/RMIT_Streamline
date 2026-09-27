@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   ArchiveRestore,
-  ArrowUpRight,
   BookOpen,
   Building2,
   Check,
@@ -109,8 +108,8 @@ const SECTION_META: Record<Section, SectionMeta> = {
  * workspace, or only you. `workspace` groups are headed with the workspace's
  * own name, so which one is being changed is never in doubt.
  */
-const NAV_GROUPS: Array<{ label: string; scope: SectionScope; sections: Section[]; members?: boolean; about?: boolean }> = [
-  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "permissions", "danger"], members: true },
+const NAV_GROUPS: Array<{ label: string; scope: SectionScope; sections: Section[]; about?: boolean }> = [
+  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "permissions", "danger"] },
   { label: "Every workspace", scope: "app", sections: ["departments", "workspaces", "snapshots"] },
   { label: "You", scope: "you", sections: ["view"] },
   { label: "Help", scope: "help", sections: ["documentation"], about: true },
@@ -178,15 +177,6 @@ export function SettingsPage() {
                       </li>
                     );
                   })}
-                  {group.members && (
-                    <li className="max-md:shrink-0">
-                      <Link href={routes.members(ws.slug)} className={itemClass(false)}>
-                        <UserCog className="size-4 shrink-0 text-muted-foreground/80" aria-hidden />
-                        Members
-                        <ArrowUpRight className="ml-auto size-3.5 text-muted-foreground/60" aria-hidden />
-                      </Link>
-                    </li>
-                  )}
                   {/* About is read and closed rather than configured, so it opens as a dialog. */}
                   {group.about && (
                     <li className="max-md:shrink-0">
@@ -243,7 +233,7 @@ function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string;
     <nav className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6", className)} aria-label="Settings sections">
       {NAV_GROUPS.map((group) => {
         const sections = group.sections.filter(visible);
-        if (!sections.length && !group.members && !group.about) return null;
+        if (!sections.length && !group.about) return null;
         return (
           <section key={group.label} className="mt-4 first:mt-1">
             <h2 className="mb-1.5 truncate px-1 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">{group.scope === "workspace" ? ws.workspace.name : group.label}</h2>
@@ -260,15 +250,6 @@ function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string;
                   </Link>
                 </li>
               ))}
-              {group.members && (
-                <li>
-                  <Link href={routes.members(slug)} className={row}>
-                    {icon(UserCog)}
-                    <span className="min-w-0 flex-1 text-[15px] font-medium">Members</span>
-                    <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden />
-                  </Link>
-                </li>
-              )}
               {group.about && (
                 <li>
                   <button type="button" onClick={onAbout} className={row} data-testid="settings-row-about">
