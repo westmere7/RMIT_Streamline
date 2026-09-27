@@ -312,11 +312,10 @@ function AssetsSection({ board, manage }: { board: Board; manage: boolean }) {
   const actions = useBoardActions(board);
   const pic = resolveColumnRoles(snapshot.data?.columns ?? []).pic;
   const { fill, clear } = picFromAssets(board);
-  const name = pic?.name ?? "PIC";
   const off = !manage || (snapshot.isSuccess && !pic);
   const rows = [
-    { id: "fill", label: `Add to ${name}`, hint: "When someone is put in charge of an asset.", checked: fill, patch: (on: boolean) => ({ assetsFillPic: on }) },
-    { id: "clear", label: `Remove from ${name}`, hint: "When someone added this way has no assets left. People added by hand stay.", checked: clear, patch: (on: boolean) => ({ assetsClearPic: on }) },
+    { id: "fill", label: "Add to PIC", hint: "When someone is put in charge of an asset.", checked: fill, patch: (on: boolean) => ({ assetsFillPic: on }) },
+    { id: "clear", label: "Remove from PIC", hint: "When someone added this way has no assets left. People added by hand stay.", checked: clear, patch: (on: boolean) => ({ assetsClearPic: on }) },
   ];
   return (
     <div className="space-y-3">
