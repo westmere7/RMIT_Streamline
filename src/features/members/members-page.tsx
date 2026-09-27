@@ -56,23 +56,24 @@ const NO_TEAM = "__none__";
 /** Beyond this many members the list is split into pages. */
 export const MEMBERS_PAGE_SIZE = 100;
 
-type SortKey = "name" | "jobTitle" | "department" | "teams" | "workspaces" | "role" | "status" | "joined" | "boards";
+type SortKey = "name" | "email" | "jobTitle" | "department" | "teams" | "workspaces" | "role" | "status" | "joined" | "boards";
 type SortDirection = "asc" | "desc";
 type Sort = { key: SortKey; direction: SortDirection };
 
 type Column = { sorts: Array<{ key: SortKey; label: string }>; width?: string; align?: "right" };
 
-/** Short columns get fixed widths so nothing drifts apart; name and title share what is left. */
+/** One line per person: fixed widths so nothing drifts apart; email and title share what is left. */
 const COLUMNS: Column[] = [
-  { sorts: [{ key: "name", label: "Name" }] },
-  // Title and department share a column, each still sortable on its own.
-  { sorts: [{ key: "jobTitle", label: "Title" }, { key: "department", label: "Department" }] },
-  { sorts: [{ key: "teams", label: "Teams" }], width: "w-56" },
+  { sorts: [{ key: "name", label: "Name" }], width: "w-52" },
+  { sorts: [{ key: "email", label: "Email" }] },
+  { sorts: [{ key: "department", label: "Department" }], width: "w-28" },
+  { sorts: [{ key: "jobTitle", label: "Title" }] },
+  { sorts: [{ key: "teams", label: "Teams" }], width: "w-60" },
   // The other workspaces somebody is in: people are one pool, and a seat is per workspace.
-  { sorts: [{ key: "workspaces", label: "Other workspaces" }], width: "w-48" },
-  { sorts: [{ key: "role", label: "Role" }], width: "w-24" },
-  { sorts: [{ key: "status", label: "Status" }], width: "w-28" },
-  { sorts: [{ key: "joined", label: "Joined" }], width: "w-28" },
+  { sorts: [{ key: "workspaces", label: "Other workspaces" }], width: "w-40" },
+  { sorts: [{ key: "role", label: "Role" }], width: "w-20" },
+  { sorts: [{ key: "status", label: "Status" }], width: "w-24" },
+  { sorts: [{ key: "joined", label: "Joined" }], width: "w-20" },
   { sorts: [{ key: "boards", label: "Boards" }], width: "w-20", align: "right" },
 ];
 
@@ -87,6 +88,8 @@ function compareRows(a: Row, b: Row, key: SortKey): number {
   switch (key) {
     case "name":
       return a.user.displayName.localeCompare(b.user.displayName);
+    case "email":
+      return a.user.email.localeCompare(b.user.email);
     case "jobTitle":
       // Empty values always sink to the bottom, whichever direction is chosen.
       if (!a.user.jobTitle !== !b.user.jobTitle) return a.user.jobTitle ? -1 : 1;
@@ -280,7 +283,7 @@ export function MembersPage() {
     <div className="flex h-full flex-col">
       {/* Header and list share one capped width, so on a wide screen the columns stay close together. */}
       <PageHeader
-        className="mx-auto w-full max-w-7xl"
+        className="mx-auto w-full max-w-[108rem]"
         title="Members"
         description={
           <span data-testid="members-summary">
@@ -298,7 +301,7 @@ export function MembersPage() {
         }
       />
       <div className="scrollbar-thin flex-1 overflow-auto pb-8">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-7">
+        <div className="mx-auto w-full max-w-[108rem] px-4 sm:px-7">
           <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="members-filters">
             <div role="radiogroup" aria-label="Who to list" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
               {(
@@ -386,12 +389,12 @@ export function MembersPage() {
             <EmptyState icon={Users} title="No one matches" description="Try a different name, or clear the filters." />
           ) : isMobile ? (
             <>
-              <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
+              <ul className="space-y-1.5">
                 {pageRows.map((row) => (
                   <MobileMemberCard key={row.member.id} row={row} manage={manage} invitation={invitations.data?.get(row.user.id) ?? null} />
                 ))}
                 {pageOutsiders.length > 0 && (
-                  <li className="bg-surface px-3 py-1.5 text-2xs font-medium text-muted-foreground" data-testid="members-outsiders-heading">
+                  <li className="px-1 pt-2.5 pb-0.5 text-2xs font-medium text-muted-foreground" data-testid="members-outsiders-heading">
                     Not in {ws.workspace.name} · {pageOutsiders.length}
                   </li>
                 )}
@@ -403,10 +406,11 @@ export function MembersPage() {
             </>
           ) : (
             // Below this width the page scrolls sideways rather than squeezing names to nothing.
-            <div className="min-w-[78rem]">
-              <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-                {/* Fixed layout: the widths come from the colgroup, and long text truncates instead of pushing columns apart. */}
-                <table className="w-full table-fixed whitespace-nowrap text-[13px]">
+            <div className="min-w-[94rem]">
+              <div className="-my-1.5">
+                {/* Fixed layout: the widths come from the colgroup, and long text truncates instead of pushing columns apart.
+                    Separate borders so each person reads as a card of their own. */}
+                <table className="w-full table-fixed border-separate border-spacing-x-0 border-spacing-y-1.5 whitespace-nowrap text-[13px]">
                   <colgroup>
                     {manage && <col className="w-10" />}
                     {COLUMNS.map((column, i) => (
@@ -414,7 +418,7 @@ export function MembersPage() {
                     ))}
                     {manage && <col className="w-12" />}
                   </colgroup>
-                  <thead className="bg-surface text-left text-2xs font-medium text-muted-foreground">
+                  <thead className="text-left text-2xs font-medium text-muted-foreground">
                     <tr className="h-8">
                       {manage && (
                         <th className="pl-3">
@@ -439,7 +443,7 @@ export function MembersPage() {
                       {manage && <th />}
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody>
                     {pageRows.map((row) => (
                       <MemberRow
                         key={row.member.id}
@@ -458,7 +462,7 @@ export function MembersPage() {
                       />
                     ))}
                     {pageOutsiders.length > 0 && (
-                      <tr className="h-8 bg-surface" data-testid="members-outsiders-heading">
+                      <tr className="h-8" data-testid="members-outsiders-heading">
                         <td colSpan={COLUMNS.length + (manage ? 2 : 0)} className="px-3 text-2xs font-medium text-muted-foreground">
                           Not in {ws.workspace.name} · {pageOutsiders.length} {pageOutsiders.length === 1 ? "person" : "people"} in other workspaces
                         </td>
@@ -743,7 +747,7 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
   const pending = member.status === "INVITED";
 
   return (
-    <tr className={cn("h-12 hover:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground", selected && "bg-accent/50")} data-testid="member-row" data-member-status={member.status}>
+    <tr className={cn("h-11", CARD_ROW, "hover:[&>td]:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground", selected && "[&>td]:border-ring/40 [&>td]:bg-accent/50")} data-testid="member-row" data-member-status={member.status}>
       {manage && (
         <td className="pl-3">
           <Checkbox aria-label={`Select ${user.displayName}`} checked={selected} onCheckedChange={(next) => onSelect(next === true)} data-testid="member-select" />
@@ -751,36 +755,16 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
       )}
       <td className="px-3">
         <Link href={routes.person(ws.slug, user.id)} className="group flex min-w-0 items-center gap-2.5" data-testid="member-profile-link">
-          <UserAvatar user={user} size="md" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate font-medium group-hover:underline">
-              {user.displayName}
-              {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
-            </span>
-            <span className="block truncate text-2xs text-muted-foreground" title={user.email}>
-              {user.email}
-            </span>
+          <UserAvatar user={user} size="sm" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
+          <span className="min-w-0 truncate font-semibold group-hover:underline">
+            {user.displayName}
+            {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}
           </span>
         </Link>
       </td>
-      <td className="px-3">
-        {user.jobTitle || department ? (
-          <span className="block leading-tight">
-            {user.jobTitle && (
-              <span className="block truncate" title={user.jobTitle}>
-                {user.jobTitle}
-              </span>
-            )}
-            {department && (
-              <span className="block truncate text-2xs text-muted-foreground" title={department}>
-                {department}
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">&mdash;</span>
-        )}
-      </td>
+      <OneLineCell value={user.email} muted />
+      <OneLineCell value={department} />
+      <OneLineCell value={user.jobTitle} />
       <td className="px-3">
         {teams.length === 0 ? (
           <span className="text-muted-foreground">&mdash;</span>
@@ -828,6 +812,19 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
   );
 }
 
+/** A single-line cell: the value truncated with the whole of it on hover, or a dash. */
+function OneLineCell({ value, muted = false }: { value: string | null | undefined; muted?: boolean }) {
+  return (
+    <td className={cn("truncate px-3", muted && "text-muted-foreground")} title={value || undefined}>
+      {value || <span className="text-muted-foreground">&mdash;</span>}
+    </td>
+  );
+}
+
+/** A table row drawn as a card: each cell carries the fill and its share of the border, the ends round it off. */
+const CARD_ROW =
+  "[&>td]:border-y [&>td]:border-border [&>td]:bg-card [&>td]:transition-colors [&>td:first-child]:rounded-l-lg [&>td:first-child]:border-l [&>td:last-child]:rounded-r-lg [&>td:last-child]:border-r";
+
 /**
  * One member as a phone shows it.
  *
@@ -842,7 +839,7 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
   const pending = member.status === "INVITED";
 
   return (
-    <li className="flex items-start gap-3 px-3 py-2.5" data-testid="member-row" data-member-status={member.status}>
+    <li className="flex items-start gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5 shadow-xs" data-testid="member-row" data-member-status={member.status}>
       <Link href={routes.person(ws.slug, user.id)} className="flex min-w-0 flex-1 items-start gap-3" data-testid="member-profile-link">
         <UserAvatar user={user} size="lg" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
         <span className="min-w-0 flex-1">
@@ -906,29 +903,17 @@ function OutsiderRow({ person, manage, onAdd }: { person: Outsider; manage: bool
   const ws = useWorkspace();
   const { user, department, workspaces } = person;
   return (
-    <tr className="h-12 text-muted-foreground hover:bg-accent/40" data-testid="member-outsider-row">
+    <tr className={cn("h-11 text-muted-foreground", CARD_ROW, "[&>td]:border-dashed [&>td]:bg-card/50 hover:[&>td]:bg-accent/40")} data-testid="member-outsider-row">
       {manage && <td className="pl-3" />}
       <td className="px-3">
         <span className="flex min-w-0 items-center gap-2.5">
-          <UserAvatar user={user} size="md" tooltip={false} className="opacity-70" />
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate font-medium text-foreground/85">{user.displayName}</span>
-            <span className="block truncate text-2xs" title={user.email}>
-              {user.email}
-            </span>
-          </span>
+          <UserAvatar user={user} size="sm" tooltip={false} className="opacity-70" />
+          <span className="min-w-0 truncate font-medium text-foreground/85">{user.displayName}</span>
         </span>
       </td>
-      <td className="px-3">
-        {user.jobTitle || department ? (
-          <span className="block leading-tight">
-            {user.jobTitle && <span className="block truncate">{user.jobTitle}</span>}
-            {department && <span className="block truncate text-2xs">{department}</span>}
-          </span>
-        ) : (
-          <span>&mdash;</span>
-        )}
-      </td>
+      <OneLineCell value={user.email} />
+      <OneLineCell value={department} />
+      <OneLineCell value={user.jobTitle} />
       <td className="px-3">&mdash;</td>
       <td className="px-3">
         <WorkspaceChips workspaces={workspaces} />
@@ -950,7 +935,7 @@ function OutsiderRow({ person, manage, onAdd }: { person: Outsider; manage: bool
 function MobileOutsiderCard({ person, manage, onAdd }: { person: Outsider; manage: boolean; onAdd: () => void }) {
   const { user, department, workspaces } = person;
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5" data-testid="member-outsider-row">
+    <li className="flex items-center gap-3 rounded-lg border border-dashed border-border/70 bg-card/50 px-3 py-2.5" data-testid="member-outsider-row">
       <UserAvatar user={user} size="lg" tooltip={false} className="opacity-70" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-medium text-foreground/85">{user.displayName}</span>

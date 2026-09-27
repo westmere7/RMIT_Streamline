@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Copy, LoaderCircle, RefreshCw } from "lucide-react";
+import { Check, Copy, Link2, LoaderCircle, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,13 @@ import { cn } from "@/lib/utils";
 import { copyToClipboard } from "../hooks";
 
 /**
- * The workspace's join link, under "Add member" wherever people are invited.
+ * The workspace's join link, at the top of "Add member" wherever people are invited.
  *
  * One address for the whole team: each person who opens it types their own name
  * and email and is added as a pending member with a personal link, the same as
  * adding them by hand. Off by default; a new link retires the old one.
  */
-export function JoinLinkPanel({ compact = false }: { compact?: boolean }) {
+export function JoinLinkPanel() {
   const ws = useWorkspace();
   const services = useServices();
   const key = ws.workspace.joinKey ?? null;
@@ -47,11 +47,14 @@ export function JoinLinkPanel({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <div className={cn(compact ? "space-y-2.5" : "space-y-3")} data-testid="join-link-panel">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] font-medium">Join link</p>
-          <p className="text-2xs text-muted-foreground">One link for everyone: each person enters their own details. Emails already here are turned away.</p>
+    <section className={cn("space-y-3 rounded-xl border p-3.5 transition-colors", key ? "border-accent-soft-foreground/40 bg-accent-soft/60" : "border-border/70 bg-surface-strong/30")} data-testid="join-link-panel">
+      <div className="flex items-center gap-3">
+        <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", key ? "bg-accent-soft text-accent-soft-foreground" : "bg-surface-strong text-muted-foreground")}>
+          <Link2 className="size-4.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Join link</p>
+          <p className="text-xs text-muted-foreground">One link for everyone to sign themselves up.</p>
         </div>
         <span className="flex shrink-0 items-center gap-2">
           {set.isPending && <LoaderCircle className="size-3.5 animate-spin text-muted-foreground" />}
@@ -60,15 +63,15 @@ export function JoinLinkPanel({ compact = false }: { compact?: boolean }) {
       </div>
       {key && (
         <div className="flex gap-2">
-          <Input ref={inputRef} readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Join link address" data-testid="join-link" className="h-8 font-mono text-xs" />
-          <Button type="button" variant="outline" size="sm" onClick={() => void copy()} className="shrink-0" data-testid="join-link-copy">
-            {copied ? <Check className="text-green-600" /> : <Copy />} {copied ? "Copied" : "Copy"}
+          <Input ref={inputRef} readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Join link address" data-testid="join-link" className="h-9 bg-background/70 font-mono text-xs max-md:h-11" />
+          <Button type="button" onClick={() => void copy()} className="shrink-0 bg-ring text-white hover:bg-ring/90" data-testid="join-link-copy">
+            {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy"}
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => set.mutate(true)} disabled={set.isPending} className="shrink-0" title="Make a new link; the old one stops working" data-testid="join-link-new">
-            <RefreshCw /> New
+          <Button type="button" variant="ghost" size="icon" onClick={() => set.mutate(true)} disabled={set.isPending} className="shrink-0" title="New link; the old one stops working" aria-label="New link" data-testid="join-link-new">
+            <RefreshCw />
           </Button>
         </div>
       )}
-    </div>
+    </section>
   );
 }

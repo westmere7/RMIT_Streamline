@@ -34,10 +34,10 @@ type FormValues = z.infer<typeof schema>;
 const EMPTY: FormValues = { email: "", firstName: "", lastName: "", jobTitle: "", role: "MEMBER", teamIds: [] };
 
 /**
- * Adds people to the workspace, both ways on one screen: one person's details,
- * then their invitation link to pass on (a pending member from the moment that
- * succeeds), and under it the team's join link, where each person enters their
- * own details and is added the same way.
+ * Adds people to the workspace, both ways on one screen: first the team's join
+ * link, where each person enters their own details, then one person's details
+ * and their invitation link to pass on (a pending member from the moment that
+ * succeeds).
  */
 export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -110,8 +110,15 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
     <>
       <DialogHeader>
         <DialogTitle>Add member</DialogTitle>
-        <DialogDescription>No email is sent. You get a link to pass on, and they set their own password.</DialogDescription>
+        <DialogDescription>No email is sent. Share a link and they set their own password.</DialogDescription>
       </DialogHeader>
+      {/* The quick way in: one link for the whole team. */}
+      <JoinLinkPanel />
+      <div className="flex items-center gap-3 text-2xs font-medium uppercase tracking-wide text-muted-foreground" aria-hidden>
+        <span className="h-px flex-1 bg-border/70" />
+        or add one person
+        <span className="h-px flex-1 bg-border/70" />
+      </div>
       <form id="invite-form" className="grid gap-3.5" onSubmit={form.handleSubmit(submit)}>
         <div className="grid gap-1.5">
           <Label htmlFor="invite-email">Email</Label>
@@ -197,10 +204,6 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
           {invite.isPending ? "Adding…" : "Add and get link"}
         </Button>
       </DialogFooter>
-      {/* The other way in: one link for the whole team. */}
-      <div className="border-t border-border/70 pt-4">
-        <JoinLinkPanel compact />
-      </div>
     </>
   );
 }

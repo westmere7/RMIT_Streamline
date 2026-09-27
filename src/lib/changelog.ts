@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.63.1",
+    date: "2026-09-27",
+    title: "Members, easier to scan",
+    changes: [
+      "Add member opens with the join link in its own card at the top, then the form for adding one person.",
+      "The members list shows each person as a one-line card, with name, email and department in their own columns, and uses more of a wide screen.",
+    ],
+  },
+  {
     version: "0.63.0",
     date: "2026-09-27",
     title: "One pool of people",
