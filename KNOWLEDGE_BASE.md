@@ -635,7 +635,7 @@ Sources:
 | PLAIN_DATE | **Date** | `{date}` | — | A day with no deadline meaning. Format: short "Sep 16", medium "16 Sep 2026", numeric "16/09/2026", iso. |
 | TIME | Time | `{time:"HH:MM"}` | — | 24h "19:06" or 12h "7:06 PM". |
 | DATETIME | Date + Time | `{at:ISO}` | — | Compact "Sep 16, 19:06". Picking a day keeps the time (default 09:00). Shown in the viewer's zone. |
-| COUNTDOWN | Countdown | `{at:ISO}` | — | Time left to a moment, redrawn every 15 s. Typed as `45m`, `3d 4h`, `2mo`, `in 45m` (v0.49.1); "m" is minutes, "mo" months. Quick picks 15m/1h/1d/1w/1mo. Format: style, units, what it says when time is up, when it turns amber. |
+| COUNTDOWN | Countdown | `{at:ISO, from?:ISO}` | — | Time left to a moment, redrawn every 15 s. Typed as `45m`, `3d 4h`, `2mo`, `in 45m` (v0.49.1); "m" is minutes, "mo" months. Quick picks 15m/1h/1d/1w/1mo. A small ring shows the share of time left since `from` (when it was set; the task's creation for values without it): green, amber in the warning window, red once over (v0.58.0). Format: style, units, what it says when time is up, when it turns amber, and Show (ring and time, time only, ring only; ring only puts the time in the tooltip). |
 | PRIORITY | Priority | `{labelId}` | yes | Four fixed steps (critical/high/medium/low) on every board. |
 | CHECKBOX | Checkbox | `{checked}` | — | Unchecked counts as empty. |
 | LINK | Link | `{url,text}` | — | The icon opens only http(s)/mailto, with a bare domain read as https (v0.49.1). Clicking the cell edits it. |
@@ -683,7 +683,7 @@ Sources:
 
 ### Formats and layout
 
-- **Format menu.** In the header and right-click menus: Date (PLAIN_DATE, DATETIME, BOOKED_AT), Time (TIME, DATETIME, BOOKED_AT), Countdown (style, units, ending, amber). It applies to the whole column.
+- **Format menu.** In the header and right-click menus: Date (PLAIN_DATE, DATETIME, BOOKED_AT), Time (TIME, DATETIME, BOOKED_AT), Countdown (style, units, ending, amber, show). It applies to the whole column.
 - **Column widths.** Drag 80–600 px, saved on release.
 - **Item column.** Drag 320–800 px; double-click resets. Stored per browser per board in `streamline.ui.itemColumnWidths`. Not resizable on the phone grid.
 - **Hidden columns.**
