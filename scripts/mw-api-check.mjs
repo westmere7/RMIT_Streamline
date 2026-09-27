@@ -155,8 +155,12 @@ const gone = await sql`select count(*)::int as n from workspaces where slug = ${
 check("B is gone", gone[0].n === 0);
 const [profile] = await sql`select id from profiles where email = ${NEW_EMAIL}`;
 check("The people it had stay in the directory", !!profile);
-r = await call(danh, "DELETE", `/api/workspaces/${A}`);
-check("The last workspace cannot be deleted", r.status === 409, `${r.status} ${r.body?.error ?? ""}`);
+// Only once A really is the last one: otherwise this would delete it.
+const [{ n: left }] = await sql`select count(*)::int as n from workspaces`;
+if (left === 1) {
+  r = await call(danh, "DELETE", `/api/workspaces/${A}`);
+  check("The last workspace cannot be deleted", r.status === 409, `${r.status} ${r.body?.error ?? ""}`);
+} else check("The last workspace cannot be deleted", false, `skipped: ${left} workspaces left`);
 
 // ---- tidy up -------------------------------------------------------------------
 await sql`delete from workspace_snapshots where kind = 'before_delete' and name like ${"Before deleting “MW Test B”%"}`;

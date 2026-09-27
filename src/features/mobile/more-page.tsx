@@ -59,7 +59,7 @@ export function MorePage() {
           <Row href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" />
           {/* This page is never a board, so anything running is running out of sight. */}
           <Row href={routes.automations(ws.slug)} icon={Zap} label="Automations" busy={automationsRunning} testId="more-automations" />
-          <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Portal and Booking" />
+          {ws.workspace.showPortalMenu !== false && <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Portal and Booking" />}
           <Row href={routes.messages(ws.slug)} icon={MessageSquare} label="Messages" />
         </Group>
 

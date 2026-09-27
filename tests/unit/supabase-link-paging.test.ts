@@ -96,12 +96,13 @@ describe("reading item links past PostgREST's row cap", () => {
 
     await new SupabaseItemLinkRepository().listByItems(ids);
 
-    // Batches of a hundred rather than one query with all of them, and every id
-    // appears twice in each query string (once per end), which is what the
-    // smaller batch is sized for.
-    expect(requests).toHaveLength(3);
-    for (const request of requests) expect(request.or.length).toBeLessThan(8000);
-    const asked = requests.flatMap((r) => [...r.or.matchAll(/"([^"]+)"/g)].map((m) => m[1]!));
+    // Batches of eighty rather than one query with all of them, and every id
+    // appears twice in each query string (once per end), unquoted, which is
+    // what the smaller batch is sized for: a board of a few hundred tasks sent
+    // a hundred quoted ids and was refused as too long.
+    expect(requests).toHaveLength(4);
+    for (const request of requests) expect(request.or.length).toBeLessThan(6500);
+    const asked = requests.flatMap((r) => [...r.or.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g)].map((m) => m[0]));
     expect(new Set(asked)).toEqual(new Set(ids));
   });
 });

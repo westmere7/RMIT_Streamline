@@ -80,8 +80,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Switch on a few automation recipes, such as a reminder two days before a deadline, from the Automations page.",
         "Save a well-set-up board as a template so new boards start the same way.",
         "Use the Dashboard with each manager: overdue, stuck and unallocated work, then workload by person and department.",
-        "Take a snapshot before a large change, in Settings → Snapshots.",
-        "When someone leaves, reassign their open work, then deactivate them in Members.",
+        "Owners: take a snapshot before a large change, in Settings → Snapshots. A snapshot holds every workspace.",
+        "When someone leaves, reassign their open work, then deactivate them in Members. That removes this workspace only; their other workspaces are not affected.",
       ] },
       { title: "You are ready when…", bullets: [
         "Every team has an agreed manager, a receiving board, and a clear intake route.",
@@ -659,7 +659,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     audience: "Everyone; especially board owners and administrators",
     sections: [
       { title: "Workspace roles", table: { headers: ["Role", "Can"], rows: [
-        ["Owner / Admin", "Everything: members, teams, settings, Task Allocation, the portal and booking form, snapshots, and the danger zone. Owners and admins have the same powers."],
+        ["Owner", "Every workspace, without being added to it. Everything an admin can do, plus creating and deleting workspaces, making Owners, and snapshots."],
+        ["Admin", "One workspace: members, teams, settings, departments, Task Allocation, the portal and booking form, and the danger zone."],
         ["Member", "Create boards and teams, edit trackers, and work on boards where they are editors."],
         ["Guest", "Only boards they are invited to; no creating boards or teams, no trackers."],
       ] } },

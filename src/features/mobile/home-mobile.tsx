@@ -129,15 +129,19 @@ export function HomeMobile() {
           </>
         )}
 
-        <Heading title="Portal and Booking" href={routes.book(ws.slug)} action="Open" icon={ClipboardPen} />
-        <Link
-          href={routes.book(ws.slug)}
-          className="flex min-h-14 items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2 active:bg-accent/70"
-        >
-          <ClipboardPen aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">Ask the creative team for work.</span>
-          <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
-        </Link>
+        {ws.workspace.showPortalMenu !== false && (
+          <>
+            <Heading title="Portal and Booking" href={routes.book(ws.slug)} action="Open" icon={ClipboardPen} />
+            <Link
+              href={routes.book(ws.slug)}
+              className="flex min-h-14 items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2 active:bg-accent/70"
+            >
+              <ClipboardPen aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">Ask the creative team for work.</span>
+              <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
+            </Link>
+          </>
+        )}
 
         <Heading title="Recent activity" icon={Clock} />
         <div className="rounded-xl border border-border/70 bg-card px-3 py-1">

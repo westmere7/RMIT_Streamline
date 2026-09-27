@@ -4,14 +4,14 @@ import { createSnapshot, createSnapshotSchema, listSnapshots, requireSnapshotOwn
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** The workspace's snapshots, newest first. Admins only. */
+/** The workspace's snapshots, newest first. Owners only. */
 export const GET = handleRoute(async (request: Request) => {
   const { workspaceId } = snapshotWorkspaceSchema.parse({ workspaceId: new URL(request.url).searchParams.get("workspaceId") });
   await requireSnapshotOwner(request);
   return json({ snapshots: await listSnapshots(workspaceId) });
 });
 
-/** Takes a snapshot of everything now. Admins only. */
+/** Takes a snapshot of everything now. Owners only. */
 export const POST = handleRoute(async (request: Request) => {
   const { workspaceId, name } = createSnapshotSchema.parse(await readJson(request));
   const caller = await requireSnapshotOwner(request);

@@ -503,6 +503,36 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; icon: Lucide
   { value: "system", label: "System", icon: Monitor, swatch: "bg-[linear-gradient(90deg,#ffffff_50%,#0f172a_50%)]" },
 ];
 
+/**
+ * Whether this workspace's menu offers Portal and Booking. Unlike the rest of
+ * Appearance it is the workspace's, not the browser's: an admin sets it for
+ * everyone in this workspace, and the other workspaces keep their own.
+ */
+function PortalMenuSetting() {
+  const ws = useWorkspace();
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const on = ws.workspace.showPortalMenu !== false;
+  const save = useMutation({
+    mutationFn: (next: boolean) => services.workspace.setPortalMenu(ws.workspace.id, next),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspace(ws.slug) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change the menu"),
+  });
+  if (!canManageWorkspace(ws.permissions)) return null;
+  return (
+    <div className="mt-3 flex items-center justify-between gap-4 border-t border-border/60 pt-3">
+      <Label htmlFor="show-portal-menu" className="grid gap-0.5 text-[13px] font-medium">
+        Portal and Booking
+        <span className="text-2xs font-normal text-muted-foreground">For everyone in {ws.workspace.name}.</span>
+      </Label>
+      <Switch id="show-portal-menu" aria-label="Portal and Booking in the menu" checked={save.isPending ? !!save.variables : on} disabled={save.isPending} onCheckedChange={(next) => save.mutate(next)} data-testid="setting-portal-menu" />
+    </div>
+  );
+}
+
 /** Personal display preferences: kept in this browser, seen by nobody else. */
 function AppearanceSection() {
   const showTeamCounts = useUiStore((s) => s.showTeamCounts);
@@ -542,6 +572,7 @@ function AppearanceSection() {
           </Label>
           <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
         </div>
+        <PortalMenuSetting />
       </SettingsCard>
       <SettingsCard title="Updates">
         <div className="flex items-center justify-between gap-4">

@@ -18,6 +18,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.57.0",
+    date: "2026-09-28",
+    title: "Several workspaces",
+    changes: [
+      "Owners can create more workspaces, from the Workspace menu. Each one has its own teams, boards, trackers, forms, portal, dashboard, automations and settings; the people and the departments are shared by all of them.",
+      "Switch workspaces from your account menu, or More on a phone. Signing in opens the one you used last.",
+      "Owners are above every workspace: they are in all of them, create, rename and delete workspaces in Settings → Workspaces, make other Owners from Members, and use snapshots. Admins run their own workspace.",
+      "Adding someone who already has an account gives them access straight away, with no new account and no link.",
+      "Deactivating someone removes this workspace only. Departments changed in one workspace change in all of them.",
+      "Admins can take Portal and Booking out of their workspace's menu, in Settings → Appearance.",
+      "Each workspace keeps its own inbox, and an update can only mention people in its own workspace.",
+    ],
+  },
+  {
     version: "0.56.2",
     date: "2026-09-27",
     title: "Profile figures",

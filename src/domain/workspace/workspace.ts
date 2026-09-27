@@ -68,6 +68,12 @@ export interface Workspace extends Timestamps {
   bugTicketCounter?: number | null;
   /** The App development board bug reports land on, beside its built-in kind. Null until the first report makes it. */
   bugBoardId?: EntityId | null;
+  /**
+   * Whether the menu offers Portal and Booking. A workspace that takes no
+   * bookings can take it out. Absent means on. The page itself stays at its
+   * address; only the entry goes.
+   */
+  showPortalMenu?: boolean | null;
 }
 
 export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";

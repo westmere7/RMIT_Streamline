@@ -151,6 +151,14 @@ r = await as(null, async (tx) => {
 });
 check("Deleting a workspace takes its boards and items and keeps the people", !r.error && Number(r.value.after.b) === 0 && Number(r.value.after.i) === 0 && r.value.after.p === r.value.before.p && Number(r.value.after.n) === 0, r.error ?? JSON.stringify(r.value));
 
+// 7b. The Portal and Booking menu switch is the workspace admins'
+r = await as(emily, (tx) => tx`update workspaces set show_portal_menu = false where id = ${rmit.id} returning id`);
+check("An admin turns Portal and Booking off in their workspace", !r.error && r.value.length === 1, r.error ?? `${r.value?.length}`);
+r = await as(ben, (tx) => tx`update workspaces set show_portal_menu = false where id = ${rmit.id} returning id`);
+check("A guest cannot", !r.error && r.value.length === 0, r.error ?? `${r.value?.length}`);
+const [{ show_portal_menu: stillOn }] = await sql`select show_portal_menu from workspaces where id = ${rmit.id}`;
+check("It is on for the workspace already here", stillOn === true);
+
 // 8. Notifications carry their workspace
 const [unscoped] = await sql`select count(*)::int as n from notifications where board_id is not null and workspace_id is null`;
 check("Every notification with a board has its workspace", unscoped.n === 0, `${unscoped.n} without`);

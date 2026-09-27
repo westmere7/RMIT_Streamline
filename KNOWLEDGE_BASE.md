@@ -423,14 +423,16 @@ Tickets, column roles, hidden-in-panel, link pairs and reactions are plain field
 
 ### Supabase database
 
-- **Size.** 44 public tables.
+- **Size.** 45 public tables (43 in a snapshot: the migration ledger and the snapshots themselves stay out).
 - **Build order.** Always build from `supabase/sequence.txt` order (§17), never from `0001` alone.
 - **Triggers that matter:**
 
 | Trigger | What it enforces |
 | --- | --- |
 | `enforce_value_same_board` | A value belongs to its item's board. `item_column_values.board_id` is denormalised and indexed (0036). |
-| `workspace_keeps_an_owner` (0043) | A deferred constraint: every workspace keeps one active OWNER. |
+| `workspace_keeps_an_owner` (0043) | A deferred constraint: every workspace keeps one active OWNER. With Owners seated everywhere it holds while any Owner exists. |
+| `app_owner_guard`, `app_owner_sync`, `workspace_seats_owners`, `workspace_member_owner_guard`, `workspace_keeps_one` (0089) | Owners: who may be one, their seat in every workspace, that nobody else holds OWNER, and that the last Owner and the last workspace stay. |
+| `notification_workspace` (0089) | Gives a notification its board's workspace. |
 | `enforce_listed_department` (0074) | A STAKEHOLDER value must name an ACTIVE department. Values that don't change pass. Workspaces with no departments are skipped. |
 | `automation_capture_*` (0052–0057) | Items, values and comments raise queue rows, but only when an enabled rule on the board listens. |
 | `comments_set_updated_at` | Keeps `updated_at` current. |
@@ -508,8 +510,24 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 
 `buildPermissionContext()` resolves the active role, team ids, explicit board roles and the user.
 
-- OWNER and ADMIN are workspace administrators with the same powers inside a workspace. This is deliberate; the two diverge only when multi-workspace arrives.
+- **Owners are above every workspace** (v0.57, migration 0089). Who is an Owner lives in `app_owners`, not only in member roles, so no workspace admin can make or unmake one.
+  - Every Owner holds an ACTIVE OWNER seat in every workspace. Triggers seat them when a workspace is created or an Owner is made, and turn the seat into MEMBER when they are unmade. Because the seat always means an app Owner, `isOwner(ctx)` is simply `workspaceRole === "OWNER"`.
+  - Only Owners create and delete workspaces, make and remove Owners, and use snapshots. The last Owner and the last workspace cannot be removed. Only someone who has finished joining, and is not deactivated, can be made an Owner.
+  - The OWNER role is refused to anyone who is not in `app_owners`, and an Owner's seat can't be demoted, deactivated or removed while they are one (trigger `workspace_member_owner_guard`). An admin sees Owners' rows with no actions, and cannot edit an Owner's profile.
+- **An Admin runs one workspace**: the one their ADMIN seat is in. Inside it, admins and Owners have the same powers.
 - Non-guest active members can create boards and teams and edit trackers.
+
+### Several workspaces
+
+- **Shared:** the people (one account and one profile per person across every workspace) and the departments. Everything else is a workspace's own: teams, boards and everything on them, trackers, asset types, booking forms, the portal, the dashboard, automations, tickets, messages, notifications and settings.
+- **Access is per workspace.** Each person has a seat, with its own role, in each workspace they are given. Deactivating removes one workspace; the account itself is switched off only when no active seat is left, and back on when a seat is given again.
+- **The directory.** Anyone active in some workspace can read every profile (`profiles_select`), and `directory_people()` returns who has finished joining somewhere.
+- **Adding someone who already has an account** (an ACTIVE or DEACTIVATED seat anywhere) lets them in at once, with no link and no new account (`InviteResult.invitation` is null). Somebody still pending elsewhere is refused until they finish joining. A brand-new email still gets the personal link. The self-join link stays new emails only.
+- **Reinitiate onboarding** sets the account's password, which is shared by every workspace, so for anyone active in another workspace only an Owner can do it.
+- **Departments.** One list for every workspace, edited by any admin. A save, rename or removal lands in every workspace: the list, the department registry and every Department cell. In Supabase this goes through `POST /api/departments/<workspaceId>`, because one workspace's admin cannot write another's cells. Usage counts every workspace. A new workspace takes the list as it stands (`WorkspaceListService.adoptShared`).
+- **Kept apart:** notifications carry `workspace_id` (set from the board by trigger) and each inbox shows its own; an update can mention only people active in the task's workspace; a private share link opens only for members of its own workspace; a direct message, and a notification about a workspace's work, can only go to someone in that workspace.
+- **The switcher** is the account menu's Workspace submenu, and the phone's More page. Signing in opens the last workspace used (`streamline:last-workspace` in localStorage).
+- **Owners' tools:** New workspace (name and address), and Settings → Workspaces (rename, delete with the name typed back, the Owners list). Deleting takes a whole-database snapshot first (`DELETE /api/workspaces/<id>`).
 
 ### Effective board role: exact precedence
 
@@ -537,7 +555,10 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 | Read rules, runs, pending events | Anyone who can view the board | RLS 0017/0018 |
 | Save a template | Any member (RLS 0019 allows guests too) | UI + RLS |
 | Delete / overwrite a template | Its creator or an admin | UI + RLS 0019 |
-| Snapshots, restore, wipe | Active OWNER/ADMIN (`requireSnapshotAdmin`). Wipe also needs the admin's password | Server only. Settings shows the Data group only on Supabase, to admins |
+| Snapshots, download, upload, restore | Owners (`requireSnapshotOwner`). A snapshot holds, and a restore puts back, every workspace | Server only. Settings → Owners, on Supabase |
+| Wipe this workspace's boards (Danger zone) | Active OWNER/ADMIN of the workspace (`requireSnapshotAdmin`), with their password | Server only |
+| Create, rename across, delete workspaces; make Owners | Owners | UI + service + RLS 0089 (`app_owners`, `workspaces_insert/delete`) |
+| Change departments | Any workspace admin; applies to every workspace | Server `POST /api/departments/<ws>` |
 | Ticket prefix | Workspace admin | UI + RLS (`workspaces_update`) + RPC check |
 | Allocate from Task Allocation | Admins (system board gate). Target boards offered by *view* rights (F-160) | UI + RLS |
 | Portal and form editor | Admins | UI + RLS 0013 |
@@ -1520,7 +1541,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 
 ### Heads and order
 
-- **Heads:** migrations **0001–0078** (77 files; there is no 0069), policies **0001–0019**.
+- **Heads:** migrations **0001–0089** (88 files; there is no 0069), policies **0001–0022**.
 - **`supabase/sequence.txt`** lists all 96 files in the order they were first applied. The order was taken from git history, with rename detection off.
 - **Why the order matters.** Thirteen migrations (0005, 0010, 0013, 0015, 0043, 0050–0052, 0055–0057, 0059, 0070) call `private.*` helpers defined by policy files. "Every migration, then every policy" therefore stops at 0005 on an empty database (audit F-108).
 

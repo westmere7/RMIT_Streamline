@@ -292,6 +292,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
             collapsed={collapsed}
             busy={automationsBusyElsewhere}
           />
+          {ws.workspace.showPortalMenu !== false && (
           <li>
             <SimpleTooltip label="Portal and Booking" side="right" disabled={!collapsed}>
               <Link
@@ -306,6 +307,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               </Link>
             </SimpleTooltip>
           </li>
+          )}
         </ul>
 
         {adminTeam && (adminBoards.length > 0 || adminTrackers.length > 0) && (

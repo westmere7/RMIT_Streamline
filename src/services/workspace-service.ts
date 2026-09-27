@@ -187,6 +187,11 @@ export class WorkspaceService {
     return { workspace, members, users: users.filter((u) => memberUserIds.has(u.id)), teams, teamMembers };
   }
 
+  /** Puts Portal and Booking in this workspace's menu, or takes it out. The page stays where it is. */
+  async setPortalMenu(workspaceId: EntityId, on: boolean): Promise<Workspace> {
+    return this.repos.workspaces.update(workspaceId, { showPortalMenu: on });
+  }
+
   async updateWorkspace(workspaceId: EntityId, patch: Partial<Pick<Workspace, "name">>): Promise<Workspace> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Workspace name cannot be empty");
     return this.repos.workspaces.update(workspaceId, patch.name !== undefined ? { name: patch.name.trim() } : patch);

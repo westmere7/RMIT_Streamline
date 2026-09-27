@@ -284,7 +284,7 @@ function RestoreDialog({ snapshot, onClose }: { snapshot: SnapshotSummary | null
               <ShieldAlert className="size-5 text-destructive" /> Restore “{snapshot?.name}”?
             </DialogTitle>
             <DialogDescription>
-              Everything goes back to {snapshot ? formatWhen(snapshot.createdAt) : ""}, for everyone. The current state is saved as a snapshot first.
+              Every workspace goes back to {snapshot ? formatWhen(snapshot.createdAt) : ""}, for everyone. The current state is saved as a snapshot first.
             </DialogDescription>
           </DialogHeader>
           <form

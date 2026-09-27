@@ -7,7 +7,7 @@ export const maxDuration = 60;
 /** Past this a file cannot come through a serverless request anyway. */
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
-/** Keeps an uploaded snapshot file (the raw body) beside the others, ready to restore. Admins only. */
+/** Keeps an uploaded snapshot file (the raw body) beside the others, ready to restore. Owners only. */
 export const POST = handleRoute(async (request: Request) => {
   const params = new URL(request.url).searchParams;
   const { workspaceId } = snapshotWorkspaceSchema.parse({ workspaceId: params.get("workspaceId") });

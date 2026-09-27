@@ -368,3 +368,16 @@ describe("nothing crosses between workspaces", () => {
     expect(context.teams.every((team) => team.workspaceId === b)).toBe(true);
   });
 });
+
+describe("the Portal and Booking menu entry", () => {
+  it("is on until a workspace turns it off, and turning it off there leaves the others alone", async () => {
+    const { services, repos } = fresh();
+    const b = await second(services);
+    expect((await repos.workspaces.getById(A))?.showPortalMenu).not.toBe(false);
+    await services.workspace.setPortalMenu(b, false);
+    expect((await repos.workspaces.getById(b))?.showPortalMenu).toBe(false);
+    expect((await repos.workspaces.getById(A))?.showPortalMenu).not.toBe(false);
+    await services.workspace.setPortalMenu(b, true);
+    expect((await repos.workspaces.getById(b))?.showPortalMenu).toBe(true);
+  });
+});

@@ -13,7 +13,7 @@ const LINK = "id, workspace_id, item_a_id, item_b_id, excluded, pairs, created_b
  * the query string twice and a full-size batch pushed the URL towards the limit
  * a request is refused at.
  */
-const LINK_ID_CHUNK = 100;
+const LINK_ID_CHUNK = 80;
 
 export class SupabaseItemLinkRepository implements ItemLinkRepository {
   async listByItem(itemId: string): Promise<ItemLink[]> {
@@ -36,7 +36,8 @@ export class SupabaseItemLinkRepository implements ItemLinkRepository {
     if (itemIds.length === 0) return [];
     const pages = await Promise.all(
       chunk(itemIds, LINK_ID_CHUNK).map((part) => {
-        const list = part.map((id) => `"${id}"`).join(",");
+        // Ids are uuids, which need no quoting; the quotes cost a third of the URL once encoded.
+        const list = part.join(",");
         return unwrapAll<ItemLinkRow>(
           (from, to) =>
             db()

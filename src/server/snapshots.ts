@@ -405,6 +405,7 @@ export async function refill(tx: postgres.TransactionSql, doc: SnapshotDocument)
     }
     rowCount += rows.length;
   }
+  await upToDate(tx);
   // An identity column's counter carries on from the highest id put back, so the next row does not collide with one.
   const identities = await tx<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns where table_schema = 'public' and is_identity = 'YES'`;
@@ -415,6 +416,21 @@ export async function refill(tx: postgres.TransactionSql, doc: SnapshotDocument)
     );
   }
   return { rowCount, skippedTables };
+}
+
+/**
+ * Brings what a snapshot from before several workspaces left behind up to
+ * date, with the same backfill migration 0089 did: the Owners are the people
+ * with an active OWNER seat, and a notification belongs to its board's
+ * workspace. Without it, restoring an older snapshot would leave nobody an
+ * Owner, and so nobody able to reach snapshots again.
+ */
+async function upToDate(tx: postgres.TransactionSql): Promise<void> {
+  const [owners] = await tx<{ n: number }[]>`select count(*)::int as n from public.app_owners`;
+  if ((owners?.n ?? 0) === 0) {
+    await tx`insert into public.app_owners (user_id) select distinct user_id from public.workspace_members where role = 'OWNER' and status = 'ACTIVE' on conflict (user_id) do nothing`;
+  }
+  await tx`update public.notifications n set workspace_id = b.workspace_id from public.boards b where n.board_id = b.id and n.workspace_id is null`;
 }
 
 export interface WipeResult {

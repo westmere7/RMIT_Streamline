@@ -290,6 +290,12 @@ set workspace_id = b.workspace_id
 from public.boards b
 where n.board_id = b.id and n.workspace_id is null;
 
+-- The ones that name no board were all written while there was one workspace,
+-- so they are that workspace's. Only when there is still just the one.
+update public.notifications
+set workspace_id = (select id from public.workspaces limit 1)
+where workspace_id is null and (select count(*) from public.workspaces) = 1;
+
 create index if not exists notifications_user_workspace_idx on public.notifications (user_id, workspace_id, created_at desc);
 
 create or replace function private.notification_workspace()
@@ -310,6 +316,16 @@ drop trigger if exists notification_workspace on public.notifications;
 create trigger notification_workspace
   before insert on public.notifications
   for each row execute function private.notification_workspace();
+
+-- =============================================================================
+-- Whether a workspace shows Portal and Booking in its menu
+-- =============================================================================
+
+-- A workspace that does not take bookings can take the entry out of its
+-- menu. On everywhere until an admin turns it off, so the workspace that is
+-- already here keeps its menu as it is.
+alter table public.workspaces
+  add column if not exists show_portal_menu boolean not null default true;
 
 -- =============================================================================
 -- Snapshots: one taken before a workspace is deleted
@@ -340,3 +356,40 @@ $$;
 
 revoke all on function public.directory_people() from public, anon;
 grant execute on function public.directory_people() to authenticated;
+
+-- =============================================================================
+-- Messages and notifications stay inside their workspace
+-- =============================================================================
+
+-- A direct message belongs to a workspace, so it goes to somebody in that one.
+-- Sharing some other workspace with them is not enough: they would never see
+-- it there.
+drop policy if exists direct_messages_insert on public.direct_messages;
+create policy direct_messages_insert on public.direct_messages
+  for insert to authenticated
+  with check (
+    sender_id = (select auth.uid())
+    and private.is_workspace_member(workspace_id)
+    and exists (
+      select 1 from public.workspace_members m
+      where m.workspace_id = direct_messages.workspace_id and m.user_id = direct_messages.recipient_id and m.status = 'ACTIVE'
+    )
+  );
+
+-- A notification about a workspace's work goes to somebody in that workspace
+-- (active, or still joining), from somebody active in it. One that names no
+-- workspace keeps the old rule.
+drop policy if exists notifications_insert on public.notifications;
+create policy notifications_insert on public.notifications
+  for insert to authenticated
+  with check (
+    actor_id = (select auth.uid())
+    and case
+      when workspace_id is null then private.shares_workspace_with(user_id)
+      else private.is_workspace_member(workspace_id)
+        and exists (
+          select 1 from public.workspace_members m
+          where m.workspace_id = notifications.workspace_id and m.user_id = notifications.user_id and m.status in ('ACTIVE', 'INVITED')
+        )
+    end
+  );
