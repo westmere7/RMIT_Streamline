@@ -861,3 +861,53 @@ export function coverage(tasks: TaskFact[]): Coverage {
     withoutStatus: tasks.filter((t) => t.status === "none").length,
   };
 }
+
+/**
+ * Two short lines under each operations figure, so a count arrives with the
+ * two things a lead asks next: how bad, and where. Read from the same tasks the
+ * count is made of, so the lines can never describe work the figure leaves out.
+ */
+export function operationsDetails(snapshot: OperationsSnapshot, now: Date = new Date()): Record<"overdue" | "week" | "unallocated" | "blocked", string[]> {
+  const today = snapshot.asOf;
+  // As formatCount writes it; that lives with the charts, and this file does not draw.
+  const count = (n: number) => Math.round(n).toLocaleString();
+  const days = (n: number) => `${count(n)} d`;
+  const middle = (values: number[]) => {
+    const sorted = values.slice().sort((a, b) => a - b);
+    return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)]! : 0;
+  };
+  // The group holding the most of them, when there is more than one group to choose from.
+  const mostIn = (tasks: TaskFact[], groupOf: (t: TaskFact) => string | null, word: string): string | null => {
+    const counts = new Map<string, number>();
+    for (const task of tasks) {
+      const group = groupOf(task);
+      if (group) counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return top && counts.size > 1 ? `Most ${word} ${top[0]} · ${count(top[1])}` : top ? `All ${word} ${top[0]}` : null;
+  };
+  const team = (t: TaskFact) => (t.team.id === NO_TEAM ? null : t.team.name);
+  const urgent = (t: TaskFact) => /critical|urgent|high/i.test(t.priority ?? "");
+
+  const late = snapshot.overdue.map((t) => daysBetween(t.dueDate!, today));
+  const dueToday = snapshot.dueThisWeek.filter((t) => t.dueDate === today).length;
+  // By the label, not the role: a label with no role may as well be Waiting as Not Started.
+  const notStarted = snapshot.dueThisWeek.filter((t) => t.status === "none" || /not started|to do|todo|backlog/i.test(t.statusLabel ?? "")).length;
+  const waiting = snapshot.unallocated.map((t) => daysBetween(t.createdAt, today));
+  const stuck = snapshot.blocked
+    .map((t) => t.flow.spans.at(-1))
+    .filter((span) => span && span.to === null && span.role === "stuck")
+    .map((span) => Math.max(0, Math.floor((now.getTime() - Date.parse(span!.from)) / 86_400_000)));
+
+  const lines = (...all: Array<string | null | false>) => all.filter((l): l is string => !!l);
+  return {
+    overdue: lines(late.length > 0 && `Oldest ${days(Math.max(...late))} late · median ${days(middle(late))}`, mostIn(snapshot.overdue, team, "in")),
+    week: lines(snapshot.dueThisWeek.length > 0 && `${count(dueToday)} due today · ${count(notStarted)} not started`, mostIn(snapshot.dueThisWeek, team, "in")),
+    unallocated: lines(
+      waiting.length > 0 && `Oldest waiting ${days(Math.max(...waiting))}`,
+      waiting.length > 0 && `${count(snapshot.unallocated.filter(urgent).length)} marked high or critical`,
+      mostIn(snapshot.unallocated, (t) => t.department?.name ?? t.request?.department ?? null, "from"),
+    ).slice(0, 2),
+    blocked: lines(stuck.length > 0 && `Stuck a median ${days(middle(stuck))} · longest ${days(Math.max(...stuck))}`, mostIn(snapshot.blocked, team, "in")),
+  };
+}

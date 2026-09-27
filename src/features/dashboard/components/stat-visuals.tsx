@@ -93,6 +93,7 @@ export function StatBar({
   onSelect,
   hint,
   size = "md",
+  details,
   testId,
 }: {
   value: number;
@@ -103,6 +104,8 @@ export function StatBar({
   hint?: string;
   /** "lg" for a tile that has a panel's worth of room: a bigger figure, and it fills its cell. */
   size?: "md" | "lg";
+  /** A line or two under the label: how bad, and where. */
+  details?: string[];
   testId?: string;
 }) {
   const revealed = useRevealed();
@@ -122,7 +125,14 @@ export function StatBar({
       <span className={cn("font-semibold leading-none tabular tracking-tight", size === "lg" ? "text-[2.75rem] sm:text-5xl" : "text-2xl", tone === "urgent" && value > 0 && "text-destructive", tone === "good" && "text-emerald-600 dark:text-emerald-400")}>
         <KineticNumber value={value} format={formatCount} />
       </span>
-      <span className={cn("leading-tight text-muted-foreground", size === "lg" ? "mt-2 text-xs" : "mt-1 text-2xs")}>{label}</span>
+      <span className={cn("leading-tight text-muted-foreground", size === "lg" ? "mt-2 text-xs font-medium text-foreground/80" : "mt-1 text-2xs")}>{label}</span>
+      {details && details.length > 0 && (
+        <span className="mt-1.5 flex flex-col gap-0.5 text-2xs leading-snug text-muted-foreground" data-testid={testId ? `${testId}-details` : undefined}>
+          {details.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </span>
+      )}
       <span aria-hidden className={cn("w-full overflow-hidden rounded-full bg-border/60", size === "lg" ? "mt-3 h-1.5" : "mt-2 h-1")}>
         <span
           className={cn("block h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none", tone === "urgent" ? "bg-destructive" : tone === "good" ? "bg-emerald-500" : "bg-foreground/50")}

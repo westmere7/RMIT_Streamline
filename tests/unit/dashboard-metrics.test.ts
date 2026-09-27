@@ -10,6 +10,7 @@ import {
   dimensionComparison,
   monthlyComparison,
   operations,
+  operationsDetails,
   reportingDate,
   resolvePeriod,
   UNKNOWN_DEPARTMENT,
@@ -503,5 +504,29 @@ describe("departmentHex", () => {
   it("is stable, so a department keeps its colour between renders", () => {
     expect(departmentHex("Comm.")).toBe(departmentHex("Comm."));
     expect(departmentHex("Comm.")).not.toBe(departmentHex("Digital"));
+  });
+});
+
+describe("the lines under each operations figure", () => {
+  it("says how late, how soon, how long waiting and where", () => {
+    const snapshot = {
+      asOf: TODAY,
+      overdue: [task({ dueDate: "2026-09-01" }), task({ dueDate: "2026-09-07" }), task({ dueDate: "2026-09-08", team: BETA })],
+      dueThisWeek: [task({ dueDate: TODAY, statusLabel: "Not Started" }), task({ dueDate: "2026-09-12", statusLabel: "In Progress" })],
+      unallocated: [task({ createdAt: "2026-09-02", priority: "High" }), task({ createdAt: "2026-09-08", priority: "Low" })],
+      blocked: [task({ status: "stuck", flow: { createdAt: "2026-09-01T09:00:00.000Z", finishedAt: null, sentBack: [], spans: [{ label: "Stuck", role: "stuck", from: "2026-09-04T09:00:00.000Z", to: null }] } })],
+      unassigned: [],
+      noDueDate: [],
+    };
+    const lines = operationsDetails(snapshot, new Date("2026-09-09T09:00:00.000Z"));
+    expect(lines.overdue).toEqual(["Oldest 8 d late · median 2 d", "Most in Alpha · 2"]);
+    expect(lines.week).toEqual(["1 due today · 1 not started", "All in Alpha"]);
+    expect(lines.unallocated).toEqual(["Oldest waiting 7 d", "1 marked high or critical"]);
+    expect(lines.blocked).toEqual(["Stuck a median 5 d · longest 5 d", "All in Alpha"]);
+  });
+
+  it("stays quiet when there is nothing to describe", () => {
+    const lines = operationsDetails({ asOf: TODAY, overdue: [], dueThisWeek: [], unallocated: [], blocked: [], unassigned: [], noDueDate: [] });
+    expect(Object.values(lines).flat()).toEqual([]);
   });
 });

@@ -215,7 +215,7 @@ export function OperationsStrip({
   layout = "strip",
 }: {
   asOf: string;
-  items: Array<{ key: string; label: string; count: number; tone?: "urgent" | "neutral"; hint: string }>;
+  items: Array<{ key: string; label: string; count: number; tone?: "urgent" | "neutral"; hint: string; details?: string[] }>;
   onSelect?: (key: string) => void;
   /** "grid": two rows of big figures, filling a panel's column instead of running along the page. */
   layout?: "strip" | "grid";
@@ -246,6 +246,7 @@ export function OperationsStrip({
             hint={item.hint}
             onSelect={onSelect ? () => onSelect(item.key) : undefined}
             size={grid ? "lg" : "md"}
+            details={grid ? item.details : undefined}
             testId={`dashboard-op-${item.key}`}
           />
         ))}

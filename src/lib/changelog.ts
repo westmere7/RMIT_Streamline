@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.61.2",
+    date: "2026-09-27",
+    title: "Current operations, in detail",
+    changes: ["Each Current operations figure now says how late, how soon or how long stuck, and which team or department holds most of it."],
+  },
+  {
     version: "0.61.1",
     date: "2026-09-27",
     title: "Fuller panel explanations",

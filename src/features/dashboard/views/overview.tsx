@@ -3,7 +3,7 @@
 import * as React from "react";
 import { formatHours, hasAnyRate } from "@/domain";
 import { assetEffortMix, assetMix, priorityMix, teamHex } from "@/features/dashboard/analytics";
-import { MEASURE_LABELS, MEASURE_UNITS } from "@/features/dashboard/metrics";
+import { MEASURE_LABELS, MEASURE_UNITS, operationsDetails } from "@/features/dashboard/metrics";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { TreemapChart } from "@/features/dashboard/charts/treemap";
@@ -92,11 +92,12 @@ export function DashboardBody(props: DashboardViewProps) {
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
   if (gaps.withoutStatus > 0) coverageLines.push(`${gaps.withoutStatus} have no status`);
   if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Asset types");
+  const opsDetails = operationsDetails(ops);
   const operationsItems = [
-    { key: "overdue", label: "open and overdue", count: ops.overdue.length, tone: "urgent" as const, hint: "Open, non-done work with a due date before today." },
-    { key: "week", label: "due within 7 days", count: ops.dueThisWeek.length, hint: "Open work due in the next seven days." },
-    { key: "unallocated", label: "awaiting allocation", count: ops.unallocated.length, hint: "Requests with no team and nobody assigned." },
-    { key: "blocked", label: "blocked", count: ops.blocked.length, hint: "Work whose board says it is stuck." },
+    { key: "overdue", label: "open and overdue", count: ops.overdue.length, tone: "urgent" as const, hint: "Open, non-done work with a due date before today.", details: opsDetails.overdue },
+    { key: "week", label: "due within 7 days", count: ops.dueThisWeek.length, hint: "Open work due in the next seven days.", details: opsDetails.week },
+    { key: "unallocated", label: "awaiting allocation", count: ops.unallocated.length, hint: "Requests with no team and nobody assigned.", details: opsDetails.unallocated },
+    { key: "blocked", label: "blocked", count: ops.blocked.length, hint: "Work whose board says it is stuck.", details: opsDetails.blocked },
   ];
 
   return (
