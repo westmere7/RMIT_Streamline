@@ -248,6 +248,13 @@ export function createMemoryRepositories(
       update: readOnly("saving a board template"),
       delete: readOnly("deleting a board template"),
     },
+    // Nobody follows anything from a shared page.
+    subscriptions: {
+      listByUser: async () => [],
+      listByBoards: async () => [],
+      upsert: readOnly("following"),
+      delete: readOnly("unfollowing"),
+    },
     bookingSavedBlocks: {
       listByWorkspace: async () => [],
       create: readOnly("saving a block"),

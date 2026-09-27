@@ -19,6 +19,7 @@ import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
 import { StakeholderPortalService, type PortalTransport } from "./stakeholder-portal-service";
+import { SubscriptionService, withFollowers } from "./subscription-service";
 import { TicketService } from "./ticket-service";
 import { WorkspaceListService, type SharedListTransport } from "./workspace-list-service";
 import { WorkspaceService } from "./workspace-service";
@@ -30,6 +31,8 @@ export interface Services {
   /** The side that carries them out. Server only. */
   automationEngine: AutomationEngine;
   notifications: NotificationService;
+  /** Following boards and tasks. */
+  subscriptions: SubscriptionService;
   workspace: WorkspaceService;
   lists: WorkspaceListService;
   boards: BoardService;
@@ -75,8 +78,11 @@ export interface ServiceOptions {
   automationTransport?: AutomationRunTransport | null;
 }
 
-export function createServices(repos: Repositories, options: ServiceOptions = {}): Services {
-  const notifications = new NotificationService(repos);
+export function createServices(base: Repositories, options: ServiceOptions = {}): Services {
+  const notifications = new NotificationService(base);
+  const subscriptions = new SubscriptionService(base, notifications);
+  // Everything below writes the feed through this, so followers hear of it.
+  const repos = withFollowers(base, subscriptions);
   const links = new ItemLinkService(repos, notifications);
   const myWork = new MyWorkService(repos);
   const workspace = new WorkspaceService(repos);
@@ -98,6 +104,7 @@ export function createServices(repos: Repositories, options: ServiceOptions = {}
   return {
     repos,
     notifications,
+    subscriptions,
     workspace,
     lists,
     portals,

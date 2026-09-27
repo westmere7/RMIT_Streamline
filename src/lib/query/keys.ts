@@ -75,6 +75,7 @@ export const queryKeys = {
 
   notifications: (userId: string) => ["notifications", userId] as const,
   notificationPreferences: (userId: string) => ["notification-preferences", userId] as const,
+  subscriptions: (workspaceId: string, userId: string) => ["subscriptions", workspaceId, userId] as const,
 
   profile: (workspaceId: string, userId: string) => ["profile", workspaceId, userId] as const,
   messageThreads: (workspaceId: string, userId: string) => ["message-threads", workspaceId, userId] as const,

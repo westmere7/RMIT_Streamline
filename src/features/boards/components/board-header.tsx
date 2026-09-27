@@ -27,6 +27,7 @@ import { colorClasses } from "@/lib/colors";
 import { canManageBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { FollowControl } from "@/features/notifications/follow-control";
 
 export function BoardHeader({ board }: { board: Board }) {
   const ws = useWorkspace();
@@ -142,6 +143,7 @@ export function BoardHeader({ board }: { board: Board }) {
               <Star className={cn("size-4", favourite && "fill-amber-400 text-amber-400")} />
             </Button>
           </SimpleTooltip>
+          <FollowControl target={{ boardId: board.id, itemId: null }} kind="board" />
           <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="hidden h-9 items-center rounded-full px-2 transition-colors hover:bg-accent/70 sm:flex">
             <AvatarStack users={members} size="sm" max={4} />
           </button>

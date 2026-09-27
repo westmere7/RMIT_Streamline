@@ -50,7 +50,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -451,6 +451,17 @@ export interface BoardTemplateRepository {
 }
 
 /** Blocks of a brief kept under a name, per workspace, to be dropped into any service's brief. */
+/** Who follows which boards and tasks (see `@/domain/notification/subscription`). */
+export interface SubscriptionRepository {
+  /** Everything one person follows in a workspace. */
+  listByUser(userId: EntityId, workspaceId: EntityId): Promise<Subscription[]>;
+  /** Everyone following these boards, whole or by task: the fan-out filters by task itself. */
+  listByBoards(boardIds: EntityId[]): Promise<Subscription[]>;
+  /** One person's follow of one board or task; replaces the events of an existing one. */
+  upsert(input: SubscriptionInput): Promise<Subscription>;
+  delete(id: EntityId): Promise<void>;
+}
+
 export interface BookingSavedBlockRepository {
   listByWorkspace(workspaceId: EntityId): Promise<BookingSavedBlock[]>;
   create(input: BookingSavedBlockInput): Promise<BookingSavedBlock>;
@@ -650,6 +661,7 @@ export interface Repositories {
   bookingTemplates: BookingTemplateRepository;
   boardTemplates: BoardTemplateRepository;
   bookingSavedBlocks: BookingSavedBlockRepository;
+  subscriptions: SubscriptionRepository;
   boardShares: BoardShareRepository;
   itemShares: ItemShareRepository;
   dashboardShares: DashboardShareRepository;

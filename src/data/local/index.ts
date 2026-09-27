@@ -6,6 +6,7 @@ import { LocalAutomationRepository } from "./repositories/automation-repository"
 import { LocalBoardRepository } from "./repositories/board-repository";
 import { LocalBoardShareRepository } from "./repositories/board-share-repository";
 import { LocalBookingSavedBlockRepository } from "./repositories/booking-saved-block-repository";
+import { LocalSubscriptionRepository } from "./repositories/subscription-repository";
 import { LocalBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { LocalBoardTemplateRepository } from "./repositories/board-template-repository";
 import { LocalCommentRepository } from "./repositories/comment-repository";
@@ -66,6 +67,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     bookingTemplates: new LocalBookingTemplateRepository(connection),
     boardTemplates: new LocalBoardTemplateRepository(connection),
     bookingSavedBlocks: new LocalBookingSavedBlockRepository(connection),
+    subscriptions: new LocalSubscriptionRepository(connection),
     boardShares: new LocalBoardShareRepository(connection),
     itemShares: new LocalItemShareRepository(connection),
     dashboardShares: new LocalDashboardShareRepository(connection),

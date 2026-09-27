@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, BellOff, Check, MonitorSmartphone } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -14,6 +15,7 @@ import {
   NOTIFICATION_TYPE_DESCRIPTIONS,
   NOTIFICATION_TYPE_LABELS,
   isBoardMuted,
+  SUBSCRIPTION_EVENT_LABELS,
 } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useBrowserPermission } from "@/features/notifications/use-browser-permission";
@@ -30,6 +32,8 @@ import {
 import { colorClasses } from "@/lib/colors";
 import { canViewBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
+import { useFollow, useMySubscriptions } from "@/features/notifications/follow-control";
+import { useServices } from "@/features/data/data-context";
 
 const DELIVERY_CHOICES: Array<{ value: NotificationDelivery; label: string; hint: string }> = [
   { value: "NOTIFICATION", label: "Notify", hint: "Red badge, and an OS notification if allowed" },
@@ -151,8 +155,10 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
           </ul>
         </section>
 
+        <FollowingSection />
+
         <section className="mt-4">
-          <h3 className="mb-1 text-[13px] font-medium">Boards you follow</h3>
+          <h3 className="mb-1 text-[13px] font-medium">Your boards</h3>
           <p className="mb-2 text-xs text-muted-foreground">
             Unsubscribe from a board and nothing from it reaches your inbox — you keep your access to the board itself.
           </p>
@@ -189,6 +195,57 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * What the reader follows with the bell on a board or a task, whether or not
+ * they are on it, and what each reaches them with. Changed where it is followed;
+ * stopped here too.
+ */
+function FollowingSection() {
+  const ws = useWorkspace();
+  const services = useServices();
+  const subscriptions = useMySubscriptions();
+  const follow = useFollow();
+  const list = subscriptions.data ?? [];
+  const itemIds = list.flatMap((s) => (s.itemId ? [s.itemId] : []));
+  const items = useQuery({
+    queryKey: ["subscription-items", ...itemIds.sort()],
+    queryFn: () => services.repos.items.listByIds(itemIds),
+    enabled: itemIds.length > 0,
+    staleTime: 60_000,
+  });
+  const itemName = (id: string) => items.data?.find((i) => i.id === id)?.name ?? "A task";
+  return (
+    <section className="mt-4" data-testid="following-section">
+      <h3 className="mb-1 text-[13px] font-medium">Following</h3>
+      <p className="mb-2 text-xs text-muted-foreground">Follow any board or task with its bell, even one you are not on.</p>
+      {list.length === 0 ? (
+        <p className="rounded-xl border border-border/70 bg-card px-3 py-4 text-[13px] text-muted-foreground">Nothing yet.</p>
+      ) : (
+        <ul className="scrollbar-thin max-h-64 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card">
+          {list.map((subscription) => {
+            const board = ws.boards.find((b) => b.id === subscription.boardId);
+            return (
+              <li key={subscription.id} className="flex items-center gap-3 px-3 py-2" data-testid="following-row">
+                {board && <DynamicIcon name={board.icon} className={cn("size-4 shrink-0", colorClasses(board.color).text)} />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px]">{subscription.itemId ? itemName(subscription.itemId) : (board?.name ?? "A board")}</span>
+                  <span className="block truncate text-2xs text-muted-foreground">
+                    {subscription.itemId ? `${board?.name ?? "Task"} · ` : "Whole board · "}
+                    {subscription.events.map((e) => SUBSCRIPTION_EVENT_LABELS[e]).join(", ")}
+                  </span>
+                </span>
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => follow.mutate({ target: { boardId: subscription.boardId, itemId: subscription.itemId }, events: [] })}>
+                  Stop
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

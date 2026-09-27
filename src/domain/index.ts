@@ -24,6 +24,7 @@ export * from "./message/direct-message";
 export * from "./activity/activity";
 export * from "./automation/automation";
 export * from "./notification/notification";
+export * from "./notification/subscription";
 export * from "./auth/auth";
 export * from "./booking/booking";
 export * from "./booking/booking-template";

@@ -3,6 +3,7 @@ import { SupabaseAutomationRepository } from "./repositories/automation-reposito
 import { SupabaseBoardRepository } from "./repositories/board-repository";
 import { SupabaseBoardShareRepository } from "./repositories/board-share-repository";
 import { SupabaseBookingSavedBlockRepository } from "./repositories/booking-saved-block-repository";
+import { SupabaseSubscriptionRepository } from "./repositories/subscription-repository";
 import { SupabaseBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { SupabaseBoardTemplateRepository } from "./repositories/board-template-repository";
 import { SupabaseDashboardShareRepository } from "./repositories/dashboard-share-repository";
@@ -57,6 +58,7 @@ export function createSupabaseRepositories(): Repositories {
     bookingTemplates: new SupabaseBookingTemplateRepository(),
     boardTemplates: new SupabaseBoardTemplateRepository(),
     bookingSavedBlocks: new SupabaseBookingSavedBlockRepository(),
+    subscriptions: new SupabaseSubscriptionRepository(),
     boardShares: new SupabaseBoardShareRepository(),
     dashboardShares: new SupabaseDashboardShareRepository(),
     itemReads: new SupabaseItemReadRepository(),

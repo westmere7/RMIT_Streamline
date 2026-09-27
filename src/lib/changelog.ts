@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.66.0",
+    date: "2026-09-27",
+    title: "Follow boards and tasks",
+    changes: [
+      "The bell on a board or a task follows it, even one you are not on, and chooses what reaches you: status changes, other changes, new updates, assets, and tasks added, moved or archived.",
+      "Followed changes arrive as quiet updates (Things I follow in notification settings), never for your own changes, and a burst on one task arrives as one. Notification settings lists what you follow.",
+    ],
+  },
+  {
     version: "0.65.1",
     date: "2026-09-27",
     title: "Tidier asset lists",

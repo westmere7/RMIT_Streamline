@@ -561,6 +561,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Act, reply on the task, and use Mark all read or Clear to keep the Inbox tidy.",
         "Open Notification settings to choose how each kind of event reaches you.",
       ] },
+      { title: "Follow a board or task", paragraphs: ["Use the bell on a board or a task to follow it, even one you are not on. Tick the kinds of change you want to hear about: status changes, other changes, new updates, assets, and tasks added, moved or archived. They arrive in Updates; your own changes never do. Notification settings lists everything you follow."] },
       { title: "Notification choices", table: { headers: ["Choice", "What happens"], rows: [
         ["Notify", "A badge, and a browser notification if you switched those on."],
         ["Update", "A quiet entry in Updates."],

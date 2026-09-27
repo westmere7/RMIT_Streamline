@@ -62,6 +62,7 @@ import { colorClasses } from "@/lib/colors";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
+import { FollowControl } from "@/features/notifications/follow-control";
 
 const FIELD_WIDTH = 260;
 
@@ -585,6 +586,8 @@ function PanelHeader({
                 </Button>
               </SimpleTooltip>
             )}
+            {/* Anyone who can see the task can follow it, on it or not. */}
+            {!shared && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
             {!shared && canManage && (
               <SimpleTooltip label="Share this task by link">
                 <Button variant="ghost" size="icon-xs" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
