@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, CalendarCheck, Clock, History, Info, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
+import { Boxes, CalendarCheck, Clock, History, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,16 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
-import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { WorkspaceRole } from "@/domain";
-import { assetCount, formatWorkHours } from "@/domain";
+import { assetCount, formatWorkHours, isProgressLabel, isStuckLabel, priorityStrength } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useProfile } from "@/features/profile/hooks";
-import { STAKEHOLDER_LOAD_NOTE, StakeholderLoad } from "@/features/profile/stakeholder-load";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -35,17 +32,10 @@ const ROLE_LABEL: Record<WorkspaceRole, string> = { OWNER: "Owner", ADMIN: "Admi
 const RELATION_LABEL: Record<BoardRelation, string> = { owner: "Owner", member: "Member", team: "Via team" };
 /** Past this many the task list folds, with a button to show the rest. */
 const TASKS_SHOWN = 15;
-const DUE_ROWS = [
-  { key: "overdue", label: "Overdue", color: "#ef4444" },
-  { key: "today", label: "Today", color: "#f59e0b" },
-  { key: "thisWeek", label: "This week", color: "#3b82f6" },
-  { key: "later", label: "Later", color: "#64748b" },
-  { key: "noDate", label: "No date", color: "#cbd5e1" },
-] as const;
 
 /**
  * One person, in full: who they are and how to reach them, what they are
- * carrying in figures, the same work split three ways, and then the lists —
+ * carrying in figures, and then the lists —
  * tasks, deliverables, boards, activity — one tab at a time, so a long list
  * does not leave the panel beside it standing in empty space.
  *
@@ -100,14 +90,9 @@ export function ProfilePage({ userId }: { userId: string }) {
   const listed = taskFilter === "open" ? open : done;
   const buckets = { overdue: 0, today: 0, thisWeek: 0, later: 0, noDate: 0 };
   for (const task of open) buckets[bucketDate(task.dueDate)] += 1;
-  const dueRows = DUE_ROWS.map((row) => ({ id: row.key, name: row.label, value: buckets[row.key], color: row.color })).filter((row) => row.value > 0);
-  const boardCounts = new Map<string, { id: string; name: string; value: number; color: string; slug: string }>();
-  for (const task of open) {
-    const entry = boardCounts.get(task.board.id) ?? { id: task.board.id, name: task.board.name, value: 0, color: colorClasses(task.board.color).hex, slug: task.board.slug };
-    entry.value += 1;
-    boardCounts.set(task.board.id, entry);
-  }
-  const byBoard = [...boardCounts.values()].sort((a, b) => b.value - a.value);
+  const inProgress = open.filter((t) => isProgressLabel(t.statusColumn, t.status?.id)).length;
+  const stuck = open.filter((t) => isStuckLabel(t.statusColumn, t.status?.id)).length;
+  const urgent = open.filter((t) => priorityStrength(t.priority?.id) >= 2).length;
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
@@ -172,37 +157,16 @@ export function ProfilePage({ userId }: { userId: string }) {
           </div>
         </section>
 
-        {/* ---- What they are carrying, in figures ----------------------------- */}
+        {/* ---- What they are carrying, in figures: tasks, then deliverables ------ */}
         <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-4" data-testid="profile-figures">
           <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} />
-          <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today + buckets.thisWeek} more due this week`} />
+          <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today} due today`} />
+          <Figure label="Due this week" value={buckets.today + buckets.thisWeek} hint={`${buckets.later} later · ${buckets.noDate} no date`} />
+          <Figure label="In progress" value={inProgress} hint={`${stuck} stuck · ${urgent} high priority`} />
           <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} />
           <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" />
-        </div>
-
-        {/* ---- The open work, three ways ----------------------------------------- */}
-        <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-3">
-          <Split title="By due date">
-            <RankedBars data={dueRows} valueLabel="tasks" compact emptyMessage="Nothing open right now." />
-          </Split>
-          <Split title="By board">
-            <RankedBars
-              data={byBoard.slice(0, 5)}
-              valueLabel="tasks"
-              compact
-              emptyMessage="Nothing open right now."
-              hrefOf={(row) => {
-                const board = byBoard.find((b) => b.id === row.id);
-                return board ? routes.board(ws.slug, board.slug) : null;
-              }}
-            />
-          </Split>
-          {/* Who the work is for, not which group this person belongs to: the
-              split comes off the tasks' own stakeholder cells, which is the
-              same thing the dashboard's resourcing filter counts. */}
-          <Split title="By department" info={STAKEHOLDER_LOAD_NOTE}>
-            <StakeholderLoad userId={userId} />
-          </Split>
+          <Figure label="Assets due this week" value={assets.dueThisWeek} hint={`${assets.total - assets.done - assets.overdue - assets.dueThisWeek} later or undated`} />
+          <Figure label="Units to make" value={assets.openUnits} hint={`of ${assets.units} in total`} />
         </div>
 
         {/* ---- The lists, one at a time ------------------------------------------ */}
@@ -356,23 +320,6 @@ function Figure({ label, value, hint, urgent, progress }: { label: string; value
       )}
       {hint && <p className="mt-auto pt-1.5 text-2xs text-muted-foreground">{hint}</p>}
     </div>
-  );
-}
-
-/** One of the three splits of the open work: a quiet heading over its bars. */
-function Split({ title, info, children }: { title: string; info?: string; children: React.ReactNode }) {
-  return (
-    <section className="bg-card p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
-        Open work {title.toLowerCase()}
-        {info && (
-          <SimpleTooltip label={info}>
-            <Info className="size-3 cursor-help" aria-label={info} />
-          </SimpleTooltip>
-        )}
-      </h3>
-      {children}
-    </section>
   );
 }
 

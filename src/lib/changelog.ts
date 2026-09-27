@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.56.2",
+    date: "2026-09-27",
+    title: "Profile figures",
+    changes: ["Profiles show eight figures: open, overdue, due this week and in-progress tasks, and assets done, overdue, due this week and units still to make. The open-work bars are gone."],
+  },
+  {
     version: "0.56.1",
     date: "2026-09-27",
     title: "More link icons",

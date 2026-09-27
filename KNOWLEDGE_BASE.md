@@ -1425,8 +1425,7 @@ Automation notify actions deliver as ASSIGNED.
 - **Messages** are one-to-one workspace threads (`?to=`) with read state, between active people.
 - **Profile** (`/people/<id>`):
   - **Header:** role, pending/deactivated badges, department chip, teams, Message, Edit (yourself or an admin).
-  - **Figures:** open tasks, overdue, assets done x/y, assets overdue.
-  - **Splits:** open work by due date, by board (top 5), and by department.
+  - **Figures,** two rows of four. Tasks: open, overdue, due this week, in progress (with stuck and high priority). Assets: done x/y, overdue, due this week, units still to make.
   - **Tabs:** tasks (open/done), assets, boards, activity (from the workspace's latest 300 events).
 - **Hover card** (v0.49, `person-card.tsx`): avatars and single-person cells open a card after 350 ms.
   - It shows the name, title, pending/deactivated status, email, department, teams, local time and "View profile".

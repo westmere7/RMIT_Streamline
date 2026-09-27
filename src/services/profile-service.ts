@@ -2,6 +2,7 @@ import type { Activity, Board, EntityId, ItemAsset, Team, User, WorkspaceMember 
 import { assetCount } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import { bucketDate } from "@/lib/dates/dates";
 import type { MyWorkItem } from "./my-work-service";
 import type { MyWorkService } from "./my-work-service";
 
@@ -22,7 +23,11 @@ export interface ProfileAssets {
   done: number;
   /** Units across every line, a line without a quantity counting as one. */
   units: number;
+  /** Units on the lines still to do. */
+  openUnits: number;
   overdue: number;
+  /** Lines still to do that are due today or later this week. */
+  dueThisWeek: number;
 }
 
 export interface ProfileView {
@@ -115,7 +120,13 @@ export class ProfileService {
       total: theirs.length,
       done,
       units: theirs.reduce((sum, asset) => sum + assetCount(asset), 0),
+      openUnits: theirs.filter((a) => !a.completedAt).reduce((sum, asset) => sum + assetCount(asset), 0),
       overdue: theirs.filter((a) => !a.completedAt && a.dueDate && a.dueDate < today).length,
+      dueThisWeek: theirs.filter((a) => {
+        if (a.completedAt || !a.dueDate) return false;
+        const bucket = bucketDate(a.dueDate);
+        return bucket === "today" || bucket === "thisWeek";
+      }).length,
     };
   }
 
