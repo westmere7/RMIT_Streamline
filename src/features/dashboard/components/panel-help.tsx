@@ -3,13 +3,20 @@
 import { CircleHelp } from "lucide-react";
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DASHBOARD_HELP, type HelpTopic } from "@/features/dashboard/help";
+import { DASHBOARD_HELP, type HelpTopic, type PanelHelpText } from "@/features/dashboard/help";
+
+const SECTIONS: Array<{ key: keyof PanelHelpText; label: string }> = [
+  { key: "counted", label: "How it's counted" },
+  { key: "read", label: "How to read it" },
+  { key: "act", label: "What to do" },
+];
 
 /**
- * The small "?" beside a panel's name: what the panel shows and what it means
- * for the team. A popover rather than a tooltip, so it opens on a tap as well as
- * a click and stays open to be read. Clicks stop here, so opening it inside a
- * headline card does not also switch the page's measure.
+ * The small "?" beside a panel's name: what the panel shows, how it is counted,
+ * how to read it and what to do about it. A popover rather than a tooltip, so it
+ * opens on a tap as well as a click and stays open to be read. Clicks stop
+ * here, so opening it inside a headline card does not also switch the page's
+ * measure.
  */
 export function PanelHelp({ topic, title }: { topic: HelpTopic; title: string }) {
   const help = DASHBOARD_HELP[topic];
@@ -27,11 +34,17 @@ export function PanelHelp({ topic, title }: { topic: HelpTopic; title: string })
           <CircleHelp className="size-3.5" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="top" className="w-72 text-xs leading-relaxed" onClick={(event) => event.stopPropagation()}>
-        <p className="font-semibold text-foreground">{title}</p>
-        <p className="mt-1.5 text-muted-foreground">{help.shows}</p>
-        <p className="mt-2 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">For the team</p>
-        <p className="mt-0.5 text-foreground/90">{help.means}</p>
+      <PopoverContent side="bottom" collisionPadding={12} className="w-[26rem] p-4 text-xs leading-relaxed" onClick={(event) => event.stopPropagation()}>
+        <p className="text-[13px] font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-foreground/90">{help.shows}</p>
+        <dl className="mt-3 space-y-2.5 border-t border-border/60 pt-3">
+          {SECTIONS.map(({ key, label }) => (
+            <div key={key}>
+              <dt className="text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">{label}</dt>
+              <dd className="mt-0.5 text-muted-foreground">{help[key]}</dd>
+            </div>
+          ))}
+        </dl>
       </PopoverContent>
     </Popover>
   );
