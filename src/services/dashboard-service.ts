@@ -161,7 +161,10 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
   // One read for the workspace's links rather than a query per two hundred item ids: a
   // whole workspace's ids do not fit in a request URL.
   const onBoards = new Set(items.map((i) => i.id));
-  const links = (await repos.links.listByWorkspace(workspaceId)).filter((l) => onBoards.has(l.itemAId) && onBoards.has(l.itemBId));
+  const [allLinks, allChanges] = await Promise.all([repos.links.listByWorkspace(workspaceId), repos.activities.listStatusChanges(workspaceId)]);
+  const links = allLinks.filter((l) => onBoards.has(l.itemAId) && onBoards.has(l.itemBId));
+  // Only the tasks on these boards: the App development board's bug tickets change status too.
+  const statusChanges = allChanges.filter((c) => onBoards.has(c.itemId));
   return {
     workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug, assetRates: workspace.assetRates ?? null },
     teams: teams.filter((t) => t.archivedAt === null),
@@ -173,6 +176,7 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
     values: perBoard.flatMap((b) => b.values),
     assets: perBoard.flatMap((b) => b.assets),
     links,
+    statusChanges,
     users: peopleInSnapshot(users, { boards: active, items, values: perBoard.flatMap((b) => b.values), assets: perBoard.flatMap((b) => b.assets) }),
     generatedAt: new Date().toISOString(),
   };

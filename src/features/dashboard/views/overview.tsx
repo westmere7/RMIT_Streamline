@@ -13,6 +13,7 @@ import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { DemandSection } from "./demand-section";
+import { FlowSection } from "./flow-section";
 import type { DashboardViewProps } from "./types";
 import { WorkloadSection } from "./workload-section";
 
@@ -230,13 +231,14 @@ export function DashboardBody(props: DashboardViewProps) {
       {/* Who is carrying it. */}
       <WorkloadSection {...props} />
 
+      {/* How the work moves: speed, punctuality, rework, backlog and waits. */}
+      <FlowSection {...props} />
+
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
         <CoverageNote lines={coverageLines} />
         <p className="text-2xs text-muted-foreground">
-          Completed output and delivery reliability are not shown: no task completion event is recorded.
           {prefs.teamIds && (
             <>
-              {" "}
               <button type="button" onClick={() => set({ teamIds: null })} className="font-medium text-foreground/80 underline-offset-4 hover:underline">
                 Clear the {prefs.teamIds.length}-team filter
               </button>

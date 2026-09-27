@@ -1,6 +1,7 @@
 import type {
   Activity,
   ActivityInput,
+  StatusChange,
   AutomationEvent,
   AutomationHeartbeat,
   AutomationRule,
@@ -482,6 +483,8 @@ export interface ActivityRepository {
   listByWorkspace(workspaceId: EntityId, limit: number): Promise<Activity[]>;
   listByBoard(boardId: EntityId, limit: number): Promise<Activity[]>;
   listByItem(itemId: EntityId): Promise<Activity[]>;
+  /** Every change of a status in the workspace, oldest first, trimmed to what the dashboard reads. */
+  listStatusChanges(workspaceId: EntityId): Promise<StatusChange[]>;
   create(input: ActivityInput): Promise<Activity>;
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
 }

@@ -1,4 +1,4 @@
-import type { Activity, ActivityInput } from "@/domain";
+import type { Activity, ActivityInput, StatusChange } from "@/domain";
 import type { ActivityRepository } from "@/data/repositories";
 import { newId } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
@@ -23,6 +23,14 @@ export class LocalActivityRepository implements ActivityRepository {
   async listByItem(itemId: string): Promise<Activity[]> {
     const db = await this.conn.getDb();
     return newestFirst(await db.getAllFromIndex("activities", "byItem", itemId));
+  }
+
+  async listStatusChanges(workspaceId: string): Promise<StatusChange[]> {
+    const db = await this.conn.getDb();
+    return (await db.getAllFromIndex("activities", "byWorkspace", workspaceId))
+      .filter((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED" && a.metadata.columnType === "STATUS" && a.itemId !== null)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((a) => ({ itemId: a.itemId!, at: a.createdAt, column: a.metadata.columnName ?? null, from: a.metadata.from ?? null, to: a.metadata.to ?? null }));
   }
 
   async create(input: ActivityInput): Promise<Activity> {

@@ -74,3 +74,16 @@ export interface Activity {
 }
 
 export type ActivityInput = Omit<Activity, "id" | "createdAt">;
+
+/**
+ * One change of a task's status, as the dashboard's flow figures read it: when,
+ * on which status column, and from which label to which, by name. Nothing
+ * else of the activity travels, so it can go wherever the dashboard goes.
+ */
+export interface StatusChange {
+  itemId: EntityId;
+  at: string;
+  column: string | null;
+  from: string | null;
+  to: string | null;
+}

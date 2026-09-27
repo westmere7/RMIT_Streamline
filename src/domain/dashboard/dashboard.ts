@@ -1,3 +1,4 @@
+import type { StatusChange } from "@/domain/activity/activity";
 import type { AssetRates } from "@/domain/workspace/asset-rate";
 import type { Board, BoardGroup } from "@/domain/board/board";
 import type { BoardColumn } from "@/domain/board/column";
@@ -48,6 +49,12 @@ export interface DashboardSnapshot {
    * becomes Unknown rather than a category of one.
    */
   departments: StakeholderDepartment[];
+  /**
+   * Every change of status on these boards' tasks, oldest first: when work
+   * finished, how long it sat in each status and whether it was sent back.
+   * Optional so a snapshot from before it existed still draws.
+   */
+  statusChanges?: StatusChange[];
   generatedAt: ISODateTime;
 }
 
@@ -253,6 +260,9 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       createdAt: department.createdAt,
       updatedAt: department.updatedAt,
     })),
+    // When, on which status column, from which label to which: categories and
+    // times, like the status values above, and nothing else of the activity.
+    statusChanges: (snapshot.statusChanges ?? []).map((change) => ({ itemId: change.itemId, at: change.at, column: change.column, from: change.from, to: change.to })),
     generatedAt: snapshot.generatedAt,
   };
 }

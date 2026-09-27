@@ -52,6 +52,7 @@ function task(overrides: Partial<TaskFact> = {}): TaskFact {
     department: null,
     request: null,
     isIntake: false,
+    flow: { createdAt: "2026-03-01T09:00:00.000Z", finishedAt: null, spans: [], sentBack: [] },
     ...overrides,
   };
 }

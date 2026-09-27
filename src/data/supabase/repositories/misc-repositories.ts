@@ -7,6 +7,7 @@ import type {
   Notification,
   NotificationPreferences,
   NotificationPreferencesInput,
+  StatusChange,
   StoredDelivery,
 } from "@/domain";
 import { BOARD_VIEWS, defaultNotificationPreferences } from "@/domain";
@@ -21,7 +22,7 @@ import type {
   NotificationRepository,
 } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
-import { assertOk, db, NotSupportedError, unwrap, unwrapList, unwrapMaybe } from "../client";
+import { assertOk, db, NotSupportedError, unwrap, unwrapAll, unwrapList, unwrapMaybe } from "../client";
 import {
   toActivity,
   toComment,
@@ -134,6 +135,30 @@ export class SupabaseActivityRepository implements ActivityRepository {
   async listByItem(itemId: string): Promise<Activity[]> {
     const result = await db().from("activities").select(ACTIVITY).eq("item_id", itemId).order("created_at", { ascending: false });
     return unwrapList<ActivityRow>(result, "activities.listByItem").map(toActivity);
+  }
+
+  /**
+   * Only the four fields the dashboard reads, picked out of the metadata by the
+   * database, so the rest of each activity (item names, who did it) never
+   * leaves it. Paged: a workspace passes a thousand status changes quickly, and
+   * a truncated history would make every task after the cut look untouched.
+   */
+  async listStatusChanges(workspaceId: string): Promise<StatusChange[]> {
+    const rows = await unwrapAll<{ item_id: string; created_at: string; column: string | null; from: string | null; to: string | null }>(
+      (from, to) =>
+        db()
+          .from("activities")
+          .select("item_id, created_at, column:metadata->>columnName, from:metadata->>from, to:metadata->>to")
+          .eq("workspace_id", workspaceId)
+          .eq("event_type", "ITEM_COLUMN_VALUE_UPDATED")
+          .eq("metadata->>columnType", "STATUS")
+          .not("item_id", "is", null)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "activities.listStatusChanges",
+    );
+    return rows.map((row) => ({ itemId: row.item_id, at: row.created_at, column: row.column, from: row.from, to: row.to }));
   }
 
   async create(input: ActivityInput): Promise<Activity> {

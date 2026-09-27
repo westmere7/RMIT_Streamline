@@ -1,4 +1,4 @@
-import type { AssetRates, Board, BoardColumn, ColorToken, ColumnRoleMap, ColumnValue, DashboardSnapshot, ISODate, ItemAsset, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
+import type { AssetRates, Board, BoardColumn, ColorToken, ColumnRoleMap, ColumnValue, DashboardSnapshot, ISODate, ISODateTime, ItemAsset, StatusChange, StatusColumnSettings, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
 import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, resolveColumnRoles, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 
@@ -150,6 +150,74 @@ export interface TaskFact {
   request: RequestFacts | null;
   /** True for items on the Task Allocation board: requests waiting to be placed, not delivery. */
   isIntake: boolean;
+  /** How the work moved through its statuses, read from the status history. */
+  flow: TaskFlow;
+}
+
+/** One stretch of time a task spent in one status. `to` is null while it is still there. */
+export interface StatusSpan {
+  label: string;
+  role: StatusBucket;
+  from: ISODateTime;
+  to: ISODateTime | null;
+}
+
+export interface TaskFlow {
+  /** When the task was made, to the second. */
+  createdAt: ISODateTime;
+  /**
+   * When it finished: the last move into a done status, for work that is done
+   * now. Work marked done before status changes were recorded falls back to
+   * `completedAt`; null for work that is not done.
+   */
+  finishedAt: ISODateTime | null;
+  /** Each status it sat in, oldest first. Empty for done work with no recorded changes. */
+  spans: StatusSpan[];
+  /** Each time it went back: out of done into an open status, or from review back to work. */
+  sentBack: ISODateTime[];
+}
+
+/** A status whose name says the work is with someone to check. */
+const REVIEW_LABEL = /review|approv|feedback|proof|sign.?off/i;
+
+/**
+ * A task's movement through its statuses, from the changes recorded on the
+ * board's status column. The history names labels, so each is read against
+ * the column's labels today; a label since renamed or removed reads as "other".
+ */
+function taskFlow(
+  created: ISODateTime,
+  changes: StatusChange[],
+  settings: StatusColumnSettings | null,
+  current: { label: string | null; role: StatusBucket; completedAt: ISODate | null },
+): TaskFlow {
+  const byName = new Map((settings?.labels ?? []).map((label) => [label.name.trim().toLowerCase(), label.id]));
+  const roleOf = (name: string | null): StatusBucket => {
+    if (!name || !settings) return "none";
+    const id = byName.get(name.trim().toLowerCase());
+    return id ? (statusLabelRole(settings, id) ?? "other") : "other";
+  };
+  const defaultName = settings?.labels.find((l) => l.id === settings.defaultLabelId)?.name ?? null;
+  const spans: StatusSpan[] = [];
+  const sentBack: ISODateTime[] = [];
+  let label: string | null = changes[0] ? (changes[0].from ?? defaultName) : current.label;
+  let since = created;
+  let finishedAt: ISODateTime | null = null;
+  for (const change of changes) {
+    const was = change.from ?? label;
+    if (was) spans.push({ label: was, role: roleOf(was), from: since, to: change.at });
+    const wasRole = roleOf(was);
+    const nowRole = roleOf(change.to);
+    if (nowRole === "done") finishedAt = change.at;
+    else if (change.to && (wasRole === "done" || (was && REVIEW_LABEL.test(was) && (nowRole === "progress" || change.to === defaultName)))) sentBack.push(change.at);
+    label = change.to;
+    since = change.at;
+  }
+  // Done work with no history: when it was done is the completion date, and
+  // how long it sat in each status is not known, so it has no stretches.
+  if (current.role === "done") return { createdAt: created, finishedAt: finishedAt ?? (current.completedAt ? `${current.completedAt}T12:00:00.000Z` : null), spans: changes.length ? spans : [], sentBack };
+  if (label) spans.push({ label, role: roleOf(label), from: since, to: null });
+  return { createdAt: created, finishedAt: null, spans, sentBack };
 }
 
 export interface AssetFact {
@@ -224,6 +292,14 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   const values = new Map<string, ColumnValue>();
   for (const v of snapshot.values) values.set(`${v.itemId}:${v.columnId}`, v.value);
   const getValue = (itemId: string, columnId: string) => values.get(`${itemId}:${columnId}`);
+
+  // Each item's status changes, oldest first, as the snapshot delivers them.
+  const changesByItem = new Map<string, StatusChange[]>();
+  for (const change of snapshot.statusChanges ?? []) {
+    const list = changesByItem.get(change.itemId) ?? [];
+    list.push(change);
+    changesByItem.set(change.itemId, list);
+  }
 
   const assetsByItem = new Map<string, ItemAsset[]>();
   for (const asset of snapshot.assets) {
@@ -411,6 +487,14 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       doneAssetUnits: doneLineUnits,
       request,
       isIntake,
+      // Only the column the dashboard reads status from: a board with a second
+      // status column (an approval, say) has its own history on that one.
+      flow: taskFlow(
+        item.createdAt,
+        (changesByItem.get(item.id) ?? []).filter((c) => !statusColumn || c.column === null || c.column === statusColumn.name),
+        statusSettings,
+        { label: statusLabel, role: status, completedAt },
+      ),
     };
 
     if (request) requests.push(fact);

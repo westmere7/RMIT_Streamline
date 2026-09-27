@@ -24,6 +24,7 @@ export function RankedBars({
   className,
   compact,
   fill,
+  format = formatCount,
 }: {
   data: NamedCount[];
   onSelect?: (row: NamedCount) => void;
@@ -40,6 +41,8 @@ export function RankedBars({
   compact?: boolean;
   /** Spread the rows down the panel and thicken the tracks, for a tall column. */
   fill?: boolean;
+  /** How a row's figure is written, for figures that are not counts ("3.5 d", "84%"). */
+  format?: (value: number) => string;
 }) {
   const revealed = useRevealed();
   if (data.length === 0) return <ChartEmpty message={emptyMessage} />;
@@ -53,7 +56,7 @@ export function RankedBars({
     <div className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1", fill && "h-full justify-around", className)} role="list">
       {data.map((row) => {
         const width = Math.max(row.value > 0 ? 2 : 0, (row.value / max) * 100);
-        const tip = [`${formatCount(row.value)} ${valueLabel ?? ""}`.trim(), row.secondary != null && secondaryLabel ? `${formatCount(row.secondary)} ${secondaryLabel}` : null, row.detail].filter(Boolean).join(" · ");
+        const tip = [`${format(row.value)} ${valueLabel ?? ""}`.trim(), row.secondary != null && secondaryLabel ? `${formatCount(row.secondary)} ${secondaryLabel}` : null, row.detail].filter(Boolean).join(" · ");
         return (
           <div
             key={row.id ?? row.name}
@@ -91,7 +94,7 @@ export function RankedBars({
               <div className="h-full rounded-full transition-[width] duration-700 ease-kinetic motion-reduce:transition-none" style={{ width: `${revealed ? width : 0}%`, background: row.color }} />
             </div>
             <span className={cn("flex shrink-0 items-baseline gap-1 whitespace-nowrap tabular-nums", paired ? "w-[7rem] justify-start" : "w-[4.25rem] justify-end")}>
-              <span className="font-semibold text-foreground">{formatCount(row.value)}</span>
+              <span className="font-semibold text-foreground">{format(row.value)}</span>
               {row.secondary != null && (
                 <span className="text-2xs text-muted-foreground">
                   · {formatCount(row.secondary)}

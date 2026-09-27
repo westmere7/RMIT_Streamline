@@ -1102,7 +1102,16 @@ One scrolling report (`DashboardBody`): headline figures, the year comparison an
   - Missing history reads "Unavailable".
   - A base under 5 shows the difference but no percentage (`MIN_PERCENT_BASE`, v0.46.1).
   - A zero base shows "no % comparison".
-- **Not reportable.** Nothing records a completion event or an original deadline, so neither completion-date throughput nor on-time delivery can be reported.
+- **Not reportable.** Nothing records an original deadline: on time is measured against the due date as it stands.
+
+### Flow (v0.59.0)
+
+The bottom of the page: Turnaround, On time, Sent back, In and out, Time in each status (`views/flow-section.tsx`, `flow.ts`).
+
+- **Source.** The snapshot carries `statusChanges`: every ITEM_COLUMN_VALUE_UPDATED on a STATUS column, trimmed to item, time, column name, from and to labels (`activities.listStatusChanges`, paged; about 1,100 rows, ~120 KB, on 2026-09-27). The public payload lists the fields one by one.
+- **Per task** (`TaskFact.flow`): `finishedAt` is the last move into a done label, else the old `completedAt`; `spans` are the stretches in each status, read against the board's labels by name; `sentBack` is each move out of Done into an open status, or from a review-like label (review, approval, feedback, proof, sign-off) back to progress or the default label. Only the board's status role column is read.
+- **Dating.** Everything is dated by `finishedAt`, not by the page's basis. The team filter applies. `completedAt`, and every figure above the flow section, is unchanged.
+- **Figures.** Turnaround is the median of made to done. On time is the share of finished work with a due date done by it. Sent back is the share of finished work that went back at least once. In and out counts tasks made against tasks finished, by week for a period of 100 days or less, otherwise by month. Time in each status is the median per label, done left out, running stretches measured to now.
 
 ### Effort, workload and rates
 
