@@ -59,7 +59,7 @@ export const wipeBoardsSchema = z.object({
 export interface SnapshotSummary {
   id: string;
   name: string;
-  kind: "manual" | "before_restore" | "before_wipe" | "before_delete" | "upload";
+  kind: "manual" | "before_restore" | "before_wipe" | "before_delete" | "before_change" | "before_remove" | "upload";
   createdAt: string;
   createdByName: string | null;
   appVersion: string | null;
@@ -503,18 +503,97 @@ export async function wipeBoardData(workspaceId: string, caller: Caller, passwor
  * whole database is taken first, so it can be brought back from Settings →
  * Snapshots; the last workspace cannot go (the database refuses it too).
  */
-export async function deleteWorkspace(workspaceId: string, caller: Caller): Promise<{ snapshot: SnapshotSummary }> {
+export async function deleteWorkspace(workspaceId: string, caller: Caller, confirmName: string): Promise<{ snapshot: SnapshotSummary }> {
   const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
   if (!lock?.ok) throw new HttpError(409, "A restore, wipe or delete is already running. Try again once it has finished.");
   try {
     const [workspace] = await db()<{ name: string }[]>`select name from public.workspaces where id = ${workspaceId}`;
     if (!workspace) throw new HttpError(404, "That workspace no longer exists.");
+    if (confirmName.trim() !== workspace.name.trim()) throw new HttpError(400, "Type the workspace's name exactly to delete it.");
     const [count] = await db()<{ n: number }[]>`select count(*)::int as n from public.workspaces`;
     if ((count?.n ?? 0) <= 1) throw new HttpError(409, "The last workspace cannot be deleted.");
     const snapshot = await createSnapshot(workspaceId, caller, `Before deleting “${workspace.name}”`, "before_delete");
     await db().begin(async (tx) => {
       await tx`set local statement_timeout = '55s'`;
       await tx`delete from public.workspaces where id = ${workspaceId}`;
+    });
+    return { snapshot };
+  } finally {
+    await db()`select pg_advisory_unlock(${RESTORE_LOCK})`.catch(() => undefined);
+  }
+}
+
+/**
+ * Removes a person completely: their account, in every workspace.
+ *
+ * Who: an Owner may remove anyone but an Owner (unmake them first) and
+ * themselves; an admin only somebody whose every seat is in the admin's own
+ * workspace, so no admin deletes an account another workspace relies on.
+ *
+ * What goes is their history: updates and replies (a conversation they started
+ * goes with its replies), reactions, activity, messages, notifications, seats,
+ * board places, favourites. What stays is their work, handed to whoever removes
+ * them: tasks, boards, deliverables, trackers, forms, templates, rules, share
+ * links and task links. They are taken off every people cell and deliverable.
+ * A snapshot of everything is taken first. One transaction: all of it, or none.
+ */
+export async function removePerson(workspaceId: string, userId: string, caller: Caller, confirmName: string): Promise<{ snapshot: SnapshotSummary }> {
+  if (userId === caller.userId) throw new HttpError(409, "You cannot remove yourself.");
+  const [target] = await db()<{ display_name: string; email: string }[]>`select display_name, email from public.profiles where id = ${userId}`;
+  if (!target) throw new HttpError(404, "That person no longer exists.");
+  if (confirmName.trim() !== target.display_name.trim()) throw new HttpError(400, "Type their name exactly to remove them.");
+  const [targetRow] = await db()<{ owner: boolean }[]>`select exists (select 1 from public.app_owners where user_id = ${userId}) as owner`;
+  const targetIsOwner = targetRow?.owner ?? false;
+  if (targetIsOwner) throw new HttpError(409, `${target.display_name} is an Owner. Remove them as an Owner first.`);
+  const [callerRow] = await db()<{ owner: boolean }[]>`select exists (select 1 from public.app_owners where user_id = ${caller.userId}) as owner`;
+  const callerIsOwner = callerRow?.owner ?? false;
+  const seats = await db()<{ workspace_id: string }[]>`select workspace_id from public.workspace_members where user_id = ${userId}`;
+  if (!seats.some((s) => s.workspace_id === workspaceId)) throw new HttpError(404, "That person is not in this workspace.");
+  if (!callerIsOwner && seats.some((s) => s.workspace_id !== workspaceId)) {
+    throw new HttpError(403, `${target.display_name} is in another workspace too. Only an Owner can remove them completely; you can deactivate them here.`);
+  }
+
+  const [lock] = await db()<{ ok: boolean }[]>`select pg_try_advisory_lock(${RESTORE_LOCK}) as ok`;
+  if (!lock?.ok) throw new HttpError(409, "A restore, wipe or delete is already running. Try again once it has finished.");
+  try {
+    const snapshot = await createSnapshot(workspaceId, caller, `Before removing ${target.display_name}`, "before_remove");
+    await db().begin(async (tx) => {
+      await tx`set local statement_timeout = '55s'`;
+      const to = caller.userId;
+      // Their work stays, and is the remover's now.
+      for (const [table, column] of [
+        ["items", "created_by"],
+        ["boards", "owner_id"],
+        ["item_assets", "created_by"],
+        ["trackers", "created_by"],
+        ["booking_templates", "created_by"],
+        ["board_templates", "created_by"],
+        ["booking_saved_blocks", "created_by"],
+        ["automation_rules", "created_by"],
+        ["board_shares", "created_by"],
+        ["item_shares", "created_by"],
+        ["dashboard_shares", "created_by"],
+        ["item_links", "created_by"],
+      ] as const) {
+        await tx.unsafe(`update public.${ident(table)} set ${ident(column)} = $1 where ${ident(column)} = $2`, [to, userId]);
+      }
+      // Off every people cell and deliverable. Held off the automations while
+      // it happens: nobody changed who is on a task, somebody left.
+      await tx`set local session_replication_role = replica`;
+      await tx`
+        update public.item_column_values
+        set value_json = jsonb_set(value_json, '{userIds}', coalesce((select jsonb_agg(u) from jsonb_array_elements(value_json -> 'userIds') u where u <> to_jsonb(${userId}::text)), '[]'::jsonb))
+        where value_json ? 'userIds' and value_json -> 'userIds' @> to_jsonb(array[${userId}::text])`;
+      await tx`update public.item_assets set assignee_ids = array_remove(assignee_ids, ${userId}::uuid) where ${userId}::uuid = any(assignee_ids)`;
+      await tx`set local session_replication_role = origin`;
+      // Their history goes.
+      await tx`delete from public.comments where author_id = ${userId}`;
+      await tx`delete from public.activities where actor_id = ${userId}`;
+      await tx`delete from public.notifications where actor_id = ${userId}`;
+      // The account itself, and with it (cascades) the profile, seats, board
+      // places, favourites, reads, reactions, messages and their own inbox.
+      await tx`delete from auth.users where id = ${userId}`;
+      await tx`delete from public.profiles where id = ${userId}`;
     });
     return { snapshot };
   } finally {

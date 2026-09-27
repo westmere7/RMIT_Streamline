@@ -64,6 +64,8 @@ export class BoardTemplateService {
   async createBoard(templateId: EntityId, input: Omit<CreateBoardInput, "templateId">, actorId: EntityId): Promise<BoardBundle> {
     const template = await this.repos.boardTemplates.getById(templateId);
     if (!template) throw new NotFoundError("BoardTemplate", templateId);
+    // A layout saved in one workspace makes boards in that one; its rules name its people and boards.
+    if (template.workspaceId !== input.workspaceId) throw new Error("That template belongs to another workspace.");
     const { spec } = template;
     const bundle = await this.boards.createBoard(
       { ...input, templateId: "blank", description: input.description ?? spec.board?.description ?? null, color: input.color ?? spec.board?.color, icon: input.icon ?? spec.board?.icon },

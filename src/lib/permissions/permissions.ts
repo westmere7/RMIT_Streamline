@@ -180,6 +180,23 @@ export function canEditComment(ctx: PermissionContext, comment: { authorId: stri
   return comment.authorId === ctx.userId;
 }
 
-export function canDeleteComment(ctx: PermissionContext, comment: { authorId: string }): boolean {
-  return comment.authorId === ctx.userId || isWorkspaceAdmin(ctx);
+/**
+ * Your own update, always. Somebody else's only as an admin (or Owner) who is a
+ * member of the board it is on: its owner, or a seat on it. Seeing the board
+ * through the admin role alone is not enough (private.can_delete_comment).
+ */
+export function canDeleteComment(ctx: PermissionContext, comment: { authorId: string }, board?: Pick<Board, "id" | "ownerId"> | null): boolean {
+  if (comment.authorId === ctx.userId) return true;
+  if (!board || !isWorkspaceAdmin(ctx)) return false;
+  return board.ownerId === ctx.userId || ctx.boardRoles.has(board.id);
+}
+
+/**
+ * Whether this person may edit someone's profile: their own always; somebody
+ * else's only as an admin while that person has not finished joining. Once
+ * they have, their details are theirs (private.profile_edit_guard).
+ */
+export function canEditProfile(ctx: PermissionContext, target: { userId: string; joined: boolean }): boolean {
+  if (target.userId === ctx.userId) return true;
+  return isWorkspaceAdmin(ctx) && !target.joined;
 }

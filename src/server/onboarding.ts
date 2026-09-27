@@ -187,9 +187,14 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
 /**
  * One person, one account, across every workspace. Somebody who has joined a
  * workspace before is given access to this one at once: no link, because a
- * link sets the password, and the password is theirs already. Somebody still
- * pending elsewhere finishes joining first. Null when neither applies (an
- * account with no workspace at all), which goes through the ordinary link.
+ * link sets the password, and the password is theirs already. That covers a
+ * pending seat here too (left by a booking, say): an admin adding them turns
+ * it into access. Null for everyone else, who goes through the ordinary link;
+ * somebody pending in another workspace gets a link of their own here, and
+ * whichever link they finish first cancels the others.
+ *
+ * Admins only. A booking's requester never comes this way (requesters.ts): a
+ * form anybody can fill in must not hand out access.
  */
 async function addKnownAccount(admin: Admin, input: z.infer<typeof inviteSchema>, profile: ProfileRow): Promise<InviteResult | null> {
   const seats = await admin.from("workspace_members").select("workspace_id, status").eq("user_id", profile.id);
@@ -197,22 +202,26 @@ async function addKnownAccount(admin: Admin, input: z.infer<typeof inviteSchema>
   const rows = (seats.data ?? []) as Array<{ workspace_id: string; status: string }>;
   const here = rows.find((row) => row.workspace_id === input.workspaceId);
   if (here?.status === "DEACTIVATED") throw new HttpError(409, `${profile.display_name} is deactivated in this workspace. Reactivate them from the members list instead.`);
-  if (here) throw new HttpError(409, `${profile.display_name} is already a member of this workspace`);
-  const joinedBefore = rows.some((row) => row.status === "ACTIVE" || row.status === "DEACTIVATED");
+  if (here?.status === "ACTIVE") throw new HttpError(409, `${profile.display_name} is already a member of this workspace`);
+  const joinedBefore = rows.some((row) => row.workspace_id !== input.workspaceId && (row.status === "ACTIVE" || row.status === "DEACTIVATED"));
   if (!joinedBefore) {
-    if (rows.some((row) => row.status === "INVITED")) throw new HttpError(409, `${profile.display_name} has been added to another workspace and has not finished joining yet. Add them here once they have.`);
+    if (here) throw new HttpError(409, `${profile.display_name} is already a member of this workspace`);
     return null;
   }
   if (profile.deactivated_at) {
     const revived = await admin.from("profiles").update({ deactivated_at: null }).eq("id", profile.id);
     if (revived.error) fail("profiles.reactivate", revived.error);
   }
-  const member = await admin
-    .from("workspace_members")
-    .insert({ workspace_id: input.workspaceId, user_id: profile.id, role: input.role, status: "ACTIVE", joined_at: new Date().toISOString() })
-    .select(MEMBER_COLUMNS)
-    .single();
-  if (member.error || !member.data) fail("workspace_members.insert", member.error);
+  // A pending seat here becomes access, and the link it had can no longer be used.
+  if (here) await revokeLiveInvitations(admin, input.workspaceId, profile.id);
+  const member = here
+    ? await admin.from("workspace_members").update({ role: input.role, status: "ACTIVE", joined_at: new Date().toISOString() }).eq("workspace_id", input.workspaceId).eq("user_id", profile.id).select(MEMBER_COLUMNS).single()
+    : await admin
+        .from("workspace_members")
+        .insert({ workspace_id: input.workspaceId, user_id: profile.id, role: input.role, status: "ACTIVE", joined_at: new Date().toISOString() })
+        .select(MEMBER_COLUMNS)
+        .single();
+  if (member.error || !member.data) fail("workspace_members.add", member.error);
   await addToTeams(admin, input.workspaceId, profile.id, input.teamIds);
   return { user: toUser({ ...profile, deactivated_at: null }), member: toWorkspaceMember(member.data as WorkspaceMemberRow), invitation: null };
 }
@@ -228,6 +237,13 @@ async function addToTeams(admin: Admin, workspaceId: string, userId: string, tea
   if (inserted.error) fail("team_members.insert", inserted.error);
 }
 
+/** Whether they have joined some other workspace: a seat there that is active or was once. */
+async function joinedElsewhere(admin: Admin, workspaceId: string, userId: string): Promise<boolean> {
+  const elsewhere = await admin.from("workspace_members").select("id").eq("user_id", userId).neq("status", "INVITED").neq("workspace_id", workspaceId).limit(1);
+  if (elsewhere.error) fail("workspace_members.elsewhere", elsewhere.error);
+  return (elsewhere.data ?? []).length > 0;
+}
+
 async function requirePendingMember(admin: Admin, workspaceId: string, userId: string): Promise<WorkspaceMemberRow> {
   const member = await memberOf(admin, workspaceId, userId);
   if (!member) throw new HttpError(404, "That person is not a member of this workspace.");
@@ -239,6 +255,12 @@ async function requirePendingMember(admin: Admin, workspaceId: string, userId: s
 export async function regenerateInvitation(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
   const admin = getSupabaseAdminClient();
   await requirePendingMember(admin, workspaceId, userId);
+  // A link sets the password. Somebody who has joined another workspace has
+  // one already; they are added, not sent a link.
+  if (await joinedElsewhere(admin, workspaceId, userId)) {
+    const profile = await profileById(admin, userId);
+    throw new HttpError(409, `${profile?.display_name ?? "This person"} already has an account from another workspace. Add them from Add member to give them access here.`);
+  }
   await revokeLiveInvitations(admin, workspaceId, userId);
   return insertInvitation(admin, workspaceId, userId, null);
 }
@@ -257,9 +279,7 @@ export async function reinitiateMember(workspaceId: string, userId: string, call
   // The link sets the account's password, and the account is the same in every
   // workspace. An admin here may only reset somebody who is in no other
   // workspace; anyone else's is the Owners' to reset.
-  const elsewhere = await admin.from("workspace_members").select("id").eq("user_id", userId).eq("status", "ACTIVE").neq("workspace_id", workspaceId).limit(1);
-  if (elsewhere.error) fail("workspace_members.elsewhere", elsewhere.error);
-  if ((elsewhere.data ?? []).length > 0) {
+  if (await joinedElsewhere(admin, workspaceId, userId)) {
     const owner = await admin.from("app_owners").select("user_id").eq("user_id", callerId).maybeSingle();
     if (owner.error) fail("app_owners.lookup", owner.error);
     if (!owner.data) throw new HttpError(403, "This person also uses another workspace. Only an Owner can reset their account.");
@@ -384,6 +404,14 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
 
   const burned = await admin.from("workspace_invitations").update({ accepted_at: now }).eq("id", invitation.id);
   if (burned.error) fail("workspace_invitations.accept", burned.error);
+
+  // The password is set now. Any other link this person still has, in any
+  // workspace, would set it again, so they all stop working; and an account
+  // switched off while they were pending is back on, since they have joined.
+  const others = await admin.from("workspace_invitations").update({ revoked_at: now }).eq("user_id", profile.id).is("accepted_at", null).is("revoked_at", null);
+  if (others.error) fail("workspace_invitations.revokeOthers", others.error);
+  const revived = await admin.from("profiles").update({ deactivated_at: null }).eq("id", profile.id).not("deactivated_at", "is", null);
+  if (revived.error) fail("profiles.reactivate", revived.error);
 
   return { email: profile.email, userId: profile.id };
 }

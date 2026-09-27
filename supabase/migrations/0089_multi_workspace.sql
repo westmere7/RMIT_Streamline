@@ -106,6 +106,9 @@ begin
   if not exists (select 1 from public.profiles where id = old.user_id) then
     return old;
   end if;
+  -- One removal at a time, so two Owners removing each other at the same
+  -- moment cannot both see the other still there and leave nobody.
+  perform pg_advisory_xact_lock(7441903);
   if not exists (select 1 from public.app_owners where user_id <> old.user_id) then
     raise exception 'There must always be at least one Owner. Make somebody else an Owner first.' using errcode = 'check_violation';
   end if;
@@ -254,27 +257,171 @@ create policy profiles_select on public.profiles
   for select to authenticated
   using (private.shares_workspace_with(id) or private.is_active_member_anywhere());
 
--- An admin edits the people of their workspace, but not an Owner: an Owner's
--- profile is theirs and the other Owners'.
+-- An admin edits the people of their workspace. The profile is one account
+-- across every workspace, so an admin may edit it only when they administer
+-- every workspace the person is active in; anyone else's profile is theirs and
+-- the Owners'. An Owner's profile is the Owners' alone.
+create or replace function private.administers_everywhere(p_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select private.is_app_owner()
+    or (
+      exists (
+        select 1 from public.workspace_members them
+        where them.user_id = p_user and coalesce(private.is_workspace_admin(them.workspace_id), false)
+      )
+      and not exists (
+        select 1 from public.workspace_members them
+        -- coalesce: the helper answers null, not false, for a workspace the caller is not in.
+        where them.user_id = p_user and them.status = 'ACTIVE' and not coalesce(private.is_workspace_admin(them.workspace_id), false)
+      )
+    );
+$$;
+
 drop policy if exists profiles_update_admin on public.profiles;
 create policy profiles_update_admin on public.profiles
   for update to authenticated
   using (
     private.shares_workspace_with(id)
     and (not private.is_app_owner(id) or private.is_app_owner())
-    and exists (
-      select 1
-      from public.workspace_members me
-      where me.user_id = (select auth.uid())
-        and me.status = 'ACTIVE'
-        and me.role in ('OWNER', 'ADMIN')
-        and exists (
-          select 1 from public.workspace_members them
-          where them.workspace_id = me.workspace_id and them.user_id = public.profiles.id
-        )
-    )
+    and private.administers_everywhere(id)
   )
   with check (private.shares_workspace_with(id) and (not private.is_app_owner(id) or private.is_app_owner()));
+
+-- A person's details are theirs once they have joined. An admin fills them in
+-- for somebody still pending; after that only the person changes them. The one
+-- thing an admin still writes is whether the account is on (deactivated_at),
+-- which is what deactivating and reactivating do. An email, which is how a
+-- person is found (invitations, requesters, sign-in), is never changed by
+-- anybody else; the server (no session) is not held to any of this.
+create or replace function private.profile_edit_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if (select auth.uid()) is null or (select auth.uid()) = old.id then
+    return new;
+  end if;
+  if new.email is distinct from old.email then
+    raise exception 'Only the person themselves can change their email address.' using errcode = 'check_violation';
+  end if;
+  if exists (select 1 from public.workspace_members where user_id = old.id and status <> 'INVITED')
+     and (to_jsonb(new) - 'deactivated_at' - 'updated_at') is distinct from (to_jsonb(old) - 'deactivated_at' - 'updated_at') then
+    raise exception 'Once somebody has joined, their details are theirs to change.' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profile_email_guard on public.profiles;
+drop function if exists private.profile_email_guard();
+drop trigger if exists profile_edit_guard on public.profiles;
+create trigger profile_edit_guard
+  before update on public.profiles
+  for each row execute function private.profile_edit_guard();
+
+-- =============================================================================
+-- Comments: deleted by their author, or by an admin who is on that board
+-- =============================================================================
+
+-- An admin (Owners are admins everywhere) deletes somebody else's update only
+-- on a board they are a member of: its owner, or a seat on it. Being able to
+-- see a board through the admin role is not enough.
+create or replace function private.can_delete_comment(p_item_id uuid, p_author_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select p_author_id = (select auth.uid())
+    or (
+      coalesce(private.is_workspace_admin(private.board_workspace(private.item_board(p_item_id))), false)
+      and exists (
+        select 1 from public.boards b
+        where b.id = private.item_board(p_item_id)
+          and (
+            b.owner_id = (select auth.uid())
+            or exists (select 1 from public.board_members bm where bm.board_id = b.id and bm.user_id = (select auth.uid()))
+          )
+      )
+    );
+$$;
+
+-- =============================================================================
+-- Boards, tasks and rules stay in their workspace
+-- =============================================================================
+
+-- A board never changes workspace, and its team is one of its workspace's.
+create or replace function private.board_stays_in_workspace()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if tg_op = 'UPDATE' and new.workspace_id <> old.workspace_id then
+    raise exception 'A board cannot move to another workspace.' using errcode = 'check_violation';
+  end if;
+  if new.team_id is not null and not exists (select 1 from public.teams where id = new.team_id and workspace_id = new.workspace_id) then
+    raise exception 'A board''s team must be in the board''s workspace.' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists board_stays_in_workspace on public.boards;
+create trigger board_stays_in_workspace
+  before insert or update of workspace_id, team_id on public.boards
+  for each row execute function private.board_stays_in_workspace();
+
+-- A task moves only between boards of one workspace: its values, deliverables,
+-- links, ticket and history all belong to that workspace.
+create or replace function private.item_stays_in_workspace()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.board_id <> old.board_id
+     and (select workspace_id from public.boards where id = new.board_id) is distinct from (select workspace_id from public.boards where id = old.board_id) then
+    raise exception 'A task cannot move to a board in another workspace.' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists item_stays_in_workspace on public.items;
+create trigger item_stays_in_workspace
+  before update of board_id on public.items
+  for each row execute function private.item_stays_in_workspace();
+
+-- A rule's workspace is its board's.
+create or replace function private.automation_rule_workspace()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not exists (select 1 from public.boards where id = new.board_id and workspace_id = new.workspace_id) then
+    raise exception 'A rule belongs to its board''s workspace.' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists automation_rule_workspace on public.automation_rules;
+create trigger automation_rule_workspace
+  before insert or update of workspace_id, board_id on public.automation_rules
+  for each row execute function private.automation_rule_workspace();
 
 -- =============================================================================
 -- Notifications belong to a workspace
@@ -333,7 +480,7 @@ alter table public.workspaces
 
 alter table public.workspace_snapshots drop constraint if exists workspace_snapshots_kind_check;
 alter table public.workspace_snapshots
-  add constraint workspace_snapshots_kind_check check (kind in ('manual', 'before_restore', 'before_wipe', 'before_delete', 'upload'));
+  add constraint workspace_snapshots_kind_check check (kind in ('manual', 'before_restore', 'before_wipe', 'before_delete', 'before_change', 'before_remove', 'upload'));
 
 -- =============================================================================
 -- The directory: who has finished joining somewhere

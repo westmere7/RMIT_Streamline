@@ -11,6 +11,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { LinkOptions } from "@/services";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
 
 /** One write often produces several row events; refetch once for the burst. */
 const COALESCE_MS = 200;
@@ -47,7 +48,8 @@ export function useItemLinks(itemId: string | null) {
  * changes go to the mapping too: "syncs 8 fields · 2 not on that board" is
  * counted from the two boards' columns, so adding one on either side changes it.
  */
-function useItemLinksRealtime(itemId: string | null): void {
+function useItemLinksRealtime(itemId: string | null): void {
+  const checks = useWorkspaceRowChecks();
   const bindings = React.useMemo<RealtimeBinding[]>(() => {
     if (!itemId) return [];
     const links = [queryKeys.itemLinks(itemId)];
@@ -55,13 +57,13 @@ function useItemLinksRealtime(itemId: string | null): void {
     // the mapping, so the column binding names both keys rather than a flag
     // remembered across the burst.
     return [
-      { table: "item_column_values", keys: links },
-      { table: "items", keys: links },
-      { table: "item_links", keys: links },
-      { table: "item_assets", keys: links },
-      { table: "board_columns", keys: [...links, ["link-mapping"]] },
+      { table: "item_column_values", keys: links, accept: checks.onBoard },
+      { table: "items", keys: links, accept: checks.onBoard },
+      { table: "item_links", keys: links, accept: checks.inWorkspace },
+      { table: "item_assets", keys: links, accept: checks.onBoard },
+      { table: "board_columns", keys: [...links, ["link-mapping"]], accept: checks.onBoard },
     ];
-  }, [itemId]);
+  }, [itemId, checks]);
   useRealtime(itemId ? `item-links:${itemId}` : null, bindings, { coalesceMs: COALESCE_MS });
 }
 

@@ -75,8 +75,8 @@ export interface WorkspaceRepository {
    * never without somebody who can run it.
    */
   create(input: { name: string; slug: string }): Promise<Workspace>;
-  /** Deletes a workspace and everything in it. Refused for the last one. Owners only. */
-  delete(id: EntityId): Promise<void>;
+  /** Deletes a workspace and everything in it. Refused for the last one. Owners only; `confirmName` must be its name. */
+  delete(id: EntityId, confirmName: string): Promise<void>;
   /**
    * The Owners: the people above every workspace. Kept apart from member roles
    * so that no workspace admin can make or unmake one.
@@ -84,6 +84,12 @@ export interface WorkspaceRepository {
   listOwners(): Promise<EntityId[]>;
   /** Everyone who has finished joining some workspace: the people an admin can give access to without a new account. */
   listDirectory(): Promise<EntityId[]>;
+  /**
+   * Removes a person completely (see WorkspaceService.removePerson): their
+   * history goes, their work is handed to `handTo`. `workspaceId` is where it is
+   * asked from, `confirmName` their name typed back.
+   */
+  removePerson(input: { workspaceId: EntityId; userId: EntityId; handTo: EntityId; confirmName: string }): Promise<void>;
   /** Makes an onboarded, active person an Owner, which seats them as OWNER in every workspace. */
   addOwner(userId: EntityId, grantedBy: EntityId): Promise<void>;
   /** Unmakes an Owner; their seats stay as MEMBER. Refused for the last Owner. */

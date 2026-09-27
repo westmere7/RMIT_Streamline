@@ -727,6 +727,8 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
   const [confirmReinitiate, setConfirmReinitiate] = React.useState(false);
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [confirmOwner, setConfirmOwner] = React.useState<null | "make" | "remove">(null);
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const [typedName, setTypedName] = React.useState("");
   const { setOwner } = useWorkspaceAdmin();
   const isSelf = user.id === ws.currentUser.id;
   const pending = member.status === "INVITED";
@@ -762,6 +764,15 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
     },
     onSuccess: invalidate,
     onError: refused(`Could not change ${user.firstName}'s teams`),
+  });
+  const removePerson = useMutation({
+    mutationFn: () => services.workspace.removePerson(ws.workspace.id, user.id, ws.currentUser.id, typedName),
+    onSuccess: async () => {
+      await invalidate();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceInvitations(ws.workspace.id) });
+      toast.success(`${user.displayName} was removed`);
+    },
+    onError: refused(`Could not remove ${user.firstName}`),
   });
   const setActive = useMutation({
     mutationFn: (active: boolean) => services.workspace.setMemberActive(member.id, user.id, active),
@@ -858,6 +869,9 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
               )}
             </>
           )}
+          <DropdownMenuItem variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmRemove(true)} data-testid="member-remove-completely">
+            Remove completely
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmDialog
@@ -878,6 +892,26 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
           })
         }
       />
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={(open) => {
+          setConfirmRemove(open);
+          if (!open) setTypedName("");
+        }}
+        title={`Remove ${user.displayName} completely?`}
+        description="Their account goes, in every workspace, with their updates (and the replies under them), activity, messages and notifications. Their tasks, boards and deliverables stay, handed to you. A snapshot is taken first."
+        confirmLabel="Remove"
+        destructive
+        confirmDisabled={typedName.trim() !== user.displayName.trim() || removePerson.isPending}
+        onConfirm={() => removePerson.mutateAsync().then(() => setTypedName(""))}
+      >
+        <div className="grid gap-1.5">
+          <p className="text-[13px] text-muted-foreground">
+            Type <span className="font-medium text-foreground">{user.displayName}</span> to confirm.
+          </p>
+          <Input value={typedName} onChange={(e) => setTypedName(e.target.value)} aria-label="Name to confirm" data-testid="member-remove-confirm" />
+        </div>
+      </ConfirmDialog>
       <ConfirmDialog
         open={confirmDeactivate}
         onOpenChange={setConfirmDeactivate}

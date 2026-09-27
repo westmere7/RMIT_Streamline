@@ -44,8 +44,13 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   /** Through the server, which takes a snapshot of everything first and then deletes with the service role. */
-  async delete(id: string): Promise<void> {
-    await callApi(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }, { auth: "required" });
+  async delete(id: string, confirmName: string): Promise<void> {
+    await callApi(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE", body: JSON.stringify({ confirmName }) }, { auth: "required" });
+  }
+
+  /** Through the server: the account is removed with the service role, after a snapshot, in one transaction. */
+  async removePerson(input: { workspaceId: string; userId: string; handTo: string; confirmName: string }): Promise<void> {
+    await callApi(`/api/people/${encodeURIComponent(input.userId)}/remove`, { method: "POST", body: JSON.stringify({ workspaceId: input.workspaceId, confirmName: input.confirmName }) }, { auth: "required" });
   }
 
   async listOwners(): Promise<string[]> {

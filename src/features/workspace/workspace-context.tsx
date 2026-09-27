@@ -53,6 +53,8 @@ export interface WorkspaceProviderProps {
   children: React.ReactNode;
 }
 
+const VIEW_AS_WORKSPACE_KEY = "streamline.view-as-workspace";
+
 export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProps) {
   const services = useServices();
   const currentUser = useCurrentUser();
@@ -94,6 +96,20 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   const favourites = favouritesQuery.data;
 
   const viewAsUserId = useUiStore((s) => s.viewAsUserId);
+  const setViewAsUserId = useUiStore((s) => s.setViewAsUserId);
+  // "View as" is a look at one workspace through somebody's eyes. It remembers
+  // which workspace, and opening another ends it, so the next one does not
+  // open as somebody else. (Not an unmount cleanup: development mounts twice.)
+  useEffect(() => {
+    try {
+      const started = sessionStorage.getItem(VIEW_AS_WORKSPACE_KEY);
+      if (viewAsUserId && started && started !== workspace.id) setViewAsUserId(null);
+      else if (viewAsUserId) sessionStorage.setItem(VIEW_AS_WORKSPACE_KEY, workspace.id);
+      else sessionStorage.removeItem(VIEW_AS_WORKSPACE_KEY);
+    } catch {
+      // Storage refused: view-as simply lasts as it did.
+    }
+  }, [viewAsUserId, workspace.id, setViewAsUserId]);
   const value = useMemo<WorkspaceContextValue | null>(() => {
     if (!ctx || !allBoards || !boardMembers || !favourites) return null;
     const own = buildPermissionContext({

@@ -95,9 +95,11 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
    * directly, and what hangs off its boards, items, comments, teams, trackers,
    * rules and portals. The people stay; they are the directory's.
    */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, confirmName: string): Promise<void> {
     const db = await this.conn.getDb();
-    if (!(await db.get("workspaces", id))) throw new NotFoundError("Workspace", id);
+    const found = await db.get("workspaces", id);
+    if (!found) throw new NotFoundError("Workspace", id);
+    if (confirmName.trim() !== found.name.trim()) throw new Error("Type the workspace's name exactly to delete it");
     if ((await db.count("workspaces")) <= 1) throw new Error(OWNER_RULES.keepOneWorkspace);
     const workspace = new Set([id]);
     const boards = await idsUnder(db, "boards", "workspaceId", workspace);
@@ -126,6 +128,85 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
       }
       await tx.done;
     }
+  }
+
+  /** The same removal the server does (src/server/snapshots.ts, removePerson), inside IndexedDB. */
+  async removePerson(input: { workspaceId: string; userId: string; handTo: string; confirmName: string }): Promise<void> {
+    const db = await this.conn.getDb();
+    const { userId, handTo } = input;
+    const user = await db.get("users", userId);
+    if (!user) throw new NotFoundError("User", userId);
+    if (input.confirmName.trim() !== user.displayName.trim()) throw new Error("Type their name exactly to remove them.");
+    const owners = await readOwners(db);
+    if (owners.includes(userId)) throw new Error(`${user.displayName} is an Owner. Remove them as an Owner first.`);
+    if (userId === handTo) throw new Error("You cannot remove yourself.");
+    const seats = await db.getAllFromIndex("workspaceMembers", "byUser", userId);
+    if (!seats.some((s) => s.workspaceId === input.workspaceId)) throw new Error("That person is not in this workspace.");
+    if (!owners.includes(handTo) && seats.some((s) => s.workspaceId !== input.workspaceId)) {
+      throw new Error(`${user.displayName} is in another workspace too. Only an Owner can remove them completely; you can deactivate them here.`);
+    }
+
+    // Their work stays, and is the remover's now.
+    const handOver: Array<[StoreName, string]> = [
+      ["items", "createdBy"],
+      ["boards", "ownerId"],
+      ["itemAssets", "createdBy"],
+      ["trackers", "createdBy"],
+      ["bookingTemplates", "createdBy"],
+      ["boardTemplates", "createdBy"],
+      ["bookingSavedBlocks", "createdBy"],
+      ["automationRules", "createdBy"],
+      ["boardShares", "createdBy"],
+      ["itemShares", "createdBy"],
+      ["dashboardShares", "createdBy"],
+      ["itemLinks", "createdBy"],
+    ];
+    for (const [store, field] of handOver) {
+      for (const row of (await db.getAll(store)) as unknown as Array<Record<string, unknown>>) {
+        if (row[field] === userId) await db.put(store, { ...row, [field]: handTo } as never);
+      }
+    }
+    // Off every people cell and deliverable.
+    for (const value of await db.getAll("itemColumnValues")) {
+      const v = value.value as { userIds?: string[] };
+      if (Array.isArray(v.userIds) && v.userIds.includes(userId)) await db.put("itemColumnValues", { ...value, value: { ...value.value, userIds: v.userIds.filter((id) => id !== userId) } as never });
+    }
+    for (const asset of await db.getAll("itemAssets")) {
+      if (asset.assigneeIds?.includes(userId)) await db.put("itemAssets", { ...asset, assigneeIds: asset.assigneeIds.filter((id) => id !== userId) });
+    }
+    // Their history goes: their updates (and the replies under them), and their reactions on anybody's.
+    const comments = await db.getAll("comments");
+    const gone = new Set(comments.filter((c) => c.authorId === userId).map((c) => c.id));
+    for (const c of comments) if (c.parentId && gone.has(c.parentId)) gone.add(c.id);
+    for (const c of comments) {
+      if (gone.has(c.id)) await db.delete("comments", c.id);
+      else if (c.reactions?.some((r) => r.userId === userId)) await db.put("comments", { ...c, reactions: c.reactions.filter((r) => r.userId !== userId) });
+    }
+    const byField: Array<[StoreName, string[]]> = [
+      ["activities", ["actorId"]],
+      ["notifications", ["userId", "actorId"]],
+      ["directMessages", ["senderId", "recipientId"]],
+      ["itemReads", ["userId"]],
+      ["boardFavourites", ["userId"]],
+      ["boardVisits", ["userId"]],
+      ["boardMembers", ["userId"]],
+      ["teamMembers", ["userId"]],
+      ["workspaceMembers", ["userId"]],
+      ["workspaceInvitations", ["userId"]],
+    ];
+    for (const [store, fields] of byField) {
+      const tx = db.transaction(store, "readwrite");
+      let cursor = await tx.store.openCursor();
+      while (cursor) {
+        const row = cursor.value as unknown as Record<string, unknown>;
+        if (fields.some((f) => row[f] === userId)) await cursor.delete();
+        cursor = await cursor.continue();
+      }
+      await tx.done;
+    }
+    await db.delete("notificationPreferences", userId).catch(() => undefined);
+    await db.delete("credentials", userId).catch(() => undefined);
+    await db.delete("users", userId);
   }
 
   async listOwners(): Promise<string[]> {

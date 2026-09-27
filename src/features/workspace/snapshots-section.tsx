@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 interface SnapshotSummary {
   id: string;
   name: string;
-  kind: "manual" | "before_restore" | "before_wipe" | "before_delete" | "upload";
+  kind: "manual" | "before_restore" | "before_wipe" | "before_delete" | "before_change" | "before_remove" | "upload";
   createdAt: string;
   createdByName: string | null;
   appVersion: string | null;
@@ -177,8 +177,8 @@ export function SnapshotsSection() {
           <ul className="divide-y divide-border/60">
             {snapshots.map((snapshot) => (
               <li key={snapshot.id} className="flex items-center gap-3 px-4 py-3" data-testid="snapshot-row">
-                <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" || snapshot.kind === "before_delete" ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-surface text-muted-foreground")} aria-hidden>
-                  {snapshot.kind === "upload" ? <Upload className="size-4" /> : snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" || snapshot.kind === "before_delete" ? <History className="size-4" /> : <Camera className="size-4" />}
+                <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" || snapshot.kind === "before_delete" || snapshot.kind === "before_change" || snapshot.kind === "before_remove" ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-surface text-muted-foreground")} aria-hidden>
+                  {snapshot.kind === "upload" ? <Upload className="size-4" /> : snapshot.kind === "before_restore" || snapshot.kind === "before_wipe" || snapshot.kind === "before_delete" || snapshot.kind === "before_change" || snapshot.kind === "before_remove" ? <History className="size-4" /> : <Camera className="size-4" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium">
@@ -186,6 +186,8 @@ export function SnapshotsSection() {
                     {snapshot.kind === "before_restore" && <Badge variant="muted">Before a restore</Badge>}
                     {snapshot.kind === "before_wipe" && <Badge variant="muted">Before a wipe</Badge>}
                     {snapshot.kind === "before_delete" && <Badge variant="muted">Before a delete</Badge>}
+                    {snapshot.kind === "before_change" && <Badge variant="muted">Before a department change</Badge>}
+                    {snapshot.kind === "before_remove" && <Badge variant="muted">Before removing someone</Badge>}
                     {snapshot.kind === "upload" && <Badge variant="muted">Uploaded</Badge>}
                     {snapshot.restoredAt && (
                       <SimpleTooltip label={`Restored ${formatWhen(snapshot.restoredAt)}${snapshot.restoredByName ? ` by ${snapshot.restoredByName}` : ""}`}>

@@ -229,8 +229,10 @@ test.describe("supabase provider", () => {
     // Remove it again: exercises the delete path and leaves the board as found.
     const posted = page.getByTestId("comment").filter({ hasText: body });
     await posted.hover();
+    // Two presses: the bin, then "Delete?" (item-updates.tsx, ConfirmDelete).
+    await posted.getByTestId("comment-delete").click();
     await expectWrite(page, "comments", "DELETE", async () => {
-      await posted.getByRole("button", { name: "Delete update" }).click();
+      await posted.getByTestId("comment-delete-confirm").click();
     });
     await expect(posted).toHaveCount(0, { timeout: 20_000 });
     expect(errors).toEqual([]);
@@ -325,14 +327,14 @@ test.describe("supabase provider", () => {
       ["/workspace/rmit/inbox", "Inbox"],
       ["/workspace/rmit/trackers", "Trackers"],
       ["/workspace/rmit/members", "Members"],
-      ["/workspace/rmit/settings", "Workspace settings"],
+      ["/workspace/rmit/settings", "Settings"],
     ] as const) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toContainText(heading, { timeout: 30_000 });
     }
-    // Settings → Data explains that the database owns the data now.
-    await page.getByRole("button", { name: "Data", exact: true }).click();
-    await expect(page.getByText(/Managed by the database/)).toBeVisible({ timeout: 20_000 });
+    // Snapshots are the Owners', and say they reach every workspace.
+    await page.goto("/workspace/rmit/settings?section=snapshots");
+    await expect(page.getByTestId("settings-scope")).toHaveText("Every workspace", { timeout: 20_000 });
     expect(errors).toEqual([]);
   });
 

@@ -52,6 +52,11 @@ try {
     await tx`insert into direct_messages (workspace_id, sender_id, recipient_id, body) values (${B}, ${danh}, ${tom}, 'hello in B')`;
     await tx`insert into notifications (user_id, type, title, entity_type, entity_id, board_id) values (${tom}, 'COMMENT', 'B note', 'ITEM', ${item.id}, ${board.id})`;
     await tx`insert into board_members (board_id, user_id, role) values (${privateBoard.id}, ${sarah}, 'VIEWER')`;
+    // B's own portal and department registry.
+    const [dept] = await tx`insert into stakeholder_departments (workspace_id, name, color, position, status) values (${B}, 'Comm.', 'blue', 0, 'ACTIVE') returning id`;
+    const [portal] = await tx`insert into department_portals (workspace_id, department_id, token, enabled) values (${B}, null, 'isobportal000000000000000001', true) returning id`;
+    // Jun is in A and, for these checks, in B as well.
+    await tx`insert into workspace_members (workspace_id, user_id, role, status) values (${B}, ${jun}, 'MEMBER', 'ACTIVE')`;
 
     // What belongs to B, by the column that says so.
     const Bboards = [board.id, privateBoard.id];
@@ -78,6 +83,8 @@ try {
       booking_saved_blocks: ["workspace_id", [B]],
       direct_messages: ["workspace_id", [B]],
       notifications: ["workspace_id", [B]],
+      stakeholder_departments: ["id", [dept.id]],
+      department_portals: ["id", [portal.id]],
     };
     // And what belongs to A, for the other direction.
     const Aboards = (await tx`select id from boards where workspace_id = ${A}`).map((r) => r.id);
@@ -118,7 +125,7 @@ try {
     }
 
     // ---- nobody outside B sees any of it -----------------------------------------
-    for (const [name, user] of [["emily (admin of A)", emily], ["jun (member of A)", jun], ["ben (guest of A)", ben]]) {
+    for (const [name, user] of [["emily (admin of A)", emily], ["ben (guest of A)", ben]]) {
       const seen = await visible(user);
       const leaks = Object.entries(seen).filter(([, n]) => n > 0);
       check(`${name} sees nothing of B, in any of ${Object.keys(owned).length} tables`, leaks.length === 0, leaks.map(([t, n]) => `${t}:${n}`).join(" "));
@@ -170,6 +177,48 @@ try {
     check("sarah cannot notify tom about A's board", (await attempt(sarah, (sp) => sp`insert into notifications (user_id, type, title, entity_type, entity_id, board_id, actor_id) values (${tom}, 'COMMENT', 'x', 'BOARD', ${Aboards[0]}, ${Aboards[0]}, ${sarah})`)) === -1);
     check("sarah can notify tom about B's board", (await attempt(sarah, (sp) => sp`insert into notifications (user_id, type, title, entity_type, entity_id, board_id, actor_id) values (${tom}, 'COMMENT', 'x', 'BOARD', ${board.id}, ${board.id}, ${sarah})`)) !== -1);
     check("emily cannot notify tom at all", (await attempt(emily, (sp) => sp`insert into notifications (user_id, type, title, entity_type, entity_id, board_id, actor_id) values (${tom}, 'COMMENT', 'x', 'BOARD', ${board.id}, ${board.id}, ${emily})`)) === -1);
+
+    // ---- boards, tasks and rules stay in their workspace -----------------------
+    const [aItem] = await tx`select id, board_id from items where board_id = any(${Aboards}::uuid[]) and parent_item_id is null limit 1`;
+    check("An admin of both cannot move A's board into B", (await attempt(sarah, (sp) => sp`update boards set workspace_id = ${B} where id = ${aItem.board_id} returning id`)) === -1);
+    check("Nor can an Owner", (await attempt(danh, (sp) => sp`update boards set workspace_id = ${B} where id = ${aItem.board_id} returning id`)) === -1);
+    check("A board cannot take another workspace's team", (await attempt(danh, (sp) => sp`update boards set team_id = ${team.id} where id = ${aItem.board_id} returning id`)) === -1);
+    check("A task cannot move to another workspace's board", (await attempt(danh, (sp) => sp`update items set board_id = ${board.id}, group_id = ${group.id} where id = ${aItem.id} returning id`)) === -1);
+    check("A rule cannot sit in one workspace on another's board", (await attempt(danh, (sp) => sp`insert into automation_rules (workspace_id, board_id, name, trigger_json) values (${A}, ${board.id}, 'x', '{}'::jsonb)`)) === -1);
+    check("A task still moves between boards of one workspace", (await attempt(danh, async (sp) => {
+      const [other] = await sp`select b.id as board_id, g.id as group_id from boards b join board_groups g on g.board_id = b.id where b.workspace_id = ${A} and b.id <> ${aItem.board_id} and b.system is null limit 1`;
+      return sp`update items set board_id = ${other.board_id}, group_id = ${other.group_id} where id = ${aItem.id} returning id`;
+    })) === 1);
+
+    // ---- profiles: one account, edited by whoever runs all of its workspaces ----
+    check("emily (admin of A only) cannot edit tom, who is in B only", (await attempt(emily, (sp) => sp`update profiles set job_title = 'x' where id = ${tom} returning id`)) <= 0);
+    check("emily cannot edit jun, who is also active in B, where she is not admin", (await attempt(emily, (sp) => sp`update profiles set job_title = 'x' where id = ${jun} returning id`)) <= 0);
+    check("sarah (admin of A and B) cannot edit jun's details now he has joined", (await attempt(sarah, (sp) => sp`update profiles set job_title = 'Producer' where id = ${jun} returning id`)) === -1);
+    check("…nor his email", (await attempt(sarah, (sp) => sp`update profiles set email = 'someone.else@rmit.local' where id = ${jun} returning id`)) === -1);
+    check("Nor can an Owner", (await attempt(danh, (sp) => sp`update profiles set job_title = 'x' where id = ${jun} returning id`)) === -1);
+    check("sarah can still switch jun's account off and on (deactivation)", (await attempt(sarah, (sp) => sp`update profiles set deactivated_at = now() where id = ${jun} returning id`)) === 1);
+    check("A person can edit themselves", (await attempt(tom, (sp) => sp`update profiles set job_title = 'Me' where id = ${tom} returning id`)) === 1);
+    const [pending] = await tx`select m.user_id from workspace_members m where m.workspace_id = ${A} and m.status = 'INVITED' and not exists (select 1 from workspace_members o where o.user_id = m.user_id and o.status <> 'INVITED') limit 1`;
+    if (pending) check("An admin fills in the details of somebody still pending", (await attempt(emily, (sp) => sp`update profiles set job_title = 'Designer' where id = ${pending.user_id} returning id`)) === 1);
+
+    // ---- comments: the author, or an admin who is on that board ------------------
+    const [onBoard] = await tx`insert into comments (item_id, author_id, body) values (${item.id}, ${tom}, 'tom in B') returning id`;
+    check("sarah, an admin of B with no seat on B's board, cannot delete tom's update", (await attempt(sarah, (sp) => sp`delete from comments where id = ${onBoard.id} returning id`)) <= 0);
+    await tx`insert into board_members (board_id, user_id, role) values (${board.id}, ${sarah}, 'EDITOR')`;
+    check("…and can once she is a member of that board", (await attempt(sarah, (sp) => sp`delete from comments where id = ${onBoard.id} returning id`)) === 1);
+    const [second] = await tx`insert into comments (item_id, author_id, body) values (${item.id}, ${tom}, 'tom again') returning id`;
+    check("danh, the board's owner and an Owner, can", (await attempt(danh, (sp) => sp`delete from comments where id = ${second.id} returning id`)) === 1);
+    const [third] = await tx`insert into comments (item_id, author_id, body) values (${item.id}, ${tom}, 'tom once more') returning id`;
+    check("tom, the author, can", (await attempt(tom, (sp) => sp`delete from comments where id = ${third.id} returning id`)) === 1);
+
+    // ---- the portal and the booking link are B's -----------------------------------
+    check("B's portal row is B's admins' alone: tom (a member) does not see it", tomSees.department_portals === 0);
+    const sarahPortal = await as(sarah, async () => (await tx`select count(*)::int as n from department_portals where id = ${portal.id}`)[0].n);
+    check("…and sarah, an admin of B, does", sarahPortal === 1);
+    check("An admin of A cannot open B's portal row", (await attempt(emily, (sp) => sp`update department_portals set enabled = false where id = ${portal.id} returning id`)) <= 0);
+    const [aBooking] = await tx`select booking_key from workspaces where id = ${A}`;
+    const [bBooking] = await tx`select booking_key from workspaces where id = ${B}`;
+    check("B has its own booking link, not A's", !aBooking.booking_key || bBooking.booking_key !== aBooking.booking_key);
 
     // ---- the Owner sees every workspace ----------------------------------------
     const danhSees = await visible(danh);

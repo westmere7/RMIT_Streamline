@@ -64,7 +64,10 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     );
   }
   if (membershipQuery.isLoading) return <FullPageLoader label="Opening workspace…" />;
-  if (membershipQuery.data === null || membershipQuery.data?.status === "DEACTIVATED") {
+  // Only an active seat lets anyone in. A pending one (a booking's, or somebody
+  // who has not finished joining) is no access: with one account across every
+  // workspace, a person signed in from another workspace could otherwise walk in.
+  if (membershipQuery.data === null || (membershipQuery.data && membershipQuery.data.status !== "ACTIVE")) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface text-center">
         <p className="text-base font-semibold">You do not have access to {workspace.name}</p>

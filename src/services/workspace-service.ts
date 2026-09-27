@@ -114,7 +114,8 @@ export class WorkspaceService {
       if (!WORKSPACE_SLUG_PATTERN.test(slug)) throw new Error("The address takes 2 to 40 lower-case letters, digits and dashes");
       if (taken.has(slug) || (await this.repos.workspaces.getBySlug(slug))) throw new Error(`A workspace already uses the address "${slug}"`);
     } else {
-      slug = uniqueSlug(slugify(name).slice(0, 40).replace(/-+$/, "") || "workspace", taken);
+      // Room for the "-2" a taken address gets, inside the 40 the address allows.
+      slug = uniqueSlug(slugify(name).slice(0, 36).replace(/-+$/, "") || "workspace", taken);
       if (slug.length < 2) slug = `${slug}-ws`;
     }
     const workspace = await this.repos.workspaces.create({ name, slug });
@@ -132,7 +133,24 @@ export class WorkspaceService {
     const workspace = await this.repos.workspaces.getById(workspaceId);
     if (!workspace) throw new NotFoundError("Workspace", workspaceId);
     if (typedName.trim() !== workspace.name.trim()) throw new Error("Type the workspace's name exactly to delete it");
-    await this.repos.workspaces.delete(workspaceId);
+    await this.repos.workspaces.delete(workspaceId, typedName);
+  }
+
+  /**
+   * Removes a person completely: their account, in every workspace. Their
+   * history goes (updates, reactions, activity, messages, notifications, seats);
+   * their work stays, handed to `actorId` (tasks, boards, deliverables and the
+   * rest). An Owner removes anyone but an Owner; an admin only somebody whose
+   * every seat is in this workspace. Their name has to be typed back. With
+   * Supabase the server does it, after a snapshot, and checks all of this again.
+   */
+  async removePerson(workspaceId: EntityId, userId: EntityId, actorId: EntityId, typedName: string): Promise<void> {
+    if (userId === actorId) throw new Error("You cannot remove yourself.");
+    const owners = await this.repos.workspaces.listOwners();
+    if (owners.includes(userId)) throw new Error("This person is an Owner. Remove them as an Owner first.");
+    const actorSeat = (await this.repos.workspaces.listMembers(workspaceId)).find((m) => m.userId === actorId && m.status === "ACTIVE");
+    if (!owners.includes(actorId) && actorSeat?.role !== "ADMIN") throw new Error("Only admins and Owners can remove people.");
+    await this.repos.workspaces.removePerson({ workspaceId, userId, handTo: actorId, confirmName: typedName });
   }
 
   /** Makes someone an Owner. They must have finished joining, and they are seated as OWNER in every workspace. */
@@ -159,8 +177,10 @@ export class WorkspaceService {
     const directory = new Set(await this.repos.workspaces.listDirectory());
     const here = memberships.find((m) => m.workspaceId === input.workspaceId);
     if (here?.status === "ACTIVE") throw new Error(`${user.displayName} is already a member of this workspace`);
-    if (here?.status === "INVITED") throw new Error(`${user.displayName} has been added here already and has not finished joining`);
-    if (!here && !directory.has(input.userId) && user.deactivatedAt === null) throw new Error(`${user.displayName} has not finished joining yet. Add them here once they have.`);
+    // Joined somewhere else (active there now), or joined once and switched off since.
+    const joined = directory.has(input.userId) || memberships.some((m) => m.workspaceId !== input.workspaceId && m.status === "DEACTIVATED");
+    if (here?.status === "INVITED" && !joined) throw new Error(`${user.displayName} has been added here already and has not finished joining`);
+    if (!here && !joined) throw new Error(`${user.displayName} has not finished joining yet. Add them here once they have.`);
     if (user.deactivatedAt) await this.repos.users.update(input.userId, { deactivatedAt: null });
     const member = here
       ? await this.repos.workspaces.updateMember(here.id, { role: input.role, status: "ACTIVE" })
@@ -290,6 +310,8 @@ export class WorkspaceService {
    * reactivating anywhere switches it back on.
    */
   async setMemberActive(memberId: EntityId, userId: EntityId, active: boolean): Promise<WorkspaceMember> {
+    // The seat has to be this person's: the two ids arrive separately.
+    if (!(await this.repos.workspaces.listMembershipsForUser(userId)).some((m) => m.id === memberId)) throw new NotFoundError("WorkspaceMember", memberId);
     const member = await this.repos.workspaces.updateMember(memberId, { status: active ? "ACTIVE" : "DEACTIVATED" });
     if (active) {
       const user = await this.repos.users.getById(userId);
@@ -506,7 +528,12 @@ export class WorkspaceService {
     return owner.userId;
   }
 
+  /** Only somebody with a seat in the team's workspace: the directory is shared, the teams are not. */
   async addTeamMember(teamId: EntityId, userId: EntityId, role: TeamRole = "MEMBER"): Promise<TeamMember> {
+    const team = await this.repos.teams.getById(teamId);
+    if (!team) throw new NotFoundError("Team", teamId);
+    const seat = (await this.repos.workspaces.listMembers(team.workspaceId)).find((m) => m.userId === userId);
+    if (!seat || seat.status === "DEACTIVATED") throw new Error("Only people in this workspace can join its teams.");
     return this.repos.teams.addMember(teamId, userId, role);
   }
 

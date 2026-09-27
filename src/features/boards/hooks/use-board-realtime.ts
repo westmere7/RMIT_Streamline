@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
 
 /** One write often produces several row events; refetch once for the burst. */
 const COALESCE_MS = 400;
@@ -28,7 +29,8 @@ const COALESCE_MS = 400;
  * In local mode cross-tab freshness comes from the BroadcastChannel in
  * src/lib/realtime/local-realtime.ts, so this hook does nothing.
  */
-export function useBoardRealtime(boardId: string | null): void {
+export function useBoardRealtime(boardId: string | null): void {
+  const checks = useWorkspaceRowChecks();
   const bindings = useMemo<RealtimeBinding[]>(() => {
     if (!boardId) return [];
     const board = `board_id=eq.${boardId}`;
@@ -53,10 +55,12 @@ export function useBoardRealtime(boardId: string | null): void {
       { table: "comments", keys: [["comments"]] },
       { table: "comment_reactions", keys: [["comments"]] },
       { table: "item_assets", filter: board, keys: [["item-assets"], snapshot] },
-      { table: "item_links", keys: [["item-links"], snapshot] },
+      { table: "item_links", keys: [["item-links"], snapshot], accept: checks.inWorkspace },
       { table: "activities", filter: board, keys: [["activity"]] },
     ];
-  }, [boardId]);
+  }, [boardId, checks]);
 
-  useRealtime(boardId ? `board:${boardId}` : null, bindings, { coalesceMs: COALESCE_MS });
+  // A floor under the reads as well as the coalescing: a burst of deletions
+  // (a workspace deleted elsewhere, an inbox cleared) arrives unfiltered.
+  useRealtime(boardId ? `board:${boardId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: 1_000 });
 }

@@ -28,6 +28,8 @@ const adminAcct = byEmail("admin@");
 const emily = byEmail("emily");
 const ben = byEmail("ben");
 const [rmit] = await sql`select id, slug from workspaces order by created_at limit 1`;
+// The stack may hold more workspaces than the seeded one (somebody tried the app on it).
+const [{ n: workspaceCount }] = await sql`select count(*)::int as n from workspaces`;
 
 /** Runs `fn` as `user` (role authenticated, their JWT claims) inside a transaction that is rolled back. */
 async function as(user, fn) {
@@ -86,7 +88,7 @@ r = await as(danh, async (tx) => {
   const after = await tx`select role from workspace_members where user_id = ${emily.id}`;
   return { seats, after };
 });
-check("A new Owner is seated as OWNER in every workspace", !r.error && r.value.seats.length === 2 && r.value.seats.every((s) => s.role === "OWNER"), r.error ?? JSON.stringify(r.value?.seats));
+check("A new Owner is seated as OWNER in every workspace", !r.error && r.value.seats.length === workspaceCount + 1 && r.value.seats.every((s) => s.role === "OWNER"), r.error ?? JSON.stringify(r.value?.seats));
 check("An unmade Owner stays in every workspace as MEMBER", !r.error && r.value.after.every((s) => s.role === "MEMBER"), r.error ?? JSON.stringify(r.value?.after));
 r = await as(danh, async (tx) => {
   await tx`delete from app_owners where user_id = ${adminAcct.id}`;
@@ -128,12 +130,20 @@ check("An Owner sees every workspace", !r.error && r.value.includes("second-ws")
 r = await as(emily, (tx) => tx`update profiles set job_title = 'hijacked' where id = ${danh.id} returning id`);
 check("An admin cannot edit an Owner's profile", !r.error && r.value.length === 0, r.error ?? `${r.value?.length} rows`);
 r = await as(emily, (tx) => tx`update profiles set job_title = 'Designer' where id = ${ben.id} returning id`);
-check("An admin still edits a member's profile", !r.error && r.value.length === 1, r.error ?? `${r.value?.length} rows`);
+check("An admin cannot edit a joined member's details", !!r.error && /details are theirs/.test(r.error), r.error ?? `${r.value?.length} rows`);
+r = await as(emily, (tx) => tx`update profiles set deactivated_at = now() where id = ${ben.id} returning id`);
+check("…but can still switch their account off", !r.error && r.value.length === 1, r.error ?? `${r.value?.length} rows`);
 
 // 7. Deleting workspaces
 r = await as(emily, async (tx) => tx`delete from workspaces where id = ${rmit.id} returning id`);
 check("An admin cannot delete a workspace", !r.error && r.value.length === 0, r.error ?? `${r.value?.length}`);
-r = await as(danh, (tx) => tx`delete from workspaces where id = ${rmit.id}`);
+r = await as(null, async (tx) => {
+  // Only one left, then an Owner tries.
+  await tx`delete from workspaces where id <> ${rmit.id}`;
+  await tx.unsafe("set local role authenticated");
+  await tx.unsafe(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: danh.id, role: "authenticated" })]);
+  return tx`delete from workspaces where id = ${rmit.id}`;
+});
 check("The last workspace cannot be deleted", !!r.error && /last workspace/.test(r.error), r.error?.slice(0, 60));
 r = await as(danh, async (tx) => {
   await tx`insert into workspaces (name, slug) values ('Second', 'second-ws')`;
@@ -144,12 +154,12 @@ r = await as(danh, async (tx) => {
 check("An Owner deletes a full workspace (every trigger on the cascade)", !r.error && r.value.deleted === 1 && r.value.left === 0, r.error ?? JSON.stringify(r.value));
 r = await as(null, async (tx) => {
   await tx`insert into workspaces (name, slug) values ('Second', 'second-ws')`;
-  const [before] = await tx`select (select count(*) from boards) b, (select count(*) from items) i, (select count(*) from profiles) p`;
+  const [before] = await tx`select (select count(*) from boards where workspace_id <> ${rmit.id}) b, (select count(*) from items i join boards bo on bo.id = i.board_id where bo.workspace_id <> ${rmit.id}) i, (select count(*) from profiles) p`;
   await tx`delete from workspaces where id = ${rmit.id}`;
   const [after] = await tx`select (select count(*) from boards) b, (select count(*) from items) i, (select count(*) from profiles) p, (select count(*) from notifications where workspace_id = ${rmit.id}) n`;
   return { before, after };
 });
-check("Deleting a workspace takes its boards and items and keeps the people", !r.error && Number(r.value.after.b) === 0 && Number(r.value.after.i) === 0 && r.value.after.p === r.value.before.p && Number(r.value.after.n) === 0, r.error ?? JSON.stringify(r.value));
+check("Deleting a workspace takes its boards and items and keeps the people", !r.error && Number(r.value.after.b) === Number(r.value.before.b) && Number(r.value.after.i) === Number(r.value.before.i) && r.value.after.p === r.value.before.p && Number(r.value.after.n) === 0, r.error ?? JSON.stringify(r.value));
 
 // 7b. The Portal and Booking menu switch is the workspace admins'
 r = await as(emily, (tx) => tx`update workspaces set show_portal_menu = false where id = ${rmit.id} returning id`);

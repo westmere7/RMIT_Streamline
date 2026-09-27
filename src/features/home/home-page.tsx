@@ -59,14 +59,15 @@ function HomeDesktop() {
   const now = React.useMemo(() => new Date(), []);
 
   const recent = useQuery({
-    queryKey: queryKeys.recentBoards(ws.currentUser.id),
-    queryFn: () => services.repos.admin.listRecentBoardIds(ws.currentUser.id, 6),
+    // Visits are kept across every workspace, so enough of them to still find six of this one's.
+    queryKey: [...queryKeys.recentBoards(ws.currentUser.id), ws.workspace.id],
+    queryFn: () => services.repos.admin.listRecentBoardIds(ws.currentUser.id, 60),
   });
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
   const activity = useWorkspaceActivity(ws.workspace.id, 12);
 
   const visible = (b: Board | undefined): b is Board => !!b && b.archivedAt === null && canViewBoard(ws.permissions, b);
-  const recentBoards = (recent.data ?? []).map((id) => ws.boardById(id)).filter(visible);
+  const recentBoards = (recent.data ?? []).map((id) => ws.boardById(id)).filter(visible).slice(0, 6);
   const favouriteBoards = ws.boards.filter((b) => ws.isFavourite(b.id) && visible(b));
   const importantWork = (myWork.data ?? [])
     .filter((entry) => !entry.isDone)

@@ -131,14 +131,17 @@ export class ProfileService {
   }
 
   /**
-   * Edits someone's details. Row-level security is the real gate: you may edit
-   * yourself, and a workspace admin may edit anyone in their workspace
-   * (supabase/migrations/0005_direct_messages.sql).
+   * Edits someone's details: your own, or, as an admin, those of somebody who
+   * has not finished joining yet. Once a person has joined, their details are
+   * theirs. The database holds to the same rule (private.profile_edit_guard);
+   * this says so first, and is the only gate in the local provider.
    */
   async updateProfile(
     userId: EntityId,
     patch: Partial<Pick<User, "firstName" | "lastName" | "displayName" | "jobTitle" | "department" | "timezone" | "avatarUrl" | "stakeholderGroup" | "workHoursStart" | "workHoursEnd">>,
+    actorId?: EntityId,
   ): Promise<User> {
+    if (actorId && actorId !== userId && (await this.hasJoined(userId))) throw new Error("Once somebody has joined, their details are theirs to change.");
     const cleaned = { ...patch };
     if (cleaned.firstName !== undefined) cleaned.firstName = cleaned.firstName.trim();
     if (cleaned.lastName !== undefined) cleaned.lastName = cleaned.lastName.trim();
@@ -153,5 +156,12 @@ export class ProfileService {
     if (cleaned.workHoursStart !== undefined) cleaned.workHoursStart = cleaned.workHoursStart?.trim() || null;
     if (cleaned.workHoursEnd !== undefined) cleaned.workHoursEnd = cleaned.workHoursEnd?.trim() || null;
     return this.repos.users.update(userId, cleaned);
+  }
+
+  /** Whether they have joined a workspace: a seat that is, or was, active. The directory covers workspaces the caller is not in. */
+  async hasJoined(userId: EntityId): Promise<boolean> {
+    const seats = await this.repos.workspaces.listMembershipsForUser(userId);
+    if (seats.some((m) => m.status !== "INVITED")) return true;
+    return (await this.repos.workspaces.listDirectory()).includes(userId);
   }
 }

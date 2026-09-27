@@ -44,9 +44,13 @@ export function serverRequesterDirectory(): RequesterDirectory {
     async ensure(workspaceId, person, invitedBy) {
       const email = person.email.trim().toLowerCase();
       const profile = await profileByEmail(email);
-      // Somebody the workspace has, whatever their status, is that person and keeps
-      // their name; so is an account a public form will not pull in (deactivated).
-      if (profile && ((await membershipOf(workspaceId, profile.id)) || profile.deactivated_at)) return profile.id;
+      // Somebody the workspace has, whatever their status, is that person and keeps their name.
+      if (profile && (await membershipOf(workspaceId, profile.id))) return profile.id;
+      // An account this workspace does not have, from another workspace or none,
+      // is left alone: a form anybody can fill in must not add a person to a
+      // workspace, still less give them access. The name and email still travel
+      // in the task's description.
+      if (profile) return null;
       const name = splitPersonName(person.name);
       const invited = await inviteMember({ workspaceId, email, firstName: name.firstName || email, lastName: name.lastName, jobTitle: null, role: "MEMBER", teamIds: [] }, invitedBy);
       return invited.user.id;

@@ -65,14 +65,18 @@ export class LocalOnboardingRepository implements OnboardingRepository {
       const seats = await db.getAllFromIndex("workspaceMembers", "byUser", known.id);
       const here = seats.find((m) => m.workspaceId === input.workspaceId);
       if (here?.status === "DEACTIVATED") throw new Error(`${known.displayName} is deactivated in this workspace. Reactivate them from the members list instead.`);
-      if (here) throw new Error(`${known.displayName} is already a member of this workspace`);
-      if (seats.some((m) => m.status === "ACTIVE" || m.status === "DEACTIVATED")) {
+      if (here?.status === "ACTIVE") throw new Error(`${known.displayName} is already a member of this workspace`);
+      if (seats.some((m) => m.workspaceId !== input.workspaceId && (m.status === "ACTIVE" || m.status === "DEACTIVATED"))) {
         const revived: User = known.deactivatedAt ? { ...known, deactivatedAt: null, updatedAt: now } : known;
-        const member: WorkspaceMember = { id: newId(), workspaceId: input.workspaceId, userId: known.id, role: input.role, status: "ACTIVE", joinedAt: now };
+        // A pending seat here (a booking's, say) becomes access.
+        const member: WorkspaceMember = here ? { ...here, role: input.role, status: "ACTIVE", joinedAt: now } : { id: newId(), workspaceId: input.workspaceId, userId: known.id, role: input.role, status: "ACTIVE", joinedAt: now };
         const workspaceTeams = new Set((await db.getAllFromIndex("teams", "byWorkspace", input.workspaceId)).map((t) => t.id));
-        const tx = db.transaction(["users", "workspaceMembers", "teamMembers"], "readwrite");
+        const tx = db.transaction(["users", "workspaceMembers", "teamMembers", "workspaceInvitations"], "readwrite");
         if (revived !== known) await tx.objectStore("users").put(revived);
         await tx.objectStore("workspaceMembers").put(member);
+        for (const existing of await tx.objectStore("workspaceInvitations").index("byUser").getAll(known.id)) {
+          if (existing.workspaceId === input.workspaceId && invitationStatus(existing) === "PENDING") await tx.objectStore("workspaceInvitations").put({ ...existing, revokedAt: now });
+        }
         const existingTeams = await tx.objectStore("teamMembers").index("byUser").getAll(known.id);
         for (const teamId of new Set(input.teamIds)) {
           if (!workspaceTeams.has(teamId) || existingTeams.some((m) => m.teamId === teamId)) continue;
@@ -81,7 +85,7 @@ export class LocalOnboardingRepository implements OnboardingRepository {
         await tx.done;
         return { user: revived, member, invitation: null };
       }
-      if (seats.some((m) => m.status === "INVITED")) throw new Error(`${known.displayName} has been added to another workspace and has not finished joining yet. Add them here once they have.`);
+      if (here) throw new Error(`${known.displayName} is already a member of this workspace`);
     }
     if (user?.deactivatedAt) throw new Error(`${user.displayName} has a deactivated account. Reactivate it from the members list instead.`);
     const isNew = user === null;
@@ -165,6 +169,11 @@ export class LocalOnboardingRepository implements OnboardingRepository {
   async regenerate(workspaceId: string, userId: string): Promise<WorkspaceInvitation> {
     const db = await this.conn.getDb();
     const member = await pendingMember(db, workspaceId, userId);
+    // The same rule as the server: somebody who has joined another workspace is added, not sent a link.
+    if ((await db.getAllFromIndex("workspaceMembers", "byUser", userId)).some((m) => m.workspaceId !== workspaceId && m.status !== "INVITED")) {
+      const user = await db.get("users", userId);
+      throw new Error(`${user?.displayName ?? "This person"} already has an account from another workspace. Add them from Add member to give them access here.`);
+    }
     const now = nowIso();
     const invitation = newInvitation({ workspaceId, userId, createdBy: null });
     const tx = db.transaction(["workspaceInvitations"], "readwrite");
@@ -186,7 +195,7 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     if (!member) throw new NotFoundError("WorkspaceMember", userId);
     if (member.status === "INVITED") throw new Error("This person has not finished onboarding yet; renew their existing link instead.");
     // The same rule as the server: an account used in another workspace is the Owners' to reset.
-    const elsewhere = (await db.getAllFromIndex("workspaceMembers", "byUser", userId)).some((m) => m.workspaceId !== workspaceId && m.status === "ACTIVE");
+    const elsewhere = (await db.getAllFromIndex("workspaceMembers", "byUser", userId)).some((m) => m.workspaceId !== workspaceId && m.status !== "INVITED");
     if (elsewhere) {
       const owners = JSON.parse((await db.get("meta", "appOwners"))?.value ?? "[]") as string[];
       if (!actorId || !owners.includes(actorId)) throw new Error("This person also uses another workspace. Only an Owner can reset their account.");
@@ -282,10 +291,15 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     };
 
     const tx = db.transaction(["users", "workspaceMembers", "workspaceInvitations", "credentials"], "readwrite");
-    await tx.objectStore("users").put(updatedUser);
+    // Joined now: an account switched off while they were pending is back on.
+    await tx.objectStore("users").put({ ...updatedUser, deactivatedAt: null });
     await tx.objectStore("credentials").put({ userId: user.id, salt, hash, createdAt: now });
     await tx.objectStore("workspaceMembers").put({ ...member, status: "ACTIVE", joinedAt: now });
     await tx.objectStore("workspaceInvitations").put({ ...invitation, acceptedAt: now });
+    // Every other link they still have, in any workspace, would set the password again.
+    for (const other of await tx.objectStore("workspaceInvitations").index("byUser").getAll(user.id)) {
+      if (other.id !== invitation.id && invitationStatus(other) === "PENDING") await tx.objectStore("workspaceInvitations").put({ ...other, revokedAt: now });
+    }
     await tx.done;
     return { email: user.email, userId: user.id };
   }

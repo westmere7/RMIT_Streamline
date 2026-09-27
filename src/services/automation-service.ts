@@ -121,8 +121,19 @@ export class AutomationService {
 
   async create(input: AutomationRuleInput, vocabulary: RuleVocabulary): Promise<AutomationRule> {
     validate({ trigger: input.trigger, conditions: input.conditions, actions: input.actions }, vocabulary, input.boardId);
+    await this.sameWorkspace(input.boardId, input.actions);
     const name = input.name.trim() || describeRule(input.trigger, input.conditions, input.actions, input.conditionMatch, vocabulary);
     return this.repos.automations.createRule({ ...input, name: name.slice(0, 200) });
+  }
+
+  /** A task a rule creates lands on a board of the rule's own workspace; the runner checks again when it fires. */
+  private async sameWorkspace(boardId: EntityId, actions: readonly AutomationAction[]): Promise<void> {
+    const targets = actions.flatMap((action) => (action.kind === "create_item" && action.boardId && action.boardId !== boardId ? [action.boardId] : []));
+    if (targets.length === 0) return;
+    const home = (await this.repos.boards.getById(boardId))?.workspaceId;
+    for (const target of targets) {
+      if ((await this.repos.boards.getById(target))?.workspaceId !== home) throw new AutomationError("A rule can only add tasks to boards in its own workspace.");
+    }
   }
 
   async update(id: EntityId, patch: AutomationRulePatch, vocabulary: RuleVocabulary): Promise<AutomationRule> {
@@ -136,6 +147,7 @@ export class AutomationService {
     // A rule being switched off is the one change that never needs checking —
     // and the one most likely to be reached for when a rule is misbehaving.
     if (patch.trigger || patch.conditions || patch.actions) validate(merged, vocabulary, existing.boardId);
+    if (patch.actions) await this.sameWorkspace(existing.boardId, merged.actions);
     // Named the way `create` names it: a blank name reads the rule back as a
     // sentence, and either is cut to the 200 characters the table allows —
     // without the cut, a long sentence saved on create failed on every edit.

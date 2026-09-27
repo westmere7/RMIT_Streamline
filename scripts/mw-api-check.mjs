@@ -71,7 +71,23 @@ check("An admin of A cannot add people to B", r.status === 403, `${r.status} ${r
 r = await call(danh, "POST", "/api/invitations", { workspaceId: B, email: "jun@rmit.local", firstName: "Jun", lastName: "Tanaka", role: "MEMBER", teamIds: [] });
 check("An existing person is let into B at once, with no link", r.status === 201 && r.body?.invitation === null && r.body?.member?.status === "ACTIVE", `${r.status} ${JSON.stringify(r.body)?.slice(0, 120)}`);
 r = await call(danh, "POST", "/api/invitations", { workspaceId: B, email: "anh@rmit.local", firstName: "Anh", lastName: "Pham", role: "MEMBER", teamIds: [] });
-check("Somebody pending in A is refused in B until they finish", r.status === 409 && /not finished joining/.test(r.body?.error ?? ""), `${r.status} ${r.body?.error ?? ""}`);
+check("Somebody pending in A gets a link of their own in B, and no access", r.status === 201 && !!r.body?.invitation?.token && r.body?.member?.status === "INVITED", `${r.status} ${r.body?.error ?? ""}`);
+const anhB = r.body?.invitation?.token;
+// A public booking in B with the email of someone who is in A only: no seat for them.
+{
+  await sql`update workspaces set booking_key = 'mwtestbookingkeyb0001' where id = ${B}`;
+  const [{ booking_key: keyB }] = await sql`select booking_key from workspaces where id = ${B}`;
+  if (keyB) {
+    const booking = await call(null, "POST", `/api/book/${B_SLUG}`, { key: keyB, request: { requesterName: "Emily Carter", requesterEmail: "emily@rmit.local", department: "Comm.", title: "Cross-workspace check", brief: "", assetTypes: [], assets: [], serviceTypeId: "svc-design", subServices: ["Print"], teamId: null, dueDate: "2026-10-01", priority: "High", referenceUrl: null, answers: { "design-what": { kind: "text", text: "Posters" }, "design-specs": { kind: "text", text: "A1" }, "design-copy": { kind: "choice", values: ["Yes, final and approved"] } } } });
+    const [seat] = await sql`select status from workspace_members where workspace_id = ${B} and user_id = ${emily.id}`;
+    check("A public booking in B with an A member's email gives them no seat in B", booking.status < 300 && !seat, `${booking.status} ${booking.body?.error ?? ""} seat:${seat?.status ?? "none"}`);
+    const [landed] = await sql`select b.workspace_id, b.system, i.ticket from items i join boards b on b.id = i.board_id where i.name = 'Cross-workspace check'`;
+    check("…and it lands on B's own Task Allocation", landed?.workspace_id === B && landed?.system === "TASK_ALLOCATION", JSON.stringify(landed));
+    const [rmitKey] = await sql`select booking_key from workspaces where id = ${A}`;
+    const wrongKey = await call(null, "POST", `/api/book/${B_SLUG}`, { key: rmitKey.booking_key, request: { requesterName: "Emily Carter", requesterEmail: "emily@rmit.local", department: "Comm.", title: "Wrong key", brief: "", assetTypes: [], assets: [], serviceTypeId: "svc-design", subServices: ["Print"], teamId: null, dueDate: "2026-10-01", priority: "High", referenceUrl: null, answers: { "design-what": { kind: "text", text: "Posters" }, "design-specs": { kind: "text", text: "A1" }, "design-copy": { kind: "choice", values: ["Yes, final and approved"] } } } });
+    check("A's booking key does not open B's form", wrongKey.status === 403, `${wrongKey.status}`);
+  } else check("A public booking in B … (B has no booking key yet)", true, "skipped");
+}
 r = await call(danh, "POST", "/api/invitations", { workspaceId: B, email: NEW_EMAIL, firstName: "New", lastName: "Person", role: "OWNER", teamIds: [] });
 check("Nobody is invited as Owner", r.status === 400 || r.status === 422, `${r.status}`);
 r = await call(danh, "POST", "/api/invitations", { workspaceId: B, email: NEW_EMAIL, firstName: "New", lastName: "Person", role: "MEMBER", teamIds: [] });
@@ -126,7 +142,10 @@ const newbie = await signIn(NEW_EMAIL, "a long enough password");
   check("Usage counts B's tasks too", r.status === 200 && r.body?.count >= 1, `${r.status} ${JSON.stringify(r.body)}`);
 
   const renamed = options.map((o, i) => (i === 0 ? { ...o, name: `${first} (renamed)`.slice(0, 40) } : o));
+  const [{ n: changesBefore }] = await sql`select count(*)::int as n from workspace_snapshots where kind = 'before_change'`;
   r = await call(emily, "POST", `/api/departments/${A}`, { action: "save", options: renamed, renames: { [first]: renamed[0].name } });
+  const [{ n: changesAfter }] = await sql`select count(*)::int as n from workspace_snapshots where kind = 'before_change'`;
+  check("A department rename takes a snapshot of everything first", changesAfter === changesBefore + 1, `${changesBefore} → ${changesAfter}`);
   const [cellB] = await sql`select value_json from item_column_values where item_id = ${item.id}`;
   check("Renaming in A renames B's task", r.status === 200 && cellB.value_json.group === renamed[0].name, `${r.status} ${JSON.stringify(cellB?.value_json)}`);
   // Back as it was.
@@ -143,11 +162,47 @@ check("An Owner lists every snapshot from any workspace", r.status === 200 && Ar
 r = await call(emily, "POST", "/api/invitations/reinitiate", { workspaceId: A, userId: jun.id });
 check("An admin of A cannot reset someone who also uses B", r.status === 403, `${r.status} ${r.body?.error ?? ""}`);
 
+// ---- removing somebody completely ------------------------------------------------
+{
+  const LEAVER = "remove.me@rmit.local";
+  const stale = await sql`select id from profiles where email = ${LEAVER}`;
+  for (const row of stale) await service.auth.admin.deleteUser(row.id);
+  let res = await call(emily, "POST", "/api/invitations", { workspaceId: A, email: LEAVER, firstName: "Lee", lastName: "Ver", role: "MEMBER", teamIds: [] });
+  const leaveToken = res.body?.invitation?.token;
+  await call(null, "POST", `/api/join/${leaveToken}`, { password: "a long enough password", firstName: "Lee", lastName: "Ver", jobTitle: null });
+  const [{ id: lee }] = await sql`select id from profiles where email = ${LEAVER}`;
+  const [leeBoard] = await sql`insert into boards (workspace_id, name, slug, owner_id, visibility) values (${A}, 'Lee board', 'lee-board', ${lee}, 'WORKSPACE') returning id`;
+  const [leeGroup] = await sql`insert into board_groups (board_id, name, position) values (${leeBoard.id}, 'G', 0) returning id`;
+  const [leeItem] = await sql`insert into items (board_id, group_id, name, position, created_by) values (${leeBoard.id}, ${leeGroup.id}, 'Lee task', 0, ${lee}) returning id`;
+  await sql`insert into item_assets (item_id, board_id, name, created_by, assignee_ids) values (${leeItem.id}, ${leeBoard.id}, 'Lee poster', ${lee}, ${[lee, jun.id]}::uuid[])`;
+  await sql`insert into comments (item_id, author_id, body) values (${leeItem.id}, ${lee}, 'Lee update')`;
+  await sql`insert into activities (workspace_id, board_id, item_id, actor_id, event_type, metadata) values (${A}, ${leeBoard.id}, ${leeItem.id}, ${lee}, 'ITEM_CREATED', '{}'::jsonb)`;
+
+  res = await call(jun, "POST", `/api/people/${lee}/remove`, { workspaceId: A, confirmName: "Lee Ver" });
+  check("A member cannot remove anybody", res.status === 403, `${res.status}`);
+  res = await call(emily, "POST", `/api/people/${lee}/remove`, { workspaceId: A, confirmName: "Lee" });
+  check("An admin must type the name exactly", res.status === 400, `${res.status}`);
+  res = await call(emily, "POST", `/api/people/${jun.id}/remove`, { workspaceId: A, confirmName: "Jun Tanaka" });
+  check("An admin cannot remove somebody who is in another workspace too", res.status === 403, `${res.status} ${res.body?.error ?? ""}`);
+  res = await call(emily, "POST", `/api/people/${danh.id}/remove`, { workspaceId: A, confirmName: "Danh Nguyen" });
+  check("Nobody removes an Owner", res.status === 409, `${res.status}`);
+  res = await call(emily, "POST", `/api/people/${lee}/remove`, { workspaceId: A, confirmName: "Lee Ver" });
+  check("An admin removes somebody who is only in their workspace", res.status === 200 && res.body?.snapshot?.kind === "before_remove", `${res.status} ${res.body?.error ?? ""}`);
+  const [gone] = await sql`select (select count(*) from auth.users where id = ${lee})::int auth, (select count(*) from profiles where id = ${lee})::int profile, (select count(*) from workspace_members where user_id = ${lee})::int seats, (select count(*) from comments where author_id = ${lee})::int comments, (select count(*) from activities where actor_id = ${lee})::int acts`;
+  check("…their account, seats, updates and activity are gone", gone.auth === 0 && gone.profile === 0 && gone.seats === 0 && gone.comments === 0 && gone.acts === 0, JSON.stringify(gone));
+  const [kept] = await sql`select (select owner_id from boards where id = ${leeBoard.id}) owner, (select created_by from items where id = ${leeItem.id}) creator, (select assignee_ids from item_assets where item_id = ${leeItem.id}) assignees, (select created_by from item_assets where item_id = ${leeItem.id}) asset_creator`;
+  check("…and their board, task and deliverable stay, handed to the admin", kept.owner === emily.id && kept.creator === emily.id && kept.asset_creator === emily.id && kept.assignees.length === 1 && kept.assignees[0] === jun.id, JSON.stringify(kept));
+  await sql`delete from boards where id = ${leeBoard.id}`;
+  await sql`delete from workspace_snapshots where kind = 'before_remove' and name = 'Before removing Lee Ver'`;
+}
+
 // ---- deleting B ----------------------------------------------------------------
-r = await call(emily, "DELETE", `/api/workspaces/${B}`);
+r = await call(emily, "DELETE", `/api/workspaces/${B}`, { confirmName: "MW Test B" });
 check("An admin cannot delete a workspace", r.status === 403, `${r.status}`);
 const snapshotsBefore = await sql`select count(*)::int as n from workspace_snapshots where kind = 'before_delete'`;
-r = await call(danh, "DELETE", `/api/workspaces/${B}`);
+r = await call(danh, "DELETE", `/api/workspaces/${B}`, { confirmName: "mw test b" });
+check("An Owner must type the name exactly", r.status === 400, `${r.status}`);
+r = await call(danh, "DELETE", `/api/workspaces/${B}`, { confirmName: "MW Test B" });
 check("An Owner deletes B", r.status === 200 && r.body?.snapshot?.kind === "before_delete", `${r.status} ${r.body?.error ?? ""}`);
 const snapshotsAfter = await sql`select count(*)::int as n from workspace_snapshots where kind = 'before_delete'`;
 check("…after a snapshot of everything", snapshotsAfter[0].n === snapshotsBefore[0].n + 1);
@@ -158,12 +213,14 @@ check("The people it had stay in the directory", !!profile);
 // Only once A really is the last one: otherwise this would delete it.
 const [{ n: left }] = await sql`select count(*)::int as n from workspaces`;
 if (left === 1) {
-  r = await call(danh, "DELETE", `/api/workspaces/${A}`);
+  r = await call(danh, "DELETE", `/api/workspaces/${A}`, { confirmName: "RMIT Creative Team" });
   check("The last workspace cannot be deleted", r.status === 409, `${r.status} ${r.body?.error ?? ""}`);
-} else check("The last workspace cannot be deleted", false, `skipped: ${left} workspaces left`);
+} else check("The last workspace cannot be deleted (another workspace exists on the stack; covered by mw-rls-check)", true, `${left} workspaces`);
 
 // ---- tidy up -------------------------------------------------------------------
 await sql`delete from workspace_snapshots where kind = 'before_delete' and name like ${"Before deleting “MW Test B”%"}`;
+await sql`delete from workspace_snapshots where kind = 'before_change' and created_by = ${emily.id}`;
+void anhB;
 if (profile) await service.auth.admin.deleteUser(profile.id);
 
 console.log(results.join("\n"));

@@ -75,8 +75,12 @@ export interface BookingTransport {
 export interface RequesterDirectory {
   /** This workspace's person with this email, whatever their status. */
   find(workspaceId: EntityId, email: string): Promise<{ userId: EntityId; name: string } | null>;
-  /** The person for this email: found (keeping the name they have), or added as a pending member under the typed name. */
-  ensure(workspaceId: EntityId, person: { name: string; email: string }, invitedBy: EntityId): Promise<EntityId>;
+  /**
+   * The person for this email: found (keeping the name they have), or added as
+   * a pending member under the typed name. Null for an account this workspace
+   * does not have: a public form never adds an existing person anywhere.
+   */
+  ensure(workspaceId: EntityId, person: { name: string; email: string }, invitedBy: EntityId): Promise<EntityId | null>;
 }
 
 /** "Priya Nair" as a first and last name, for the profile. */
@@ -104,6 +108,8 @@ function localRequesterDirectory(repos: Repositories): RequesterDirectory {
       const { user, member } = await inWorkspace(workspaceId, email);
       // Somebody the workspace has keeps their name, pending or joined: see the note above.
       if (user && member) return user.id;
+      // An account this workspace does not have is left alone: a public form never adds anyone. See requesters.ts.
+      if (user) return null;
       const invited = await repos.onboarding.invite({ workspaceId, invitedBy, email, firstName: name.firstName || email, lastName: name.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
       return invited.user.id;
     },

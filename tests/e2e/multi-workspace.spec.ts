@@ -149,7 +149,8 @@ test("a workspace can take Portal and Booking out of its menu, and the others ke
   await createWorkspace(page, "No Bookings", "no-bookings");
   await expect(page).toHaveURL(/\/workspace\/no-bookings$/, { timeout: 15000 });
   await expect(page.getByTestId("sidebar-book-task")).toBeVisible();
-  await page.goto("/workspace/no-bookings/settings?section=view");
+  await page.goto("/workspace/no-bookings/settings?section=general");
+  await expect(page.getByTestId("settings-scope")).toHaveText("Everyone in No Bookings");
   const toggle = page.getByTestId("setting-portal-menu");
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await toggle.click();
@@ -162,7 +163,9 @@ test("a workspace can take Portal and Booking out of its menu, and the others ke
 
 test("a member does not get the Portal and Booking switch", async ({ page }) => {
   await signInAs(page, "Jun");
+  await page.goto("/workspace/rmit/settings?section=general");
+  await expect(page.getByTestId("setting-portal-menu")).toHaveCount(0);
   await page.goto("/workspace/rmit/settings?section=view");
   await expect(page.getByTestId("setting-team-counts")).toBeVisible();
-  await expect(page.getByTestId("setting-portal-menu")).toHaveCount(0);
+  await expect(page.getByTestId("settings-scope")).toHaveText("Only you, in this browser");
 });

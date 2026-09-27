@@ -9,6 +9,7 @@ import type { PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { DashboardShareSettings } from "@/services";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
 
 /**
  * A safety net under realtime: even a silent channel refreshes the figures this
@@ -83,7 +84,8 @@ export function useDashboardSnapshot(workspace: { id: string; slug: string }, vi
  * holds. In local mode the BroadcastChannel sync (src/features/data/local-realtime-sync.tsx)
  * invalidates the same key.
  */
-export function useDashboardRealtime(workspaceId: string | null): void {
+export function useDashboardRealtime(workspaceId: string | null): void {
+  const checks = useWorkspaceRowChecks();
   const bindings = React.useMemo<RealtimeBinding[]>(() => {
     if (!workspaceId) return [];
     const keys = [queryKeys.dashboard(workspaceId)];
@@ -94,18 +96,18 @@ export function useDashboardRealtime(workspaceId: string | null): void {
     // the page says without touching a single item. Left out, those two edits
     // waited for the safety refresh to come round.
     return [
-      { table: "items", keys },
-      { table: "item_column_values", keys },
-      { table: "item_assets", keys },
-      { table: "board_groups", keys },
-      { table: "board_columns", keys },
-      { table: "item_links", keys },
+      { table: "items", keys, accept: checks.onBoard },
+      { table: "item_column_values", keys, accept: checks.onBoard },
+      { table: "item_assets", keys, accept: checks.onBoard },
+      { table: "board_groups", keys, accept: checks.onBoard },
+      { table: "board_columns", keys, accept: checks.onBoard },
+      { table: "item_links", keys, accept: checks.inWorkspace },
       { table: "boards", filter: `workspace_id=eq.${workspaceId}`, keys },
       { table: "teams", filter: `workspace_id=eq.${workspaceId}`, keys },
       { table: "workspaces", filter: `id=eq.${workspaceId}`, keys },
       { table: "workspace_lists", filter: `workspace_id=eq.${workspaceId}`, keys },
     ];
-  }, [workspaceId]);
+  }, [workspaceId, checks]);
   useRealtime(workspaceId ? `dashboard:${workspaceId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
 }
 

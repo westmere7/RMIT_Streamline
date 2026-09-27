@@ -39,7 +39,7 @@ export function useProfileMutations(userId: string) {
   };
 
   const save = useMutation({
-    mutationFn: (patch: ProfilePatch) => services.profiles.updateProfile(userId, patch),
+    mutationFn: (patch: ProfilePatch) => services.profiles.updateProfile(userId, patch, ws.currentUser.id),
     onSuccess: () => toast.success("Profile updated"),
     onError: (error) => toast.error("Could not save the profile", { description: error instanceof Error ? error.message : undefined }),
     onSettled: settle,
@@ -49,7 +49,7 @@ export function useProfileMutations(userId: string) {
   const changeAvatar = useMutation({
     mutationFn: async (file: File) => {
       const { url, bytes } = await uploadAvatar(providerKind, userId, file);
-      await services.profiles.updateProfile(userId, { avatarUrl: url });
+      await services.profiles.updateProfile(userId, { avatarUrl: url }, ws.currentUser.id);
       return bytes;
     },
     onSuccess: (bytes) => toast.success("Avatar updated", { description: `Stored as WebP, ${Math.max(1, Math.round(bytes / 1024))}KB` }),
@@ -58,7 +58,7 @@ export function useProfileMutations(userId: string) {
   });
 
   const removeAvatar = useMutation({
-    mutationFn: () => services.profiles.updateProfile(userId, { avatarUrl: null }),
+    mutationFn: () => services.profiles.updateProfile(userId, { avatarUrl: null }, ws.currentUser.id),
     onSuccess: () => toast.success("Avatar removed"),
     onSettled: settle,
   });

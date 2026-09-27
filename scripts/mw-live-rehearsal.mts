@@ -106,6 +106,26 @@ try {
       const demote = await attempt(admin, (sp) => sp`update public.workspace_members set role = 'MEMBER' where user_id = ${owner} and workspace_id = ${ws!.id}`);
       check("A live admin cannot demote an Owner", !demote.ok);
     }
+    // Today's workspace keeps working under the new rules.
+    const [{ n: strayTeams }] = await tx<{ n: number }[]>`select count(*)::int as n from public.boards b join public.teams t on t.id = b.team_id where t.workspace_id <> b.workspace_id`;
+    const [{ n: strayRules }] = await tx<{ n: number }[]>`select count(*)::int as n from public.automation_rules r join public.boards b on b.id = r.board_id where b.workspace_id <> r.workspace_id`;
+    check("Live boards and rules already keep to their workspace", strayTeams === 0 && strayRules === 0, `${strayTeams} teams, ${strayRules} rules`);
+    const [intake] = await tx<{ id: string; board_id: string }[]>`select i.id, i.board_id from public.items i join public.boards b on b.id = i.board_id where b.system = 'TASK_ALLOCATION' and i.parent_item_id is null limit 1`;
+    const [target] = await tx<{ board_id: string; group_id: string }[]>`select b.id as board_id, g.id as group_id from public.boards b join public.board_groups g on g.board_id = b.id where b.system is null and b.archived_at is null limit 1`;
+    if (intake && target) {
+      const moved = await attempt(owner, (sp) => sp`update public.items set board_id = ${target.board_id}, group_id = ${target.group_id} where id = ${intake.id} returning id`);
+      check("Allocating a live Task Allocation task to a team board still works", moved.ok && (moved.out as unknown[]).length === 1, moved.ok ? "" : moved.error);
+    }
+    if (admin) {
+      const member = tables.workspace_members!.find((m) => m.role === "MEMBER" && m.status === "ACTIVE")?.user_id as string | undefined;
+      if (member) {
+        const edited = await attempt(admin, (sp) => sp`update public.profiles set job_title = 'changed by an admin' where id = ${member} returning id`);
+        check("A live admin cannot change a joined member's details", !edited.ok && /details are theirs/.test(edited.error ?? ""), edited.ok ? "changed!" : "");
+        const off = await attempt(admin, (sp) => sp`update public.profiles set deactivated_at = now() where id = ${member} returning id`);
+        check("…but can still deactivate them", off.ok && (off.out as unknown[]).length === 1, off.ok ? "" : off.error);
+      }
+    }
+
     const lastOne = await attempt(owner, (sp) => sp`delete from public.workspaces where id = ${ws!.id}`);
     check("The live workspace cannot be deleted while it is the only one", !lastOne.ok && /last workspace/.test(lastOne.error ?? ""), lastOne.ok ? "deleted!" : "");
     void asUser;

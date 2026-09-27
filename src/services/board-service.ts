@@ -177,6 +177,11 @@ export class BoardService {
       if (current?.system) throw new Error(`${current.name} is built in: where it sits and who can see it stay as they are.`);
     }
     const before = await this.getBoard(boardId);
+    // A board's team is one of its own workspace's (the database refuses it too: 0089).
+    if (patch.teamId) {
+      const team = await this.repos.teams.getById(patch.teamId);
+      if (!team || team.workspaceId !== before.workspaceId) throw new Error("Pick a team from this workspace.");
+    }
     const next: typeof patch = { ...patch };
     if (patch.name !== undefined) {
       const trimmed = patch.name.trim();
@@ -333,6 +338,10 @@ export class BoardService {
 
   async setMember(boardId: EntityId, userId: EntityId, role: BoardRole, actorId: EntityId, memberName: string): Promise<void> {
     if (userId === actorId) throw new Error("Your own place on a board is somebody else's to change.");
+    const target = await this.repos.boards.getById(boardId);
+    if (!target) throw new NotFoundError("Board", boardId);
+    const seat = (await this.repos.workspaces.listMembers(target.workspaceId)).find((m) => m.userId === userId);
+    if (!seat || seat.status === "DEACTIVATED") throw new Error("Only people in this workspace can be given a place on its boards.");
     const before = await this.repos.boards.listMembers(boardId);
     const existed = before.some((m) => m.userId === userId);
     await this.repos.boards.setMember(boardId, userId, role);

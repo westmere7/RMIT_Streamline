@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useDataContext } from "@/features/data/data-context";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -28,6 +28,14 @@ export interface RealtimeBinding {
    * `["comments"]` refreshes every comment query, whichever item it is keyed by.
    */
   keys: ReadonlyArray<readonly unknown[]>;
+  /**
+   * Whether an inserted or updated row concerns this reader, for a table that
+   * cannot be filtered on the wire (the row names a board, and a filter names
+   * one value). Called with the row as it now is; a deletion carries only its
+   * id and is always let through. Read at the moment the row arrives, so it may
+   * close over state that changes: only the latest one given is used.
+   */
+  accept?: (row: Record<string, unknown>) => boolean;
 }
 
 export interface RealtimeOptions {
@@ -85,6 +93,11 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
   // re-runs when a table, a filter or a key changes, and not when a caller
   // rebuilds the same list on a render.
   const signature = JSON.stringify(bindings.map((b) => [b.table, b.filter ?? null, b.keys]));
+  // The subscription outlives renders; the checks it runs are always this render's.
+  const latest = useRef(bindings);
+  useEffect(() => {
+    latest.current = bindings;
+  });
 
   useEffect(() => {
     if (!channel || providerKind !== "supabase" || bindings.length === 0) return;
@@ -134,15 +147,25 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
     // Tables whose deletions a filter would hide, and everything those
     // bindings wanted refreshed. See the DELETE listener below.
     const deletes = new Map<string, Map<string, readonly unknown[]>>();
-    for (const binding of bindings) {
+    const accepted = (index: number, payload: { eventType?: string; new?: Record<string, unknown>; old?: Record<string, unknown> }) => {
+      const accept = latest.current[index]?.accept;
+      if (!accept || payload.eventType === "DELETE") return true;
+      const row = payload.new && Object.keys(payload.new).length ? payload.new : payload.old;
+      return !row || accept(row);
+    };
+    for (const [index, binding] of bindings.entries()) {
       const { keys } = binding;
       if (binding.filter) {
-        subscription.on("postgres_changes", { event: "*", schema: "public", table: binding.table, filter: binding.filter }, () => schedule(keys));
+        subscription.on("postgres_changes", { event: "*", schema: "public", table: binding.table, filter: binding.filter }, (payload) => {
+          if (accepted(index, payload)) schedule(keys);
+        });
         const merged = deletes.get(binding.table) ?? new Map<string, readonly unknown[]>();
         for (const key of keys) merged.set(JSON.stringify(key), key);
         deletes.set(binding.table, merged);
       } else {
-        subscription.on("postgres_changes", { event: "*", schema: "public", table: binding.table }, () => schedule(keys));
+        subscription.on("postgres_changes", { event: "*", schema: "public", table: binding.table }, (payload) => {
+          if (accepted(index, payload)) schedule(keys);
+        });
       }
     }
 

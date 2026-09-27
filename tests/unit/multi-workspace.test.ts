@@ -179,12 +179,15 @@ describe("the directory: one person, one account", () => {
     await expect(services.workspace.addExistingMember({ workspaceId: b, userId: ben, role: "MEMBER" })).rejects.toThrow(/already a member/);
   });
 
-  it("refuses somebody still pending elsewhere until they finish joining", async () => {
+  it("gives somebody pending elsewhere a link of their own here, but never direct access", async () => {
     const { services } = fresh();
     const b = await second(services);
     const anhUser = (await services.repos.users.getById(anh))!;
-    await expect(services.workspace.inviteMember({ workspaceId: b, invitedBy: danh, email: anhUser.email, firstName: "Anh", lastName: "Pham", jobTitle: null, role: "MEMBER", teamIds: [] })).rejects.toThrow(/not finished joining/);
-    await expect(services.workspace.addExistingMember({ workspaceId: b, userId: anh, role: "MEMBER" })).rejects.toThrow(/not finished joining/);
+    const result = await services.workspace.inviteMember({ workspaceId: b, invitedBy: danh, email: anhUser.email, firstName: "Anh", lastName: "Pham", jobTitle: null, role: "MEMBER", teamIds: [] });
+    expect(result.invitation?.token).toBeTruthy();
+    expect(result.member.status).toBe("INVITED");
+    // Adding directly (no link) is only for somebody who has joined somewhere.
+    await expect(services.workspace.addExistingMember({ workspaceId: b, userId: anh, role: "MEMBER" })).rejects.toThrow(/has been added here already|not finished joining/);
   });
 
   it("still sends a brand-new person a link", async () => {

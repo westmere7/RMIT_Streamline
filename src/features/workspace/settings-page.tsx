@@ -72,10 +72,18 @@ type Section = (typeof SECTIONS)[number];
  */
 const SECTION_ALIASES: Record<string, Section> = { lists: "asset-types", rates: "asset-types" };
 
+/**
+ * Who a section's settings reach: only you, in this browser; everyone in this
+ * workspace; or every workspace there is. Said on every section, because the
+ * same page holds all three.
+ */
+type SectionScope = "you" | "workspace" | "app" | "help";
+
 interface SectionMeta {
   label: string;
   icon: LucideIcon;
   description: string;
+  scope: SectionScope;
   /** How wide the page runs: a column of fields, a table, or the guide. */
   width: "narrow" | "wide" | "full";
   /** The guide draws its own heading. */
@@ -83,29 +91,38 @@ interface SectionMeta {
 }
 
 const SECTION_META: Record<Section, SectionMeta> = {
-  general: { label: "Overview", icon: LayoutGrid, description: "The workspace's name, address and size.", width: "narrow" },
-  tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow" },
-  teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow" },
-  departments: { label: "Departments", icon: Building2, description: "Who the work is for, shared by every workspace: a change here changes them all.", width: "wide" },
-  "asset-types": { label: "Asset types", icon: Shapes, description: "What a deliverable can be, and how long each one takes to make.", width: "wide" },
-  permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow" },
-  view: { label: "Appearance", icon: Palette, description: "How the app looks for you, on this device.", width: "narrow" },
-  documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true },
-  workspaces: { label: "Workspaces", icon: Layers, description: "Every workspace, and who the Owners are. Owners only.", width: "wide" },
-  snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Every workspace, saved in one file. Download it, or restore everything to it. Owners only.", width: "wide" },
-  danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident, in this workspace. Admins and Owners only.", width: "wide" },
+  general: { label: "Overview", icon: LayoutGrid, description: "The workspace's name, address, size and menu.", width: "narrow", scope: "workspace" },
+  tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow", scope: "workspace" },
+  teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow", scope: "workspace" },
+  "asset-types": { label: "Asset types", icon: Shapes, description: "What a deliverable can be, and how long each one takes to make.", width: "wide", scope: "workspace" },
+  permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow", scope: "workspace" },
+  danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and Owners only.", width: "wide", scope: "workspace" },
+  departments: { label: "Departments", icon: Building2, description: "Who the work is for. Any admin can change them, and a change reaches every workspace.", width: "wide", scope: "app" },
+  workspaces: { label: "Workspaces", icon: Layers, description: "Every workspace, and who the Owners are. Owners only.", width: "wide", scope: "app" },
+  snapshots: { label: "Snapshots", icon: DatabaseBackup, description: "Every workspace, saved in one file. Download it, or restore everything to it. Owners only.", width: "wide", scope: "app" },
+  view: { label: "Appearance", icon: Palette, description: "How the app looks for you, on this device.", width: "narrow", scope: "you" },
+  documentation: { label: "Guide", icon: BookOpen, description: "How Streamline works.", width: "full", bare: true, scope: "help" },
 };
 
-/** The side list, in groups of what the sections are about. */
-const NAV_GROUPS: Array<{ label: string; sections: Section[]; members?: boolean; about?: boolean }> = [
-  { label: "Workspace", sections: ["general", "tickets", "teams"] },
-  { label: "Lists", sections: ["departments", "asset-types"] },
-  { label: "People", sections: ["permissions"], members: true },
-  { label: "You", sections: ["view"] },
-  { label: "Owners", sections: ["workspaces", "snapshots"] },
-  { label: "Data", sections: ["danger"] },
-  { label: "Help", sections: ["documentation"], about: true },
+/**
+ * The side list, grouped by who a setting reaches: this workspace, every
+ * workspace, or only you. `workspace` groups are headed with the workspace's
+ * own name, so which one is being changed is never in doubt.
+ */
+const NAV_GROUPS: Array<{ label: string; scope: SectionScope; sections: Section[]; members?: boolean; about?: boolean }> = [
+  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "permissions", "danger"], members: true },
+  { label: "Every workspace", scope: "app", sections: ["departments", "workspaces", "snapshots"] },
+  { label: "You", scope: "you", sections: ["view"] },
+  { label: "Help", scope: "help", sections: ["documentation"], about: true },
 ];
+
+/** The line under a section's name that says who its settings reach. */
+function scopeLine(scope: SectionScope, workspaceName: string): string | null {
+  if (scope === "you") return "Only you, in this browser";
+  if (scope === "workspace") return `Everyone in ${workspaceName}`;
+  if (scope === "app") return "Every workspace";
+  return null;
+}
 
 const WIDTH_CLASSES: Record<SectionMeta["width"], string> = { narrow: "max-w-2xl", wide: "max-w-4xl", full: "max-w-6xl" };
 
@@ -140,15 +157,15 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PageHeader title="Workspace settings" description={ws.workspace.name} className={cn(hasSection && "max-md:hidden")} />
+      <PageHeader title="Settings" description={ws.workspace.name} className={cn(hasSection && "max-md:hidden")} />
       <div className="flex min-h-0 flex-1 max-md:flex-col">
         <PhoneSectionList slug={ws.slug} visible={visible} onAbout={() => setAboutOpen(true)} className={cn("md:hidden", hasSection && "hidden")} />
         {/* Grouped down the side on desktop. */}
         <nav className="scrollbar-thin w-56 shrink-0 overflow-y-auto border-r px-3 py-3 max-md:hidden" aria-label="Settings sections">
           <div className="space-y-4 max-md:flex max-md:gap-1 max-md:space-y-0">
             {NAV_GROUPS.map((group) => (
-              <div key={group.label} className="max-md:contents">
-                <p className="mb-1 px-2 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase max-md:hidden">{group.label}</p>
+              <div key={group.label} className="max-md:contents" data-testid={`settings-group-${group.scope}`}>
+                <p className="mb-1 truncate px-2 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase max-md:hidden">{group.scope === "workspace" ? ws.workspace.name : group.label}</p>
                 <ul className="space-y-0.5 max-md:contents">
                   {group.sections.filter(visible).map((s) => {
                     const Icon = SECTION_META[s].icon;
@@ -190,7 +207,7 @@ export function SettingsPage() {
               <ChevronLeft className="size-5" aria-hidden />
               Settings
             </Link>
-            {!meta.bare && <SectionHeader meta={meta} description={meta.description} />}
+            {!meta.bare && <SectionHeader meta={meta} description={meta.description} scope={scopeLine(meta.scope, ws.workspace.name)} />}
             {section === "general" && <OverviewSection onGo={go} />}
             {section === "tickets" && <TicketsSection />}
             {section === "teams" && <TeamsSection />}
@@ -215,6 +232,7 @@ export function SettingsPage() {
  * groups as the desktop's side list, with a line on what each one holds.
  */
 function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string; visible: (s: Section) => boolean; onAbout: () => void; className?: string }) {
+  const ws = useWorkspace();
   const row = "flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-accent/70";
   const icon = (Icon: LucideIcon) => (
     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card" aria-hidden>
@@ -228,7 +246,7 @@ function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string;
         if (!sections.length && !group.members && !group.about) return null;
         return (
           <section key={group.label} className="mt-4 first:mt-1">
-            <h2 className="mb-1.5 px-1 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">{group.label}</h2>
+            <h2 className="mb-1.5 truncate px-1 text-2xs font-medium tracking-wide text-muted-foreground/80 uppercase">{group.scope === "workspace" ? ws.workspace.name : group.label}</h2>
             <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
               {sections.map((s) => (
                 <li key={s}>
@@ -267,8 +285,8 @@ function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string;
   );
 }
 
-/** The section's icon, name and one line on what it is for. */
-function SectionHeader({ meta, description }: { meta: SectionMeta; description?: string }) {
+/** The section's icon, name, who it reaches, and one line on what it is for. */
+function SectionHeader({ meta, description, scope }: { meta: SectionMeta; description?: string; scope?: string | null }) {
   const Icon = meta.icon;
   return (
     <div className="mb-6 flex items-start gap-3">
@@ -277,6 +295,11 @@ function SectionHeader({ meta, description }: { meta: SectionMeta; description?:
       </span>
       <div className="min-w-0">
         <h2 className="text-lg leading-tight font-semibold tracking-tight">{meta.label}</h2>
+        {scope && (
+          <p className="mt-1 inline-flex items-center rounded-full border border-border/70 bg-surface px-2 py-0.5 text-2xs font-medium text-muted-foreground" data-testid="settings-scope">
+            {scope}
+          </p>
+        )}
         {description && <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>}
       </div>
     </div>
@@ -365,6 +388,11 @@ function OverviewSection({ onGo }: { onGo: (section: Section) => void }) {
           </div>
         </form>
       </SettingsCard>
+      {manage && (
+        <SettingsCard title="Menu">
+          <PortalMenuSetting />
+        </SettingsCard>
+      )}
     </div>
   );
 }
@@ -523,10 +551,9 @@ function PortalMenuSetting() {
   });
   if (!canManageWorkspace(ws.permissions)) return null;
   return (
-    <div className="mt-3 flex items-center justify-between gap-4 border-t border-border/60 pt-3">
-      <Label htmlFor="show-portal-menu" className="grid gap-0.5 text-[13px] font-medium">
+    <div className="flex items-center justify-between gap-4">
+      <Label htmlFor="show-portal-menu" className="text-[13px] font-medium">
         Portal and Booking
-        <span className="text-2xs font-normal text-muted-foreground">For everyone in {ws.workspace.name}.</span>
       </Label>
       <Switch id="show-portal-menu" aria-label="Portal and Booking in the menu" checked={save.isPending ? !!save.variables : on} disabled={save.isPending} onCheckedChange={(next) => save.mutate(next)} data-testid="setting-portal-menu" />
     </div>
@@ -572,7 +599,6 @@ function AppearanceSection() {
           </Label>
           <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
         </div>
-        <PortalMenuSetting />
       </SettingsCard>
       <SettingsCard title="Updates">
         <div className="flex items-center justify-between gap-4">

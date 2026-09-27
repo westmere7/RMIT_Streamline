@@ -63,6 +63,7 @@ export function createMemoryRepositories(
       delete: readOnly("deleting a workspace"),
       listOwners: async () => [],
       listDirectory: async () => [],
+      removePerson: readOnly("removing a person"),
       addOwner: readOnly("making an Owner"),
       removeOwner: readOnly("removing an Owner"),
       allocateTicketNumbers: readOnly("handing out a ticket"),

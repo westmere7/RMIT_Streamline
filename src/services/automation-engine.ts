@@ -113,6 +113,12 @@ interface FiringContext {
   boardOwnerIds: EntityId[];
   /** Everyone on the board, for `board_members`. */
   boardMemberIds: EntityId[];
+  /**
+   * The people active in the board's workspace. A rule is data, and the runner
+   * writes with the service role, so this is what keeps a rule from assigning or
+   * telling anybody outside the workspace it runs in.
+   */
+  workspaceMemberIds: ReadonlySet<EntityId>;
 }
 
 export class AutomationEngine {
@@ -593,10 +599,11 @@ export class AutomationEngine {
         const column = columns.find((c) => c.id === action.columnId);
         if (!column) throw new Error("That column is no longer on this board.");
         const current = peopleIn(context.values.get(column.id) ?? null);
-        const named =
+        const named = (
           action.kind === "assign_person"
             ? [...action.userIds, ...(action.useActor && context.actorId ? [context.actorId] : []), ...(action.useCreator ? [item!.createdBy] : [])]
-            : action.userIds;
+            : action.userIds
+        ).filter((id) => action.kind !== "assign_person" || context.workspaceMemberIds.has(id));
         const next =
           action.kind === "assign_person"
             ? [...new Set([...current, ...named])]
@@ -768,6 +775,10 @@ export class AutomationEngine {
 
       case "create_item": {
         const targetBoardId = action.boardId ?? board.id;
+        // Only onto a board of this workspace: the rule is data, and the runner writes past row-level security.
+        if (targetBoardId !== board.id && (await this.repos.boards.getById(targetBoardId))?.workspaceId !== board.workspaceId) {
+          throw new Error("That board is not in this workspace.");
+        }
         const groups = targetBoardId === board.id ? context.groups : await this.repos.boards.listGroups(targetBoardId);
         const group = groups.find((g) => g.id === action.groupId) ?? groups[0];
         if (!group) throw new Error("That board has no group to put the task in.");
@@ -833,6 +844,8 @@ export class AutomationEngine {
     // and `specific`, because a person named by name was named on purpose — a
     // rule that says "tell me" should tell its author when the author set it off.
     if (action.audience !== "actor" && action.audience !== "specific" && context.actorId) people.delete(context.actorId);
+    // Nobody outside the board's workspace, whoever the rule names.
+    for (const id of [...people]) if (!context.workspaceMemberIds.has(id)) people.delete(id);
     return [...people];
   }
 
@@ -895,7 +908,7 @@ export class AutomationEngine {
     // Seven reads, one round trip: nothing here depends on anything else here,
     // and the item's values are keyed by the id we were handed rather than by
     // the item row, so they need not wait for it.
-    const [board, columns, groups, users, members, item, stored] = await Promise.all([
+    const [board, columns, groups, users, members, item, stored, workspaceMembers] = await Promise.all([
       this.repos.boards.getById(boardId),
       this.repos.boards.listColumns(boardId),
       this.repos.boards.listGroups(boardId),
@@ -903,8 +916,10 @@ export class AutomationEngine {
       this.repos.boards.listMembers(boardId),
       itemId ? this.repos.items.getById(itemId) : Promise.resolve(null),
       itemId ? this.repos.items.listValuesByItem(itemId) : Promise.resolve([] as ItemColumnValue[]),
+      this.repos.boards.getById(boardId).then((b) => (b ? this.repos.workspaces.listMembers(b.workspaceId) : [])),
     ]);
     if (!board) return null;
+    const workspaceMemberIds = new Set(workspaceMembers.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     // A task deleted between the write and the drain is not an error: the
     // change it is evidence of no longer has anything to act on.
     if (itemId && !item) return null;
@@ -913,7 +928,7 @@ export class AutomationEngine {
     if (item) for (const value of stored) values.set(value.columnId, value.value);
     const boardOwnerIds = members.filter((m) => m.role === "OWNER").map((m) => m.userId);
     const boardMemberIds = members.map((m) => m.userId);
-    return { board, columns, groups, users, item, values, actorId, event, depth, boardOwnerIds, boardMemberIds };
+    return { board, columns, groups, users, item, values, actorId, event, depth, boardOwnerIds, boardMemberIds, workspaceMemberIds };
   }
 
   /**

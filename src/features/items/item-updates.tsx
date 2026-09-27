@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, SmilePlus, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
@@ -16,13 +17,21 @@ import { COMMENT_REACTIONS, groupReactions, type Comment } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
+import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
 import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
+/** Who may delete a given update here: worked out once for the task's board, read by every header. */
+const DeleteRule = React.createContext<(comment: Comment) => boolean>(() => false);
+
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
+  const services = useServices();
+  const item = useQuery({ queryKey: ["item-board", itemId], queryFn: () => services.repos.items.getById(itemId), staleTime: 60_000 });
+  const board = item.data ? ws.boardById(item.data.boardId) ?? null : null;
+  const mayDelete = React.useCallback((comment: Comment) => canDeleteComment(ws.permissions, comment, board), [ws.permissions, board]);
   const comments = useComments(itemId);
   const { add, edit, reply, remove, react } = useCommentMutations(itemId);
   const links = useItemLinks(itemId);
@@ -62,6 +71,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   };
 
   return (
+    <DeleteRule.Provider value={mayDelete}>
     <div className="flex h-full flex-col">
       {canComment && (
         <form
@@ -159,6 +169,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
         </ul>
       </div>
     </div>
+    </DeleteRule.Provider>
   );
 }
 
@@ -450,6 +461,7 @@ function CommentHeader({
 }) {
   const ws = useWorkspace();
   const links = useMentionLinks();
+  const mayDelete = React.useContext(DeleteRule);
   const author = ws.userById(comment.authorId);
   const edited = comment.updatedAt !== comment.createdAt;
   const noun = comment.parentId ? "reply" : "update";
@@ -486,7 +498,7 @@ function CommentHeader({
             <Pencil />
           </Button>
         )}
-        {canDeleteComment(ws.permissions, comment) && (
+        {mayDelete(comment) && (
           <ConfirmDelete label={`Delete ${noun}`} onConfirm={onDelete} />
         )}
       </span>

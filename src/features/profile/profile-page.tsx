@@ -1,6 +1,7 @@
 "use client";
 
 import { Boxes, CalendarCheck, Clock, History, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -15,6 +16,7 @@ import type { WorkspaceRole } from "@/domain";
 import { assetCount, formatWorkHours, isProgressLabel, isStuckLabel, priorityStrength } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCurrentUser } from "@/features/auth/auth-context";
+import { useServices } from "@/features/data/data-context";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useProfile } from "@/features/profile/hooks";
@@ -23,7 +25,7 @@ import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { bucketDate, formatShortDate, isOverdue } from "@/lib/dates/dates";
-import { canManageMembers } from "@/lib/permissions/permissions";
+import { canEditProfile } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { BoardRelation } from "@/services";
@@ -53,9 +55,12 @@ export function ProfilePage({ userId }: { userId: string }) {
   const [taskFilter, setTaskFilter] = React.useState<"open" | "done">("open");
   const [showAll, setShowAll] = React.useState(false);
 
+  const services = useServices();
   const isSelf = me.id === userId;
-  // RLS allows a workspace admin to edit anyone in the workspace, and anyone to edit themselves.
-  const canEdit = isSelf || canManageMembers(ws.permissions);
+  // Your own details; somebody else's only as an admin while they have not
+  // finished joining. After that they are theirs (private.profile_edit_guard).
+  const joined = useQuery({ queryKey: ["has-joined", userId], queryFn: () => services.profiles.hasJoined(userId), enabled: !isSelf, staleTime: 30_000 });
+  const canEdit = canEditProfile(ws.permissions, { userId, joined: isSelf || joined.data !== false });
 
   if (profile.isLoading) {
     return (

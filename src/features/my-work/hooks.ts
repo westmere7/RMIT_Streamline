@@ -5,6 +5,7 @@ import * as React from "react";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
 
 /** A safety net under realtime: even a silent channel re-reads this often. */
 const REFRESH_MS = 30_000;
@@ -51,16 +52,17 @@ export function useMyWork(workspaceId: string, userId: string) {
  * In local mode the BroadcastChannel sync invalidates the same key, so this does
  * nothing there.
  */
-function useMyWorkRealtime(workspaceId: string, userId: string): void {
+function useMyWorkRealtime(workspaceId: string, userId: string): void {
+  const checks = useWorkspaceRowChecks();
   const bindings = React.useMemo<RealtimeBinding[]>(() => {
     if (!workspaceId || !userId) return [];
     const keys = [queryKeys.myWork(workspaceId, userId)];
     return [
-      { table: "item_column_values", keys },
-      { table: "items", keys },
-      { table: "board_columns", keys },
+      { table: "item_column_values", keys, accept: checks.onBoard },
+      { table: "items", keys, accept: checks.onBoard },
+      { table: "board_columns", keys, accept: checks.onBoard },
       { table: "boards", filter: `workspace_id=eq.${workspaceId}`, keys },
     ];
-  }, [workspaceId, userId]);
+  }, [workspaceId, userId, checks]);
   useRealtime(workspaceId && userId ? `my-work:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
 }
