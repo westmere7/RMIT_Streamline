@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.64.1",
+    date: "2026-09-27",
+    title: "To-do",
+    changes: ["My to-do in the Assets tab is now called To-do."],
+  },
+  {
     version: "0.64.0",
     date: "2026-09-27",
     title: "My to-do and PIC from assets",

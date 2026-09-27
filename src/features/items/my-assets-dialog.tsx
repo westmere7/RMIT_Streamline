@@ -44,7 +44,7 @@ export function MyAssetsButton({ item, rows, assetTypes, canEdit }: { item: Item
         title="The items on you in this task"
         data-testid="asset-mine"
       >
-        <ListChecks /> My to-do
+        <ListChecks /> To-do
         {todo > 0 && <span className="rounded-full bg-accent-soft px-1.5 text-2xs font-semibold text-accent-soft-foreground tabular" data-testid="asset-mine-count">{todo}</span>}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -83,7 +83,7 @@ function MyAssetsBody({ item, rows, mine, assetTypes, canEdit }: { item: Item; r
   return (
     <>
       <DialogHeader>
-        <DialogTitle>My to-do</DialogTitle>
+        <DialogTitle>To-do</DialogTitle>
         <DialogDescription className="truncate">{item.name}</DialogDescription>
       </DialogHeader>
 

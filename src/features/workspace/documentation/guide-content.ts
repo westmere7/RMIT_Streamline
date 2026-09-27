@@ -355,7 +355,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Reorder lines into production order.",
         "Tick each line off when it is delivered, checking the quantity delivered.",
       ] },
-      { title: "Your part", paragraphs: ["When any line on a task is yours, My to-do beside Block opens just those lines, each with its quantity, type, due date and how far off it is, spec and links. Tick them off or edit them there."] },
+      { title: "Your part", paragraphs: ["When any line on a task is yours, To-do beside Block opens just those lines, each with its quantity, type, due date and how far off it is, spec and links. Tick them off or edit them there."] },
       { title: "Owners and the PIC", paragraphs: ["Putting someone in charge of a line adds them to the task's PIC. Board settings → Assets turns that off, or turns on removing them again once they have no lines left. Removal only takes off people it added: anyone put on the PIC by hand stays."] },
       { title: "The recap", paragraphs: ["The Assets recap summarises the deliverables: how many are done, the total quantity, what is overdue, and who owns them. A line without a quantity counts as one. Done lines are left out of overdue and next due. To change the recap, change the deliverables."] },
       { title: "Estimated effort", paragraphs: ["Admins set an output rate for each deliverable type in Settings → Asset types. The dashboard multiplies quantities by those rates to estimate effort. It is an estimate, not a timesheet, and types without a rate add nothing."], note: { title: "Linked tasks share their deliverables", text: "Tasks linked across boards share one set of deliverables: a line added on either shows on both, and ticking it off on one ticks it off everywhere." } },

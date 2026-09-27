@@ -246,7 +246,7 @@ describe("blocks", () => {
   });
 });
 
-describe("a detailed row, as My to-do shows it", () => {
+describe("a detailed row, as To-do shows it", () => {
   it("spells out what the line has, and nothing it does not", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-27T09:00:00"));

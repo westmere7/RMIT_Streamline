@@ -16,7 +16,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
  *
  * The booking form composes its deliverables with the same component, so the two
  * never drift apart; only the fields differ, since a stakeholder booking work has
- * nobody to put in charge and nothing to tick off yet. Beside Block, My to-do
+ * nobody to put in charge and nothing to tick off yet. Beside Block, To-do
  * opens the lines on the person looking (see MyAssetsButton).
  */
 export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean }) {
