@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.64.0",
+    date: "2026-09-27",
+    title: "My to-do and PIC from assets",
+    changes: [
+      "The Assets tab has My to-do beside Block when any line on the task is yours: just your lines, with quantity, type, due date and days left, spec and links, ticked off or edited in place.",
+      "Putting someone in charge of an asset adds them to the task's PIC. Board settings → Assets can turn that off, or turn on taking them off again when their last asset goes; only people it added are removed.",
+      "The task panel comes in two widths, default and wide; the narrow one is gone.",
+    ],
+  },
+  {
     version: "0.63.1",
     date: "2026-09-27",
     title: "Members, easier to scan",

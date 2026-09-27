@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AssetLink, Item, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import type { SavedBlock } from "@/services/item-asset-service";
+import type { AssetComposerRow } from "@/features/assets/asset-composer";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newId, nowIso } from "@/lib/ids";
@@ -109,6 +110,25 @@ export function useItemLinesOnBoard(boardId: string, itemId: string): readonly I
 const EMPTY_LINES: readonly ItemAsset[] = [];
 
 export type NewAssetLine = Omit<ItemAssetInput, "itemId" | "boardId" | "position" | "createdBy">;
+
+/**
+ * A duplicate is another thing to make, so it takes the specification and not
+ * the links: a preview belongs to the copy it was made from, and a final
+ * artwork to the one that was signed off. It stays in its block.
+ */
+export function copyOfAssetLine(row: AssetComposerRow): NewAssetLine {
+  return {
+    name: row.name,
+    assetType: row.assetType,
+    quantity: row.quantity,
+    assigneeIds: row.assigneeIds,
+    dueDate: row.dueDate,
+    notes: row.notes,
+    blockId: row.blockId,
+    blockName: row.blockName,
+    blockLinks: row.blockLinks,
+  };
+}
 
 /**
  * Add, change and remove lines with the list updated on screen at once. Every

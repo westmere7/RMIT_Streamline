@@ -19,8 +19,8 @@ export interface TrackerViewSettings {
 
 export const DEFAULT_TRACKER_VIEW: TrackerViewSettings = { gridLines: true, stripes: false, wrap: false, density: "default", crosshair: true };
 
-/** The three widths the task panel beside a board comes in; dragging its edge settles on the nearest. */
-export type ItemPanelSize = "compact" | "default" | "wide";
+/** The two widths the task panel beside a board comes in; dragging its edge settles on the nearer. */
+export type ItemPanelSize = "default" | "wide";
 
 /** Where a "view as" preview is kept: this tab only. */
 const VIEW_AS_KEY = "streamline.view-as";
@@ -177,6 +177,12 @@ export const useUiStore = create<UiState>()(
         };
       }),
       skipHydration: true,
+      // The panel used to have a narrower "compact" width too; a browser that
+      // saved it opens at the default.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<UiState>;
+        return { ...current, ...saved, itemPanelSize: saved.itemPanelSize === "wide" ? "wide" : "default" };
+      },
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         sidebarWidth: s.sidebarWidth,

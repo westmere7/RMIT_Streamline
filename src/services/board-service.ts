@@ -169,7 +169,7 @@ export class BoardService {
 
   async updateBoard(
     boardId: EntityId,
-    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon">>,
+    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic">>,
     actorId: EntityId,
   ): Promise<Board> {
     if (patch.teamId !== undefined || patch.visibility !== undefined) {

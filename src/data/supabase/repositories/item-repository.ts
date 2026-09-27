@@ -206,6 +206,15 @@ export class SupabaseItemRepository implements ItemRepository {
     return out;
   }
 
+  async getPicFromAssets(itemId: string): Promise<string[]> {
+    const result = await db().from("items").select("pic_from_assets").eq("id", itemId).maybeSingle();
+    return unwrapMaybe<{ pic_from_assets: string[] | null }>(result, "items.getPicFromAssets")?.pic_from_assets ?? [];
+  }
+
+  async setPicFromAssets(itemId: string, userIds: string[]): Promise<void> {
+    assertOk(await db().from("items").update({ pic_from_assets: userIds }).eq("id", itemId), "items.setPicFromAssets");
+  }
+
   async update(id: string, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item> {
     const result = await db().from("items").update(fromItemPatch(patch)).eq("id", id).select(ITEM).single();
     return toItem(unwrap<ItemRow>(result, "items.update"));

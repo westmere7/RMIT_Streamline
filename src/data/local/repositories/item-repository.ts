@@ -158,6 +158,20 @@ export class LocalItemRepository implements ItemRepository {
     return out;
   }
 
+  async getPicFromAssets(itemId: string): Promise<string[]> {
+    const db = await this.conn.getDb();
+    const item = (await db.get("items", itemId)) as (Item & { picFromAssets?: string[] }) | undefined;
+    return item?.picFromAssets ?? [];
+  }
+
+  /** Kept on the stored record, beside the item's own fields, as the database keeps it on the row. */
+  async setPicFromAssets(itemId: string, userIds: string[]): Promise<void> {
+    const db = await this.conn.getDb();
+    const item = await db.get("items", itemId);
+    if (!item) throw new NotFoundError("Item", itemId);
+    await db.put("items", { ...item, picFromAssets: userIds } as Item);
+  }
+
   async update(id: string, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item> {
     const db = await this.conn.getDb();
     const existing = await db.get("items", id);

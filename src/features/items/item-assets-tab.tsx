@@ -4,7 +4,8 @@ import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Item } from "@/domain";
 import { AssetComposer } from "@/features/assets/asset-composer";
-import { useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
+import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
+import { MyAssetsButton } from "@/features/items/my-assets-dialog";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
@@ -15,7 +16,8 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
  *
  * The booking form composes its deliverables with the same component, so the two
  * never drift apart; only the fields differ, since a stakeholder booking work has
- * nobody to put in charge and nothing to tick off yet.
+ * nobody to put in charge and nothing to tick off yet. Beside Block, My to-do
+ * opens the lines on the person looking (see MyAssetsButton).
  */
 export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const assets = useItemAssets(item.id);
@@ -40,6 +42,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         users={ws.users}
         canEdit={canEdit}
         emptyText={canEdit ? "No items yet." : "No items listed."}
+        actions={<MyAssetsButton item={item} rows={rows} assetTypes={assetTypes} canEdit={canEdit} />}
         onAdd={(name, block) =>
           mutations.add.mutate(block ? { name, quantity: 1, blockId: block.blockId, blockName: block.blockName, assigneeIds: block.assigneeIds, blockLinks: block.blockLinks } : { name, quantity: 1 })
         }
@@ -50,22 +53,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         onPatchBlock={(blockId, patch) => mutations.updateBlock.mutate({ blockId, patch })}
         onRemoveBlock={(blockId) => mutations.removeBlock.mutate(blockId)}
         onPatch={(id, patch) => mutations.update.mutate({ id, patch })}
-        // A duplicate is another thing to make, so it takes the specification
-        // and not the links: a preview belongs to the copy it was made from, and
-        // a final artwork to the one that was signed off. It stays in its block.
-        onDuplicate={(row) =>
-          mutations.add.mutate({
-            name: row.name,
-            assetType: row.assetType,
-            quantity: row.quantity,
-            assigneeIds: row.assigneeIds,
-            dueDate: row.dueDate,
-            notes: row.notes,
-            blockId: row.blockId,
-            blockName: row.blockName,
-            blockLinks: row.blockLinks,
-          })
-        }
+        onDuplicate={(row) => mutations.add.mutate(copyOfAssetLine(row))}
         onRemove={(id) => mutations.remove.mutate(id)}
       />
     </div>

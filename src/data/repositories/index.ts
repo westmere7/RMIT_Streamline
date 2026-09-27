@@ -253,6 +253,9 @@ export interface ItemRepository {
   create(input: ItemInput & { position: number; id?: EntityId }): Promise<Item>;
   update(id: EntityId, patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">>): Promise<Item>;
   updateMany(patches: Array<{ id: EntityId; patch: Partial<Omit<Item, "id" | "boardId" | "createdAt">> }>): Promise<Item[]>;
+  /** Who the asset lines put on this item's PIC (see `ItemAssetService.syncPic`). Not part of `Item`: read only when lines change people. */
+  getPicFromAssets(itemId: EntityId): Promise<EntityId[]>;
+  setPicFromAssets(itemId: EntityId, userIds: EntityId[]): Promise<void>;
   /**
    * Moves an item, with its subitems and its deliverables, onto another board.
    *

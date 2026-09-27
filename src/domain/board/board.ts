@@ -43,6 +43,15 @@ export interface Board extends Timestamps {
   archivedAt: string | null;
   /** Set when the app created the board itself (Task Allocation). Renamable, never removable, admins only. */
   system?: BoardSystemKind | null;
+  /** Someone put in charge of an asset line is added to the task's PIC. Missing means on. */
+  assetsFillPic?: boolean;
+  /** Someone whose last asset line on a task is taken off them leaves its PIC. Missing means off. */
+  assetsClearPic?: boolean;
+}
+
+/** Whether asset lines keep the PIC column up to date, and which way. */
+export function picFromAssets(board: Pick<Board, "assetsFillPic" | "assetsClearPic">): { fill: boolean; clear: boolean } {
+  return { fill: board.assetsFillPic ?? true, clear: board.assetsClearPic ?? false };
 }
 
 export interface BoardMember {

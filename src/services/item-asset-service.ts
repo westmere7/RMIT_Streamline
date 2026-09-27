@@ -1,9 +1,10 @@
 import type { ActivityEventType, ActivityInput, ActivityMetadata, AssetLink, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
-import { recapAssets, recapColumnValue } from "@/domain";
+import { picFromAssets, recapAssets, recapColumnValue, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { todayISO } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
+import type { ItemService } from "@/services/item-service";
 
 /**
  * A task's asset lines, and the "Assets recap" cells that summarise them.
@@ -28,7 +29,11 @@ export interface BoardAssets {
 }
 
 export class ItemAssetService {
-  constructor(private readonly repos: Repositories) {}
+  /** `items` writes the PIC a line's people feed (see `syncPic`); without it the PIC is left alone. */
+  constructor(
+    private readonly repos: Repositories,
+    private readonly items?: ItemService,
+  ) {}
 
   /**
    * The item's deliverables, which on a linked task means the pair's.
@@ -165,11 +170,13 @@ export class ItemAssetService {
   /** Adds a line at the end of the item's list. */
   async add(input: Omit<ItemAssetInput, "position" | "createdBy">, actorId: EntityId): Promise<ItemAsset> {
     if (!input.name.trim()) throw new Error("Say what the asset is");
+    const people = await this.assigneesOf(input.itemId);
     const existing = await this.repos.itemAssets.listByItem(input.itemId);
     const position = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
     const created = await this.repos.itemAssets.create({ ...input, position, createdBy: actorId });
     await this.recompute(input.itemId, created.boardId);
     await this.record(created.itemId, created.boardId, actorId, [{ eventType: "ASSET_ADDED", metadata: { assetName: created.name } }]);
+    await this.syncPic(created.itemId, people, actorId);
     return created;
   }
 
@@ -180,6 +187,7 @@ export class ItemAssetService {
   async addMany(lines: Array<Omit<ItemAssetInput, "position" | "createdBy">>, actorId: EntityId): Promise<ItemAsset[]> {
     const kept = lines.filter((line) => line.name.trim());
     if (kept.length === 0) return [];
+    const people = await this.assigneesOf(kept[0]!.itemId);
     const existing = await this.repos.itemAssets.listByItem(kept[0]!.itemId);
     const start = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
     const created = await Promise.all(kept.map((line, index) => this.repos.itemAssets.create({ ...line, position: start + index, createdBy: actorId })));
@@ -191,6 +199,7 @@ export class ItemAssetService {
     await this.record(first.itemId, first.boardId, actorId, [
       created.length === 1 || block ? { eventType: "ASSET_ADDED", metadata: { assetName: block ?? first.name } } : { eventType: "ASSET_ADDED", metadata: { count: created.length } },
     ]);
+    await this.syncPic(first.itemId, people, actorId);
     return created;
   }
 
@@ -201,7 +210,9 @@ export class ItemAssetService {
    */
   async updateBlock(itemId: EntityId, blockId: EntityId, patch: { name?: string; assigneeIds?: EntityId[]; links?: AssetLink[]; ungroup?: boolean }, actorId: EntityId): Promise<ItemAsset[]> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Name the block");
-    const lines = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    const all = await this.list(itemId);
+    const people = peopleOn(all);
+    const lines = all.filter((line) => line.blockId === blockId);
     if (lines.length === 0) throw new NotFoundError("Block", blockId);
     const first = lines[0]!;
     const linePatch: ItemAssetPatch = {};
@@ -226,6 +237,7 @@ export class ItemAssetService {
       if (added.length || removed.length) events.push({ eventType: "ASSET_UPDATED", metadata: { assetName: patch.name?.trim() || blockName, assetField: "who is in charge", addedUserIds: added, removedUserIds: removed } });
     }
     await this.record(first.itemId, first.boardId, actorId, events);
+    await this.syncPic(itemId, people, actorId);
     return updated;
   }
 
@@ -237,7 +249,9 @@ export class ItemAssetService {
   async saveBlock(itemId: EntityId, blockId: EntityId, form: SavedBlock, actorId: EntityId): Promise<void> {
     const blockName = form.name.trim();
     if (!blockName) throw new Error("Name the block");
-    const current = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    const all = await this.list(itemId);
+    const people = peopleOn(all);
+    const current = all.filter((line) => line.blockId === blockId);
     if (current.length === 0) throw new NotFoundError("Block", blockId);
     const first = current[0]!;
     const shared: ItemAssetPatch = { blockName, assigneeIds: form.assigneeIds, blockLinks: form.links };
@@ -288,33 +302,41 @@ export class ItemAssetService {
     }
     await this.recompute(first.itemId, first.boardId);
     await this.record(first.itemId, first.boardId, actorId, events);
+    await this.syncPic(itemId, people, actorId);
   }
 
   /** Removes a block and every line in it. */
   async removeBlock(itemId: EntityId, blockId: EntityId, actorId: EntityId): Promise<void> {
-    const lines = (await this.list(itemId)).filter((line) => line.blockId === blockId);
+    const all = await this.list(itemId);
+    const lines = all.filter((line) => line.blockId === blockId);
     if (lines.length === 0) return;
     const first = lines[0]!;
     await Promise.all(lines.map((line) => this.repos.itemAssets.delete(line.id)));
     await this.recompute(first.itemId, first.boardId);
     await this.record(first.itemId, first.boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: first.blockName ?? "a block" } }]);
+    await this.syncPic(itemId, peopleOn(all), actorId);
   }
 
   async update(id: EntityId, patch: ItemAssetPatch, actorId: EntityId): Promise<ItemAsset> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Say what the asset is");
     if (patch.quantity !== undefined && patch.quantity !== null && (!Number.isFinite(patch.quantity) || patch.quantity < 0)) throw new Error("Quantity must be zero or more");
     const before = await this.repos.itemAssets.getById(id);
+    // Only a change of people can move the PIC, so nothing else pays for the read.
+    const people = before && patch.assigneeIds !== undefined ? await this.assigneesOf(before.itemId) : null;
     const updated = await this.repos.itemAssets.update(id, patch);
     await this.recompute(updated.itemId, updated.boardId);
     if (before) await this.record(updated.itemId, updated.boardId, actorId, changeEvents(before, updated));
+    if (people) await this.syncPic(updated.itemId, people, actorId);
     return updated;
   }
 
   async remove(id: EntityId, itemId: EntityId, boardId: EntityId, actorId: EntityId): Promise<void> {
     const before = await this.repos.itemAssets.getById(id);
+    const people = await this.assigneesOf(itemId);
     await this.repos.itemAssets.delete(id);
     await this.recompute(itemId, boardId);
     await this.record(itemId, boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: before?.name } }]);
+    await this.syncPic(itemId, people, actorId);
   }
 
   /**
@@ -345,6 +367,59 @@ export class ItemAssetService {
       })),
       actorId,
     );
+  }
+
+  /** Everyone in charge of at least one of the item's lines, its linked items' included. */
+  private async assigneesOf(itemId: EntityId): Promise<Set<EntityId>> {
+    return peopleOn(await this.list(itemId));
+  }
+
+  /**
+   * Keeps the task's PIC in step with who its lines are on, as the board says:
+   * somebody newly in charge of a line is added (Board settings, Assets: on by
+   * default), and somebody left with none is taken off (off by default).
+   *
+   * Only the change is acted on, never the whole list, and removal only ever
+   * takes off someone this added: the item remembers who they are
+   * (`pic_from_assets`). Somebody already on the PIC, or put there by hand, is
+   * never removed by it; a person taken off the PIC by hand is not put back
+   * until they are given another line. Written through `ItemService.setValue`,
+   * so it is logged, follows task links and fires automations like any other
+   * edit.
+   *
+   * The lines are saved by now, so a PIC that cannot be written is reported
+   * and the edit still stands.
+   */
+  private async syncPic(itemId: EntityId, before: ReadonlySet<EntityId>, actorId: EntityId): Promise<void> {
+    if (!this.items) return;
+    try {
+      const after = await this.assigneesOf(itemId);
+      const gained = [...after].filter((id) => !before.has(id));
+      const lost = [...before].filter((id) => !after.has(id));
+      if (gained.length === 0 && lost.length === 0) return;
+      const item = await this.repos.items.getById(itemId);
+      const board = item ? await this.repos.boards.getById(item.boardId) : null;
+      if (!item || !board) return;
+      const { fill, clear } = picFromAssets(board);
+      if (!(fill && gained.length) && !(clear && lost.length)) return;
+      const pic = resolveColumnRoles(await this.repos.boards.listColumns(board.id)).pic;
+      if (!pic || pic.type !== "PERSON") return;
+      const stored = (await this.repos.items.listValuesByItem(itemId)).find((v) => v.columnId === pic.id)?.value;
+      const current = stored?.type === "PERSON" ? stored.userIds : [];
+      const added = new Set(await this.repos.items.getPicFromAssets(itemId));
+      // Only people not on the PIC already count as added by this.
+      const add = fill ? gained.filter((id) => !current.includes(id)) : [];
+      const drop = clear ? lost.filter((id) => added.has(id)) : [];
+      const marks = new Set([...added, ...add].filter((id) => !drop.includes(id) && (current.includes(id) || add.includes(id))));
+      const next = [...current.filter((id) => !drop.includes(id)), ...add];
+      if (next.length !== current.length || next.some((id, i) => id !== current[i])) {
+        const users = await this.repos.users.list();
+        await this.items.setValue(itemId, pic.id, { type: "PERSON", userIds: next }, { column: pic, item, board, users }, actorId);
+      }
+      if (marks.size !== added.size || [...marks].some((id) => !added.has(id))) await this.repos.items.setPicFromAssets(itemId, [...marks]);
+    } catch (error) {
+      console.error("Could not update the PIC from the asset lines", error);
+    }
   }
 
   /**
@@ -388,6 +463,10 @@ export class ItemAssetService {
     }
     if (writes.length) await this.repos.items.setValues(writes);
   }
+}
+
+function peopleOn(lines: readonly ItemAsset[]): Set<EntityId> {
+  return new Set(lines.flatMap((line) => line.assigneeIds));
 }
 
 /** What the block dialog hands back. A line without an id is a new one; a line of the block missing from `lines` was taken off. */

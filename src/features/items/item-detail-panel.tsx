@@ -327,25 +327,22 @@ export function ItemDetailPanel({
           <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} hideMenu={hideMenu} />
           {notice}
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-            {/* Compact, the four tabs are their icons and counts: four words
-                do not fit in 300px beside them. The words stay for anyone
-                reading rather than looking, and as the tooltip. */}
-            <UnderlineTabsList className={cn(panel.size === "compact" ? "justify-between px-2" : "px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain", "max-md:justify-between max-md:px-1 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1")}>
-              <UnderlineTabsTrigger value="overview" title={panel.size === "compact" ? "Overview" : undefined}>
-                <SquarePen className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Overview</span>
+            <UnderlineTabsList className={cn("px-4", narrow && "scrollbar-none overflow-x-auto overscroll-x-contain", "max-md:justify-between max-md:px-1 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1")}>
+              <UnderlineTabsTrigger value="overview">
+                <SquarePen className="size-3.5" /> <span>Overview</span>
               </UnderlineTabsTrigger>
-              <UnderlineTabsTrigger value="updates" title={panel.size === "compact" ? "Updates" : undefined}>
-                <MessageSquare className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Updates</span>
+              <UnderlineTabsTrigger value="updates">
+                <MessageSquare className="size-3.5" /> <span>Updates</span>
                 {comments.data && comments.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments.data.length}</span>}
               </UnderlineTabsTrigger>
               {deliverables && (
-                <UnderlineTabsTrigger value="assets" data-testid="tab-assets" title={panel.size === "compact" ? "Assets" : undefined}>
-                  <Package className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Assets</span>
+                <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
+                  <Package className="size-3.5" /> <span>Assets</span>
                   {assets.data && assets.data.length > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets.data.length}</span>}
                 </UnderlineTabsTrigger>
               )}
-              <UnderlineTabsTrigger value="activity" title={panel.size === "compact" ? "Activity" : undefined}>
-                <History className="size-3.5" /> <span className={cn(panel.size === "compact" && "sr-only")}>Activity</span>
+              <UnderlineTabsTrigger value="activity">
+                <History className="size-3.5" /> <span>Activity</span>
               </UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -549,7 +546,7 @@ function PanelHeader({
       <div className="relative">
         <ItemCover item={item} canEdit={canEdit} />
       </div>
-      <div className={cn("relative", size === "compact" ? "px-4 pt-3 pb-4" : size === "wide" ? "px-8 pt-5 pb-7" : "px-6 pt-4 pb-6")}>
+      <div className={cn("relative", size === "wide" ? "px-8 pt-5 pb-7" : "px-6 pt-4 pb-6")}>
         <div className="flex items-center gap-3">
           <p className="flex min-w-0 flex-1 items-center gap-1 text-2xs text-muted-foreground">
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
@@ -604,7 +601,7 @@ function PanelHeader({
           </div>
         </div>
 
-        <h2 className={cn("font-semibold tracking-tight", size === "compact" ? "mt-2 text-lg leading-snug" : size === "wide" ? "mt-3.5 text-[30px] leading-[1.15]" : "mt-3 text-[26px] leading-[1.2]")}>
+        <h2 className={cn("font-semibold tracking-tight", size === "wide" ? "mt-3.5 text-[30px] leading-[1.15]" : "mt-3 text-[26px] leading-[1.2]")}>
           <InlineEdit
             value={item.name}
             editing={renaming}
@@ -613,13 +610,13 @@ function PanelHeader({
             disabled={!canEdit}
             ariaLabel="Item name"
             className={cn("-mx-1 break-words whitespace-normal rounded px-1", canEdit && "hover:bg-accent")}
-            inputClassName={cn("font-semibold", size === "compact" ? "h-8 text-lg" : size === "wide" ? "h-12 text-[30px]" : "h-11 text-[26px]")}
+            inputClassName={cn("font-semibold", size === "wide" ? "h-12 text-[30px]" : "h-11 text-[26px]")}
           />
         </h2>
 
         {/* One quiet line of facts. Everything here is a size and a shade below
             the name, so the name is what the eye lands on. */}
-        <div className={cn("flex flex-wrap items-center gap-y-2 text-2xs text-muted-foreground", size === "compact" ? "mt-2.5 gap-x-3" : "mt-4 gap-x-4")}>
+        <div className={cn("flex flex-wrap items-center gap-y-2 text-2xs text-muted-foreground", "mt-4 gap-x-4")}>
           <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
           {item.archivedAt && (
             <Badge variant="warning" className="gap-1" data-testid="panel-archived-badge">
@@ -856,8 +853,6 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const text = item.description ?? "";
-  // Compact is a summary: the first few lines, and the rest a click away.
-  const compact = usePanelSize() === "compact";
 
   // The draft is filled at the moment editing starts rather than kept in step
   // with the item, so a different task in the panel — or someone else's edit
@@ -908,7 +903,6 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
           aria-label={canEdit ? "Edit description" : undefined}
           className={cn(
             "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left whitespace-pre-wrap text-[13px] text-foreground/90 shadow-xs",
-            compact && "line-clamp-4",
             canEdit && "hover:border-border",
             !canEdit && "cursor-default",
           )}
@@ -952,7 +946,6 @@ function Overview({ item }: { item: Item }) {
     if (from < 0 || to < 0) return;
     void mutations.reorderColumns(arrayMove(ids, from, to));
   };
-  const size = usePanelSize();
 
   const fields = (
     <section>
@@ -994,8 +987,8 @@ function Overview({ item }: { item: Item }) {
               </button>
               <SubOwners userIds={owners} />
               {statusColumn && (
-                <div className={cn("h-7 [&>*]:border-r-0", size === "compact" ? "w-24" : "w-32")}>
-                  <CellRenderer item={sub} column={statusColumn} width={size === "compact" ? 96 : 128} value={model.getValue(sub.id, statusColumn.id)} onChange={(value) => void mutations.setValue(sub, statusColumn, value)} readOnly={!canEdit} />
+                <div className={cn("h-7 [&>*]:border-r-0", "w-32")}>
+                  <CellRenderer item={sub} column={statusColumn} width={128} value={model.getValue(sub.id, statusColumn.id)} onChange={(value) => void mutations.setValue(sub, statusColumn, value)} readOnly={!canEdit} />
                 </div>
               )}
             </li>
@@ -1025,7 +1018,7 @@ function Overview({ item }: { item: Item }) {
   );
 
   return (
-    <div className={cn(size === "compact" ? "space-y-4 p-3" : "space-y-6 p-4")}>
+    <div className={cn("space-y-6 p-4")}>
       <DescriptionSection item={item} canEdit={canEdit} />
       {fields}
       <AllocationSection item={item} />
@@ -1248,14 +1241,11 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
 function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: BoardColumn; isMobile: boolean; canEdit: boolean }) {
   const { model, mutations } = useBoardContext();
   const [open, setOpen] = React.useState(false);
-  // Compact, a row is a line of a summary: a small label, the value filling the
-  // rest, and none of the handles — rearranging columns wants the room the
-  // compact panel has given back to the board. Wide, the cell fills its half
-  // of the panel rather than holding the default width inside it.
+  // Wide, the cell fills its half of the panel rather than holding the default
+  // width inside it.
   const size = usePanelSize();
-  const compact = size === "compact" && !isMobile;
   const fill = isMobile || size !== "default";
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || compact || !canEdit });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, disabled: isMobile || !canEdit });
 
   const value = model.getValue(item.id, column.id);
   const brief = column.type === "RICH_TEXT" || column.type === "BRIEF";
@@ -1263,7 +1253,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
 
   // The handle takes 24px off the left, so the label gives that back out of its
   // own padding rather than out of its words: "Requested team" fits either way.
-  const label = <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : compact ? "w-24 shrink-0 pr-2 pl-3 text-xs" : "w-28 shrink-0 pr-2 pl-1")}>{column.name}</span>;
+  const label = <span className={cn("truncate text-[13px] text-muted-foreground", isMobile ? "text-2xs" : "w-28 shrink-0 pr-2 pl-1")}>{column.name}</span>;
 
   return (
     <div
@@ -1272,8 +1262,8 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
       className={cn("bg-card", isDragging && "relative z-10 rounded-lg opacity-95 shadow-lg")}
       data-testid={`panel-field-${column.id}`}
     >
-      <div className={cn("group/row flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : compact ? "h-9 items-center" : "h-10 items-center")}>
-        {!isMobile && !compact && (
+      <div className={cn("group/row flex", isMobile ? "flex-col gap-0.5 px-3 py-2" : "h-10 items-center")}>
+        {!isMobile && (
           <button
             ref={setActivatorNodeRef}
             type="button"
@@ -1318,7 +1308,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             </div>
           </CellStretchProvider>
         )}
-        {!isMobile && !compact && canEdit && <ColumnRowMenu column={column} />}
+        {!isMobile && canEdit && <ColumnRowMenu column={column} />}
       </div>
       {brief && open && (
         <div className="scrollbar-thin max-h-96 overflow-y-auto border-t border-border/60 px-3 py-2.5" data-testid="rich-text-field-body">

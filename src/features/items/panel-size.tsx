@@ -5,16 +5,15 @@ import { cn } from "@/lib/utils";
 import { useUiStore, type ItemPanelSize } from "@/stores/ui-store";
 
 /**
- * The task panel's three widths.
+ * The task panel's two widths.
  *
- * Three rather than any width at all, because each is a layout of its own
- * rather than the same one stretched: the compact panel is a summary, the
- * default one is the panel as it always was, and the wide one is the pop-up's
- * two panes — the overview and the updates side by side, 440px each. A width
- * in between would be neither.
+ * Two rather than any width at all, because each is a layout of its own rather
+ * than the same one stretched: the default one is the panel as it always was,
+ * and the wide one is the pop-up's two panes — the overview and the updates
+ * side by side, 440px each. A width in between would be neither.
  */
-export const PANEL_WIDTHS: Record<ItemPanelSize, number> = { compact: 300, default: 520, wide: 880 };
-const ORDER: ItemPanelSize[] = ["compact", "default", "wide"];
+export const PANEL_WIDTHS: Record<ItemPanelSize, number> = { default: 520, wide: 880 };
+const ORDER: ItemPanelSize[] = ["default", "wide"];
 
 /** How far past either end a drag is let run, so the edge still follows the hand at the stops. */
 const OVERDRAG = 60;
@@ -28,7 +27,7 @@ export function nearestPanelSize(width: number): ItemPanelSize {
 const PanelSizeContext = React.createContext<ItemPanelSize>("default");
 
 /**
- * Which of the three layouts the panel's contents take. Anything outside a
+ * Which of the two layouts the panel's contents take. Anything outside a
  * resizable panel — the pop-up, a shared page, a phone — reads "default".
  */
 export function usePanelSize(): ItemPanelSize {
@@ -63,7 +62,7 @@ export function useResizablePanel(enabled: boolean) {
       if (!dragged && Math.abs(e.clientX - startX) < DRAG_SLOP) return;
       dragged = true;
       // The panel sits on the right, so the edge moving left makes it wider.
-      last = Math.min(PANEL_WIDTHS.wide + OVERDRAG, Math.max(PANEL_WIDTHS.compact - OVERDRAG, startWidth + (startX - e.clientX)));
+      last = Math.min(PANEL_WIDTHS.wide + OVERDRAG, Math.max(PANEL_WIDTHS.default - OVERDRAG, startWidth + (startX - e.clientX)));
       setDragWidth(last);
     };
     const onUp = () => {

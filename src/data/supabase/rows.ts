@@ -246,11 +246,13 @@ export interface BoardRow {
   icon: string;
   archived_at: string | null;
   system: BoardSystemKind | null;
+  assets_fill_pic: boolean | null;
+  assets_clear_pic: boolean | null;
   created_at: string;
   updated_at: string;
 }
 
-export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, created_at, updated_at";
+export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, created_at, updated_at";
 
 export function toBoard(row: BoardRow): Board {
   return {
@@ -267,6 +269,8 @@ export function toBoard(row: BoardRow): Board {
     icon: row.icon,
     archivedAt: row.archived_at,
     system: row.system ?? null,
+    assetsFillPic: row.assets_fill_pic ?? true,
+    assetsClearPic: row.assets_clear_pic ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -286,6 +290,8 @@ export function fromBoardPatch(patch: Partial<Omit<Board, "id" | "createdAt">>):
     icon: patch.icon,
     archived_at: patch.archivedAt,
     system: patch.system,
+    assets_fill_pic: patch.assetsFillPic,
+    assets_clear_pic: patch.assetsClearPic,
   });
 }
 

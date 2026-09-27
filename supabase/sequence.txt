@@ -120,3 +120,5 @@ migrations/0086_workspace_join_link.sql
 migrations/0087_asset_links_and_blocks.sql
 migrations/0088_asset_block_links.sql
 migrations/0089_multi_workspace.sql
+migrations/0090_board_pic_from_assets.sql
+migrations/0091_item_pic_from_assets.sql

@@ -245,3 +245,25 @@ describe("blocks", () => {
     expect(screen.queryByTestId("asset-add-block")).not.toBeInTheDocument();
   });
 });
+
+describe("a detailed row, as My to-do shows it", () => {
+  it("spells out what the line has, and nothing it does not", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-27T09:00:00"));
+    try {
+      composer([row({ id: "a1", dueDate: "2026-09-30", links: [preview] }), row({ id: "a2", name: "Tile", assetType: null, quantity: null, notes: null })], { detailed: true, addable: false });
+      const lines = screen.getAllByTestId("asset-detail-line");
+      // The bare line has nothing to spell out, so it gets no line at all.
+      expect(lines).toHaveLength(1);
+      const text = lines[0]!.textContent ?? "";
+      expect(text).toContain("×6");
+      expect(text).toContain("Print");
+      expect(text).toContain("In 3 days");
+      expect(text).toContain("1 link");
+      expect(text).toContain("A4, nothing else.");
+      expect(screen.queryByTestId("asset-add-input")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

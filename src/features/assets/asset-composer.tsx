@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, FileText, FolderInput, FolderOutput, Hash, Layers, Link2, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -16,7 +16,7 @@ import { cleanDraftLinks, LinksEditor, linkMenuActions, sameLinks } from "@/feat
 import { DatePicker } from "@/features/boards/components/pickers/date-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
-import { formatShortDate, isOverdue } from "@/lib/dates/dates";
+import { daysUntil, formatShortDate, isOverdue } from "@/lib/dates/dates";
 import { nowIso } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 
@@ -103,6 +103,10 @@ export function AssetComposer({
   disabled = false,
   addPlaceholder = "Add an item, e.g. A1 poster",
   emptyText,
+  addable = true,
+  actions,
+  numbers: numberOverride,
+  detailed = false,
   onAdd,
   onAddBlock,
   onPatchBlock,
@@ -123,6 +127,14 @@ export function AssetComposer({
   disabled?: boolean;
   addPlaceholder?: string;
   emptyText?: string;
+  /** False leaves out the boxes for adding lines, for a view of part of a list. */
+  addable?: boolean;
+  /** More buttons beside Block, or on a row of their own when nothing can be added. */
+  actions?: React.ReactNode;
+  /** Line numbers from a longer list this view is part of, so a line keeps its number. */
+  numbers?: ReadonlyMap<string, number>;
+  /** Closed rows spell out what they have — quantity, type, due and how far off, spec, links — on a line under the name. */
+  detailed?: boolean;
   /** A new line: on its own, or at the end of a block. */
   onAdd: (name: string, block?: AssetBlockTarget) => void;
   onAddBlock?: (block: AssetBlockForm) => void;
@@ -170,11 +182,13 @@ export function AssetComposer({
   };
 
   // Lines are numbered down the whole list, blocks included.
-  const numbers = React.useMemo(() => {
+  const ownNumbers = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const entry of entries) for (const line of entry.kind === "line" ? [entry.line] : entry.lines) map.set(line.id, map.size + 1);
     return map;
   }, [entries]);
+  const numbers = numberOverride ?? ownNumbers;
+  const adding = canEdit && addable;
   const lineCard = (row: AssetComposerRow, inBlock: boolean) => {
     return (
       <AssetRowCard
@@ -195,6 +209,7 @@ export function AssetComposer({
         onRemove={() => onRemove(row.id)}
         blocks={blocksOn && !inBlock ? blocks : undefined}
         inBlock={blocksOn && inBlock}
+        detailed={detailed}
         // Level with the lines inside a block, whose box insets them.
         inset={!inBlock && blocks.length > 0}
       />
@@ -209,7 +224,7 @@ export function AssetComposer({
       {/* ---- Add one. Above the list: it stays put however long the list gets. */}
       {/* Not a <form>: the booking page already is one, and a form inside a form
           is invalid — Enter is handled on the field instead. */}
-      {canEdit && (
+      {adding && (
         <div className="flex items-stretch gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-ring">
           <Plus className="size-3.5 shrink-0 text-muted-foreground/60" />
@@ -238,8 +253,10 @@ export function AssetComposer({
               <Layers /> Block
             </Button>
           )}
+          {actions}
         </div>
       )}
+      {!adding && actions && <div className="flex h-9 items-stretch justify-end gap-2">{actions}</div>}
       {blocksOn && canEdit && (
         <AssetBlockDialog
           open={blockDialog}
@@ -254,7 +271,7 @@ export function AssetComposer({
         />
       )}
 
-      <ul className={cn("space-y-1.5", canEdit && "mt-2")} data-testid="asset-lines">
+      <ul className={cn("space-y-1.5", (adding || actions) && "mt-2")} data-testid="asset-lines">
         {entries.map((entry) =>
           entry.kind === "line" ? (
             lineCard(entry.line, false)
@@ -267,6 +284,7 @@ export function AssetComposer({
               assetTypes={assetTypes}
               users={users}
               canEdit={canEdit && !disabled}
+              addable={addable}
               onAdd={(name) => addInto(blockTarget(entry.blockId, entry.name, entry.lines), name)}
               onPatch={(patch) => onPatchBlock!(entry.blockId, patch)}
               onSave={onSaveBlock ? (block) => onSaveBlock(entry.blockId, block) : undefined}
@@ -350,6 +368,7 @@ function AssetRowCard({
   blocks,
   inBlock = false,
   inset = false,
+  detailed = false,
 }: {
   row: AssetComposerRow;
   number: number;
@@ -368,6 +387,7 @@ function AssetRowCard({
   inBlock?: boolean;
   /** Set in by a block's border and padding, so a line on its own lines up with the lines in a block. */
   inset?: boolean;
+  detailed?: boolean;
 }) {
   // What the open form is holding. It starts from the row each time the row is
   // opened, so Discard is simply "close it again".
@@ -552,7 +572,7 @@ function AssetRowCard({
             )}
 
             {/* What the deliverable is, against its name: how many, and of what. */}
-            {!open && !renaming && (
+            {!open && !renaming && !detailed && (
               <span className="flex min-w-0 shrink items-center gap-1 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-summary">
                 {/* A count only when there is more than one: "×1" down every row
                     of the list is a column of noise. */}
@@ -566,7 +586,7 @@ function AssetRowCard({
               a deliverable nobody has opened. No calendar icon against the date —
               a date already looks like one — and a warning only once it has gone
               by. */}
-          {!open && !renaming && (showPeople || showDue) && (
+          {!open && !renaming && !detailed && (showPeople || showDue) && (
             <div className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden" data-testid="asset-meta">
               {showPeople && (
                 <span className="flex -space-x-1">
@@ -611,7 +631,7 @@ function AssetRowCard({
 
         {/* ---- Narrow: the same details, on a line of their own under the name.
             Squeezed onto the name's line they ran into it and each other. */}
-        {!open && !renaming && (count > 1 || (fields.type && typeLabel) || showPeople || showDue) && (
+        {!open && !renaming && !detailed && (count > 1 || (fields.type && typeLabel) || showPeople || showDue) && (
           <div className={cn("hidden flex-wrap items-center gap-x-2 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground @max-[28rem]/assets:flex", fields.done ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-summary-compact">
             {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{count}</span>}
             {fields.type && typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
@@ -630,6 +650,9 @@ function AssetRowCard({
             )}
           </div>
         )}
+
+        {/* ---- Detailed: everything the line has, and nothing it does not. */}
+        {!open && !renaming && detailed && <AssetDetailLine row={row} typeLabel={fields.type ? typeLabel : null} done={done} overdue={overdue} indent={fields.done} />}
 
         {/* ---- The row you edit: the fields in two columns, spec across the foot. */}
         {open && (
@@ -806,6 +829,47 @@ function AssetRowCard({
 }
 
 /** A block as a line added to it, or moved into it, needs it. */
+/** How far off a due date is, in days: "Today", "In 3 days", "2 days late". */
+function dueDistance(dueDate: string): string | null {
+  const days = daysUntil(dueDate);
+  if (days === null) return null;
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days > 1) return `In ${days} days`;
+  return days === -1 ? "1 day late" : `${-days} days late`;
+}
+
+/** A closed line's details in full, each only when the line has it. */
+function AssetDetailLine({ row, typeLabel, done, overdue, indent }: { row: AssetComposerRow; typeLabel: ReturnType<typeof assetTypeLabel>; done: boolean; overdue: boolean; indent: boolean }) {
+  const links = row.links.length + row.blockLinks.length;
+  const distance = row.dueDate && !done ? dueDistance(row.dueDate) : null;
+  if (row.quantity === null && !typeLabel && !row.dueDate && !row.notes && links === 0) return null;
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 pr-2.5 pb-2 text-2xs text-muted-foreground", indent ? "pl-[2.125rem]" : "pl-2.5")} data-testid="asset-detail-line">
+      {row.quantity !== null && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular">×{row.quantity}</span>}
+      {typeLabel && <LabelPill label={typeLabel} appearance="soft" size="sm" className="h-5 max-w-32 px-1.5 text-[10px]" />}
+      {row.dueDate && (
+        <span className={cn("inline-flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")} data-testid="asset-detail-due">
+          {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0" />}
+          {formatShortDate(row.dueDate)}
+          {distance && <span className={cn(!overdue && "text-foreground/80")}>· {distance}</span>}
+        </span>
+      )}
+      {links > 0 && (
+        <span className="inline-flex items-center gap-1 tabular">
+          <Link2 className="size-3 shrink-0" /> {links} {links === 1 ? "link" : "links"}
+        </span>
+      )}
+      {row.notes && (
+        <span className="inline-flex min-w-0 basis-full items-center gap-1" title={row.notes}>
+          <FileText className="size-3 shrink-0" />
+          <span className="truncate">{row.notes}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function blockTarget(blockId: string, blockName: string, lines: readonly AssetComposerRow[]): AssetBlockTarget {
   return { blockId, blockName, assigneeIds: blockAssignees(lines), blockLinks: lines[0]?.blockLinks ?? [] };
 }
@@ -830,6 +894,7 @@ function AssetBlockCard({
   assetTypes,
   users,
   canEdit,
+  addable,
   onAdd,
   onPatch,
   onSave,
@@ -842,6 +907,7 @@ function AssetBlockCard({
   assetTypes: readonly TagOption[];
   users: User[];
   canEdit: boolean;
+  addable: boolean;
   onAdd: (name: string) => void;
   onPatch: (patch: AssetBlockPatch) => void;
   onSave?: (block: AssetBlockForm) => void;
@@ -987,7 +1053,7 @@ function AssetBlockCard({
           <ul className="mt-1 space-y-1.5" data-testid="asset-block-lines">
             {children}
           </ul>
-          {canEdit && (
+          {canEdit && addable && (
             <div className="mt-1.5 flex items-center gap-2 rounded-xl px-2.5 py-1 focus-within:bg-background focus-within:ring-2 focus-within:ring-ring @min-[28rem]/assets:ml-[1.625rem]">
               <Plus className="size-3.5 shrink-0 text-muted-foreground/60" />
               <input

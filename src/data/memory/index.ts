@@ -148,6 +148,8 @@ export function createMemoryRepositories(
       setBookingBrief: readOnly("editing an item"),
       listBookingBriefs: async () => new Map(),
       updateMany: readOnly("editing items"),
+      getPicFromAssets: async () => [],
+      setPicFromAssets: readOnly("editing an item"),
       moveToBoard: readOnly("moving an item to another board"),
       deleteMany: readOnly("deleting items"),
       listValuesByBoard: async (boardId) => values(boardId),

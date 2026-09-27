@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { BOARD_ROLES, COLUMN_TYPE_LABELS, isSystemColumnType, shownColumns, type Board, type BoardRole } from "@/domain";
+import { BOARD_ROLES, COLUMN_TYPE_LABELS, isSystemColumnType, picFromAssets, resolveColumnRoles, shownColumns, type Board, type BoardRole } from "@/domain";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { BoardSharePanel } from "@/features/boards/components/dialogs/share-board-dialog";
@@ -23,13 +24,14 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { boardRoleFor, canDeleteBoard, canEditBoardSeat, canManageBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 
-export type BoardSettingsSection = "general" | "members" | "share" | "columns" | "permissions" | "archive" | "danger";
+export type BoardSettingsSection = "general" | "members" | "share" | "columns" | "assets" | "permissions" | "archive" | "danger";
 
 const SECTIONS: Array<{ id: BoardSettingsSection; label: string }> = [
   { id: "general", label: "General" },
   { id: "members", label: "Members" },
   { id: "share", label: "Share" },
   { id: "columns", label: "Columns" },
+  { id: "assets", label: "Assets" },
   { id: "permissions", label: "Permissions" },
   { id: "archive", label: "Archive" },
   { id: "danger", label: "Danger Zone" },
@@ -79,6 +81,7 @@ export function BoardSettingsDialog({
             {section === "members" && <MembersSection board={board} manage={manage} />}
             {section === "share" && <ShareSection board={board} manage={manage} />}
             {section === "columns" && <ColumnsSection board={board} manage={manage} />}
+            {section === "assets" && <AssetsSection board={board} manage={manage} />}
             {section === "permissions" && <PermissionsSection board={board} />}
             {section === "archive" && <ArchiveSection board={board} manage={manage} />}
             {section === "danger" && <DangerSection board={board} onRequestDelete={onRequestDelete} />}
@@ -293,6 +296,39 @@ function ColumnsSection({ board, manage }: { board: Board; manage: boolean }) {
                 </Button>
               </>
             )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * How a task's asset lines keep its PIC up to date. The work is done where the
+ * lines are saved (ItemAssetService.syncPic); this only says which way.
+ */
+function AssetsSection({ board, manage }: { board: Board; manage: boolean }) {
+  const snapshot = useBoardSnapshot(board.id);
+  const actions = useBoardActions(board);
+  const pic = resolveColumnRoles(snapshot.data?.columns ?? []).pic;
+  const { fill, clear } = picFromAssets(board);
+  const name = pic?.name ?? "PIC";
+  const off = !manage || (snapshot.isSuccess && !pic);
+  const rows = [
+    { id: "fill", label: `Add to ${name}`, hint: "When someone is put in charge of an asset.", checked: fill, patch: (on: boolean) => ({ assetsFillPic: on }) },
+    { id: "clear", label: `Remove from ${name}`, hint: "When someone added this way has no assets left. People added by hand stay.", checked: clear, patch: (on: boolean) => ({ assetsClearPic: on }) },
+  ];
+  return (
+    <div className="space-y-3">
+      {snapshot.isSuccess && !pic && <p className="text-[13px] text-muted-foreground">This board has no PIC column.</p>}
+      <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="board-assets-settings">
+        {rows.map((row) => (
+          <li key={row.id} className="flex items-center gap-3 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-medium">{row.label}</p>
+              <p className="text-2xs text-muted-foreground">{row.hint}</p>
+            </div>
+            <Switch checked={row.checked} disabled={off} onCheckedChange={(on) => actions.updateBoard.mutate(row.patch(on))} aria-label={row.label} data-testid={`board-assets-${row.id}`} />
           </li>
         ))}
       </ul>
