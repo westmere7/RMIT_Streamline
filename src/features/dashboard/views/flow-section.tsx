@@ -195,9 +195,10 @@ const IN_COLOR = BRAND_RED;
 const OUT_COLOR = "#10b981";
 
 /**
- * New against finished, a pair of columns a bucket. A stretch that has not
- * happened yet draws nothing. The columns spring as a share of the scale, so a
- * new period or filter cannot draw them off the top (see year-comparison).
+ * New against finished, a pair of columns a bucket, each with its count, and
+ * under the month what it did to the backlog. A stretch that has not happened
+ * yet draws nothing. The columns spring as a share of the scale, so a new
+ * period or filter cannot draw them off the top (see year-comparison).
  */
 function InOutChart({ buckets }: { buckets: FlowBucket[] }) {
   const [ref, size] = useSize<HTMLDivElement>();
@@ -212,22 +213,44 @@ function InOutChart({ buckets }: { buckets: FlowBucket[] }) {
 
   const padLeft = Math.max(30, 14 + compactCount(top).length * 6);
   const padRight = 6;
-  const padTop = 10;
-  const padBottom = 22;
+  const padTop = 18;
+  const padBottom = 36;
   const plot = height - padBottom;
   const slot = (width - padLeft - padRight) / Math.max(1, buckets.length);
-  const barWidth = Math.max(3, Math.min(14, slot / 2.8));
+  const barWidth = Math.max(4, Math.min(36, slot * 0.34));
   const y = (value: number) => plot - (value / top) * (plot - padTop);
-  // Every label while they fit; past that, every other one.
+  // Every label while they fit; past that, every other one. Counts sit on the bars only when a bar is wide enough to carry one.
   const labelEvery = slot < 34 ? 2 : 1;
+  const counts = barWidth >= 14;
   const hovered = buckets.findIndex((b) => b.key === hover);
   const empty = buckets.every((b) => !b.in && !b.out);
 
+  const happened = buckets.filter((b) => b.in !== null);
+  const totalIn = happened.reduce((sum, b) => sum + (b.in ?? 0), 0);
+  const totalOut = happened.reduce((sum, b) => sum + (b.out ?? 0), 0);
+  const busiest = happened.reduce<FlowBucket | null>((best, b) => ((b.in ?? 0) > (best?.in ?? 0) ? b : best), null);
+  const mostDone = happened.reduce<FlowBucket | null>((best, b) => ((b.out ?? 0) > (best?.out ?? 0) ? b : best), null);
+  // The backlog as it stood after each bucket, counted from the start of the period.
+  const running = new Map<string, number>();
+  let sofar = 0;
+  for (const b of happened) {
+    sofar += (b.in ?? 0) - (b.out ?? 0);
+    running.set(b.key, sofar);
+  }
+  const netTone = (net: number) => (net > 0 ? "fill-destructive" : net < 0 ? "fill-emerald-600 dark:fill-emerald-400" : "fill-muted-foreground");
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="mb-2 flex shrink-0 items-center gap-4 text-2xs">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 text-2xs">
         <Key color={IN_COLOR} label="New" />
         <Key color={OUT_COLOR} label="Finished" />
+        {totalIn > 0 && (
+          <dl className="ml-auto flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular" data-testid="in-out-figures">
+            <Figure label="Finish rate" value={formatPercent((totalOut / totalIn) * 100)} />
+            {busiest && <Figure label="Most new" value={`${busiest.label} · ${formatCount(busiest.in ?? 0)}`} />}
+            {mostDone && (mostDone.out ?? 0) > 0 && <Figure label="Most finished" value={`${mostDone.label} · ${formatCount(mostDone.out ?? 0)}`} />}
+          </dl>
+        )}
       </div>
       <div ref={ref} className="relative min-h-[180px] w-full flex-1">
         {empty && (
@@ -252,14 +275,30 @@ function InOutChart({ buckets }: { buckets: FlowBucket[] }) {
               <g key={bucket.key} onMouseEnter={() => setHover(bucket.key)} data-testid="in-out-bucket">
                 <rect x={padLeft + index * slot} y={0} width={slot} height={plot} className={cn("fill-transparent", on && "fill-foreground/[0.05]")} />
                 {bucket.in !== null && (
-                  <rect x={centre - barWidth - 1} y={y(live(`i${bucket.key}`, bucket.in))} width={barWidth} height={Math.max(0, plot - y(live(`i${bucket.key}`, bucket.in)))} rx={2} fill={IN_COLOR} fillOpacity={dim ? 0.5 : 1} />
+                  <rect x={centre - barWidth - 1} y={y(live(`i${bucket.key}`, bucket.in))} width={barWidth} height={Math.max(0, plot - y(live(`i${bucket.key}`, bucket.in)))} rx={3} fill={IN_COLOR} fillOpacity={dim ? 0.5 : 1} />
                 )}
                 {bucket.out !== null && (
-                  <rect x={centre + 1} y={y(live(`o${bucket.key}`, bucket.out))} width={barWidth} height={Math.max(0, plot - y(live(`o${bucket.key}`, bucket.out)))} rx={2} fill={OUT_COLOR} fillOpacity={dim ? 0.5 : 1} />
+                  <rect x={centre + 1} y={y(live(`o${bucket.key}`, bucket.out))} width={barWidth} height={Math.max(0, plot - y(live(`o${bucket.key}`, bucket.out)))} rx={3} fill={OUT_COLOR} fillOpacity={dim ? 0.5 : 1} />
+                )}
+                {counts && bucket.in !== null && bucket.in > 0 && (
+                  <text x={centre - barWidth / 2 - 1} y={y(live(`i${bucket.key}`, bucket.in)) - 4} textAnchor="middle" className="fill-foreground text-[10px] font-medium tabular">
+                    {formatCount(bucket.in)}
+                  </text>
+                )}
+                {counts && bucket.out !== null && bucket.out > 0 && (
+                  <text x={centre + barWidth / 2 + 1} y={y(live(`o${bucket.key}`, bucket.out)) - 4} textAnchor="middle" className="fill-foreground text-[10px] font-medium tabular">
+                    {formatCount(bucket.out)}
+                  </text>
                 )}
                 {index % labelEvery === 0 && (
-                  <text x={centre} y={plot + 14} textAnchor="middle" className={cn("text-[9px]", bucket.in === null ? "fill-muted-foreground/50" : "fill-muted-foreground")}>
+                  <text x={centre} y={plot + 14} textAnchor="middle" className={cn("text-[10px]", bucket.in === null ? "fill-muted-foreground/50" : "fill-muted-foreground")}>
                     {bucket.label}
+                  </text>
+                )}
+                {/* What the bucket did to the backlog: more in than out adds to it. */}
+                {index % labelEvery === 0 && bucket.in !== null && (
+                  <text x={centre} y={plot + 28} textAnchor="middle" className={cn("text-[10px] font-medium tabular", netTone((bucket.in ?? 0) - (bucket.out ?? 0)))} data-testid="in-out-net">
+                    {signed((bucket.in ?? 0) - (bucket.out ?? 0))}
                   </text>
                 )}
               </g>
@@ -279,10 +318,29 @@ function InOutChart({ buckets }: { buckets: FlowBucket[] }) {
               <span className="flex-1 text-muted-foreground">Finished</span>
               <span className="font-medium">{formatCount(buckets[hovered]!.out ?? 0)}</span>
             </p>
+            <p className="mt-1 flex items-center gap-1.5 border-t border-border/50 pt-1 tabular">
+              <span className="flex-1 text-muted-foreground">Backlog</span>
+              <span className="font-medium">{signed((buckets[hovered]!.in ?? 0) - (buckets[hovered]!.out ?? 0))}</span>
+            </p>
+            <p className="flex items-center gap-1.5 tabular">
+              <span className="flex-1 text-muted-foreground">Since the start</span>
+              <span className="font-medium">{signed(running.get(buckets[hovered]!.key) ?? 0)}</span>
+            </p>
           </ChartTooltip>
         )}
       </div>
     </div>
+  );
+}
+
+const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatCount(Math.abs(n))}`;
+
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-foreground">{value}</dd>
+    </span>
   );
 }
 

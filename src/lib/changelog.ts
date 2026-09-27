@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.59.2",
+    date: "2026-09-27",
+    title: "A fuller In and out",
+    changes: ["In and out has thicker bars with their counts, each month's change to the backlog under it, and the finish rate and busiest months above."],
+  },
+  {
     version: "0.59.1",
     date: "2026-09-27",
     title: "A calmer members list",
