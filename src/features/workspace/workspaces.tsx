@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SkeletonLine } from "@/components/ui/skeleton";
 import type { Workspace } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -22,6 +23,7 @@ import { canManageWorkspaces } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { slugify } from "@/lib/slug";
+import { cn } from "@/lib/utils";
 import { WORKSPACE_SLUG_PATTERN } from "@/services/workspace-service";
 
 /** Where the last workspace opened is remembered, so signing in lands back in it. */
@@ -53,11 +55,20 @@ export function pickWorkspace<T extends Pick<Workspace, "slug" | "createdAt">>(w
 
 export const userWorkspacesKey = (userId: string | undefined) => ["user-workspaces", userId] as const;
 
-/** The workspaces the signed-in person can open, by name. */
-export function useMyWorkspaces() {
+/** The workspaces the signed-in person can open, by name. `enabled: false` holds the read back, for a menu that is not open yet. */
+export function useMyWorkspaces({ enabled = true }: { enabled?: boolean } = {}) {
   const services = useServices();
   const user = useCurrentUser();
-  return useQuery({ queryKey: userWorkspacesKey(user.id), queryFn: () => services.workspace.listWorkspacesForUser(user.id), staleTime: 30_000 });
+  return useQuery({ queryKey: userWorkspacesKey(user.id), queryFn: () => services.workspace.listWorkspacesForUser(user.id), staleTime: 30_000, enabled });
+}
+
+/** A workspace row still on its way: the height of a real one, so nothing jumps when it arrives. */
+export function WorkspaceRowPlaceholder({ className }: { className?: string }) {
+  return (
+    <div role="status" aria-label="Loading workspaces" className={className} data-testid="workspace-row-loading">
+      <SkeletonLine className="w-28" />
+    </div>
+  );
 }
 
 /** The Owners' ids. */
@@ -142,11 +153,14 @@ export function WorkspaceMenuItems() {
   const showNew = useNewWorkspaceDialog((s) => s.show);
   const list = mine.data ?? [ws.workspace];
   const owner = canManageWorkspaces(ws.ownPermissions);
+  // Only rows that arrive while the menu is open fade in; a cached list is simply there.
+  const [arriving] = React.useState(mine.isPending);
   return (
     <>
       {list.map((workspace) => (
         <DropdownMenuItem
           key={workspace.id}
+          className={cn(arriving && workspace.id !== ws.workspace.id && "animate-in fade-in-0 duration-200")}
           onSelect={() => router.push(routes.workspace(workspace.slug))}
           data-testid={workspace.id === ws.workspace.id ? "menu-workspace-current" : "menu-workspace-option"}
           data-workspace-slug={workspace.slug}
@@ -156,13 +170,14 @@ export function WorkspaceMenuItems() {
             <Check className="ml-auto size-3.5" />
           ) : (
             unreadIn(workspace.id) > 0 && (
-              <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold text-primary-foreground tabular" aria-label={`${unreadIn(workspace.id)} unread`} data-testid="menu-workspace-unread">
+              <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold text-primary-foreground tabular animate-in fade-in-0 duration-200" aria-label={`${unreadIn(workspace.id)} unread`} data-testid="menu-workspace-unread">
                 {unreadIn(workspace.id)}
               </span>
             )
           )}
         </DropdownMenuItem>
       ))}
+      {mine.isPending && <WorkspaceRowPlaceholder className="flex h-9 items-center px-2.5 text-[13px] max-md:h-11 max-md:text-[15px]" />}
       {owner && (
         <>
           <DropdownMenuSeparator />

@@ -25,7 +25,7 @@ import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { WorkspaceMenuItems } from "@/features/workspace/workspaces";
+import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { IS_DEV } from "@/lib/config";
 import { canManageMembers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
@@ -48,6 +48,10 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const showDevTools = IS_DEV || providerKind === "local";
   const setViewAsUserId = useUiStore((s) => s.setViewAsUserId);
   const reportBug = useBugReportDialog((s) => s.show);
+  // The workspace list is read as the menu opens, so it is usually there by the
+  // time the Workspace sub-menu is.
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  useMyWorkspaces({ enabled: menuOpen });
 
   const resetData = async () => {
     await services.repos.admin.resetToSeed();
@@ -58,7 +62,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(open) => open && setMenuOpen(true)}>
         <DropdownMenuTrigger
           className={cn(
             "flex h-11 w-full items-center gap-2.5 rounded-xl px-2 text-left transition-colors hover:bg-sidebar-accent/70 focus-visible:outline-2 focus-visible:outline-ring",

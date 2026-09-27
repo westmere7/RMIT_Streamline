@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.57.3",
+    date: "2026-09-27",
+    title: "Smoother workspace menu",
+    changes: ["The Workspace menu shows a loading row while your other workspaces arrive, and they fade in rather than jump in."],
+  },
+  {
     version: "0.57.2",
     date: "2026-09-27",
     title: "Settings without Members",
