@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.63.0",
+    date: "2026-09-27",
+    title: "One pool of people",
+    changes: [
+      "Members lists everyone in the app: this workspace's members first, then people in other workspaces, with the workspaces each is in.",
+      "Admins add someone from the pool with Add to this workspace, choosing their role and teams; access and roles stay per workspace.",
+    ],
+  },
+  {
     version: "0.62.0",
     date: "2026-09-27",
     title: "Export the dashboard as a PDF",

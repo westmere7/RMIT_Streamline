@@ -31,8 +31,9 @@ export interface SharedListTransport {
 export const SHARED_LIST_KEYS: ReadonlySet<WorkspaceListKey> = new Set(["STAKEHOLDER_GROUPS"]);
 
 /**
- * The workspace's shared lists: the asset types a deliverable can be, the
- * stakeholder groups a request comes from.
+ * The workspace's lists: the asset types a deliverable can be, which are this
+ * workspace's own (each has its list and its output rates), and the
+ * stakeholder groups a request comes from, which every workspace shares.
  *
  * A list nobody has edited has no rows at all — the domain stands the built-in
  * defaults in for it — so the first save writes the whole list out. Saves are

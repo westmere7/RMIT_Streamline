@@ -81,3 +81,62 @@ export async function copyToClipboard(text: string, label = "Link copied"): Prom
     return false;
   }
 }
+
+/** A workspace somebody belongs to, as the Members page names it. */
+export interface PoolWorkspace {
+  id: string;
+  name: string;
+}
+
+/**
+ * Everyone in the app, not only this workspace: people are one pool, and a
+ * workspace is who of them has access to it. `people` is everybody active in
+ * some workspace; `workspacesOf` is, per person, the workspaces they are in —
+ * of the ones the reader can see themselves (an Owner sees every one, an admin
+ * the ones they share), so the list names no workspace the reader cannot open.
+ */
+export function usePeoplePool() {
+  const ws = useWorkspace();
+  const services = useServices();
+  return useQuery({
+    queryKey: ["people-pool", ws.workspace.id, ws.currentUser.id],
+    queryFn: async () => {
+      const [directory, users, mine] = await Promise.all([
+        services.repos.workspaces.listDirectory(),
+        services.repos.users.list(),
+        services.workspace.listWorkspacesForUser(ws.currentUser.id),
+      ]);
+      const seats = await Promise.all(mine.map(async (workspace) => ({ workspace, members: await services.repos.workspaces.listMembers(workspace.id) })));
+      const workspacesOf = new Map<string, PoolWorkspace[]>();
+      for (const { workspace, members } of seats) {
+        for (const member of members) {
+          if (member.status !== "ACTIVE") continue;
+          const list = workspacesOf.get(member.userId) ?? [];
+          list.push({ id: workspace.id, name: workspace.name });
+          workspacesOf.set(member.userId, list);
+        }
+      }
+      const inPool = new Set(directory);
+      return { people: users.filter((u) => inPool.has(u.id) && u.deactivatedAt === null), workspacesOf };
+    },
+    staleTime: 30_000,
+  });
+}
+
+/** Gives somebody from the pool access to this workspace: one account, a seat here with its own role. */
+export function useAddToWorkspace() {
+  const ws = useWorkspace();
+  const services = useServices();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { userId: string; role: "ADMIN" | "MEMBER" | "GUEST"; teamIds: string[] }) => services.workspace.addExistingMember({ workspaceId: ws.workspace.id, ...input }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }),
+        queryClient.invalidateQueries({ queryKey: ["people-pool"] }),
+      ]);
+      publishDataChange({ kinds: ["workspace"] });
+    },
+    onError: (error) => toast.error("Could not add them", { description: error instanceof Error ? error.message : undefined }),
+  });
+}
