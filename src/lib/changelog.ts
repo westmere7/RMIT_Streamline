@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.67.2",
+    date: "2026-09-30",
+    title: "Inbox only shows what still opens",
+    changes: [
+      "Notifications about a task or board that has since been deleted no longer show in the inbox or count on its badges.",
+      "A notification about a task that moved to another board opens it there.",
+    ],
+  },
+  {
     version: "0.67.1",
     date: "2026-09-30",
     title: "Straight in, and the workspace under the logo",

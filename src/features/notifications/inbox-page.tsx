@@ -11,9 +11,9 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SkeletonLine } from "@/components/ui/skeleton";
-import type { Notification, NotificationType, StoredDelivery } from "@/domain";
+import type { NotificationType, StoredDelivery } from "@/domain";
 import { countUnread } from "@/domain";
-import { useNotificationMutations, useNotifications } from "@/features/notifications/hooks";
+import { type InboxNotification, useInboxNotifications, useNotificationMutations } from "@/features/notifications/hooks";
 import { InboxSkeleton } from "@/features/notifications/inbox-skeleton";
 import { NotificationSettingsDialog } from "@/features/notifications/notification-settings-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -43,7 +43,7 @@ const TABS: Array<{ id: Tab; label: string; delivery?: StoredDelivery }> = [
 export function InboxPage() {
   const ws = useWorkspace();
   const router = useRouter();
-  const notifications = useNotifications(ws.currentUser.id);
+  const notifications = useInboxNotifications(ws.currentUser.id);
   const { markRead, markAllRead, clearAll } = useNotificationMutations(ws.currentUser.id);
   const [tab, setTab] = React.useState<Tab>("all");
   const [unreadOnly, setUnreadOnly] = React.useState(false);
@@ -61,11 +61,9 @@ export function InboxPage() {
   // "unread only" hides rows, and clearing would take those with it.
   const clearable = all.filter((n) => !current.delivery || n.delivery === current.delivery).length;
 
-  const open = (n: Notification) => {
+  const open = (n: InboxNotification) => {
     if (n.readAt === null) markRead.mutate({ id: n.id, read: true });
-    const board = ws.boardById(n.boardId ?? (n.entityType === "BOARD" ? n.entityId : null));
-    if (!board) return;
-    router.push(n.entityType === "ITEM" ? ws.boardPath(board, { itemId: n.entityId }) : ws.boardPath(board));
+    router.push(n.entityType === "ITEM" ? ws.boardPath(n.target, { itemId: n.entityId }) : ws.boardPath(n.target));
   };
 
   // "You are all caught up" is the one thing this line must not say while the
@@ -199,7 +197,7 @@ export function InboxPage() {
                           {n.body && <span className="block truncate text-xs text-muted-foreground">{n.body}</span>}
                           <span className="mt-0.5 block text-2xs text-muted-foreground">
                             <RelativeTime iso={n.createdAt} />
-                            {n.boardId && ws.boardById(n.boardId) ? ` · ${ws.boardById(n.boardId)?.name}` : ""}
+                            {` · ${n.target.name}`}
                           </span>
                         </span>
                       </button>

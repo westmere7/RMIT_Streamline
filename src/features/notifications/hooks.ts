@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
 import { toast } from "sonner";
-import type { Notification, NotificationPreferences, NotificationPreferencesInput, StoredDelivery, UnreadCounts } from "@/domain";
+import type { Board, Notification, NotificationPreferences, NotificationPreferencesInput, StoredDelivery, UnreadCounts } from "@/domain";
 import { countUnread, defaultNotificationPreferences } from "@/domain";
 import { useServices } from "@/features/data/data-context";
-import { useWorkspaceOptional } from "@/features/workspace/workspace-context";
+import { useWorkspaceOptional, type WorkspaceContextValue } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 
 /** Whether a notification belongs in this workspace's inbox. One that names no workspace shows in every one. */
@@ -42,9 +43,62 @@ export function useNotifications(userId: string) {
   });
 }
 
+/** A notification that still leads somewhere, and the board it opens on. */
+export type InboxNotification = Notification & { target: Board };
+
+/**
+ * The notifications that still lead somewhere, with the board each one opens.
+ *
+ * A notification outlives what it is about on purpose (no foreign key on
+ * `entity_id`), so a deleted task, or a board that has gone, would leave a row
+ * that opens nothing. Those are left out here, of the inbox and of its badges
+ * alike. A task moved to another board opens there, not on the one it left.
+ * `data` stays undefined until the tasks have been looked up, so rows do not
+ * appear and then vanish.
+ */
+export function useInboxNotifications(userId: string) {
+  const services = useServices();
+  const ws = useWorkspaceOptional();
+  const notifications = useNotifications(userId);
+  const itemIds = React.useMemo(
+    () => [...new Set((notifications.data ?? []).filter((n) => n.entityType === "ITEM").map((n) => n.entityId))].sort(),
+    [notifications.data],
+  );
+  const items = useQuery({
+    queryKey: ["notification-items", userId, itemIds],
+    queryFn: async () => new Map((await services.repos.items.listByIds(itemIds)).map((item) => [item.id, item.boardId])),
+    enabled: itemIds.length > 0,
+    staleTime: 60_000,
+  });
+  const data = React.useMemo(() => {
+    // Outside a workspace there are no boards to open, so nothing to show.
+    if (!notifications.data || !ws) return undefined;
+    if (itemIds.length > 0 && items.isPending) return undefined;
+    // A failed look-up hides nothing it cannot vouch for: the boards still decide.
+    const boardOfItem = items.isSuccess ? items.data : null;
+    const reachable: InboxNotification[] = [];
+    for (const n of notifications.data) {
+      const target = targetBoard(n, ws, boardOfItem);
+      if (target) reachable.push({ ...n, target });
+    }
+    return reachable;
+  }, [notifications.data, ws, itemIds.length, items.isPending, items.isSuccess, items.data]);
+  return { ...notifications, data, isLoading: notifications.isLoading || (itemIds.length > 0 && items.isPending) };
+}
+
+/** The board a notification opens on, or nothing when what it points at is gone. */
+function targetBoard(n: Notification, ws: WorkspaceContextValue, boardOfItem: Map<string, string> | null): Board | undefined {
+  if (n.entityType === "BOARD") return ws.boardById(n.entityId);
+  if (n.entityType === "ITEM" && boardOfItem) {
+    const boardId = boardOfItem.get(n.entityId);
+    return boardId ? ws.boardById(boardId) : undefined;
+  }
+  return ws.boardById(n.boardId);
+}
+
 /** Unread split the way the two badges show it: loud ones and quiet ones. */
 export function useUnreadCounts(userId: string): UnreadCounts {
-  const { data } = useNotifications(userId);
+  const { data } = useInboxNotifications(userId);
   return countUnread(data ?? []);
 }
 
