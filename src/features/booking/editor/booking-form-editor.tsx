@@ -130,7 +130,8 @@ export function BookingFormEditor({
   const [selectedService, setSelectedService] = React.useState<string | null>(() => initial.services[0]?.id ?? null);
   const [removingService, setRemovingService] = React.useState<string | null>(null);
   const [confirmDrop, setConfirmDrop] = React.useState(false);
-  const [previewing, setPreviewing] = React.useState(false);
+  // Which form the preview runs: the draft being edited, or the one people are booking through.
+  const [previewing, setPreviewing] = React.useState<"draft" | "live" | null>(null);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
   /**
    * The template the editor was last filled from, as it was saved, so its slot
@@ -192,7 +193,7 @@ export function BookingFormEditor({
   const panel = (
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
-        <PublishedFormCard info={{ ...published, template: live }} />
+        <PublishedFormCard info={{ ...published, template: live }} onOpen={() => setPreviewing("live")} />
         <div>
           <p className="text-[13px] font-medium">Editing the form</p>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
@@ -224,7 +225,7 @@ export function BookingFormEditor({
             {publishing ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish the form
           </Button>
           {/* The draft, run as the real thing. Nothing it does is sent or kept. */}
-          <Button type="button" variant="outline" onClick={() => setPreviewing(true)} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
+          <Button type="button" variant="outline" onClick={() => setPreviewing("draft")} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
             <Eye /> Preview the form
           </Button>
           <div className="flex items-center gap-2">
@@ -396,7 +397,7 @@ export function BookingFormEditor({
       {tab === "assets" && <AssetsPane form={form} draft={draft} update={update} />}
       {tab === "review" && <ReviewPane draft={draft} update={update} />}
 
-      <PreviewDialog open={previewing} onOpenChange={setPreviewing} form={form} template={draft} />
+      <PreviewDialog open={previewing !== null} onOpenChange={(open) => !open && setPreviewing(null)} form={form} template={previewing === "live" ? live : draft} />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemovingService(null)}

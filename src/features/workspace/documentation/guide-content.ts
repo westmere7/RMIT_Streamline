@@ -449,7 +449,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Edit each step: the details asked for, the kinds of work (each with its own questions, sub-services, and the team it goes to), the deliverables step, and the confirmation.",
         "Use Preview to try it; nothing is sent.",
         "Save templates of the form, and reusable question blocks.",
-        "Publish when ready, with a name. Until then, bookers see the published form. The editor shows the published form's name, its questions, and how many tasks were booked since.",
+        "Publish when ready, with a name. Until then, bookers see the published form. The editor shows the published form's name, its questions, and how many tasks were booked since; click it to open that form.",
       ] },
       { title: "Tickets, errors, and follow-up", bullets: [
         "The ticket is for talking about a request. It is not a password.",

@@ -28,13 +28,19 @@ export function defaultPublishName(teamName: string, at: Date = new Date()): str
   return `${teamName} · ${format(at, "d MMM yyyy, HH:mm")}`;
 }
 
-/** The published form in three lines: what it is called, what it asks, and how much it has been used. */
-export function PublishedFormCard({ info }: { info: PublishedFormInfo }) {
+/** The published form in three lines: what it is called, what it asks, and how much it has been used. Clicking it opens that form. */
+export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; onOpen: () => void }) {
   const services = info.template.services.length;
   const when = info.publishedAt ? new Date(info.publishedAt) : null;
   const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
   return (
-    <div className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5" data-testid="booking-published-form">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open the published form, ${title}`}
+      className="block w-full rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:border-ring/60 hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
+      data-testid="booking-published-form"
+    >
       <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Published form</p>
       <p className="mt-0.5 truncate text-[13px] font-medium" title={title} data-testid="booking-published-name">
         {title}
@@ -57,7 +63,7 @@ export function PublishedFormCard({ info }: { info: PublishedFormInfo }) {
           </span>
         </li>
       </ul>
-    </div>
+    </button>
   );
 }
 
