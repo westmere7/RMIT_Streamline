@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.68.1",
+    date: "2026-09-30",
+    title: "Pick a template",
+    changes: ["The form editor's Templates panel opens with a dropdown of the saved templates: pick one and it loads."],
+  },
+  {
     version: "0.68.0",
     date: "2026-09-30",
     title: "Publish a template",

@@ -282,12 +282,11 @@ export function BookingFormEditor({
           toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
         }}
         showingLive={matchesLive}
+        loadedId={template?.id ?? null}
       >
         {template && (
-          <div className="rounded-xl border border-border/60 bg-surface/50 p-2.5" data-testid="booking-editor-loaded-template">
-            <p className="mb-2 truncate text-2xs text-muted-foreground">
-              Loaded <span className="font-medium text-foreground">{template.name}</span>
-            </p>
+          // The picker above names the template; this is the way back into it.
+          <div data-testid="booking-editor-loaded-template">
             <Button
               type="button"
               variant="outline"

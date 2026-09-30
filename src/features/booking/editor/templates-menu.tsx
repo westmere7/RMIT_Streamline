@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { BookingFormTemplate, BookingTemplate } from "@/domain";
 import { MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, templateQuestionCount } from "@/domain";
@@ -30,6 +31,8 @@ export interface TemplatesMenuProps {
   onLoadLive: () => void;
   /** The editor already holds the published form. */
   showingLive: boolean;
+  /** The template the editor was filled from, if it still exists: what the quick picker shows. */
+  loadedId: string | null;
   /** Shown at the top of the panel: the template the editor was filled from, and the way back into it. */
   children?: React.ReactNode;
 }
@@ -43,7 +46,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesPanel({ templates, current, onLoad, onPublish, publishBlocker, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, children }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onPublish, publishBlocker, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [loadOpen, setLoadOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -81,6 +84,27 @@ export function TemplatesPanel({ templates, current, onLoad, onPublish, publishB
           <LayoutTemplate className="size-4 text-muted-foreground" /> Templates
           {templates.length > 0 && <span className="text-2xs text-muted-foreground tabular">{templates.length}</span>}
         </h3>
+        {/* The quick way in: picking one loads it, as Load does in the list below. */}
+        {templates.length > 0 && (
+          <Select
+            value={loadedId ?? ""}
+            onValueChange={(id) => {
+              const picked = templates.find((t) => t.id === id);
+              if (picked) onLoad(picked);
+            }}
+          >
+            <SelectTrigger className="h-9 w-full text-[13px]" aria-label="Load a template" data-testid="template-quick-select">
+              <SelectValue placeholder="Choose a template" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id} data-testid={`template-quick-${t.id}`}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {children}
         <div className="grid gap-0.5">
           <PanelRow icon={Save} onClick={() => setSaveOpen(true)} testId="template-save">
