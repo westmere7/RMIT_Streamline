@@ -66,7 +66,8 @@ export interface BookingFormEditorProps {
   savingDraft: boolean;
   publishing: boolean;
   onSaveDraft: (template: BookingFormTemplate) => Promise<void>;
-  onPublish: (template: BookingFormTemplate, name: string) => Promise<void>;
+  /** `keepDraft` leaves the saved draft alone: for a template published straight from the list. */
+  onPublish: (template: BookingFormTemplate, name: string, options?: { keepDraft?: boolean }) => Promise<void>;
   /** The form stakeholders are using: its name, when it went live, how much it has been booked through. */
   published: Omit<PublishedFormInfo, "template">;
   /** The team's name, which a newly published form is named after unless someone types another. */
@@ -133,6 +134,8 @@ export function BookingFormEditor({
   // Which form the preview runs: the draft being edited, or the one people are booking through.
   const [previewing, setPreviewing] = React.useState<"draft" | "live" | null>(null);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
+  /** A saved template on its way to going live straight from the list. */
+  const [publishingTemplate, setPublishingTemplate] = React.useState<BookingTemplate | null>(null);
   /**
    * The template the editor was last filled from, as it was saved, so its slot
    * can be written over in one click. Forgotten when the editor is filled from
@@ -257,6 +260,12 @@ export function BookingFormEditor({
           setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
           setSelectedService(t.template.services[0]?.id ?? null);
           toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
+        }}
+        onPublish={setPublishingTemplate}
+        publishBlocker={(t) => {
+          if (formKey(t.template) === liveKey) return "This is the published form";
+          const parsed = bookingFormTemplateSchema.safeParse(t.template);
+          return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Something in the form is not right yet");
         }}
         onSaveTemplate={onSaveTemplate}
         onDeleteTemplate={onDeleteTemplate}
@@ -434,6 +443,31 @@ export function BookingFormEditor({
         teamName={teamName}
         // What is live now is what was saved: publishing clears the draft.
         onPublish={(name) => onPublish(draft, name).then(() => setSaved(clone(draft)))}
+      />
+      <PublishDialog
+        open={publishingTemplate !== null}
+        onOpenChange={(open) => !open && setPublishingTemplate(null)}
+        teamName={teamName}
+        templateName={publishingTemplate?.name}
+        onPublish={async (name) => {
+          const t = publishingTemplate;
+          if (!t) return;
+          // Worked out before the live form changes under them.
+          const hadDraft = draftWaiting;
+          const edited = draftKey !== savedKey;
+          await onPublish(t.template, name, { keepDraft: true });
+          // A saved draft stays in the editor, untouched. Without one the editor
+          // was only showing the old live form, so it follows the new one, and
+          // keeps any edits made on top.
+          if (!hadDraft) {
+            setSaved(clone(t.template));
+            if (!edited) {
+              setDraft(clone(t.template));
+              setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
+              setSelectedService(t.template.services[0]?.id ?? null);
+            }
+          }
+        }}
       />
     </div>
   );

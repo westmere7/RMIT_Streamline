@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCheck2, FolderOpen, LayoutTemplate, LoaderCircle, RotateCcw, Save, Trash2 } from "lucide-react";
+import { FileCheck2, FolderOpen, LayoutTemplate, LoaderCircle, Rocket, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -19,6 +19,10 @@ export interface TemplatesMenuProps {
   current: BookingFormTemplate;
   /** Puts a saved form into the editor. Nothing is live until it is published. */
   onLoad: (template: BookingTemplate) => void;
+  /** Makes a saved form the live one, without it passing through the editor. */
+  onPublish: (template: BookingTemplate) => void;
+  /** Why a template cannot be published as it stands, or null when it can. */
+  publishBlocker: (template: BookingTemplate) => string | null;
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
   onReset: () => void;
@@ -39,7 +43,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, children }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onPublish, publishBlocker, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [loadOpen, setLoadOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -140,7 +144,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         <DialogContent size="md" data-testid="template-load-dialog">
           <DialogHeader>
             <DialogTitle>Load a template</DialogTitle>
-            <DialogDescription>The template fills the editor. Nothing changes on the live form until you publish it.</DialogDescription>
+            <DialogDescription>Load puts it in the editor; Publish makes it the live form.</DialogDescription>
           </DialogHeader>
           <ul className="scrollbar-thin max-h-[60vh] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70">
             {templates.map((t) => (
@@ -165,6 +169,26 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
                 >
                   Load
                 </Button>
+                {(() => {
+                  const blocker = publishBlocker(t);
+                  return (
+                    // A disabled button takes no pointer events, so the reason sits on a wrapper.
+                    <span className="mt-0.5 shrink-0" title={blocker ?? undefined}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={blocker !== null}
+                        onClick={() => {
+                          onPublish(t);
+                          setLoadOpen(false);
+                        }}
+                        data-testid={`template-publish-${t.id}`}
+                      >
+                        <Rocket /> Publish
+                      </Button>
+                    </span>
+                  );
+                })()}
                 <Button type="button" size="icon-sm" variant="ghost" aria-label={`Delete template ${t.name}`} className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => setDeleting(t)} data-testid={`template-delete-${t.id}`}>
                   <Trash2 />
                 </Button>

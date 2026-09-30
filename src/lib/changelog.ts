@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.68.0",
+    date: "2026-09-30",
+    title: "Publish a template",
+    changes: [
+      "Load a template now has Publish beside Load: the template goes live under its own name, and your draft stays as it is.",
+      "Publish is off for the template that is already the published form, and for one with something to fix, with the reason on hover.",
+    ],
+  },
+  {
     version: "0.67.3",
     date: "2026-09-30",
     title: "Open the published form",

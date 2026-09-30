@@ -837,6 +837,20 @@ describe("shaping the booking form", () => {
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormDraft ?? null).toBeNull();
   });
 
+  it("publishes a saved template and leaves the draft where it was", async () => {
+    const wip = defaultBookingFormTemplate();
+    wip.review.submitLabel = "Half-written";
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, wip);
+
+    const template = defaultBookingFormTemplate();
+    template.review.submitLabel = "From the template";
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template, "Summer intake", { keepDraft: true });
+
+    expect((await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template.review.submitLabel).toBe("From the template");
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormName).toBe("Summer intake");
+    expect((await services.booking.getDraft(SEED_WORKSPACE_ID)).review.submitLabel).toBe("Half-written");
+  });
+
   it("throws a draft away without touching what is live", async () => {
     const published = defaultBookingFormTemplate();
     published.review.submitLabel = "Send it";

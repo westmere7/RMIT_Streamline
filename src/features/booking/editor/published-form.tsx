@@ -67,16 +67,18 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
   );
 }
 
-/** Publishing, with a name for what goes live. */
+/** Publishing, with a name for what goes live. A template goes live under its own name unless someone types another. */
 export function PublishDialog({
   open,
   onOpenChange,
   teamName,
+  templateName,
   onPublish,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamName: string;
+  templateName?: string;
   onPublish: (name: string) => Promise<void>;
 }) {
   const [busy, setBusy] = React.useState(false);
@@ -84,12 +86,13 @@ export function PublishDialog({
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent size="sm" data-testid="booking-publish-dialog">
         <DialogHeader>
-          <DialogTitle>Publish this form?</DialogTitle>
+          <DialogTitle>{templateName ? `Publish “${templateName}”?` : "Publish this form?"}</DialogTitle>
           <DialogDescription>Everyone booking gets it straight away. Anyone mid-booking finishes on the form they started.</DialogDescription>
         </DialogHeader>
         {/* Mounted with the dialog, so the default name carries the time of opening. */}
         <PublishForm
           teamName={teamName}
+          templateName={templateName}
           busy={busy}
           onCancel={() => onOpenChange(false)}
           onSubmit={async (name) => {
@@ -107,8 +110,8 @@ export function PublishDialog({
   );
 }
 
-function PublishForm({ teamName, busy, onCancel, onSubmit }: { teamName: string; busy: boolean; onCancel: () => void; onSubmit: (name: string) => Promise<void> }) {
-  const [name, setName] = React.useState(() => defaultPublishName(teamName));
+function PublishForm({ teamName, templateName, busy, onCancel, onSubmit }: { teamName: string; templateName?: string; busy: boolean; onCancel: () => void; onSubmit: (name: string) => Promise<void> }) {
+  const [name, setName] = React.useState(() => templateName ?? defaultPublishName(teamName));
   return (
     <form
       className="space-y-4"

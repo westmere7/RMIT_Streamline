@@ -441,15 +441,23 @@ export class BookingService {
    * Puts a form live, for everyone from now on - the public link and the
    * stakeholder portal included. The draft is cleared with it: what was being
    * worked towards has arrived, and leaving it behind would have the editor
-   * open for ever after on a "draft" identical to the live form.
+   * open for ever after on a "draft" identical to the live form. Unless
+   * `keepDraft`: a saved template published straight from the list is not what
+   * the draft was working towards, so the draft stays where it was.
    */
-  async publishForm(workspaceId: EntityId, input: BookingFormTemplate, name?: string | null): Promise<BookingFormTemplate> {
+  async publishForm(workspaceId: EntityId, input: BookingFormTemplate, name?: string | null, options: { keepDraft?: boolean } = {}): Promise<BookingFormTemplate> {
     const template = normaliseBookingTemplate(input);
     // A form published exactly as the built-in one is stored as nothing at all,
     // so the workspace goes on following the built-in form as the app improves
     // it rather than pinning today's copy of it.
     const stored = isDefaultBookingTemplate(template) ? null : template;
-    await this.repos.workspaces.update(workspaceId, { bookingForm: stored, bookingFormDraft: null, bookingFormName: name?.trim().slice(0, 120) || null, bookingFormPublishedAt: new Date().toISOString(), bookingFormBookings: 0 });
+    await this.repos.workspaces.update(workspaceId, {
+      bookingForm: stored,
+      ...(options.keepDraft ? {} : { bookingFormDraft: null }),
+      bookingFormName: name?.trim().slice(0, 120) || null,
+      bookingFormPublishedAt: new Date().toISOString(),
+      bookingFormBookings: 0,
+    });
     return template;
   }
 
