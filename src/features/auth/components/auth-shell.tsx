@@ -1,9 +1,7 @@
 "use client";
 
-import { CheckCircle2, ClipboardList, SquareKanban, Table2 } from "lucide-react";
+import { ClipboardList, SquareKanban, Table2 } from "lucide-react";
 import * as React from "react";
-import { UserAvatar } from "@/components/shared/user-avatar";
-import type { User } from "@/domain";
 import { cn } from "@/lib/utils";
 import { CURRENT_VERSION } from "@/lib/version";
 
@@ -169,45 +167,5 @@ function Feature({ icon: Icon, children }: { icon: React.ComponentType<{ classNa
       </span>
       {children}
     </li>
-  );
-}
-
-/**
- * What the card shows while a session is being checked or a sign-in is
- * finishing: who is coming in (once known), what is happening, and one bar that
- * fills a third at a time across the three steps (sign in, find the workspace,
- * open it). Deliberately small; it sits inside the card instead of replacing
- * the page.
- */
-export function SessionProgress({ user, message, done, step }: { user?: User | null; message: string; done?: boolean; step?: 1 | 2 | 3 }) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-surface/70 px-3.5 py-3" role="status" aria-live="polite" data-testid="session-progress">
-      <div className="flex items-center gap-3">
-        {user ? <UserAvatar user={user} size="md" tooltip={false} /> : <BrandMark className="size-9 rounded-lg text-sm" />}
-        <div className="min-w-0 flex-1 leading-tight">
-          {user && <p className="truncate text-[13px] font-medium">Welcome back, {user.firstName}</p>}
-          <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            {message}
-            {!done && <Dots />}
-          </p>
-        </div>
-        {done && <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />}
-      </div>
-      {step && (
-        <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-label="Sign-in progress" aria-valuemin={0} aria-valuemax={3} aria-valuenow={done ? 3 : step}>
-          <span className={cn("block h-full rounded-full bg-primary transition-[width] duration-500", !done && "gate-glow")} style={{ width: `${(done ? 3 : step) * (100 / 3)}%` }} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Dots() {
-  return (
-    <span aria-hidden className="inline-flex gap-0.5">
-      {[0, 1, 2].map((i) => (
-        <span key={i} className="size-1 rounded-full bg-current opacity-40 animate-pulse" style={{ animationDelay: `${i * 160}ms` }} />
-      ))}
-    </span>
   );
 }

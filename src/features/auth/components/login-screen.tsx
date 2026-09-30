@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/auth-context";
-import { AuthShell, SessionProgress } from "@/features/auth/components/auth-shell";
+import { AuthShell } from "@/features/auth/components/auth-shell";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { IS_DEV } from "@/lib/config";
 import { queryKeys } from "@/lib/query/keys";
@@ -20,10 +20,8 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
- * Sign in. The screen owns the whole journey into the app: while the saved
- * session is checked, while a sign-in completes and while the workspace is
- * looked up, the card stays on screen and reports progress, then the browser
- * goes straight to the workspace. No blank page in between.
+ * Sign in. The form, then the loading screen from the moment the details are
+ * accepted until the workspace opens, then the workspace: nothing flashes back.
  */
 export function LoginScreen() {
   const router = useRouter();
@@ -74,24 +72,13 @@ export function LoginScreen() {
     }
   };
 
-  // What the card is doing right now, if anything, and which of the three steps that is.
-  const progress: { message: string; withUser: boolean; step: 1 | 2 | 3 } | null =
-    status === "loading"
-      ? { message: "Checking your session", withUser: false, step: 1 }
-      : status === "signed-in" && !noWorkspace
-        ? destination
-          ? { message: `Opening ${destination.name}`, withUser: true, step: 3 }
-          : { message: "Finding your workspace", withUser: true, step: 2 }
-        : pendingEmail !== null
-          ? { message: "Signing you in", withUser: false, step: 1 }
-          : null;
-  const busy = progress !== null;
+  const busy = pendingEmail !== null;
 
-  // A saved session never meets the form: checking it, and then opening its
-  // workspace, is the loading screen, the same one the workspace itself shows.
-  // Somebody who has just typed their details sees it happen on the card.
-  if (status === "loading" || (status === "signed-in" && pendingEmail === null && !noWorkspace)) {
-    return <FullPageLoader label={status === "loading" ? "Checking your session…" : destination ? `Opening ${destination.name}…` : "Opening workspace…"} />;
+  // Once the details are accepted there is only the loading screen, the same one
+  // the workspace itself shows, until the workspace opens: the form never comes
+  // back in between. A saved session never meets the form at all.
+  if (status === "loading" || (status === "signed-in" && !noWorkspace)) {
+    return <FullPageLoader label={status === "loading" ? (busy ? "Signing you in…" : "Checking your session…") : destination ? `Opening ${destination.name}…` : "Opening workspace…"} />;
   }
 
   return (
@@ -113,11 +100,6 @@ export function LoginScreen() {
         </p>
       </div>
 
-      {progress && (
-        <div className="mb-5">
-          <SessionProgress user={progress.withUser ? user : null} message={progress.message} step={progress.step} />
-        </div>
-      )}
       {noWorkspace && (
         <p role="alert" className="mb-5 rounded-xl border border-amber-300/50 bg-amber-50 px-3.5 py-3 text-[13px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           Your account is not in a workspace yet. Ask a workspace admin for an invitation link.

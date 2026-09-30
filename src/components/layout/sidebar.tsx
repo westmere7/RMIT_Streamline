@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -35,6 +35,7 @@ import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
@@ -228,7 +229,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       onKeyDown={drawer ? (event) => { if (event.key === "Escape") onNavigate?.(); } : undefined}
     >
       {/* The product, and what it is: the logo opens About. Which workspace this
-          is lives in the account menu, where switching between them will go. */}
+          is sits under it, and switches to the others. */}
       <div className={cn("flex h-14 shrink-0 items-center px-3", collapsed && "justify-center px-0")}>
         <div className={cn("flex w-full items-center gap-2", collapsed && "w-auto justify-center")}>
           <SimpleTooltip label="About Streamline" side="right">
@@ -258,6 +259,11 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           )}
         </div>
       </div>
+      {!collapsed && (
+        <div className="shrink-0 px-2 pb-2">
+          <SidebarWorkspaceSwitcher />
+        </div>
+      )}
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 pt-1 pb-3" aria-label="Workspace navigation">
         <ul className="space-y-1">
@@ -526,6 +532,26 @@ const subtleButtonClasses =
  * a heavier label, and the icon on a small tinted tile that lights up on the
  * current page. Boards and trackers keep navItemClasses with a bare icon.
  */
+/** Which workspace this is, under the logo; opens the others this person can open. */
+function SidebarWorkspaceSwitcher() {
+  const ws = useWorkspace();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex h-9 w-full items-center gap-2 rounded-xl border border-border/70 bg-card px-2.5 text-left text-[13px] font-medium shadow-xs transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-2 focus-visible:outline-ring"
+        aria-label={`Workspace: ${ws.workspace.name}`}
+        data-testid="sidebar-workspace"
+      >
+        <span className="min-w-0 flex-1 truncate">{ws.workspace.name}</span>
+        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
+        <WorkspaceMenuItems />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function primaryNavClasses(active: boolean): string {
   return cn(
     "flex h-10 w-full items-center gap-3 rounded-xl px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",

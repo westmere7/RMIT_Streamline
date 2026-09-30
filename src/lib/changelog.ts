@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.67.1",
+    date: "2026-09-30",
+    title: "Straight in, and the workspace under the logo",
+    changes: [
+      "Signing in goes from the form to the loading screen to your workspace; the form no longer flashes back in between.",
+      "The workspace you are in sits under the logo in the sidebar, and switches to your others.",
+    ],
+  },
+  {
     version: "0.67.0",
     date: "2026-09-27",
     title: "Starred tasks",
