@@ -72,6 +72,18 @@ describe("SearchService", () => {
     expect(await ids("CP26_079")).toEqual(["t4"]);
   });
 
+  it("finds a ticket typed in full and not the tickets it is part of", async () => {
+    // "CT_011" used to lose its zeros to "ct11", which sits inside CT_110 to CT_119.
+    const ticketed = [item("a", "Alumni page", "CT_011"), item("b", "Year in review", "CT_114"), item("c", "Vox pops", "CT_110"), item("d", "Old poster", "CT_211")];
+    const service = new SearchService({ ...repos(), items: { listByBoard: async () => ticketed } } as unknown as Repositories);
+    const ids = async (query: string) => (await service.search(WORKSPACE, query)).items.map((r) => r.item.id);
+    expect(await ids("ct_011")).toEqual(["a"]);
+    expect(await ids("CT011")).toEqual(["a"]);
+    expect(await ids("11")).toEqual(["a"]);
+    // Part of a ticket, while it is still being typed.
+    expect((await ids("ct_1")).sort()).toEqual(["b", "c"]);
+  });
+
   it("finds a task from the start of a word, and ranks the better match first", async () => {
     // "Upgrade" contains "grad" too, but "Graduation" starts with it.
     expect((await search("Grad")).items.map((r) => r.item.id)).toEqual(["i5", "i4"]);

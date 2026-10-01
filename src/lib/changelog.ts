@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.9",
+    date: "2026-10-01",
+    title: "Ticket search finds the ticket",
+    changes: [
+      "Searching for a ticket such as CT_011 finds that task alone, not CT_110 to CT_119 as well; the same in the board search and the portal.",
+    ],
+  },
+  {
     version: "0.73.8",
     date: "2026-10-01",
     title: "Task menu matches the panel",

@@ -15,7 +15,7 @@ import type {
   StatusColumnSettings,
   User,
 } from "@/domain";
-import { columnLabels, priorityStrength, statusLabelRole, ticketSearchKey, userInitials } from "@/domain";
+import { columnLabels, priorityStrength, statusLabelRole, ticketMatch, userInitials } from "@/domain";
 import { avatarColorFor } from "@/lib/colors";
 import { isOverdue } from "@/lib/dates/dates";
 
@@ -267,6 +267,5 @@ export function matchesPortalSearch(task: PortalTask, brief: string | null, quer
   if (!q) return true;
   if (task.name.toLowerCase().includes(q)) return true;
   if (brief && brief.toLowerCase().includes(q)) return true;
-  if (!task.ticket) return false;
-  return task.ticket.toLowerCase().includes(q) || ticketSearchKey(task.ticket).includes(ticketSearchKey(q));
+  return ticketMatch(task.ticket, q) !== null;
 }

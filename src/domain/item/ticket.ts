@@ -123,6 +123,25 @@ export function ticketSearchKey(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^([a-z]*?)0*(\d)/, "$1$2");
 }
 
+/**
+ * How a query reads against a ticket: the ticket itself ("exact"), part of one
+ * being typed ("partial"), or not this ticket at all. Only a query with a digit
+ * in it is ever a ticket.
+ *
+ * The padding is ignored for the whole ticket only. A part is looked for with
+ * its zeros kept: dropping them made "CT_011" into "ct11", which sits inside
+ * CT_110 to CT_119, and every one of those was offered as a match for it.
+ */
+export function ticketMatch(ticket: string | null | undefined, query: string): "exact" | "partial" | null {
+  if (!ticket) return null;
+  const needle = query.trim().toLowerCase();
+  if (!/\d/.test(needle)) return null;
+  if (ticketSearchKey(ticket) === ticketSearchKey(needle)) return "exact";
+  if (/^\d+$/.test(needle) && parseTicket(ticket)?.number === Number(needle)) return "exact";
+  const loose = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return loose(ticket).includes(loose(needle)) ? "partial" : null;
+}
+
 /** A task and the ticket it holds, for the checks that have to look across a workspace. */
 export interface TicketHolder {
   id: EntityId;

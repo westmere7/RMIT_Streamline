@@ -1,5 +1,5 @@
 import type { Board, EntityId, Item, Team, User } from "@/domain";
-import { parseTicket, ticketSearchKey } from "@/domain";
+import { ticketMatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
 export interface SearchResults {
@@ -89,13 +89,8 @@ function best(...scores: Array<number | null>): number | null {
  * ticketed task and buried the names being typed.
  */
 function ticketScore(ticket: string | null | undefined, query: string): number | null {
-  if (!ticket) return null;
-  const needle = query.trim().toLowerCase();
-  if (!/\d/.test(needle)) return null;
-  const key = ticketSearchKey(needle);
-  if (ticketSearchKey(ticket) === key) return 0;
-  if (/^\d+$/.test(needle) && parseTicket(ticket)?.number === Number(needle)) return 0;
-  return ticket.toLowerCase().includes(needle) || ticketSearchKey(ticket).includes(key) ? 3 : null;
+  const match = ticketMatch(ticket, query);
+  return match === "exact" ? 0 : match === "partial" ? 3 : null;
 }
 
 /** Best first, then the shorter name, which is nearer to being what was typed. */
@@ -129,19 +124,25 @@ export class SearchService {
     // used to stop at the first dozen matches in board order, so the task that
     // matched best could be the one left out.
     const perBoard = await Promise.all(itemBoards.map(async (board) => ({ board, items: await this.repos.items.listByBoard(board.id, { includeArchived: options.includeArchived }) })));
-    const itemRows: Array<{ row: SearchResults["items"][number]; score: number; name: string }> = [];
+    const found: Array<{ row: SearchResults["items"][number]; score: number; name: string; partTicket: boolean }> = [];
     for (const { board, items } of perBoard) {
       for (const item of items) {
         // A ticket quoted in full is as good as the name itself: whoever typed
         // it was quoting this task.
-        const score = best(searchScore(item.name, needle), ticketScore(item.ticket, query));
+        const byName = searchScore(item.name, needle);
+        const byTicket = ticketScore(item.ticket, query);
+        const score = best(byName, byTicket);
         if (score === null) continue;
         const archived = item.archivedAt !== null;
         // Live work ahead of archived work at the same score: an archived hit is
         // a different answer to the question.
-        itemRows.push({ row: { item, board, archived }, score: score + (archived ? 0.5 : 0), name: item.name });
+        found.push({ row: { item, board, archived }, score: score + (archived ? 0.5 : 0), name: item.name, partTicket: byName === null && byTicket === 3 });
       }
     }
+    // Once a ticket has been typed in full, the tickets it is only part of are
+    // not what was asked for: "11" is CT_011, not CT_110 to CT_119 as well.
+    const quoted = found.some((f) => ticketScore(f.row.item.ticket, query) === 0);
+    const itemRows = quoted ? found.filter((f) => !f.partTicket) : found;
 
     const boardRows = activeBoards.flatMap((board) => {
       const score = best(searchScore(board.name, needle), searchScore(board.description, needle) === null ? null : 4);

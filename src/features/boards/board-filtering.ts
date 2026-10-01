@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
-import { columnLabels, progressCounts, progressSettings, resolveColumnRoles, ticketSearchKey, T_SHIRT_SIZES } from "@/domain";
+import { columnLabels, progressCounts, progressSettings, resolveColumnRoles, ticketMatch, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
@@ -43,7 +43,7 @@ export function primaryDueDate(itemId: string, columns: BoardColumn[], getValue:
  * The ticket is what people have to hand — it is what an email or a corridor
  * conversation quotes — so typing "CP_014" has to find the task, and so does
  * "cp14", "cp-14" and "14". Nobody remembers a separator, and nobody types the
- * padding. See `ticketSearchKey`.
+ * padding. See `ticketMatch`.
  *
  * A query with no digit in it is never a ticket, as in the palette. Every task
  * has one, so "c" matched them all, and "(*)" — nothing left once the
@@ -53,8 +53,7 @@ export function matchesSearch(item: Item, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
   if (item.name.toLowerCase().includes(q)) return true;
-  if (!item.ticket || !/\d/.test(q)) return false;
-  return item.ticket.toLowerCase().includes(q) || ticketSearchKey(item.ticket).includes(ticketSearchKey(q));
+  return ticketMatch(item.ticket, q) !== null;
 }
 
 export function matchesFilters(item: Item, filters: BoardFilters, ctx: FilterContext): boolean {
