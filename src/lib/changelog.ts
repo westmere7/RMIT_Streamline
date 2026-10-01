@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.2",
+    date: "2026-10-01",
+    title: "Work types radar, in motion",
+    changes: [
+      "The Work types radar draws itself in: the rim and rings, the spokes one by one, then the shape traced round. Changing the period, person or measure morphs it to the new figures.",
+      "The Work types panel has its \"?\": what it shows, how it is counted, how to read it and what to do.",
+    ],
+  },
+  {
     version: "0.73.1",
     date: "2026-10-01",
     title: "Work types radar fits",

@@ -18,6 +18,7 @@ export type HelpTopic =
   | "byDepartment"
   | "priority"
   | "assetTypes"
+  | "workTypes"
   | "operations"
   | "workload"
   | "matrix"
@@ -38,6 +39,13 @@ export interface PanelHelpText {
 }
 
 export const DASHBOARD_HELP: Record<HelpTopic, PanelHelpText> = {
+  workTypes: {
+    shows: "What kind of work the period's deliverables came to: one spoke per work type, this period as the solid shape and the same stretch last year dashed.",
+    counted:
+      "Each deliverable counts towards the work types its asset type belongs to (Settings → Asset types), in the measure the page is read in: tasks with work of that type, asset units, or hours by the output rates. An asset type in two work types counts in both, so the shares can add up to more than the total. Asset types with no work type are left out and named under the list. Pick a person to see only the deliverables they are in charge of, against their own last year.",
+    read: "A shape that leans one way is a team whose output is mostly one kind of work; a rounder one is a team spread across several. Compare it with the dashed shape: a spoke that grew is demand moving that way. For one person, the shape is where their time went, not what they are good at.",
+    act: "When a spoke keeps growing, check the people behind it are not the same two or three, and plan hiring, training or freelance help for it. A spoke that shrank may be work the team stopped being asked for, or work going elsewhere; ask the departments that used to book it.",
+  },
   effort: {
     shows: "The hours of work the period's deliverables add up to: the team's output, weighed by how long each kind of asset takes.",
     counted:

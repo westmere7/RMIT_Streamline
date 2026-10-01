@@ -5,8 +5,8 @@ import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatHours, MIN_RADAR_WORK_TYPES, normaliseWorkTypes } from "@/domain";
-import { formatCount, niceScale } from "@/features/dashboard/charts/chart-utils";
-import { useRevealed } from "@/features/dashboard/charts/motion";
+import { formatCount, niceScale, usePrefersReducedMotion } from "@/features/dashboard/charts/chart-utils";
+import { useRevealed, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
 import { useDrill } from "@/features/dashboard/drill/drill";
 import { Panel } from "@/features/dashboard/panels";
@@ -74,7 +74,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
 
   if (workTypes.workTypes.length < MIN_RADAR_WORK_TYPES) {
     return (
-      <Panel title="Work types" subtitle="Deliverables by the kind of work" className="p-4" testId="dashboard-work-types">
+      <Panel title="Work types" subtitle="Deliverables by the kind of work" help="workTypes" className="p-4" testId="dashboard-work-types">
         <ChartEmpty message={workTypes.workTypes.length === 0 ? "Group the asset types into work types in Settings → Asset types to see this." : `The radar needs at least ${MIN_RADAR_WORK_TYPES} work types — Settings → Asset types.`} />
       </Panel>
     );
@@ -93,6 +93,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
   return (
     <Panel
       title="Work types"
+      help="workTypes"
       subtitle={`${report.period.label} · ${unit} by work type${report.comparison ? ` · dashed is ${report.period.comparisonLabel}` : ""}${person ? ` · ${facts.users.get(person)?.displayName ?? ""}` : ""}`}
       action={subjectPicker || undefined}
       className="p-4"
@@ -243,8 +244,16 @@ function Radar({
   const n = rows.length;
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
   const at = (i: number, radius: number) => [C + radius * Math.cos(angle(i)), C + radius * Math.sin(angle(i))] as const;
-  const point = (i: number, value: number) => at(i, (Math.max(0, value) / top) * R);
-  const shape = (pick: (row: WorkTypeRow) => number) => rows.map((row, i) => point(i, pick(row)).join(",")).join(" ");
+  // Every point rides a spring as a share of the scale: the shapes grow out of
+  // the centre when the dashboard reveals, and on a new period, person or
+  // measure they morph from the old values to the new rather than jumping.
+  const reach = useSprings(Object.fromEntries(rows.flatMap((r) => [[`${r.workType.id}:now`, Math.max(0, r.value) / top], [`${r.workType.id}:was`, Math.max(0, r.comparison ?? 0) / top]])), "gentle");
+  const pointAt = (i: number, key: "now" | "was") => at(i, (reach[`${rows[i]!.workType.id}:${key}`] ?? 0) * R);
+  const shape = (key: "now" | "was") => rows.map((_, i) => pointAt(i, key).join(",")).join(" ");
+  // The lines draw themselves in once, as the page reveals: the rim, then the spokes, then the outline.
+  const still = usePrefersReducedMotion();
+  const draw = (delay: number, duration = 900): React.CSSProperties => (still ? {} : { strokeDasharray: 1, strokeDashoffset: revealed ? 0 : 1, transition: `stroke-dashoffset ${duration}ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms` });
+  const fade = (delay: number, duration = 500): React.CSSProperties => (still ? {} : { opacity: revealed ? 1 : 0, transition: `opacity ${duration}ms ease-out ${delay}ms` });
   const activeIndex = rows.findIndex((r) => r.workType.id === active);
   const activeRow = activeIndex >= 0 ? rows[activeIndex]! : null;
 
@@ -252,7 +261,8 @@ function Radar({
     <div className="relative mx-auto w-full max-w-[40rem]" data-testid="dashboard-work-types-radar">
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Work types: ${rows.map((r) => `${r.workType.name} ${format(r.value)}`).join(", ")}`}>
         {/* The plate: one flat disc under everything, so the web reads as an object. */}
-        <circle cx={C} cy={C} r={R + 14} className="fill-surface/60 stroke-border/70" strokeWidth={1} />
+        <circle cx={C} cy={C} r={R + 14} className="fill-surface/60" />
+        <circle cx={C} cy={C} r={R + 14} fill="none" className="stroke-border/70" strokeWidth={1} pathLength={1} transform={`rotate(-90 ${C} ${C})`} style={draw(0, 1100)} />
 
         {/* Degree scale round the rim, a tick every 5°, longer every 45°. */}
         {Array.from({ length: 72 }, (_, k) => {
@@ -260,7 +270,9 @@ function Radar({
           const long = k % 9 === 0;
           const r0 = R + 14;
           const r1 = r0 + (long ? 7 : 3.5);
-          return <line key={`deg-${k}`} x1={C + r0 * Math.cos(a)} y1={C + r0 * Math.sin(a)} x2={C + r1 * Math.cos(a)} y2={C + r1 * Math.sin(a)} className="stroke-border" strokeWidth={long ? 1.25 : 0.75} />;
+          // They arrive round the dial from the top, a sweep behind the rim.
+          const order = (k + 18) % 72;
+          return <line key={`deg-${k}`} x1={C + r0 * Math.cos(a)} y1={C + r0 * Math.sin(a)} x2={C + r1 * Math.cos(a)} y2={C + r1 * Math.sin(a)} className="stroke-border" strokeWidth={long ? 1.25 : 0.75} style={fade(order * 14, 250)} />;
         })}
 
         {/* Each work type's slice: faintly tinted always, lit while in focus. */}
@@ -284,13 +296,17 @@ function Radar({
           .filter((t) => t > 0)
           .reverse()
           .map((t, k) => (
-            <circle key={`band-${t}`} cx={C} cy={C} r={(t / top) * R} className={k % 2 === 0 ? "fill-card/40" : "fill-transparent"} />
+            <circle key={`band-${t}`} cx={C} cy={C} r={(t / top) * R} className={k % 2 === 0 ? "fill-card/40" : "fill-transparent"} style={fade(150 + k * 80)} />
           ))}
         {ticks
           .filter((t) => t > 0)
-          .map((t) => (
-            <g key={`ring-${t}`}>
-              <circle cx={C} cy={C} r={(t / top) * R} fill="none" className="stroke-border" strokeWidth={t === top ? 1.25 : 1} strokeDasharray={t === top ? undefined : "1 5"} strokeLinecap="round" />
+          .map((t, k) => (
+            <g key={`ring-${t}`} style={fade(200 + k * 120)}>
+              {t === top ? (
+                <circle cx={C} cy={C} r={R} fill="none" className="stroke-border" strokeWidth={1.25} pathLength={1} transform={`rotate(-90 ${C} ${C})`} style={draw(150, 1000)} />
+              ) : (
+                <circle cx={C} cy={C} r={(t / top) * R} fill="none" className="stroke-border" strokeWidth={1} strokeDasharray="1 5" strokeLinecap="round" />
+              )}
               <rect x={C + 5} y={C - (t / top) * R - 8} width={format(t).length * 6.4 + 8} height={14} rx={7} className="fill-card" />
               <text x={C + 9} y={C - (t / top) * R + 2.5} className="fill-muted-foreground text-[10px] tabular-nums">
                 {format(t)}
@@ -299,26 +315,40 @@ function Radar({
           ))}
         {rows.map((row, i) => {
           const [x, y] = at(i, R);
-          return <line key={`spoke-${row.workType.id}`} x1={C} y1={C} x2={x} y2={y} className={active === row.workType.id ? "stroke-foreground/50" : "stroke-border"} strokeWidth={active === row.workType.id ? 1.5 : 1} />;
+          return (
+            <line
+              key={`spoke-${row.workType.id}`}
+              x1={C}
+              y1={C}
+              x2={x}
+              y2={y}
+              pathLength={1}
+              className={cn("transition-[stroke,stroke-width] duration-200", active === row.workType.id ? "stroke-foreground/50" : "stroke-border")}
+              strokeWidth={active === row.workType.id ? 1.5 : 1}
+              style={draw(300 + i * 90, 600)}
+            />
+          );
         })}
 
-        <g style={{ transform: `scale(${revealed ? 1 : 0})`, transformOrigin: `${C}px ${C}px`, transition: "transform 900ms cubic-bezier(0.22, 1, 0.36, 1)" }}>
+        <g>
           {hasComparison && (
-            <>
-              <polygon points={shape((r) => r.comparison ?? 0)} className="fill-muted-foreground/5 stroke-muted-foreground/70" strokeWidth={1.5} strokeDasharray="6 5" strokeLinejoin="round" />
+            <g style={fade(700, 600)}>
+              <polygon points={shape("was")} className="fill-muted-foreground/5 stroke-muted-foreground/70" strokeWidth={1.5} strokeDasharray="6 5" strokeLinejoin="round" />
               {rows.map((row, i) => {
-                const [x, y] = point(i, row.comparison ?? 0);
+                const [x, y] = pointAt(i, "was");
                 return <circle key={`was-${row.workType.id}`} cx={x} cy={y} r={3.5} className="fill-card stroke-muted-foreground/80" strokeWidth={1.5} />;
               })}
-            </>
+            </g>
           )}
-          <polygon points={shape((r) => r.value)} fill="var(--color-primary)" fillOpacity={0.16} stroke="var(--color-primary)" strokeWidth={2.5} strokeLinejoin="round" />
+          {/* The fill grows with the springs; its outline traces itself round on top. */}
+          <polygon points={shape("now")} fill="var(--color-primary)" fillOpacity={0.16} />
+          <polygon points={shape("now")} fill="none" stroke="var(--color-primary)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" pathLength={1} style={draw(450, 1300)} />
           {rows.map((row, i) => {
-            const [x, y] = point(i, row.value);
+            const [x, y] = pointAt(i, "now");
             const lit = active === row.workType.id;
             const hex = colorClasses(row.workType.color).hex;
             return (
-              <g key={`dot-${row.workType.id}`}>
+              <g key={`dot-${row.workType.id}`} style={fade(900 + i * 70, 300)}>
                 {lit && <circle cx={x} cy={y} r={12} fill={hex} opacity={0.18} />}
                 <circle cx={x} cy={y} r={lit ? 7 : 5.5} fill={hex} className="stroke-card transition-[r] duration-200" strokeWidth={2.5} />
               </g>
