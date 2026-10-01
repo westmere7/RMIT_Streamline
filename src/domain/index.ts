@@ -32,3 +32,4 @@ export * from "./booking/booking-template";
 export * from "./bug-report/bug-report";
 export * from "./portal/stakeholder-portal";
 export * from "./portal/portal-view";
+export * from "./portal/portal-columns";

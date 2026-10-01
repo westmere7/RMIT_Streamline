@@ -1,4 +1,5 @@
 import type { ColorToken, EntityId, Timestamps } from "@/domain/common/types";
+import type { PortalColumnEntry } from "@/domain/portal/portal-columns";
 
 /**
  * A stakeholder department, and the portal it reads its work through.
@@ -82,8 +83,14 @@ export interface StakeholderPortal extends Timestamps {
   defaultTheme: PortalTheme;
   /** A line of the team's own words, under the portal's name. */
   description: string | null;
-  /** Board columns the portal does not need. Keys, not ids: see `PORTAL_COLUMNS`. */
+  /** Board columns the portal does not need. Keys, not ids: see `PORTAL_COLUMNS`. Superseded by `columnLayout` once that is saved. */
   hiddenColumns: PortalColumnKey[];
+  /**
+   * The portal board's columns in order, each shown or hidden: built-ins and the
+   * boards' own columns alike (see portal-columns.ts). Null until first saved,
+   * which reads as the built-ins in their usual order, as `hiddenColumns` says.
+   */
+  columnLayout: PortalColumnEntry[] | null;
   /** Which view the link opens on. */
   defaultView: PortalView;
   /** Whether this link takes new requests. Off makes the portal read-only. */
@@ -234,6 +241,7 @@ export type PortalPresentation = Partial<
     StakeholderPortal,
     | "description"
     | "hiddenColumns"
+    | "columnLayout"
     | "defaultView"
     | "allowBooking"
     | "showRecap"

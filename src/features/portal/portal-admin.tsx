@@ -1,6 +1,10 @@
 "use client";
 
-import { Check, ClipboardPen, Copy, ExternalLink, Eye, EyeOff, Globe, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, Globe, GripVertical, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -22,18 +26,21 @@ import {
   BOOKING_SCALE_MIN,
   BOOKING_SCALE_STEP,
   clampBookingScale,
+  COLUMN_TYPE_LABELS,
   MAX_BOOKING_LEAD,
   MAX_CREATIVE_TEAM_NAME,
-  PORTAL_COLUMN_LABELS,
-  PORTAL_COLUMNS,
   PORTAL_DEFAULT_RANGES,
   PORTAL_THEMES,
   PORTAL_VIEWS,
   parsePortalRange,
   portalRangeLabel,
+  resolvePortalColumnLayout,
+  type PortalColumnCandidate,
+  type PortalColumnEntry,
   type PortalPresentation,
   type StakeholderPortal,
 } from "@/domain";
+import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -69,13 +76,13 @@ export function PortalAdmin() {
         </div>
       )}
       {overview.isError && <ErrorState title="Could not load the portal." error={overview.error} onRetry={() => overview.refetch()} />}
-      {overview.data && <PortalCard portal={overview.data.portal} rows={overview.data.departments} />}
+      {overview.data && <PortalCard portal={overview.data.portal} rows={overview.data.departments} columns={overview.data.columns} />}
     </div>
   );
 }
 
 /** The portal: whether it is open, its credentials, and its two links. */
-function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: DepartmentOverview[] }) {
+function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows: DepartmentOverview[]; columns: PortalColumnCandidate[] }) {
   const { setEnabled, setPresentation } = usePortalMutations();
   const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
   const open = portal.enabled;
@@ -182,8 +189,8 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
         />
       </div>
 
-      <SettingsDialog kind="portal" portal={portal} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
-      <SettingsDialog kind="booking" portal={portal} open={editing === "booking"} onOpenChange={(next) => setEditing(next ? "booking" : null)} />
+      <SettingsDialog kind="portal" portal={portal} columns={columns} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
+      <SettingsDialog kind="booking" portal={portal} columns={columns} open={editing === "booking"} onOpenChange={(next) => setEditing(next ? "booking" : null)} />
     </section>
   );
 }
@@ -470,25 +477,27 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
 // ---- each link's settings ------------------------------------------------------
 
 /** The settings a panel edits. A draft of these is what Save writes and Discard throws away. */
-type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "hiddenColumns" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale" | "bookingScaleSwitch">> & {
+type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale" | "bookingScaleSwitch">> & {
   bookingHeadline: string;
   bookingLead: string;
   teamName: string;
+  /** Every column on offer, in order, shown or not. */
+  columnLayout: PortalColumnEntry[];
 };
 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
-  portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "hiddenColumns", "showRecap", "showItemGroups"],
+  portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "columnLayout", "showRecap", "showItemGroups"],
   booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
-function draftOf(portal: StakeholderPortal, teamName: string): Draft {
+function draftOf(portal: StakeholderPortal, teamName: string, columns: readonly PortalColumnCandidate[]): Draft {
   return {
     defaultView: portal.defaultView,
     defaultRange: portal.defaultRange,
     defaultTheme: portal.defaultTheme,
     themeSwitch: portal.themeSwitch,
-    hiddenColumns: portal.hiddenColumns,
+    columnLayout: resolvePortalColumnLayout(portal.columnLayout, portal.hiddenColumns, columns),
     showRecap: portal.showRecap,
     showItemGroups: portal.showItemGroups,
     allowBooking: portal.allowBooking,
@@ -504,7 +513,8 @@ function draftOf(portal: StakeholderPortal, teamName: string): Draft {
 }
 
 function same(a: unknown, b: unknown): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((value) => b.includes(value));
+  // The column layout is an ordered list of objects: order and every flag count.
+  if (Array.isArray(a) && Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b);
   return typeof a === "string" && typeof b === "string" ? a.trim() === b.trim() : a === b;
 }
 
@@ -516,11 +526,11 @@ function same(a: unknown, b: unknown): boolean {
  * them slow to use and put half-finished changes in front of stakeholders.
  * Closing with changes unsaved asks before it throws them away.
  */
-function SettingsDialog({ kind, portal, open, onOpenChange }: { kind: keyof typeof PANEL_FIELDS; portal: StakeholderPortal; open: boolean; onOpenChange: (open: boolean) => void }) {
+function SettingsDialog({ kind, portal, columns, open, onOpenChange }: { kind: keyof typeof PANEL_FIELDS; portal: StakeholderPortal; columns: PortalColumnCandidate[]; open: boolean; onOpenChange: (open: boolean) => void }) {
   const ws = useWorkspace();
   const { saveSettings } = usePortalMutations();
   const storedName = ws.workspace.creativeTeamName ?? "";
-  const initial = React.useMemo(() => draftOf(portal, storedName), [portal, storedName]);
+  const initial = React.useMemo(() => draftOf(portal, storedName, columns), [portal, storedName, columns]);
   const [draft, setDraft] = React.useState(initial);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
 
@@ -578,7 +588,7 @@ function SettingsDialog({ kind, portal, open, onOpenChange }: { kind: keyof type
           </DialogHeader>
 
           <div className="scrollbar-thin grid content-start gap-5 overflow-y-auto px-6 py-5">
-            {kind === "portal" ? <PortalFields draft={draft} set={set} placeholder={ws.workspace.name} /> : <BookingFields draft={draft} set={set} />}
+            {kind === "portal" ? <PortalFields draft={draft} set={set} placeholder={ws.workspace.name} columns={columns} /> : <BookingFields draft={draft} set={set} />}
           </div>
 
           <DialogFooter className="items-center border-t border-border/60 px-6 py-3.5">
@@ -613,7 +623,7 @@ function SettingsDialog({ kind, portal, open, onOpenChange }: { kind: keyof type
 
 type SetField = <K extends keyof Draft>(key: K, value: Draft[K]) => void;
 
-function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField; placeholder: string }) {
+function PortalFields({ draft, set, placeholder, columns }: { draft: Draft; set: SetField; placeholder: string; columns: PortalColumnCandidate[] }) {
   return (
     <>
       <Field label="Team name">
@@ -622,7 +632,7 @@ function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField
       <Field label="Opens on">
         <Choice options={PORTAL_VIEWS.map((view) => ({ value: view, label: view }))} value={draft.defaultView} onChange={(value) => set("defaultView", value as Draft["defaultView"])} name="View the portal opens on" testId="portal-view" />
       </Field>
-      <Field label="Period">
+      <Field label="Default span">
         <Choice
           options={PORTAL_DEFAULT_RANGES.map((range) => ({ value: range, label: portalRangeLabel(parsePortalRange(range)!) }))}
           value={draft.defaultRange}
@@ -634,28 +644,7 @@ function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField
       </Field>
       <ThemeField theme={draft.defaultTheme} onTheme={(value) => set("defaultTheme", value)} allowSwitch={draft.themeSwitch} onAllowSwitch={(value) => set("themeSwitch", value)} testId="portal-default-theme" />
       <Field label="Columns">
-        <div className="flex flex-wrap gap-1.5">
-          {PORTAL_COLUMNS.map((key) => {
-            const on = !draft.hiddenColumns.includes(key);
-            return (
-              <button
-                key={key}
-                type="button"
-                role="switch"
-                aria-checked={on}
-                onClick={() => set("hiddenColumns", on ? [...draft.hiddenColumns, key] : draft.hiddenColumns.filter((c) => c !== key))}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
-                  on ? "border-transparent bg-foreground text-background" : "border-border/70 text-muted-foreground hover:text-foreground",
-                )}
-                data-testid={`portal-column-${key}`}
-              >
-                {on ? <Eye className="size-3" aria-hidden /> : <EyeOff className="size-3" aria-hidden />}
-                {PORTAL_COLUMN_LABELS[key]}
-              </button>
-            );
-          })}
-        </div>
+        <ColumnLayoutEditor layout={draft.columnLayout} columns={columns} onChange={(next) => set("columnLayout", next)} />
       </Field>
       <Field label="Shows">
         <div className="grid gap-2.5">
@@ -664,6 +653,77 @@ function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField
         </div>
       </Field>
     </>
+  );
+}
+
+/**
+ * The portal board's columns: every one the boards use, in the order the portal
+ * shows them, each switched on or off. Drag to reorder. Special columns are
+ * marked, as they are in a board's column menu. A board's own column starts off:
+ * switching it on is what publishes it.
+ */
+function ColumnLayoutEditor({ layout, columns, onChange }: { layout: PortalColumnEntry[]; columns: PortalColumnCandidate[]; onChange: (next: PortalColumnEntry[]) => void }) {
+  const byKey = React.useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
+  const rows = layout.filter((entry) => byKey.has(entry.key));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = layout.findIndex((entry) => entry.key === active.id);
+    const to = layout.findIndex((entry) => entry.key === over.id);
+    if (from < 0 || to < 0) return;
+    onChange(arrayMove(layout, from, to));
+  };
+  const shownCount = rows.filter((entry) => !entry.hidden).length;
+  return (
+    <div className="grid gap-1.5" data-testid="portal-columns">
+      <p className="text-2xs text-muted-foreground">
+        {shownCount} of {rows.length} shown
+      </p>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
+        <SortableContext items={rows.map((entry) => entry.key)} strategy={verticalListSortingStrategy}>
+          <ul className="grid gap-1">
+            {rows.map((entry) => (
+              <ColumnLayoutRow
+                key={entry.key}
+                entry={entry}
+                column={byKey.get(entry.key)!}
+                onToggle={(on) => onChange(layout.map((e) => (e.key === entry.key ? { ...e, hidden: !on } : e)))}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+function ColumnLayoutRow({ entry, column, onToggle }: { entry: PortalColumnEntry; column: PortalColumnCandidate; onToggle: (on: boolean) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.key });
+  const Icon = COLUMN_TYPE_ICONS[column.type];
+  const on = !entry.hidden;
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card pr-2 pl-1 text-[13px]", isDragging && "z-10 shadow-md", !on && "text-muted-foreground")}
+      data-testid={`portal-column-row-${entry.key}`}
+    >
+      <button type="button" aria-label={`Move ${column.name}`} className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/70 hover:text-foreground active:cursor-grabbing" {...attributes} {...listeners}>
+        <GripVertical className="size-3.5" />
+      </button>
+      <Icon className={cn("size-3.5 shrink-0", column.special ? "text-green-600 dark:text-green-400" : "text-muted-foreground")} />
+      <span className="min-w-0 flex-1 truncate">
+        {column.name}
+        {/* Two boards can each have a "Notes" of a different kind; the type tells them apart. */}
+        {!column.builtIn && !column.special && <span className="ml-1.5 text-2xs text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]}</span>}
+      </span>
+      {column.special && <span className="shrink-0 rounded-full bg-green-500/10 px-1.5 py-px text-[10px] font-semibold tracking-wide text-green-700 uppercase dark:text-green-400">Special</span>}
+      {!on && <EyeOff className="size-3.5 shrink-0" aria-hidden />}
+      <span title={column.required ? "Always shown" : undefined}>
+        <Switch size="sm" checked={on} disabled={column.required} onCheckedChange={onToggle} aria-label={`Show ${column.name}`} data-testid={`portal-column-${entry.key}`} />
+      </span>
+    </li>
   );
 }
 

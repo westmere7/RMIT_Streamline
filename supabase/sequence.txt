@@ -126,3 +126,4 @@ migrations/0092_subscriptions.sql
 migrations/0093_item_favourites.sql
 migrations/0094_progress_column_type.sql
 migrations/0095_comment_checks.sql
+migrations/0096_portal_column_layout.sql

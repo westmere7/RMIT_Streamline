@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.71.0",
+    date: "2026-10-01",
+    title: "Portal columns",
+    changes: [
+      "Portal settings list every column the boards use: drag to reorder, switch each on or off, special columns marked. It changes the portal only.",
+      "A board's own column starts off; switching it on is what shows it to departments. Columns with the same name and kind on several boards are one column.",
+      "Period in portal settings is now Default span.",
+    ],
+  },
+  {
     version: "0.70.2",
     date: "2026-10-01",
     title: "An empty portal says why",

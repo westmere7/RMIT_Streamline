@@ -112,6 +112,7 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
       credentialVersion: 1,
       description: null,
       hiddenColumns: [],
+      columnLayout: null,
       defaultView: "table",
       allowBooking: true,
       showRecap: true,

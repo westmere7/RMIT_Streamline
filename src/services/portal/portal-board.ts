@@ -10,6 +10,7 @@ import type {
   ItemAsset,
   ItemColumnValue,
   ItemLink,
+  PortalColumnEntry,
   PortalColumnKey,
   PortalDeliverable,
   PortalPerson,
@@ -23,6 +24,7 @@ import type {
 import { ASSET_TYPE_OPTIONS, DEFAULT_PRIORITY_LABELS, PRIORITY_STRENGTH, PORTAL_COLUMN_LABELS, portalBriefMarkdown } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { slugify } from "@/lib/slug";
+import type { PortalExtras } from "./portal-extra-columns";
 
 /**
  * A department's requests, shaped as a board.
@@ -113,6 +115,14 @@ export interface PortalBoardInput {
    * nothing downstream may treat it as a boundary.
    */
   hiddenColumns?: readonly PortalColumnKey[];
+  /**
+   * The column order and what is shown, built-ins and board columns alike
+   * (resolvePortalColumnLayout). When given it decides; `hiddenColumns` is then
+   * only what produced it.
+   */
+  layout?: readonly PortalColumnEntry[];
+  /** The board columns switched on in the layout, already read off each request. */
+  extras?: PortalExtras;
   tasks: readonly PortalBoardTask[];
   /** Links whose two ends are both in scope. Anything else is left out. */
   links: readonly ItemLink[];
@@ -162,7 +172,8 @@ function priorityLabelId(priority: PortalPriority | null): string | null {
 
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   const { portalId, workspaceId, tasks, links, comments, commentAuthors, workspaceName, now } = input;
-  const hidden = new Set<string>(input.hiddenColumns ?? []);
+  const hidden = new Set<string>(input.layout ? input.layout.filter((entry) => entry.hidden).map((entry) => entry.key) : (input.hiddenColumns ?? []));
+  const extras = input.extras;
   const boardId = portalId;
 
   // The stakeholders actually on screen, in the colours the team gave them.
@@ -246,6 +257,14 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   // plain text in the description.
   const hasBrief = tasks.some(({ brief }) => !!brief?.trim());
   if (hasBrief) column("brief", PORTAL_COLUMN_LABELS.brief, "BRIEF", { kind: "none" }, 110);
+  // The boards' own columns the team switched on, merged one per key.
+  for (const extra of extras?.columns ?? []) column(extra.key, extra.name, extra.type, extra.settings, extra.width);
+  // In the team's order; status stays where it is put but is never hidden.
+  if (input.layout) {
+    const order = new Map(input.layout.map((entry, index) => [portalColumnId(boardId, entry.key), index]));
+    columns.sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    columns.forEach((c, index) => (c.position = index));
+  }
   // ---- groups: the board each request is being run on --------------------------
   // The canonical arrangement. A visitor who would rather see the work by
   // status switches that on in the toolbar, and the payload is regrouped in the
@@ -321,6 +340,8 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
       );
     }
 
+    for (const [key, extraValue] of extras?.values.get(task.id) ?? []) value(task.id, key, extraValue, task.updatedAt);
+
     for (const person of task.people) rememberPerson(people, person);
 
     deliverables.forEach((deliverable, index) => {
@@ -379,6 +400,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     .filter((comment) => inScope.has(comment.itemId))
     .map((comment) => ({ ...comment, mentionUserIds: [] }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const person of extras?.people ?? []) rememberPerson(people, person);
   const authors = new Map(commentAuthors.map((person) => [person.id, person]));
   for (const comment of published) {
     const author = authors.get(comment.authorId);

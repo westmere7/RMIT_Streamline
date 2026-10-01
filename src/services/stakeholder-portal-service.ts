@@ -3,6 +3,7 @@ import type {
   PortalStakeholderOption,
   Board,
   BoardColumn,
+  PortalColumnCandidate,
   BookingForm,
   Comment,
   BookingReceipt,
@@ -35,6 +36,9 @@ import {
   generatePortalToken,
   isPlausiblePortalToken,
   isPortalColumnKey,
+  normalizePortalColumnLayout,
+  portalColumnCandidates,
+  resolvePortalColumnLayout,
   isPortalDefaultRange,
   isPortalTheme,
   clampBookingScale,
@@ -56,6 +60,7 @@ import { richTextToPlain } from "@/lib/rich-text";
 import { composeBrief, resolveBookingTemplate } from "./booking";
 import { BookingValidationError } from "./booking-service";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
+import { projectPortalExtras } from "./portal/portal-extra-columns";
 import {
   matchesPortalSearch,
   toPortalPerson,
@@ -191,6 +196,8 @@ export interface DepartmentOverview {
 export interface PortalOverview {
   portal: StakeholderPortal;
   departments: DepartmentOverview[];
+  /** Every column the portal could show, from the workspace's boards, for its settings. */
+  columns: PortalColumnCandidate[];
 }
 
 /**
@@ -398,10 +405,14 @@ export class StakeholderPortalService {
    */
   async overview(workspaceId: EntityId): Promise<PortalOverview> {
     const [departments, portal] = await Promise.all([this.ensureDepartments(workspaceId), this.ensurePortal(workspaceId)]);
-    const requests = await Promise.all(departments.map((department) => this.repos.stakeholderPortals.countRequests(department.id)));
+    const [requests, boardColumns] = await Promise.all([
+      Promise.all(departments.map((department) => this.repos.stakeholderPortals.countRequests(department.id))),
+      this.workspaceBoardColumns(workspaceId),
+    ]);
     return {
       portal,
       departments: departments.map((department, index) => ({ department, requests: requests[index] ?? 0 })),
+      columns: portalColumnCandidates(boardColumns),
     };
   }
 
@@ -430,6 +441,9 @@ export class StakeholderPortalService {
     }
 
     const workspace = await this.repos.workspaces.getById(resolved.workspaceId);
+    // The columns the boards on screen offer, in the order the team saved.
+    const candidates = portalColumnCandidates([...ctx.projection.boards.values()].flatMap((entry) => entry.columns));
+    const layout = resolvePortalColumnLayout(resolved.portal.columnLayout, resolved.portal.hiddenColumns, candidates);
     const payload = buildPortalBoard({
       portalId: resolved.portal.id,
       workspaceId: resolved.workspaceId,
@@ -438,6 +452,8 @@ export class StakeholderPortalService {
       // every row.
       showStakeholder: scope.stakeholderId === null,
       hiddenColumns: resolved.portal.hiddenColumns,
+      layout,
+      extras: projectPortalExtras(layout, ctx.projection.boards, [...ctx.itemsById.values()].filter((item) => !item.parentItemId), ctx.projection.usersById),
       tasks,
       links: ctx.links,
       comments: ctx.comments,
@@ -462,6 +478,12 @@ export class StakeholderPortalService {
       types.size,
     );
     return { ...payload, totals, awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null }, servedAt: new Date().toISOString() };
+  }
+
+  /** The columns of every board whose work can reach the portal: all but the bug board. */
+  private async workspaceBoardColumns(workspaceId: EntityId): Promise<BoardColumn[]> {
+    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((board) => board.system !== "APP_DEVELOPMENT" && !board.archivedAt);
+    return (await Promise.all(boards.map((board) => this.repos.boards.listColumns(board.id)))).flat();
   }
 
   /** The workspace's portal, made on first use. Created switched off. */
@@ -496,6 +518,7 @@ export class StakeholderPortalService {
       cleaned.description = trimmed ? trimmed.slice(0, MAX_PORTAL_DESCRIPTION) : null;
     }
     if (patch.hiddenColumns !== undefined) cleaned.hiddenColumns = [...new Set(patch.hiddenColumns.filter(isPortalColumnKey))];
+    if (patch.columnLayout !== undefined) cleaned.columnLayout = patch.columnLayout === null ? null : normalizePortalColumnLayout(patch.columnLayout);
     if (patch.defaultView !== undefined && !isPortalView(patch.defaultView)) delete cleaned.defaultView;
     if (patch.defaultTheme !== undefined && !isPortalTheme(patch.defaultTheme)) delete cleaned.defaultTheme;
     if (patch.bookingTheme !== undefined && !isPortalTheme(patch.bookingTheme)) delete cleaned.bookingTheme;

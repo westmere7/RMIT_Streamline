@@ -11,13 +11,13 @@ import type {
   StakeholderDepartment,
   StakeholderDepartmentInput,
 } from "@/domain";
-import { asColor, isPortalColumnKey, isPortalDefaultRange, isPortalTheme, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
+import { asColor, isPortalColumnKey, normalizePortalColumnLayout, isPortalDefaultRange, isPortalTheme, isPortalView, PORTAL_PAGE_SIZE } from "@/domain";
 import type { StakeholderPortalRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, booking_scale, booking_scale_switch, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, column_layout, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, booking_scale, booking_scale_switch, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -43,6 +43,7 @@ interface PortalRow {
   default_theme: string;
   description: string | null;
   hidden_columns: unknown;
+  column_layout?: unknown;
   default_view: string;
   allow_booking: boolean;
   show_recap: boolean;
@@ -109,6 +110,7 @@ function toPortal(row: PortalRow): StakeholderPortal {
     // Read defensively: these arrived in migration 0031 and a row written by an
     // older deployment, or by hand, may carry anything or nothing.
     hiddenColumns: Array.isArray(row.hidden_columns) ? row.hidden_columns.filter(isPortalColumnKey) : [],
+    columnLayout: normalizePortalColumnLayout(row.column_layout),
     defaultView: isPortalView(row.default_view) ? row.default_view : "table",
     allowBooking: row.allow_booking ?? true,
     showRecap: row.show_recap ?? true,
@@ -241,6 +243,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.credentialVersion !== undefined) payload.credential_version = patch.credentialVersion;
     if (patch.description !== undefined) payload.description = patch.description;
     if (patch.hiddenColumns !== undefined) payload.hidden_columns = patch.hiddenColumns;
+    if (patch.columnLayout !== undefined) payload.column_layout = patch.columnLayout;
     if (patch.defaultView !== undefined) payload.default_view = patch.defaultView;
     if (patch.allowBooking !== undefined) payload.allow_booking = patch.allowBooking;
     if (patch.showRecap !== undefined) payload.show_recap = patch.showRecap;
