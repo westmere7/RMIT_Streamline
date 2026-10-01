@@ -259,6 +259,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
                 onSearchChange={setSearch}
                 searchingAllYears={searching}
                 refreshing={page.isFetching}
+                onShowAll={range.kind === "all" ? undefined : () => replaceParams({ range: formatPortalRange(EVERY_PORTAL_RANGE) })}
               />
           </div>
         ) : (

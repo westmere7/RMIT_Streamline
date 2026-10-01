@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDownUp, ClipboardPen, GripVertical, Hourglass, Rows3 } from "lucide-react";
+import { ArrowDownUp, CalendarSearch, ClipboardPen, GripVertical, Hourglass, Inbox, Rows3, SearchX } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -35,7 +35,7 @@ import { applyPortalGrouping, orderStatusLabels } from "@/features/portal/portal
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { activeFilterCount, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 /**
  * A department's requests, as a board.
@@ -63,7 +63,10 @@ export function PortalBoardScreen({
   showItemGroups,
   refreshing = false,
   loadJourney,
+  onShowAll,
 }: {
+  /** Widens the read to every request, offered when the period on screen holds none; absent when it is already everything. */
+  onShowAll?: () => void;
   /** One request's journey events, fetched when its Task journey is opened. */
   loadJourney?: (itemId: string) => Promise<Activity[]>;
   token: string;
@@ -114,7 +117,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`} activityFor={loadJourney}>
-      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} />
+      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );
 }
@@ -168,7 +171,9 @@ function PortalBoard({
   searchingAllYears,
   refreshing,
   awaiting,
+  onShowAll,
 }: {
+  onShowAll?: () => void;
   payload: PortalBoardPayload;
   refreshing: boolean;
   /** The requests still waiting on Task Allocation, and the team holding them. */
@@ -270,6 +275,9 @@ function PortalBoard({
   // moment ago, opened before the board has read it again — waits in a loading
   // panel while a newer read is on its way, rather than saying it is not there.
   const pending = !!openTaskId && refreshing && !model?.itemById.has(openTaskId);
+  // Nothing to show: a blank table says nothing, so it says why and what to do.
+  const shownCount = model ? [...model.itemsByGroup.values()].reduce((sum, items) => sum + items.length, 0) : 0;
+  const empty = model && shownCount === 0 ? <PortalEmpty search={ui.search} filtered={activeFilterCount(ui.filters) > 0} onShowAll={onShowAll} bookHref={bookHref} /> : null;
   const notice = openTaskId && awaiting?.ids.includes(openTaskId) ? <AwaitingAllocation teamName={awaiting.teamName} /> : undefined;
 
   return (
@@ -291,7 +299,7 @@ function PortalBoard({
               }
             />
           </div>
-          {view === "table" ? (
+          {empty ?? (view === "table" ? (
             <MobileTableView mode={tableMode} onModeChange={setTableMode} />
           ) : view === "kanban" ? (
             <MobileKanbanView />
@@ -299,7 +307,7 @@ function PortalBoard({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <OtherView view={view} />
             </div>
-          )}
+          ))}
           {openTaskId && (pending ? <ItemPanelSkeleton onClose={() => openItem(null)} /> : <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu notice={notice} />)}
         </>
       ) : (
@@ -326,9 +334,13 @@ function PortalBoard({
           />
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              {view === "table" && <BoardTable />}
-              {view === "kanban" && <KanbanView />}
-              <OtherView view={view} />
+              {empty ?? (
+                <>
+                  {view === "table" && <BoardTable />}
+                  {view === "kanban" && <KanbanView />}
+                  <OtherView view={view} />
+                </>
+              )}
             </div>
             {openTaskId &&
               (pending ? (
@@ -515,6 +527,42 @@ function StatusOrderRow({ label }: { label: ColumnLabel }) {
  * in the line, the same size as a filter. It leads, and it is the only button
  * on the page wearing the brand red.
  */
+/**
+ * What an empty portal says: why there is nothing (the search, the filters, the
+ * period, or no requests at all) and the next step — every request, or a booking.
+ */
+function PortalEmpty({ search, filtered, onShowAll, bookHref }: { search: string; filtered: boolean; onShowAll?: () => void; bookHref: string | null }) {
+  const term = search.trim();
+  const { icon: Icon, title, text } = term
+    ? { icon: SearchX, title: `Nothing matches “${term}”`, text: "Try other words, or clear the search." }
+    : filtered
+      ? { icon: SearchX, title: "Nothing matches the filters", text: "Clear a filter to see more." }
+      : onShowAll
+        ? { icon: CalendarSearch, title: "Nothing in this period", text: "No requests were booked or due in it. Try a longer period." }
+        : { icon: Inbox, title: "No requests yet", text: "Requests booked for this department show here, with how each is going." };
+  return (
+    <div className="flex flex-1 items-center justify-center p-6" data-testid="portal-empty">
+      <div className="flex max-w-sm flex-col items-center text-center">
+        <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-surface text-muted-foreground">
+          <Icon className="size-5" />
+        </span>
+        <p className="text-[15px] font-semibold tracking-tight">{title}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">{text}</p>
+        {!term && !filtered && (onShowAll || bookHref) && (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {onShowAll && (
+              <Button variant="outline" onClick={onShowAll} data-testid="portal-empty-show-all">
+                <CalendarSearch /> Show all time
+              </Button>
+            )}
+            {bookHref && <BookButton href={bookHref} />}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BookButton({ href }: { href: string }) {
   return (
     // A new tab: the form is a page of its own, and the board stays where it was.

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.70.2",
+    date: "2026-10-01",
+    title: "An empty portal says why",
+    changes: ["A portal with nothing to show says why — the period, the search, the filters, or no requests yet — with Show all time and Book a task."],
+  },
+  {
     version: "0.70.1",
     date: "2026-10-01",
     title: "A switch on each link",
