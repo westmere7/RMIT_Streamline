@@ -311,6 +311,7 @@ export function createMemoryRepositories(
       listByBoard: async (boardId, limit) => (onBoard(boardId) ? payload().activities.slice(0, limit) : []),
       listByItem: async (itemId) => (options.activityFor ? options.activityFor(itemId) : payload().activities.filter((a) => a.itemId === itemId)),
       listStatusChanges: async () => [],
+      listLastByBoard: async () => [],
       create: readOnly("recording activity"),
       createMany: readOnly("recording activity"),
     },

@@ -31,6 +31,7 @@ import { COLUMN_ROLE_LABELS, COLUMN_ROLE_PURPOSE, COLUMN_TYPE_LABELS, hasEditabl
 import { useBoardContext } from "@/features/boards/board-context";
 import { TicketHeaderCell } from "@/features/boards/components/table/ticket-cell";
 import { ColumnFormatMenu } from "@/features/boards/components/table/column-format-menu";
+import { useButtonSettingsDialog } from "@/features/boards/components/dialogs/button-settings-dialog";
 import { ADDABLE_COLUMN_TYPES, COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useSortable } from "@dnd-kit/sortable";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -563,6 +564,7 @@ function ColumnHeaderCell({
 
 export function AddColumnMenu() {
   const { model, mutations } = useBoardContext();
+  const showButtonSettings = useButtonSettingsDialog((s) => s.show);
   const hidden = model.columns.filter((c) => c.hidden);
   return (
     <DropdownMenu>
@@ -573,7 +575,14 @@ export function AddColumnMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={COLUMN_TYPE_PICKER_WIDTH}>
         <DropdownMenuLabel>Add column</DropdownMenuLabel>
-        <ColumnTypePicker onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type)} />
+        <ColumnTypePicker
+          onPick={(type) =>
+            void mutations.addColumn(COLUMN_TYPE_LABELS[type], type).then((column) => {
+              // A button that does nothing yet is the next thing anyone sets up.
+              if (column && type === "BUTTON") showButtonSettings(column.id);
+            })
+          }
+        />
         {hidden.length > 0 && (
           <>
             <DropdownMenuSeparator />

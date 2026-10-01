@@ -1,4 +1,4 @@
-import type { Activity, ActivityInput, StatusChange } from "@/domain";
+import type { Activity, ActivityEventType, ActivityInput, LastActivity, StatusChange } from "@/domain";
 import type { ActivityRepository } from "@/data/repositories";
 import { newId } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
@@ -31,6 +31,18 @@ export class LocalActivityRepository implements ActivityRepository {
       .filter((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED" && a.metadata.columnType === "STATUS" && a.itemId !== null)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .map((a) => ({ itemId: a.itemId!, at: a.createdAt, column: a.metadata.columnName ?? null, from: a.metadata.from ?? null, to: a.metadata.to ?? null }));
+  }
+
+  async listLastByBoard(boardId: string, eventTypes: readonly ActivityEventType[], skipSynced: boolean): Promise<LastActivity[]> {
+    const db = await this.conn.getDb();
+    const kinds = new Set(eventTypes);
+    const last = new Map<string, LastActivity>();
+    for (const a of await db.getAllFromIndex("activities", "byBoard", boardId)) {
+      if (!a.itemId || !kinds.has(a.eventType) || (skipSynced && a.metadata.syncedFrom)) continue;
+      const seen = last.get(a.itemId);
+      if (!seen || a.createdAt > seen.at) last.set(a.itemId, { itemId: a.itemId, actorId: a.actorId, at: a.createdAt, eventType: a.eventType });
+    }
+    return [...last.values()];
   }
 
   async create(input: ActivityInput): Promise<Activity> {

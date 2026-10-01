@@ -51,6 +51,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
+import type { ActivityEventType, LastActivity } from "@/domain";
 import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
@@ -520,6 +521,11 @@ export interface ActivityRepository {
   listByItem(itemId: EntityId): Promise<Activity[]>;
   /** Every change of a status in the workspace, oldest first, trimmed to what the dashboard reads. */
   listStatusChanges(workspaceId: EntityId): Promise<StatusChange[]>;
+  /**
+   * Each task's newest activity of these kinds on a board: one row a task, for
+   * a Last updated column. `skipSynced` leaves out changes copied from a linked task.
+   */
+  listLastByBoard(boardId: EntityId, eventTypes: readonly ActivityEventType[], skipSynced: boolean): Promise<LastActivity[]>;
   create(input: ActivityInput): Promise<Activity>;
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
 }

@@ -1,6 +1,8 @@
 import type {
   Activity,
+  ActivityEventType,
   ActivityInput,
+  LastActivity,
   BoardViewKind,
   Comment,
   CommentInput,
@@ -169,6 +171,19 @@ export class SupabaseActivityRepository implements ActivityRepository {
       "activities.listStatusChanges",
     );
     return rows.map((row) => ({ itemId: row.item_id, at: row.created_at, column: row.column, from: row.from, to: row.to }));
+  }
+
+  /** One row a task, picked by the database (board_last_activity, migration 0101) so only the newest of each travels. */
+  async listLastByBoard(boardId: string, eventTypes: readonly ActivityEventType[], skipSynced: boolean): Promise<LastActivity[]> {
+    if (eventTypes.length === 0) return [];
+    const result = await db().rpc("board_last_activity", { p_board_id: boardId, p_event_types: [...eventTypes], p_skip_synced: skipSynced });
+    if (result.error) throw new Error(`activities.listLastByBoard: ${result.error.message}`);
+    return ((result.data ?? []) as Array<{ item_id: string; actor_id: string; created_at: string; event_type: ActivityEventType }>).map((row) => ({
+      itemId: row.item_id,
+      actorId: row.actor_id,
+      at: row.created_at,
+      eventType: row.event_type,
+    }));
   }
 
   async create(input: ActivityInput): Promise<Activity> {

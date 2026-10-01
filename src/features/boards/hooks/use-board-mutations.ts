@@ -46,6 +46,8 @@ export function useBoardMutations(boardId: string) {
     // looking at it.
     nudgeAutomations();
     await queryClient.invalidateQueries({ queryKey: key });
+    // The change is in the activity log now, so Last updated can see it.
+    void queryClient.invalidateQueries({ queryKey: ["last-updated", boardId] });
     // A change here may have been mirrored onto linked items on other boards.
     void queryClient.invalidateQueries({ queryKey: ["board-snapshot"], predicate: (q) => q.queryKey[1] !== boardId });
     void queryClient.invalidateQueries({ queryKey: ["item-links"] });

@@ -10,7 +10,7 @@ import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BOARD_VIEWS, boardViewsFor, type BoardColumn, type BoardViewKind } from "@/domain";
+import { BOARD_VIEWS, boardViewsFor, type BoardColumn, type BoardViewKind, type Item } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
@@ -18,6 +18,7 @@ import { BoardHeader } from "@/features/boards/components/board-header";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { ArchiveItemsDialog } from "@/features/boards/components/dialogs/archive-items-dialog";
+import { ButtonSettingsHost } from "@/features/boards/components/dialogs/button-settings-dialog";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
@@ -30,6 +31,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useLastUpdatedValues } from "@/features/boards/hooks/use-last-updated";
 import { useActiveSavedView, useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { useSavedViewsController } from "@/features/boards/saved-views/saved-views";
 import { SavedViewsMenu } from "@/features/boards/saved-views/saved-views-menu";
@@ -52,6 +54,7 @@ import { useUiStore } from "@/stores/ui-store";
 import { readRememberedView, rememberView, useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 
 const NO_COLUMNS: BoardColumn[] = [];
+const NO_ITEMS: Item[] = [];
 
 function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
@@ -289,13 +292,20 @@ function BoardScreen({ boardId }: { boardId: string }) {
     };
   }, [urlItemId, snapshot.data, services, board.id, board.slug, ws.slug, router]);
 
+  // Last updated cells, worked out from the board's activity rather than stored.
+  const lastUpdated = useLastUpdatedValues(boardId, snapshot.data?.columns ?? NO_COLUMNS, snapshot.data?.items ?? NO_ITEMS, snapshot.dataUpdatedAt);
   // A saved view hides its own columns, over the board's.
   const hiddenInView = savedView?.hiddenColumnIds;
   const shown = React.useMemo(() => {
-    if (!snapshot.data || !hiddenInView) return snapshot.data;
-    const hidden = new Set(hiddenInView);
-    return { ...snapshot.data, columns: snapshot.data.columns.map((c) => (c.hidden === hidden.has(c.id) ? c : { ...c, hidden: hidden.has(c.id) })) };
-  }, [snapshot.data, hiddenInView]);
+    if (!snapshot.data) return snapshot.data;
+    if (!hiddenInView && lastUpdated.length === 0) return snapshot.data;
+    const hidden = hiddenInView ? new Set(hiddenInView) : null;
+    return {
+      ...snapshot.data,
+      columns: hidden ? snapshot.data.columns.map((c) => (c.hidden === hidden.has(c.id) ? c : { ...c, hidden: hidden.has(c.id) })) : snapshot.data.columns,
+      values: lastUpdated.length > 0 ? [...snapshot.data.values, ...lastUpdated] : snapshot.data.values,
+    };
+  }, [snapshot.data, hiddenInView, lastUpdated]);
   const model = React.useMemo(
     () => (shown ? buildBoardModel(shown, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),
     [shown, ui.search, ui.filters, ui.sort, now, ws],
@@ -366,6 +376,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             <ItemPanelSlot onClose={openItem} />
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
+            <ButtonSettingsHost />
           </BoardContextProvider>
         )}
         </div>
@@ -432,6 +443,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           </div>
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
+            <ButtonSettingsHost />
         </BoardContextProvider>
       )}
       </div>

@@ -27,6 +27,7 @@ import { useBoardUiStore } from "@/stores/board-ui-store";
 import { useClockTick } from "@/hooks/use-clock";
 import { cn } from "@/lib/utils";
 import { CellShell, PopoverCell, useCellStretchMode } from "./cell-shell";
+import { ButtonCell, LastUpdatedCell } from "./activity-cells";
 
 export interface CellProps {
   item: Item;
@@ -95,6 +96,10 @@ export function CellRenderer(props: CellProps) {
       return <ProgressCell {...props} />;
     case "DEPENDENCY":
       return <DependencyCell {...props} />;
+    case "LAST_UPDATED":
+      return <LastUpdatedCell {...props} />;
+    case "BUTTON":
+      return <ButtonCell {...props} />;
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, SlidersHorizontal } from "lucide-react";
+import { Check, MousePointerClick, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/context-menu";
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
@@ -32,8 +32,17 @@ import {
   PROGRESS_NUMBERS,
   progressSettings,
   type ProgressColumnSettings,
+  LAST_UPDATED_DISPLAY_LABELS,
+  LAST_UPDATED_DISPLAYS,
+  LAST_UPDATED_SOURCE_LABELS,
+  LAST_UPDATED_SOURCES,
+  LAST_UPDATED_TIME_LABELS,
+  LAST_UPDATED_TIMES,
+  lastUpdatedSettings,
+  type LastUpdatedColumnSettings,
 } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { useButtonSettingsDialog } from "@/features/boards/components/dialogs/button-settings-dialog";
 
 /** Which halves of the format each type has: a date, a time, or both. */
 const FORMAT_PARTS: Partial<Record<ColumnType, { date: boolean; time: boolean }>> = {
@@ -44,7 +53,7 @@ const FORMAT_PARTS: Partial<Record<ColumnType, { date: boolean; time: boolean }>
 };
 
 export function hasFormatMenu(column: BoardColumn): boolean {
-  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS";
+  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS" || column.type === "LAST_UPDATED" || column.type === "BUTTON";
 }
 
 type Primitives = {
@@ -72,6 +81,8 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
   const { Sub, SubTrigger, SubContent, Item, Label, Separator } = PRIMITIVES[variant];
   if (column.type === "COUNTDOWN") return <CountdownFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "PROGRESS") return <ProgressFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
+  if (column.type === "LAST_UPDATED") return <LastUpdatedFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
+  if (column.type === "BUTTON") return <ButtonSettingsItem column={column} primitives={PRIMITIVES[variant]} />;
   if (!parts) return null;
   const settings = dateTimeSettings(column.settings);
   const set = (patch: Partial<typeof settings>) => void mutations.updateColumn(column.id, { settings: { ...settings, ...patch } });
@@ -100,6 +111,76 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
               <Item key={format} onSelect={() => set({ timeFormat: format })}>
                 <span className="tabular">{TIME_FORMAT_LABELS[format]}</span>
                 {settings.timeFormat === format && <Check className="ml-auto size-3.5" />}
+              </Item>
+            ))}
+          </>
+        )}
+      </SubContent>
+    </Sub>
+  );
+}
+
+/** A Button column's look and steps are a dialog's worth, so the menu only opens it. */
+function ButtonSettingsItem({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
+  const show = useButtonSettingsDialog((s) => s.show);
+  const { Item } = primitives;
+  return (
+    <Item onSelect={() => show(column.id)}>
+      <MousePointerClick /> Button settings…
+    </Item>
+  );
+}
+
+/**
+ * Last updated's Format: which changes count as an update, whether copies from
+ * a linked task do, and how the answer is shown. Stays open between choices.
+ */
+function LastUpdatedFormatMenu({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
+  const { mutations } = useBoardContext();
+  const { Sub, SubTrigger, SubContent, Item, Label, Separator } = primitives;
+  const settings = lastUpdatedSettings(column.settings);
+  const set = (patch: Partial<LastUpdatedColumnSettings>) => void mutations.updateColumn(column.id, { settings: { ...settings, ...patch } });
+  const keepOpen = (fn: () => void) => (event: Event) => {
+    event.preventDefault();
+    fn();
+  };
+  return (
+    <Sub>
+      <SubTrigger>
+        <SlidersHorizontal /> Format
+      </SubTrigger>
+      <SubContent className="w-56" data-testid="last-updated-format-menu">
+        <Label className="text-2xs font-normal text-muted-foreground">Counts as an update</Label>
+        {LAST_UPDATED_SOURCES.map((source) => {
+          const on = settings.sources.includes(source);
+          return (
+            <Item key={source} onSelect={keepOpen(() => set({ sources: on ? settings.sources.filter((s) => s !== source) : [...settings.sources, source] }))}>
+              <span>{LAST_UPDATED_SOURCE_LABELS[source]}</span>
+              {on && <Check className="ml-auto size-3.5" />}
+            </Item>
+          );
+        })}
+        <Separator />
+        <Item onSelect={keepOpen(() => set({ skipSynced: !settings.skipSynced }))}>
+          <span>Skip copies from linked tasks</span>
+          {settings.skipSynced && <Check className="ml-auto size-3.5" />}
+        </Item>
+        <Separator />
+        <Label className="text-2xs font-normal text-muted-foreground">Show</Label>
+        {LAST_UPDATED_DISPLAYS.map((display) => (
+          <Item key={display} onSelect={keepOpen(() => set({ display }))}>
+            <span>{LAST_UPDATED_DISPLAY_LABELS[display]}</span>
+            {settings.display === display && <Check className="ml-auto size-3.5" />}
+          </Item>
+        ))}
+        {settings.display !== "person" && (
+          <>
+            <Separator />
+            <Label className="text-2xs font-normal text-muted-foreground">Time</Label>
+            {LAST_UPDATED_TIMES.map((time) => (
+              <Item key={time} onSelect={keepOpen(() => set({ time }))}>
+                <span className="tabular">{LAST_UPDATED_TIME_LABELS[time]}</span>
+                {settings.time === time && <Check className="ml-auto size-3.5" />}
               </Item>
             ))}
           </>

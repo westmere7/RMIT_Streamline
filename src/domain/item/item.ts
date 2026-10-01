@@ -82,7 +82,11 @@ export type ColumnValue =
    * Values written before units were kept have none.
    */
   | { type: "PROGRESS"; done: number; total: number; doneUnits?: number; totalUnits?: number }
-  | { type: "DEPENDENCY"; itemIds: EntityId[] };
+  | { type: "DEPENDENCY"; itemIds: EntityId[] }
+  /** Worked out from the board's activity when the board loads; never stored. */
+  | { type: "LAST_UPDATED"; userId: EntityId | null; at: string | null }
+  /** A button holds nothing: what it does is the column's. */
+  | { type: "BUTTON" };
 
 export type ColumnValueOf<T extends ColumnType> = Extract<ColumnValue, { type: T }>;
 
@@ -146,6 +150,10 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
       return { type, done: 0, total: 0 };
     case "DEPENDENCY":
       return { type, itemIds: [] };
+    case "LAST_UPDATED":
+      return { type, userId: null, at: null };
+    case "BUTTON":
+      return { type };
   }
 }
 
@@ -193,6 +201,10 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
       return value.total === 0;
     case "DEPENDENCY":
       return value.itemIds.length === 0;
+    case "LAST_UPDATED":
+      return value.at === null;
+    case "BUTTON":
+      return true;
   }
 }
 

@@ -56,9 +56,11 @@ const BUILT_IN_NAMES: Record<PortalBuiltInKey, string> = { ...PORTAL_COLUMN_LABE
 
 /**
  * Board column types the built-ins already carry, or that must never travel:
- * a dependency names other tasks, a booking time is the Requested column.
+ * a dependency names other tasks, a booking time is the Requested column,
+ * a button is staff's to press, and Last updated is worked out on the board
+ * from activity a visitor never sees.
  */
-const NOT_CARRIED: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "ASSETS_RECAP", "BRIEF", "STAKEHOLDER", "BOOKED_AT", "DEPENDENCY"]);
+const NOT_CARRIED: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "ASSETS_RECAP", "BRIEF", "STAKEHOLDER", "BOOKED_AT", "DEPENDENCY", "LAST_UPDATED", "BUTTON"]);
 
 export function isPortalBuiltInKey(key: string): key is PortalBuiltInKey {
   return (PORTAL_BUILT_IN_ORDER as readonly string[]).includes(key);

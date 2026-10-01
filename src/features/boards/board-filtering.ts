@@ -178,6 +178,10 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
     }
     case "DEPENDENCY":
       return value.itemIds.length || null;
+    case "LAST_UPDATED":
+      return value.at ? new Date(value.at).getTime() : null;
+    case "BUTTON":
+      return null;
   }
 }
 

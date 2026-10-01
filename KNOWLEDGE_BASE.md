@@ -727,6 +727,18 @@ Sources:
   - Create board's template dropdown: "Built in" (Blank only) and "Saved". A delete button appears for the creator or an admin.
   - Picking a saved template also picks its colour and icon.
 
+### Last updated and Button columns (v0.77)
+
+- **Neither stores a value.** Both enum values come from 0101.
+- **LAST_UPDATED:** `useLastUpdatedValues` asks `activities.listLastByBoard` (the RPC `board_last_activity`, security invoker, one row a task) for the activity events the column counts (`LAST_UPDATED_SOURCE_EVENTS`).
+  - It merges the answers into the snapshot's values on the board page, so sorting, filters and the panel read them like stored values. A task with nothing counted falls back on its own creation when "created" counts.
+  - Refreshed when the board mutations settle and when assets or updates change.
+  - `withFollowers` in subscription-service forwards activity methods one by one, so a new repository method must be added there too.
+- **BUTTON:** settings (`src/domain/board/button.ts`) hold the label, colour, style, ask-first and up to 6 steps.
+  - `useButtonPress` runs the steps in order as the person pressing, through the board's own mutations and the assets and comments services. A step that can't apply is skipped and named in the toast.
+  - The cell is empty for readers. `ButtonSettingsHost` lives on the board page and opens from the column's menu, or by itself when the column is added.
+- **Kept out of** automation column pickers, link syncing (`UNSYNCED_COLUMN_TYPES`) and portal columns (`NOT_CARRIED`).
+
 ### Saved views (v0.74)
 
 - **Storage:** `board_saved_views` (0099): board, name (≤60), `shared`, `config` jsonb, `created_by` (cascades with the profile; `removePerson` hands shared ones over first). Policy 0023: anyone who can see the board reads the shared views and their own and saves private ones; shared ones need `can_edit_board` to create, change, delete or keep shared. The local store is `savedViews` (v20).
@@ -1638,6 +1650,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0077 | `board_templates` |
 | 0099 | `board_saved_views` |
 | 0100 | `board_saved_views.is_default`, one per board, always shared |
+| 0101 | LAST_UPDATED and BUTTON column types; `board_last_activity()` |
 | 0078 | REQUESTER type |
 
 | Policy | Change |

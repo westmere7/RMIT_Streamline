@@ -38,6 +38,7 @@ export function useCommentMutations(itemId: string) {
     // A comment sent to linked items changes their threads as well.
     void queryClient.invalidateQueries({ queryKey: ["comments"] });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
+    void queryClient.invalidateQueries({ queryKey: ["last-updated"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
   };

@@ -293,6 +293,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["People", "People with no part in the work, such as a contact."],
         ["Date / Time / Date + Time", "A day, a time, or both, that is not a deadline. Format sets how they read."],
         ["Countdown", "Time left until a moment. Type 45m, 3d 4h, or 2mo. Format sets its style and when it turns amber."],
+        ["Last updated", "Who last changed the task, and when. Format chooses which changes count (column changes, renames, moves, assets, updates, links, creating it) and whether it shows the person, the time or both."],
+        ["Button", "A button on every task that runs a few steps in one press: set a status or priority, put you on it, set the due date, move it, tick its assets, post an update, open a link, duplicate or archive it. Button settings picks its label, colour, style and steps, or one of the ready-made buttons."],
         ["Number / Checkbox / Link / Tags", "A number, a tick, a web address, or labels."],
         ["Dependency", "Tasks on this board this one waits for."],
       ] } },

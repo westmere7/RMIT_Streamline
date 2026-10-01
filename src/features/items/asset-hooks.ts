@@ -145,6 +145,7 @@ export function useAssetMutations(item: Item) {
     await queryClient.invalidateQueries({ queryKey: ["item-assets"] });
     // Every asset change is written to the feed, so the tab and the board's activity follow it.
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
+    void queryClient.invalidateQueries({ queryKey: ["last-updated"] });
     // Every board's snapshot, not just this one: a linked task shares these
     // lines, and the recap the other board draws was just rewritten too. Only
     // the board on screen is actually being watched, so the rest are marked

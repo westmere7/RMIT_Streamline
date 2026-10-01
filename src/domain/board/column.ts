@@ -3,6 +3,8 @@ import type { ColumnRole } from "@/domain/board/column-role";
 import { DEFAULT_DATE_TIME_SETTINGS, type DateTimeColumnSettings } from "@/domain/board/date-time-format";
 import { DEFAULT_COUNTDOWN_SETTINGS, type CountdownColumnSettings } from "@/domain/board/countdown";
 import { DEFAULT_PROGRESS_SETTINGS, type ProgressColumnSettings } from "@/domain/board/progress";
+import { DEFAULT_LAST_UPDATED_SETTINGS, type LastUpdatedColumnSettings } from "@/domain/board/last-updated";
+import { DEFAULT_BUTTON_SETTINGS, type ButtonColumnSettings } from "@/domain/board/button";
 
 export const COLUMN_TYPES = [
   "TEXT",
@@ -31,6 +33,8 @@ export const COLUMN_TYPES = [
   "BRIEF",
   "BOOKED_AT",
   "DEPENDENCY",
+  "LAST_UPDATED",
+  "BUTTON",
 ] as const;
 
 export type ColumnType = (typeof COLUMN_TYPES)[number];
@@ -145,12 +149,14 @@ export interface EmptyColumnSettings {
   kind: "none";
 }
 
-export type { DateTimeColumnSettings, CountdownColumnSettings, ProgressColumnSettings };
+export type { DateTimeColumnSettings, CountdownColumnSettings, ProgressColumnSettings, LastUpdatedColumnSettings, ButtonColumnSettings };
 
 export type ColumnSettings =
   | DateTimeColumnSettings
   | CountdownColumnSettings
   | ProgressColumnSettings
+  | LastUpdatedColumnSettings
+  | ButtonColumnSettings
   | StatusColumnSettings
   | DropdownColumnSettings
   | PriorityColumnSettings
@@ -231,6 +237,8 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   BRIEF: "Brief",
   BOOKED_AT: "Booking time",
   DEPENDENCY: "Dependency",
+  LAST_UPDATED: "Last updated",
+  BUTTON: "Button",
 };
 
 export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
@@ -261,6 +269,8 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   BRIEF: 110,
   BOOKED_AT: 130,
   DEPENDENCY: 180,
+  LAST_UPDATED: 150,
+  BUTTON: 130,
 };
 
 export const DEFAULT_STATUS_LABELS: ColumnLabel[] = [
@@ -330,6 +340,10 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
       return { ...DEFAULT_COUNTDOWN_SETTINGS };
     case "PROGRESS":
       return { ...DEFAULT_PROGRESS_SETTINGS };
+    case "LAST_UPDATED":
+      return { ...DEFAULT_LAST_UPDATED_SETTINGS, sources: [...DEFAULT_LAST_UPDATED_SETTINGS.sources] };
+    case "BUTTON":
+      return structuredClone(DEFAULT_BUTTON_SETTINGS);
     default:
       return { kind: "none" };
   }
@@ -412,6 +426,8 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   LINK: "A web address, with its own text if a bare URL would not read well.",
   TAGS: "Any number of labels at once, from a palette the board keeps.",
   DEPENDENCY: "Tasks on this board this one waits on. Never carried to a linked board.",
+  LAST_UPDATED: "Who last changed the task, and when. You choose which changes count.",
+  BUTTON: "A button that does a few things to its task in one press.",
   STATUS: "How the work is going. Drives completion, My Work and the dashboard.",
   PERSON: "Who is doing the work. Feeds workload and My Work.",
   DATE: "The deadline. Overdue and the calendar read it.",

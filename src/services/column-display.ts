@@ -76,5 +76,13 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return formatProgress(progressCounts(value, progressSettings(column.settings).countBy)) || null;
     case "DEPENDENCY":
       return value.itemIds.length ? `${value.itemIds.length} item(s)` : null;
+    case "LAST_UPDATED": {
+      if (!value.at) return null;
+      const who = value.userId ? (users.find((u) => u.id === value.userId)?.displayName ?? "Someone") : null;
+      const when = formatDateTime(value.at, dateTimeSettings(null));
+      return who ? `${who}, ${when}` : when;
+    }
+    case "BUTTON":
+      return null;
   }
 }

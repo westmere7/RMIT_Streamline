@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.77.0",
+    date: "2026-10-01",
+    title: "Last updated and Button columns",
+    changes: [
+      "Last updated shows who last changed each task and when. Its Format chooses which changes count and whether it shows the person, the time or both.",
+      "Button puts a button on every task that runs a few steps in one press: set a status or priority, put you on it, set the due date, move it, tick its assets, post an update, open a link, duplicate or archive it. Pick a ready-made button or build your own label, colour, style and steps.",
+    ],
+  },
+  {
     version: "0.76.3",
     date: "2026-10-01",
     title: "Portal link cards stand out",

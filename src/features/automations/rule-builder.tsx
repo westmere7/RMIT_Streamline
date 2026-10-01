@@ -660,7 +660,7 @@ function ActionEditor({
 
       {action.kind === "set_value" && (
         <>
-          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT"].includes(c.type), (columnId) => {
+          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT", "LAST_UPDATED", "BUTTON"].includes(c.type), (columnId) => {
             const column = vocabulary.columns.find((c) => c.id === columnId);
             onChange({ kind: "set_value", columnId, value: column ? emptyValueFor(column.type) : action.value });
           })}
@@ -673,7 +673,7 @@ function ActionEditor({
 
       {(action.kind === "set_parent_value" || action.kind === "set_subitems_value") && (
         <>
-          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT"].includes(c.type), (columnId) => {
+          {columnPicker(action.columnId, (c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT", "LAST_UPDATED", "BUTTON"].includes(c.type), (columnId) => {
             const column = vocabulary.columns.find((c) => c.id === columnId);
             onChange({ ...action, columnId, value: column ? emptyValueFor(column.type) : action.value });
           })}
@@ -688,7 +688,7 @@ function ActionEditor({
             value={action.fromColumnId}
             label="From"
             onChange={(fromColumnId) => onChange({ ...action, fromColumnId })}
-            options={vocabulary.columns.filter((c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT"].includes(c.type)).map((c) => ({ value: c.id, label: c.name }))}
+            options={vocabulary.columns.filter((c) => !["ASSETS_RECAP", "PROGRESS", "DEPENDENCY", "BOOKED_AT", "LAST_UPDATED", "BUTTON"].includes(c.type)).map((c) => ({ value: c.id, label: c.name }))}
             testId="action-column"
           />
           <span className="text-[13px] text-muted-foreground">to</span>
