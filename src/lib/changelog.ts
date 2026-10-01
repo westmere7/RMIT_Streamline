@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.7",
+    date: "2026-10-01",
+    title: "Work types focus from the radar",
+    changes: [
+      "Work types: a slice of the radar opens its card in the list with the other types still named a line each; moving onto the list shows it all again, and hovering a row lights its slice.",
+    ],
+  },
+  {
     version: "0.73.6",
     date: "2026-10-01",
     title: "Steadier work types, plainer portal cards",

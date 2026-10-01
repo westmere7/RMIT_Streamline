@@ -42,7 +42,11 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
   const profile = React.useMemo(() => workTypeProfile(current, previous, workTypes, measure, rates, person), [current, previous, workTypes, measure, rates, person]);
   const format = measure === "effort" ? formatHours : formatCount;
   const unit = UNIT_WORDS[measure];
+  // Two kinds of focus: a slice of the radar opens its work type in the list's
+  // place; a row of the list only lights its slice, since opening a card under
+  // the pointer would move the rows it is reading.
   const [active, setActive] = React.useState<string | null>(null);
+  const [lit, setLit] = React.useState<string | null>(null);
 
   const openWorkType = (row: WorkTypeRow) =>
     drill?.({
@@ -103,10 +107,11 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
       {profile.total === 0 && (profile.comparisonTotal ?? 0) === 0 ? (
         <ChartEmpty message={person ? "Nothing in this period was theirs." : "No deliverables in this period."} />
       ) : (
-        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)]" onMouseLeave={() => setActive(null)}>
-          <Radar rows={profile.rows} total={profile.total} format={format} unit={unit} active={active} onActive={setActive} onOpen={drill ? openWorkType : undefined} hasComparison={profile.comparisonTotal !== null} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} />
+        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)]" onMouseLeave={() => (setActive(null), setLit(null))}>
+          <Radar rows={profile.rows} total={profile.total} format={format} unit={unit} active={active ?? lit} onActive={setActive} onOpen={drill ? openWorkType : undefined} hasComparison={profile.comparisonTotal !== null} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} />
 
-          <div className="min-w-0">
+          {/* Coming over from the radar puts the full list back. */}
+          <div className="min-w-0" onMouseEnter={() => setActive(null)}>
             {/* Three things worth saying out loud, read off the shape. */}
             <div className="mb-3 grid gap-2 sm:grid-cols-3" data-testid="dashboard-work-types-insights">
               <Insight label="Largest" value={leader ? leader.workType.name : "—"} detail={leader ? `${Math.round((leader.value / profile.total) * 100)}% of the ${unit}` : "Nothing yet"} color={leader ? colorClasses(leader.workType.color).hex : undefined} />
@@ -130,9 +135,11 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                     <button
                       type="button"
                       onClick={drill ? () => openWorkType(row) : undefined}
-                      onMouseEnter={() => setActive(row.workType.id)}
-                      onFocus={() => setActive(row.workType.id)}
-                      className={cn("w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/40", !drill && "cursor-default")}
+                      onMouseEnter={() => setLit(row.workType.id)}
+                      onMouseLeave={() => setLit(null)}
+                      onFocus={() => setLit(row.workType.id)}
+                      onBlur={() => setLit(null)}
+                      className={cn("w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/40", lit === row.workType.id && "bg-accent/40", !drill && "cursor-default")}
                       data-testid="dashboard-work-type-row"
                     >
                       <LegendHead row={row} total={profile.total} format={format} />
@@ -149,23 +156,22 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                   </li>
                 ))}
               </ul>
-              {ranked.map((row) => {
-                const on = active === row.workType.id;
-                const hex = colorClasses(row.workType.color).hex;
+              {/* One view per work type: its card where its row was, the others down to a line each. */}
+              {ranked.map((focus) => {
+                const on = active === focus.workType.id;
                 return (
-                  <button
-                    key={row.workType.id}
-                    type="button"
-                    tabIndex={on ? 0 : -1}
-                    aria-hidden={!on}
-                    onClick={drill ? () => openWorkType(row) : undefined}
-                    className={cn("col-start-1 row-start-1 self-start rounded-lg border bg-card px-3 py-2.5 text-left transition-[opacity,visibility] duration-200", on ? "visible opacity-100" : "invisible opacity-0", !drill && "cursor-default")}
-                    style={{ borderColor: `color-mix(in oklab, ${hex} 40%, transparent)` }}
-                    data-testid={on ? "dashboard-work-type-card" : undefined}
-                  >
-                    <LegendHead row={row} total={profile.total} format={format} />
-                    <WorkTypeDetail row={row} total={profile.total} format={format} unit={unit} comparisonLabel={report.period.comparisonLabel} users={facts.users} hex={hex} canOpen={!!drill} />
-                  </button>
+                  <div key={focus.workType.id} aria-hidden={!on} className={cn("col-start-1 row-start-1 grid content-start gap-1 transition-[opacity,visibility] duration-200", on ? "visible opacity-100" : "invisible opacity-0")} data-testid={on ? "dashboard-work-type-focus" : undefined}>
+                    {ranked.map((row) => {
+                      const hex = colorClasses(row.workType.color).hex;
+                      if (row !== focus) return <LegendLine key={row.workType.id} row={row} total={profile.total} format={format} />;
+                      return (
+                        <div key={row.workType.id} className="rounded-lg border bg-card px-3 py-2.5" style={{ borderColor: `color-mix(in oklab, ${hex} 40%, transparent)` }} data-testid={on ? "dashboard-work-type-card" : undefined}>
+                          <LegendHead row={row} total={profile.total} format={format} />
+                          <WorkTypeDetail row={row} total={profile.total} format={format} comparisonLabel={report.period.comparisonLabel} users={facts.users} hex={hex} canOpen={!!drill} />
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
@@ -207,14 +213,28 @@ function LegendHead({ row, total, format }: { row: WorkTypeRow; total: number; f
   );
 }
 
-/** The detail a segment opens into: the figures against last year, what it is made of, and who is doing it. */
-function WorkTypeDetail({ row, total, format, unit, comparisonLabel, users, hex, canOpen }: { row: WorkTypeRow; total: number; format: (value: number) => string; unit: string; comparisonLabel: string; users: DashboardFacts["users"]; hex: string; canOpen: boolean }) {
+/** A work type down to one line, beside the one that is open. */
+function LegendLine({ row, total, format }: { row: WorkTypeRow; total: number; format: (value: number) => string }) {
+  const hex = colorClasses(row.workType.color).hex;
   const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
-  const delivered = row.units > 0 ? row.doneUnits / row.units : 0;
+  return (
+    <span className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+      <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ background: hex }} />
+      <span className="min-w-0 flex-1 truncate">{row.workType.name}</span>
+      <span className="font-medium text-foreground/80 tabular">{format(row.value)}</span>
+      <span className="w-10 text-right text-2xs tabular">{total > 0 ? Math.round((row.value / total) * 100) : 0}%</span>
+      <Change value={change} />
+    </span>
+  );
+}
+
+/** The detail a segment opens into: the figures against last year, what it is made of, and who is doing it. */
+function WorkTypeDetail({ row, total, format, comparisonLabel, users, hex, canOpen }: { row: WorkTypeRow; total: number; format: (value: number) => string; comparisonLabel: string; users: DashboardFacts["users"]; hex: string; canOpen: boolean }) {
+  const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
   const typePeak = Math.max(1, ...row.topTypes.map((t) => t.units));
   return (
-    <span className="mt-2.5 block border-t border-border/60 pt-2.5" data-testid="dashboard-work-type-detail">
-      <span className="grid grid-cols-3 gap-1.5">
+    <span className="@container mt-2.5 block border-t border-border/60 pt-2.5" data-testid="dashboard-work-type-detail">
+      <span className="grid grid-cols-3 gap-1.5 @lg:grid-cols-6">
         <DetailStat label="This period" value={format(row.value)} />
         <DetailStat label={comparisonLabel} value={row.comparison !== null ? format(row.comparison) : "—"} />
         <DetailStat label="Change" value={change === null ? "—" : `${change > 0 ? "+" : ""}${Math.round(change * 100)}%`} tone={change === null ? undefined : change >= 0 ? "up" : "down"} />
@@ -223,17 +243,7 @@ function WorkTypeDetail({ row, total, format, unit, comparisonLabel, users, hex,
         <DetailStat label="Overdue" value={formatCount(row.overdueLines)} tone={row.overdueLines > 0 ? "down" : undefined} />
       </span>
 
-      <span className="mt-2.5 flex items-center gap-2 text-2xs">
-        <span className="w-16 shrink-0 text-muted-foreground">Delivered</span>
-        <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70">
-          <span className="block h-full rounded-full" style={{ width: `${delivered * 100}%`, background: hex }} />
-        </span>
-        <span className="shrink-0 tabular">
-          {formatCount(row.doneUnits)} of {formatCount(row.units)} units
-        </span>
-      </span>
-
-      <span className="mt-2.5 grid gap-3 sm:grid-cols-2">
+      <span className="mt-2.5 grid gap-3 @md:grid-cols-2">
         <span className="block min-w-0">
           <span className="mb-1 block text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Made of</span>
           {row.topTypes.slice(0, 6).map((t) => (
@@ -265,7 +275,7 @@ function WorkTypeDetail({ row, total, format, unit, comparisonLabel, users, hex,
           {row.people.length === 0 && <span className="text-2xs text-muted-foreground">Nobody in charge yet.</span>}
         </span>
       </span>
-      {canOpen && <span className="mt-1.5 block text-2xs text-muted-foreground">Click for the {formatCount(row.taskIds.size)} tasks · in {unit}</span>}
+      {canOpen && <span className="mt-1.5 block text-2xs text-muted-foreground">Click the slice for its {formatCount(row.taskIds.size)} tasks</span>}
     </span>
   );
 }
