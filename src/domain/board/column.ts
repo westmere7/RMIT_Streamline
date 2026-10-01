@@ -26,6 +26,7 @@ export const COLUMN_TYPES = [
   "STAKEHOLDER",
   "SIZE",
   "ASSETS_RECAP",
+  "PROGRESS",
   "BRIEF",
   "BOOKED_AT",
   "DEPENDENCY",
@@ -224,6 +225,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   STAKEHOLDER: "Department",
   SIZE: "Size",
   ASSETS_RECAP: "Assets recap",
+  PROGRESS: "Progress",
   BRIEF: "Brief",
   BOOKED_AT: "Booking time",
   DEPENDENCY: "Dependency",
@@ -253,6 +255,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   STAKEHOLDER: 124,
   SIZE: 110,
   ASSETS_RECAP: 200,
+  PROGRESS: 140,
   BRIEF: 110,
   BOOKED_AT: 130,
   DEPENDENCY: 180,
@@ -380,7 +383,7 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  * Naming is still the board's business: a team that calls its PIC column
  * "Designer" is understood perfectly well.
  */
-export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "REQUESTER", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "BRIEF", "BOOKED_AT"];
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "REQUESTER", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "PROGRESS", "BRIEF", "BOOKED_AT"];
 
 /**
  * What each type is for, shown when the type is hovered in the picker.
@@ -413,6 +416,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   STAKEHOLDER: "Who the work is for, from Settings → Departments.",
   SIZE: "How big the work is. Adds up into effort figures.",
   ASSETS_RECAP: "A live summary of the task's deliverables.",
+  PROGRESS: "How many of the task's assets are done. Empty until it has some.",
   BRIEF: "The request's brief, filled in by bookings.",
   BOOKED_AT: "When the task was booked. Task Allocation only.",
 };

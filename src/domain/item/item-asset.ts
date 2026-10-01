@@ -289,6 +289,21 @@ export function formatAssetsRecap(recap: Pick<AssetsRecap, "lines" | "quantity">
   return `${plural(recap.lines, "asset")}${recap.quantity > recap.lines ? ` ×${recap.quantity}` : ""} · ${people} PIC`;
 }
 
+/** The value stored in a Progress column: lines, not units, the way the strip on the task counts them. */
+export function progressColumnValue(recap: Pick<AssetsRecap, "lines" | "done">): { type: "PROGRESS"; done: number; total: number } {
+  return { type: "PROGRESS", done: recap.done, total: recap.lines };
+}
+
+/** "3 of 5 done", or nothing when there are no assets. */
+export function formatProgress(value: { done: number; total: number }): string {
+  return value.total ? `${value.done} of ${value.total} done` : "";
+}
+
+/** Whole percent done, or null when there is nothing to count. */
+export function progressPercent(value: { done: number; total: number }): number | null {
+  return value.total ? Math.round((value.done / value.total) * 100) : null;
+}
+
 /** The value stored in an "Assets recap" column, so the board can sort, filter and export it. */
 export function recapColumnValue(recap: AssetsRecap): { type: "ASSETS_RECAP"; lines: number; quantity: number; types: number; people: number; nextDue: ISODate | null; overdue: number } {
   return { type: "ASSETS_RECAP", lines: recap.lines, quantity: recap.quantity, types: recap.types.length, people: recap.assigneeIds.length, nextDue: recap.nextDue, overdue: recap.overdue };

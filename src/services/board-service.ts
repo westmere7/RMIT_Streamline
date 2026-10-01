@@ -17,7 +17,7 @@ import type {
 import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, isSystemColumnType, portalBriefMarkdown } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
-import { backfillAssetsRecap } from "./item-asset-service";
+import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
 import { NotFoundError } from "@/data/repositories";
 import { BOARD_TEMPLATES, type BoardTemplateId } from "@/features/boards/templates";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -515,8 +515,8 @@ export class BoardService {
       if (existing && columnTypeTaken(input.type, [existing])) throw new Error(`This board already has a ${COLUMN_TYPE_LABELS[input.type]} column.`);
     }
     const column = await this.repos.boards.createColumn({ ...input, name: input.name.trim() || "New column" });
-    // A recap column summarises lines that may already exist; fill it in straight away.
-    if (column.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, column.boardId, column.id);
+    // A recap or progress column summarises lines that may already exist; fill it in straight away.
+    if (isAssetColumn(column)) await backfillAssetsRecap(this.repos, column.boardId, column.id);
     if (column.type === "BRIEF") await this.fillBriefColumn(column);
     return column;
   }

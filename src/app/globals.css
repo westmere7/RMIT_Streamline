@@ -422,6 +422,37 @@
   list-style: disc;
   padding-left: 1.25rem;
 }
+/* A checklist being written: empty boxes, never ticked here. The ticks are
+   made on the posted update (src/components/shared/rich-text.tsx). */
+.rich-text-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.rich-text-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.rich-text-editor .ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 3px;
+  pointer-events: none;
+  user-select: none;
+}
+.rich-text-editor .ProseMirror ul[data-type="taskList"] li > label input {
+  appearance: none;
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: 0;
+  border: 1px solid color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  border-radius: 4px;
+  background: var(--background);
+}
+.rich-text-editor .ProseMirror ul[data-type="taskList"] li > div {
+  min-width: 0;
+  flex: 1;
+}
 .rich-text-editor .ProseMirror ol {
   list-style: decimal;
   padding-left: 1.25rem;

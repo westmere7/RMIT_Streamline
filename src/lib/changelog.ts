@@ -18,6 +18,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.69.0",
+    date: "2026-10-01",
+    title: "Checklists and Progress",
+    changes: [
+      "Updates can hold checklists: press the checklist button, or start a line with [ ]. Anyone working on the task can tick a box; hover a tick to see who ticked it.",
+      "An update with a checklist shows how far through it is, 2/5, beside its replies.",
+      "New special column, Progress: a bar of how many of the task's assets are done. Empty until the task has assets.",
+      "The task panel's header keeps Star, Follow, the menu and Close. Task journey and Share by link are in the menu.",
+      "The form editor's Templates panel: Save sits beside the dropdown as a small button, with Delete for the template loaded. Load a template is gone.",
+      "Open Task Allocation is gone from under the form's links.",
+      "The Admin panel in the sidebar is no longer boxed.",
+    ],
+  },
+  {
     version: "0.68.1",
     date: "2026-09-30",
     title: "Pick a template",

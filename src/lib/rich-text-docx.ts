@@ -101,6 +101,8 @@ function block(node: BlockNode, links: Links): string {
       return paragraph(inline(node.children, links), { indent });
     case "list":
       return node.items.map((item, index) => paragraph(run(node.ordered ? `${index + 1}.\t` : "•\t") + inline(item, links), { indent, hanging: INDENT_STEP, after: 60 })).join("");
+    case "checklist":
+      return node.items.map((item) => paragraph(run("☐\t") + inline(item.children, links), { indent, hanging: INDENT_STEP, after: 60 })).join("");
   }
 }
 

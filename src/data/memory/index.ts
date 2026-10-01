@@ -190,6 +190,7 @@ export function createMemoryRepositories(
       update: readOnly("editing an update"),
       delete: readOnly("deleting an update"),
       setReaction: readOnly("reacting to an update"),
+      setCheck: readOnly("ticking a checklist"),
     },
     workspaceLists: {
       // A shared board is read with the built-in lists; nobody is signed in to edit them.

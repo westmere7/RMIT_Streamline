@@ -1,5 +1,5 @@
 import type { ActivityEventType, ActivityInput, ActivityMetadata, AssetLink, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
-import { picFromAssets, recapAssets, recapColumnValue, resolveColumnRoles } from "@/domain";
+import { picFromAssets, progressColumnValue, recapAssets, recapColumnValue, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { todayISO } from "@/lib/dates/dates";
@@ -442,8 +442,8 @@ export class ItemAssetService {
   }
 
   /**
-   * Rewrites the ASSETS_RECAP values from the lines. A no-op on boards without
-   * such a column.
+   * Rewrites the ASSETS_RECAP and PROGRESS values from the lines. A no-op on
+   * boards without either column.
    *
    * Every item sharing these lines is rewritten, not just the one that changed:
    * they are all looking at the same deliverables, so a tick on one board has
@@ -452,17 +452,23 @@ export class ItemAssetService {
   async recompute(itemId: EntityId, boardId: EntityId): Promise<void> {
     const ids = await this.sharedWith(itemId);
     const lines = (await Promise.all(ids.map((id) => this.repos.itemAssets.listByItem(id)))).flat();
-    const value = recapColumnValue(recapAssets(lines, todayISO()));
+    const recap = recapAssets(lines, todayISO());
+    const values = { ASSETS_RECAP: recapColumnValue(recap), PROGRESS: progressColumnValue(recap) };
     const items = ids.length === 1 ? [{ id: itemId, boardId }] : await this.repos.items.listByIds(ids);
-    const writes: Array<{ itemId: EntityId; columnId: EntityId; value: typeof value }> = [];
+    const writes: Array<{ itemId: EntityId; columnId: EntityId; value: (typeof values)[keyof typeof values] }> = [];
     const byBoard = new Map<EntityId, EntityId[]>();
     for (const item of items) byBoard.set(item.boardId, [...(byBoard.get(item.boardId) ?? []), item.id]);
     for (const [board, itemIds] of byBoard) {
-      const columns = (await this.repos.boards.listColumns(board)).filter((c) => c.type === "ASSETS_RECAP");
-      for (const column of columns) for (const id of itemIds) writes.push({ itemId: id, columnId: column.id, value });
+      const columns = (await this.repos.boards.listColumns(board)).filter(isAssetColumn);
+      for (const column of columns) for (const id of itemIds) writes.push({ itemId: id, columnId: column.id, value: values[column.type] });
     }
     if (writes.length) await this.repos.items.setValues(writes);
   }
+}
+
+/** The columns worked out from a task's asset lines rather than typed in. */
+export function isAssetColumn<T extends { type: string }>(column: T): column is T & { type: "ASSETS_RECAP" | "PROGRESS" } {
+  return column.type === "ASSETS_RECAP" || column.type === "PROGRESS";
 }
 
 function peopleOn(lines: readonly ItemAsset[]): Set<EntityId> {
@@ -516,17 +522,18 @@ function changeEvents(before: ItemAsset, after: ItemAsset): AssetEvent[] {
 }
 
 /**
- * Fills a freshly added ASSETS_RECAP column for every item on the board that
- * already has lines. Shared by adding a column by hand and by the Task
- * Allocation board's column top-up.
+ * Fills a freshly added ASSETS_RECAP or PROGRESS column for every item on the
+ * board that already has lines. Shared by adding a column by hand and by the
+ * Task Allocation board's column top-up.
  */
 export async function backfillAssetsRecap(repos: Repositories, boardId: EntityId, columnId: EntityId): Promise<void> {
   const column = await repos.boards.getColumn(columnId);
-  if (!column || column.type !== "ASSETS_RECAP") throw new NotFoundError("Column", columnId);
+  if (!column || !isAssetColumn(column)) throw new NotFoundError("Column", columnId);
   const lines = await repos.itemAssets.listByBoard(boardId);
   if (lines.length === 0) return;
   const byItem = new Map<EntityId, ItemAsset[]>();
   for (const line of lines) byItem.set(line.itemId, [...(byItem.get(line.itemId) ?? []), line]);
   const today = todayISO();
-  await repos.items.setValues([...byItem.entries()].map(([itemId, itemLines]) => ({ itemId, columnId, value: recapColumnValue(recapAssets(itemLines, today)) })));
+  const valueOf = column.type === "PROGRESS" ? progressColumnValue : recapColumnValue;
+  await repos.items.setValues([...byItem.entries()].map(([itemId, itemLines]) => ({ itemId, columnId, value: valueOf(recapAssets(itemLines, today)) })));
 }

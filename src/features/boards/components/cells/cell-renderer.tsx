@@ -5,7 +5,7 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
+import { columnLabels, columnTagOptions, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, progressPercent, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -91,6 +91,8 @@ export function CellRenderer(props: CellProps) {
       return <SizeCell {...props} />;
     case "ASSETS_RECAP":
       return <AssetsRecapCell {...props} />;
+    case "PROGRESS":
+      return <ProgressCell {...props} />;
     case "DEPENDENCY":
       return <DependencyCell {...props} />;
   }
@@ -394,6 +396,46 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
           </span>
         )}
       </button>
+    </CellShell>
+  );
+}
+
+// ---- Progress ------------------------------------------------------------------
+
+/**
+ * Read-only: how many of the task's asset lines are ticked off, as a bar and a
+ * percentage. Lines, not units, the same count as the strip on the task. Empty
+ * when the task has no assets — there is nothing to be part way through.
+ * Clicking opens the Assets tab.
+ */
+export function ProgressCell({ item, column, value, width }: CellProps) {
+  const { board, openItem } = useBoardContext();
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  const assets = useBoardAssets(board.id);
+  const stored = valueOf("PROGRESS", value);
+  const live = React.useMemo(() => {
+    const lines = assets.data?.byItem.get(item.id);
+    return lines ? { done: lines.filter((line) => line.completedAt).length, total: lines.length } : null;
+  }, [assets.data, item.id]);
+  const progress = live ?? stored;
+  const percent = progressPercent(progress);
+  const text = formatProgress(progress);
+  const open = () => {
+    setRequestedItemTab({ itemId: item.id, tab: "assets" });
+    openItem(item.id);
+  };
+  return (
+    <CellShell width={width ?? column.width} align={columnAlign(column.type)} aria-label={`${column.name}: ${text || "no assets"} for ${item.name}`} data-testid="progress-cell">
+      {percent === null ? (
+        <span className="flex-1" />
+      ) : (
+        <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" title={text}>
+          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={text}>
+            <span className={cn("block h-full rounded-full bg-emerald-500 transition-[width] duration-300", percent > 0 && percent < 100 && "progress-stripes")} style={{ width: `${percent}%` }} />
+          </span>
+          <span className={cn("w-8 shrink-0 text-right text-2xs tabular", percent === 100 ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>{percent}%</span>
+        </button>
+      )}
     </CellShell>
   );
 }

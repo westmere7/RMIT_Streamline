@@ -1,8 +1,10 @@
 "use client";
 
+import { Check } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { parseRichText, splitBriefFacts, type BlockNode, type BriefFacts, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { SimpleTooltip } from "@/components/ui/tooltip";
+import { parseRichText, splitBriefFacts, type BlockNode, type BriefFacts, type ChecklistItem, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
 /** The palette an update can use. Chosen to stay readable on both themes. */
@@ -107,7 +109,49 @@ function indentClass(indent: number | undefined): string {
  */
 export type RichTextVariant = "compact" | "document";
 
-function Block({ node, mentionHref, variant = "compact" }: { node: BlockNode; mentionHref?: (displayName: string) => string | null; variant?: RichTextVariant }) {
+/**
+ * The ticks on an update's checklists, and who may change them. Without it a
+ * checklist still shows its boxes, empty and still: a brief or a preview has
+ * nowhere to keep a tick.
+ */
+export interface RichTextChecklist {
+  /** Ticked boxes by key, with what the tooltip says about each ("Ticked by Linh, 2h ago"). */
+  ticked: ReadonlyMap<string, string>;
+  /** Absent where the reader may only look. */
+  onToggle?: (key: string, on: boolean) => void;
+}
+
+function ChecklistBox({ item, checklist, mentionHref }: { item: ChecklistItem; checklist?: RichTextChecklist; mentionHref?: (displayName: string) => string | null }) {
+  const note = checklist?.ticked.get(item.key);
+  const ticked = note !== undefined;
+  const toggle = checklist?.onToggle;
+  const box = (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={ticked}
+      disabled={!toggle}
+      onClick={() => toggle?.(item.key, !ticked)}
+      className={cn(
+        "mt-[3px] flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors disabled:cursor-default",
+        ticked ? "border-emerald-500 bg-emerald-500 text-white" : "border-muted-foreground/50 bg-background enabled:hover:border-foreground",
+      )}
+      data-testid="checklist-box"
+    >
+      {ticked && <Check className="size-2.5" strokeWidth={3.5} />}
+    </button>
+  );
+  return (
+    <li className="flex items-start gap-2" data-checked={ticked || undefined} data-testid="checklist-item">
+      {note ? <SimpleTooltip label={note}>{box}</SimpleTooltip> : box}
+      <span className={cn("min-w-0 flex-1 transition-colors", ticked && "text-muted-foreground line-through decoration-muted-foreground/60")}>
+        <Inline nodes={item.children} mentionHref={mentionHref} />
+      </span>
+    </li>
+  );
+}
+
+function Block({ node, mentionHref, variant = "compact", checklist }: { node: BlockNode; mentionHref?: (displayName: string) => string | null; variant?: RichTextVariant; checklist?: RichTextChecklist }) {
   const doc = variant === "document";
   switch (node.type) {
     case "rule":
@@ -137,6 +181,14 @@ function Block({ node, mentionHref, variant = "compact" }: { node: BlockNode; me
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
             </li>
+          ))}
+        </ul>
+      );
+    case "checklist":
+      return (
+        <ul className={cn("my-1 space-y-1", indentClass(node.indent))} data-testid="checklist">
+          {node.items.map((item) => (
+            <ChecklistBox key={item.key} item={item} checklist={checklist} mentionHref={mentionHref} />
           ))}
         </ul>
       );
@@ -188,6 +240,7 @@ export function RichText({
   className,
   mentionHref,
   variant = "compact",
+  checklist,
 }: {
   body: string;
   mentionNames?: readonly string[];
@@ -196,6 +249,8 @@ export function RichText({
   variant?: RichTextVariant;
   /** Where an @name leads. Without it a mention is highlighted but not clickable. */
   mentionHref?: (displayName: string) => string | null;
+  /** The ticks on its checklists. */
+  checklist?: RichTextChecklist;
 }) {
   const parsed = React.useMemo(() => parseRichText(body, mentionNames), [body, mentionNames]);
   const { facts, rest: blocks } = React.useMemo(() => (variant === "document" ? splitBriefFacts(parsed) : { facts: null, rest: parsed }), [parsed, variant]);
@@ -203,7 +258,7 @@ export function RichText({
     <div className={cn("space-y-1 text-[13px] break-words", className)} data-testid="rich-text">
       {facts && <BriefFactsHeader facts={facts} />}
       {blocks.map((block, index) => (
-        <Block key={index} node={block} mentionHref={mentionHref} variant={variant} />
+        <Block key={index} node={block} mentionHref={mentionHref} variant={variant} checklist={checklist} />
       ))}
     </div>
   );

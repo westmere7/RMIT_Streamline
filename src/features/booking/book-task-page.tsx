@@ -1,8 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, Inbox, LoaderCircle } from "lucide-react";
-import Link from "next/link";
+import { Check, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -258,7 +257,6 @@ function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) 
   // The origin is only known in the browser; until hydration the path alone is shown.
   const origin = React.useSyncExternalStore(subscribeNever, () => window.location.origin, () => "");
   const publicUrl = key ? `${origin}${routes.publicBooking(ws.slug, key)}` : "";
-  const allocation = ws.boards.find((b) => b.system === "TASK_ALLOCATION");
 
   const copy = async () => {
     try {
@@ -273,7 +271,7 @@ function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) 
   return (
     <aside className="scrollbar-thin space-y-3 lg:min-h-0 lg:overflow-y-auto">
       <div ref={editorSlot} />
-      {/* The public form and where it lands: three buttons, nothing to read. */}
+      {/* The public form: two buttons, nothing to read. */}
       <div className="grid gap-2" data-testid="booking-share">
         <div className="grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" onClick={() => void copy()} disabled={!publicUrl} data-testid="booking-copy-link">
@@ -285,13 +283,6 @@ function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) 
             </a>
           </Button>
         </div>
-        {allocation && (
-          <Button asChild variant="outline">
-            <Link href={ws.boardPath(allocation)} data-testid="booking-open-allocation">
-              <Inbox /> Open {allocation.name}
-            </Link>
-          </Button>
-        )}
       </div>
     </aside>
   );

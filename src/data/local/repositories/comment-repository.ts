@@ -1,4 +1,4 @@
-import { withReaction, type Comment, type CommentInput } from "@/domain";
+import { withCheck, withReaction, type Comment, type CommentInput } from "@/domain";
 import type { CommentRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -70,5 +70,12 @@ export class LocalCommentRepository implements CommentRepository {
     const existing = await db.get("comments", comment.id);
     if (!existing) throw new NotFoundError("Comment", comment.id);
     await db.put("comments", { ...existing, reactions: withReaction(existing.reactions, userId, emoji, on, nowIso()) });
+  }
+
+  async setCheck(comment: Pick<Comment, "id" | "itemId">, key: string, userId: string, on: boolean): Promise<void> {
+    const db = await this.conn.getDb();
+    const existing = await db.get("comments", comment.id);
+    if (!existing) throw new NotFoundError("Comment", comment.id);
+    await db.put("comments", { ...existing, checks: withCheck(existing.checks, key, userId, on, nowIso()) });
   }
 }

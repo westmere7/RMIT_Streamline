@@ -1,12 +1,13 @@
 "use client";
 
 import { Extension, getMarkRange, Mark, mergeAttributes } from "@tiptap/core";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
-import { Bold, ExternalLink, Heading1, Heading2, Indent, Italic, Link2, List, ListOrdered, Minus, Outdent, Palette, Pencil, Trash2, Underline } from "lucide-react";
+import { Bold, ExternalLink, Heading1, Heading2, Indent, Italic, Link2, List, ListChecks, ListOrdered, Minus, Outdent, Palette, Pencil, Trash2, Underline } from "lucide-react";
 import * as React from "react";
 import { RICH_TEXT_COLOR_CLASSES } from "@/components/shared/rich-text";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -57,6 +58,11 @@ export interface RichTextEditorProps {
    * writing in yet. The parent decides when it opens up.
    */
   compact?: boolean;
+  /**
+   * Offer the checklist button. Only where the ticks have somewhere to live —
+   * an update. A "[ ]" line typed anywhere else still reads as a box.
+   */
+  checklist?: boolean;
 }
 
 /** Text colour from the fixed palette, stored as {c:red}…{/c}. */
@@ -98,7 +104,7 @@ const TextColor = Mark.create({
 const BlockIndent = Extension.create({
   name: "blockIndent",
   addOptions() {
-    return { types: ["paragraph", "heading", "bulletList", "orderedList"] };
+    return { types: ["paragraph", "heading", "bulletList", "orderedList", "taskList"] };
   },
   addGlobalAttributes() {
     return [
@@ -121,6 +127,7 @@ const BlockIndent = Extension.create({
     const step = (delta: number) => (): boolean => {
       const editor = this.editor;
       if (editor.isActive("listItem")) return delta > 0 ? editor.commands.sinkListItem("listItem") : editor.commands.liftListItem("listItem");
+      // A checklist is one level deep: Tab moves the whole list, like a paragraph.
       const types = this.options.types as string[];
       const type = types.find((name) => editor.isActive(name)) ?? "paragraph";
       const current = Number(editor.getAttributes(type).indent) || 0;
@@ -165,7 +172,7 @@ type LinkCardState = { href: string; from: number; to: number; left: number; top
  * as soon as you type "@". What is stored is still the plain markup that
  * ./rich-text.ts reads, so nothing about posted updates changes.
  */
-export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill, compact = false }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill, compact = false, checklist = false }: RichTextEditorProps) {
   const [mention, setMention] = React.useState<MentionState | null>(null);
   const [highlighted, setHighlighted] = React.useState(0);
   const [colorsOpen, setColorsOpen] = React.useState(false);
@@ -207,6 +214,9 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         },
       }),
       TextColor,
+      // One level, no nesting: the ticks are kept by each box's words (checklistKey), not by where it sits.
+      TaskList,
+      TaskItem.configure({ nested: false }),
       BlockIndent,
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Extension.create({
@@ -307,7 +317,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     editor.commands.setContent(richTextToDoc(value, namesRef.current), { emitUpdate: false });
   }, [editor, value]);
 
-  const EMPTY_STATE = { bold: false, italic: false, underline: false, h1: false, h2: false, bullets: false, numbers: false, link: false, indent: 0, color: null as RichTextColor | null };
+  const EMPTY_STATE = { bold: false, italic: false, underline: false, h1: false, h2: false, bullets: false, numbers: false, tasks: false, link: false, indent: 0, color: null as RichTextColor | null };
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -318,6 +328,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
       h2: e?.isActive("heading", { level: 2 }) ?? false,
       bullets: e?.isActive("bulletList") ?? false,
       numbers: e?.isActive("orderedList") ?? false,
+      tasks: e?.isActive("taskList") ?? false,
       indent: Number(e?.getAttributes(e?.isActive("heading") ? "heading" : "paragraph").indent) || 0,
       link: e?.isActive("link") ?? false,
       color: (e?.getAttributes("textColor").color as RichTextColor | undefined) ?? null,
@@ -453,6 +464,11 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         <ToolButton label="Numbered list" pressed={state.numbers} onClick={() => editor?.chain().focus().toggleOrderedList().run()} testId="format-numbers">
           <ListOrdered className="size-3.5" />
         </ToolButton>
+        {checklist && (
+          <ToolButton label="Checklist" pressed={state.tasks} onClick={() => editor?.chain().focus().toggleTaskList().run()} testId="format-checklist">
+            <ListChecks className="size-3.5" />
+          </ToolButton>
+        )}
         <Popover open={linkOpen} onOpenChange={setLinkOpen}>
           <PopoverAnchor asChild>
             <span className="inline-flex">

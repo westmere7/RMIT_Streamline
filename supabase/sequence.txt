@@ -124,3 +124,5 @@ migrations/0090_board_pic_from_assets.sql
 migrations/0091_item_pic_from_assets.sql
 migrations/0092_subscriptions.sql
 migrations/0093_item_favourites.sql
+migrations/0094_progress_column_type.sql
+migrations/0095_comment_checks.sql

@@ -332,15 +332,13 @@ test.describe("task booking", () => {
 
     // Change the form, then load the template back over it.
     await page.getByTestId("editor-basics-title").fill("Your request");
-    await page.getByTestId("template-load").click();
-    await expect(page.getByText("The form as it shipped.")).toBeVisible();
-    await page.getByRole("button", { name: "Load", exact: true }).first().click();
+    await page.getByTestId("template-quick-select").click();
+    await page.getByRole("option", { name: "Built-in copy" }).click();
     await expect(page.getByTestId("editor-basics-title")).toHaveValue("About you and your request");
 
     // And delete it again.
-    await page.getByTestId("template-load").click();
     await page.getByRole("button", { name: "Delete template Built-in copy" }).click();
     await page.getByRole("button", { name: "Delete template", exact: true }).click();
-    await expect(page.getByText("No templates saved yet.")).toBeVisible();
+    await expect(page.getByTestId("template-quick-select")).toContainText("No templates yet");
   });
 });

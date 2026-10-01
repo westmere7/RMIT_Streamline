@@ -8,6 +8,7 @@
  *   **bold**            *italic*            __underlined__
  *   # Heading           ## Subheading
  *   - bullet            1. numbered
+ *   - [ ] checklist     a box anyone on the task can tick (see checklistKey)
  *   [text](https://…)   bare https://… addresses
  *   {c:red}coloured{/c} from a fixed palette
  *   @Full Name          mentions, matched against the workspace
@@ -46,9 +47,48 @@ export type BlockNode =
   | { type: "paragraph"; children: InlineNode[]; indent?: number }
   | { type: "heading"; level: 1 | 2; children: InlineNode[]; indent?: number }
   | { type: "list"; ordered: boolean; items: InlineNode[][]; indent?: number }
+  /** Boxes to tick. The ticks are not in the text; each box is found again by its `key`. */
+  | { type: "checklist"; items: ChecklistItem[]; indent?: number }
   /** A line across the page: the separator of a brief, the break between two groups of questions. */
   | { type: "rule" };
 
+export interface ChecklistItem {
+  key: string;
+  children: InlineNode[];
+}
+
+/** A checklist line: "- [ ] words". An "[x]" someone typed reads the same; ticks are stored apart. */
+const CHECKLIST_LINE = /^[-*]\s+\[[ xX]?\](?:\s+(.*))?$/;
+
+/** Longest a box's key gets. The rest of a very long line still shows; it just is not part of the name. */
+const CHECK_KEY_MAX = 200;
+
+/**
+ * What a checklist box is called, so a tick can find it again.
+ *
+ * Ticks are kept apart from the update (its text is its author's to change,
+ * the boxes are everyone's), so each box needs a name that survives an edit.
+ * Its words do: the author adding a line above it leaves it ticked, rewording
+ * it clears it — it is a different thing to do now. Case, spacing and
+ * formatting do not count. The second box with the same words is "words#2".
+ */
+export function checklistKey(text: string, seen: Map<string, number>): string {
+  const base = richTextToPlain(text).replace(/\s+/g, " ").trim().toLowerCase().slice(0, CHECK_KEY_MAX) || "·";
+  const count = (seen.get(base) ?? 0) + 1;
+  seen.set(base, count);
+  return count === 1 ? base : `${base}#${count}`;
+}
+
+/** Every checklist box in an update, by key, in order. */
+export function checklistKeys(body: string): string[] {
+  const seen = new Map<string, number>();
+  const keys: string[] = [];
+  for (const raw of body.replace(/\r\n?/g, "\n").split("\n")) {
+    const match = CHECKLIST_LINE.exec(raw.trim());
+    if (match) keys.push(checklistKey(match[1] ?? "", seen));
+  }
+  return keys;
+}
 
 /** Addresses we are willing to turn into a link. */
 export function safeHref(raw: string): string | null {
@@ -167,6 +207,8 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
   const blocks: BlockNode[] = [];
   let paragraph: { lines: string[]; indent: number } | null = null;
   let list: { ordered: boolean; items: string[]; indent: number } | null = null;
+  let checklist: { items: ChecklistItem[]; indent: number } | null = null;
+  const seen = new Map<string, number>();
 
   const flushParagraph = () => {
     if (!paragraph) return;
@@ -178,6 +220,11 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
     blocks.push({ type: "list", ordered: list.ordered, items: list.items.map((item) => parseInline(item, mentionNames)), ...(list.indent ? { indent: list.indent } : {}) });
     list = null;
   };
+  const flushChecklist = () => {
+    if (!checklist) return;
+    blocks.push({ type: "checklist", items: checklist.items, ...(checklist.indent ? { indent: checklist.indent } : {}) });
+    checklist = null;
+  };
 
   for (const raw of lines) {
     const { indent, rest: line } = readIndent(raw);
@@ -187,9 +234,23 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
     if (/^-{3,}$/.test(line.trim())) {
       flushParagraph();
       flushList();
+      flushChecklist();
       blocks.push({ type: "rule" });
       continue;
     }
+
+    // Before the bullet rule, which would read "[ ] words" as a bullet's text.
+    const check = CHECKLIST_LINE.exec(line);
+    if (check) {
+      flushParagraph();
+      flushList();
+      if (checklist && checklist.indent !== indent) flushChecklist();
+      checklist ??= { items: [], indent };
+      const text = check[1] ?? "";
+      checklist.items.push({ key: checklistKey(text, seen), children: parseInline(text, mentionNames) });
+      continue;
+    }
+    flushChecklist();
 
     const heading = /^(#{1,2})\s+(.*)$/.exec(line);
     const bullet = /^[-*]\s+(.*)$/.exec(line);
@@ -225,6 +286,7 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
   }
   flushParagraph();
   flushList();
+  flushChecklist();
   return blocks;
 }
 
@@ -243,6 +305,7 @@ export function richTextToPlain(body: string): string {
   return body
     .replace(/^[ \t]*-{3,}[ \t]*$/gm, "")
     .replace(/^[ \t]+/gm, "")
+    .replace(/^\s*[-*]\s+\[[ xX]?\](\s+|$)/gm, "")
     .replace(/^\s*[-*]\s+/gm, "")
     .replace(/^\s*\d+[.)]\s+/gm, "")
     .replace(/^#{1,2}\s+/gm, "")
@@ -262,6 +325,8 @@ export function richTextToPlain(body: string): string {
  * list ends there), or null when this is not a list at all.
  */
 export function continueList(currentLine: string): string | null {
+  const check = /^(\s*)([-*])\s+\[[ xX]?\](?:\s+(.*))?$/.exec(currentLine);
+  if (check) return check[3]?.trim() ? `${check[1]}${check[2]} [ ] ` : "";
   const bullet = /^(\s*)([-*])\s+(.*)$/.exec(currentLine);
   if (bullet) return bullet[3]!.trim() ? `${bullet[1]}${bullet[2]} ` : "";
   const numbered = /^(\s*)(\d+)([.)])\s+(.*)$/.exec(currentLine);

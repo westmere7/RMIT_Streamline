@@ -23,7 +23,7 @@ import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { taskAllocationColumns } from "./booking-service";
-import { backfillAssetsRecap } from "./item-asset-service";
+import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
 
 /** The Admin team and its Task Allocation board, as the app creates them. */
 export const SYSTEM_TEAM = { name: "Admin", description: "Task allocation and workspace administration.", color: "navy", icon: "shield-check" } as const;
@@ -503,7 +503,7 @@ export class WorkspaceService {
       const present = columns.some((c) => sameKind(c.type) && (isSystemColumnType(wanted.type) || c.name.toLowerCase() === wanted.name.toLowerCase() || words(c.name).some((w) => words(wanted.name).includes(w))));
       if (present) continue;
       const created = await this.repos.boards.createColumn({ boardId: board.id, name: wanted.name, type: wanted.type, settings: wanted.settings ?? defaultSettingsFor(wanted.type), position: position++ });
-      if (created.type === "ASSETS_RECAP") await backfillAssetsRecap(this.repos, board.id, created.id);
+      if (isAssetColumn(created)) await backfillAssetsRecap(this.repos, board.id, created.id);
     }
   }
 

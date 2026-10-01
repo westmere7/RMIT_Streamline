@@ -20,6 +20,23 @@ export interface Comment extends Timestamps {
   parentId?: EntityId | null;
   /** Who reacted with what, oldest first. Absent where a store has none to give. */
   reactions?: CommentReaction[];
+  /** The checklist boxes ticked in this update, by key (see checklistKey). Absent where a store has none to give. */
+  checks?: CommentCheck[];
+}
+
+/** One ticked box of a checklist in an update. No entry means not ticked. */
+export interface CommentCheck {
+  key: string;
+  /** Who ticked it; null once that person has been removed. */
+  userId: EntityId | null;
+  checkedAt: string;
+}
+
+/** Ticks or unticks one box, keeping the rest. Ticking a ticked box keeps who ticked it first. */
+export function withCheck(checks: readonly CommentCheck[] | undefined, key: string, userId: EntityId, on: boolean, at: string): CommentCheck[] {
+  const rest = (checks ?? []).filter((c) => c.key !== key);
+  const existing = (checks ?? []).find((c) => c.key === key);
+  return on ? [...rest, existing ?? { key, userId, checkedAt: at }] : rest;
 }
 
 /** One person's reaction to an update or a reply. A person gives each emoji at most once. */

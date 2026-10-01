@@ -34,6 +34,18 @@ export class CommentService {
     await this.repos.comments.setReaction(comment, actorId, emoji, on);
   }
 
+  /**
+   * Ticks or unticks one checklist box. An update posted to linked tasks is one
+   * list, so the copies follow — where the actor may work on them; a copy on a
+   * board they cannot edit keeps its own ticks rather than failing this one.
+   */
+  async setCheck(comment: Pick<Comment, "id" | "itemId" | "sharedId">, key: string, actorId: EntityId, on: boolean): Promise<void> {
+    await this.repos.comments.setCheck(comment, key, actorId, on);
+    if (!comment.sharedId) return;
+    const copies = (await this.repos.comments.listBySharedId(comment.sharedId)).filter((copy) => copy.id !== comment.id);
+    await Promise.allSettled(copies.map((copy) => this.repos.comments.setCheck(copy, key, actorId, on)));
+  }
+
 
   /**
    * Posts an update. With `alsoLinked`, the same update is written to every item

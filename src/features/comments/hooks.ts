@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { withReaction, type Comment } from "@/domain";
+import { withCheck, withReaction, type Comment } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useAutomationNudge } from "@/features/automations/hooks";
 import { useServices } from "@/features/data/data-context";
@@ -123,5 +123,25 @@ export function useCommentMutations(itemId: string) {
     },
   });
 
-  return { add, edit, reply, remove, react };
+  // Like a reaction: shown at once, settled quietly, on every copy the service reaches.
+  const check = useMutation({
+    mutationFn: ({ comment, key: box, on }: { comment: Pick<Comment, "id" | "itemId" | "sharedId">; key: string; on: boolean }) => services.comments.setCheck(comment, box, user.id, on),
+    onMutate: async ({ comment, key: box, on }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Comment[]>(key);
+      queryClient.setQueryData<Comment[]>(key, (old) => old?.map((c) => (c.id === comment.id ? { ...c, checks: withCheck(c.checks, box, user.id, on, nowIso()) } : c)));
+      return { previous };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      toast.error(error instanceof Error ? error.message : "Could not save the tick");
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({ queryKey: ["comments"] });
+      publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
+    },
+  });
+
+  return { add, edit, reply, remove, react, check };
 }

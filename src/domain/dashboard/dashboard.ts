@@ -317,6 +317,7 @@ function isPublishableColumn(column: BoardColumn): boolean {
     case "TAGS":
     case "SIZE":
     case "ASSETS_RECAP":
+    case "PROGRESS":
     case "STAKEHOLDER":
     case "NUMBER":
     case "CHECKBOX":

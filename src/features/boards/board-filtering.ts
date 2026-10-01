@@ -173,6 +173,8 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
     case "ASSETS_RECAP":
       // Sorted by how much is being produced.
       return value.lines ? value.quantity : null;
+    case "PROGRESS":
+      return value.total ? value.done / value.total : null;
     case "DEPENDENCY":
       return value.itemIds.length || null;
   }

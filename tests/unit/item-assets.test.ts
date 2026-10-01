@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { COLUMN_TYPE_LABELS, DEFAULT_COLUMN_WIDTHS, countByType, emptyValueFor, formatAssetsRecap, isEmptyValue, recapAssets, recapColumnValue } from "@/domain";
+import { COLUMN_TYPE_LABELS, DEFAULT_COLUMN_WIDTHS, countByType, emptyValueFor, formatAssetsRecap, formatProgress, isEmptyValue, progressPercent, recapAssets, recapColumnValue } from "@/domain";
 import { createServices } from "@/services";
 import { displayValue } from "@/services/column-display";
 import { sortItems } from "@/features/boards/board-filtering";
@@ -192,6 +192,23 @@ describe("asset lines on an item", () => {
     const board = await services.assets.loadBoard(SEED_BOARD_IDS.rmitinerary, SEED_WORKSPACE_ID);
     expect(board.byItem.get(first.id)!.map((l) => l.name)).toEqual(["Run sheet"]);
     expect(board.linkedBoardIds).toContain(third.boardId);
+  });
+
+  it("keeps a Progress column at lines done over lines, empty while there are none", async () => {
+    const boardId = SEED_BOARD_IDS.masterclass;
+    const item = await firstItemOf(boardId);
+    for (const c of await repos.boards.listColumns(boardId)) if (c.type === "PROGRESS") await repos.boards.deleteColumn(c.id);
+    const first = await services.assets.add({ itemId: item.id, boardId, name: "Hero", quantity: 5 }, SEED_USER_IDS.danh);
+    const column = await services.boards.addColumn({ boardId, name: "Progress", type: "PROGRESS" });
+    const read = async () => (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
+    expect(await read()).toEqual({ type: "PROGRESS", done: 0, total: 1 });
+    await services.assets.add({ itemId: item.id, boardId, name: "Tile" }, SEED_USER_IDS.danh);
+    await services.assets.update(first.id, { completedAt: "2026-09-07T00:00:00.000Z" }, SEED_USER_IDS.danh);
+    const value = await read();
+    expect(value).toEqual({ type: "PROGRESS", done: 1, total: 2 });
+    expect(progressPercent(value as { done: number; total: number })).toBe(50);
+    expect(formatProgress({ done: 0, total: 0 })).toBe("");
+    expect(isEmptyValue(emptyValueFor("PROGRESS"))).toBe(true);
   });
 
   it("fills a recap column added later from the lines that already exist, and go when the item goes", async () => {

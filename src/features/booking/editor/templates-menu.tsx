@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCheck2, FolderOpen, LayoutTemplate, LoaderCircle, Rocket, RotateCcw, Save, Trash2 } from "lucide-react";
+import { FileCheck2, LayoutTemplate, LoaderCircle, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { BookingFormTemplate, BookingTemplate } from "@/domain";
-import { MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, templateQuestionCount } from "@/domain";
-import { format, isSameYear } from "date-fns";
+import { MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME } from "@/domain";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 
 export interface TemplatesMenuProps {
   templates: BookingTemplate[];
@@ -20,10 +20,6 @@ export interface TemplatesMenuProps {
   current: BookingFormTemplate;
   /** Puts a saved form into the editor. Nothing is live until it is published. */
   onLoad: (template: BookingTemplate) => void;
-  /** Makes a saved form the live one, without it passing through the editor. */
-  onPublish: (template: BookingTemplate) => void;
-  /** Why a template cannot be published as it stands, or null when it can. */
-  publishBlocker: (template: BookingTemplate) => string | null;
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
   onReset: () => void;
@@ -46,14 +42,14 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesPanel({ templates, current, onLoad, onPublish, publishBlocker, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, children }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
-  const [loadOpen, setLoadOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [typed, setTyped] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [deleting, setDeleting] = React.useState<BookingTemplate | null>(null);
   const trimmed = name.trim();
+  const loaded = templates.find((t) => t.id === loadedId) ?? null;
   const replaces = templates.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
   // Typing a name that already exists offers what that template says about
   // itself, rather than a blank box under a warning that it is about to be
@@ -84,17 +80,18 @@ export function TemplatesPanel({ templates, current, onLoad, onPublish, publishB
           <LayoutTemplate className="size-4 text-muted-foreground" /> Templates
           {templates.length > 0 && <span className="text-2xs text-muted-foreground tabular">{templates.length}</span>}
         </h3>
-        {/* The quick way in: picking one loads it, as Load does in the list below. */}
-        {templates.length > 0 && (
+        {/* Picking one loads it. Saving and deleting sit beside it, small. */}
+        <div className="flex items-center gap-1.5">
           <Select
             value={loadedId ?? ""}
+            disabled={templates.length === 0}
             onValueChange={(id) => {
               const picked = templates.find((t) => t.id === id);
               if (picked) onLoad(picked);
             }}
           >
-            <SelectTrigger className="h-9 w-full text-[13px]" aria-label="Load a template" data-testid="template-quick-select">
-              <SelectValue placeholder="Choose a template" />
+            <SelectTrigger className="h-9 min-w-0 flex-1 text-[13px]" aria-label="Load a template" data-testid="template-quick-select">
+              <SelectValue placeholder={templates.length ? "Choose a template" : "No templates yet"} />
             </SelectTrigger>
             <SelectContent>
               {templates.map((t) => (
@@ -104,15 +101,21 @@ export function TemplatesPanel({ templates, current, onLoad, onPublish, publishB
               ))}
             </SelectContent>
           </Select>
-        )}
+          <SimpleTooltip label="Save as a template">
+            <Button type="button" variant="outline" size="icon-sm" className="size-9 shrink-0" aria-label="Save as a template" onClick={() => setSaveOpen(true)} data-testid="template-save">
+              <Save />
+            </Button>
+          </SimpleTooltip>
+          {loaded && (
+            <SimpleTooltip label={`Delete “${loaded.name}”`}>
+              <Button type="button" variant="ghost" size="icon-sm" className="size-9 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Delete template ${loaded.name}`} onClick={() => setDeleting(loaded)} data-testid="template-delete">
+                <Trash2 />
+              </Button>
+            </SimpleTooltip>
+          )}
+        </div>
         {children}
         <div className="grid gap-0.5">
-          <PanelRow icon={Save} onClick={() => setSaveOpen(true)} testId="template-save">
-            Save as a template…
-          </PanelRow>
-          <PanelRow icon={FolderOpen} onClick={() => setLoadOpen(true)} disabled={templates.length === 0} testId="template-load">
-            Load a template…
-          </PanelRow>
           <PanelRow icon={FileCheck2} onClick={onLoadLive} disabled={showingLive} testId="booking-editor-load-live">
             Load the published form
           </PanelRow>
@@ -164,65 +167,6 @@ export function TemplatesPanel({ templates, current, onLoad, onPublish, publishB
         </DialogContent>
       </Dialog>
 
-      <Dialog open={loadOpen} onOpenChange={setLoadOpen}>
-        <DialogContent size="md" data-testid="template-load-dialog">
-          <DialogHeader>
-            <DialogTitle>Load a template</DialogTitle>
-            <DialogDescription>Load puts it in the editor; Publish makes it the live form.</DialogDescription>
-          </DialogHeader>
-          <ul className="scrollbar-thin max-h-[60vh] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70">
-            {templates.map((t) => (
-              <li key={t.id} className="flex items-start gap-3 px-3.5 py-2.5" data-testid={`template-row-${t.id}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium">{t.name}</p>
-                  {t.description && <p className="mt-0.5 text-2xs text-muted-foreground">{t.description}</p>}
-                  <p className="mt-0.5 text-2xs text-muted-foreground">
-                    {t.template.services?.length ?? 0} services · {templateQuestionCount(t.template)} questions · saved {savedAt(t.updatedAt)}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="mt-0.5 shrink-0"
-                  onClick={() => {
-                    onLoad(t);
-                    setLoadOpen(false);
-                  }}
-                  data-testid={`template-use-${t.id}`}
-                >
-                  Load
-                </Button>
-                {(() => {
-                  const blocker = publishBlocker(t);
-                  return (
-                    // A disabled button takes no pointer events, so the reason sits on a wrapper.
-                    <span className="mt-0.5 shrink-0" title={blocker ?? undefined}>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={blocker !== null}
-                        onClick={() => {
-                          onPublish(t);
-                          setLoadOpen(false);
-                        }}
-                        data-testid={`template-publish-${t.id}`}
-                      >
-                        <Rocket /> Publish
-                      </Button>
-                    </span>
-                  );
-                })()}
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={`Delete template ${t.name}`} className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => setDeleting(t)} data-testid={`template-delete-${t.id}`}>
-                  <Trash2 />
-                </Button>
-              </li>
-            ))}
-            {templates.length === 0 && <li className="px-3.5 py-6 text-center text-[13px] text-muted-foreground">No templates saved yet.</li>}
-          </ul>
-        </DialogContent>
-      </Dialog>
-
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -259,11 +203,4 @@ function PanelRow({ icon: Icon, onClick, disabled, testId, children }: { icon: R
       <span className="min-w-0 truncate">{children}</span>
     </button>
   );
-}
-
-/** "Sep 25, 14:32", in the reader's own time; the year only when it is not this one. */
-function savedAt(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return format(date, isSameYear(date, new Date()) ? "MMM d, HH:mm" : "MMM d yyyy, HH:mm");
 }

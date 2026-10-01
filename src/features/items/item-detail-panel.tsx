@@ -579,8 +579,9 @@ function PanelHeader({
             )}
           </p>
           <div className="-mr-1.5 flex shrink-0 items-center">
-            {/* The task's story, booking to archive. Not on a shared link: its log is not a visitor's to read. */}
-            {!shared && (
+            {/* The task's story, booking to archive. Not on a shared link: its log is not a visitor's to read.
+                It lives in the menu; only a panel without one keeps it out here. */}
+            {!shared && hideMenu && (
               <SimpleTooltip label="Task journey">
                 <Button variant="ghost" size="icon-xs" onClick={() => setJourneyOpen(true)} aria-label="Task journey" data-testid="open-task-journey">
                   <Route />
@@ -590,14 +591,7 @@ function PanelHeader({
             {/* Anyone who can see the task can follow it, on it or not. */}
             {!shared && <StarTaskButton item={item} />}
             {!shared && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
-            {!shared && canManage && (
-              <SimpleTooltip label="Share this task by link">
-                <Button variant="ghost" size="icon-xs" onClick={() => setSharing(true)} aria-label="Share this task" data-testid="panel-share">
-                  <Share2 />
-                </Button>
-              </SimpleTooltip>
-            )}
-            {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} shared={shared} popup={popup} />}
+            {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} onJourney={() => setJourneyOpen(true)} shared={shared} popup={popup} />}
             {!hideClose && (
               <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
                 <X />
@@ -1041,7 +1035,7 @@ function Overview({ item }: { item: Item }) {
  * this there would be no way back. The restore list is the only place that
  * tells you what the panel is keeping from you.
  */
-function PanelMenu({ item, canEdit, canManage, onShare, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; shared?: boolean; popup?: boolean }) {
+function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; onJourney: () => void; shared?: boolean; popup?: boolean }) {
   const { model, mutations, openItem } = useBoardContext();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
@@ -1075,6 +1069,14 @@ function PanelMenu({ item, canEdit, canManage, onShare, shared, popup }: { item:
                   </>
                 )}
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onJourney} data-testid="open-task-journey">
+                <Route /> Task journey
+              </DropdownMenuItem>
+              {canManage && (
+                <DropdownMenuItem onSelect={onShare} data-testid="panel-share">
+                  <Share2 /> Share by link…
+                </DropdownMenuItem>
+              )}
               {(canEdit || anythingHidden) && <DropdownMenuSeparator />}
             </>
           )}
@@ -1083,11 +1085,6 @@ function PanelMenu({ item, canEdit, canManage, onShare, shared, popup }: { item:
               <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
                 <Copy /> Duplicate task
               </DropdownMenuItem>
-              {canManage && (
-                <DropdownMenuItem onSelect={onShare}>
-                  <Share2 /> Share by link…
-                </DropdownMenuItem>
-              )}
             </>
           )}
 

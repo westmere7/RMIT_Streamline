@@ -970,10 +970,9 @@ function AdminNode({
   const sidebar = useSidebarActions();
   const manage = canManageTeam(ws.permissions, team.id);
   const colors = colorClasses(team.color);
-  // The panel's wash and edge, mixed from the team's colour so a new colour in
-  // Team settings carries through.
+  // No box around it: a wash and an edge read as "selected". The team's colour
+  // still tints the header's hover and active states, through --team.
   const panelStyle = { "--team": colors.hex } as React.CSSProperties;
-  const panelClasses = "bg-[color-mix(in_oklab,var(--team)_9%,transparent)] ring-1 ring-[color-mix(in_oklab,var(--team)_22%,transparent)]";
   const actions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
     ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
@@ -995,7 +994,7 @@ function AdminNode({
 
   if (collapsed) {
     return (
-      <div className={cn("mt-3 space-y-0.5 rounded-xl py-1", panelClasses)} style={panelStyle} data-testid="sidebar-admin">
+      <div className="mt-3 space-y-0.5" style={panelStyle} data-testid="sidebar-admin">
         <SimpleTooltip label={team.name} side="right">
           <Link href={routes.team(ws.slug, team.id)} aria-label={team.name} aria-current={activeTeam ? "page" : undefined} className={cn(navItemClasses(activeTeam), "justify-center px-0")}>
             <span className={cn("flex size-6 items-center justify-center rounded-md", colors.solid)}>
@@ -1013,7 +1012,7 @@ function AdminNode({
   }
 
   return (
-    <section className={cn("mt-3 rounded-xl p-1", panelClasses)} style={panelStyle} aria-label={team.name} data-testid="sidebar-admin">
+    <section className="mt-3" style={panelStyle} aria-label={team.name} data-testid="sidebar-admin">
       <RowMenu label={`Options for ${team.name}`} actions={actions}>
         <Link
           href={routes.team(ws.slug, team.id)}

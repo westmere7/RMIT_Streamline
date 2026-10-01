@@ -529,6 +529,7 @@ describe("the built-in Admin team and Task Allocation board", () => {
       "PIC",
       "Timeline",
       "Size",
+      "Progress",
     ]);
     const serviceTags = columns.find((c) => c.name === "Service")!.settings as TagsColumnSettings;
     expect(serviceTags.options.map((o) => o.name)).toEqual(["Brand", "Design", "Production"]);

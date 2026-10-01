@@ -684,6 +684,7 @@ export function taskAllocationColumns(_teamNames: readonly string[] = []): Array
     { name: "PIC", type: "PERSON" },
     { name: "Timeline", type: "TIMELINE" },
     { name: "Size", type: "SIZE" },
+    { name: "Progress", type: "PROGRESS" },
   ];
 }
 

@@ -85,6 +85,13 @@ function blockToNode(block: BlockNode): DocNode {
         content: block.items.map((item) => ({ type: "listItem", content: [paragraph(item)] })),
       };
     }
+    case "checklist":
+      // Never ticked in the composer: the ticks live beside the update, not in it.
+      return {
+        type: "taskList",
+        ...(block.indent ? { attrs: indentAttr(block.indent) } : {}),
+        content: block.items.map((item) => ({ type: "taskItem", attrs: { checked: false }, content: [paragraph(item.children)] })),
+      };
   }
 }
 
@@ -205,6 +212,9 @@ export function docToRichText(doc: DocNode): string {
       }
       case "bulletList":
         text = (block.content ?? []).map((item) => `${pad}- ${listItemText(item)}`).join("\n");
+        break;
+      case "taskList":
+        text = (block.content ?? []).map((item) => `${pad}- [ ] ${listItemText(item)}`.trimEnd()).join("\n");
         break;
       case "orderedList": {
         const start = Number(block.attrs?.start) || 1;

@@ -54,6 +54,7 @@ export function useBoardRealtime(boardId: string | null): void {
       // at speed.
       { table: "comments", keys: [["comments"]] },
       { table: "comment_reactions", keys: [["comments"]] },
+      { table: "comment_checks", keys: [["comments"]] },
       { table: "item_assets", filter: board, keys: [["item-assets"], snapshot] },
       { table: "item_links", keys: [["item-links"], snapshot], accept: checks.inWorkspace },
       { table: "activities", filter: board, keys: [["activity"]] },

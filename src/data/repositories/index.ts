@@ -488,6 +488,8 @@ export interface CommentRepository {
   delete(id: EntityId): Promise<void>;
   /** Gives (`on`) or takes back one person's emoji on a comment. Giving one twice is a no-op. */
   setReaction(comment: Pick<Comment, "id" | "itemId">, userId: EntityId, emoji: string, on: boolean): Promise<void>;
+  /** Ticks (`on`) or unticks one checklist box on a comment. Ticking one twice is a no-op. */
+  setCheck(comment: Pick<Comment, "id" | "itemId">, key: string, userId: EntityId, on: boolean): Promise<void>;
 }
 
 export interface MessageRepository {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, SmilePlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, ListChecks, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, SmilePlus, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -20,11 +20,16 @@ import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
-import { richTextToPlain } from "@/lib/rich-text";
+import { formatRelative } from "@/lib/dates/dates";
+import { checklistKeys, richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
 /** Who may delete a given update here: worked out once for the task's board, read by every header. */
 const DeleteRule = React.createContext<(comment: Comment) => boolean>(() => false);
+
+/** Ticks a checklist box on an update or a reply. Absent where the reader may not work on the task. */
+type CheckHandler = (comment: Comment, key: string, on: boolean) => void;
+const CheckToggle = React.createContext<CheckHandler | undefined>(undefined);
 
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
@@ -33,7 +38,8 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   const board = item.data ? ws.boardById(item.data.boardId) ?? null : null;
   const mayDelete = React.useCallback((comment: Comment) => canDeleteComment(ws.permissions, comment, board), [ws.permissions, board]);
   const comments = useComments(itemId);
-  const { add, edit, reply, remove, react } = useCommentMutations(itemId);
+  const { add, edit, reply, remove, react, check } = useCommentMutations(itemId);
+  const onCheck = React.useCallback<CheckHandler>((comment, key, on) => check.mutate({ comment, key, on }), [check]);
   const links = useItemLinks(itemId);
   const linkedCount = links.data?.length ?? 0;
   // Default on: if a task is linked, an update usually concerns both sides.
@@ -72,6 +78,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
 
   return (
     <DeleteRule.Provider value={mayDelete}>
+    <CheckToggle.Provider value={canComment ? onCheck : undefined}>
     <div className="flex h-full flex-col">
       {canComment && (
         <form
@@ -102,6 +109,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
                 placeholder="Write an update… type @ to mention a teammate"
                 ariaLabel="New update"
                 testId="comment-input"
+                checklist
               />
               <div className={cn("flex flex-wrap items-center justify-end gap-2.5", !open && "hidden")}>
                 {linkedCount > 0 && (
@@ -169,6 +177,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
         </ul>
       </div>
     </div>
+    </CheckToggle.Provider>
     </DeleteRule.Provider>
   );
 }
@@ -242,6 +251,7 @@ function CommentItem({
               <CommentAuthorName comment={comment} size="sm" />
               <RelativeTime iso={comment.createdAt} className="shrink-0 text-2xs text-muted-foreground" />
               <span className="ml-auto flex shrink-0 items-center gap-3">
+                <ChecklistTally comment={comment} />
                 <ReactionSummary comment={comment} />
                 {replies.length > 0 && (
                   <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground tabular">
@@ -270,11 +280,14 @@ function CommentItem({
             </Button>
           )}
           <Reactions comment={comment} onReact={onReact} />
-          {replies.length > 0 && (
-            <span className="ml-auto inline-flex items-center gap-1 px-1 text-2xs text-muted-foreground tabular" data-testid="comment-reply-count">
-              <MessageSquare className="size-3" /> {replies.length} {replies.length === 1 ? "reply" : "replies"}
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-3 px-1">
+            <ChecklistTally comment={comment} />
+            {replies.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground tabular" data-testid="comment-reply-count">
+                <MessageSquare className="size-3" /> {replies.length} {replies.length === 1 ? "reply" : "replies"}
+              </span>
+            )}
+          </span>
         </div>
       </div>
 
@@ -422,6 +435,19 @@ function ReactionPicker({ comment, onReact, compact }: { comment: Comment; onRea
         ))}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** How far through its checklists an update is: "2/5", green once every box is ticked. Nothing without one. */
+function ChecklistTally({ comment }: { comment: Comment }) {
+  const keys = React.useMemo(() => checklistKeys(comment.body), [comment.body]);
+  if (keys.length === 0) return null;
+  const ticked = new Set((comment.checks ?? []).map((c) => c.key));
+  const done = keys.filter((key) => ticked.has(key)).length;
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1 text-2xs tabular", done === keys.length ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")} aria-label={`${done} of ${keys.length} ticked`} data-testid="comment-checklist-tally">
+      <ListChecks className="size-3" /> {done}/{keys.length}
+    </span>
   );
 }
 
@@ -583,12 +609,20 @@ function CommentBody({
 }) {
   const ws = useWorkspace();
   const links = useMentionLinks();
+  const toggle = React.useContext(CheckToggle);
   const [draft, setDraft] = React.useState(comment.body);
   const save = () => {
     if (draft.trim()) onSave(draft.trim());
     onEditingChange(false);
   };
-  if (!editing) return <RichText body={comment.body} mentionNames={names} className={cn("leading-relaxed", className)} mentionHref={links.personNamed} />;
+  const checklist = React.useMemo(() => {
+    const who = (id: string | null) => (id === ws.currentUser.id ? "you" : ((id && ws.userById(id)?.displayName) ?? "someone"));
+    return {
+      ticked: new Map((comment.checks ?? []).map((c) => [c.key, `Ticked by ${who(c.userId)}, ${formatRelative(c.checkedAt)}`])),
+      onToggle: toggle ? (key: string, on: boolean) => toggle(comment, key, on) : undefined,
+    };
+  }, [comment, toggle, ws]);
+  if (!editing) return <RichText body={comment.body} mentionNames={names} className={cn("leading-relaxed", className)} mentionHref={links.personNamed} checklist={checklist} />;
   return (
     <form
       className={cn("space-y-2", className)}
@@ -597,7 +631,7 @@ function CommentBody({
         save();
       }}
     >
-      <RichTextEditor value={draft} onChange={setDraft} onSubmit={save} people={ws.activeUsers} ariaLabel="Edit update" testId="comment-edit-input" autoFocus />
+      <RichTextEditor value={draft} onChange={setDraft} onSubmit={save} people={ws.activeUsers} ariaLabel="Edit update" testId="comment-edit-input" autoFocus checklist />
       <div className="flex justify-end gap-2">
         <Button
           type="button"
@@ -659,7 +693,7 @@ function ReplyComposer({ onSubmit, onCancel }: { onSubmit: (body: string) => voi
     >
       <UserAvatar user={ws.currentUser} size="sm" tooltip={false} />
       <div className="min-w-0 flex-1 space-y-1.5">
-        <RichTextEditor compact={!full} value={draft} onChange={setDraft} onSubmit={send} people={ws.activeUsers} placeholder="Write a reply… type @ to mention" ariaLabel="Reply" testId="comment-reply-input" autoFocus />
+        <RichTextEditor compact={!full} value={draft} onChange={setDraft} onSubmit={send} people={ws.activeUsers} placeholder="Write a reply… type @ to mention" ariaLabel="Reply" testId="comment-reply-input" autoFocus checklist />
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-2xs text-muted-foreground" onClick={() => setFull((v) => !v)} data-testid="comment-reply-expand">
             {full ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />} {full ? "Basic editor" : "Full editor"}
