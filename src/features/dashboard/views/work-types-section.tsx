@@ -101,7 +101,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
       {profile.total === 0 && (profile.comparisonTotal ?? 0) === 0 ? (
         <ChartEmpty message={person ? "Nothing in this period was theirs." : "No deliverables in this period."} />
       ) : (
-        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,36rem)_minmax(0,1fr)]">
+        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)]">
           <Radar rows={profile.rows} total={profile.total} format={format} unit={unit} active={active} onActive={setActive} onOpen={drill ? openWorkType : undefined} hasComparison={profile.comparisonTotal !== null} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} />
 
           <div className="min-w-0">
@@ -163,7 +163,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
             </ul>
             {profile.unassignedUnits > 0 && (
               <p className="mt-2 px-2 text-2xs text-muted-foreground" data-testid="dashboard-work-types-unassigned">
-                {formatCount(profile.unassignedUnits)} units in types with no workType ({profile.unassignedTypes.slice(0, 3).join(", ")}
+                {formatCount(profile.unassignedUnits)} {profile.unassignedUnits === 1 ? "unit" : "units"} in types with no work type ({profile.unassignedTypes.slice(0, 3).join(", ")}
                 {profile.unassignedTypes.length > 3 ? "…" : ""}) are not drawn — Settings → Asset types.
               </p>
             )}
@@ -200,9 +200,11 @@ function Change({ value }: { value: number | null }) {
   );
 }
 
-const SIZE = 560;
+// Room round the rim for each label's three short lines, so nothing spills
+// out of the box into the legend beside it.
+const SIZE = 720;
 const C = SIZE / 2;
-const R = 188;
+const R = 210;
 
 /**
  * The radar itself, flat: rings at a nice scale with their values, a degree
@@ -247,7 +249,7 @@ function Radar({
   const activeRow = activeIndex >= 0 ? rows[activeIndex]! : null;
 
   return (
-    <div className="relative mx-auto w-full max-w-[36rem]" data-testid="dashboard-work-types-radar">
+    <div className="relative mx-auto w-full max-w-[40rem]" data-testid="dashboard-work-types-radar">
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-auto w-full overflow-visible" role="img" aria-label={`Work types: ${rows.map((r) => `${r.workType.name} ${format(r.value)}`).join(", ")}`}>
         {/* The plate: one flat disc under everything, so the web reads as an object. */}
         <circle cx={C} cy={C} r={R + 14} className="fill-surface/60 stroke-border/70" strokeWidth={1} />
@@ -327,13 +329,13 @@ function Radar({
         {/* The names round the rim: name, value and share, and how it moved. */}
         {rows.map((row, i) => {
           const a = angle(i);
-          const [lx, ly] = at(i, R + 44);
+          const [lx, ly] = at(i, R + 34);
           const anchor = Math.abs(Math.cos(a)) < 0.3 ? "middle" : Math.cos(a) > 0 ? "start" : "end";
           const lit = active === row.workType.id;
           const hex = colorClasses(row.workType.color).hex;
           const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
-          const above = Math.sin(a) < -0.5;
-          const y0 = above ? ly - 24 : ly - 6;
+          // Three lines: above the rim they grow upwards, below it downwards, beside it centred.
+          const y0 = Math.sin(a) < -0.5 ? ly - 34 : Math.sin(a) > 0.5 ? ly + 6 : ly - 10;
           return (
             <g
               key={`label-${row.workType.id}`}
@@ -343,20 +345,20 @@ function Radar({
               onClick={onOpen ? () => onOpen(row) : undefined}
               data-testid="dashboard-work-type-label"
             >
-              <circle cx={lx} cy={y0 + 12} r={34} fill="transparent" />
+              <circle cx={lx} cy={y0 + 12} r={36} fill="transparent" />
               <text x={lx} y={y0} textAnchor={anchor} className={cn("text-[13px] font-semibold", lit ? "fill-foreground" : "fill-foreground/90")}>
                 <tspan fill={hex}>● </tspan>
                 {row.workType.name}
               </text>
               <text x={lx} y={y0 + 16} textAnchor={anchor} className="text-[12px] tabular-nums">
                 <tspan className="fill-foreground font-semibold">{format(row.value)}</tspan>
-                <tspan className="fill-muted-foreground">{total > 0 ? `  ${Math.round((row.value / total) * 100)}%` : ""}</tspan>
-                {change !== null && (
-                  <tspan className={Math.abs(change) < 0.005 ? "fill-muted-foreground" : change > 0 ? "fill-emerald-600 dark:fill-emerald-400" : "fill-red-600 dark:fill-red-400"}>
-                    {`  ${change > 0 ? "▲" : change < 0 ? "▼" : "•"} ${Math.abs(Math.round(change * 100))}%`}
-                  </tspan>
-                )}
+                <tspan className="fill-muted-foreground">{total > 0 ? ` · ${Math.round((row.value / total) * 100)}%` : ""}</tspan>
               </text>
+              {change !== null && (
+                <text x={lx} y={y0 + 30} textAnchor={anchor} className={cn("text-[11px] tabular-nums", Math.abs(change) < 0.005 ? "fill-muted-foreground" : change > 0 ? "fill-emerald-600 dark:fill-emerald-400" : "fill-red-600 dark:fill-red-400")}>
+                  {`${change > 0 ? "▲" : change < 0 ? "▼" : "•"} ${Math.abs(Math.round(change * 100))}%`}
+                </text>
+              )}
             </g>
           );
         })}

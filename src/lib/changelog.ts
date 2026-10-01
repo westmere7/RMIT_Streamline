@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.1",
+    date: "2026-10-01",
+    title: "Work types radar fits",
+    changes: ["The Work types radar keeps its labels inside its own space, each on three short lines, so none is cut off or runs into the list beside it."],
+  },
+  {
     version: "0.73.0",
     date: "2026-10-01",
     title: "Work types",
