@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.71.4",
+    date: "2026-10-01",
+    title: "A ticket series per workspace",
+    changes: ["A new workspace starts its own ticket series under its own prefix, from its name's initials (Content team is CT) and never one another workspace uses."],
+  },
+  {
     version: "0.71.3",
     date: "2026-10-01",
     title: "About, shorter",

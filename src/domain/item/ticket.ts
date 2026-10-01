@@ -50,6 +50,24 @@ export function normaliseTicketPrefix(value: string | null | undefined): string 
   return PREFIX_SHAPE.test(cleaned) ? cleaned : null;
 }
 
+/**
+ * A new workspace's own prefix, from the initials of its name — "Content team"
+ * is CT — and never one another workspace already uses, so two series cannot
+ * be mistaken for each other: CT, then CT2, CT3.
+ */
+export function suggestTicketPrefix(name: string, taken: ReadonlyArray<string | null | undefined>): string {
+  const used = new Set(taken.map((p) => ticketPrefixOf(p)));
+  const words = name.toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  const initials = words.length > 1 ? words.map((w) => w[0]).join("") : (words[0] ?? "").slice(0, 3);
+  const base = normaliseTicketPrefix(initials.slice(0, TICKET_PREFIX_MAX - 1)) ?? "WS";
+  if (!used.has(base)) return base;
+  for (let n = 2; n < 100; n++) {
+    const candidate = normaliseTicketPrefix(`${base.slice(0, TICKET_PREFIX_MAX - String(n).length)}${n}`);
+    if (candidate && !used.has(candidate)) return candidate;
+  }
+  return base;
+}
+
 /** The workspace's prefix, with the default standing in for one never set. */
 export function ticketPrefixOf(prefix: string | null | undefined): string {
   return normaliseTicketPrefix(prefix) ?? DEFAULT_TICKET_PREFIX;

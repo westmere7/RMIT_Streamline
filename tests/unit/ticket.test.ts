@@ -331,3 +331,14 @@ describe("booking a task", () => {
     expect(lines.map((l) => l.name)).toEqual(["Banner A", "Banner B"]);
   });
 });
+
+describe("a new workspace's own prefix", () => {
+  it("takes the name's initials and steps past any prefix already in use", async () => {
+    const { suggestTicketPrefix } = await import("@/domain");
+    expect(suggestTicketPrefix("Content team", ["CP26"])).toBe("CT");
+    expect(suggestTicketPrefix("Content team", ["CT", null])).toBe("CT2");
+    expect(suggestTicketPrefix("Marketing", [])).toBe("MAR");
+    // A workspace with no prefix set is on the default series, so the default counts as taken.
+    expect(suggestTicketPrefix("Creative Production", [null])).toBe("CP2");
+  });
+});

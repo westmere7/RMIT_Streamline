@@ -18,7 +18,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType } from "@/domain";
+import { defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, suggestTicketPrefix } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -107,7 +107,8 @@ export class WorkspaceService {
     const name = input.name.trim();
     if (!name) throw new Error("Name the workspace");
     if (name.length > 60) throw new Error("Keep the name to 60 characters");
-    const taken = new Set((await this.repos.workspaces.list()).map((w) => w.slug));
+    const existing = await this.repos.workspaces.list();
+    const taken = new Set(existing.map((w) => w.slug));
     let slug: string;
     if (input.slug?.trim()) {
       slug = input.slug.trim().toLowerCase();
@@ -119,6 +120,8 @@ export class WorkspaceService {
       if (slug.length < 2) slug = `${slug}-ws`;
     }
     const workspace = await this.repos.workspaces.create({ name, slug });
+    // Its own ticket series, under a prefix no other workspace wears.
+    await this.repos.workspaces.update(workspace.id, { ticketPrefix: suggestTicketPrefix(name, existing.map((w) => w.ticketPrefix)) });
     await this.onCreated?.(workspace.id, fromWorkspaceId);
     await this.ensureSystemEntities(workspace.id, actorId);
     return (await this.repos.workspaces.getById(workspace.id)) ?? workspace;
