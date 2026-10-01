@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.6",
+    date: "2026-10-01",
+    title: "Steadier work types, plainer portal cards",
+    changes: [
+      "Work types: the type in focus shows its card in place of the list, so the panel no longer grows on hover.",
+      "Portal and Booking form cards: flat, no colour wash, the same layout in both, links at the foot.",
+    ],
+  },
+  {
     version: "0.73.5",
     date: "2026-10-01",
     title: "Month bars and work type detail",

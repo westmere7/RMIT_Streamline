@@ -121,12 +121,11 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           copy it, and the two buttons are what they come here for. */}
       <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
         <LinkTile
-          tone="portal"
           icon={Globe}
           label="Portal"
           lead={
             <>
-              Where departments see the work being done for them. Opens on the {portal.defaultView} view
+              Departments see their work. Opens on the {portal.defaultView} view
               {portal.showRecap ? ", with the figures" : ""}
               {portal.passwordHash ? ", behind the password" : ""}.
             </>
@@ -153,21 +152,20 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           <StakeholderList rows={rows} />
         </LinkTile>
         <LinkTile
-          tone="booking"
           icon={ClipboardPen}
           label="Booking form"
           lead={
             !open ? (
               <>Lives inside the portal, so it opens when the portal does.</>
             ) : portal.allowBooking ? (
-              <>The same portal, opened straight on the form. Departments describe what they need and it lands on the board as a request.</>
+              <>Opens straight on the form. Requests land on the board.</>
             ) : (
               <>Not taking requests.</>
             )
           }
           figure={booked}
           figureLabel={booked === 1 ? "request booked" : "requests booked"}
-          aside="through the form so far"
+          aside="so far"
           url={bookingUrl}
           href={`${routes.portal(portal.token)}/book`}
           testId="portal-booking-link"
@@ -280,22 +278,6 @@ function RegenerateButton() {
   );
 }
 
-/** The two tiles' colourings: the brand red for the portal, indigo for the form, so the pair reads as two things. */
-const TILE_TONES = {
-  portal: {
-    glow: "bg-primary/25",
-    icon: "bg-primary/10 text-primary ring-primary/15",
-    figure: "text-primary",
-    edge: "hover:border-primary/40",
-  },
-  booking: {
-    glow: "bg-accent-soft-foreground/25",
-    icon: "bg-accent-soft text-accent-soft-foreground ring-accent-soft-foreground/15",
-    figure: "text-accent-soft-foreground",
-    edge: "hover:border-accent-soft-foreground/40",
-  },
-} as const;
-
 /**
  * One of the portal's two doors, as a tile: what it is, one figure that says
  * how it is doing, and the things anybody does with it — copy the link, open
@@ -303,7 +285,6 @@ const TILE_TONES = {
  * nobody; a token is not something a person reads.
  */
 function LinkTile({
-  tone,
   icon: Icon,
   label,
   lead,
@@ -320,7 +301,6 @@ function LinkTile({
   toggle,
   children,
 }: {
-  tone: keyof typeof TILE_TONES;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   lead: React.ReactNode;
@@ -338,32 +318,23 @@ function LinkTile({
   toggle: { on: boolean; pending: boolean; disabled?: boolean; onChange: (next: boolean) => void; label: string; hint?: string; testId: string };
   children?: React.ReactNode;
 }) {
-  const tones = TILE_TONES[tone];
   const [copied, setCopied] = React.useState(false);
   React.useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(false), 1800);
     return () => clearTimeout(timer);
   }, [copied]);
+  const dim = !open && "opacity-60";
 
   return (
-    <div
-      className={cn(
-        "group/tile relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface/50 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-        tones.edge,
-      )}
-      data-testid={`${testId}-block`}
-    >
-      {/* A wash of the tile's colour in one corner, brighter under the pointer. */}
-      <span aria-hidden className={cn("pointer-events-none absolute -top-16 -right-12 size-48 rounded-full blur-3xl transition-opacity duration-300 opacity-60 group-hover/tile:opacity-100", tones.glow, !open && "opacity-20")} />
-
-      <div className={cn("relative flex items-start gap-3", !open && "opacity-70 saturate-50")}>
-        <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl ring-1", tones.icon)}>
-          <Icon className="size-[18px]" />
+    <div className="flex min-w-0 flex-col rounded-xl border border-border/70 bg-surface/50" data-testid={`${testId}-block`}>
+      <div className="flex items-start gap-3 p-4">
+        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground", dim)}>
+          <Icon className="size-4" />
         </span>
-        <div className="min-w-0 flex-1 pr-32">
+        <div className={cn("min-w-0 flex-1", dim)}>
           <div className="flex items-center gap-2">
-            <h4 className="text-[15px] font-semibold tracking-tight">{label}</h4>
+            <h4 className="text-[14px] font-semibold">{label}</h4>
             {!open && (
               <Badge variant="muted" className="gap-1">
                 <EyeOff className="size-3" aria-hidden /> Not serving
@@ -372,62 +343,54 @@ function LinkTile({
           </div>
           <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{lead}</p>
         </div>
-      </div>
-      {/* Always at full strength, even on a link that is not serving: this is
-          how it gets turned back on. */}
-      <div className="absolute top-4 right-4 flex items-center gap-1">
-        <label
-          className={cn(
-            "flex h-8 items-center gap-2 rounded-full border px-2.5 text-[12px] font-medium transition-colors",
-            toggle.on ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-border/70 bg-card text-muted-foreground",
-            toggle.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-          )}
-          title={toggle.hint}
-        >
-          {toggle.pending ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : null}
-          <span>{toggle.on ? "On" : "Off"}</span>
-          <Switch size="sm" checked={toggle.on} disabled={toggle.disabled || toggle.pending} onCheckedChange={toggle.onChange} aria-label={toggle.label} data-testid={toggle.testId} />
-        </label>
-        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
-          <Settings2 className="size-4" />
-        </Button>
+        {/* Always at full strength, even on a link that is not serving: this is how it gets turned back on. */}
+        <div className="flex shrink-0 items-center gap-1">
+          <label className={cn("flex h-8 items-center gap-2 px-1 text-[12px] font-medium", toggle.on ? "text-foreground" : "text-muted-foreground", toggle.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")} title={toggle.hint}>
+            {toggle.pending && <Loader2 aria-hidden className="size-3.5 animate-spin" />}
+            <span>{toggle.on ? "On" : "Off"}</span>
+            <Switch size="sm" checked={toggle.on} disabled={toggle.disabled || toggle.pending} onCheckedChange={toggle.onChange} aria-label={toggle.label} data-testid={toggle.testId} />
+          </label>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
+            <Settings2 className="size-4" />
+          </Button>
+        </div>
       </div>
 
-      <div className={cn("relative mt-5 flex items-end justify-between gap-4", !open && "opacity-70 saturate-50")}>
-        <div>
-          <p className={cn("text-[32px] leading-none font-semibold tracking-tight tabular", tones.figure)} data-testid={`${testId}-figure`}>
+      <div className={cn("flex-1 px-4 pb-4", dim)}>
+        <p className="flex items-baseline gap-1.5">
+          <span className="text-[22px] leading-none font-semibold tabular" data-testid={`${testId}-figure`}>
             {figure}
-          </p>
-          <p className="mt-1.5 text-[13px] font-medium">{figureLabel}</p>
-          <p className="text-2xs text-muted-foreground">{aside}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn("bg-card transition-colors", copied && "border-green-500/50 text-green-700 dark:text-green-300")}
-            aria-label={`Copy the ${label.toLowerCase()} link`}
-            onClick={() => {
-              onCopy();
-              setCopied(true);
-            }}
-            data-testid={copyTestId}
-          >
-            {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy link"}
-          </Button>
-          <Button variant="ghost" size="sm" asChild>
-            <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
-              Open <ExternalLink className="size-3.5" />
-            </a>
-          </Button>
-        </div>
+          </span>
+          <span className="text-[13px] font-medium">{figureLabel}</span>
+          <span className="text-2xs text-muted-foreground">· {aside}</span>
+        </p>
+        {children && <div className="mt-3">{children}</div>}
+      </div>
+
+      <div className="flex items-center justify-end gap-1.5 border-t border-border/60 px-4 py-2.5">
+        <Button variant="ghost" size="sm" asChild>
+          <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
+            Open <ExternalLink className="size-3.5" />
+          </a>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("transition-colors", copied && "border-green-500/50 text-green-700 dark:text-green-300")}
+          aria-label={`Copy the ${label.toLowerCase()} link`}
+          onClick={() => {
+            onCopy();
+            setCopied(true);
+          }}
+          data-testid={copyTestId}
+        >
+          {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy link"}
+        </Button>
       </div>
       {/* The address, for anything that has to read it: a test, a screen reader. Nobody else. */}
       <span className="sr-only" data-testid={testId}>
         {url}
       </span>
-
-      {children && <div className={cn("relative mt-4 border-t border-border/60 pt-4", !open && "opacity-70 saturate-50")}>{children}</div>}
     </div>
   );
 }

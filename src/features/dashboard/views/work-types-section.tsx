@@ -118,42 +118,25 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
               <span className="text-[15px] font-semibold text-foreground tabular">{format(profile.total)}</span> {unit}
               {profile.comparisonTotal !== null && <span>· {format(profile.comparisonTotal)} in {report.period.comparisonLabel}</span>}
             </p>
-            <ul className="grid gap-1" data-testid="dashboard-work-types-legend">
-              {ranked.map((row) => {
-                const share = profile.total > 0 ? row.value / profile.total : 0;
-                const hex = colorClasses(row.workType.color).hex;
-                const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
-                const done = row.units > 0 ? Math.round((row.doneUnits / row.units) * 100) : null;
-                return (
+            {/*
+              The list and every work type's card share one cell, so the cell is
+              as tall as the tallest of them and never changes: in focus, one
+              card shows in place of the list rather than the panel growing.
+            */}
+            <div className="grid">
+              <ul className={cn("col-start-1 row-start-1 grid content-start gap-1 transition-[opacity,visibility] duration-200", active !== null && "invisible opacity-0")} data-testid="dashboard-work-types-legend">
+                {ranked.map((row) => (
                   <li key={row.workType.id}>
                     <button
                       type="button"
                       onClick={drill ? () => openWorkType(row) : undefined}
                       onMouseEnter={() => setActive(row.workType.id)}
                       onFocus={() => setActive(row.workType.id)}
-                      className={cn(
-                        "group w-full rounded-lg border px-2 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-200",
-                        active === row.workType.id ? "border-border bg-card shadow-md" : "border-transparent hover:bg-accent/40",
-                        !drill && "cursor-default",
-                      )}
-                      style={active === row.workType.id ? { borderColor: `color-mix(in oklab, ${hex} 45%, transparent)` } : undefined}
-                      aria-expanded={active === row.workType.id}
+                      className={cn("w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/40", !drill && "cursor-default")}
                       data-testid="dashboard-work-type-row"
                     >
-                      <span className="flex items-center gap-2 text-xs">
-                        <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ background: hex }} />
-                        <span className="min-w-0 flex-1 truncate font-medium">{row.workType.name}</span>
-                        <span className="font-semibold tabular">{format(row.value)}</span>
-                        <span className="w-10 text-right text-2xs text-muted-foreground tabular">{Math.round(share * 100)}%</span>
-                        <Change value={change} />
-                      </span>
-                      <span className="mt-1 flex items-center gap-2">
-                        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70">
-                          <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${share * 100}%`, background: hex }} />
-                        </span>
-                        {done !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular">{done}% delivered</span>}
-                      </span>
-                      {row.topTypes.length > 0 && active !== row.workType.id && (
+                      <LegendHead row={row} total={profile.total} format={format} />
+                      {row.topTypes.length > 0 && (
                         <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
                           {row.topTypes
                             .slice(0, 3)
@@ -162,17 +145,30 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                           {row.topTypes.length > 3 ? ` · +${row.topTypes.length - 3} more` : ""}
                         </span>
                       )}
-                      {/* The segment in focus opens into its detail; the grid row grows, so the list moves rather than jumps. */}
-                      <span aria-hidden={active !== row.workType.id} className={cn("grid transition-[grid-template-rows,opacity] duration-300 ease-out", active === row.workType.id ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
-                        <span className="block min-h-0 overflow-hidden">
-                          <WorkTypeDetail row={row} total={profile.total} format={format} unit={unit} comparisonLabel={report.period.comparisonLabel} users={facts.users} hex={hex} canOpen={!!drill} />
-                        </span>
-                      </span>
                     </button>
                   </li>
+                ))}
+              </ul>
+              {ranked.map((row) => {
+                const on = active === row.workType.id;
+                const hex = colorClasses(row.workType.color).hex;
+                return (
+                  <button
+                    key={row.workType.id}
+                    type="button"
+                    tabIndex={on ? 0 : -1}
+                    aria-hidden={!on}
+                    onClick={drill ? () => openWorkType(row) : undefined}
+                    className={cn("col-start-1 row-start-1 self-start rounded-lg border bg-card px-3 py-2.5 text-left transition-[opacity,visibility] duration-200", on ? "visible opacity-100" : "invisible opacity-0", !drill && "cursor-default")}
+                    style={{ borderColor: `color-mix(in oklab, ${hex} 40%, transparent)` }}
+                    data-testid={on ? "dashboard-work-type-card" : undefined}
+                  >
+                    <LegendHead row={row} total={profile.total} format={format} />
+                    <WorkTypeDetail row={row} total={profile.total} format={format} unit={unit} comparisonLabel={report.period.comparisonLabel} users={facts.users} hex={hex} canOpen={!!drill} />
+                  </button>
                 );
               })}
-            </ul>
+            </div>
             {profile.unassignedUnits > 0 && (
               <p className="mt-2 px-2 text-2xs text-muted-foreground" data-testid="dashboard-work-types-unassigned">
                 {formatCount(profile.unassignedUnits)} {profile.unassignedUnits === 1 ? "unit" : "units"} in types with no work type ({profile.unassignedTypes.slice(0, 3).join(", ")}
@@ -183,6 +179,31 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
         </div>
       )}
     </Panel>
+  );
+}
+
+/** A work type's line: its colour and name, its figure and share, how it moved, and its bar. */
+function LegendHead({ row, total, format }: { row: WorkTypeRow; total: number; format: (value: number) => string }) {
+  const share = total > 0 ? row.value / total : 0;
+  const hex = colorClasses(row.workType.color).hex;
+  const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
+  const done = row.units > 0 ? Math.round((row.doneUnits / row.units) * 100) : null;
+  return (
+    <>
+      <span className="flex items-center gap-2 text-xs">
+        <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ background: hex }} />
+        <span className="min-w-0 flex-1 truncate font-medium">{row.workType.name}</span>
+        <span className="font-semibold tabular">{format(row.value)}</span>
+        <span className="w-10 text-right text-2xs text-muted-foreground tabular">{Math.round(share * 100)}%</span>
+        <Change value={change} />
+      </span>
+      <span className="mt-1 flex items-center gap-2">
+        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70">
+          <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${share * 100}%`, background: hex }} />
+        </span>
+        {done !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular">{done}% delivered</span>}
+      </span>
+    </>
   );
 }
 
