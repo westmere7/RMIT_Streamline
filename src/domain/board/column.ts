@@ -114,6 +114,37 @@ export interface DropdownColumnSettings {
   labels: ColumnLabel[];
   /** Label used when no value exists. */
   defaultLabelId: string | null;
+  /** How the chosen label is drawn. Missing parts are the original look: filled, rounded, filling the cell. */
+  look?: DropdownLook;
+  corners?: DropdownCorners;
+  fit?: DropdownFit;
+}
+
+/**
+ * A dropdown's own look. Status keeps one look everywhere, since it is the
+ * column the rest of the app reads; a dropdown is the board's to dress.
+ */
+export const DROPDOWN_LOOKS = ["filled", "soft", "outline", "dot", "text"] as const;
+export type DropdownLook = (typeof DROPDOWN_LOOKS)[number];
+export const DROPDOWN_LOOK_LABELS: Record<DropdownLook, string> = { filled: "Filled", soft: "Soft", outline: "Outline", dot: "Dot and name", text: "Coloured text" };
+
+export const DROPDOWN_CORNERS = ["rounded", "pill", "square"] as const;
+export type DropdownCorners = (typeof DROPDOWN_CORNERS)[number];
+export const DROPDOWN_CORNER_LABELS: Record<DropdownCorners, string> = { rounded: "Rounded", pill: "Pill", square: "Square" };
+
+/** Fill the cell, or hug the name. */
+export const DROPDOWN_FITS = ["fill", "fit"] as const;
+export type DropdownFit = (typeof DROPDOWN_FITS)[number];
+export const DROPDOWN_FIT_LABELS: Record<DropdownFit, string> = { fill: "Fill the cell", fit: "Fit the name" };
+
+/** A dropdown's look with anything missing or unknown as the original. */
+export function dropdownStyle(settings: { kind: string } | null | undefined): { look: DropdownLook; corners: DropdownCorners; fit: DropdownFit } {
+  const s = (settings?.kind === "dropdown" ? settings : {}) as Partial<DropdownColumnSettings>;
+  return {
+    look: DROPDOWN_LOOKS.includes(s.look as DropdownLook) ? s.look! : "filled",
+    corners: DROPDOWN_CORNERS.includes(s.corners as DropdownCorners) ? s.corners! : "rounded",
+    fit: DROPDOWN_FITS.includes(s.fit as DropdownFit) ? s.fit! : "fill",
+  };
 }
 
 export interface PriorityColumnSettings {

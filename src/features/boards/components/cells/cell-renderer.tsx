@@ -5,7 +5,7 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
+import { columnLabels, columnTagOptions, dropdownStyle, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -28,6 +28,7 @@ import { useClockTick } from "@/hooks/use-clock";
 import { cn } from "@/lib/utils";
 import { CellShell, PopoverCell, useCellStretchMode } from "./cell-shell";
 import { ButtonCell, LastUpdatedCell } from "./activity-cells";
+import { DropdownChip } from "./dropdown-chip";
 
 export interface CellProps {
   item: Item;
@@ -242,6 +243,7 @@ export function DropdownCell({ item, column, value, onChange, readOnly, width }:
   const v = valueOf("DROPDOWN", value);
   const labels = columnLabels(column);
   const label = labels.find((l) => l.id === v.labelId) ?? null;
+  const style = dropdownStyle(column.settings);
   return (
     <PopoverCell
       width={width ?? column.width}
@@ -251,11 +253,9 @@ export function DropdownCell({ item, column, value, onChange, readOnly, width }:
       align={columnAlign(column.type)}
       contentClassName="p-2"
       trigger={
-        <span className="flex h-full w-full items-center p-1.5">
+        <span className="flex h-full w-full items-center justify-center p-1.5">
           {label ? (
-            <span className={cn("flex h-full w-full items-center justify-center truncate rounded-lg text-xs font-medium shadow-xs", colorClasses(label.color).solid)}>
-              <span className="truncate px-2">{label.name}</span>
-            </span>
+            <DropdownChip label={label} {...style} />
           ) : (
             <span className="flex h-full w-full items-center justify-center rounded-lg bg-surface-strong/50 text-2xs text-muted-foreground">—</span>
           )}

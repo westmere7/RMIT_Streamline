@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.82.0",
+    date: "2026-10-01",
+    title: "Dropdown styles",
+    changes: [
+      "A Dropdown column's menu has Style: filled, soft, outline, a dot and the name, or coloured text; rounded, pill or square corners; filling the cell or fitting the name. Status keeps its own look.",
+      "Making a toolbar button no longer breaks when it is switched to selected tasks after choosing Open a link, and the toolbar buttons say selected rather than ticked.",
+    ],
+  },
+  {
     version: "0.81.1",
     date: "2026-10-01",
     title: "Progress bars sit still",
@@ -26,9 +35,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "0.81.0",
     date: "2026-10-01",
-    title: "Buttons for ticked tasks",
+    title: "Buttons for selected tasks",
     changes: [
-      "A toolbar button can be for when tasks are ticked: it takes the slot while any are, and only offers what works on them (steps or a quick run). Buttons for when nothing is ticked offer a quick run, a saved view or a link.",
+      "A toolbar button can be for when tasks are selected: it takes the slot while any are, and only offers what works on them (steps or a quick run). Buttons for when nothing is selected offer a quick run, a saved view or a link.",
       "A coloured toolbar button keeps its colour on hover instead of turning red.",
     ],
   },
@@ -42,7 +51,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "0.80.0",
     date: "2026-10-01",
     title: "Make your own toolbar buttons",
-    changes: ["The arrow beside New item makes buttons of the board's own: a label, an icon and a colour, then what it does. It can run steps on the ticked tasks, run a quick run, open a saved view or open a link. The one picked sits in the slot for everyone; New item stays as it is."],
+    changes: ["The arrow beside New item makes buttons of the board's own: a label, an icon and a colour, then what it does. It can run steps on the selected tasks, run a quick run, open a saved view or open a link. The one picked sits in the slot for everyone; New item stays as it is."],
   },
   {
     version: "0.79.1",
@@ -60,7 +69,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "0.78.0",
     date: "2026-10-01",
     title: "The New item button is a slot",
-    changes: ["Board managers can swap the toolbar's New item button for one of the board's quick runs, under a label of their own, from the arrow beside it. Pressed with tasks ticked it runs on those; otherwise it asks which."],
+    changes: ["Board managers can swap the toolbar's New item button for one of the board's quick runs, under a label of their own, from the arrow beside it. Pressed with tasks selected it runs on those; otherwise it asks which."],
   },
   {
     version: "0.77.0",

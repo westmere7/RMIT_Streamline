@@ -51,9 +51,9 @@ import { useBoardUi } from "@/stores/board-ui-store";
  *
  * New item is always there and never changes. Beside it a board manager can
  * make buttons of the board's own: a label, an icon and a colour first, where
- * it shows, then what it does. With nothing ticked a button can run a quick
- * run, open a saved view or a link; one for ticked tasks takes the slot while
- * any are ticked and runs steps or a quick run on them. One of each is chosen
+ * it shows, then what it does. With nothing selected a button can run a quick
+ * run, open a saved view or a link; one for selected tasks takes the slot while
+ * any are selected and runs steps or a quick run on them. One of each is chosen
  * for everyone; the arrow beside it is where they are made, chosen, edited
  * and deleted.
  */
@@ -70,9 +70,9 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
   const [picking, setPicking] = React.useState<AutomationRule | null>(null);
   const [managing, setManaging] = React.useState(false);
   const selected = useBoardUi(board.id).selectedItemIds;
-  const tickedCount = selected.filter((id) => model.itemById.has(id)).length;
-  // Ticked tasks bring their own button, when the board has chosen one.
-  const active = tickedCount > 0 && selectionActive ? selectionActive : boardActive;
+  const selectedCount = selected.filter((id) => model.itemById.has(id)).length;
+  // Selected tasks bring their own button, when the board has chosen one.
+  const active = selectedCount > 0 && selectionActive ? selectionActive : boardActive;
   const run = useQuickRun(board.id);
   const steps = useButtonPress();
   const vocabulary = useRuleVocabulary(model.columns, model.groups);
@@ -96,7 +96,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
       {chosen && <Check className="size-3.5" />}
     </DropdownMenuItem>
   );
-  const ticked = () =>
+  const selectedItems = () =>
     selected
       .map((id) => model.itemById.get(id))
       .filter((i): i is NonNullable<typeof i> => !!i)
@@ -106,8 +106,8 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
     const command = button.command;
     switch (command.kind) {
       case "steps": {
-        const items = ticked();
-        if (items.length === 0) return void toast.message(`Tick the tasks to ${button.label.toLowerCase()} first.`);
+        const items = selectedItems();
+        if (items.length === 0) return void toast.message(`Select the tasks to ${button.label.toLowerCase()} first.`);
         void steps.runOnItems(items, command.actions.filter((a) => !buttonActionIncomplete(a)), button.label);
         return;
       }
@@ -115,7 +115,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         const rule = quickRuns.find((r) => r.id === command.ruleId);
         if (!rule) return void toast.error("That quick run is not on this board any more.");
         const needsTask = rule.actions.some((a) => a.kind !== "notify" && a.kind !== "create_item");
-        const items = ticked();
+        const items = selectedItems();
         if (items.length > 0) run.mutate({ ruleId: rule.id, itemIds: items.map((i) => i.id) });
         else if (!needsTask) run.mutate({ ruleId: rule.id, itemIds: [] });
         else setPicking(rule);
@@ -148,8 +148,8 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
             data-testid="primary-action-run"
           >
             <DynamicIcon name={active.icon} /> <span className="max-w-36 truncate">{active.label}</span>
-            {(active.command.kind === "steps" || active.command.kind === "quick_run") && tickedCount > 0 && (
-              <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(tickedCount, MAX_QUICK_RUN_ITEMS)}</span>
+            {(active.command.kind === "steps" || active.command.kind === "quick_run") && selectedCount > 0 && (
+              <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(selectedCount, MAX_QUICK_RUN_ITEMS)}</span>
             )}
           </Button>
         ) : (
@@ -163,7 +163,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuLabel>When nothing is ticked</DropdownMenuLabel>
+              <DropdownMenuLabel>When nothing is selected</DropdownMenuLabel>
               {/* Always here and never edited: the board's own way to add a task. */}
               <DropdownMenuItem onSelect={() => save({ ...slot, activeId: null })} data-testid="primary-action-new-item">
                 <Plus /> <span className="flex-1">New item</span>
@@ -171,7 +171,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
               </DropdownMenuItem>
               {slot.buttons.filter((b) => b.scope === "board").map((b) => option(b, boardActive?.id === b.id, () => save({ ...slot, activeId: b.id })))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>When tasks are ticked</DropdownMenuLabel>
+              <DropdownMenuLabel>When tasks are selected</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => save({ ...slot, selectionActiveId: null })} data-testid="primary-action-selection-none">
                 <span className="flex-1 pl-6 text-muted-foreground">Same as above</span>
                 {!selectionActive && <Check className="size-3.5" />}
@@ -203,7 +203,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
           {editing !== null && (
             <ToolbarButtonForm
               initial={editing === "new" ? null : editing}
-              initialScope={tickedCount > 0 ? "selection" : "board"}
+              initialScope={selectedCount > 0 ? "selection" : "board"}
               quickRuns={quickRuns}
               quickRunsLoading={rules.isLoading}
               views={savedViews ? [...(savedViews.defaultView ? [savedViews.defaultView] : []), ...savedViews.views] : []}
@@ -330,7 +330,11 @@ function ToolbarButtonForm({
 
       <div className="space-y-2">
         <Label>When pressed</Label>
-        <Select value={command.kind} onValueChange={(kind) => set({ command: newToolbarCommand(kind as ToolbarCommandKind) })}>
+        <Select value={command.kind} onValueChange={(kind) => {
+            // The list changes under it when the place does, and it reports the
+            // lost choice as "": only a command offered here is taken.
+            if ((kinds as readonly string[]).includes(kind)) set({ command: newToolbarCommand(kind as ToolbarCommandKind) });
+          }}>
           <SelectTrigger className="w-72" data-testid="toolbar-button-command">
             <SelectValue />
           </SelectTrigger>

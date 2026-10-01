@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, MousePointerClick, SlidersHorizontal } from "lucide-react";
+import { Check, MousePointerClick, Palette, SlidersHorizontal } from "lucide-react";
+import { DropdownChip } from "@/features/boards/components/cells/dropdown-chip";
 import * as React from "react";
 import { ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/context-menu";
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
@@ -40,6 +41,14 @@ import {
   LAST_UPDATED_TIMES,
   lastUpdatedSettings,
   type LastUpdatedColumnSettings,
+  columnLabels,
+  DROPDOWN_CORNER_LABELS,
+  DROPDOWN_CORNERS,
+  DROPDOWN_FIT_LABELS,
+  DROPDOWN_FITS,
+  DROPDOWN_LOOK_LABELS,
+  DROPDOWN_LOOKS,
+  dropdownStyle,
 } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useButtonSettingsDialog } from "@/features/boards/components/dialogs/button-settings-dialog";
@@ -53,7 +62,7 @@ const FORMAT_PARTS: Partial<Record<ColumnType, { date: boolean; time: boolean }>
 };
 
 export function hasFormatMenu(column: BoardColumn): boolean {
-  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS" || column.type === "LAST_UPDATED" || column.type === "BUTTON";
+  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS" || column.type === "LAST_UPDATED" || column.type === "BUTTON" || column.type === "DROPDOWN";
 }
 
 type Primitives = {
@@ -81,6 +90,7 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
   const { Sub, SubTrigger, SubContent, Item, Label, Separator } = PRIMITIVES[variant];
   if (column.type === "COUNTDOWN") return <CountdownFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "PROGRESS") return <ProgressFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
+  if (column.type === "DROPDOWN") return <DropdownStyleMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "LAST_UPDATED") return <LastUpdatedFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "BUTTON") return <ButtonSettingsItem column={column} primitives={PRIMITIVES[variant]} />;
   if (!parts) return null;
@@ -115,6 +125,66 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
             ))}
           </>
         )}
+      </SubContent>
+    </Sub>
+  );
+}
+
+/**
+ * A dropdown's Style: its look, corners and width, each choice drawn as a chip
+ * in the column's first colour. Stays open between choices. Status has no
+ * such menu: it looks the same on every board.
+ */
+function DropdownStyleMenu({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
+  const { mutations } = useBoardContext();
+  const { Sub, SubTrigger, SubContent, Item, Label, Separator } = primitives;
+  if (column.settings.kind !== "dropdown") return null;
+  const settings = column.settings;
+  const style = dropdownStyle(settings);
+  const sample = columnLabels(column)[0] ?? { id: "sample", name: "Label", color: "blue" as const };
+  const set = (patch: Partial<typeof style>) => void mutations.updateColumn(column.id, { settings: { ...settings, ...style, ...patch } });
+  const choose = (fn: () => void) => (event: Event) => {
+    event.preventDefault();
+    fn();
+  };
+  const row = (selected: boolean, chip: React.ReactNode, name: string) => (
+    <>
+      <span className="flex h-6 w-28 shrink-0 items-center justify-center">{chip}</span>
+      <span className="text-[13px]">{name}</span>
+      {selected && <Check className="ml-auto size-3.5" />}
+    </>
+  );
+  return (
+    <Sub>
+      <SubTrigger>
+        <Palette /> Style
+      </SubTrigger>
+      <SubContent className="w-64" data-testid="dropdown-style-menu">
+        <Label className="text-2xs font-normal text-muted-foreground">Look</Label>
+        {DROPDOWN_LOOKS.map((look) => (
+          <Item key={look} onSelect={choose(() => set({ look }))}>
+            {row(style.look === look, <DropdownChip label={sample} look={look} corners={style.corners} fit="fit" />, DROPDOWN_LOOK_LABELS[look])}
+          </Item>
+        ))}
+        {style.look !== "dot" && style.look !== "text" && (
+          <>
+            <Separator />
+            <Label className="text-2xs font-normal text-muted-foreground">Corners</Label>
+            {DROPDOWN_CORNERS.map((corners) => (
+              <Item key={corners} onSelect={choose(() => set({ corners }))}>
+                {row(style.corners === corners, <DropdownChip label={sample} look={style.look} corners={corners} fit="fit" />, DROPDOWN_CORNER_LABELS[corners])}
+              </Item>
+            ))}
+          </>
+        )}
+        <Separator />
+        <Label className="text-2xs font-normal text-muted-foreground">Width</Label>
+        {DROPDOWN_FITS.map((fit) => (
+          <Item key={fit} onSelect={choose(() => set({ fit }))}>
+            <span className="text-[13px]">{DROPDOWN_FIT_LABELS[fit]}</span>
+            {style.fit === fit && <Check className="ml-auto size-3.5" />}
+          </Item>
+        ))}
       </SubContent>
     </Sub>
   );

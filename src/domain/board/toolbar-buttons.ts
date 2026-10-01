@@ -10,9 +10,9 @@ import { BUTTON_MAX_ACTIONS, cleanButtonAction, type ButtonAction } from "./butt
  * grow without the buttons changing shape.
  */
 export type ToolbarCommand =
-  /** These steps on every ticked task, the same steps a Button column runs. */
+  /** These steps on every selected task, the same steps a Button column runs. */
   | { kind: "steps"; actions: ButtonAction[] }
-  /** One of the board's quick runs, on the ticked tasks or ones picked then. */
+  /** One of the board's quick runs, on the selected tasks or ones picked then. */
   | { kind: "quick_run"; ruleId: EntityId | null }
   /** One of the board's saved views. */
   | { kind: "open_view"; viewId: EntityId | null }
@@ -23,21 +23,21 @@ export type ToolbarCommandKind = ToolbarCommand["kind"];
 export const TOOLBAR_COMMAND_KINDS: readonly ToolbarCommandKind[] = ["steps", "quick_run", "open_view", "open_link"];
 
 /**
- * When a button is on the toolbar: with nothing ticked, beside New item, or in
- * its place while tasks are ticked. Each has its own commands, the ones that
+ * When a button is on the toolbar: with nothing selected, beside New item, or in
+ * its place while tasks are selected. Each has its own commands, the ones that
  * make sense there: steps need tasks to run on, and a view or a link has
- * nothing to do with the ones ticked.
+ * nothing to do with the ones selected.
  */
 export const TOOLBAR_SCOPES = ["board", "selection"] as const;
 export type ToolbarScope = (typeof TOOLBAR_SCOPES)[number];
-export const TOOLBAR_SCOPE_LABELS: Record<ToolbarScope, string> = { board: "When nothing is ticked", selection: "When tasks are ticked" };
+export const TOOLBAR_SCOPE_LABELS: Record<ToolbarScope, string> = { board: "When nothing is selected", selection: "When tasks are selected" };
 export const TOOLBAR_SCOPE_COMMANDS: Record<ToolbarScope, readonly ToolbarCommandKind[]> = {
   board: ["quick_run", "open_view", "open_link"],
   selection: ["steps", "quick_run"],
 };
 
 export const TOOLBAR_COMMAND_LABELS: Record<ToolbarCommandKind, string> = {
-  steps: "Run steps on the ticked tasks",
+  steps: "Run steps on the selected tasks",
   quick_run: "Run a quick run",
   open_view: "Open a saved view",
   open_link: "Open a link",
@@ -58,9 +58,9 @@ export const DEFAULT_TOOLBAR_BUTTON_ICON = "zap";
 export interface ToolbarSlot {
   /** The board's own buttons, in the order they were made. */
   buttons: ToolbarButton[];
-  /** The one on the toolbar with nothing ticked; null is New item. */
+  /** The one on the toolbar with nothing selected; null is New item. */
   activeId: EntityId | null;
-  /** The one in its place while tasks are ticked; null leaves the other showing. */
+  /** The one in its place while tasks are selected; null leaves the other showing. */
   selectionActiveId: EntityId | null;
 }
 
@@ -78,6 +78,8 @@ export function newToolbarCommand(kind: ToolbarCommandKind): ToolbarCommand {
       return { kind, viewId: null };
     case "open_link":
       return { kind, url: "" };
+    default:
+      return { kind: "steps", actions: [] };
   }
 }
 
@@ -117,7 +119,7 @@ export function toolbarSlot(raw: unknown): ToolbarSlot {
     const x = b as Record<string, unknown>;
     const command = cleanCommand(x.command);
     if (typeof x.id !== "string" || !command) continue;
-    // Buttons made before scopes: steps can only be for ticked tasks.
+    // Buttons made before scopes: steps can only be for selected tasks.
     const stated = TOOLBAR_SCOPES.includes(x.scope as ToolbarScope) ? (x.scope as ToolbarScope) : command.kind === "steps" ? "selection" : "board";
     if (!TOOLBAR_SCOPE_COMMANDS[stated].includes(command.kind)) continue;
     buttons.push({

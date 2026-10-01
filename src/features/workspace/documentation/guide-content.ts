@@ -289,7 +289,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       ] } },
       { title: "Other fields", table: { headers: ["Field", "What it holds"], rows: [
         ["Text / Long text / Rich text", "A line, a note, or a formatted document."],
-        ["Dropdown", "One of a list of choices, like a status without meanings."],
+        ["Dropdown", "One of a list of choices, like a status without meanings. Its menu's Style sets the look (filled, soft, outline, dot, text), the corners and whether a chip fills the cell."],
         ["People", "People with no part in the work, such as a contact."],
         ["Date / Time / Date + Time", "A day, a time, or both, that is not a deadline. Format sets how they read."],
         ["Countdown", "Time left until a moment. Type 45m, 3d 4h, or 2mo. Format sets its style and when it turns amber."],
@@ -422,7 +422,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Use placeholders in messages and names: {item}, {board}, {group}, {ticket}, {actor}, {today}, and {column:Name}.",
         "Save. The rule is named after what it does unless you give it a name.",
       ] },
-      { title: "Quick runs", paragraphs: ["A quick run is a saved set of actions you fire by hand. On a board's Automations, open Quick runs, pick one, choose up to 50 tasks, and run it. You need to be able to edit the board.", "A board manager can make buttons for the toolbar's first slot from the arrow beside New item: New button gives one a label, an icon and a colour, where it shows, then what it does. A button for when nothing is ticked can run a quick run, open a saved view or open a link; one for ticked tasks takes the slot while any are ticked and runs steps or a quick run on them. Pick one of each for everyone; New item is always there to go back to, and is not edited."] },
+      { title: "Quick runs", paragraphs: ["A quick run is a saved set of actions you fire by hand. On a board's Automations, open Quick runs, pick one, choose up to 50 tasks, and run it. You need to be able to edit the board.", "A board manager can make buttons for the toolbar's first slot from the arrow beside New item: New button gives one a label, an icon and a colour, where it shows, then what it does. A button for when nothing is selected can run a quick run, open a saved view or open a link; one for selected tasks takes the slot while any are selected and runs steps or a quick run on them. Pick one of each for everyone; New item is always there to go back to, and is not edited."] },
       { title: "Is it working?", bullets: [
         "The Automations page says whether the runner is live, and warns when nothing has run for twenty minutes.",
         "Each rule's card says when it last ran and how many times. Activity lists every run, with the reason for anything skipped.",
