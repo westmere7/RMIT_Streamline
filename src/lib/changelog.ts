@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.76.2",
+    date: "2026-10-01",
+    title: "Portal shows only what can be used",
+    changes: [
+      "The portal no longer shows controls a visitor cannot use: no selection ticks on rows and groups, no locked column list under Hide (the Ticket switch stays), no Star or Follow on a task, and no Columns chip on a phone.",
+      "The same goes for anyone else who can only read a board.",
+    ],
+  },
+  {
     version: "0.76.1",
     date: "2026-10-01",
     title: "Pop-up opens on the overview",

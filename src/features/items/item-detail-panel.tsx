@@ -195,9 +195,10 @@ export function ItemDetailPanel({
   popup?: boolean;
   /**
    * Drops the task's own "…" menu, and with it the choice of where the task is
-   * shown. For the stakeholder portal: everything behind that menu is either a
-   * change to the board a stakeholder has no business making, or a choice about
-   * a board they are not looking at.
+   * shown, and Star and Follow. For the stakeholder portal: everything behind
+   * that menu is either a change to the board a stakeholder has no business
+   * making, or a choice about a board they are not looking at, and a visitor
+   * there has no account to star or follow with.
    */
   hideMenu?: boolean;
   /** Something the reader should know about this task before anything else, shown under its header. */
@@ -592,9 +593,9 @@ function PanelHeader({
                 </Button>
               </SimpleTooltip>
             )}
-            {/* Anyone who can see the task can follow it, on it or not. */}
-            {!shared && <StarTaskButton item={item} />}
-            {!shared && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
+            {/* Anyone signed in who can see the task can follow it, on it or not. */}
+            {!shared && !hideMenu && <StarTaskButton item={item} />}
+            {!shared && !hideMenu && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
             {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} onJourney={() => setJourneyOpen(true)} shared={shared} popup={popup} />}
             {!hideClose && (
               <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" data-testid="close-panel">

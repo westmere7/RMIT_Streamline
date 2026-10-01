@@ -228,22 +228,23 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
             >
               <span aria-hidden className={cn("my-1 h-[calc(100%-8px)] w-1 rounded-full", colors.dot)} />
               <div className="flex items-center justify-center" style={{ width: layout.selectWidth - 6 }}>
-                <Checkbox
-                  aria-label={`Select ${item.name}`}
-                  checked={selected}
-                  // Shift ticks everything between the last row ticked by hand
-                  // and this one. The rows are read off the model at the moment
-                  // of the click — in the order they are on screen — and
-                  // preventing the default is what stops the plain tick from
-                  // also running.
-                  onClick={(event) => {
-                    if (!event.shiftKey) return;
-                    event.preventDefault();
-                    selectRange(board.id, model.visibleGroups.flatMap((g) => (model.itemsByGroup.get(g.id) ?? []).map((i) => i.id)), item.id);
-                  }}
-                  onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)}
-                  disabled={!canEdit}
-                />
+                {canEdit && (
+                  <Checkbox
+                    aria-label={`Select ${item.name}`}
+                    checked={selected}
+                    // Shift ticks everything between the last row ticked by hand
+                    // and this one. The rows are read off the model at the moment
+                    // of the click — in the order they are on screen — and
+                    // preventing the default is what stops the plain tick from
+                    // also running.
+                    onClick={(event) => {
+                      if (!event.shiftKey) return;
+                      event.preventDefault();
+                      selectRange(board.id, model.visibleGroups.flatMap((g) => (model.itemsByGroup.get(g.id) ?? []).map((i) => i.id)), item.id);
+                    }}
+                    onCheckedChange={(next) => toggleSelected(board.id, item.id, next === true)}
+                  />
+                )}
               </div>
               {!showTicket && dndEnabled && (
                 <div

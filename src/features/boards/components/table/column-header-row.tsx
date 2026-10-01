@@ -74,12 +74,15 @@ export function ColumnHeaderRow({
       <div className="sticky left-0 z-[7] flex h-full items-center border-r border-border/60 bg-background" style={leadingCellStyle(showTicket, layout)}>
         <span aria-hidden className={cn("my-1.5 h-[calc(100%-12px)] w-1 rounded-full", colors.dot)} />
         <div className="flex items-center justify-center" style={{ width: layout.selectWidth - 6 }}>
-          <Checkbox
-            aria-label={`Select all items in ${group.name}`}
-            checked={allSelected ? true : someSelected ? "indeterminate" : false}
-            onCheckedChange={(next) => onToggleAll(next === true)}
-            disabled={!canEdit}
-          />
+          {/* Nothing can be done with a selection on a board that cannot be edited,
+              so the tick goes and its room stays, keeping the rows in line. */}
+          {canEdit && (
+            <Checkbox
+              aria-label={`Select all items in ${group.name}`}
+              checked={allSelected ? true : someSelected ? "indeterminate" : false}
+              onCheckedChange={(next) => onToggleAll(next === true)}
+            />
+          )}
         </div>
         <div style={{ width: layout.handleWidth }} />
         <TicketHeaderCell />

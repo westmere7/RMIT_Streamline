@@ -77,10 +77,13 @@ export function BoardToolbar({
     if (columnId !== null) return model.columns.find((c) => c.id === columnId)?.name ?? "Column";
     return SORT_LABELS[field as keyof typeof SORT_LABELS];
   };
-  const hiddenCount = model.columns.filter((c) => c.hidden).length + (showTicket ? 0 : 1);
-  const tableTools = view === "table";
   // In a saved view, hiding a column is the view's business, not the board's.
   const viewOpen = useSavedViewStore((s) => !!s.boards[board.id]);
+  // The columns are only offered to someone who can change them, so only they
+  // count; a reader sees the ticket switch, the one thing here that is theirs.
+  const columnsChangeable = canEdit || viewOpen;
+  const hiddenCount = (columnsChangeable ? model.columns.filter((c) => c.hidden).length : 0) + (showTicket ? 0 : 1);
+  const tableTools = view === "table";
   const barRef = React.useRef<HTMLDivElement>(null);
   const density = useToolbarDensity(barRef, `${view}|${filterCount}|${ui.sort?.field ?? ""}|${ui.search ? 1 : 0}|${hiddenCount}|${viewOpen ? 1 : 0}`);
   // Folded: Person and Tags live in the Filter panel. Below that, words go too.
@@ -161,11 +164,10 @@ export function BoardToolbar({
                 <DropdownMenuCheckboxItem checked={showTicket} onCheckedChange={(checked) => setShowTicket(checked === true)} data-testid="toggle-ticket-column">
                   Ticket
                 </DropdownMenuCheckboxItem>
-                {model.columns.map((column) => (
+                {columnsChangeable && model.columns.map((column) => (
                   <DropdownMenuCheckboxItem
                     key={column.id}
                     checked={!column.hidden}
-                    disabled={!canEdit && !viewOpen}
                     onCheckedChange={(checked) => void mutations.updateColumn(column.id, { hidden: !checked })}
                   >
                     {column.name}

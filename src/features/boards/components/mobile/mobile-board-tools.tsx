@@ -10,6 +10,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { VIEWS } from "@/features/boards/components/board-view-switcher";
+import { useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -48,9 +49,11 @@ export function MobileBoardTools({
   /** Chips the current view adds to the strip, after the board's own. */
   extraChips?: React.ReactNode;
 }) {
-  const { board, model } = useBoardContext();
+  const { board, model, canManage } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
+  // Hiding columns is a board manager's, or a saved view's; nobody else gets a chip that only says no.
+  const columnsChangeable = useSavedViewStore((s) => !!s.boards[board.id]) || canManage;
   const [open, setOpen] = React.useState<null | "views" | "search" | "filter" | "sort" | "columns">(null);
   const close = () => setOpen(null);
 
@@ -78,7 +81,7 @@ export function MobileBoardTools({
             <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
               {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}
             </Chip>
-            <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />
+            {columnsChangeable && <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />}
             {extraChips}
           </div>
         </div>
@@ -364,7 +367,8 @@ function MobileFilters() {
  * change the desktop table from here.
  */
 function MobileColumns() {
-  const { model, mutations, canManage } = useBoardContext();
+  const { board, model, mutations, canManage: manages } = useBoardContext();
+  const canManage = useSavedViewStore((s) => !!s.boards[board.id]) || manages;
   return (
     <div className="pb-2">
       {model.columns.map((column) => (
