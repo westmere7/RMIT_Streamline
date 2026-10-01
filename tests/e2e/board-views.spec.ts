@@ -41,11 +41,12 @@ test.describe("board views", () => {
     await page.getByRole("button", { name: "Expand Design" }).click();
     await expect(page.getByRole("button", { name: "Collapse Design" })).toBeVisible();
 
-    // Lanes can be washed in their colour, and the choice is remembered for this person on this board.
-    await page.getByTestId("kanban-tint").click();
+    // Lanes are washed in their colour unless turned off, and the choice is remembered for this person on this board.
     await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("kanban-tint").click();
+    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "false");
     await page.reload();
-    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "true", { timeout: 15000 });
+    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "false", { timeout: 15000 });
     await expect(page.getByTestId("lane-Design")).toBeVisible();
     await page.getByTestId("kanban-tint").click();
 

@@ -44,8 +44,11 @@ const CARD_DETAIL_OPTIONS: ReadonlyArray<{ value: CardDetail; label: string }> =
 
 interface KanbanSettings extends Record<string, unknown> {
   laneBy: LaneBy;
-  /** Wash each lane in its own colour. */
-  tint: boolean;
+  /**
+   * Wash each lane in its own colour. On unless turned off; a new key, since the
+   * old `tint` was saved as false for everyone who ever changed the view.
+   */
+  tintLanes: boolean;
   /** Lanes folded to a strip. */
   collapsed: string[];
   /** How much each card shows, and how tall it is. */
@@ -62,7 +65,7 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tint: false, collapsed: [], detail: "standard" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
@@ -206,9 +209,9 @@ export function KanbanView() {
         <Segmented value={detail} onChange={(next) => updateSettings({ detail: next })} options={CARD_DETAIL_OPTIONS} ariaLabel="How much each card shows" testId="kanban-detail" />
         <button
           type="button"
-          onClick={() => updateSettings({ tint: !settings.tint })}
-          aria-pressed={settings.tint}
-          className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-xs font-medium shadow-xs transition-colors", settings.tint ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground")}
+          onClick={() => updateSettings({ tintLanes: !settings.tintLanes })}
+          aria-pressed={settings.tintLanes}
+          className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-xs font-medium shadow-xs transition-colors", settings.tintLanes ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground")}
           data-testid="kanban-tint"
         >
           <PaintBucket className="size-3.5" /> Tint lanes
@@ -224,7 +227,7 @@ export function KanbanView() {
               laneBy={laneBy}
               detail={detail}
               canEdit={canEdit}
-              tint={settings.tint}
+              tint={settings.tintLanes}
               collapsed={collapsed.has(lane.id)}
               activeId={drag?.activeId ?? null}
               onToggle={() => toggleLane(lane.id)}
@@ -400,7 +403,10 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           onClick={overlay ? undefined : open}
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
           className={cn(
-            "relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card shadow-xs transition-shadow hover:shadow-md",
+            // A step lighter than the lane in the dark themes (where --card sits
+            // below --surface), with a full border and a shadow, so a card reads
+            // as lifted off a tinted lane rather than printed on it.
+            "relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-surface-strong",
             moving && "row-moving pointer-events-none",
             compact ? "px-2.5 py-2" : "p-3",
             overlay && "rotate-1 shadow-xl",
