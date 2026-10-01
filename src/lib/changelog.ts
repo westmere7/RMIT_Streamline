@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.81.0",
+    date: "2026-10-01",
+    title: "Buttons for ticked tasks",
+    changes: [
+      "A toolbar button can be for when tasks are ticked: it takes the slot while any are, and only offers what works on them (steps or a quick run). Buttons for when nothing is ticked offer a quick run, a saved view or a link.",
+      "A coloured toolbar button keeps its colour on hover instead of turning red.",
+    ],
+  },
+  {
     version: "0.80.1",
     date: "2026-10-01",
     title: "Shorter toolbar button labels",

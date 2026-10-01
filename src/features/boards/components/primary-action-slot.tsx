@@ -19,14 +19,17 @@ import {
   newToolbarCommand,
   TOOLBAR_BUTTON_LABEL_MAX,
   TOOLBAR_BUTTONS_MAX,
-  TOOLBAR_COMMAND_KINDS,
   TOOLBAR_COMMAND_LABELS,
+  TOOLBAR_SCOPE_COMMANDS,
+  TOOLBAR_SCOPE_LABELS,
+  TOOLBAR_SCOPES,
   toolbarCommandIncomplete,
   toolbarSlot,
   buttonActionIncomplete,
   type AutomationRule,
   type ToolbarButton,
   type ToolbarCommandKind,
+  type ToolbarScope,
   type ToolbarSlot,
 } from "@/domain";
 import { AutomationsDialog, RunPicker } from "@/features/automations/automations-dialog";
@@ -47,10 +50,12 @@ import { useBoardUi } from "@/stores/board-ui-store";
  * The toolbar's first button, a slot.
  *
  * New item is always there and never changes. Beside it a board manager can
- * make buttons of the board's own: a label, an icon and a colour first, then
- * what it does when pressed: steps on the ticked tasks, a quick run, a saved
- * view, or a link. Whichever is chosen sits in the slot for everyone; the
- * arrow beside it is where they are made, chosen, edited and deleted.
+ * make buttons of the board's own: a label, an icon and a colour first, where
+ * it shows, then what it does. With nothing ticked a button can run a quick
+ * run, open a saved view or a link; one for ticked tasks takes the slot while
+ * any are ticked and runs steps or a quick run on them. One of each is chosen
+ * for everyone; the arrow beside it is where they are made, chosen, edited
+ * and deleted.
  */
 export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
   const { board, model, canEdit, canManage } = useBoardContext();
@@ -58,12 +63,16 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
   const actions = useBoardActions(board);
   const savedViews = React.useContext(SavedViewsContext);
   const slot = toolbarSlot(board.primaryAction);
-  const active = slot.buttons.find((b) => b.id === slot.activeId) ?? null;
+  const boardActive = slot.buttons.find((b) => b.id === slot.activeId) ?? null;
+  const selectionActive = slot.buttons.find((b) => b.id === slot.selectionActiveId) ?? null;
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<ToolbarButton | "new" | null>(null);
   const [picking, setPicking] = React.useState<AutomationRule | null>(null);
   const [managing, setManaging] = React.useState(false);
   const selected = useBoardUi(board.id).selectedItemIds;
+  const tickedCount = selected.filter((id) => model.itemById.has(id)).length;
+  // Ticked tasks bring their own button, when the board has chosen one.
+  const active = tickedCount > 0 && selectionActive ? selectionActive : boardActive;
   const run = useQuickRun(board.id);
   const steps = useButtonPress();
   const vocabulary = useRuleVocabulary(model.columns, model.groups);
@@ -74,11 +83,19 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
     queryKey: queryKeys.automations(board.id),
     queryFn: () => services.automations.listByBoard(board.id),
     staleTime: 60_000,
-    enabled: canEdit && (active?.command.kind === "quick_run" || editing !== null),
+    enabled: canEdit && (boardActive?.command.kind === "quick_run" || selectionActive?.command.kind === "quick_run" || editing !== null),
   });
   const quickRuns = (rules.data ?? []).filter((r) => r.trigger.kind === "manual");
 
-  const save = (next: ToolbarSlot) => actions.updateBoard.mutate({ primaryAction: next.buttons.length || next.activeId ? next : null });
+  const save = (next: ToolbarSlot) => actions.updateBoard.mutate({ primaryAction: next.buttons.length || next.activeId || next.selectionActiveId ? next : null });
+  const remove = (id: string) =>
+    save({ buttons: slot.buttons.filter((b) => b.id !== id), activeId: slot.activeId === id ? null : slot.activeId, selectionActiveId: slot.selectionActiveId === id ? null : slot.selectionActiveId });
+  const option = (b: ToolbarButton, chosen: boolean, choose: () => void) => (
+    <DropdownMenuItem key={b.id} onSelect={choose} data-testid="primary-action-option" data-button-label={b.label}>
+      <DynamicIcon name={b.icon} className={colorClasses(b.color).text} /> <span className="min-w-0 flex-1 truncate">{b.label}</span>
+      {chosen && <Check className="size-3.5" />}
+    </DropdownMenuItem>
+  );
   const ticked = () =>
     selected
       .map((id) => model.itemById.get(id))
@@ -125,14 +142,14 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         {active ? (
           <Button
             size="sm"
-            className={cn(colorClasses(active.color).solid, "hover:opacity-90", canManage && "rounded-r-none")}
+            className={cn(colorClasses(active.color).solid, colorClasses(active.color).solidHover, canManage && "rounded-r-none")}
             onClick={() => press(active)}
             disabled={busy}
             data-testid="primary-action-run"
           >
             <DynamicIcon name={active.icon} /> <span className="max-w-36 truncate">{active.label}</span>
-            {(active.command.kind === "steps" || active.command.kind === "quick_run") && selected.length > 0 && (
-              <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(selected.length, MAX_QUICK_RUN_ITEMS)}</span>
+            {(active.command.kind === "steps" || active.command.kind === "quick_run") && tickedCount > 0 && (
+              <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(tickedCount, MAX_QUICK_RUN_ITEMS)}</span>
             )}
           </Button>
         ) : (
@@ -141,43 +158,41 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         {canManage && (
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className={cn("rounded-l-none border-l border-white/20 px-1.5", active && colorClasses(active.color).solid)} aria-label="Choose this button" data-testid="primary-action-menu">
+              <Button size="sm" className={cn("rounded-l-none border-l border-white/20 px-1.5", active && colorClasses(active.color).solid, active && colorClasses(active.color).solidHover)} aria-label="Choose this button" data-testid="primary-action-menu">
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuLabel>This button</DropdownMenuLabel>
+              <DropdownMenuLabel>When nothing is ticked</DropdownMenuLabel>
               {/* Always here and never edited: the board's own way to add a task. */}
               <DropdownMenuItem onSelect={() => save({ ...slot, activeId: null })} data-testid="primary-action-new-item">
                 <Plus /> <span className="flex-1">New item</span>
-                {!active && <Check className="size-3.5" />}
+                {!boardActive && <Check className="size-3.5" />}
               </DropdownMenuItem>
-              {slot.buttons.map((b) => (
-                <DropdownMenuItem key={b.id} onSelect={() => save({ ...slot, activeId: b.id })} data-testid="primary-action-option" data-button-label={b.label}>
-                  <DynamicIcon name={b.icon} className={colorClasses(b.color).text} /> <span className="min-w-0 flex-1 truncate">{b.label}</span>
-                  {active?.id === b.id && <Check className="size-3.5" />}
-                </DropdownMenuItem>
-              ))}
+              {slot.buttons.filter((b) => b.scope === "board").map((b) => option(b, boardActive?.id === b.id, () => save({ ...slot, activeId: b.id })))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>When tasks are ticked</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => save({ ...slot, selectionActiveId: null })} data-testid="primary-action-selection-none">
+                <span className="flex-1 pl-6 text-muted-foreground">Same as above</span>
+                {!selectionActive && <Check className="size-3.5" />}
+              </DropdownMenuItem>
+              {slot.buttons.filter((b) => b.scope === "selection").map((b) => option(b, selectionActive?.id === b.id, () => save({ ...slot, selectionActiveId: b.id })))}
               <DropdownMenuSeparator />
               {slot.buttons.length < TOOLBAR_BUTTONS_MAX && (
                 <DropdownMenuItem onSelect={() => setEditing("new")} data-testid="primary-action-new-button">
                   <Plus /> New button…
                 </DropdownMenuItem>
               )}
-              {active && (
-                <>
-                  <DropdownMenuItem onSelect={() => setEditing(active)} data-testid="primary-action-edit">
-                    <Pencil /> Edit {active.label}…
+              {[boardActive, selectionActive].filter((b): b is ToolbarButton => !!b).map((b) => (
+                <React.Fragment key={b.id}>
+                  <DropdownMenuItem onSelect={() => setEditing(b)} data-testid="primary-action-edit">
+                    <Pencil /> Edit {b.label}…
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => save({ buttons: slot.buttons.filter((b) => b.id !== active.id), activeId: null })}
-                    data-testid="primary-action-delete"
-                  >
-                    <Trash2 /> Delete {active.label}
+                  <DropdownMenuItem variant="destructive" onSelect={() => remove(b.id)} data-testid="primary-action-delete">
+                    <Trash2 /> Delete {b.label}
                   </DropdownMenuItem>
-                </>
-              )}
+                </React.Fragment>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -188,6 +203,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
           {editing !== null && (
             <ToolbarButtonForm
               initial={editing === "new" ? null : editing}
+              initialScope={tickedCount > 0 ? "selection" : "board"}
               quickRuns={quickRuns}
               quickRunsLoading={rules.isLoading}
               views={savedViews ? [...(savedViews.defaultView ? [savedViews.defaultView] : []), ...savedViews.views] : []}
@@ -195,7 +211,13 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
               onCancel={() => setEditing(null)}
               onSave={(button) => {
                 const exists = slot.buttons.some((b) => b.id === button.id);
-                save({ buttons: exists ? slot.buttons.map((b) => (b.id === button.id ? button : b)) : [...slot.buttons, button], activeId: button.id });
+                const buttons = exists ? slot.buttons.map((b) => (b.id === button.id ? button : b)) : [...slot.buttons, button];
+                // Chosen where it now belongs, and taken out of the place it left.
+                save({
+                  buttons,
+                  activeId: button.scope === "board" ? button.id : slot.activeId === button.id ? null : slot.activeId,
+                  selectionActiveId: button.scope === "selection" ? button.id : slot.selectionActiveId === button.id ? null : slot.selectionActiveId,
+                });
                 setEditing(null);
               }}
             />
@@ -218,6 +240,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
 /** A button of the board's own: how it looks first, then what it does. */
 function ToolbarButtonForm({
   initial,
+  initialScope,
   quickRuns,
   quickRunsLoading,
   views,
@@ -226,6 +249,7 @@ function ToolbarButtonForm({
   onSave,
 }: {
   initial: ToolbarButton | null;
+  initialScope: ToolbarScope;
   quickRuns: AutomationRule[];
   quickRunsLoading: boolean;
   views: Array<{ id: string; name: string }>;
@@ -233,7 +257,12 @@ function ToolbarButtonForm({
   onCancel: () => void;
   onSave: (button: ToolbarButton) => void;
 }) {
-  const [draft, setDraft] = React.useState<ToolbarButton>(() => initial ?? { id: newId(), label: "", color: "blue", icon: DEFAULT_TOOLBAR_BUTTON_ICON, command: newToolbarCommand("steps") });
+  const [draft, setDraft] = React.useState<ToolbarButton>(
+    () => initial ?? { id: newId(), label: "", color: "blue", icon: DEFAULT_TOOLBAR_BUTTON_ICON, scope: initialScope, command: newToolbarCommand(TOOLBAR_SCOPE_COMMANDS[initialScope][0]!) },
+  );
+  const kinds = TOOLBAR_SCOPE_COMMANDS[draft.scope];
+  const setScope = (scope: ToolbarScope) =>
+    setDraft((d) => ({ ...d, scope, command: TOOLBAR_SCOPE_COMMANDS[scope].includes(d.command.kind) ? d.command : newToolbarCommand(TOOLBAR_SCOPE_COMMANDS[scope][0]!) }));
   const set = (patch: Partial<ToolbarButton>) => setDraft((d) => ({ ...d, ...patch }));
   const command = draft.command;
   const ready = draft.label.trim() !== "" && !toolbarCommandIncomplete(command);
@@ -281,6 +310,24 @@ function ToolbarButtonForm({
         </div>
       </div>
 
+      <div className="space-y-1.5">
+        <Label>Shows</Label>
+        <div role="radiogroup" aria-label="Shows" className="flex w-fit gap-1 rounded-lg bg-surface p-0.5" data-testid="toolbar-button-scope">
+          {TOOLBAR_SCOPES.map((scope) => (
+            <button
+              key={scope}
+              type="button"
+              role="radio"
+              aria-checked={draft.scope === scope}
+              onClick={() => setScope(scope)}
+              className={cn("h-7 rounded-md px-2.5 text-xs font-medium", draft.scope === scope ? "bg-card shadow-xs" : "text-muted-foreground hover:text-foreground")}
+            >
+              {TOOLBAR_SCOPE_LABELS[scope]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="space-y-2">
         <Label>When pressed</Label>
         <Select value={command.kind} onValueChange={(kind) => set({ command: newToolbarCommand(kind as ToolbarCommandKind) })}>
@@ -288,7 +335,7 @@ function ToolbarButtonForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TOOLBAR_COMMAND_KINDS.map((kind) => (
+            {kinds.map((kind) => (
               <SelectItem key={kind} value={kind}>
                 {TOOLBAR_COMMAND_LABELS[kind]}
               </SelectItem>
