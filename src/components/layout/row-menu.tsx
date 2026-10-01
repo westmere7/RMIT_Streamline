@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils";
 
 /** Declarative menu description rendered as both a right-click menu and a hover "…" dropdown. */
 export type MenuAction =
-  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string; testId?: string; accent?: boolean }
+  /** `keepOpen` leaves the menu up after the pick, for a list of ticks made one after another. */
+  | { type: "item"; label: string; icon?: React.ReactNode; onSelect: () => void; destructive?: boolean; disabled?: boolean; hint?: string; testId?: string; accent?: boolean; keepOpen?: boolean }
   /**
    * A sub-menu of more actions, or — with `content` — a panel such as a colour
    * picker. `accent` marks the one entry the menu is really there for, so it
@@ -94,7 +95,10 @@ export function renderContext(actions: MenuAction[]): React.ReactNode {
         return (
           <ContextMenuItem
             key={index}
-            onSelect={action.onSelect}
+            onSelect={(event) => {
+              if (action.keepOpen) event.preventDefault();
+              action.onSelect();
+            }}
             disabled={action.disabled}
             variant={action.destructive ? "destructive" : "default"}
             className={cn(action.accent && ACCENT_ITEM)}
@@ -129,7 +133,10 @@ export function renderDropdown(actions: MenuAction[]): React.ReactNode {
         return (
           <DropdownMenuItem
             key={index}
-            onSelect={action.onSelect}
+            onSelect={(event) => {
+              if (action.keepOpen) event.preventDefault();
+              action.onSelect();
+            }}
             disabled={action.disabled}
             variant={action.destructive ? "destructive" : "default"}
             className={cn(action.accent && ACCENT_ITEM)}

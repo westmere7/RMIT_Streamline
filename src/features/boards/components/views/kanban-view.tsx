@@ -3,7 +3,7 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, Copy, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -19,6 +19,8 @@ import { useBoardAssets } from "@/features/items/asset-hooks";
 import { CardCover } from "@/features/items/item-cover";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
+import { useTaskMenuExtras } from "@/features/items/use-task-menu-extras";
+import { renderContext } from "@/components/layout/row-menu";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
@@ -341,7 +343,7 @@ function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; l
 }
 
 function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; overlay?: boolean }) {
-  const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates } = useBoardContext();
+  const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates, mutations } = useBoardContext();
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);
@@ -387,6 +389,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
   const shownTags = tags.slice(0, detailed ? 6 : 2);
   const open = () => openItem(item.id);
   const moving = useMovingItems().has(item.id);
+  const extras = useTaskMenuExtras(item, canEdit);
 
   return (
     <ContextMenu>
@@ -464,22 +467,27 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           </div>
         </article>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-44">
+      <ContextMenuContent className="w-52">
         <ContextMenuItem onSelect={open}>
           <Maximize2 /> Open
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => openItem(item.id, "popup")}>
           <PictureInPicture2 /> Open in pop-up
         </ContextMenuItem>
+        {renderContext([...extras.reading, ...extras.columns])}
         {canEdit && (
           <>
             <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
+              <Copy /> Duplicate
+            </ContextMenuItem>
             <ContextMenuItem onSelect={() => setArchiveRequest([item.id])}>
               <Archive /> Archive
             </ContextMenuItem>
           </>
         )}
       </ContextMenuContent>
+      {extras.dialogs}
     </ContextMenu>
   );
 }

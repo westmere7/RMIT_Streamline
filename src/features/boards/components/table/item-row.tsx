@@ -6,6 +6,7 @@ import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ShareItemDialog } from "@/features/items/share-item-dialog";
+import { useTaskMenuExtras } from "@/features/items/use-task-menu-extras";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -112,12 +113,17 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         }
       : null;
 
+  // What the panel offers beyond these: the journey, the star, following, hidden columns.
+  const extras = useTaskMenuExtras(item, canEdit);
+
   // Shared by the hover "…" button and the right-click menu on the row.
   const actions: MenuAction[] = canEdit
     ? [
         ...(allocateAction ? [allocateAction, { type: "separator" } satisfies MenuAction] : []),
         { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
         { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
+        ...extras.reading,
+        { type: "separator" },
         { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
         {
           type: "item",
@@ -161,6 +167,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               onSelect: () => void mutations.moveItemsToGroup([item.id], g.id),
             })),
         },
+        ...extras.columns,
         { type: "separator" },
         { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
         { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
@@ -168,6 +175,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
     : [
         { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
         { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
+        ...extras.reading,
       ];
 
   return (
@@ -404,6 +412,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
       />
       {canManage && <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />}
+      {extras.dialogs}
     </>
   );
 });

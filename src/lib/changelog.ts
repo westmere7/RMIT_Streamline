@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.8",
+    date: "2026-10-01",
+    title: "Task menu matches the panel",
+    changes: [
+      "Right-click a task, on the table or a Kanban card, for what its panel offers: Task journey, Star, Follow with the changes to hear about, and the columns hidden from the panel or the board. Kanban cards also get Duplicate.",
+    ],
+  },
+  {
     version: "0.73.7",
     date: "2026-10-01",
     title: "Work types focus from the radar",
