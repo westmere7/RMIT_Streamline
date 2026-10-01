@@ -284,7 +284,7 @@ function RegenerateButton() {
  * it, tune it. The address is kept for tests and screen readers and shown to
  * nobody; a token is not something a person reads.
  */
-function LinkTile({
+export function LinkTile({
   icon: Icon,
   label,
   lead,
@@ -325,9 +325,25 @@ function LinkTile({
     return () => clearTimeout(timer);
   }, [copied]);
   const dim = !open && "opacity-60";
+  // The tile's own blank space opens the link, as its Open button does. A
+  // click that lands on anything with a job of its own (the switch, settings,
+  // the buttons below, a link) is left to that.
+  const openFromTile = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("a, button, input, label, [role=switch], [role=dialog]")) return;
+    if (window.getSelection()?.toString()) return;
+    window.open(href, "_blank", "noopener,noreferrer");
+  };
 
   return (
-    <div className="flex min-w-0 flex-col rounded-xl border border-border/70 bg-surface/50" data-testid={`${testId}-block`}>
+    // A solid fill a step up from the section and a full border, so the two
+    // doors read as things to pick up rather than as part of the page. No shadow.
+    <div
+      className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border bg-surface transition-colors hover:border-ring/50 dark:border-white/10 dark:bg-surface-strong dark:hover:border-ring/50"
+      onClick={openFromTile}
+      title={`Open the ${label.toLowerCase()} in a new tab`}
+      data-testid={`${testId}-block`}
+    >
       <div className="flex items-start gap-3 p-4">
         <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground", dim)}>
           <Icon className="size-4" />
