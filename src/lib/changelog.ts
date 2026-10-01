@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.81.1",
+    date: "2026-10-01",
+    title: "Progress bars sit still",
+    changes: ["Progress bars no longer animate: the stripes on a part-done bar stay put, and the bar does not slide when it changes."],
+  },
+  {
     version: "0.81.0",
     date: "2026-10-01",
     title: "Buttons for ticked tasks",

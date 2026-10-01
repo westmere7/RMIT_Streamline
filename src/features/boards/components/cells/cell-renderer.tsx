@@ -439,7 +439,7 @@ export function ProgressCell({ item, column, value, width }: CellProps) {
         <button type="button" onClick={open} className={cn("flex h-full min-w-0 flex-1 items-center gap-2 px-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", settings.display === "number" && "justify-center")} title={text}>
           {settings.display !== "number" && (
             <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={text}>
-              <span className={cn("block h-full rounded-full bg-emerald-500 transition-[width] duration-300", percent > 0 && percent < 100 && "progress-stripes")} style={{ width: `${percent}%` }} />
+              <span className={cn("block h-full rounded-full bg-emerald-500", percent > 0 && percent < 100 && "progress-stripes")} style={{ width: `${percent}%` }} />
             </span>
           )}
           {settings.display !== "bar" && (

@@ -501,15 +501,8 @@
   animation: auth-sweep 1.6s ease-in-out infinite;
 }
 
-/* ---- A progress bar part way through: moving stripes say "in progress" ------- */
-@keyframes progress-stripes {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: 1.25rem 0;
-  }
-}
+/* ---- A progress bar part way through: stripes say "in progress". Still: a
+   board full of moving bars pulls the eye from everything else on it. ---- */
 .progress-stripes {
   background-image: linear-gradient(
     45deg,
@@ -522,11 +515,6 @@
     transparent
   );
   background-size: 1.25rem 1.25rem;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .progress-stripes {
-    animation: progress-stripes 0.9s linear infinite;
-  }
 }
 
 /* ---- The front gate: the one bar that moves while something is fetched ------- */
