@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.74.0",
+    date: "2026-10-01",
+    title: "Saved views",
+    changes: [
+      "Save a board's setup as a view: the view, search, filters, sort, hidden columns and the view's own settings. Pick it again from Saved views beside the filters.",
+      "Share a view with everyone on the board, or keep it to yourself. Changes to an open view are marked Edited until you save or discard them; views can also be renamed, duplicated and deleted.",
+    ],
+  },
+  {
     version: "0.73.13",
     date: "2026-10-01",
     title: "Phone settings open on the list",

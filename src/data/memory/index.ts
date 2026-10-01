@@ -249,6 +249,12 @@ export function createMemoryRepositories(
       update: readOnly("saving a board template"),
       delete: readOnly("deleting a board template"),
     },
+    savedViews: {
+      listByBoard: async () => [],
+      create: readOnly("saving a view"),
+      update: readOnly("saving a view"),
+      delete: readOnly("deleting a view"),
+    },
     itemFavourites: {
       listByUser: async () => [],
       add: readOnly("starring a task"),

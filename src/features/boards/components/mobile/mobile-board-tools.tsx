@@ -36,12 +36,15 @@ export function MobileBoardTools({
   view,
   onViewChange,
   actions,
+  leadingChips,
   extraChips,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
   /** Rendered at the end of the row. The portal puts "Book a task" here. */
   actions?: React.ReactNode;
+  /** Right after the view chip: the saved view, which decides what the rest show. */
+  leadingChips?: React.ReactNode;
   /** Chips the current view adds to the strip, after the board's own. */
   extraChips?: React.ReactNode;
 }) {
@@ -69,6 +72,7 @@ export function MobileBoardTools({
         <div className={cn("-ml-3 min-w-0 flex-1 overflow-x-auto overscroll-x-contain pl-3", actions ? "pr-1" : "-mr-3 pr-3")} role="toolbar" aria-label="Board tools">
           <div className="flex w-max items-center gap-1.5 pb-0.5">
             <Chip onClick={() => setOpen("views")} icon={CurrentIcon} label={current.label} testId="mobile-view-switcher" active />
+            {leadingChips}
             <Chip onClick={() => setOpen("search")} icon={Search} label={ui.search || "Search"} active={!!ui.search} testId="mobile-search-chip" />
             <Chip onClick={() => setOpen("filter")} icon={Filter} label="Filter" count={filterCount} active={filterCount > 0} testId="mobile-filter-chip" />
             <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">

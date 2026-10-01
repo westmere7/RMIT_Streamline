@@ -1,10 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import type { BoardViewKind } from "@/domain";
+import type { BoardViewKind, ViewDateFilter, ViewFilters, ViewSort, ViewSortField } from "@/domain";
+import { EMPTY_VIEW_FILTERS } from "@/domain";
 
 /** Built-in fields, or any column by id ("column:<id>") from a click on its header. */
-export type SortField = "name" | "dueDate" | "priority" | "status" | "createdAt" | `column:${string}`;
+export type SortField = ViewSortField;
 
 export function columnSortField(columnId: string): SortField {
   return `column:${columnId}`;
@@ -19,27 +20,12 @@ export type SortDirection = "asc" | "desc";
 /** Beside the board, or over the middle of it. */
 export type ItemOpenMode = "panel" | "popup";
 
-export interface BoardSort {
-  field: SortField;
-  direction: SortDirection;
-}
+/** The same shapes a saved view keeps (src/domain/board/saved-view.ts). */
+export type BoardSort = ViewSort;
+export type DateFilter = ViewDateFilter;
+export type BoardFilters = ViewFilters;
 
-export type DateFilter = "overdue" | "today" | "thisWeek" | "noDate" | null;
-
-export interface BoardFilters {
-  /** User ids; item matches when any PERSON column contains one of them. */
-  personIds: string[];
-  /** Status label ids. */
-  statusIds: string[];
-  /** Priority label ids. */
-  priorityIds: string[];
-  groupIds: string[];
-  /** Tag names (case-insensitive); item matches when any TAGS column contains one of them. */
-  tags: string[];
-  date: DateFilter;
-}
-
-export const EMPTY_FILTERS: BoardFilters = { personIds: [], statusIds: [], priorityIds: [], groupIds: [], tags: [], date: null };
+export const EMPTY_FILTERS: BoardFilters = EMPTY_VIEW_FILTERS;
 
 export interface BoardUiState {
   search: string;

@@ -154,6 +154,7 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
       ["trackers", "createdBy"],
       ["bookingTemplates", "createdBy"],
       ["boardTemplates", "createdBy"],
+      ["savedViews", "createdBy"],
       ["bookingSavedBlocks", "createdBy"],
       ["automationRules", "createdBy"],
       ["boardShares", "createdBy"],

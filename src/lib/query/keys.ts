@@ -91,6 +91,7 @@ export const queryKeys = {
   /** Every form of the workspace's saved by name, for the editor's Templates menu. */
   bookingTemplates: (workspaceId: string) => ["booking-templates", workspaceId] as const,
   boardTemplates: (workspaceId: string) => ["board-templates", workspaceId] as const,
+  savedViews: (boardId: string, userId: string) => ["saved-views", boardId, userId] as const,
   /** The form an admin is part-way through building; never what a stakeholder is served. */
   bookingDraft: (workspaceId: string) => ["booking-draft", workspaceId] as const,
   /** Blocks of a brief the workspace keeps by name, for the editor to insert. */

@@ -215,9 +215,12 @@ export function MobileBoardToolsRow({
   onTableModeChange,
   selectMode,
   onSelectModeChange,
+  savedViews,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
+  /** The board's saved views, first among the chips. */
+  savedViews?: React.ReactNode;
   tableMode: "cards" | "grid";
   onTableModeChange: (mode: "cards" | "grid") => void;
   selectMode: boolean;
@@ -230,6 +233,7 @@ export function MobileBoardToolsRow({
       <MobileBoardTools
         view={view}
         onViewChange={onViewChange}
+        leadingChips={savedViews}
         extraChips={
           table ? (
             <>

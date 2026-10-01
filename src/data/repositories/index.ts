@@ -51,7 +51,7 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -451,6 +451,17 @@ export interface BoardTemplateRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+/**
+ * A board's views saved under a name: the shared ones, and the asker's own.
+ * Somebody else's private views are never listed.
+ */
+export interface SavedViewRepository {
+  listByBoard(boardId: EntityId, userId: EntityId): Promise<SavedBoardView[]>;
+  create(input: SavedBoardViewInput): Promise<SavedBoardView>;
+  update(id: EntityId, patch: SavedBoardViewPatch): Promise<SavedBoardView>;
+  delete(id: EntityId): Promise<void>;
+}
+
 /** Blocks of a brief kept under a name, per workspace, to be dropped into any service's brief. */
 /** Starred tasks, one person's own. */
 export interface ItemFavouriteRepository {
@@ -670,6 +681,7 @@ export interface Repositories {
   stakeholderPortals: StakeholderPortalRepository;
   bookingTemplates: BookingTemplateRepository;
   boardTemplates: BoardTemplateRepository;
+  savedViews: SavedViewRepository;
   bookingSavedBlocks: BookingSavedBlockRepository;
   subscriptions: SubscriptionRepository;
   itemFavourites: ItemFavouriteRepository;

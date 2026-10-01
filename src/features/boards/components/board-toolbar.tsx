@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { boardBarClasses, BoardViewSwitcher, type ArchiveEntry } from "@/features/boards/components/board-view-switcher";
+import { useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ export function BoardToolbar({
   archive,
   leading,
   actions,
+  savedViews,
 }: {
   view: BoardViewKind;
   onViewChange: (view: BoardViewKind) => void;
@@ -63,6 +65,8 @@ export function BoardToolbar({
   leading?: React.ReactNode;
   /** Rendered at the end of the row. */
   actions?: React.ReactNode;
+  /** The board's saved views, ahead of the filters. Only the board's own screen has them. */
+  savedViews?: React.ReactNode;
 }) {
   const { board, model, canEdit, mutations, showTicket, setShowTicket } = useBoardContext();
   const ui = useBoardUi(board.id);
@@ -75,6 +79,9 @@ export function BoardToolbar({
   };
   const hiddenCount = model.columns.filter((c) => c.hidden).length + (showTicket ? 0 : 1);
   const tableTools = view === "table";
+  // In a saved view, hiding a column is the view's business, not the board's.
+  const viewOpen = useSavedViewStore((s) => !!s.boards[board.id]);
+  const labelClass = useToolLabelClass(board.id);
 
   // The button labels go by the toolbar's own width rather than the window's:
   // an open task panel takes a third of the window beside it.
@@ -87,6 +94,8 @@ export function BoardToolbar({
       {tableTools && canEdit && <NewItemButton />}
       {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {savedViews}
+        {savedViews && tableTools && <span aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-border/70" />}
         {tableTools && (
           <>
             <PersonFilter />
@@ -94,7 +103,7 @@ export function BoardToolbar({
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
-                  <Filter /> <span className="hidden @5xl:inline">Filter</span>
+                  <Filter /> <span className={labelClass}>Filter</span>
                   {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
                 </Button>
               </PopoverTrigger>
@@ -105,7 +114,7 @@ export function BoardToolbar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
-                  <ArrowUpDown /> <span className="hidden @5xl:inline">Sort</span>
+                  <ArrowUpDown /> <span className={labelClass}>Sort</span>
                   {ui.sort && (
                     <span className="flex items-center gap-0.5 text-2xs">
                       {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
@@ -137,7 +146,7 @@ export function BoardToolbar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Hide columns" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
-                  <EyeOff /> <span className="hidden @5xl:inline">Hide</span>
+                  <EyeOff /> <span className={labelClass}>Hide</span>
                   {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
                 </Button>
               </DropdownMenuTrigger>
@@ -152,7 +161,7 @@ export function BoardToolbar({
                   <DropdownMenuCheckboxItem
                     key={column.id}
                     checked={!column.hidden}
-                    disabled={!canEdit}
+                    disabled={!canEdit && !viewOpen}
                     onCheckedChange={(checked) => void mutations.updateColumn(column.id, { hidden: !checked })}
                   >
                     {column.name}
@@ -230,8 +239,19 @@ export function SearchBox({ value, onChange, className }: { value: string; onCha
   );
 }
 
+/**
+ * The tool buttons' words, shown once the bar has room. A saved view's name
+ * and Save button take some of it, so with one open they wait for a wider bar
+ * and the icons and counts carry the meaning until then.
+ */
+function useToolLabelClass(boardId: string): string {
+  const viewOpen = useSavedViewStore((s) => !!s.boards[boardId]);
+  return viewOpen ? "hidden @7xl:inline" : "hidden @5xl:inline";
+}
+
 function PersonFilter() {
   const { board, users } = useBoardContext();
+  const labelClass = useToolLabelClass(board.id);
   const ui = useBoardUi(board.id);
   const setFilters = useBoardUiStore((s) => s.setFilters);
   const selected = ui.filters.personIds;
@@ -239,7 +259,7 @@ function PersonFilter() {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" aria-label="Filter by person" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
-          <UserRound /> <span className="hidden @5xl:inline">Person</span>
+          <UserRound /> <span className={labelClass}>Person</span>
           {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>
@@ -289,6 +309,7 @@ function PersonFilter() {
  */
 function TagFilter() {
   const { board, model } = useBoardContext();
+  const labelClass = useToolLabelClass(board.id);
   const ui = useBoardUi(board.id);
   const setFilters = useBoardUiStore((s) => s.setFilters);
   const selected = ui.filters.tags;
@@ -311,7 +332,7 @@ function TagFilter() {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" aria-label="Filter by tag" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="tag-filter">
-          <Hash /> <span className="hidden @5xl:inline">Tags</span>
+          <Hash /> <span className={labelClass}>Tags</span>
           {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
         </Button>
       </PopoverTrigger>

@@ -31,6 +31,9 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useActiveSavedView, useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
+import { useSavedViewsController } from "@/features/boards/saved-views/saved-views";
+import { SavedViewsMenu } from "@/features/boards/saved-views/saved-views-menu";
 import { useArchiveCount } from "@/features/boards/archive/use-archive";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
 import { MobileBoardHeader, MobileBoardToolsRow } from "@/features/boards/components/mobile/mobile-board-screen";
@@ -48,6 +51,8 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { readRememberedView, rememberView, useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
+
+const NO_COLUMNS: BoardColumn[] = [];
 
 function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
@@ -195,6 +200,19 @@ function BoardScreen({ boardId }: { boardId: string }) {
     void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next).catch(() => undefined);
     replaceParams({ view: next });
   };
+  const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null;
+  const savedViews = useSavedViewsController({
+    board,
+    view,
+    setView,
+    replaceParams,
+    columns: snapshot.data?.columns ?? NO_COLUMNS,
+    userId: ws.currentUser.id,
+    canEdit,
+    requestedId: searchParams.get("sv"),
+  });
+  const savedView = useActiveSavedView(boardId);
+  const savedViewsMenu = <SavedViewsMenu controller={savedViews} />;
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
   const setOpenItemMode = useBoardUiStore((s) => s.setOpenItemMode);
   /**
@@ -272,12 +290,31 @@ function BoardScreen({ boardId }: { boardId: string }) {
     };
   }, [urlItemId, snapshot.data, services, board.id, board.slug, ws.slug, router]);
 
+  // A saved view hides its own columns, over the board's.
+  const hiddenInView = savedView?.hiddenColumnIds;
+  const shown = React.useMemo(() => {
+    if (!snapshot.data || !hiddenInView) return snapshot.data;
+    const hidden = new Set(hiddenInView);
+    return { ...snapshot.data, columns: snapshot.data.columns.map((c) => (c.hidden === hidden.has(c.id) ? c : { ...c, hidden: hidden.has(c.id) })) };
+  }, [snapshot.data, hiddenInView]);
   const model = React.useMemo(
-    () => (snapshot.data ? buildBoardModel(snapshot.data, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),
-    [snapshot.data, ui.search, ui.filters, ui.sort, now, ws],
+    () => (shown ? buildBoardModel(shown, { search: ui.search, filters: ui.filters, sort: ui.sort, now, userName: (id) => ws.userById(id)?.displayName }) : null),
+    [shown, ui.search, ui.filters, ui.sort, now, ws],
   );
+  // Hiding a column while a saved view is open hides it in that view, not on the board.
+  const viewOpen = !!savedView;
+  const boardMutations = React.useMemo<typeof mutations>(() => {
+    if (!viewOpen) return mutations;
+    return {
+      ...mutations,
+      updateColumn: (columnId, patch) => {
+        const { hidden, ...rest } = patch;
+        if (hidden !== undefined) useSavedViewStore.getState().setHidden(boardId, columnId, hidden);
+        return Object.keys(rest).length > 0 ? mutations.updateColumn(columnId, rest) : Promise.resolve(undefined);
+      },
+    };
+  }, [mutations, viewOpen, boardId]);
 
-  const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null;
   const itemIds = React.useMemo(() => (snapshot.data ? snapshot.data.items.map((item) => item.id) : []), [snapshot.data]);
   const updates = useBoardUpdates(board.id, itemIds);
 
@@ -287,7 +324,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
         ? {
             board,
             model,
-            mutations,
+            mutations: boardMutations,
             users: ws.activeUsers,
             people: ws.users,
             canEdit,
@@ -301,7 +338,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             updates,
           }
         : null,
-    [board, model, mutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket],
+    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket],
   );
 
   // Next holds this page on screen until the next one is ready, so a board
@@ -324,7 +361,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
         {!snapshot.isError && !contextValue && <ItemPanelSlot onClose={openItem} skeleton />}
         {contextValue && (
           <BoardContextProvider value={contextValue}>
-            <MobileBoardToolsRow view={view} onViewChange={setView} tableMode={tableMode} onTableModeChange={setTableMode} selectMode={selectMode} onSelectModeChange={setSelectMode} />
+            <MobileBoardToolsRow view={view} onViewChange={setView} savedViews={<SavedViewsMenu controller={savedViews} compact />} tableMode={tableMode} onTableModeChange={setTableMode} selectMode={selectMode} onSelectModeChange={setSelectMode} />
             <MobileBoardViews view={view} tableMode={tableMode} selectMode={selectMode} onSelectModeChange={setSelectMode} />
             {/* Full screen on a phone: the panel already goes fixed inset-0 below 1024. */}
             <ItemPanelSlot onClose={openItem} />
@@ -383,7 +420,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
               the panel begins, rather than running on underneath it. */}
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} />
+              <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} savedViews={savedViewsMenu} />
               {view === "table" && <BoardTable />}
               {view === "kanban" && <KanbanView />}
               {view === "timeline" && <TimelineView />}

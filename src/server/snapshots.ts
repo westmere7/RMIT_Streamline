@@ -577,6 +577,8 @@ export async function removePerson(workspaceId: string, userId: string, caller: 
       ] as const) {
         await tx.unsafe(`update public.${ident(table)} set ${ident(column)} = $1 where ${ident(column)} = $2`, [to, userId]);
       }
+      // A view they shared stays on its board; their private ones go with them.
+      await tx`update public.board_saved_views set created_by = ${to} where created_by = ${userId} and shared`;
       // Off every people cell and deliverable. Held off the automations while
       // it happens: nobody changed who is on a task, somebody left.
       await tx`set local session_replication_role = replica`;

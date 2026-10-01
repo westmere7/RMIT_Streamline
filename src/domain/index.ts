@@ -14,6 +14,7 @@ export * from "./board/countdown";
 export * from "./board/progress";
 export * from "./board/board-share";
 export * from "./board/board-template";
+export * from "./board/saved-view";
 export * from "./dashboard/dashboard";
 export * from "./item/item";
 export * from "./item/ticket";

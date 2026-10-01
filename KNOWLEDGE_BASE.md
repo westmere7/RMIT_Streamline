@@ -727,6 +727,13 @@ Sources:
   - Create board's template dropdown: "Built in" (Blank only) and "Saved". A delete button appears for the creator or an admin.
   - Picking a saved template also picks its colour and icon.
 
+### Saved views (v0.74)
+
+- **Storage:** `board_saved_views` (0099): board, name (≤60), `shared`, `config` jsonb, `created_by` (cascades with the profile; `removePerson` hands shared ones over first). Policy 0023: anyone who can see the board reads the shared views and their own and saves private ones; shared ones need `can_edit_board` to create, change, delete or keep shared. The local store is `savedViews` (v20).
+- **Config** (`src/domain/board/saved-view.ts`): view kind, search, filters, sort, `hiddenColumnIds`, and each view kind's settings as `useViewSettings` stores them. Read back through `normaliseViewConfig`; `sameViewConfig` compares id lists as sets and settings over the defaults each view registers.
+- **Open view:** `useSavedViewStore` holds its working settings and hidden columns. While one is open, `useViewSettingsFor` reads and writes it instead of the person's own, the board page lays its hidden columns over the snapshot, and `updateColumn({ hidden })` goes to the view rather than the board. Search, filters and sort stay in the board UI store. `?sv=<id>` and a per-person, per-board browser copy reopen it.
+- **UI:** `SavedViewsMenu` at the head of the toolbar's right-hand group (first chip after the view on a phone). Edited shows a dot and a Save button for whoever may save; the tool buttons lose their words below `@7xl` while a view is open.
+
 ### Task Allocation
 
 The admin-only intake board:
@@ -1626,6 +1633,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0075 | `board_columns.removed` |
 | 0076 | Snapshot kind `before_wipe` |
 | 0077 | `board_templates` |
+| 0099 | `board_saved_views` |
 | 0078 | REQUESTER type |
 
 | Policy | Change |
@@ -1635,6 +1643,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0017 | Automation rules (view / manage board) and runs |
 | 0018 | `automation_events` readable by board viewers |
 | 0019 | Board templates: members read and insert as themselves; creator or admin updates/deletes |
+| 0023 | Saved views: board viewers read shared and own, save private; shared ones are board editors' |
 
 **From the 26 September audit** (checked on a disposable stack first): migrations 0079 (comments stay on their task), 0080 (recurring receipts) and 0081 (a prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). They are the last four lines of `sequence.txt`.
 

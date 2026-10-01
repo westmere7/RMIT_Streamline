@@ -129,3 +129,5 @@ migrations/0095_comment_checks.sql
 migrations/0096_portal_column_layout.sql
 migrations/0097_asset_skills.sql
 migrations/0098_work_types.sql
+migrations/0099_board_saved_views.sql
+policies/0023_board_saved_views_policies.sql
