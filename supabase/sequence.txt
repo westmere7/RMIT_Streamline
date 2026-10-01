@@ -134,3 +134,4 @@ policies/0023_board_saved_views_policies.sql
 migrations/0100_board_default_view.sql
 migrations/0101_last_updated_and_button_columns.sql
 migrations/0102_board_primary_action.sql
+migrations/0103_board_view_only.sql

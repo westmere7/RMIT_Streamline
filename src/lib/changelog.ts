@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.79.0",
+    date: "2026-10-01",
+    title: "View only boards",
+    changes: ["Board menu → View only locks a board against accidental changes, for you alone or, for a board manager, for everyone on it. A strip says so, with Unlock beside it. It does not change who may edit."],
+  },
+  {
     version: "0.78.0",
     date: "2026-10-01",
     title: "The New item button is a slot",

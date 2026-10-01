@@ -250,11 +250,12 @@ export interface BoardRow {
   assets_fill_pic: boolean | null;
   assets_clear_pic: boolean | null;
   primary_action: unknown;
+  view_only: boolean | null;
   created_at: string;
   updated_at: string;
 }
 
-export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, created_at, updated_at";
+export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, view_only, created_at, updated_at";
 
 export function toBoard(row: BoardRow): Board {
   return {
@@ -274,6 +275,7 @@ export function toBoard(row: BoardRow): Board {
     assetsFillPic: row.assets_fill_pic ?? true,
     assetsClearPic: row.assets_clear_pic ?? false,
     primaryAction: row.primary_action ? boardPrimaryAction(row.primary_action) : null,
+    viewOnly: row.view_only ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -296,6 +298,7 @@ export function fromBoardPatch(patch: Partial<Omit<Board, "id" | "createdAt">>):
     assets_fill_pic: patch.assetsFillPic,
     assets_clear_pic: patch.assetsClearPic,
     primary_action: patch.primaryAction,
+    view_only: patch.viewOnly,
   });
 }
 

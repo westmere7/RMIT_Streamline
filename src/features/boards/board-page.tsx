@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, SquareKanban, Lock } from "lucide-react";
+import { Archive, SquareKanban, Lock, LockOpen } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -10,7 +10,7 @@ import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BOARD_VIEWS, boardViewsFor, type BoardColumn, type BoardViewKind, type Item } from "@/domain";
+import { BOARD_VIEWS, boardViewsFor, type Board, type BoardColumn, type BoardViewKind, type Item } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
@@ -28,6 +28,7 @@ import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
 import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
+import { useBoardLockStore, useLockedForMe } from "@/features/boards/board-lock";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
@@ -202,7 +203,11 @@ function BoardScreen({ boardId }: { boardId: string }) {
     void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId, next).catch(() => undefined);
     replaceParams({ view: next });
   };
-  const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null;
+  // View only, for this person or for everyone: a catch against slips, so
+  // nothing offers an edit until it is lifted. Rights are untouched.
+  const lockedForMe = useLockedForMe(ws.currentUser.id, boardId);
+  const locked = lockedForMe || !!board.viewOnly;
+  const canEdit = canEditBoard(ws.permissions, board) && board.archivedAt === null && !locked;
   const savedViews = useSavedViewsController({
     board,
     view,
@@ -363,6 +368,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
         {waiting && <LoadingSweep label="Loading board" />}
         <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", leaving && "pointer-events-none opacity-60")}>
         <MobileBoardHeader board={board} />
+        {!board.archivedAt && locked && <ViewOnlyStrip board={board} forMe={lockedForMe} />}
         {snapshot.isError && <ErrorState title="Something went wrong while loading this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
         {!snapshot.isError && !contextValue && <BoardSkeleton />}
         {/* Followed a link to a task: the panel is what was asked for, so it
@@ -404,6 +410,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           )}
         </div>
       )}
+      {!board.archivedAt && locked && <ViewOnlyStrip board={board} forMe={lockedForMe} />}
       {!contextValue && snapshot.isError && (
         <div className={boardBarClasses}>
           <BoardViewSwitcher view={view} onChange={setView} archive={archiveEntry} views={boardViewsFor(board)} />
@@ -503,6 +510,31 @@ function BoardLabelDialogs({
         onSave={(columnId, options, renames) => void mutations.updateColumnTags(columnId, options, renames)}
       />
     </>
+  );
+}
+
+/** Says the board is view only and why, with the way out for whoever may take it. */
+function ViewOnlyStrip({ board, forMe }: { board: Board; forMe: boolean }) {
+  const ws = useWorkspace();
+  const actions = useBoardActions(board);
+  const setLocked = useBoardLockStore((s) => s.setLocked);
+  const forAll = !!board.viewOnly;
+  const manage = canManageBoard(ws.permissions, board);
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b bg-sky-50 px-6 py-2 text-[13px] text-sky-900 max-md:px-4 dark:bg-sky-500/10 dark:text-sky-200" role="status" data-testid="view-only-strip">
+      <Lock className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1">{forAll ? "View only for everyone, so nothing changes by accident." : "View only for you, so nothing changes by accident."}</span>
+      {forMe && (
+        <Button variant="outline" size="sm" className="bg-background" onClick={() => setLocked(ws.currentUser.id, board.id, false)} data-testid="view-only-unlock-me">
+          <LockOpen /> Unlock{forAll ? " for me" : ""}
+        </Button>
+      )}
+      {forAll && manage && (
+        <Button variant="outline" size="sm" className="bg-background" onClick={() => actions.updateBoard.mutate({ viewOnly: false })} data-testid="view-only-unlock-all">
+          <LockOpen /> Unlock for everyone
+        </Button>
+      )}
+    </div>
   );
 }
 

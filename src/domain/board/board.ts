@@ -49,6 +49,8 @@ export interface Board extends Timestamps {
   assetsClearPic?: boolean;
   /** What the toolbar's first button does. Missing means New item. */
   primaryAction?: BoardPrimaryAction | null;
+  /** View only for everyone, against accidental change. Not a permission; a board manager turns it off. */
+  viewOnly?: boolean;
 }
 
 /**

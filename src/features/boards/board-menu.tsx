@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, LayoutTemplate, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Bell, BellOff, Copy, Inbox, Kanban, LayoutTemplate, Lock, LockOpen, Palette, Pencil, Settings2, Share2, SquareKanban, Star, Trash2, Users, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -9,6 +9,7 @@ import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { IconPicker } from "@/components/shared/icon-picker";
 import type { Board } from "@/domain";
 import { isBoardMuted } from "@/domain";
+import { useBoardLockStore, useLockedForMe } from "@/features/boards/board-lock";
 import { useSaveTemplateDialog } from "@/features/boards/board-templates";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useNotificationPreferenceMutations, useNotificationPreferences } from "@/features/notifications/hooks";
@@ -51,6 +52,9 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
   const favourite = ws.isFavourite(board.id);
   const teams = ws.teams.filter((t) => t.archivedAt === null);
   const showSaveTemplate = useSaveTemplateDialog((s) => s.show);
+  const lockedForMe = useLockedForMe(ws.currentUser.id, board.id);
+  const setLocked = useBoardLockStore((s) => s.setLocked);
+  const lockedForAll = !!board.viewOnly;
 
   const list: MenuAction[] = [
     // From the sidebar these open the board; from its own header they put the
@@ -103,6 +107,32 @@ export function useBoardMenuActions(board: Board, handlers: BoardMenuHandlers): 
           disabled: t.id === board.teamId,
           onSelect: () => actions.updateBoard.mutate({ teamId: t.id }),
         })),
+      ],
+    },
+    // A safety catch against slips, not a permission: for this person alone, or,
+    // from a manager, for everyone on the board.
+    {
+      type: "sub",
+      label: "View only",
+      icon: lockedForMe || lockedForAll ? <Lock /> : <LockOpen />,
+      items: [
+        {
+          type: "item",
+          label: lockedForMe ? "Unlock for me" : "Lock for me",
+          hint: lockedForMe ? "On" : undefined,
+          icon: lockedForMe ? <LockOpen /> : <Lock />,
+          onSelect: () => setLocked(ws.currentUser.id, board.id, !lockedForMe),
+          testId: "board-menu-lock-me",
+        },
+        {
+          type: "item",
+          label: lockedForAll ? "Unlock for everyone" : "Lock for everyone",
+          hint: lockedForAll ? "On" : undefined,
+          icon: lockedForAll ? <LockOpen /> : <Users />,
+          disabled: !manage,
+          onSelect: () => actions.updateBoard.mutate({ viewOnly: !lockedForAll }),
+          testId: "board-menu-lock-all",
+        },
       ],
     },
     { type: "item", label: "Duplicate board", icon: <Copy />, onSelect: () => actions.duplicateBoard.mutate() },

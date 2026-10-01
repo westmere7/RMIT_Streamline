@@ -26,7 +26,7 @@ export function useBoardActions(board: Board) {
   };
 
   const updateBoard = useMutation({
-    mutationFn: (patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction">>) =>
+    mutationFn: (patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly">>) =>
       services.boards.updateBoard(board.id, patch, user.id),
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: boardsKey });
