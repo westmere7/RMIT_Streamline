@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { DashboardSnapshot } from "@/domain";
-import { hasAnyRate, normaliseAssetRates } from "@/domain";
+import { hasAnyRate, normaliseAssetRates, normaliseWorkTypes } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { DashboardReveal } from "@/features/dashboard/charts/motion";
 import type { DashboardLinks } from "@/features/dashboard/components/dash-link";
@@ -78,6 +78,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
   // Recorded in Settings and read straight off the workspace: the rates are
   // what turn deliverables into hours, and nothing is stored per task.
   const rates = React.useMemo(() => normaliseAssetRates(snapshot.workspace.assetRates), [snapshot.workspace.assetRates]);
+  const workTypes = React.useMemo(() => normaliseWorkTypes(snapshot.workspace.workTypes), [snapshot.workspace.workTypes]);
   const report = React.useMemo(() => volumeReport(facts, resolved, prefs.basis, prefs.teamIds, rates), [facts, resolved, prefs.basis, prefs.teamIds, rates]);
   // Hours per task, once for the snapshot; every measure-aware panel reads it
   // through `valueOf` rather than walking the asset lines again.
@@ -112,7 +113,7 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
   // public link has no way to open a task, so it gets no list either.
   const [drill, setDrill] = React.useState<DrillRequest | null>(null);
   const openDrill = React.useCallback((request: DrillRequest) => setDrill(request), []);
-  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard, links };
+  const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, workTypes, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard, links };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-6" data-testid="dashboard-header">

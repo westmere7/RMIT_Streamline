@@ -1,5 +1,6 @@
 import type { BookingFormTemplate } from "@/domain/booking/booking-template";
 import type { AssetRates } from "@/domain/workspace/asset-rate";
+import type { WorkTypes } from "@/domain/workspace/work-type";
 import type { EntityId, Timestamps } from "@/domain/common/types";
 
 export const WORKSPACE_ROLES = ["OWNER", "ADMIN", "MEMBER", "GUEST"] as const;
@@ -44,6 +45,8 @@ export interface Workspace extends Timestamps {
    * says so rather than guessing. See `@/domain/workspace/asset-rate`.
    */
   assetRates?: AssetRates | null;
+  /** Which work type each asset type belongs to, for the dashboard's work type radar. See `@/domain/workspace/work-type`. */
+  workTypes?: WorkTypes | null;
   /**
    * What this workspace stamps on its tickets: "CP" gives CP_001, CP_002.
    *

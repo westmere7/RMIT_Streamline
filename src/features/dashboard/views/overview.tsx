@@ -14,6 +14,7 @@ import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { assetTypeTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
+import { WorkTypeProfilePanel } from "./work-types-section";
 import type { DashboardViewProps } from "./types";
 import { WorkloadSection } from "./workload-section";
 
@@ -265,6 +266,9 @@ export function DashboardBody(props: DashboardViewProps) {
           />
         </Panel>
       </div>
+
+      {/* What kind of work it was: the deliverables as a profile across work types. */}
+      <WorkTypeProfilePanel facts={facts} report={report} rates={rates} measure={measure} workTypes={props.workTypes} />
 
       {/* Who is carrying it. */}
       <WorkloadSection {...props} />

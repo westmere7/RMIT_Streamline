@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.0",
+    date: "2026-10-01",
+    title: "Work types",
+    changes: [
+      "Asset types can be grouped into work types, each with a colour: pick them as chips on each asset type in Settings → Asset types. A type can be in several work types and counts in each.",
+      "The dashboard has a Work types radar: this period against last year, for the whole team or one person, with each work type's share, change, delivery and main asset types. Click one for its tasks.",
+    ],
+  },
+  {
     version: "0.72.1",
     date: "2026-10-01",
     title: "Progress on the task's line",

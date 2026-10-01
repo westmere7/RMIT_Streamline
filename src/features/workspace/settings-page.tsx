@@ -45,6 +45,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
+import { WorkTypesSection } from "@/features/workspace/work-types-section";
 import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { WorkspacesSection } from "@/features/workspace/workspaces-section";
@@ -202,7 +203,12 @@ export function SettingsPage() {
             {section === "tickets" && <TicketsSection />}
             {section === "teams" && <TeamsSection />}
             {section === "departments" && <ListSection listKey="STAKEHOLDER_GROUPS" />}
-            {section === "asset-types" && <ListSection listKey="ASSET_TYPES" />}
+            {section === "asset-types" && (
+              <>
+                <ListSection listKey="ASSET_TYPES" />
+                <WorkTypesSection />
+              </>
+            )}
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}

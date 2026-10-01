@@ -1,5 +1,6 @@
 import type { StatusChange } from "@/domain/activity/activity";
 import type { AssetRates } from "@/domain/workspace/asset-rate";
+import type { WorkTypes } from "@/domain/workspace/work-type";
 import type { Board, BoardGroup } from "@/domain/board/board";
 import type { BoardColumn } from "@/domain/board/column";
 import type { BoardShareGate, ShareRefusal } from "@/domain/board/board-share";
@@ -25,7 +26,7 @@ export interface DashboardSnapshot {
    * `assetRates` is how the dashboard weighs deliverables into hours. It is
    * absent from the public payload on purpose — see `publicDashboardSnapshot`.
    */
-  workspace: { id: EntityId; name: string; slug: string; assetRates?: AssetRates | null };
+  workspace: { id: EntityId; name: string; slug: string; assetRates?: AssetRates | null; workTypes?: WorkTypes | null };
   teams: Team[];
   /** The boards the snapshot was read from — active ones only. */
   boards: Board[];
@@ -131,7 +132,7 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
     // The rates travel, because the effort figure is drawn from them and a
     // dashboard without it is a different dashboard. They are output rates, not
     // anybody's hours.
-    workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug, assetRates: snapshot.workspace.assetRates ?? null },
+    workspace: { id: snapshot.workspace.id, name: snapshot.workspace.name, slug: snapshot.workspace.slug, assetRates: snapshot.workspace.assetRates ?? null, workTypes: snapshot.workspace.workTypes ?? null },
     teams: snapshot.teams.map((team) => ({
       id: team.id,
       workspaceId: team.workspaceId,

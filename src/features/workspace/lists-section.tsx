@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AssetRate, AssetRates, ColorToken, RatePer, TagOption, WorkspaceListKey } from "@/domain";
-import { hoursPerUnit, MAX_LIST_OPTION_NAME, normaliseAssetRates, perUnitHint, RATE_UNITS, rateUnitLabel, WORKSPACE_LIST_META } from "@/domain";
+import type { AssetRate, AssetRates, ColorToken, RatePer, TagOption, WorkspaceListKey, WorkType } from "@/domain";
+import { hoursPerUnit, MAX_LIST_OPTION_NAME, normaliseAssetRates, normaliseWorkTypes, perUnitHint, RATE_UNITS, rateUnitLabel, WORKSPACE_LIST_META } from "@/domain";
+import { WorkTypePicker } from "@/features/workspace/work-type-picker";
 import { useServices } from "@/features/data/data-context";
 import { addRow, describeDraft, draftCommit, listChanged, liveRows, ratesChangedFrom, removeRow, renameRow, rowsFromOptions, type DraftRow } from "@/features/workspace/list-draft";
 import { useListOptionUsage, useWorkspaceLists, useWorkspaceListMutations } from "@/features/workspace/list-hooks";
@@ -72,8 +73,14 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   const carriesRates = listKey === "ASSET_TYPES";
   const storedRates = React.useMemo(() => (carriesRates ? normaliseAssetRates(ws.workspace.assetRates) : {}), [carriesRates, ws.workspace.assetRates]);
 
+  // Which work types each asset type belongs to, drafted with the rows: keyed
+  // by the type's name, so a rename moves its work types the way it moves its rate.
+  const storedWorkTypes = React.useMemo(() => (carriesRates ? normaliseWorkTypes(ws.workspace.workTypes) : normaliseWorkTypes(null)), [carriesRates, ws.workspace.workTypes]);
+  const storedAssignments = storedWorkTypes.assets;
+
   const [rows, setRows] = React.useState<DraftRow[]>(() => rowsFromOptions(options));
   const [rates, setRates] = React.useState<AssetRates>(storedRates);
+  const [assignments, setAssignments] = React.useState<Record<string, string[]>>(storedAssignments);
   const [adding, setAdding] = React.useState("");
   const [asking, setAsking] = React.useState<DraftRow | null>(null);
 
@@ -84,7 +91,10 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   // Asked apart, because they cost wildly different amounts to write.
   const wordsChanged = listChanged(pending, options);
   const ratesChanged = carriesRates && ratesChangedFrom(pending, storedRates);
-  const dirty = wordsChanged || ratesChanged;
+  // Only the asset types still on the list, each with at least one work type.
+  const pendingAssignments = Object.fromEntries(live.map((row) => [row.name, assignments[row.name] ?? []] as const).filter(([, ids]) => ids.length > 0));
+  const workTypesChanged = carriesRates && JSON.stringify(sortedEntries(pendingAssignments)) !== JSON.stringify(sortedEntries(storedAssignments));
+  const dirty = wordsChanged || ratesChanged || workTypesChanged;
 
   // Reseed the draft when the stored list moves under us — a save landing, or a
   // background refetch — but only while there is nothing unsaved to lose. The
@@ -92,7 +102,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   // would throw away an edit somebody was halfway through. If they do hold
   // unsaved work while someone else changes the list, their draft stands and
   // their Save wins; losing the edit silently would be the worse of the two.
-  const settled = JSON.stringify([options, storedRates]);
+  const settled = JSON.stringify([options, storedRates, storedAssignments]);
   const [seen, setSeen] = React.useState(settled);
   // `seen` advances only together with an actual reseed. Advancing it while the
   // draft was dirty was the other half of the stranded-rename bug: the editor
@@ -104,6 +114,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
     setSeen(settled);
     setRows(rowsFromOptions(options));
     setRates(storedRates);
+    setAssignments(storedAssignments);
   }
 
   const commit = useMutation({
@@ -136,6 +147,13 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(ws.workspace.id) }),
         ]);
       }
+      // The work types last too: keyed by the names just saved. The groups
+      // themselves are as stored; only which asset types are in them changes.
+      if (workTypesChanged) {
+        const current = normaliseWorkTypes(ws.workspace.workTypes);
+        await services.repos.workspaces.update(ws.workspace.id, { workTypes: normaliseWorkTypes({ workTypes: current.workTypes, assets: pendingAssignments }) });
+        await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }), queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(ws.workspace.id) })]);
+      }
     },
     onSuccess: () => toast.success(`${meta.label} saved`),
     // The shared mutations already report their own failures; this covers the
@@ -146,6 +164,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   const discard = () => {
     setRows(rowsFromOptions(options));
     setRates(storedRates);
+    setAssignments(storedAssignments);
     setAdding("");
   };
 
@@ -160,6 +179,14 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
     }
     setRows(result.rows);
     setRates(result.rates);
+    // The work types go with the name, as the rate does.
+    const next = raw.slice(0, MAX_LIST_OPTION_NAME).trim();
+    if (next && next !== row.name && assignments[row.name]) {
+      setAssignments((prev) => {
+        const { [row.name]: moved, ...rest } = prev;
+        return moved ? { ...rest, [next]: moved } : prev;
+      });
+    }
   };
 
   const add = () => {
@@ -198,6 +225,12 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
         {carriesRates && (
           <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground max-md:hidden">
             <span className="min-w-0 flex-1">Type</span>
+            <span className="w-[11rem] shrink-0">
+              Work type{" "}
+              <a href="#work-types" className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline">
+                edit
+              </a>
+            </span>
             <span className="w-[19.5rem] shrink-0">Output rate — how many the team finishes</span>
             <span className="w-[10rem] shrink-0">Time for one</span>
             <span className="w-7 shrink-0" />
@@ -213,6 +246,9 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
               carriesRates={carriesRates}
               rate={rates[row.name]}
               slowest={slowest}
+              workTypes={storedWorkTypes.workTypes}
+              assigned={assignments[row.name] ?? []}
+              onAssign={(ids) => setAssignments((prev) => ({ ...prev, [row.name]: ids }))}
               onRecolor={(color) => patchRow(row.id, { color })}
               onRename={(name) => rename(row, name)}
               onRate={(next) => patchRate(row.name, next)}
@@ -256,7 +292,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
             <RotateCcw /> Discard
           </Button>
           <p className="text-2xs text-muted-foreground" data-testid="lists-dirty-note">
-            {commit.isPending ? "Saving…" : dirty ? describeDraft(pending, options, ratesChanged) : "No unsaved changes."}
+            {commit.isPending ? "Saving…" : dirty ? [wordsChanged || ratesChanged ? describeDraft(pending, options, ratesChanged) : null, workTypesChanged ? "work types changed" : null].filter(Boolean).join(" · ") : "No unsaved changes."}
           </p>
         </div>
       )}
@@ -275,12 +311,22 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
   );
 }
 
+/** A mapping in a stable order, so two drafts that say the same thing compare equal. */
+function sortedEntries(map: Record<string, string[]>): Array<[string, string[]]> {
+  return Object.entries(map)
+    .map(([name, ids]) => [name, [...ids].sort()] as [string, string[]])
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
 function ListRow({
   row,
   canEdit,
   carriesRates,
   rate,
   slowest,
+  workTypes = [],
+  assigned = [],
+  onAssign,
   onRecolor,
   onRename,
   onRate,
@@ -292,6 +338,9 @@ function ListRow({
   carriesRates: boolean;
   rate: AssetRate | undefined;
   slowest: number;
+  workTypes?: WorkType[];
+  assigned?: string[];
+  onAssign?: (ids: string[]) => void;
   onRecolor: (color: ColorToken) => void;
   onRename: (name: string) => void;
   onRate: (next: Partial<AssetRate> | null) => void;
@@ -345,11 +394,14 @@ function ListRow({
 
       {carriesRates &&
         (removed ? (
-          <span className="w-[29.5rem] shrink-0 text-2xs text-muted-foreground max-md:order-3 max-md:w-full max-md:pl-6">
+          <span className="w-[41rem] shrink-0 text-2xs text-muted-foreground max-md:order-3 max-md:w-full max-md:pl-6">
             {row.removal?.replaceWith === undefined ? "will leave the list" : row.removal.replaceWith === null ? "will be cleared from its deliverables" : `will move to ${row.removal.replaceWith}`}
           </span>
         ) : (
           <>
+            <span className="flex w-[11rem] shrink-0 items-center max-md:order-2 max-md:w-full max-md:pl-6">
+              <WorkTypePicker workTypes={workTypes} value={assigned} onChange={onAssign} disabled={!canEdit} typeName={row.name} />
+            </span>
             <span className="flex w-[19.5rem] shrink-0 items-center gap-2 text-[13px] text-muted-foreground max-md:order-3 max-md:w-full max-md:pl-6">
               <Input
                 type="number"

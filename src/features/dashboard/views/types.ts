@@ -1,4 +1,4 @@
-import type { AssetRates } from "@/domain";
+import type { AssetRates, WorkTypes } from "@/domain";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
 import type { DashboardLinks } from "@/features/dashboard/components/dash-link";
 import type { Coverage, MeasureKind, MonthlyComparisonRow, OperationsSnapshot, TaskValue, VolumeReport } from "@/features/dashboard/metrics";
@@ -25,6 +25,8 @@ export interface DashboardViewProps {
    * and name the types it had no rate for.
    */
   rates: AssetRates;
+  /** The workspace's work types: which one each asset type belongs to, for the work type radar. */
+  workTypes: WorkTypes;
   ops: OperationsSnapshot;
   gaps: Coverage;
   prefs: DashboardPrefs;

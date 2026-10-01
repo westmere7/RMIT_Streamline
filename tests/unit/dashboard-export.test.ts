@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { hasAnyRate, normaliseAssetRates } from "@/domain";
+import { hasAnyRate, normaliseAssetRates, EMPTY_WORK_TYPES } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { buildDashboardPdf, pdfSafe, reportFileName, reportSections, reportTimestamp, tint, type ExportMeta } from "@/features/dashboard/export-pdf";
 import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport } from "@/features/dashboard/metrics";
@@ -26,6 +26,7 @@ async function seededView(): Promise<DashboardViewProps> {
   return {
     facts,
     report,
+    workTypes: EMPTY_WORK_TYPES,
     monthly: monthlyComparison(facts, period, prefs.basis, measure, prefs.teamIds, rates),
     monthlyTasks: monthlyComparison(facts, period, prefs.basis, "tasks", prefs.teamIds),
     monthlyAssets: monthlyComparison(facts, period, prefs.basis, "assets", prefs.teamIds),

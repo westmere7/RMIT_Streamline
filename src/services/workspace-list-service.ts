@@ -1,5 +1,5 @@
 import type { EntityId, TagOption, WorkspaceListKey, WorkspaceLists } from "@/domain";
-import { cleanListOptions, workspaceLists } from "@/domain";
+import { cleanListOptions, normaliseWorkTypes, renameWorkTypeAssets, workspaceLists } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 
 /** Where an option is still spoken for, so the person deleting it knows what they are about to orphan. */
@@ -123,6 +123,12 @@ export class WorkspaceListService {
     if (departments) await this.portals?.syncDepartments(workspaceId, cleaned, renames);
     for (const [from, to] of Object.entries(renames)) {
       if (from !== to) await this.rewrite(workspaceId, listKey, from, to);
+    }
+    // A renamed asset type keeps its workType: the mapping is keyed by the word.
+    if (listKey === "ASSET_TYPES" && Object.keys(renames).length > 0) {
+      const workspace = await this.repos.workspaces.getById(workspaceId);
+      const workTypes = normaliseWorkTypes(workspace?.workTypes);
+      if (Object.keys(workTypes.assets).length > 0) await this.repos.workspaces.update(workspaceId, { workTypes: renameWorkTypeAssets(workTypes, renames) });
     }
     // A department that leaves the list leaves its tasks too. Only departments on
     // the list label work, so the dashboard never counts one it cannot name;

@@ -166,7 +166,7 @@ export async function loadDashboardSnapshot(repos: Repositories, workspaceId: En
   // Only the tasks on these boards: the App development board's bug tickets change status too.
   const statusChanges = allChanges.filter((c) => onBoards.has(c.itemId));
   return {
-    workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug, assetRates: workspace.assetRates ?? null },
+    workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug, assetRates: workspace.assetRates ?? null, workTypes: workspace.workTypes ?? null },
     teams: teams.filter((t) => t.archivedAt === null),
     departments,
     boards: active,
