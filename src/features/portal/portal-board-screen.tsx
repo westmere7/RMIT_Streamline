@@ -22,7 +22,6 @@ import { MobileTableView } from "@/features/boards/components/mobile/mobile-tabl
 import { useMobileViewPref } from "@/features/boards/components/mobile/mobile-view-prefs";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
-import { ChartView } from "@/features/boards/components/views/chart-view";
 import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
@@ -43,7 +42,7 @@ import { activeFilterCount, useBoardUi, useBoardUiStore } from "@/stores/board-u
  * The portal used to draw its own list, its own cards and its own detail panel
  * — three things the application already has, done again, worse. This renders
  * the real ones: the board toolbar with its search, filters, sort and grouping,
- * all seven views, and the item panel a member of staff sees, on a board that
+ * all six views, and the item panel a member of staff sees, on a board that
  * exists only for this department (`buildPortalBoard`).
  *
  * The mechanism is the one the public board link uses. `ShareGuestProviders`
@@ -582,7 +581,6 @@ function OtherView({ view }: { view: BoardViewKind }) {
       {view === "calendar" && <CalendarView />}
       {view === "gantt" && <GanttView />}
       {view === "workload" && <WorkloadView />}
-      {view === "chart" && <ChartView />}
     </>
   );
 }

@@ -10,7 +10,7 @@ export type BoardVisibility = (typeof BOARD_VISIBILITIES)[number];
 export const BOARD_ROLES = ["OWNER", "EDITOR", "VIEWER"] as const;
 export type BoardRole = (typeof BOARD_ROLES)[number];
 
-export const BOARD_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
+export const BOARD_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload"] as const;
 export type BoardViewKind = (typeof BOARD_VIEWS)[number];
 
 /**
@@ -19,7 +19,7 @@ export type BoardViewKind = (typeof BOARD_VIEWS)[number];
  * chart; every other board has all seven.
  */
 export function boardViewsFor(board: { system?: BoardSystemKind | null }): readonly BoardViewKind[] {
-  return board.system === "APP_DEVELOPMENT" ? ["table", "kanban", "chart"] : BOARD_VIEWS;
+  return board.system === "APP_DEVELOPMENT" ? ["table", "kanban"] : BOARD_VIEWS;
 }
 
 /** What a board gives the Assets tab and the Assets recap: nothing for bug reports, which have no deliverables. */

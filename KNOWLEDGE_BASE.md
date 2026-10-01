@@ -746,7 +746,7 @@ The admin-only intake board:
 
 v0.47.4 dropped Requester department, Requested team and Allocated to. The top-up (`workspace-service.ts`) restores only special types, and doesn't delete old columns on existing boards.
 
-### Seven views
+### Six views
 
 | View | Main use | Reads |
 | --- | --- | --- |
@@ -756,7 +756,8 @@ v0.47.4 dropped Requester department, Requested team and Allocated to. The top-u
 | Calendar | Month/week | Timeline, else Due date |
 | Gantt | Hierarchy, dependencies, milestones | Timeline / Due date, Dependency |
 | Workload | Per person per week | PIC only |
-| Chart | Counts, sums, asset units | Status, priority, group, person, tags, size, due week, each Dropdown; measures items / number sums / asset units |
+
+The Chart view was removed in v0.76.0; a remembered, linked or portal default of "chart" opens the table.
 
 **View choice** is resolved in this order:
 
@@ -1218,7 +1219,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 ### Board presentation
 
-- The portal renders as the app's own read-only board, with all 7 views. Its columns:
+- The portal renders as the app's own read-only board, with all 6 views. Its columns:
   - Requested; Department (only with All and more than one department);
   - Status, Priority, PIC, Due date;
   - then Timeline, Assets recap, Asset type and Brief where there is data.

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.76.0",
+    date: "2026-10-01",
+    title: "Chart view removed",
+    changes: ["Boards, portals and shared links no longer offer the Chart view. A link or setting that opened on it opens the Main Table."],
+  },
+  {
     version: "0.75.1",
     date: "2026-10-01",
     title: "Saved views say which one is on",

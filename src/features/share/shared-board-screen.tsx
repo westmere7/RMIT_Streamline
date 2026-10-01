@@ -15,7 +15,6 @@ import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
-import { ChartView } from "@/features/boards/components/views/chart-view";
 import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { MobileBoardTools } from "@/features/boards/components/mobile/mobile-board-tools";
@@ -153,7 +152,6 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
                   {view === "calendar" && <CalendarView />}
                   {view === "gantt" && <GanttView />}
                   {view === "workload" && <WorkloadView />}
-                  {view === "chart" && <ChartView />}
                 </div>
               )}
               {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} />}
@@ -169,7 +167,6 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
                   {view === "calendar" && <CalendarView />}
                   {view === "gantt" && <GanttView />}
                   {view === "workload" && <WorkloadView />}
-                  {view === "chart" && <ChartView />}
                 </div>
                 {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
               </div>

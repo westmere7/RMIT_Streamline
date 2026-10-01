@@ -60,7 +60,7 @@ describe("bug reports", () => {
     await services.boards.ensureSpecialColumns(board.id);
     expect((await services.repos.boards.listColumns(board.id)).filter((c) => !c.removed && c.type === "SIZE")).toHaveLength(0);
     // Its views and its panel leave out what needs dates, a workload or deliverables.
-    expect(boardViewsFor(board)).toEqual(["table", "kanban", "chart"]);
+    expect(boardViewsFor(board)).toEqual(["table", "kanban"]);
     expect(boardHasDeliverables(board)).toBe(false);
 
     const told = await services.repos.notifications.listByUser(SEED_USER_IDS.danh);

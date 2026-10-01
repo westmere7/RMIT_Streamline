@@ -203,7 +203,7 @@ export function portalBriefMarkdown(brief: string): string {
     .trim();
 }
 
-export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload", "chart"] as const;
+export const PORTAL_VIEWS = ["table", "kanban", "timeline", "calendar", "gantt", "workload"] as const;
 export type PortalView = (typeof PORTAL_VIEWS)[number];
 
 /**

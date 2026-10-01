@@ -44,7 +44,7 @@ test.describe("phone layout", () => {
 
   test("the view switcher is a sheet, and every view fits the screen", async ({ page }) => {
     await page.goto("/workspace/rmit/boards/semester-1-campaign");
-    for (const view of ["kanban", "calendar", "timeline", "gantt", "workload", "chart", "table"] as const) {
+    for (const view of ["kanban", "calendar", "timeline", "gantt", "workload", "table"] as const) {
       await page.getByTestId("mobile-view-switcher").click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await page.getByTestId(`mobile-view-${view}`).click();

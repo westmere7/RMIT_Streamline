@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarDays, ChartBar, Check, ChevronDown, Kanban, Rows3, SquareChartGantt, Table2, Users } from "lucide-react";
+import { Archive, CalendarDays, Check, ChevronDown, Kanban, Rows3, SquareChartGantt, Table2, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ export const VIEWS: Array<{ id: BoardViewKind; label: string; hint: string; icon
   { id: "calendar", label: "Calendar", hint: "Due dates by month or week", icon: CalendarDays },
   { id: "gantt", label: "Gantt", hint: "Schedule with subitems and dependencies", icon: SquareChartGantt },
   { id: "workload", label: "Workload", hint: "Who has what, week by week", icon: Users },
-  { id: "chart", label: "Chart", hint: "Counts and totals, sliced any way", icon: ChartBar },
 ];
 
 /** Shared by the board bar and the bar shown while a board loads, so the two line up. */

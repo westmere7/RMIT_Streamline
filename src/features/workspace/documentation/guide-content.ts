@@ -312,17 +312,16 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     id: "views",
     title: "Views, search, and filters",
     category: "Managing work",
-    summary: "Choose among seven board views and find work that seems to be missing.",
+    summary: "Choose among six board views and find work that seems to be missing.",
     audience: "Everyone who uses boards",
     sections: [
-      { title: "One board, seven views", table: { headers: ["View", "Best used for", "Check first"], rows: [
+      { title: "One board, six views", table: { headers: ["View", "Best used for", "Check first"], rows: [
         ["Main Table", "Detailed editing, groups, subitems, and bulk actions.", "Visible columns, search, filters, and sort."],
         ["Kanban", "Moving cards between lanes.", "What the lanes are: status, priority, person, group, or a dropdown."],
         ["Timeline", "Seeing work spans side by side.", "Tasks without a timeline or due date."],
         ["Calendar", "Due dates by month or week.", "The month shown."],
         ["Gantt", "Schedules, subitems, and dependencies.", "Dates and dependency values."],
         ["Workload", "Who has what, week by week.", "The PIC column."],
-        ["Chart", "Counts, sums, and deliverable units.", "What it is split by and what it measures."],
       ] } },
       { title: "Find and focus work", steps: [
         "Choose a view from the view menu. Switching views changes how the same tasks are shown, nothing else.",

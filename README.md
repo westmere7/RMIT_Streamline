@@ -11,7 +11,7 @@ Streamline runs on **Next.js 16, React 19 and TypeScript**. It has two backends 
 - **Boards.**
   - Groups, tasks and subitems; 25 column types; filters, sort, search, drag and drop; bulk actions; favourites; archive; activity.
   - Every board holds the 10 special columns the workspace reads: Status, PIC, Requester, Due date, Timeline, Priority, Department, Size, Assets recap, Brief. Deleting one only takes it off the board.
-- **Seven views.** Main Table, Kanban, Timeline, Calendar, Gantt, Workload and Chart, all over the same tasks.
+- **Six views.** Main Table, Kanban, Timeline, Calendar, Gantt and Workload, all over the same tasks.
 - **Tickets.** Every task can carry a quotable code such as `CP_014`, from a per-workspace counter with a prefix set in Settings.
 - **The task panel.** Name first; three widths or a pop-up over the board; every column as a row; deliverables; Updates; Activity; and a **task journey** from booking to archive.
 - **Collaboration.** Threaded updates with replies, 16 reactions, @mentions, an Inbox with per-event delivery, browser notifications, direct messages, and profile hover cards.

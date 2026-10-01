@@ -122,12 +122,4 @@ test.describe("board views", () => {
     await page.keyboard.press("Escape");
   });
 
-  test("chart slices the board and switches between bars and a donut", async ({ page }) => {
-    await switchView(page, "chart");
-    await expect(page.getByTestId("chart")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("chart-bar").first()).toBeVisible();
-    await page.getByRole("radio", { name: /donut/i }).click();
-    await expect(page.getByTestId("chart-donut")).toBeVisible();
-    await expect(page.getByTestId("chart-legend-item").first()).toBeVisible();
-  });
 });

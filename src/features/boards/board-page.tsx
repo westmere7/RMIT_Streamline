@@ -22,7 +22,6 @@ import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labe
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
 import { CalendarView } from "@/features/boards/components/views/calendar-view";
-import { ChartView } from "@/features/boards/components/views/chart-view";
 import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
@@ -427,7 +426,6 @@ function BoardScreen({ boardId }: { boardId: string }) {
               {view === "calendar" && <CalendarView />}
               {view === "gantt" && <GanttView />}
               {view === "workload" && <WorkloadView />}
-              {view === "chart" && <ChartView />}
             </div>
             {/* On the Kanban the panel floats over the lanes rather than squeezing them. */}
             <ItemPanelSlot onClose={openItem} overlay={view === "kanban"} popupAllowed />
@@ -446,7 +444,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
  *
  * The Main Table and the Kanban have mobile presentations of their own, because
  * a grid of cells and a row of 300px lanes are the two things a phone cannot
- * show. The date-axis views — timeline, calendar, gantt, workload, chart — keep
+ * show. The date-axis views — timeline, calendar, gantt, workload — keep
  * their existing implementations: they already scroll inside their own
  * containers and their control bars wrap, so what they need is a frame that
  * holds them to the screen, not a rewrite that would cost them their
@@ -461,7 +459,6 @@ function MobileBoardViews({ view, tableMode, selectMode, onSelectModeChange }: {
       {view === "calendar" && <CalendarView />}
       {view === "gantt" && <GanttView />}
       {view === "workload" && <WorkloadView />}
-      {view === "chart" && <ChartView />}
     </div>
   );
 }

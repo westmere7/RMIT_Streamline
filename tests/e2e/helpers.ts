@@ -42,7 +42,7 @@ export async function openBoard(page: Page, url = BOARD_URL): Promise<void> {
 }
 
 /** Picks a view from the board bar's view switcher and waits for the menu to close. */
-export async function switchView(page: Page, kind: "table" | "kanban" | "timeline" | "calendar" | "gantt" | "workload" | "chart"): Promise<void> {
+export async function switchView(page: Page, kind: "table" | "kanban" | "timeline" | "calendar" | "gantt" | "workload"): Promise<void> {
   await page.getByTestId("view-switcher").click();
   await page.getByTestId(`view-${kind}`).click();
   await expect(page.getByRole("menu")).toHaveCount(0);

@@ -408,7 +408,7 @@ test.describe("the stakeholder portal", () => {
     // The search sits above the board rather than inside the toolbar, so it is
     // there on every view — which is the point of moving it.
     await expect(page.getByTestId("search-input")).toBeVisible();
-    for (const view of ["kanban", "calendar", "chart"]) {
+    for (const view of ["kanban", "calendar"]) {
       await page.goto(`${portalPath}?view=${view}`);
       await expect(page.getByTestId("portal-board")).toBeVisible();
       await expect(page.getByTestId("search-input")).toBeVisible();
