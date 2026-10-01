@@ -59,7 +59,10 @@ export const userWorkspacesKey = (userId: string | undefined) => ["user-workspac
 export function useMyWorkspaces({ enabled = true }: { enabled?: boolean } = {}) {
   const services = useServices();
   const user = useCurrentUser();
-  return useQuery({ queryKey: userWorkspacesKey(user.id), queryFn: () => services.workspace.listWorkspacesForUser(user.id), staleTime: 30_000, enabled });
+  // Five minutes, and kept while nothing reads it: the list changes when a
+  // workspace is made, renamed or deleted, and those invalidate it. Read only
+  // as the menu opened, it arrived a row at a time after the menu was showing.
+  return useQuery({ queryKey: userWorkspacesKey(user.id), queryFn: () => services.workspace.listWorkspacesForUser(user.id), staleTime: 5 * 60_000, gcTime: 30 * 60_000, enabled });
 }
 
 /** A workspace row still on its way: the height of a real one, so nothing jumps when it arrives. */

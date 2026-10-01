@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.69.1",
+    date: "2026-10-01",
+    title: "Workspace menu",
+    changes: ["The workspace menu lists every workspace the first time it opens, instead of filling in after a moment."],
+  },
+  {
     version: "0.69.0",
     date: "2026-10-01",
     title: "Checklists and Progress",

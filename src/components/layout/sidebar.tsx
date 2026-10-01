@@ -35,7 +35,7 @@ import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { WorkspaceMenuItems } from "@/features/workspace/workspaces";
+import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
@@ -535,6 +535,8 @@ const subtleButtonClasses =
 /** Which workspace this is, under the logo; opens the others this person can open. */
 function SidebarWorkspaceSwitcher() {
   const ws = useWorkspace();
+  // Read with the sidebar, not when the menu opens, so every workspace is in it the first time.
+  useMyWorkspaces();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
