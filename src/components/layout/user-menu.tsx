@@ -117,7 +117,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuItem onSelect={() => router.push(routes.members(ws.slug))} data-testid="menu-members">
             <Users /> Members
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug, "general"))}>
+          <DropdownMenuItem onSelect={() => router.push(routes.settings(ws.slug))}>
             <Settings /> Settings
           </DropdownMenuItem>
           <DropdownMenuSub>

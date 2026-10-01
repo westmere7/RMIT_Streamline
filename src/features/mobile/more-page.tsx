@@ -13,7 +13,7 @@ import { AutomationOrbit } from "@/features/automations/activity-indicator";
 import { useAutomationActivity } from "@/features/automations/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, useNewWorkspaceDialog, WorkspaceRowPlaceholder } from "@/features/workspace/workspaces";
-import { canManageMembers, canManageWorkspace, canManageWorkspaces } from "@/lib/permissions/permissions";
+import { canManageMembers, canManageWorkspaces } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { useThemePreference, THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -67,7 +67,8 @@ export function MorePage() {
 
         <Group title="Workspace">
           <Row href={routes.members(ws.slug)} icon={Users} label={canManageMembers(ws.permissions) ? "Members and invitations" : "Members"} />
-          <Row href={routes.settings(ws.slug, canManageWorkspace(ws.permissions) ? "general" : "view")} icon={Settings2} label="Settings" />
+          {/* The list of sections first, as the phone's own settings do. */}
+          <Row href={routes.settings(ws.slug)} icon={Settings2} label="Settings" />
           <Row href={routes.person(ws.slug, user.id)} icon={UserRound} label="Your profile" />
         </Group>
 

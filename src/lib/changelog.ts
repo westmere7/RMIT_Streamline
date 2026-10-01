@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.13",
+    date: "2026-10-01",
+    title: "Phone settings open on the list",
+    changes: ["On a phone, Settings in More opens the list of sections first, rather than going straight into Overview."],
+  },
+  {
     version: "0.73.12",
     date: "2026-10-01",
     title: "Kanban cards without the shadow",
