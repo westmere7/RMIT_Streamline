@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Bug, ChevronRight, Inbox, LayoutList, ShoppingBag, Sparkles, Table2 } from "lucide-react";
+import { Boxes, Bug, ChartColumnBig, ChevronRight, ClipboardPen, GanttChart, Globe, Link2, Radio, Sparkles, Zap } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -49,14 +49,31 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </div>
 
         <div className="space-y-5 px-6 pt-5 pb-6">
-          <ul className="grid gap-2.5 text-[13px]">
-            <Feature icon={LayoutList}>
-              One board, seven views: table, kanban, timeline, calendar, gantt, workload and chart, with subitems, dependencies and items linked across boards
+          <ul className="grid gap-x-5 gap-y-3.5 text-[13px] sm:grid-cols-2" data-testid="about-features">
+            <Feature icon={GanttChart} title="Seven views, one board">
+              Table to Gantt, with subitems, dependencies and saved board templates.
             </Feature>
-            <Feature icon={ShoppingBag}>Task booking on a form the team shapes itself, saved as templates and open to departments without an account</Feature>
-            <Feature icon={Boxes}>Deliverables listed line by line on every task, ticked off as they land and summed up on the board</Feature>
-            <Feature icon={Table2}>Trackers that replace the spreadsheets, in and out as .xlsx</Feature>
-            <Feature icon={Inbox}>Updates, mentions and approvals gathered in one inbox</Feature>
+            <Feature icon={Link2} title="Tasks linked across boards">
+              One piece of work on two boards: fields, updates and deliverables stay in step.
+            </Feature>
+            <Feature icon={Zap} title="Automations">
+              Rules run in the database the moment something changes, browser open or not.
+            </Feature>
+            <Feature icon={ClipboardPen} title="Booking that routes itself">
+              A four-step form the team designs; each kind of work lands on its board with a ticket.
+            </Feature>
+            <Feature icon={Globe} title="One portal for every department">
+              Their work in every view, the columns you pick, booking without an account.
+            </Feature>
+            <Feature icon={ChartColumnBig} title="Effort, not just counts">
+              The dashboard weighs deliverables by output rates, across every board.
+            </Feature>
+            <Feature icon={Boxes} title="Deliverables and checklists">
+              Assets line by line with owners and dates; progress and tickable checklists.
+            </Feature>
+            <Feature icon={Radio} title="Live, across workspaces">
+              Changes appear without a refresh; each workspace keeps its own setup and snapshots.
+            </Feature>
           </ul>
 
           <button
@@ -102,13 +119,16 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   );
 }
 
-function Feature({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+function Feature({ icon: Icon, title, children }: { icon: React.ComponentType<{ className?: string }>; title: string; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
+      <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-soft-foreground">
         <Icon className="size-3.5" />
       </span>
-      <span className="text-foreground/90">{children}</span>
+      <span className="min-w-0">
+        <span className="block font-medium text-foreground">{title}</span>
+        <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">{children}</span>
+      </span>
     </li>
   );
 }

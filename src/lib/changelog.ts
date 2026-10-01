@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.71.2",
+    date: "2026-10-01",
+    title: "About, refreshed",
+    changes: ["The About window lists what Streamline does best: linked tasks, automations, self-routing booking, the department portal, effort on the dashboard, deliverables and checklists, and live updates across workspaces."],
+  },
+  {
     version: "0.71.1",
     date: "2026-10-01",
     title: "Portal columns in a pop-up",
