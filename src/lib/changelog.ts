@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.76.1",
+    date: "2026-10-01",
+    title: "Pop-up opens on the overview",
+    changes: [
+      "A task opened in a pop-up shows its Overview on the left and its Assets on the right to start with.",
+      "The browser tab icon is a little smaller.",
+    ],
+  },
+  {
     version: "0.76.0",
     date: "2026-10-01",
     title: "Chart view removed",

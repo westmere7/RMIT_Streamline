@@ -222,9 +222,12 @@ export function ItemDetailPanel({
   // A request (from the updates badge, say) wins until the person picks a tab.
   const requested = requestedTab?.itemId === itemId ? requestedTab.tab : null;
   // Two panes, two pairs of tabs: the overview and the updates on the left, the
-  // deliverables and the history on the right. They open on the updates and the
-  // deliverables, the two that change while a task is being worked on.
-  const [wideLeft, setWideLeft] = React.useState<WideLeftTab>("updates");
+  // deliverables and the history on the right. The wide panel opens on the
+  // updates and the deliverables, the two that change while a task is being
+  // worked on; the pop-up, asked for to look a task over, on the overview and
+  // the deliverables. Until the person picks a tab, which follows the mode.
+  const [pickedLeft, setWideLeft] = React.useState<WideLeftTab | null>(null);
+  const wideLeft: WideLeftTab = pickedLeft ?? (asPopup ? "overview" : "updates");
   // A bug report has no deliverables, so on App development there is no Assets tab to open on.
   const deliverables = boardHasDeliverables(board);
   const [wideRight, setWideRight] = React.useState<WideRightTab>(deliverables ? "assets" : "activity");
