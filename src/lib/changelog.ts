@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.72.1",
+    date: "2026-10-01",
+    title: "Progress on the task's line",
+    changes: ["A task's progress is a small ring and percentage beside who made it; click it for the Assets tab. The \"0 of 2 items done\" bar under it is gone."],
+  },
+  {
     version: "0.72.0",
     date: "2026-10-01",
     title: "The tasks behind the dashboard",

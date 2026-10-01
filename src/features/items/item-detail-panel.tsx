@@ -43,7 +43,7 @@ import { COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/co
 import { useComments } from "@/features/comments/hooks";
 import { ItemUpdates } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
-import { AssetsRecapStrip } from "@/features/items/item-assets-recap";
+import { AssetProgressPill } from "@/features/items/item-assets-recap";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { ShareItemDialog, useItemShareStatus } from "@/features/items/share-item-dialog";
 import { ItemAssetsTab } from "@/features/items/item-assets-tab";
@@ -532,6 +532,7 @@ function PanelHeader({
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
   const links = useMentionLinks();
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   // The same three lines at every width, set tighter or looser to suit it.
   const size = usePanelSize();
   return (
@@ -637,6 +638,8 @@ function PanelHeader({
           {/* Only when there is somebody to name. A payload that deliberately
               withholds the author — a stakeholder portal does — used to render
               "Created by someone", which reads as a fault rather than a choice. */}
+          {/* How far the deliverables are, before who made the task; it opens the Assets tab. */}
+          <AssetProgressPill assets={assets} onOpen={boardHasDeliverables(board) ? () => setRequestedItemTab({ itemId: item.id, tab: "assets" }) : undefined} />
           {creator ? (
             <p className="flex items-center gap-1.5">
               <UserAvatar user={creator} size="xs" tooltip={false} />
@@ -650,7 +653,6 @@ function PanelHeader({
             </p>
           )}
         </div>
-        <AssetsRecapStrip assets={assets} />
       </div>
       <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />
       {!shared && <TaskJourneyDialog item={item} open={journeyOpen} onOpenChange={setJourneyOpen} />}

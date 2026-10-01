@@ -63,17 +63,15 @@ test.describe("asset lines and the recap column", () => {
     await expect(panel(page)).toBeVisible();
     await expect(panel(page).getByTestId("assets-tab")).toBeVisible({ timeout: 20_000 });
     await expect(panel(page).getByTestId("assets-empty")).toBeVisible();
-    // The recap above the tabs starts as one line; the rest of it is behind the toggle.
-    await expect(panel(page).getByTestId("assets-summary")).toHaveCount(0);
+    // No deliverables yet, so no progress pill on the line of facts.
+    await expect(panel(page).getByTestId("assets-progress")).toHaveCount(0);
 
     // Two lines: the totals move as each one lands.
     await panel(page).getByTestId("asset-add-input").fill("A1 poster");
     await panel(page).getByTestId("asset-add-submit").click();
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(1, { timeout: 20_000 });
     await expect(panel(page).getByTestId("assets-progress")).toContainText("0 of 1 item done");
-    await expect(panel(page).getByTestId("assets-quantity")).toHaveCount(0);
-    await panel(page).getByTestId("assets-recap-toggle").click();
-    await expect(panel(page).getByTestId("assets-quantity")).toBeVisible();
+    await expect(panel(page).getByTestId("assets-progress")).toContainText("0%");
     await panel(page).getByTestId("asset-add-input").fill("Instagram tile");
     await panel(page).getByTestId("asset-add-input").press("Enter");
     await expect(panel(page).getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });
@@ -105,20 +103,17 @@ test.describe("asset lines and the recap column", () => {
     await page.keyboard.press("Escape");
     await expect(poster.getByTestId("asset-due")).not.toHaveAttribute("aria-label", /not set/, { timeout: 20_000 });
 
-    // None of it has landed yet — the recap above the tabs still reads the two
-    // lines as they were — and then Update puts all four changes through at once.
-    await expect(panel(page).getByTestId("assets-quantity")).toContainText("2 assets");
+    // None of it has landed yet — the board cell still reads the two lines as
+    // they were — and then Update puts all four changes through at once.
+    await expect(cell).toHaveAttribute("aria-label", /2 assets · 0 PIC/);
     await poster.getByTestId("asset-update").click();
-    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets", { timeout: 20_000 });
-    await expect(panel(page).getByTestId("assets-breakdown")).toContainText("Flyer");
-    await expect(panel(page).getByTestId("assets-people")).toHaveAttribute("aria-label", /Tuyet Le/);
-    await expect(panel(page).getByTestId("assets-due")).toContainText(/Next due/);
+    await expect(cell).toHaveAttribute("aria-label", /2 assets ×4 · 1 PIC/, { timeout: 20_000 });
 
     // Discard throws an edit away and leaves the line as it was.
     await openLine(page, "A1 poster");
     await poster.getByTestId("asset-quantity-plus").click();
     await poster.getByTestId("asset-discard").click();
-    await expect(panel(page).getByTestId("assets-quantity")).toContainText("4 assets");
+    await expect(cell).toHaveAttribute("aria-label", /2 assets ×4 · 1 PIC/);
     await openLine(page, "A1 poster");
     await expect(poster.getByTestId("asset-quantity")).toHaveValue("3");
     await poster.getByTestId("asset-toggle").click();
