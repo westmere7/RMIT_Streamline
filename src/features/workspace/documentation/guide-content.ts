@@ -422,7 +422,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Use placeholders in messages and names: {item}, {board}, {group}, {ticket}, {actor}, {today}, and {column:Name}.",
         "Save. The rule is named after what it does unless you give it a name.",
       ] },
-      { title: "Quick runs", paragraphs: ["A quick run is a saved set of actions you fire by hand. On a board's Automations, open Quick runs, pick one, choose up to 50 tasks, and run it. You need to be able to edit the board."] },
+      { title: "Quick runs", paragraphs: ["A quick run is a saved set of actions you fire by hand. On a board's Automations, open Quick runs, pick one, choose up to 50 tasks, and run it. You need to be able to edit the board.", "A board manager can also put a quick run in place of the toolbar's New item button, from the arrow beside it, with its own label. Pressed with tasks ticked, it runs on them; otherwise it asks which."] },
       { title: "Is it working?", bullets: [
         "The Automations page says whether the runner is live, and warns when nothing has run for twenty minutes.",
         "Each rule's card says when it last ran and how many times. Activity lists every run, with the reason for anything skipped.",

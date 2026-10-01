@@ -575,7 +575,7 @@ function Chip({ children, tone }: { children: React.ReactNode; tone: "when" | "t
  * about it, and a picker that made them type ids would not be a picker. Capped
  * at MAX_QUICK_RUN_ITEMS: past that this stops being a quick run.
  */
-function RunPicker({
+export function RunPicker({
   rule,
   items,
   groups,

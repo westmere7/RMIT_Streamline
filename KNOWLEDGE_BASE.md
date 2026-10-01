@@ -1651,6 +1651,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0099 | `board_saved_views` |
 | 0100 | `board_saved_views.is_default`, one per board, always shared |
 | 0101 | LAST_UPDATED and BUTTON column types; `board_last_activity()` |
+| 0102 | `boards.primary_action`: the toolbar slot (New item or a quick run) |
 | 0078 | REQUESTER type |
 
 | Policy | Change |

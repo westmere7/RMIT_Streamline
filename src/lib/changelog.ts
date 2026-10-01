@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.78.0",
+    date: "2026-10-01",
+    title: "The New item button is a slot",
+    changes: ["Board managers can swap the toolbar's New item button for one of the board's quick runs, under a label of their own, from the arrow beside it. Pressed with tasks ticked it runs on those; otherwise it asks which."],
+  },
+  {
     version: "0.77.0",
     date: "2026-10-01",
     title: "Last updated and Button columns",

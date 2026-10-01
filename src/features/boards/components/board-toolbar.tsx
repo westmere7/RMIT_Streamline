@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { boardBarClasses, BoardViewSwitcher, type ArchiveEntry } from "@/features/boards/components/board-view-switcher";
+import { PrimaryActionSlot } from "@/features/boards/components/primary-action-slot";
 import { useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
@@ -98,7 +99,8 @@ export function BoardToolbar({
       {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
       <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} views={boardViewsFor(board)} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
-      {tableTools && canEdit && <NewItemButton />}
+      {/* A slot: New item, or a quick run the board has put there. */}
+      {tableTools && canEdit && <PrimaryActionSlot newItem={<NewItemButton />} />}
       {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {savedViews}
