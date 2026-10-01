@@ -217,6 +217,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
     userId: ws.currentUser.id,
     canEdit,
     requestedId: searchParams.get("sv"),
+    requestedView: searchParams.get("view"),
   });
   const savedView = useActiveSavedView(boardId);
   const savedViewsMenu = <SavedViewsMenu controller={savedViews} />;

@@ -84,6 +84,7 @@ export function useSavedViewsController({
   userId,
   canEdit,
   requestedId,
+  requestedView,
 }: {
   board: Board;
   view: BoardViewKind;
@@ -95,6 +96,8 @@ export function useSavedViewsController({
   canEdit: boolean;
   /** A view asked for by the URL. */
   requestedId: string | null;
+  /** A view kind the URL names. The board's Default view opening by itself leaves it be. */
+  requestedView: string | null;
 }): SavedViewsController {
   const services = useServices();
   const queryClient = useQueryClient();
@@ -110,7 +113,7 @@ export function useSavedViewsController({
 
   /** Null is the Default view: the saved one if there is one, else a clean board. */
   const open = React.useCallback(
-    (wanted: SavedBoardView | null) => {
+    (wanted: SavedBoardView | null, keepView = false) => {
       const next = wanted ?? queryClient.getQueryData<SavedBoardView[]>(key)?.find((v) => v.isDefault) ?? null;
       const store = useBoardUiStore.getState();
       if (next) {
@@ -120,7 +123,7 @@ export function useSavedViewsController({
         store.clearFilters(board.id);
         store.setFilters(board.id, c.filters);
         store.setSort(board.id, c.sort);
-        if (boardViewsFor(board).includes(c.view)) setView(c.view);
+        if (!keepView && boardViewsFor(board).includes(c.view)) setView(c.view);
       } else {
         useSavedViewStore.getState().clear(board.id);
         store.setSearch(board.id, "");
@@ -148,8 +151,10 @@ export function useSavedViewsController({
       if (requestedId) replaceParams({ sv: null });
     }
     if (found) open(found);
-    else if (query.data.some((v) => v.isDefault)) open(null);
-  }, [query.data, requestedId, userId, board.id, open, replaceParams]);
+    // A link that names a view (?view=kanban) opens on that view, with the
+    // Default view's filters and settings around it.
+    else if (query.data.some((v) => v.isDefault)) open(null, !!requestedView);
+  }, [query.data, requestedId, requestedView, userId, board.id, open, replaceParams]);
 
   // Deleted, or made private, by somebody else while it was open.
   React.useEffect(() => {

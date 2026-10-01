@@ -12,3 +12,6 @@ next-env.d.ts
 .env
 .DS_Store
 *.pptx
+
+# Figma captures: regenerated from the running app (design/figma/README.md)
+design/figma/screens/

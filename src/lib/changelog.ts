@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.79.1",
+    date: "2026-10-01",
+    title: "Links open the view they name",
+    changes: ["A link to a board's Kanban, Calendar or any other view opens on that view, even when the board has a saved Default view."],
+  },
+  {
     version: "0.79.0",
     date: "2026-10-01",
     title: "View only boards",
