@@ -1,4 +1,4 @@
-import { boardPrimaryAction, COLUMN_ROLES, type ColumnRole } from "@/domain";
+import { toolbarSlot, COLUMN_ROLES, type ColumnRole } from "@/domain";
 import type {
   Activity,
   ActivityEventType,
@@ -274,7 +274,7 @@ export function toBoard(row: BoardRow): Board {
     system: row.system ?? null,
     assetsFillPic: row.assets_fill_pic ?? true,
     assetsClearPic: row.assets_clear_pic ?? false,
-    primaryAction: row.primary_action ? boardPrimaryAction(row.primary_action) : null,
+    primaryAction: row.primary_action ? toolbarSlot(row.primary_action) : null,
     viewOnly: row.view_only ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

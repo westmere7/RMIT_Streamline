@@ -60,13 +60,6 @@ function ButtonSettingsForm({ columnId, initial, onDone }: { columnId: string; i
   const { mutations } = useBoardContext();
   const [draft, setDraft] = React.useState<ButtonColumnSettings>(initial);
   const set = (patch: Partial<ButtonColumnSettings>) => setDraft((d) => ({ ...d, ...patch }));
-  const setAction = (index: number, action: ButtonAction) => set({ actions: draft.actions.map((a, i) => (i === index ? action : a)) });
-  const move = (index: number, by: -1 | 1) => {
-    const next = [...draft.actions];
-    const [step] = next.splice(index, 1);
-    next.splice(index + by, 0, step!);
-    set({ actions: next });
-  };
   const incomplete = draft.actions.some(buttonActionIncomplete);
 
   return (
@@ -140,41 +133,7 @@ function ButtonSettingsForm({ columnId, initial, onDone }: { columnId: string; i
 
       <div className="space-y-2">
         <Label>When pressed</Label>
-        <ol className="space-y-1.5" data-testid="button-actions">
-          {draft.actions.map((action, index) => (
-            <li key={index} className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface/60 p-1.5">
-              <span className="w-5 shrink-0 text-center text-2xs text-muted-foreground tabular">{index + 1}</span>
-              <ActionEditor action={action} onChange={(next) => setAction(index, next)} />
-              <div className="ml-auto flex shrink-0 items-center">
-                <Button type="button" variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Earlier">
-                  <ArrowUp />
-                </Button>
-                <Button type="button" variant="ghost" size="icon-xs" disabled={index === draft.actions.length - 1} onClick={() => move(index, 1)} aria-label="Later">
-                  <ArrowDown />
-                </Button>
-                <Button type="button" variant="ghost" size="icon-xs" onClick={() => set({ actions: draft.actions.filter((_, i) => i !== index) })} aria-label="Remove step">
-                  <X />
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ol>
-        {draft.actions.length < BUTTON_MAX_ACTIONS && (
-          <Select value="" onValueChange={(kind) => set({ actions: [...draft.actions, newButtonAction(kind as ButtonActionKind)] })}>
-            <SelectTrigger className="h-8 w-56" data-testid="button-add-action">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Plus className="size-3.5" /> Add a step
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              {BUTTON_ACTION_KINDS.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {BUTTON_ACTION_LABELS[kind]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <StepsEditor actions={draft.actions} onChange={(actions) => set({ actions })} />
       </div>
 
       <DialogFooter>
@@ -186,6 +145,56 @@ function ButtonSettingsForm({ columnId, initial, onDone }: { columnId: string; i
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/** A list of steps in order, each with its one choice inline; shared by the Button column and the toolbar's own buttons. */
+export function StepsEditor({ actions, onChange }: { actions: readonly ButtonAction[]; onChange: (actions: ButtonAction[]) => void }) {
+  const setAction = (index: number, action: ButtonAction) => onChange(actions.map((a, i) => (i === index ? action : a)));
+  const move = (index: number, by: -1 | 1) => {
+    const next = [...actions];
+    const [step] = next.splice(index, 1);
+    next.splice(index + by, 0, step!);
+    onChange(next);
+  };
+  return (
+    <>
+      <ol className="space-y-1.5" data-testid="button-actions">
+        {actions.map((action, index) => (
+          <li key={index} className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface/60 p-1.5">
+            <span className="w-5 shrink-0 text-center text-2xs text-muted-foreground tabular">{index + 1}</span>
+            <ActionEditor action={action} onChange={(next) => setAction(index, next)} />
+            <div className="ml-auto flex shrink-0 items-center">
+              <Button type="button" variant="ghost" size="icon-xs" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Earlier">
+                <ArrowUp />
+              </Button>
+              <Button type="button" variant="ghost" size="icon-xs" disabled={index === actions.length - 1} onClick={() => move(index, 1)} aria-label="Later">
+                <ArrowDown />
+              </Button>
+              <Button type="button" variant="ghost" size="icon-xs" onClick={() => onChange(actions.filter((_, i) => i !== index))} aria-label="Remove step">
+                <X />
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {actions.length < BUTTON_MAX_ACTIONS && (
+        <Select value="" onValueChange={(kind) => onChange([...actions, newButtonAction(kind as ButtonActionKind)])}>
+          <SelectTrigger className="h-8 w-56" data-testid="button-add-action">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Plus className="size-3.5" /> Add a step
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {BUTTON_ACTION_KINDS.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {BUTTON_ACTION_LABELS[kind]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </>
   );
 }
 

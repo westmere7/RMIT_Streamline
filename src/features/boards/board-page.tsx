@@ -34,7 +34,7 @@ import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useLastUpdatedValues } from "@/features/boards/hooks/use-last-updated";
 import { useActiveSavedView, useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
-import { useSavedViewsController } from "@/features/boards/saved-views/saved-views";
+import { SavedViewsContext, useSavedViewsController } from "@/features/boards/saved-views/saved-views";
 import { SavedViewsMenu } from "@/features/boards/saved-views/saved-views-menu";
 import { useArchiveCount } from "@/features/boards/archive/use-archive";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
@@ -438,7 +438,9 @@ function BoardScreen({ boardId }: { boardId: string }) {
               the panel begins, rather than running on underneath it. */}
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} savedViews={savedViewsMenu} />
+              <SavedViewsContext.Provider value={savedViews}>
+                <BoardToolbar view={view} onViewChange={setView} archive={archiveEntry} savedViews={savedViewsMenu} />
+              </SavedViewsContext.Provider>
               {view === "table" && <BoardTable />}
               {view === "kanban" && <KanbanView />}
               {view === "timeline" && <TimelineView />}

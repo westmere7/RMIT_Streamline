@@ -1651,7 +1651,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0099 | `board_saved_views` |
 | 0100 | `board_saved_views.is_default`, one per board, always shared |
 | 0101 | LAST_UPDATED and BUTTON column types; `board_last_activity()` |
-| 0102 | `boards.primary_action`: the toolbar slot (New item or a quick run) |
+| 0102 | `boards.primary_action`: the toolbar slot, `{buttons, activeId}` since v0.80 (`toolbarSlot` reads the first, single-quick-run shape too) |
 | 0103 | `boards.view_only`: view only for everyone (a safety catch; the personal one is `streamline.board-lock` in the browser) |
 | 0078 | REQUESTER type |
 

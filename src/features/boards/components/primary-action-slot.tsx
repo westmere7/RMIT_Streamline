@@ -1,78 +1,139 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Play, Plus, Settings2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
+import { ColorPicker } from "@/components/shared/color-picker";
+import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { IconPicker } from "@/components/shared/icon-picker";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { boardPrimaryAction, MAX_QUICK_RUN_ITEMS, PRIMARY_ACTION_LABEL_MAX, type AutomationRule } from "@/domain";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DEFAULT_TOOLBAR_BUTTON_ICON,
+  MAX_QUICK_RUN_ITEMS,
+  newToolbarCommand,
+  TOOLBAR_BUTTON_LABEL_MAX,
+  TOOLBAR_BUTTONS_MAX,
+  TOOLBAR_COMMAND_KINDS,
+  TOOLBAR_COMMAND_LABELS,
+  toolbarCommandIncomplete,
+  toolbarSlot,
+  buttonActionIncomplete,
+  type AutomationRule,
+  type ToolbarButton,
+  type ToolbarCommandKind,
+  type ToolbarSlot,
+} from "@/domain";
 import { AutomationsDialog, RunPicker } from "@/features/automations/automations-dialog";
 import { useQuickRun, useRuleVocabulary } from "@/features/automations/hooks";
 import { useBoardContext } from "@/features/boards/board-context";
+import { useButtonPress } from "@/features/boards/button-column";
+import { StepsEditor } from "@/features/boards/components/dialogs/button-settings-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
+import { SavedViewsContext } from "@/features/boards/saved-views/saved-views";
 import { useServices } from "@/features/data/data-context";
+import { colorClasses } from "@/lib/colors";
+import { newId } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
 import { useBoardUi } from "@/stores/board-ui-store";
 
 /**
- * The toolbar's first button, a slot: New item, or one of the board's quick
- * runs under a label of its own. A board manager picks which from the arrow
- * beside it; everyone else just gets the button.
+ * The toolbar's first button, a slot.
  *
- * A quick run pressed with tasks ticked runs on those at once. With none it
- * asks which, in the same picker as the automations' Quick runs tab, unless it
- * needs no task at all. A slot whose quick run has since been deleted is New
- * item again.
+ * New item is always there and never changes. Beside it a board manager can
+ * make buttons of the board's own: a label, an icon and a colour first, then
+ * what it does when pressed: steps on the ticked tasks, a quick run, a saved
+ * view, or a link. Whichever is chosen sits in the slot for everyone; the
+ * arrow beside it is where they are made, chosen, edited and deleted.
  */
 export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
   const { board, model, canEdit, canManage } = useBoardContext();
   const services = useServices();
   const actions = useBoardActions(board);
-  const slot = boardPrimaryAction(board.primaryAction);
+  const savedViews = React.useContext(SavedViewsContext);
+  const slot = toolbarSlot(board.primaryAction);
+  const active = slot.buttons.find((b) => b.id === slot.activeId) ?? null;
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<ToolbarButton | "new" | null>(null);
   const [picking, setPicking] = React.useState<AutomationRule | null>(null);
-  const [labelling, setLabelling] = React.useState<AutomationRule | null>(null);
   const [managing, setManaging] = React.useState(false);
   const selected = useBoardUi(board.id).selectedItemIds;
   const run = useQuickRun(board.id);
+  const steps = useButtonPress();
   const vocabulary = useRuleVocabulary(model.columns, model.groups);
 
-  // The same cache the automations screens use, without their live channel:
-  // read only once the slot holds a quick run or its menu is opened.
+  // The automations screens' cache, without their live channel, and only when
+  // a button needs the quick runs: one in the slot, or the editor open.
   const rules = useQuery({
     queryKey: queryKeys.automations(board.id),
     queryFn: () => services.automations.listByBoard(board.id),
     staleTime: 60_000,
-    enabled: canEdit && (slot.kind === "quick_run" || menuOpen),
+    enabled: canEdit && (active?.command.kind === "quick_run" || editing !== null),
   });
   const quickRuns = (rules.data ?? []).filter((r) => r.trigger.kind === "manual");
-  const rule = slot.kind === "quick_run" ? quickRuns.find((r) => r.id === slot.ruleId) : undefined;
+
+  const save = (next: ToolbarSlot) => actions.updateBoard.mutate({ primaryAction: next.buttons.length || next.activeId ? next : null });
+  const ticked = () =>
+    selected
+      .map((id) => model.itemById.get(id))
+      .filter((i): i is NonNullable<typeof i> => !!i)
+      .slice(0, MAX_QUICK_RUN_ITEMS);
+
+  const press = (button: ToolbarButton) => {
+    const command = button.command;
+    switch (command.kind) {
+      case "steps": {
+        const items = ticked();
+        if (items.length === 0) return void toast.message(`Tick the tasks to ${button.label.toLowerCase()} first.`);
+        void steps.runOnItems(items, command.actions.filter((a) => !buttonActionIncomplete(a)), button.label);
+        return;
+      }
+      case "quick_run": {
+        const rule = quickRuns.find((r) => r.id === command.ruleId);
+        if (!rule) return void toast.error("That quick run is not on this board any more.");
+        const needsTask = rule.actions.some((a) => a.kind !== "notify" && a.kind !== "create_item");
+        const items = ticked();
+        if (items.length > 0) run.mutate({ ruleId: rule.id, itemIds: items.map((i) => i.id) });
+        else if (!needsTask) run.mutate({ ruleId: rule.id, itemIds: [] });
+        else setPicking(rule);
+        return;
+      }
+      case "open_view": {
+        const view = savedViews?.views.find((v) => v.id === command.viewId) ?? (savedViews?.defaultView?.id === command.viewId ? savedViews.defaultView : null);
+        if (!view || !savedViews) return void toast.error("That saved view is not on this board any more.");
+        savedViews.open(view);
+        return;
+      }
+      case "open_link":
+        window.open(command.url.trim(), "_blank", "noopener,noreferrer");
+        return;
+    }
+  };
 
   if (!canEdit) return null;
-
-  const press = (target: AutomationRule) => {
-    const needsTask = target.actions.some((a) => a.kind !== "notify" && a.kind !== "create_item");
-    const ticked = selected.filter((id) => model.itemById.has(id)).slice(0, MAX_QUICK_RUN_ITEMS);
-    if (ticked.length > 0) run.mutate({ ruleId: target.id, itemIds: ticked });
-    else if (!needsTask) run.mutate({ ruleId: target.id, itemIds: [] });
-    else setPicking(target);
-  };
-
-  const choose = (next: AutomationRule | null) => {
-    if (!next) actions.updateBoard.mutate({ primaryAction: null });
-    else setLabelling(next);
-  };
+  const busy = run.isPending || steps.running === "toolbar";
 
   return (
     <>
       <div className="flex shrink-0 items-center">
-        {rule ? (
-          <Button size="sm" className={cn(canManage && "rounded-r-none")} onClick={() => press(rule)} disabled={run.isPending} title={rule.name} data-testid="primary-action-run">
-            <Play /> {slot.kind === "quick_run" && slot.label ? slot.label : rule.name}
-            {selected.length > 0 && <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(selected.length, MAX_QUICK_RUN_ITEMS)}</span>}
+        {active ? (
+          <Button
+            size="sm"
+            className={cn(colorClasses(active.color).solid, "hover:opacity-90", canManage && "rounded-r-none")}
+            onClick={() => press(active)}
+            disabled={busy}
+            data-testid="primary-action-run"
+          >
+            <DynamicIcon name={active.icon} /> {active.label}
+            {(active.command.kind === "steps" || active.command.kind === "quick_run") && selected.length > 0 && (
+              <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(selected.length, MAX_QUICK_RUN_ITEMS)}</span>
+            )}
           </Button>
         ) : (
           <span className={cn(canManage && "[&_button]:rounded-r-none")}>{newItem}</span>
@@ -80,33 +141,67 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         {canManage && (
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="rounded-l-none border-l border-white/20 px-1.5" aria-label="Change this button" data-testid="primary-action-menu">
+              <Button size="sm" className={cn("rounded-l-none border-l border-white/20 px-1.5", active && colorClasses(active.color).solid)} aria-label="Choose this button" data-testid="primary-action-menu">
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
               <DropdownMenuLabel>This button</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => choose(null)} data-testid="primary-action-new-item">
+              {/* Always here and never edited: the board's own way to add a task. */}
+              <DropdownMenuItem onSelect={() => save({ ...slot, activeId: null })} data-testid="primary-action-new-item">
                 <Plus /> <span className="flex-1">New item</span>
-                {!rule && <Check className="size-3.5" />}
+                {!active && <Check className="size-3.5" />}
               </DropdownMenuItem>
-              {quickRuns.length > 0 && <DropdownMenuLabel className="pt-2 text-2xs font-medium text-muted-foreground uppercase">Quick runs</DropdownMenuLabel>}
-              {rules.isLoading && <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</p>}
-              {quickRuns.map((r) => (
-                <DropdownMenuItem key={r.id} onSelect={() => choose(r)} data-testid="primary-action-option" data-rule-name={r.name}>
-                  <Play /> <span className="min-w-0 flex-1 truncate">{r.name}</span>
-                  {rule?.id === r.id && <Check className="size-3.5" />}
+              {slot.buttons.map((b) => (
+                <DropdownMenuItem key={b.id} onSelect={() => save({ ...slot, activeId: b.id })} data-testid="primary-action-option" data-button-label={b.label}>
+                  <DynamicIcon name={b.icon} className={colorClasses(b.color).text} /> <span className="min-w-0 flex-1 truncate">{b.label}</span>
+                  {active?.id === b.id && <Check className="size-3.5" />}
                 </DropdownMenuItem>
               ))}
-              {!rules.isLoading && quickRuns.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">No quick runs on this board yet.</p>}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setManaging(true)} data-testid="primary-action-manage">
-                <Settings2 /> {quickRuns.length > 0 ? "Manage quick runs…" : "Make a quick run…"}
-              </DropdownMenuItem>
+              {slot.buttons.length < TOOLBAR_BUTTONS_MAX && (
+                <DropdownMenuItem onSelect={() => setEditing("new")} data-testid="primary-action-new-button">
+                  <Plus /> New button…
+                </DropdownMenuItem>
+              )}
+              {active && (
+                <>
+                  <DropdownMenuItem onSelect={() => setEditing(active)} data-testid="primary-action-edit">
+                    <Pencil /> Edit {active.label}…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => save({ buttons: slot.buttons.filter((b) => b.id !== active.id), activeId: null })}
+                    data-testid="primary-action-delete"
+                  >
+                    <Trash2 /> Delete {active.label}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="sm:max-w-lg" aria-describedby={undefined} data-testid="toolbar-button-dialog">
+          {editing !== null && (
+            <ToolbarButtonForm
+              initial={editing === "new" ? null : editing}
+              quickRuns={quickRuns}
+              quickRunsLoading={rules.isLoading}
+              views={savedViews ? [...(savedViews.defaultView ? [savedViews.defaultView] : []), ...savedViews.views] : []}
+              onManageQuickRuns={() => setManaging(true)}
+              onCancel={() => setEditing(null)}
+              onSave={(button) => {
+                const exists = slot.buttons.some((b) => b.id === button.id);
+                save({ buttons: exists ? slot.buttons.map((b) => (b.id === button.id ? button : b)) : [...slot.buttons, button], activeId: button.id });
+                setEditing(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!picking} onOpenChange={(open) => !open && setPicking(null)}>
         <DialogContent className="sm:max-w-xl" aria-describedby={undefined}>
@@ -115,49 +210,145 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!labelling} onOpenChange={(open) => !open && setLabelling(null)}>
-        <DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
-          {labelling && (
-            <SlotLabelForm
-              rule={labelling}
-              onSave={(label) => {
-                actions.updateBoard.mutate({ primaryAction: { kind: "quick_run", ruleId: labelling.id, label } });
-                setLabelling(null);
-              }}
-              onCancel={() => setLabelling(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
       {canManage && <AutomationsDialog board={board} canManage open={managing} onOpenChange={setManaging} />}
     </>
   );
 }
 
-/** The words on the button, the quick run's own name to start with. */
-function SlotLabelForm({ rule, onSave, onCancel }: { rule: AutomationRule; onSave: (label: string) => void; onCancel: () => void }) {
-  const [label, setLabel] = React.useState(rule.name.slice(0, PRIMARY_ACTION_LABEL_MAX));
+/** A button of the board's own: how it looks first, then what it does. */
+function ToolbarButtonForm({
+  initial,
+  quickRuns,
+  quickRunsLoading,
+  views,
+  onManageQuickRuns,
+  onCancel,
+  onSave,
+}: {
+  initial: ToolbarButton | null;
+  quickRuns: AutomationRule[];
+  quickRunsLoading: boolean;
+  views: Array<{ id: string; name: string }>;
+  onManageQuickRuns: () => void;
+  onCancel: () => void;
+  onSave: (button: ToolbarButton) => void;
+}) {
+  const [draft, setDraft] = React.useState<ToolbarButton>(() => initial ?? { id: newId(), label: "", color: "blue", icon: DEFAULT_TOOLBAR_BUTTON_ICON, command: newToolbarCommand("steps") });
+  const set = (patch: Partial<ToolbarButton>) => setDraft((d) => ({ ...d, ...patch }));
+  const command = draft.command;
+  const ready = draft.label.trim() !== "" && !toolbarCommandIncomplete(command);
+
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(label.trim());
+        if (ready) onSave({ ...draft, label: draft.label.trim().slice(0, TOOLBAR_BUTTON_LABEL_MAX) });
       }}
     >
       <DialogHeader>
-        <DialogTitle>Button for {rule.name}</DialogTitle>
+        <DialogTitle>{initial ? `Edit ${initial.label}` : "New button"}</DialogTitle>
       </DialogHeader>
-      <Input autoFocus value={label} maxLength={PRIMARY_ACTION_LABEL_MAX} onChange={(e) => setLabel(e.target.value)} aria-label="Button label" data-testid="primary-action-label" />
-      <div className="flex justify-end gap-2">
+
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div className="space-y-1.5">
+          <Label htmlFor="toolbar-button-label">Label</Label>
+          <Input id="toolbar-button-label" autoFocus value={draft.label} maxLength={TOOLBAR_BUTTON_LABEL_MAX} onChange={(e) => set({ label: e.target.value })} placeholder="e.g. Send to print" data-testid="toolbar-button-label" />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Preview</Label>
+          <div className="flex h-9 items-center justify-center rounded-lg border border-dashed border-border/80 px-3">
+            <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium", colorClasses(draft.color).solid)}>
+              <DynamicIcon name={draft.icon} className="size-4" /> {draft.label.trim() || "Button"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Icon</Label>
+          <IconPicker value={draft.icon} onChange={(icon) => set({ icon })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Colour</Label>
+          <ColorPicker value={draft.color} onChange={(color) => set({ color })} className="grid-cols-6" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>When pressed</Label>
+        <Select value={command.kind} onValueChange={(kind) => set({ command: newToolbarCommand(kind as ToolbarCommandKind) })}>
+          <SelectTrigger className="w-72" data-testid="toolbar-button-command">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TOOLBAR_COMMAND_KINDS.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {TOOLBAR_COMMAND_LABELS[kind]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {command.kind === "steps" && <StepsEditor actions={command.actions} onChange={(next) => set({ command: { kind: "steps", actions: next } })} />}
+
+        {command.kind === "quick_run" &&
+          (quickRuns.length > 0 ? (
+            <Select value={command.ruleId ?? ""} onValueChange={(ruleId) => set({ command: { kind: "quick_run", ruleId } })}>
+              <SelectTrigger className="w-72" data-testid="toolbar-button-quick-run">
+                <SelectValue placeholder="Pick a quick run" />
+              </SelectTrigger>
+              <SelectContent>
+                {quickRuns.map((rule) => (
+                  <SelectItem key={rule.id} value={rule.id}>
+                    {rule.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              {quickRunsLoading ? "Loading…" : "No quick runs on this board yet."}
+              {!quickRunsLoading && (
+                <Button type="button" variant="outline" size="sm" onClick={onManageQuickRuns}>
+                  <Settings2 /> Make a quick run…
+                </Button>
+              )}
+            </p>
+          ))}
+
+        {command.kind === "open_view" &&
+          (views.length > 0 ? (
+            <Select value={command.viewId ?? ""} onValueChange={(viewId) => set({ command: { kind: "open_view", viewId } })}>
+              <SelectTrigger className="w-72" data-testid="toolbar-button-view">
+                <SelectValue placeholder="Pick a saved view" />
+              </SelectTrigger>
+              <SelectContent>
+                {views.map((view) => (
+                  <SelectItem key={view.id} value={view.id}>
+                    {view.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">No saved views on this board yet. Save one from Saved views beside the filters.</p>
+          ))}
+
+        {command.kind === "open_link" && (
+          <Input value={command.url} onChange={(e) => set({ command: { kind: "open_link", url: e.target.value } })} placeholder="https://" data-testid="toolbar-button-url" />
+        )}
+      </div>
+
+      <DialogFooter>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!label.trim()} data-testid="primary-action-save">
-          Use this button
+        <Button type="submit" disabled={!ready} data-testid="toolbar-button-save">
+          {initial ? "Save" : "Make button"}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

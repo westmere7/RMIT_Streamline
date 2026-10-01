@@ -107,7 +107,8 @@ export const BUTTON_PRESETS: ReadonlyArray<{ id: string; name: string; settings:
   { id: "archive", name: "Archive", settings: { label: "Archive", color: "gray", confirm: true, actions: [{ kind: "archive" }] } },
 ];
 
-function cleanAction(raw: unknown): ButtonAction | null {
+/** One stored step read back, or null for one this version does not know. */
+export function cleanButtonAction(raw: unknown): ButtonAction | null {
   if (!raw || typeof raw !== "object") return null;
   const a = raw as Record<string, unknown>;
   const text = (v: unknown) => (typeof v === "string" ? v : "");
@@ -139,7 +140,7 @@ function cleanAction(raw: unknown): ButtonAction | null {
 export function buttonSettings(settings: { kind: string } | null | undefined): ButtonColumnSettings {
   if (settings?.kind !== "button") return structuredClone(DEFAULT_BUTTON_SETTINGS);
   const s = settings as Partial<ButtonColumnSettings>;
-  const actions = Array.isArray(s.actions) ? s.actions.map(cleanAction).filter((a): a is ButtonAction => a !== null).slice(0, BUTTON_MAX_ACTIONS) : structuredClone(DEFAULT_BUTTON_SETTINGS.actions);
+  const actions = Array.isArray(s.actions) ? s.actions.map(cleanButtonAction).filter((a): a is ButtonAction => a !== null).slice(0, BUTTON_MAX_ACTIONS) : structuredClone(DEFAULT_BUTTON_SETTINGS.actions);
   return {
     kind: "button",
     label: typeof s.label === "string" && s.label.trim() ? s.label.trim().slice(0, BUTTON_LABEL_MAX) : DEFAULT_BUTTON_SETTINGS.label,

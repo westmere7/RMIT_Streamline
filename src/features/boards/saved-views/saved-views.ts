@@ -42,6 +42,9 @@ function writeOpen(userId: string, boardId: string, viewId: string | null): void
   }
 }
 
+/** The board's saved views, for anything under the board page that opens one (the toolbar's own buttons). Null off the board page. */
+export const SavedViewsContext = React.createContext<SavedViewsController | null>(null);
+
 export interface SavedViewsController {
   /** The named views: shared ones and the reader's own. The Default view is apart. */
   views: SavedBoardView[];

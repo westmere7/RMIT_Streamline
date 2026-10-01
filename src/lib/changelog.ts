@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.80.0",
+    date: "2026-10-01",
+    title: "Make your own toolbar buttons",
+    changes: ["The arrow beside New item makes buttons of the board's own: a label, an icon and a colour, then what it does. It can run steps on the ticked tasks, run a quick run, open a saved view or open a link. The one picked sits in the slot for everyone; New item stays as it is."],
+  },
+  {
     version: "0.79.1",
     date: "2026-10-01",
     title: "Links open the view they name",

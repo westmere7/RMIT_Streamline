@@ -1,5 +1,6 @@
 import type { BoardSystemKind } from "@/domain/booking/booking";
 import type { ColorToken, EntityId, Timestamps } from "@/domain/common/types";
+import type { ToolbarSlot } from "./toolbar-buttons";
 
 export const BOARD_TYPES = ["MAIN", "PRIVATE", "SHAREABLE"] as const;
 export type BoardType = (typeof BOARD_TYPES)[number];
@@ -47,29 +48,10 @@ export interface Board extends Timestamps {
   assetsFillPic?: boolean;
   /** Someone whose last asset line on a task is taken off them leaves its PIC. Missing means off. */
   assetsClearPic?: boolean;
-  /** What the toolbar's first button does. Missing means New item. */
-  primaryAction?: BoardPrimaryAction | null;
+  /** The toolbar's first button and the board's own buttons for it. Missing means New item alone. */
+  primaryAction?: ToolbarSlot | null;
   /** View only for everyone, against accidental change. Not a permission; a board manager turns it off. */
   viewOnly?: boolean;
-}
-
-/**
- * The board toolbar's first button, a slot: New item unless the board has put
- * one of its quick runs there, under a label of its own.
- */
-export type BoardPrimaryAction = { kind: "new_item" } | { kind: "quick_run"; ruleId: EntityId; label: string };
-
-export const PRIMARY_ACTION_LABEL_MAX = 24;
-
-/** A stored slot read back whole; anything unreadable is New item. */
-export function boardPrimaryAction(raw: unknown): BoardPrimaryAction {
-  if (!raw || typeof raw !== "object") return { kind: "new_item" };
-  const r = raw as Record<string, unknown>;
-  if (r.kind === "quick_run" && typeof r.ruleId === "string" && r.ruleId) {
-    const label = typeof r.label === "string" ? r.label.trim().slice(0, PRIMARY_ACTION_LABEL_MAX) : "";
-    return { kind: "quick_run", ruleId: r.ruleId, label };
-  }
-  return { kind: "new_item" };
 }
 
 /** Whether asset lines keep the PIC column up to date, and which way. */

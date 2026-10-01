@@ -136,5 +136,42 @@ export function useButtonPress() {
     [canEdit, model, mutations, services, ws.users, user.id, board.id],
   );
 
-  return { press, running };
+  /**
+   * The same steps on several tasks, from a toolbar button. Each task gets every
+   * step in turn; opening a link happens once, and archiving asks once for all
+   * of them, through the board's own archive question.
+   */
+  const runOnItems = React.useCallback(
+    async (items: readonly Item[], actions: readonly ButtonAction[], label: string) => {
+      if (!canEdit || items.length === 0) return;
+      const skipped = new Set<string>();
+      let ran = 0;
+      setRunning("toolbar");
+      try {
+        for (const item of items) {
+          for (const action of actions) {
+            if (buttonActionIncomplete(action) || action.kind === "archive" || action.kind === "open_link") continue;
+            const result = await runStep(action, item);
+            if (result && !result.ok) skipped.add(result.text);
+            else ran += 1;
+          }
+        }
+        const link = actions.find((a) => a.kind === "open_link" && !buttonActionIncomplete(a));
+        if (link?.kind === "open_link") window.open(link.url.trim(), "_blank", "noopener,noreferrer");
+        if (actions.some((a) => a.kind === "archive")) setArchiveRequest(items.map((i) => i.id));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "The button could not finish");
+      } finally {
+        setRunning(null);
+      }
+      const on = `${items.length} ${items.length === 1 ? "task" : "tasks"}`;
+      if (skipped.size > 0) toast.message(`${label}: ran on ${on}. Skipped: ${[...skipped].join(", ")}.`);
+      else if (ran > 0) toast.success(`${label}: ran on ${on}`);
+    },
+    // runStep reads the same context; listed by what it reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canEdit, model, mutations, services, ws.users, user.id, board.id],
+  );
+
+  return { press, runOnItems, running };
 }
