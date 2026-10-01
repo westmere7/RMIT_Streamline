@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, Item } from "@/domain";
-import { columnLabels, resolveColumnRoles, ticketSearchKey, T_SHIRT_SIZES } from "@/domain";
+import { columnLabels, progressCounts, progressSettings, resolveColumnRoles, ticketSearchKey, T_SHIRT_SIZES } from "@/domain";
 import { bucketDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { sortFieldColumnId, type BoardFilters, type BoardSort } from "@/stores/board-ui-store";
@@ -173,8 +173,10 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
     case "ASSETS_RECAP":
       // Sorted by how much is being produced.
       return value.lines ? value.quantity : null;
-    case "PROGRESS":
-      return value.total ? value.done / value.total : null;
+    case "PROGRESS": {
+      const counts = progressCounts(value, progressSettings(column.settings).countBy);
+      return counts.total ? counts.done / counts.total : null;
+    }
     case "DEPENDENCY":
       return value.itemIds.length || null;
   }

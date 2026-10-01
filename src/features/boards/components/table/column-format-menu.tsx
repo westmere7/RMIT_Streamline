@@ -24,6 +24,14 @@ import {
   type BoardColumn,
   type ColumnType,
   type CountdownColumnSettings,
+  PROGRESS_COUNT_LABELS,
+  PROGRESS_COUNTS,
+  PROGRESS_DISPLAY_LABELS,
+  PROGRESS_DISPLAYS,
+  PROGRESS_NUMBER_LABELS,
+  PROGRESS_NUMBERS,
+  progressSettings,
+  type ProgressColumnSettings,
 } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 
@@ -36,7 +44,7 @@ const FORMAT_PARTS: Partial<Record<ColumnType, { date: boolean; time: boolean }>
 };
 
 export function hasFormatMenu(column: BoardColumn): boolean {
-  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN";
+  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS";
 }
 
 type Primitives = {
@@ -63,6 +71,7 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
   const parts = FORMAT_PARTS[column.type];
   const { Sub, SubTrigger, SubContent, Item, Label, Separator } = PRIMITIVES[variant];
   if (column.type === "COUNTDOWN") return <CountdownFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
+  if (column.type === "PROGRESS") return <ProgressFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (!parts) return null;
   const settings = dateTimeSettings(column.settings);
   const set = (patch: Partial<typeof settings>) => void mutations.updateColumn(column.id, { settings: { ...settings, ...patch } });
@@ -93,6 +102,49 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
                 {settings.timeFormat === format && <Check className="ml-auto size-3.5" />}
               </Item>
             ))}
+          </>
+        )}
+      </SubContent>
+    </Sub>
+  );
+}
+
+/** Progress's Format: what is counted, and whether the bar, the number or both show. Stays open between choices. */
+function ProgressFormatMenu({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
+  const { mutations } = useBoardContext();
+  const { Sub, SubTrigger, SubContent, Item, Label, Separator } = primitives;
+  const settings = progressSettings(column.settings);
+  const set = (patch: Partial<ProgressColumnSettings>) => void mutations.updateColumn(column.id, { settings: { ...settings, ...patch } });
+  const section = <K extends keyof Omit<ProgressColumnSettings, "kind">>(title: string, key: K, options: readonly ProgressColumnSettings[K][], labels: Record<string, string>) => (
+    <>
+      <Label className="text-2xs font-normal text-muted-foreground">{title}</Label>
+      {options.map((option) => (
+        <Item
+          key={option}
+          onSelect={(event) => {
+            event.preventDefault();
+            set({ [key]: option } as Partial<ProgressColumnSettings>);
+          }}
+        >
+          <span className="tabular">{labels[option]}</span>
+          {settings[key] === option && <Check className="ml-auto size-3.5" />}
+        </Item>
+      ))}
+    </>
+  );
+  return (
+    <Sub>
+      <SubTrigger>
+        <SlidersHorizontal /> Format
+      </SubTrigger>
+      <SubContent className="w-48" data-testid="progress-format-menu">
+        {section("Count", "countBy", PROGRESS_COUNTS, PROGRESS_COUNT_LABELS)}
+        <Separator />
+        {section("Show", "display", PROGRESS_DISPLAYS, PROGRESS_DISPLAY_LABELS)}
+        {settings.display !== "bar" && (
+          <>
+            <Separator />
+            {section("Number", "number", PROGRESS_NUMBERS, PROGRESS_NUMBER_LABELS)}
           </>
         )}
       </SubContent>

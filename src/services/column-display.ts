@@ -1,5 +1,5 @@
 import type { BoardColumn, ColumnValue, User } from "@/domain";
-import { columnLabels, dateTimeSettings, formatAssetsRecap, formatDateTime, formatProgress, formatPlainDate, formatTimeOfDay } from "@/domain";
+import { columnLabels, dateTimeSettings, formatAssetsRecap, formatDateTime, formatProgress, progressCounts, progressSettings, formatPlainDate, formatTimeOfDay } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 
@@ -73,7 +73,7 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
     case "ASSETS_RECAP":
       return formatAssetsRecap(value) || null;
     case "PROGRESS":
-      return formatProgress(value) || null;
+      return formatProgress(progressCounts(value, progressSettings(column.settings).countBy)) || null;
     case "DEPENDENCY":
       return value.itemIds.length ? `${value.itemIds.length} item(s)` : null;
   }

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.70.0",
+    date: "2026-10-01",
+    title: "Progress settings",
+    changes: [
+      "The Progress column has a Format menu: count each asset once or by quantity, show the bar, the number or both, and the number as 60% or 3/5.",
+      "A new workspace, or access to one, shows in the workspace menu without a refresh.",
+    ],
+  },
+  {
     version: "0.69.1",
     date: "2026-10-01",
     title: "Workspace menu",

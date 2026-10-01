@@ -76,8 +76,12 @@ export type ColumnValue =
   | { type: "SIZE"; size: TShirtSize | null }
   /** A cached summary of the item's asset lines (src/domain/item/item-asset.ts), rewritten whenever they change. */
   | { type: "ASSETS_RECAP"; lines: number; quantity: number; types: number; people: number; nextDue: ISODate | null; overdue: number }
-  /** How many of the item's asset lines are ticked off, cached the same way as the recap. Empty while it has none. */
-  | { type: "PROGRESS"; done: number; total: number }
+  /**
+   * How many of the item's asset lines are ticked off, cached the same way as
+   * the recap; the units are the same by quantity. Empty while it has none.
+   * Values written before units were kept have none.
+   */
+  | { type: "PROGRESS"; done: number; total: number; doneUnits?: number; totalUnits?: number }
   | { type: "DEPENDENCY"; itemIds: EntityId[] };
 
 export type ColumnValueOf<T extends ColumnType> = Extract<ColumnValue, { type: T }>;

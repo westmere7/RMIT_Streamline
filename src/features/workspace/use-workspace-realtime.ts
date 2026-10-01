@@ -33,6 +33,12 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
       // the members page and this reader's own permissions all change.
       { table: "workspace_members", filter: ws, keys: [context, ["workspace-members"]] },
       { table: "workspace_invitations", filter: ws, keys: [queryKeys.workspaceInvitations(workspaceId)] },
+      // This person's seats in every workspace, and the workspaces themselves:
+      // a workspace made by an Owner (every Owner is seated in it), access given
+      // elsewhere, or a rename, reach the workspace menu without a reload.
+      // RLS limits the workspaces to the ones they can open.
+      { table: "workspace_members", filter: me, keys: [["user-workspaces"]] },
+      { table: "workspaces", keys: [["user-workspaces"], ["all-workspaces"]] },
       // A profile is a name and an avatar on every board, every comment and
       // every assignment. Unfiltered because a profile row is keyed by the
       // person, not the workspace; RLS narrows it to colleagues.

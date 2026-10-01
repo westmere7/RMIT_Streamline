@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { COLUMN_TYPE_LABELS, DEFAULT_COLUMN_WIDTHS, countByType, emptyValueFor, formatAssetsRecap, formatProgress, isEmptyValue, progressPercent, recapAssets, recapColumnValue } from "@/domain";
+import { COLUMN_TYPE_LABELS, DEFAULT_COLUMN_WIDTHS, countByType, emptyValueFor, DEFAULT_PROGRESS_SETTINGS, formatAssetsRecap, formatProgress, formatProgressNumber, isEmptyValue, progressCounts, progressPercent, progressSettings, recapAssets, recapColumnValue } from "@/domain";
 import { createServices } from "@/services";
 import { displayValue } from "@/services/column-display";
 import { sortItems } from "@/features/boards/board-filtering";
@@ -174,6 +174,14 @@ describe("asset lines on an item", () => {
     const after = await services.assets.loadBoard(here, SEED_WORKSPACE_ID);
     expect(after.byItem.get(mine.id)!.filter((l) => l.completedAt)).toHaveLength(2);
 
+    // The stored Progress says the same on both boards, and is never copied across as a value of its own.
+    const progressOf = async (itemId: string, boardId: string) => {
+      const column = (await repos.boards.listColumns(boardId)).find((c) => c.type === "PROGRESS")!;
+      return (await repos.items.listValuesByItem(itemId)).find((v) => v.columnId === column.id)?.value;
+    };
+    expect(await progressOf(mine.id, here)).toMatchObject({ type: "PROGRESS", done: 2, total: 3 });
+    expect(await progressOf(theirs.id, there)).toMatchObject({ type: "PROGRESS", done: 2, total: 3 });
+
     // Unlinked, each goes back to its own.
     const links = await repos.links.listByItem(mine.id);
     await services.links.unlink(links[0]!.id, SEED_USER_IDS.danh);
@@ -201,12 +209,18 @@ describe("asset lines on an item", () => {
     const first = await services.assets.add({ itemId: item.id, boardId, name: "Hero", quantity: 5 }, SEED_USER_IDS.danh);
     const column = await services.boards.addColumn({ boardId, name: "Progress", type: "PROGRESS" });
     const read = async () => (await repos.items.listValuesByItem(item.id)).find((v) => v.columnId === column.id)?.value;
-    expect(await read()).toEqual({ type: "PROGRESS", done: 0, total: 1 });
+    expect(await read()).toEqual({ type: "PROGRESS", done: 0, total: 1, doneUnits: 0, totalUnits: 5 });
     await services.assets.add({ itemId: item.id, boardId, name: "Tile" }, SEED_USER_IDS.danh);
     await services.assets.update(first.id, { completedAt: "2026-09-07T00:00:00.000Z" }, SEED_USER_IDS.danh);
-    const value = await read();
-    expect(value).toEqual({ type: "PROGRESS", done: 1, total: 2 });
-    expect(progressPercent(value as { done: number; total: number })).toBe(50);
+    const value = (await read()) as { done: number; total: number; doneUnits: number; totalUnits: number };
+    expect(value).toEqual({ type: "PROGRESS", done: 1, total: 2, doneUnits: 5, totalUnits: 6 });
+    expect(progressPercent(value)).toBe(50);
+    // By quantity the poster ×5 weighs five of the six.
+    expect(formatProgressNumber(progressCounts(value, "units"), "percent")).toBe("83%");
+    expect(formatProgressNumber(progressCounts(value, "lines"), "fraction")).toBe("1/2");
+    // A column from before settings, and an old value without units, read as lines.
+    expect(progressSettings({ kind: "none" })).toEqual(DEFAULT_PROGRESS_SETTINGS);
+    expect(progressCounts({ done: 1, total: 2 }, "units")).toEqual({ done: 1, total: 2 });
     expect(formatProgress({ done: 0, total: 0 })).toBe("");
     expect(isEmptyValue(emptyValueFor("PROGRESS"))).toBe(true);
   });

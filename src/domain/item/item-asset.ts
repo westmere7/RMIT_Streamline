@@ -290,8 +290,8 @@ export function formatAssetsRecap(recap: Pick<AssetsRecap, "lines" | "quantity">
 }
 
 /** The value stored in a Progress column: lines, not units, the way the strip on the task counts them. */
-export function progressColumnValue(recap: Pick<AssetsRecap, "lines" | "done">): { type: "PROGRESS"; done: number; total: number } {
-  return { type: "PROGRESS", done: recap.done, total: recap.lines };
+export function progressColumnValue(recap: Pick<AssetsRecap, "lines" | "done" | "quantity" | "doneQuantity">): { type: "PROGRESS"; done: number; total: number; doneUnits: number; totalUnits: number } {
+  return { type: "PROGRESS", done: recap.done, total: recap.lines, doneUnits: recap.doneQuantity, totalUnits: recap.quantity };
 }
 
 /** "3 of 5 done", or nothing when there are no assets. */

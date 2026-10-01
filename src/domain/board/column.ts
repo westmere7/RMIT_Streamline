@@ -2,6 +2,7 @@ import type { ColorToken, EntityId } from "@/domain/common/types";
 import type { ColumnRole } from "@/domain/board/column-role";
 import { DEFAULT_DATE_TIME_SETTINGS, type DateTimeColumnSettings } from "@/domain/board/date-time-format";
 import { DEFAULT_COUNTDOWN_SETTINGS, type CountdownColumnSettings } from "@/domain/board/countdown";
+import { DEFAULT_PROGRESS_SETTINGS, type ProgressColumnSettings } from "@/domain/board/progress";
 
 export const COLUMN_TYPES = [
   "TEXT",
@@ -144,11 +145,12 @@ export interface EmptyColumnSettings {
   kind: "none";
 }
 
-export type { DateTimeColumnSettings, CountdownColumnSettings };
+export type { DateTimeColumnSettings, CountdownColumnSettings, ProgressColumnSettings };
 
 export type ColumnSettings =
   | DateTimeColumnSettings
   | CountdownColumnSettings
+  | ProgressColumnSettings
   | StatusColumnSettings
   | DropdownColumnSettings
   | PriorityColumnSettings
@@ -326,6 +328,8 @@ export function defaultSettingsFor(type: ColumnType): ColumnSettings {
       return { ...DEFAULT_DATE_TIME_SETTINGS };
     case "COUNTDOWN":
       return { ...DEFAULT_COUNTDOWN_SETTINGS };
+    case "PROGRESS":
+      return { ...DEFAULT_PROGRESS_SETTINGS };
     default:
       return { kind: "none" };
   }

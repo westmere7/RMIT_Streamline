@@ -58,4 +58,18 @@ describe("checklist ticks", () => {
     stored = (await services.comments.listByItem(item!.id)).find((c) => c.id === comment.id)!;
     expect(stored.checks).toEqual([]);
   });
+
+  it("reach the copy of an update posted to a linked task", async () => {
+    const services = createServices(createLocalRepositories({ databaseName: `checklists-linked-${Date.now()}` }));
+    await services.repos.admin.resetToSeed();
+    const [mine] = await services.repos.items.listByBoard(SEED_BOARD_IDS.rmitinerary);
+    const [theirs] = await services.repos.items.listByBoard(SEED_BOARD_IDS.masterclass);
+    await services.links.link(mine!.id, theirs!.id, SEED_USER_IDS.danh);
+    const users = await services.repos.users.list();
+    const comment = await services.comments.addComment(mine!.id, "- [ ] Proof\n- [ ] Print", SEED_USER_IDS.danh, users, { alsoLinked: true });
+    expect(comment.sharedId).not.toBeNull();
+    await services.comments.setCheck(comment, "print", SEED_USER_IDS.danh, true);
+    const copy = (await services.comments.listByItem(theirs!.id)).find((c) => c.sharedId === comment.sharedId)!;
+    expect(copy.checks?.map((c) => c.key)).toEqual(["print"]);
+  });
 });
