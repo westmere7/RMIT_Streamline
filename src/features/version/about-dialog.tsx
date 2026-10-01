@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Bug, ChartColumnBig, ChevronRight, ClipboardPen, GanttChart, Globe, Link2, Radio, Sparkles, Zap } from "lucide-react";
+import { Boxes, Bug, ChartColumnBig, ChevronRight, Globe, Link2, Sparkles, Zap } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -49,9 +49,9 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </div>
 
         <div className="space-y-5 px-6 pt-5 pb-6">
-          <ul className="grid gap-x-5 gap-y-3.5 text-[13px] sm:grid-cols-2" data-testid="about-features">
-            <Feature icon={GanttChart} title="Seven views, one board">
-              Table to Gantt, with subitems, dependencies and saved board templates.
+          <ul className="grid gap-3.5 text-[13px]" data-testid="about-features">
+            <Feature icon={ChartColumnBig} title="Workspace dashboard">
+              Delivery, workload and effort from every board in one place, shareable by link.
             </Feature>
             <Feature icon={Link2} title="Tasks linked across boards">
               One piece of work on two boards: fields, updates and deliverables stay in step.
@@ -59,20 +59,11 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Feature icon={Zap} title="Automations">
               Rules run in the database the moment something changes, browser open or not.
             </Feature>
-            <Feature icon={ClipboardPen} title="Booking that routes itself">
-              A four-step form the team designs; each kind of work lands on its board with a ticket.
+            <Feature icon={Globe} title="Booking and a portal for departments">
+              A form that routes each request to the right board, and one link to follow it.
             </Feature>
-            <Feature icon={Globe} title="One portal for every department">
-              Their work in every view, the columns you pick, booking without an account.
-            </Feature>
-            <Feature icon={ChartColumnBig} title="Effort, not just counts">
-              The dashboard weighs deliverables by output rates, across every board.
-            </Feature>
-            <Feature icon={Boxes} title="Deliverables and checklists">
-              Assets line by line with owners and dates; progress and tickable checklists.
-            </Feature>
-            <Feature icon={Radio} title="Live, across workspaces">
-              Changes appear without a refresh; each workspace keeps its own setup and snapshots.
+            <Feature icon={Boxes} title="Deliverables, checklists and progress">
+              Assets line by line with owners and dates, summed up live on every board.
             </Feature>
           </ul>
 
