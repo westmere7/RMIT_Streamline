@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.10",
+    date: "2026-10-01",
+    title: "To-do filters the list",
+    changes: [
+      "To-do in the Assets tab now narrows the list to your items in place, instead of opening a window; \"Only yours · 2 of 3 items\" shows while it is on, with Show all beside it.",
+    ],
+  },
+  {
     version: "0.73.9",
     date: "2026-10-01",
     title: "Ticket search finds the ticket",
