@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.72.0",
+    date: "2026-10-01",
+    title: "The tasks behind the dashboard",
+    changes: [
+      "Click a figure on the dashboard to see the tasks it counted: the headline cards, a team, department or priority, an asset type, the operations figures, a person's workload, and Turnaround, On time and Sent back.",
+      "The list is plain and paged, 50 at a time, with its own search, open or done, team and sort; it leaves the dashboard as it was. Click a task to open it.",
+    ],
+  },
+  {
     version: "0.71.4",
     date: "2026-10-01",
     title: "A ticket series per workspace",

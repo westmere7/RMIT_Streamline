@@ -13,6 +13,7 @@ import { DashLink } from "@/features/dashboard/components/dash-link";
 import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
+import { useDrill, workloadTasks } from "@/features/dashboard/drill/drill";
 import type { DashboardViewProps } from "./types";
 
 const WINDOWS = [2, 4, 8] as const;
@@ -69,6 +70,7 @@ const BANDS = [
  */
 export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, links }: DashboardViewProps) {
   const personHref = (userId: string | null) => (links && userId ? links.person(userId) : null);
+  const drill = useDrill();
   const [query, setQuery] = React.useState("");
   // Which row the cursor is over, and where it is inside the list.
   const [hovered, setHovered] = React.useState<string | null>(null);
@@ -183,9 +185,19 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
           return (
             <div
               key={row.userId ?? "unassigned"}
-              role="listitem"
-              className="group flex items-center gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-accent/50"
+              role={drill ? "button" : "listitem"}
+              tabIndex={drill ? 0 : undefined}
+              className={cn("group flex items-center gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-accent/50", drill && "cursor-pointer")}
               onMouseEnter={() => setHovered(row.userId)}
+              // Their open work in the window the bars count, narrowed to the department chosen.
+              onClick={
+                drill
+                  ? (event) => {
+                      if ((event.target as HTMLElement).closest("a")) return;
+                      drill({ title: row.name, subtitle: `Open work due within ${prefs.weeks} weeks, late or undated${group ? ` · ${group.name}` : ""}`, tasks: workloadTasks(facts, today, prefs.teamIds, prefs.weeks, row.userId, group?.key ?? null) });
+                    }
+                  : undefined
+              }
               data-testid="dashboard-workload-row"
               data-active={hovered === row.userId || undefined}
             >

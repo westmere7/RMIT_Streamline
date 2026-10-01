@@ -13,6 +13,8 @@ import { ExportDashboardButton } from "@/features/dashboard/export-button";
 import type { ExportMeta } from "@/features/dashboard/export-pdf";
 import { useDashboardPrefs } from "@/features/dashboard/prefs";
 import { DashboardBody } from "@/features/dashboard/views/overview";
+import { DrillProvider, type DrillRequest } from "@/features/dashboard/drill/drill";
+import { DashboardTaskListDialog } from "@/features/dashboard/drill/task-list-dialog";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +108,10 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
     generatedBy: facts.users.get(viewerId)?.displayName ?? null,
     timezone: BUSINESS_TIMEZONE,
   };
+  // The tasks behind a figure, in a list over the page. Signed-in only: the
+  // public link has no way to open a task, so it gets no list either.
+  const [drill, setDrill] = React.useState<DrillRequest | null>(null);
+  const openDrill = React.useCallback((request: DrillRequest) => setDrill(request), []);
   const shared: DashboardViewProps = { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, today, measure, valueOf, onOpenTask, onOpenBoard, links };
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid="dashboard-screen">
@@ -141,8 +147,11 @@ export function DashboardScreen({ snapshot, viewerId, onOpenTask, onOpenBoard, l
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-surface/40">
         <div className="mx-auto w-full max-w-[1600px] p-3 sm:p-5">
           <DashboardReveal ready={hydrated}>
-            <DashboardBody {...shared} />
+            <DrillProvider value={onOpenTask ? openDrill : null}>
+              <DashboardBody {...shared} />
+            </DrillProvider>
           </DashboardReveal>
+          {onOpenTask && <DashboardTaskListDialog request={drill} users={facts.users} onOpenChange={(open) => !open && setDrill(null)} onOpenTask={onOpenTask} />}
         </div>
       </div>
     </div>

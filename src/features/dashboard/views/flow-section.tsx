@@ -4,7 +4,9 @@ import * as React from "react";
 import { BRAND_RED, ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import { finishedIn, formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import type { TaskFact } from "@/features/dashboard/analytics";
+import { useDrill, type DrillRequest } from "@/features/dashboard/drill/drill";
 import type { HelpTopic } from "@/features/dashboard/help";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
@@ -20,8 +22,11 @@ import type { DashboardViewProps } from "./types";
  * count something else.
  */
 export function FlowSection({ facts, report, prefs, today, links }: DashboardViewProps) {
+  const drill = useDrill();
   const period = report.period;
   const teamIds = prefs.teamIds;
+  const current = period.current;
+  const finished = React.useMemo(() => finishedIn(facts, current, teamIds), [facts, current, teamIds]);
   const speed = React.useMemo(() => turnaround(facts, period, teamIds), [facts, period, teamIds]);
   const punctual = React.useMemo(() => onTime(facts, period, teamIds), [facts, period, teamIds]);
   const returned = React.useMemo(() => sentBack(facts, period, teamIds), [facts, period, teamIds]);
@@ -44,6 +49,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           countLabel="finished"
           comparisonLabel={period.comparisonLabel}
           teamHref={teamHref}
+          drill={drill ? { tasks: finished, subtitle: `Finished in ${period.label}`, open: drill } : undefined}
           testId="dashboard-turnaround"
         />
         <RatePanel
@@ -57,6 +63,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           countLabel="with a due date"
           comparisonLabel={period.comparisonLabel}
           teamHref={teamHref}
+          drill={drill ? { tasks: finished.filter((t) => t.dueDate !== null), subtitle: `Finished in ${period.label} with a due date`, open: drill } : undefined}
           testId="dashboard-on-time"
         />
         <RatePanel
@@ -70,6 +77,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           countLabel="finished"
           comparisonLabel={period.comparisonLabel}
           teamHref={teamHref}
+          drill={drill ? { tasks: finished.filter((t) => t.flow.sentBack.length > 0), subtitle: `Finished in ${period.label} after going back at least once`, open: drill } : undefined}
           testId="dashboard-sent-back"
         />
       </div>
@@ -113,8 +121,11 @@ function RatePanel({
   countLabel,
   comparisonLabel,
   teamHref,
+  drill,
   testId,
 }: {
+  /** The tasks this figure counted, and how to list them. Absent on the public link. */
+  drill?: { tasks: TaskFact[]; subtitle: string; open: (request: DrillRequest) => void };
   title: string;
   subtitle: string;
   help: HelpTopic;
@@ -162,9 +173,20 @@ function RatePanel({
         <>
           <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <KineticNumber value={value} format={format} className="text-2xl font-semibold tracking-tight tabular" />
-            <span className="text-2xs text-muted-foreground tabular">
-              {formatCount(figure.count)} {countLabel}
-            </span>
+            {drill ? (
+              <button
+                type="button"
+                onClick={() => drill.open({ title, subtitle: drill.subtitle, tasks: drill.tasks })}
+                className="text-2xs text-muted-foreground tabular underline-offset-4 hover:text-foreground hover:underline"
+                data-testid={`${testId}-drill`}
+              >
+                {formatCount(figure.count)} {countLabel}
+              </button>
+            ) : (
+              <span className="text-2xs text-muted-foreground tabular">
+                {formatCount(figure.count)} {countLabel}
+              </span>
+            )}
             {comparison !== null && (
               <span
                 className={cn("text-2xs tabular", change === null ? "text-muted-foreground" : change > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}
@@ -180,6 +202,16 @@ function RatePanel({
             max={max}
             compact
             hrefOf={teamHref && dimension === "team" ? (row) => (row.id ? teamHref(row.id) : null) : undefined}
+            onSelect={
+              drill
+                ? (row) =>
+                    drill.open({
+                      title: `${title} · ${row.name}`,
+                      subtitle: drill.subtitle,
+                      tasks: drill.tasks.filter((t) => (dimension === "team" ? t.team.id === row.id : t.department?.name === row.name)),
+                    })
+                : undefined
+            }
             emptyMessage={dimension === "team" ? "No team finished work in this period." : "Nothing finished carries a department."}
           />
         </>

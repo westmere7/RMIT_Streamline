@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { formatHours, hasAnyRate } from "@/domain";
+import { effortHours, formatHours, hasAnyRate } from "@/domain";
 import { assetEffortMix, assetMix, priorityMix, teamHex } from "@/features/dashboard/analytics";
 import { MEASURE_LABELS, MEASURE_UNITS, operationsDetails } from "@/features/dashboard/metrics";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
@@ -12,6 +12,7 @@ import { YearComparisonChart } from "@/features/dashboard/components/year-compar
 import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
+import { assetTypeTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
 import type { DashboardViewProps } from "./types";
 import { WorkloadSection } from "./workload-section";
@@ -46,7 +47,8 @@ export function DashboardBody(props: DashboardViewProps) {
   // Destructured for the body, and kept whole for the sections that take the
   // lot — they are handed the same figures this page is drawn from, so the two
   // cannot disagree about the period they describe.
-  const { report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, measure, valueOf, links } = props;
+  const { facts, report, monthly, monthlyTasks, monthlyAssets, monthlyEffort, rates, ops, gaps, prefs, set, measure, valueOf, links } = props;
+  const drill = useDrill();
   const unitWord = MEASURE_UNITS[measure];
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${report.period.label}${report.period.partial ? " · partial actuals" : ""}`;
 
@@ -85,6 +87,8 @@ export function DashboardBody(props: DashboardViewProps) {
   // would be a confident nought against a thousand deliverables, so the row
   // goes back to the two counts and the Settings link says what is missing.
   const ratesOn = hasAnyRate(rates);
+  // The tasks carrying any effort: a deliverable of a type with a rate.
+  const rated = React.useMemo(() => new Set(facts.assets.filter((a) => effortHours([{ type: a.type, units: a.units }], rates) > 0).map((a) => a.taskId)), [facts.assets, rates]);
   const byEffort = measure === "effort";
   const effortTotal = React.useMemo(() => mixEffort.reduce((sum, row) => sum + row.value, 0), [mixEffort]);
   const coverageLines: string[] = [];
@@ -122,6 +126,7 @@ export function DashboardBody(props: DashboardViewProps) {
             trendLabels={monthlyEffort.map((row) => row.label)}
             accent={measure === "effort"}
             onSelect={() => set({ measure: "effort" })}
+            onDrill={drill ? () => drill({ title: "Effort", subtitle: `${basisLine} · tasks with rated deliverables`, tasks: scoped.filter((t) => rated.has(t.id)) }) : undefined}
             help="effort"
             testId="dashboard-headline-effort"
           />
@@ -137,6 +142,7 @@ export function DashboardBody(props: DashboardViewProps) {
           trendLabels={monthlyTasks.map((row) => row.label)}
           accent={measure === "tasks"}
           onSelect={() => set({ measure: "tasks" })}
+          onDrill={drill ? () => drill({ title: "Tasks", subtitle: basisLine, tasks: scoped }) : undefined}
           help="tasks"
           testId="dashboard-headline-tasks"
         />
@@ -151,6 +157,7 @@ export function DashboardBody(props: DashboardViewProps) {
           trendLabels={monthlyAssets.map((row) => row.label)}
           accent={measure === "assets"}
           onSelect={() => set({ measure: "assets" })}
+          onDrill={drill ? () => drill({ title: "Asset units", subtitle: `${basisLine} · tasks with deliverables`, tasks: scoped.filter((t) => t.assetUnits > 0) }) : undefined}
           help="assets"
           testId="dashboard-headline-assets"
         />
@@ -177,13 +184,29 @@ export function DashboardBody(props: DashboardViewProps) {
             underneath for that reason. */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
           <Panel title="By team" subtitle={unitWord} help="byTeam" className="p-4" testId="dashboard-by-team">
-            <RankedBars data={byTeam.slice(0, 5)} compact emptyMessage="No work in this period." hrefOf={links ? (row) => (row.id ? links.team(row.id) : null) : undefined} />
+            <RankedBars
+              data={byTeam.slice(0, 5)}
+              compact
+              emptyMessage="No work in this period."
+              hrefOf={links ? (row) => (row.id ? links.team(row.id) : null) : undefined}
+              onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · by team`, tasks: scoped.filter((t) => t.team.id === row.id) }) : undefined}
+            />
           </Panel>
           <Panel title="By department" subtitle={unitWord} help="byDepartment" className="p-4" testId="dashboard-by-department">
-            <RankedBars data={byDepartment.slice(0, 5)} compact emptyMessage="Nothing carries a department." />
+            <RankedBars
+              data={byDepartment.slice(0, 5)}
+              compact
+              emptyMessage="Nothing carries a department."
+              onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · by department`, tasks: scoped.filter((t) => t.department?.name === row.name) }) : undefined}
+            />
           </Panel>
           <Panel title="Priority" subtitle="tasks" help="priority" className="p-4" testId="dashboard-fourth-mix">
-            <RankedBars data={priority.slice(0, 5)} compact emptyMessage="Nothing to split yet." />
+            <RankedBars
+              data={priority.slice(0, 5)}
+              compact
+              emptyMessage="Nothing to split yet."
+              onSelect={drill ? (row) => drill({ title: `${row.name} priority`, subtitle: basisLine, tasks: scoped.filter((t) => (t.priority ?? "No priority") === row.name) }) : undefined}
+            />
           </Panel>
         </div>
       </div>
@@ -201,7 +224,20 @@ export function DashboardBody(props: DashboardViewProps) {
             the panels instead, and `h-full` then means the row it is in. */}
         {/* What is true right now, beside what the period was made of: two
             rows of big figures, so the morning's four numbers read at a glance. */}
-        <OperationsStrip asOf={ops.asOf} items={operationsItems} layout="grid" />
+        <OperationsStrip
+          asOf={ops.asOf}
+          items={operationsItems}
+          layout="grid"
+          onSelect={
+            drill
+              ? (key) => {
+                  const item = operationsItems.find((i) => i.key === key);
+                  const tasks = key === "overdue" ? ops.overdue : key === "week" ? ops.dueThisWeek : key === "unallocated" ? ops.unallocated : ops.blocked;
+                  drill({ title: item ? `${item.label[0]!.toUpperCase()}${item.label.slice(1)}` : "Tasks", subtitle: `As of today · ${item?.hint ?? ""}`, tasks });
+                }
+              : undefined
+          }
+        />
         {/* The one split that cannot answer in tasks: one task holds three
             types, so a count of tasks by type does not add up to the tasks
             there are. Reading the page in tasks, this stays in units and the
@@ -224,6 +260,7 @@ export function DashboardBody(props: DashboardViewProps) {
             format={byEffort ? formatHours : formatCount}
             emptyMessage={byEffort ? "Nothing in this period has a rate to weigh it by." : "No deliverables in this period."}
             testId="dashboard-asset-treemap"
+            onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · tasks with this asset type`, tasks: assetTypeTasks(facts.tasks, scopedAssets, row.name) }) : undefined}
             className="min-h-0 flex-1"
           />
         </Panel>
