@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.70.1",
+    date: "2026-10-01",
+    title: "A switch on each link",
+    changes: [
+      "Portal and Booking form each have an On/Off switch at the top of their card. The portal's opens or closes it; the booking form's starts or stops taking requests, once the portal is open.",
+      "The Open switch in the portal header and Takes new requests in the booking settings are gone: the card switches do both.",
+    ],
+  },
+  {
     version: "0.70.0",
     date: "2026-10-01",
     title: "Progress settings",

@@ -303,11 +303,10 @@ test.describe("the stakeholder portal", () => {
       await panel.getByTestId("portal-column-priority").click();
       await expect(panel.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
     });
-    // And a link can be set to reading only.
-    await editSettings(page, "booking", async (panel) => {
-      await panel.getByTestId("portal-allow-booking").click();
-      await expect(panel.getByTestId("portal-allow-booking")).toHaveAttribute("aria-checked", "false");
-    });
+    // And a link can be set to reading only, from the switch on the booking tile.
+    const allow = page.getByTestId("portal-allow-booking");
+    await allow.click();
+    await expect(allow).toHaveAttribute("aria-checked", "false");
 
     await page.goto(portalPath);
     await expect(page.getByRole("columnheader", { name: "Priority" })).toHaveCount(0);

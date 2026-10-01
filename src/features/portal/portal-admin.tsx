@@ -2,6 +2,7 @@
 
 import { Check, ClipboardPen, Copy, ExternalLink, Eye, EyeOff, Globe, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -75,7 +76,7 @@ export function PortalAdmin() {
 
 /** The portal: whether it is open, its credentials, and its two links. */
 function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: DepartmentOverview[] }) {
-  const { setEnabled } = usePortalMutations();
+  const { setEnabled, setPresentation } = usePortalMutations();
   const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
   const open = portal.enabled;
   const url = portalUrl(portal.token);
@@ -103,22 +104,6 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
               than in either link's settings. */}
           <PasswordButton portal={portal} />
           <RegenerateButton />
-          {/* A switch, not a button: this is a state the portal is in. The
-              spinner is here because the write is slow enough to look like
-              nothing happened. */}
-          <span className="flex items-center gap-2 border-l border-border/60 pl-3 text-[13px]">
-            {setEnabled.isPending && <Loader2 aria-hidden className="size-3.5 animate-spin text-muted-foreground" />}
-            <span aria-hidden className="text-muted-foreground">
-              Open
-            </span>
-            <Switch
-              checked={open}
-              disabled={setEnabled.isPending}
-              onCheckedChange={(next) => setEnabled.mutate(next)}
-              aria-label={open ? "Close the portal" : "Open the portal"}
-              data-testid="portal-toggle"
-            />
-          </span>
         </div>
       </div>
 
@@ -149,6 +134,14 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           onCopy={() => void copyToClipboard(url, "Link copied")}
           onSettings={() => setEditing("portal")}
           open={open}
+          // The portal's own switch: its address, and the form behind it, answer or do not.
+          toggle={{
+            on: open,
+            pending: setEnabled.isPending,
+            onChange: (next) => setEnabled.mutate(next),
+            label: open ? "Close the portal" : "Open the portal",
+            testId: "portal-toggle",
+          }}
         >
           <StakeholderList rows={rows} />
         </LinkTile>
@@ -157,10 +150,12 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           icon={ClipboardPen}
           label="Booking form"
           lead={
-            portal.allowBooking ? (
+            !open ? (
+              <>Lives inside the portal, so it opens when the portal does.</>
+            ) : portal.allowBooking ? (
               <>The same portal, opened straight on the form. Departments describe what they need and it lands on the board as a request.</>
             ) : (
-              <>This link is not taking requests. Turn on &ldquo;Takes new requests&rdquo; in its settings.</>
+              <>Not taking requests.</>
             )
           }
           figure={booked}
@@ -173,6 +168,17 @@ function PortalCard({ portal, rows }: { portal: StakeholderPortal; rows: Departm
           onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
           onSettings={() => setEditing("booking")}
           open={open && portal.allowBooking}
+          // Taking requests is the form's own switch. It waits on the portal's.
+          toggle={{
+            on: open && portal.allowBooking,
+            pending: setPresentation.isPending,
+            disabled: !open,
+            onChange: (next) =>
+              setPresentation.mutate({ allowBooking: next }, { onSuccess: () => toast.success(next ? "Taking requests" : "Not taking requests") }),
+            label: portal.allowBooking ? "Stop taking requests" : "Take requests",
+            hint: open ? undefined : "Open the portal first",
+            testId: "portal-allow-booking",
+          }}
         />
       </div>
 
@@ -304,6 +310,7 @@ function LinkTile({
   onCopy,
   onSettings,
   open,
+  toggle,
   children,
 }: {
   tone: keyof typeof TILE_TONES;
@@ -320,6 +327,8 @@ function LinkTile({
   onCopy: () => void;
   onSettings: () => void;
   open: boolean;
+  /** The link's on/off switch, top right where it is seen first. */
+  toggle: { on: boolean; pending: boolean; disabled?: boolean; onChange: (next: boolean) => void; label: string; hint?: string; testId: string };
   children?: React.ReactNode;
 }) {
   const tones = TILE_TONES[tone];
@@ -345,7 +354,7 @@ function LinkTile({
         <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl ring-1", tones.icon)}>
           <Icon className="size-[18px]" />
         </span>
-        <div className="min-w-0 flex-1 pr-8">
+        <div className="min-w-0 flex-1 pr-32">
           <div className="flex items-center gap-2">
             <h4 className="text-[15px] font-semibold tracking-tight">{label}</h4>
             {!open && (
@@ -357,11 +366,25 @@ function LinkTile({
           <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{lead}</p>
         </div>
       </div>
-      {/* Always at full strength, even on a link that is not serving: its
-          settings are how it gets turned back on. */}
-      <Button variant="ghost" size="icon" className="absolute top-4 right-4 size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
-        <Settings2 className="size-4" />
-      </Button>
+      {/* Always at full strength, even on a link that is not serving: this is
+          how it gets turned back on. */}
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        <label
+          className={cn(
+            "flex h-8 items-center gap-2 rounded-full border px-2.5 text-[12px] font-medium transition-colors",
+            toggle.on ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-border/70 bg-card text-muted-foreground",
+            toggle.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+          )}
+          title={toggle.hint}
+        >
+          {toggle.pending ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : null}
+          <span>{toggle.on ? "On" : "Off"}</span>
+          <Switch size="sm" checked={toggle.on} disabled={toggle.disabled || toggle.pending} onCheckedChange={toggle.onChange} aria-label={toggle.label} data-testid={toggle.testId} />
+        </label>
+        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
+          <Settings2 className="size-4" />
+        </Button>
+      </div>
 
       <div className={cn("relative mt-5 flex items-end justify-between gap-4", !open && "opacity-70 saturate-50")}>
         <div>
@@ -456,7 +479,7 @@ type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
   portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "hiddenColumns", "showRecap", "showItemGroups"],
-  booking: ["allowBooking", "bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch"],
+  booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
 function draftOf(portal: StakeholderPortal, teamName: string): Draft {
@@ -647,7 +670,6 @@ function PortalFields({ draft, set, placeholder }: { draft: Draft; set: SetField
 function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
   return (
     <>
-      <Toggle label="Takes new requests" checked={draft.allowBooking} onChange={(value) => set("allowBooking", value)} testId="portal-allow-booking" />
       <ThemeField theme={draft.bookingTheme} onTheme={(value) => set("bookingTheme", value)} allowSwitch={draft.bookingThemeSwitch} onAllowSwitch={(value) => set("bookingThemeSwitch", value)} testId="portal-booking-theme" />
       <Field label="Headline">
         <Input value={draft.bookingHeadline} onChange={(e) => set("bookingHeadline", e.target.value)} maxLength={MAX_BOOKING_HEADLINE} placeholder={DEFAULT_BOOKING_HEADLINE} aria-label="Booking page headline" className="h-9" data-testid="portal-booking-headline" />
