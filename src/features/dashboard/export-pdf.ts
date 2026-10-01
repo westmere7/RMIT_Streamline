@@ -18,6 +18,8 @@ import {
   type WorkloadRow,
 } from "@/features/dashboard/metrics";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
+import { workTypeContributors, workTypeProfile, type WorkTypeProfile } from "@/features/dashboard/work-types";
+import { colorClasses } from "@/lib/colors";
 
 /**
  * The dashboard as a PDF: every panel drawn again as real vector shapes and
@@ -531,6 +533,149 @@ function inOutColumns(buckets: FlowBucket[]): Figure {
   };
 }
 
+/**
+ * Work types: the radar on the left — rings, spokes, last year dashed, this
+ * period filled in a light tint of the brand red, each point in its work
+ * type's colour — and on the right a table of each work type in figures, then
+ * the people behind them as bars split by work type.
+ */
+function workTypesFigure(profile: WorkTypeProfile, people: Array<{ name: string; parts: Array<{ value: number; color: string }>; total: number }>, format: (v: number) => string, unit: string, currentLabel: string, comparisonLabel: string): Figure {
+  const rows = profile.rows;
+  const shownPeople = people.slice(0, 10);
+  const tableH = 7 + rows.length * 8.2;
+  const peopleH = shownPeople.length ? 9 + shownPeople.length * 5.2 : 0;
+  return {
+    height: (width) => Math.max(width * 0.42 * 0.86 + 8, tableH + peopleH + 6),
+    draw: (pen, x, y, w) => {
+      if (rows.length < 3) return pen.text("Group the asset types into at least three work types (Settings -> Asset types) to draw this.", x, y + 2, 8, { colour: MUTED });
+      const doc = pen.doc;
+      const radarW = w * 0.42;
+      const cx = x + radarW / 2;
+      const cy = y + radarW * 0.43 + 4;
+      const R = radarW * 0.3;
+      const peak = Math.max(1, ...rows.map((r) => Math.max(r.value, r.comparison ?? 0)));
+      const { top, ticks } = niceScale(peak, 4, unit !== "hours");
+      const n = rows.length;
+      const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      const at = (i: number, radius: number) => [cx + radius * Math.cos(angle(i)), cy + radius * Math.sin(angle(i))] as const;
+      const point = (i: number, value: number) => at(i, (Math.max(0, value) / top) * R);
+      // A closed shape through the points, as jsPDF wants it: a start and the steps between.
+      const polygon = (pts: ReadonlyArray<readonly [number, number]>, style: "F" | "S" | "FD") => {
+        const [x0, y0] = pts[0]!;
+        const steps = pts.slice(1).map(([px, py], k) => [px - pts[k]![0], py - pts[k]![1]]);
+        doc.lines(steps, x0, y0, [1, 1], style, true);
+      };
+
+      // The plate and the rings.
+      pen.dot(cx, cy, R + 3, SURFACE);
+      doc.setDrawColor(RULE);
+      for (const t of ticks.filter((v) => v > 0)) {
+        doc.setLineWidth(t === top ? 0.3 : 0.18);
+        if (t !== top) doc.setLineDashPattern([0.4, 1.2], 0);
+        doc.circle(cx, cy, (t / top) * R, "S");
+        doc.setLineDashPattern([], 0);
+        pen.text(format(t), cx + 1.2, cy - (t / top) * R - 2.6, 5.8, { colour: FAINT });
+      }
+      rows.forEach((_, i) => {
+        const [sx, sy] = at(i, R);
+        pen.line(cx, cy, sx, sy, RULE, 0.2);
+      });
+
+      // Last year, dashed; this period, a tint with a solid edge.
+      if (profile.comparisonTotal !== null) {
+        doc.setDrawColor(SLATE);
+        doc.setLineWidth(0.35);
+        doc.setLineDashPattern([1.4, 1.1], 0);
+        polygon(rows.map((r, i) => point(i, r.comparison ?? 0)), "S");
+        doc.setLineDashPattern([], 0);
+      }
+      doc.setFillColor(tint(RED, 0.84));
+      doc.setDrawColor(RED);
+      doc.setLineWidth(0.55);
+      polygon(rows.map((r, i) => point(i, r.value)), "FD");
+      rows.forEach((row, i) => {
+        if (profile.comparisonTotal !== null) {
+          const [px, py] = point(i, row.comparison ?? 0);
+          doc.setFillColor("#ffffff");
+          doc.setDrawColor(SLATE);
+          doc.setLineWidth(0.3);
+          doc.circle(px, py, 0.7, "FD");
+        }
+        const [qx, qy] = point(i, row.value);
+        doc.setFillColor(colorClasses(row.workType.color).hex);
+        doc.setDrawColor("#ffffff");
+        doc.setLineWidth(0.4);
+        doc.circle(qx, qy, 1.15, "FD");
+      });
+
+      // Names round the rim: the name, then the figure and share.
+      rows.forEach((row, i) => {
+        const a = angle(i);
+        const [lx, ly] = at(i, R + 6);
+        const align = Math.abs(Math.cos(a)) < 0.3 ? "center" : Math.cos(a) > 0 ? "left" : "right";
+        const yTop = Math.sin(a) < -0.5 ? ly - 7 : Math.sin(a) > 0.5 ? ly : ly - 3.5;
+        pen.text(row.workType.name, lx, yTop, 7.4, { weight: "bold", align, colour: INK });
+        pen.text(`${format(row.value)} · ${profile.total > 0 ? Math.round((row.value / profile.total) * 100) : 0}%`, lx, yTop + 3.4, 6.6, { align, colour: MUTED });
+      });
+
+      // What the two shapes are.
+      const keyY = y + radarW * 0.86;
+      let kx = x + 4;
+      kx = pen.key(kx, keyY, tint(RED, 0.6), currentLabel);
+      if (profile.comparisonTotal !== null) pen.key(kx, keyY, SLATE, `${comparisonLabel} (dashed)`);
+
+      // The table: one row per work type, biggest first.
+      const tx = x + radarW + 6;
+      const tw = w - radarW - 6;
+      const cols = { value: tx + tw * 0.36, share: tx + tw * 0.47, before: tx + tw * 0.6, change: tx + tw * 0.71, done: tx + tw * 0.82 };
+      pen.caps("Work type", tx, y, 6, FAINT);
+      pen.caps(unit, cols.value, y, 6, FAINT);
+      pen.caps("Share", cols.share, y, 6, FAINT);
+      pen.caps("Before", cols.before, y, 6, FAINT);
+      pen.caps("Change", cols.change, y, 6, FAINT);
+      pen.caps("Delivered", cols.done, y, 6, FAINT);
+      const ranked = [...rows].sort((a, b) => b.value - a.value);
+      ranked.forEach((row, k) => {
+        const ry = y + 6 + k * 8.2;
+        const hex = colorClasses(row.workType.color).hex;
+        pen.fill(tx, ry + 0.4, 2.4, 2.4, hex, 0.5);
+        pen.text(row.workType.name, tx + 3.6, ry, 7.8, { weight: "bold", max: cols.value - tx - 6 });
+        pen.text(row.topTypes.slice(0, 3).map((t) => `${t.type} x${formatCount(t.units)}`).join(" · ") || "No deliverables", tx + 3.6, ry + 3.6, 6.2, { colour: MUTED, max: tw * 0.98 - 3.6 });
+        pen.text(format(row.value), cols.value, ry, 7.8, { weight: "bold" });
+        pen.text(`${profile.total > 0 ? Math.round((row.value / profile.total) * 100) : 0}%`, cols.share, ry, 7.6);
+        pen.text(row.comparison !== null ? format(row.comparison) : "—", cols.before, ry, 7.6, { colour: MUTED });
+        const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
+        pen.text(change === null ? "—" : `${change > 0 ? "+" : ""}${Math.round(change * 100)}%`, cols.change, ry, 7.6, { weight: "bold", colour: change === null ? MUTED : change >= 0 ? GREEN : RED });
+        pen.text(row.units > 0 ? `${Math.round((row.doneUnits / row.units) * 100)}%` : "—", cols.done, ry, 7.6);
+        pen.line(tx, ry + 7.2, tx + tw, ry + 7.2, TRACK, 0.2);
+      });
+      if (profile.unassignedUnits > 0) pen.text(`${formatCount(profile.unassignedUnits)} units in types with no work type are not counted.`, tx, y + 6 + ranked.length * 8.2, 6.2, { colour: FAINT });
+
+      // The people behind them: a bar each, split by work type.
+      if (shownPeople.length) {
+        const py0 = y + tableH + 6;
+        pen.caps("By person", tx, py0, 6, FAINT);
+        const labelW = Math.min(38, tw * 0.28);
+        const valueW = 16;
+        const trackW = tw - labelW - valueW - 2;
+        const max = Math.max(1, ...shownPeople.map((p) => p.total));
+        shownPeople.forEach((p, k) => {
+          const ry = py0 + 5 + k * 5.2;
+          pen.text(p.name, tx, ry, 7, { max: labelW - 2 });
+          pen.fill(tx + labelW, ry + 0.8, trackW, 2.4, TRACK, 1.2);
+          let bx = tx + labelW;
+          for (const part of p.parts) {
+            const pw = (part.value / max) * trackW;
+            pen.fill(bx, ry + 0.8, pw, 2.4, part.color);
+            bx += pw;
+          }
+          pen.text(format(p.total), tx + tw, ry, 7, { weight: "bold", align: "right" });
+        });
+      }
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The report
 
@@ -582,6 +727,28 @@ export function reportSections(props: DashboardViewProps): Section[] {
   const flow = inAndOut(facts, period, prefs.teamIds, today);
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${period.label}`;
 
+  // Work types: the team's profile, and each of the busiest people split across it.
+  const workTypeSections: Section[] = [];
+  if (props.workTypes.workTypes.length > 0) {
+    const kinds = props.workTypes;
+    const profile = workTypeProfile(report.current.assets, report.comparison?.assets ?? null, kinds, measure, rates);
+    const people = workTypeContributors(report.current.assets, kinds)
+      .slice(0, 10)
+      .map(({ userId }) => {
+        const own = workTypeProfile(report.current.assets, null, kinds, measure, rates, userId);
+        return { name: facts.users.get(userId)?.displayName ?? "Someone who has left", parts: own.rows.map((r) => ({ value: r.value, color: colorClasses(r.workType.color).hex })), total: own.total };
+      })
+      .filter((p) => p.total > 0)
+      .sort((a, b) => b.total - a.total);
+    workTypeSections.push({
+      topic: "workTypes",
+      title: "Work types",
+      subtitle: `${period.label} · ${unitWord} by work type${report.comparison ? ` · dashed is ${period.comparisonLabel}` : ""}`,
+      figure: workTypesFigure(profile, people, format, unitWord, period.label, period.comparisonLabel),
+      wide: true,
+    });
+  }
+
   const sections: Section[] = [];
   if (hasAnyRate(rates)) sections.push({ topic: "effort", title: "Effort", subtitle: basisLine, figure: headline(report.effort, "hours", formatHours, monthlyEffort, period.comparisonLabel) });
   sections.push(
@@ -603,6 +770,7 @@ export function reportSections(props: DashboardViewProps): Section[] {
       ]),
     },
     { topic: "assetTypes", title: "Asset types", subtitle: `${(byEffort ? formatHours : formatCount)(mix.reduce((s, r) => s + r.value, 0))} ${byEffort ? "" : "units "}across ${mix.length} types`, figure: assetMap(mix, byEffort ? formatHours : formatCount), wide: true },
+    ...workTypeSections,
     { topic: "workload", title: "Who is carrying what", subtitle: `${group ? `Work for ${group.name} · ` : ""}Tasks due in the next ${prefs.weeks} weeks, plus everything overdue or undated`, figure: workloadBars(people), wide: true },
   );
   if (!group && groups.length > 1) {

@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { hasAnyRate, normaliseAssetRates, EMPTY_WORK_TYPES } from "@/domain";
+import { hasAnyRate, normaliseAssetRates, normaliseWorkTypes } from "@/domain";
 import { buildFacts } from "@/features/dashboard/analytics";
 import { buildDashboardPdf, pdfSafe, reportFileName, reportSections, reportTimestamp, tint, type ExportMeta } from "@/features/dashboard/export-pdf";
 import { coverage, effortByTask, monthlyComparison, operations, resolvePeriod, taskValuer, volumeReport } from "@/features/dashboard/metrics";
@@ -26,7 +26,7 @@ async function seededView(): Promise<DashboardViewProps> {
   return {
     facts,
     report,
-    workTypes: EMPTY_WORK_TYPES,
+    workTypes: WORK_TYPES,
     monthly: monthlyComparison(facts, period, prefs.basis, measure, prefs.teamIds, rates),
     monthlyTasks: monthlyComparison(facts, period, prefs.basis, "tasks", prefs.teamIds),
     monthlyAssets: monthlyComparison(facts, period, prefs.basis, "assets", prefs.teamIds),
@@ -41,6 +41,24 @@ async function seededView(): Promise<DashboardViewProps> {
     valueOf,
   };
 }
+
+// The demo's asset types in five work types, one of them in two.
+const WORK_TYPES = normaliseWorkTypes({
+  workTypes: [
+    { id: "design", name: "Design", color: "blue" },
+    { id: "pub", name: "Publication", color: "purple" },
+    { id: "copy", name: "Copywriting", color: "teal" },
+    { id: "video", name: "Video & Motion", color: "orange" },
+    { id: "photo", name: "Photography", color: "pink" },
+  ],
+  assets: {
+    "Static Designs": ["design"], "Display ads": ["design"], OOH: ["design"], "Print assets": ["design", "pub"], Templates: ["design"],
+    "Course Guide (40+ Pages)": ["pub"], "Guides (8+ Pages)": ["pub"], "Brochure (under 8 Pages)": ["pub"], "Flyer (1 - 2 Pages)": ["pub"],
+    Articles: ["copy"], "Event Copy": ["copy"], "Campaign Copy": ["copy"], Scripts: ["copy"], "Website Copy": ["copy"],
+    "Videos (30s+)": ["video"], "Videos (Short form)": ["video"], "Videos (Production)": ["video"], "GIF / Motion": ["video"],
+    "Photos (Uploaded)": ["photo"],
+  },
+});
 
 const meta: ExportMeta = {
   workspaceName: "RMIT Creative Team",
@@ -57,8 +75,10 @@ const meta: ExportMeta = {
 describe("the dashboard report", () => {
   it("draws every panel of the page, in its order", async () => {
     const titles = reportSections(await seededView()).map((s) => s.title);
+    // Work types sit after the asset types they are made of.
+    expect(titles.indexOf("Work types")).toBe(titles.indexOf("Asset types") + 1);
     expect(titles.slice(0, 3)).toEqual(["Tasks", "Asset units", "Tasks by month"]);
-    for (const title of ["By team", "By department", "Priority", "Current operations", "Asset types", "Who is carrying what", "Turnaround", "On time", "Sent back", "In and out"]) expect(titles).toContain(title);
+    for (const title of ["By team", "By department", "Priority", "Current operations", "Asset types", "Work types", "Who is carrying what", "Turnaround", "On time", "Sent back", "In and out"]) expect(titles).toContain(title);
   });
 
   it("is a vector PDF with a cover, the panels and a footer on every page", async () => {

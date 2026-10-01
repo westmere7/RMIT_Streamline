@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.3",
+    date: "2026-10-01",
+    title: "Work types in the PDF",
+    changes: ["Export PDF has a Work types page: the radar against last year, a row per work type with its share, change, delivery and main asset types, the busiest people split by work type, and the explanation."],
+  },
+  {
     version: "0.73.2",
     date: "2026-10-01",
     title: "Work types radar, in motion",
