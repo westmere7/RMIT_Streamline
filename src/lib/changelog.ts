@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.80.1",
+    date: "2026-10-01",
+    title: "Shorter toolbar button labels",
+    changes: ["A toolbar button's label is up to 16 characters, with a count as you type, so it never crowds the toolbar."],
+  },
+  {
     version: "0.80.0",
     date: "2026-10-01",
     title: "Make your own toolbar buttons",

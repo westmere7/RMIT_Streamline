@@ -47,7 +47,8 @@ export interface ToolbarSlot {
   activeId: EntityId | null;
 }
 
-export const TOOLBAR_BUTTON_LABEL_MAX = 24;
+/** Short enough that the button never crowds the toolbar: "Send to print", "Ready for QA". */
+export const TOOLBAR_BUTTON_LABEL_MAX = 16;
 export const TOOLBAR_BUTTONS_MAX = 12;
 
 export function newToolbarCommand(kind: ToolbarCommandKind): ToolbarCommand {

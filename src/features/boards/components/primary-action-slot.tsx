@@ -130,7 +130,7 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
             disabled={busy}
             data-testid="primary-action-run"
           >
-            <DynamicIcon name={active.icon} /> {active.label}
+            <DynamicIcon name={active.icon} /> <span className="max-w-36 truncate">{active.label}</span>
             {(active.command.kind === "steps" || active.command.kind === "quick_run") && selected.length > 0 && (
               <span className="rounded-full bg-white/25 px-1.5 text-2xs tabular">{Math.min(selected.length, MAX_QUICK_RUN_ITEMS)}</span>
             )}
@@ -252,14 +252,19 @@ function ToolbarButtonForm({
 
       <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
         <div className="space-y-1.5">
-          <Label htmlFor="toolbar-button-label">Label</Label>
+          <div className="flex items-baseline justify-between">
+            <Label htmlFor="toolbar-button-label">Label</Label>
+            <span className={cn("text-2xs tabular", draft.label.length >= TOOLBAR_BUTTON_LABEL_MAX ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} data-testid="toolbar-button-label-count">
+              {draft.label.length}/{TOOLBAR_BUTTON_LABEL_MAX}
+            </span>
+          </div>
           <Input id="toolbar-button-label" autoFocus value={draft.label} maxLength={TOOLBAR_BUTTON_LABEL_MAX} onChange={(e) => set({ label: e.target.value })} placeholder="e.g. Send to print" data-testid="toolbar-button-label" />
         </div>
         <div className="space-y-1.5">
           <Label>Preview</Label>
           <div className="flex h-9 items-center justify-center rounded-lg border border-dashed border-border/80 px-3">
             <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium", colorClasses(draft.color).solid)}>
-              <DynamicIcon name={draft.icon} className="size-4" /> {draft.label.trim() || "Button"}
+              <DynamicIcon name={draft.icon} className="size-4" /> <span className="max-w-36 truncate">{draft.label.trim() || "Button"}</span>
             </span>
           </div>
         </div>
