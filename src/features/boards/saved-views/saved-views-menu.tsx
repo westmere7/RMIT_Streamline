@@ -71,12 +71,12 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
               compact && !named && "border-border/70 text-muted-foreground",
               named && (compact ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "state-on hover:bg-accent-soft hover:text-accent-soft-foreground"),
             )}
-            aria-label={named || dirty ? `Saved view: ${title}${dirty ? ", edited" : ""}` : "Saved views"}
+            aria-label={`Saved views: ${title}${dirty ? ", edited" : ""}`}
             data-testid="saved-views-button"
           >
             <Bookmark className={cn(named && "fill-current")} />
-            {/* The Default view is named only once it has been changed, so Save beside it says what it saves. */}
-            <span className={cn("truncate", !compact && !named && !dirty && "hidden @5xl:inline")}>{named || dirty ? title : "Saved views"}</span>
+            {/* Always the view on screen, the Default view included, so Save beside it says what it saves. */}
+            <span className="truncate">{title}</span>
             {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" data-testid="saved-view-edited" />}
             <ChevronDown className="text-muted-foreground" />
           </Button>

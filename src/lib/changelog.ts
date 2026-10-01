@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.75.1",
+    date: "2026-10-01",
+    title: "Saved views say which one is on",
+    changes: [
+      "The views button always names the view on screen, Default view included.",
+      "Save clears the Edited mark at once instead of after the save comes back; it returns if the save fails.",
+    ],
+  },
+  {
     version: "0.75.0",
     date: "2026-10-01",
     title: "Save the Default view",

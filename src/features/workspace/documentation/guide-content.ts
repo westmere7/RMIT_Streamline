@@ -333,7 +333,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       ] },
       { title: "Saved views", steps: [
         "Set up the board the way you want it: the view, search, filters, sort, hidden columns, and the view's own settings such as Kanban lanes.",
-        "Open Saved views beside the filters and choose Save as new view. Board editors can share it with everyone on the board; otherwise it is yours alone.",
+        "Open the views button beside the filters, which names the view on screen (Default view to start), and choose Save as new view. Board editors can share it with everyone on the board; otherwise it is yours alone.",
         "Pick a saved view from the same menu to put it all back. Its name shows on the button, and the link opens it for anyone it is shared with.",
         "Change anything while it is open and it is marked Edited: Save keeps the change, Discard changes puts the view back, and Save as new view keeps both.",
         "Rename, Duplicate, Share with the board or Make private, and Delete are in the menu under the open view.",

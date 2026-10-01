@@ -178,15 +178,26 @@ export function useSavedViewsController({
     };
   }, [board.id, columns, userId, view]);
 
+  // What a save in flight is writing. It counts as saved the moment Save is
+  // pressed, so the Edited mark goes then rather than when the server answers,
+  // and comes back if the save fails.
+  const [saving, setSaving] = React.useState<SavedViewConfig | null>(null);
+
   // Read on every render, so the Edited mark follows each change as it is made.
   const dirty = React.useMemo(() => {
+    if (saving) {
+      const now: SavedViewConfig = working
+        ? { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings }
+        : currentConfig();
+      return !sameViewConfig(now, saving, viewDefaults());
+    }
     if (active && working) {
       const now: SavedViewConfig = { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings };
       return !sameViewConfig(now, active.config, viewDefaults());
     }
     // An unsaved default has nothing to compare with but a clean board.
     return !working && (ui.search.trim() !== "" || hasActiveFilters(ui.filters) || ui.sort !== null);
-  }, [active, working, view, ui.search, ui.filters, ui.sort]);
+  }, [saving, active, working, view, ui.search, ui.filters, ui.sort, currentConfig]);
 
   const maySave = active ? canChangeView(active, userId, canEdit) : onDefault && canEdit;
 
@@ -197,20 +208,31 @@ export function useSavedViewsController({
   };
 
   const saveChanges = async () => {
-    if (active) {
-      const saved = await services.repos.savedViews.update(active.id, { config: currentConfig() }).catch(fail("Could not save the view"));
-      queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === saved.id ? saved : v)));
-      toast.success(`Saved ${saved.name}`);
-      return;
+    if (!active && (!onDefault || !canEdit)) return;
+    const config = currentConfig();
+    setSaving(config);
+    try {
+      if (active) {
+        // The list holds it as saved at once too, so nothing waits on the answer.
+        queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === active.id ? { ...v, config } : v)));
+        const saved = await services.repos.savedViews.update(active.id, { config }).catch((error: unknown) => {
+          queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === active.id ? active : v)));
+          return fail("Could not save the view")(error);
+        });
+        queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === saved.id ? saved : v)));
+        toast.success(`Saved ${saved.name}`);
+        return;
+      }
+      // The first save of the board's Default view, for everyone on it.
+      const created = await services.repos.savedViews
+        .create({ boardId: board.id, name: DEFAULT_VIEW_NAME, shared: true, isDefault: true, config, createdBy: userId })
+        .catch(fail("Could not save the default view"));
+      queryClient.setQueryData<SavedBoardView[]>(key, (list) => [...(list ?? []), created]);
+      open(created);
+      toast.success(`Saved ${DEFAULT_VIEW_NAME}`);
+    } finally {
+      setSaving(null);
     }
-    // The first save of the board's Default view, for everyone on it.
-    if (!onDefault || !canEdit) return;
-    const created = await services.repos.savedViews
-      .create({ boardId: board.id, name: DEFAULT_VIEW_NAME, shared: true, isDefault: true, config: currentConfig(), createdBy: userId })
-      .catch(fail("Could not save the default view"));
-    queryClient.setQueryData<SavedBoardView[]>(key, (list) => [...(list ?? []), created]);
-    open(created);
-    toast.success(`Saved ${DEFAULT_VIEW_NAME}`);
   };
 
   const create = async (name: string, shared: boolean, config?: SavedViewConfig) => {
