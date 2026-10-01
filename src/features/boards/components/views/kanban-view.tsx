@@ -404,9 +404,9 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
           className={cn(
             // A step lighter than the lane in the dark themes (where --card sits
-            // below --surface), with a full border and a shadow, so a card reads
-            // as lifted off a tinted lane rather than printed on it.
-            "relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-surface-strong",
+            // below --surface), so a card stands off a tinted lane by its fill
+            // and edge rather than by a shadow.
+            "relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-ring/40 dark:border-white/10 dark:bg-surface-strong",
             moving && "row-moving pointer-events-none",
             compact ? "px-2.5 py-2" : "p-3",
             overlay && "rotate-1 shadow-xl",
