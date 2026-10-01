@@ -8,6 +8,7 @@ import { formatHours, MIN_RADAR_WORK_TYPES, normaliseWorkTypes } from "@/domain"
 import { formatCount, niceScale, usePrefersReducedMotion } from "@/features/dashboard/charts/chart-utils";
 import { useRevealed, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
+import type { DashboardFacts } from "@/features/dashboard/analytics";
 import { useDrill } from "@/features/dashboard/drill/drill";
 import { Panel } from "@/features/dashboard/panels";
 import { workTypeContributors, workTypeProfile, type WorkTypeRow } from "@/features/dashboard/work-types";
@@ -102,7 +103,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
       {profile.total === 0 && (profile.comparisonTotal ?? 0) === 0 ? (
         <ChartEmpty message={person ? "Nothing in this period was theirs." : "No deliverables in this period."} />
       ) : (
-        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)]">
+        <div className="grid items-center gap-6 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)]" onMouseLeave={() => setActive(null)}>
           <Radar rows={profile.rows} total={profile.total} format={format} unit={unit} active={active} onActive={setActive} onOpen={drill ? openWorkType : undefined} hasComparison={profile.comparisonTotal !== null} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} />
 
           <div className="min-w-0">
@@ -129,10 +130,14 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                       type="button"
                       onClick={drill ? () => openWorkType(row) : undefined}
                       onMouseEnter={() => setActive(row.workType.id)}
-                      onMouseLeave={() => setActive(null)}
                       onFocus={() => setActive(row.workType.id)}
-                      onBlur={() => setActive(null)}
-                      className={cn("group w-full rounded-lg px-2 py-1.5 text-left transition-colors", active === row.workType.id ? "bg-accent/60" : "hover:bg-accent/40", !drill && "cursor-default")}
+                      className={cn(
+                        "group w-full rounded-lg border px-2 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-200",
+                        active === row.workType.id ? "border-border bg-card shadow-md" : "border-transparent hover:bg-accent/40",
+                        !drill && "cursor-default",
+                      )}
+                      style={active === row.workType.id ? { borderColor: `color-mix(in oklab, ${hex} 45%, transparent)` } : undefined}
+                      aria-expanded={active === row.workType.id}
                       data-testid="dashboard-work-type-row"
                     >
                       <span className="flex items-center gap-2 text-xs">
@@ -148,7 +153,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                         </span>
                         {done !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular">{done}% delivered</span>}
                       </span>
-                      {row.topTypes.length > 0 && (
+                      {row.topTypes.length > 0 && active !== row.workType.id && (
                         <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
                           {row.topTypes
                             .slice(0, 3)
@@ -157,6 +162,12 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
                           {row.topTypes.length > 3 ? ` · +${row.topTypes.length - 3} more` : ""}
                         </span>
                       )}
+                      {/* The segment in focus opens into its detail; the grid row grows, so the list moves rather than jumps. */}
+                      <span aria-hidden={active !== row.workType.id} className={cn("grid transition-[grid-template-rows,opacity] duration-300 ease-out", active === row.workType.id ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                        <span className="block min-h-0 overflow-hidden">
+                          <WorkTypeDetail row={row} total={profile.total} format={format} unit={unit} comparisonLabel={report.period.comparisonLabel} users={facts.users} hex={hex} canOpen={!!drill} />
+                        </span>
+                      </span>
                     </button>
                   </li>
                 );
@@ -172,6 +183,80 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
         </div>
       )}
     </Panel>
+  );
+}
+
+/** The detail a segment opens into: the figures against last year, what it is made of, and who is doing it. */
+function WorkTypeDetail({ row, total, format, unit, comparisonLabel, users, hex, canOpen }: { row: WorkTypeRow; total: number; format: (value: number) => string; unit: string; comparisonLabel: string; users: DashboardFacts["users"]; hex: string; canOpen: boolean }) {
+  const change = row.comparison !== null && row.comparison > 0 ? (row.value - row.comparison) / row.comparison : null;
+  const delivered = row.units > 0 ? row.doneUnits / row.units : 0;
+  const typePeak = Math.max(1, ...row.topTypes.map((t) => t.units));
+  return (
+    <span className="mt-2.5 block border-t border-border/60 pt-2.5" data-testid="dashboard-work-type-detail">
+      <span className="grid grid-cols-3 gap-1.5">
+        <DetailStat label="This period" value={format(row.value)} />
+        <DetailStat label={comparisonLabel} value={row.comparison !== null ? format(row.comparison) : "—"} />
+        <DetailStat label="Change" value={change === null ? "—" : `${change > 0 ? "+" : ""}${Math.round(change * 100)}%`} tone={change === null ? undefined : change >= 0 ? "up" : "down"} />
+        <DetailStat label="Share" value={total > 0 ? `${Math.round((row.value / total) * 100)}%` : "—"} />
+        <DetailStat label="Tasks" value={formatCount(row.taskIds.size)} />
+        <DetailStat label="Overdue" value={formatCount(row.overdueLines)} tone={row.overdueLines > 0 ? "down" : undefined} />
+      </span>
+
+      <span className="mt-2.5 flex items-center gap-2 text-2xs">
+        <span className="w-16 shrink-0 text-muted-foreground">Delivered</span>
+        <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70">
+          <span className="block h-full rounded-full" style={{ width: `${delivered * 100}%`, background: hex }} />
+        </span>
+        <span className="shrink-0 tabular">
+          {formatCount(row.doneUnits)} of {formatCount(row.units)} units
+        </span>
+      </span>
+
+      <span className="mt-2.5 grid gap-3 sm:grid-cols-2">
+        <span className="block min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Made of</span>
+          {row.topTypes.slice(0, 6).map((t) => (
+            <span key={t.type} className="mb-1 flex items-center gap-2 text-2xs">
+              <span className="w-28 shrink-0 truncate" title={t.type}>
+                {t.type}
+              </span>
+              <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-strong/70">
+                <span className="block h-full rounded-full opacity-80" style={{ width: `${(t.units / typePeak) * 100}%`, background: hex }} />
+              </span>
+              <span className="w-10 shrink-0 text-right tabular">×{formatCount(t.units)}</span>
+            </span>
+          ))}
+          {row.topTypes.length === 0 && <span className="text-2xs text-muted-foreground">No deliverables.</span>}
+        </span>
+        <span className="block min-w-0">
+          <span className="mb-1 block text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Who is doing it</span>
+          {row.people.slice(0, 5).map((p) => {
+            const user = users.get(p.userId);
+            return (
+              <span key={p.userId} className="mb-1 flex items-center gap-2 text-2xs">
+                {user && <UserAvatar user={user} size="xs" tooltip={false} />}
+                <span className="min-w-0 flex-1 truncate">{user?.displayName ?? "Someone who has left"}</span>
+                <span className="shrink-0 text-muted-foreground tabular">{formatCount(p.units)} units</span>
+              </span>
+            );
+          })}
+          {row.people.length > 5 && <span className="text-2xs text-muted-foreground">and {row.people.length - 5} more</span>}
+          {row.people.length === 0 && <span className="text-2xs text-muted-foreground">Nobody in charge yet.</span>}
+        </span>
+      </span>
+      {canOpen && <span className="mt-1.5 block text-2xs text-muted-foreground">Click for the {formatCount(row.taskIds.size)} tasks · in {unit}</span>}
+    </span>
+  );
+}
+
+function DetailStat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
+  return (
+    <span className="block rounded-md bg-surface-strong/50 px-1.5 py-1">
+      <span className="block truncate text-[9px] font-semibold tracking-wide text-muted-foreground uppercase" title={label}>
+        {label}
+      </span>
+      <span className={cn("block text-[12px] font-semibold tabular", tone === "up" && "text-emerald-600 dark:text-emerald-400", tone === "down" && "text-red-600 dark:text-red-400")}>{value}</span>
+    </span>
   );
 }
 
@@ -213,7 +298,7 @@ const R = 210;
  * with hollow points, this period as a solid shape with a value marker on each
  * point, and each work type named at the rim with its share and how it moved.
  * It grows from the centre when the dashboard reveals. Hovering a work type —
- * here or in the legend — lights its slice and opens a card with the detail.
+ * here or in the legend — lights its slice and opens its row in the legend into the detail.
  */
 function Radar({
   rows,
@@ -254,8 +339,6 @@ function Radar({
   const still = usePrefersReducedMotion();
   const draw = (delay: number, duration = 900): React.CSSProperties => (still ? {} : { strokeDasharray: 1, strokeDashoffset: revealed ? 0 : 1, transition: `stroke-dashoffset ${duration}ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms` });
   const fade = (delay: number, duration = 500): React.CSSProperties => (still ? {} : { opacity: revealed ? 1 : 0, transition: `opacity ${duration}ms ease-out ${delay}ms` });
-  const activeIndex = rows.findIndex((r) => r.workType.id === active);
-  const activeRow = activeIndex >= 0 ? rows[activeIndex]! : null;
 
   return (
     <div className="relative mx-auto w-full max-w-[40rem]" data-testid="dashboard-work-types-radar">
@@ -356,6 +439,24 @@ function Radar({
           })}
         </g>
 
+        {/* Over everything, one invisible slice per work type: hover a slice and it is in focus, click it for its tasks. */}
+        {rows.map((row, i) => {
+          const a0 = angle(i) - Math.PI / n;
+          const a1 = angle(i) + Math.PI / n;
+          const r = R + 14;
+          return (
+            <path
+              key={`hit-${row.workType.id}`}
+              d={`M ${C} ${C} L ${C + r * Math.cos(a0)} ${C + r * Math.sin(a0)} A ${r} ${r} 0 0 1 ${C + r * Math.cos(a1)} ${C + r * Math.sin(a1)} Z`}
+              fill="transparent"
+              className={cn(onOpen && "cursor-pointer")}
+              onMouseEnter={() => onActive(row.workType.id)}
+              onClick={onOpen ? () => onOpen(row) : undefined}
+              data-testid="dashboard-work-type-slice"
+            />
+          );
+        })}
+
         {/* The names round the rim: name, value and share, and how it moved. */}
         {rows.map((row, i) => {
           const a = angle(i);
@@ -371,7 +472,6 @@ function Radar({
               key={`label-${row.workType.id}`}
               className={cn(onOpen && "cursor-pointer")}
               onMouseEnter={() => onActive(row.workType.id)}
-              onMouseLeave={() => onActive(null)}
               onClick={onOpen ? () => onOpen(row) : undefined}
               data-testid="dashboard-work-type-label"
             >
@@ -405,40 +505,7 @@ function Radar({
           </span>
         )}
       </div>
-
-      {/* The detail card for the work type in focus, in the top corner away from its name. */}
-      {activeRow && (
-        <div
-          className={cn("pointer-events-none absolute top-1 w-52 rounded-xl border border-border/70 bg-popover/95 p-3 text-xs shadow-lg backdrop-blur", Math.cos(angle(activeIndex)) > 0.3 ? "left-0" : "right-0")}
-          data-testid="dashboard-work-type-card"
-        >
-          <p className="flex items-center gap-1.5 font-semibold">
-            <span aria-hidden className="size-2.5 rounded-sm" style={{ background: colorClasses(activeRow.workType.color).hex }} />
-            {activeRow.workType.name}
-          </p>
-          <p className="mt-1 text-[20px] leading-tight font-semibold tabular-nums">
-            {format(activeRow.value)} <span className="text-2xs font-normal text-muted-foreground">{unit}</span>
-          </p>
-          <div className="mt-1.5 grid grid-cols-3 gap-1 text-center">
-            <Stat label="Share" value={total > 0 ? `${Math.round((activeRow.value / total) * 100)}%` : "—"} />
-            <Stat label="Before" value={activeRow.comparison !== null ? format(activeRow.comparison) : "—"} />
-            <Stat label="Delivered" value={activeRow.units > 0 ? `${Math.round((activeRow.doneUnits / activeRow.units) * 100)}%` : "—"} />
-          </div>
-          <p className="mt-1.5 truncate text-2xs text-muted-foreground">
-            {formatCount(activeRow.units)} units · {formatCount(activeRow.taskIds.size)} tasks
-            {activeRow.topTypes[0] ? ` · mostly ${activeRow.topTypes[0].type}` : ""}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-surface-strong/50 px-1 py-1">
-      <p className="text-[9px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className="text-[12px] font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}

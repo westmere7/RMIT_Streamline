@@ -48,7 +48,8 @@ export function YearComparisonChart({
   currentLabel: string;
   comparisonLabel: string;
   unitWord: string;
-  onSelectMonth?: (month: number) => void;
+  /** A month's bar, and whose: this period, the comparison, or the rest of last year. */
+  onSelectMonth?: (month: number, series: "current" | "comparison" | "outlook") => void;
 }) {
   const [ref, size] = useSize<HTMLDivElement>();
   const [hover, setHover] = React.useState<number | null>(null);
@@ -148,8 +149,10 @@ export function YearComparisonChart({
               <g
                 key={row.month}
                 onMouseEnter={() => setHover(row.month)}
-                onClick={onSelectMonth ? () => onSelectMonth(row.month) : undefined}
+                // Anywhere in the month opens this period's bar, or last year's where there is no other.
+                onClick={onSelectMonth ? () => (row.current !== null ? onSelectMonth(row.month, "current") : row.comparison !== null ? onSelectMonth(row.month, "comparison") : row.outlook !== null ? onSelectMonth(row.month, "outlook") : undefined) : undefined}
                 className={onSelectMonth ? "cursor-pointer" : undefined}
+                data-testid="year-month"
               >
                 <rect x={padLeft + index * slot} y={0} width={slot} height={plot} className={cn("fill-transparent", on && "fill-foreground/[0.05]")} />
 
@@ -165,6 +168,7 @@ export function YearComparisonChart({
                     rx={3}
                     fill="var(--chart-comparison)"
                     opacity={0.4}
+                    onClick={onSelectMonth ? (event) => (event.stopPropagation(), onSelectMonth(row.month, "outlook")) : undefined}
                     data-testid="year-outlook-bar"
                   />
                 )}
@@ -178,6 +182,8 @@ export function YearComparisonChart({
                     fill="var(--chart-comparison)"
                     fillOpacity={hover !== null && !on ? 0.5 : 0.85}
                     className="transition-[fill-opacity] duration-150"
+                    onClick={onSelectMonth ? (event) => (event.stopPropagation(), onSelectMonth(row.month, "comparison")) : undefined}
+                    data-testid="year-comparison-bar"
                   />
                 )}
                 {row.current !== null && (
@@ -190,6 +196,8 @@ export function YearComparisonChart({
                     fill="var(--chart-current)"
                     fillOpacity={hover !== null && !on ? 0.55 : 1}
                     className="transition-[fill-opacity] duration-150"
+                    onClick={onSelectMonth ? (event) => (event.stopPropagation(), onSelectMonth(row.month, "current")) : undefined}
+                    data-testid="year-current-bar"
                   />
                 )}
 
@@ -291,7 +299,7 @@ export function YearComparisonChart({
                 )}
               </>
             )}
-            {onSelectMonth && <p className="mt-1 text-2xs text-muted-foreground">Click to open</p>}
+            {onSelectMonth && <p className="mt-1 text-2xs text-muted-foreground">Click a bar for its tasks</p>}
           </ChartTooltip>
         )}
       </div>

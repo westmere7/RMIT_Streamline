@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.5",
+    date: "2026-10-01",
+    title: "Month bars and work type detail",
+    changes: [
+      "Tasks by month: click a bar, this year's or last year's, for the tasks behind it.",
+      "Work types: hover a slice of the radar or a row of the list and its row opens into the detail, with last year, change, tasks, overdue, delivered, the asset types in it and who is doing it.",
+    ],
+  },
+  {
     version: "0.73.4",
     date: "2026-10-01",
     title: "Overdue is red, no icon",

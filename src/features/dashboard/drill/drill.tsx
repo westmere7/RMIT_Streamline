@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { DashboardFacts, TaskFact } from "@/features/dashboard/analytics";
-import { addDays, departmentKeyOf } from "@/features/dashboard/metrics";
+import { addDays, departmentKeyOf, volumeIn, type MeasureKind, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
 
 /**
  * The tasks behind a figure.
@@ -46,6 +46,34 @@ export function workloadTasks(facts: DashboardFacts, today: string, teamIds: str
     if (departmentKey !== null && departmentKeyOf(task) !== departmentKey) return false;
     return userId === null ? task.owners.length === 0 : task.owners.includes(userId);
   });
+}
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * The tasks behind one bar of the month-by-month chart: the same month of the
+ * same range the chart measured, read the same way. Counted in tasks, the
+ * tasks placed in that month; in units or hours, the tasks whose deliverables
+ * fell in it — which is what the bar added up.
+ */
+export function monthTasks(facts: DashboardFacts, period: ResolvedPeriod, basis: ReportingBasis, teamIds: string[] | null, measure: MeasureKind, month: number, series: "current" | "comparison" | "outlook"): { label: string; tasks: TaskFact[] } {
+  const base = series === "current" ? period.current : period.comparison;
+  if (!base) return { label: "", tasks: [] };
+  const year = Number(base.from.slice(0, 4));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let from = `${year}-${pad(month)}-01`;
+  let to = `${year}-${pad(month)}-${pad(last)}`;
+  // A matched month stops where its range stops; the rest of last year is the whole month.
+  if (series !== "outlook") {
+    if (from < base.from) from = base.from;
+    if (to > base.to) to = base.to;
+  }
+  const slice = volumeIn(facts, { from, to }, basis, teamIds);
+  const label = `${MONTH_NAMES[month - 1]} ${year}`;
+  if (measure === "tasks") return { label, tasks: slice.tasks };
+  const ids = new Set(slice.assets.map((a) => a.taskId));
+  return { label, tasks: facts.tasks.filter((t) => ids.has(t.id)) };
 }
 
 /** The tasks holding deliverables of one type, among the period's asset lines. */

@@ -22,6 +22,12 @@ export interface WorkTypeRow {
   taskIds: Set<string>;
   /** The types that make up most of it, biggest first. */
   topTypes: Array<{ type: string; units: number }>;
+  /** Who is in charge of its lines, by units, busiest first. */
+  people: Array<{ userId: string; units: number }>;
+  /** Lines still open past their due date. */
+  overdueLines: number;
+  /** Lines in all. */
+  lines: number;
 }
 
 export interface WorkTypeProfile {
@@ -39,7 +45,8 @@ function lineValue(asset: AssetFact, measure: MeasureKind, rates: AssetRates): n
 }
 
 function tally(assets: readonly AssetFact[], workTypes: WorkTypes, measure: MeasureKind, rates: AssetRates, personId: string | null) {
-  const byWorkType = new Map<string, { value: number; units: number; done: number; tasks: Set<string>; types: Map<string, number> }>();
+  const byWorkType = new Map<string, { value: number; units: number; done: number; tasks: Set<string>; types: Map<string, number>; people: Map<string, number>; overdue: number; lines: number }>();
+  const today = new Date().toISOString().slice(0, 10);
   let unassigned = 0;
   const unassignedTypes = new Set<string>();
   for (const asset of assets) {
@@ -52,7 +59,10 @@ function tally(assets: readonly AssetFact[], workTypes: WorkTypes, measure: Meas
     }
     // A type in several work types counts in each of them.
     for (const workType of kinds) {
-      const entry = byWorkType.get(workType.id) ?? { value: 0, units: 0, done: 0, tasks: new Set<string>(), types: new Map<string, number>() };
+      const entry = byWorkType.get(workType.id) ?? { value: 0, units: 0, done: 0, tasks: new Set<string>(), types: new Map<string, number>(), people: new Map<string, number>(), overdue: 0, lines: 0 };
+      entry.lines += 1;
+      if (!asset.done && asset.dueDate !== null && asset.dueDate < today) entry.overdue += 1;
+      for (const id of asset.assignees) entry.people.set(id, (entry.people.get(id) ?? 0) + asset.units);
       entry.value += lineValue(asset, measure, rates);
       entry.units += asset.units;
       if (asset.done) entry.done += asset.units;
@@ -79,6 +89,9 @@ export function workTypeProfile(current: readonly AssetFact[], comparison: reado
       doneUnits: entry?.done ?? 0,
       taskIds: entry?.tasks ?? new Set<string>(),
       topTypes: [...(entry?.types ?? new Map<string, number>()).entries()].map(([type, units]) => ({ type, units })).sort((a, b) => b.units - a.units),
+      people: [...(entry?.people ?? new Map<string, number>()).entries()].map(([userId, units]) => ({ userId, units })).sort((a, b) => b.units - a.units),
+      overdueLines: entry?.overdue ?? 0,
+      lines: entry?.lines ?? 0,
     };
   });
   return {

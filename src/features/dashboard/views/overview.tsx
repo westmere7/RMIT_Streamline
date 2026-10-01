@@ -12,7 +12,7 @@ import { YearComparisonChart } from "@/features/dashboard/components/year-compar
 import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
-import { assetTypeTasks, useDrill } from "@/features/dashboard/drill/drill";
+import { assetTypeTasks, monthTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
 import { WorkTypeProfilePanel } from "./work-types-section";
 import type { DashboardViewProps } from "./types";
@@ -176,7 +176,20 @@ export function DashboardBody(props: DashboardViewProps) {
           help="byMonth"
           testId="dashboard-year-comparison"
         >
-          <YearComparisonChart rows={monthly} currentLabel={report.period.label} comparisonLabel={report.period.comparisonLabel} unitWord={unitWord} />
+          <YearComparisonChart
+            rows={monthly}
+            currentLabel={report.period.label}
+            comparisonLabel={report.period.comparisonLabel}
+            unitWord={unitWord}
+            onSelectMonth={
+              drill
+                ? (month, series) => {
+                    const { label, tasks } = monthTasks(facts, report.period, prefs.basis, prefs.teamIds, measure, month, series);
+                    drill({ title: label, subtitle: `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${label}${series === "outlook" ? " · the rest of last year" : ""}${measure === "tasks" ? "" : ` · tasks with ${measure === "effort" ? "the hours" : "the units"} in that month`}`, tasks });
+                  }
+                : undefined
+            }
+          />
         </Panel>
 
         {/* Three ranked splits, and only three: the column sets the height of
