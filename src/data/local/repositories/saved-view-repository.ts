@@ -10,13 +10,19 @@ export class LocalSavedViewRepository implements SavedViewRepository {
   async listByBoard(boardId: string, userId: string): Promise<SavedBoardView[]> {
     const db = await this.conn.getDb();
     const views = await db.getAllFromIndex("savedViews", "byBoard", boardId);
-    return views.filter((v) => v.shared || v.createdBy === userId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return views
+      .map((v) => ({ ...v, isDefault: v.isDefault === true }))
+      .filter((v) => v.shared || v.createdBy === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   async create(input: SavedBoardViewInput): Promise<SavedBoardView> {
     const db = await this.conn.getDb();
+    if (input.isDefault && (await db.getAllFromIndex("savedViews", "byBoard", input.boardId)).some((v) => v.isDefault)) {
+      throw new Error("This board's default view is already saved.");
+    }
     const now = nowIso();
-    const view: SavedBoardView = { ...input, id: newId(), createdAt: now, updatedAt: now };
+    const view: SavedBoardView = { ...input, shared: input.shared || input.isDefault, id: newId(), createdAt: now, updatedAt: now };
     await db.put("savedViews", view);
     return view;
   }

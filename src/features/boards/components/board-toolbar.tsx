@@ -81,12 +81,16 @@ export function BoardToolbar({
   const tableTools = view === "table";
   // In a saved view, hiding a column is the view's business, not the board's.
   const viewOpen = useSavedViewStore((s) => !!s.boards[board.id]);
-  const labelClass = useToolLabelClass(board.id);
+  const barRef = React.useRef<HTMLDivElement>(null);
+  const density = useToolbarDensity(barRef, `${view}|${filterCount}|${ui.sort?.field ?? ""}|${ui.search ? 1 : 0}|${hiddenCount}|${viewOpen ? 1 : 0}`);
+  // Folded: Person and Tags live in the Filter panel. Below that, words go too.
+  const folded = density >= 1;
+  const labelClass = density >= 2 ? "hidden" : "hidden @5xl:inline";
 
   // The button labels go by the toolbar's own width rather than the window's:
   // an open task panel takes a third of the window beside it.
   return (
-    <div className={cn(boardBarClasses, "@container")} role="toolbar" aria-label="Board tools">
+    <div ref={barRef} className={cn(boardBarClasses, "@container")} role="toolbar" aria-label="Board tools">
       {leading}
       {leading && <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />}
       <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} views={boardViewsFor(board)} />
@@ -98,8 +102,8 @@ export function BoardToolbar({
         {savedViews && tableTools && <span aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-border/70" />}
         {tableTools && (
           <>
-            <PersonFilter />
-            <TagFilter />
+            {!folded && <PersonFilter labelClass={labelClass} />}
+            {!folded && <TagFilter labelClass={labelClass} />}
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
@@ -108,7 +112,7 @@ export function BoardToolbar({
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[520px] p-3">
-                <FilterPanel />
+                <FilterPanel folded={folded} />
               </PopoverContent>
             </Popover>
             <DropdownMenu>
@@ -239,22 +243,51 @@ export function SearchBox({ value, onChange, className }: { value: string; onCha
   );
 }
 
+/** How much the bar has given up to fit: nothing, then Person and Tags folded into Filter, then the buttons' words. */
+type Density = 0 | 1 | 2;
+
 /**
- * The tool buttons' words, shown once the bar has room. A saved view's name
- * and Save button take some of it, so with one open they wait for a wider bar
- * and the icons and counts carry the meaning until then.
+ * Steps the bar down only when it runs out of room, and back up once there is
+ * room again for what it needed before. The widths are measured, not guessed:
+ * a saved view's name, a sort and Clear all all take room, and the task panel
+ * takes a third of the window. A change to what the bar holds starts again
+ * from the top.
  */
-function useToolLabelClass(boardId: string): string {
-  const viewOpen = useSavedViewStore((s) => !!s.boards[boardId]);
-  return viewOpen ? "hidden @7xl:inline" : "hidden @5xl:inline";
+function useToolbarDensity(ref: React.RefObject<HTMLDivElement | null>, contentKey: string): Density {
+  const [state, setState] = React.useState<{ key: string; density: Density }>({ key: contentKey, density: 0 });
+  // A change to what the bar holds starts again from the top.
+  const density: Density = state.key === contentKey ? state.density : 0;
+  // The width the bar needed at each density, taken when it overflowed there.
+  const needed = React.useRef<{ key: string; widths: Partial<Record<Density, number>> }>({ key: contentKey, widths: {} });
+
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (needed.current.key !== contentKey) needed.current = { key: contentKey, widths: {} };
+    // The observer reports once as soon as it is attached, before the frame
+    // is painted, and again whenever the bar's width changes.
+    const observer = new ResizeObserver(() => {
+      const widths = needed.current.widths;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        if (density < 2) {
+          widths[density] = el.scrollWidth;
+          setState({ key: contentKey, density: (density + 1) as Density });
+        }
+        return;
+      }
+      const wider = density > 0 ? widths[(density - 1) as Density] : undefined;
+      if (wider !== undefined && el.clientWidth >= wider) setState({ key: contentKey, density: (density - 1) as Density });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref, contentKey, density]);
+
+  return density;
 }
 
-function PersonFilter() {
-  const { board, users } = useBoardContext();
-  const labelClass = useToolLabelClass(board.id);
-  const ui = useBoardUi(board.id);
-  const setFilters = useBoardUiStore((s) => s.setFilters);
-  const selected = ui.filters.personIds;
+function PersonFilter({ labelClass }: { labelClass: string }) {
+  const { board } = useBoardContext();
+  const selected = useBoardUi(board.id).filters.personIds;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -265,57 +298,60 @@ function PersonFilter() {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3">
         <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by owner</p>
-        <div className="flex flex-wrap gap-2.5">
-          {users
-            .filter((u) => u.deactivatedAt === null)
-            .map((user) => {
-              const active = selected.includes(user.id);
-              return (
-                <button
-                  key={user.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setFilters(board.id, { personIds: active ? selected.filter((id) => id !== user.id) : [...selected, user.id] })}
-                  // inline-flex so the ring is concentric with the avatar rather than
-                  // wrapping a taller line box, and offset so it reads as a ring
-                  // around the face instead of a rim on it.
-                  className={cn(
-                    "inline-flex rounded-full ring-offset-2 ring-offset-popover transition-shadow",
-                    // The ring is on or off, rather than coloured or transparent:
-                    // two classes setting the same ring colour fight, and which
-                    // one wins is down to the order Tailwind emits them in.
-                    active ? "ring-2 ring-ring" : "hover:ring-2 hover:ring-ring/40",
-                  )}
-                >
-                  <UserAvatar user={user} size="lg" />
-                </button>
-              );
-            })}
-        </div>
-        {selected.length > 0 && (
-          <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { personIds: [] })}>
-            Clear
-          </Button>
-        )}
+        <PersonChoices />
       </PopoverContent>
     </Popover>
   );
 }
 
-/**
- * Its own button, like Person: tags are how people carve a board up day to day,
- * so they should not be buried in the filter panel. Hidden on boards with no
- * TAGS column.
- */
-function TagFilter() {
-  const { board, model } = useBoardContext();
-  const labelClass = useToolLabelClass(board.id);
-  const ui = useBoardUi(board.id);
+/** The faces to filter by: on the Person button, or in the Filter panel once the bar has folded it in. */
+function PersonChoices() {
+  const { board, users } = useBoardContext();
   const setFilters = useBoardUiStore((s) => s.setFilters);
-  const selected = ui.filters.tags;
+  const selected = useBoardUi(board.id).filters.personIds;
+  return (
+    <>
+      <div className="flex flex-wrap gap-2.5" data-testid="person-choices">
+        {users
+          .filter((u) => u.deactivatedAt === null)
+          .map((user) => {
+            const active = selected.includes(user.id);
+            return (
+              <button
+                key={user.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setFilters(board.id, { personIds: active ? selected.filter((id) => id !== user.id) : [...selected, user.id] })}
+                // inline-flex so the ring is concentric with the avatar rather than
+                // wrapping a taller line box, and offset so it reads as a ring
+                // around the face instead of a rim on it.
+                className={cn(
+                  "inline-flex rounded-full ring-offset-2 ring-offset-popover transition-shadow",
+                  // The ring is on or off, rather than coloured or transparent:
+                  // two classes setting the same ring colour fight, and which
+                  // one wins is down to the order Tailwind emits them in.
+                  active ? "ring-2 ring-ring" : "hover:ring-2 hover:ring-ring/40",
+                )}
+              >
+                <UserAvatar user={user} size="lg" />
+              </button>
+            );
+          })}
+      </div>
+      {selected.length > 0 && (
+        <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { personIds: [] })}>
+          Clear
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** One entry per tag name across every TAGS column; the first colour wins. */
+function useTagOptions() {
+  const { model } = useBoardContext();
   const tagColumns = React.useMemo(() => model.columns.filter((c) => c.type === "TAGS"), [model.columns]);
-  const options = React.useMemo(() => {
-    // One entry per tag name across every TAGS column; the first colour wins.
+  return React.useMemo(() => {
     const seen = new Map<string, ReturnType<typeof tagOptionsFor>[number]>();
     for (const column of tagColumns) {
       for (const option of tagOptionsFor(column, model.snapshot.values)) {
@@ -323,11 +359,20 @@ function TagFilter() {
         if (!seen.has(key)) seen.set(key, option);
       }
     }
-    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return { hasTags: tagColumns.length > 0, options: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   }, [tagColumns, model.snapshot.values]);
-  if (tagColumns.length === 0) return null;
-  const isSelected = (name: string) => selected.some((tag) => tag.toLowerCase() === name.toLowerCase());
-  const toggle = (name: string) => setFilters(board.id, { tags: isSelected(name) ? selected.filter((tag) => tag.toLowerCase() !== name.toLowerCase()) : [...selected, name] });
+}
+
+/**
+ * Its own button, like Person: tags are how people carve a board up day to day,
+ * so they are not buried in the filter panel unless the bar is out of room.
+ * Hidden on boards with no TAGS column.
+ */
+function TagFilter({ labelClass }: { labelClass: string }) {
+  const { board } = useBoardContext();
+  const selected = useBoardUi(board.id).filters.tags;
+  const { hasTags, options } = useTagOptions();
+  if (!hasTags) return null;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -338,42 +383,57 @@ function TagFilter() {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3" data-testid="tag-filter-panel">
         <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by tag</p>
-        {options.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">No tags on this board yet.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {options.map((option) => {
-              const active = isSelected(option.name);
-              return (
-                <button
-                  key={option.name}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggle(option.name)}
-                  className={cn(
-                    "rounded-md px-2 py-0.5 text-2xs font-medium ring-2 ring-transparent transition-shadow hover:ring-ring/50",
-                    colorClasses(option.color).soft,
-                    active && "ring-ring",
-                  )}
-                >
-                  {formatTag(option.name)}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {selected.length > 0 && (
-          <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { tags: [] })}>
-            Clear
-          </Button>
-        )}
+        <TagChoices options={options} />
       </PopoverContent>
     </Popover>
   );
 }
 
-function FilterPanel() {
+function TagChoices({ options }: { options: ReturnType<typeof useTagOptions>["options"] }) {
+  const { board } = useBoardContext();
+  const setFilters = useBoardUiStore((s) => s.setFilters);
+  const selected = useBoardUi(board.id).filters.tags;
+  const isSelected = (name: string) => selected.some((tag) => tag.toLowerCase() === name.toLowerCase());
+  const toggle = (name: string) => setFilters(board.id, { tags: isSelected(name) ? selected.filter((tag) => tag.toLowerCase() !== name.toLowerCase()) : [...selected, name] });
+  return (
+    <>
+      {options.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">No tags on this board yet.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5" data-testid="tag-choices">
+          {options.map((option) => {
+            const active = isSelected(option.name);
+            return (
+              <button
+                key={option.name}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggle(option.name)}
+                className={cn(
+                  "rounded-md px-2 py-0.5 text-2xs font-medium ring-2 ring-transparent transition-shadow hover:ring-ring/50",
+                  colorClasses(option.color).soft,
+                  active && "ring-ring",
+                )}
+              >
+                {formatTag(option.name)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {selected.length > 0 && (
+        <Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={() => setFilters(board.id, { tags: [] })}>
+          Clear
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** Status, priority, group and date; with Person and Tags on top when the bar has folded their buttons in. */
+function FilterPanel({ folded }: { folded: boolean }) {
   const { board, model } = useBoardContext();
+  const { hasTags, options: tagOptions } = useTagOptions();
   const ui = useBoardUi(board.id);
   const setFilters = useBoardUiStore((s) => s.setFilters);
   const clearFilters = useBoardUiStore((s) => s.clearFilters);
@@ -389,6 +449,18 @@ function FilterPanel() {
           Clear all
         </Button>
       </div>
+      {folded && (
+        <div>
+          <p className="mb-1.5 label-quiet">Person</p>
+          <PersonChoices />
+        </div>
+      )}
+      {folded && hasTags && (
+        <div>
+          <p className="mb-1.5 label-quiet">Tags</p>
+          <TagChoices options={tagOptions} />
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-4">
         {model.statusColumn && (
           <FilterGroup title="Status">

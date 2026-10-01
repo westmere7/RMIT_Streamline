@@ -4,13 +4,14 @@ import type { SavedViewRepository } from "@/data/repositories";
 import { assertOk, db, unwrap, unwrapList } from "../client";
 import { pruneUndefined } from "../rows";
 
-const VIEW = "id, board_id, name, shared, config, created_by, created_at, updated_at";
+const VIEW = "id, board_id, name, shared, is_default, config, created_by, created_at, updated_at";
 
 interface SavedViewRow {
   id: string;
   board_id: string;
   name: string;
   shared: boolean;
+  is_default: boolean;
   config: unknown;
   created_by: string;
   created_at: string;
@@ -18,7 +19,7 @@ interface SavedViewRow {
 }
 
 function toView(row: SavedViewRow): SavedBoardView {
-  return { id: row.id, boardId: row.board_id, name: row.name, shared: row.shared, config: normaliseViewConfig(row.config), createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, boardId: row.board_id, name: row.name, shared: row.shared, isDefault: row.is_default === true, config: normaliseViewConfig(row.config), createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 /**
@@ -34,7 +35,7 @@ export class SupabaseSavedViewRepository implements SavedViewRepository {
   }
 
   async create(input: SavedBoardViewInput): Promise<SavedBoardView> {
-    const payload = { board_id: input.boardId, name: input.name, shared: input.shared, config: input.config, created_by: input.createdBy };
+    const payload = { board_id: input.boardId, name: input.name, shared: input.shared || input.isDefault, is_default: input.isDefault, config: input.config, created_by: input.createdBy };
     const result = await db().from("board_saved_views").insert(payload).select(VIEW).single();
     return toView(unwrap<SavedViewRow>(result, "board_saved_views.create"));
   }

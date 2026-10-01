@@ -131,3 +131,4 @@ migrations/0097_asset_skills.sql
 migrations/0098_work_types.sql
 migrations/0099_board_saved_views.sql
 policies/0023_board_saved_views_policies.sql
+migrations/0100_board_default_view.sql

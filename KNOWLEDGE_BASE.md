@@ -732,7 +732,9 @@ Sources:
 - **Storage:** `board_saved_views` (0099): board, name (≤60), `shared`, `config` jsonb, `created_by` (cascades with the profile; `removePerson` hands shared ones over first). Policy 0023: anyone who can see the board reads the shared views and their own and saves private ones; shared ones need `can_edit_board` to create, change, delete or keep shared. The local store is `savedViews` (v20).
 - **Config** (`src/domain/board/saved-view.ts`): view kind, search, filters, sort, `hiddenColumnIds`, and each view kind's settings as `useViewSettings` stores them. Read back through `normaliseViewConfig`; `sameViewConfig` compares id lists as sets and settings over the defaults each view registers.
 - **Open view:** `useSavedViewStore` holds its working settings and hidden columns. While one is open, `useViewSettingsFor` reads and writes it instead of the person's own, the board page lays its hidden columns over the snapshot, and `updateColumn({ hidden })` goes to the view rather than the board. Search, filters and sort stay in the board UI store. `?sv=<id>` and a per-person, per-board browser copy reopen it.
-- **UI:** `SavedViewsMenu` at the head of the toolbar's right-hand group (first chip after the view on a phone). Edited shows a dot and a Save button for whoever may save; the tool buttons lose their words below `@7xl` while a view is open.
+- **Default view (v0.75):** `is_default` (0100), one per board, always shared, so only board editors save it. The board opens on it when no other view is asked for or remembered, and it stays out of the URL. The app never renames, unshares or deletes it. Until it is saved, Default view is the person's own settings on a clean board, and "Edited" means a search, filter or sort is set.
+- **UI:** `SavedViewsMenu` at the head of the toolbar's right-hand group (first chip after the view on a phone). Edited shows a dot and a Save button for whoever may save.
+- **Toolbar room (v0.75):** `useToolbarDensity` measures the bar. When it overflows, Person and Tags fold into the Filter panel (`PersonChoices`, `TagChoices`); if it still overflows, the buttons drop their words. It steps back up once the bar is as wide as it needed, and starts again from the top when what the bar holds changes.
 
 ### Task Allocation
 
@@ -1634,6 +1636,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0076 | Snapshot kind `before_wipe` |
 | 0077 | `board_templates` |
 | 0099 | `board_saved_views` |
+| 0100 | `board_saved_views.is_default`, one per board, always shared |
 | 0078 | REQUESTER type |
 
 | Policy | Change |

@@ -42,6 +42,9 @@ export interface SavedViewConfig {
 /**
  * A board's view saved under a name. Shared ones are everyone's on the board
  * and only its editors change them; the rest are the saver's alone.
+ *
+ * The Default view, once saved, is one of these too: shared, one per board,
+ * and never renamed, made private or deleted.
  */
 export interface SavedBoardView extends Timestamps {
   id: EntityId;
@@ -50,9 +53,12 @@ export interface SavedBoardView extends Timestamps {
   shared: boolean;
   config: SavedViewConfig;
   createdBy: EntityId;
+  isDefault: boolean;
 }
 
-export type SavedBoardViewInput = Pick<SavedBoardView, "boardId" | "name" | "shared" | "config" | "createdBy">;
+export type SavedBoardViewInput = Pick<SavedBoardView, "boardId" | "name" | "shared" | "config" | "createdBy" | "isDefault">;
+
+export const DEFAULT_VIEW_NAME = "Default view";
 export type SavedBoardViewPatch = Partial<Pick<SavedBoardView, "name" | "shared" | "config">>;
 
 export const SAVED_VIEW_NAME_MAX = 60;

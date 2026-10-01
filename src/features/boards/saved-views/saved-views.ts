@@ -3,12 +3,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import { BOARD_VIEWS, EMPTY_VIEW_FILTERS, boardViewsFor, cleanViewName, sameViewConfig, type Board, type BoardColumn, type BoardViewKind, type SavedBoardView, type SavedBoardViewPatch, type SavedViewConfig } from "@/domain";
+import { BOARD_VIEWS, DEFAULT_VIEW_NAME, EMPTY_VIEW_FILTERS, boardViewsFor, cleanViewName, sameViewConfig, type Board, type BoardColumn, type BoardViewKind, type SavedBoardView, type SavedBoardViewPatch, type SavedViewConfig } from "@/domain";
 import { readPersonalViewSettings } from "@/features/boards/components/views/view-settings";
 import { useActiveSavedView, useSavedViewStore, viewDefaults } from "@/features/boards/saved-views/saved-view-store";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
-import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { hasActiveFilters, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 
 /**
  * Who may change a saved view: whoever saved it, and on a shared view anyone
@@ -43,11 +43,18 @@ function writeOpen(userId: string, boardId: string, viewId: string | null): void
 }
 
 export interface SavedViewsController {
+  /** The named views: shared ones and the reader's own. The Default view is apart. */
   views: SavedBoardView[];
-  /** The saved view on screen, or null for the board as this person left it. */
+  /** The board's Default view, once someone has saved it. */
+  defaultView: SavedBoardView | null;
+  /** The saved row on screen, the Default view's included; null on an unsaved default. */
   active: SavedBoardView | null;
-  /** On screen differs from what the active view saved. */
+  /** The Default view is on screen, saved or not. */
+  onDefault: boolean;
+  /** On screen differs from what it was saved as (or, on an unsaved default, from a clean board). */
   dirty: boolean;
+  /** Whoever is looking may save what is on screen back over it. */
+  maySave: boolean;
   canEdit: boolean;
   userId: string;
   open: (view: SavedBoardView | null) => void;
@@ -64,8 +71,9 @@ export interface SavedViewsController {
  *
  * A view opens by putting its search, filters and sort in the board's UI store,
  * its view settings and hidden columns in the saved-view store, and its view in
- * the URL. Leaving it for the default clears the first and drops the second, so
- * the person's own settings come back as they were.
+ * the URL. The Default view is the board with no other view open: once an
+ * editor saves it, it opens like any other (but stays out of the URL);
+ * until then it is the person's own settings on a clean board.
  */
 export function useSavedViewsController({
   board,
@@ -92,13 +100,18 @@ export function useSavedViewsController({
   const queryClient = useQueryClient();
   const key = queryKeys.savedViews(board.id, userId);
   const query = useQuery({ queryKey: key, queryFn: () => services.repos.savedViews.listByBoard(board.id, userId), staleTime: 30_000 });
-  const views = React.useMemo(() => query.data ?? [], [query.data]);
+  const all = React.useMemo(() => query.data ?? [], [query.data]);
+  const views = React.useMemo(() => all.filter((v) => !v.isDefault), [all]);
+  const defaultView = all.find((v) => v.isDefault) ?? null;
   const working = useActiveSavedView(board.id);
   const ui = useBoardUi(board.id);
-  const active = working ? (views.find((v) => v.id === working.id) ?? null) : null;
+  const active = working ? (all.find((v) => v.id === working.id) ?? null) : null;
+  const onDefault = !working || !!active?.isDefault;
 
+  /** Null is the Default view: the saved one if there is one, else a clean board. */
   const open = React.useCallback(
-    (next: SavedBoardView | null) => {
+    (wanted: SavedBoardView | null) => {
+      const next = wanted ?? queryClient.getQueryData<SavedBoardView[]>(key)?.find((v) => v.isDefault) ?? null;
       const store = useBoardUiStore.getState();
       if (next) {
         const c = next.config;
@@ -114,26 +127,28 @@ export function useSavedViewsController({
         store.clearFilters(board.id);
         store.setSort(board.id, null);
       }
-      writeOpen(userId, board.id, next?.id ?? null);
-      replaceParams({ sv: next?.id ?? null });
+      // The Default view is where the board opens anyway, so it needs neither.
+      const named = next && !next.isDefault ? next.id : null;
+      writeOpen(userId, board.id, named);
+      replaceParams({ sv: named });
     },
-    [board, setView, replaceParams, userId],
+    [board, setView, replaceParams, userId, queryClient, key],
   );
 
   // Once the list is in: the view the link asks for, else the one this person
-  // last had open here.
+  // last had open here, else the board's saved Default view.
   const started = React.useRef(false);
   React.useEffect(() => {
     if (started.current || !query.data) return;
     started.current = true;
     const wanted = requestedId ?? readOpen(userId, board.id);
-    if (!wanted) return;
-    const found = query.data.find((v) => v.id === wanted);
-    if (found) open(found);
-    else {
+    const found = wanted ? query.data.find((v) => v.id === wanted && !v.isDefault) : undefined;
+    if (wanted && !found) {
       writeOpen(userId, board.id, null);
       if (requestedId) replaceParams({ sv: null });
     }
+    if (found) open(found);
+    else if (query.data.some((v) => v.isDefault)) open(null);
   }, [query.data, requestedId, userId, board.id, open, replaceParams]);
 
   // Deleted, or made private, by somebody else while it was open.
@@ -165,10 +180,15 @@ export function useSavedViewsController({
 
   // Read on every render, so the Edited mark follows each change as it is made.
   const dirty = React.useMemo(() => {
-    if (!active || !working) return false;
-    const now: SavedViewConfig = { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings };
-    return !sameViewConfig(now, active.config, viewDefaults());
+    if (active && working) {
+      const now: SavedViewConfig = { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings };
+      return !sameViewConfig(now, active.config, viewDefaults());
+    }
+    // An unsaved default has nothing to compare with but a clean board.
+    return !working && (ui.search.trim() !== "" || hasActiveFilters(ui.filters) || ui.sort !== null);
   }, [active, working, view, ui.search, ui.filters, ui.sort]);
+
+  const maySave = active ? canChangeView(active, userId, canEdit) : onDefault && canEdit;
 
   const refresh = React.useCallback(() => queryClient.invalidateQueries({ queryKey: key }), [queryClient, key]);
   const fail = (what: string) => (error: unknown) => {
@@ -177,15 +197,25 @@ export function useSavedViewsController({
   };
 
   const saveChanges = async () => {
-    if (!active) return;
-    const saved = await services.repos.savedViews.update(active.id, { config: currentConfig() }).catch(fail("Could not save the view"));
-    queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === saved.id ? saved : v)));
-    toast.success(`Saved ${saved.name}`);
+    if (active) {
+      const saved = await services.repos.savedViews.update(active.id, { config: currentConfig() }).catch(fail("Could not save the view"));
+      queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === saved.id ? saved : v)));
+      toast.success(`Saved ${saved.name}`);
+      return;
+    }
+    // The first save of the board's Default view, for everyone on it.
+    if (!onDefault || !canEdit) return;
+    const created = await services.repos.savedViews
+      .create({ boardId: board.id, name: DEFAULT_VIEW_NAME, shared: true, isDefault: true, config: currentConfig(), createdBy: userId })
+      .catch(fail("Could not save the default view"));
+    queryClient.setQueryData<SavedBoardView[]>(key, (list) => [...(list ?? []), created]);
+    open(created);
+    toast.success(`Saved ${DEFAULT_VIEW_NAME}`);
   };
 
   const create = async (name: string, shared: boolean, config?: SavedViewConfig) => {
     const created = await services.repos.savedViews
-      .create({ boardId: board.id, name: cleanViewName(name), shared: shared && canEdit, config: config ?? currentConfig(), createdBy: userId })
+      .create({ boardId: board.id, name: cleanViewName(name), shared: shared && canEdit, isDefault: false, config: config ?? currentConfig(), createdBy: userId })
       .catch(fail("Could not save the view"));
     queryClient.setQueryData<SavedBoardView[]>(key, (list) => [...(list ?? []), created]);
     open(created);
@@ -193,28 +223,24 @@ export function useSavedViewsController({
   };
 
   const update = async (target: SavedBoardView, patch: SavedBoardViewPatch) => {
-    const clean = { ...patch, ...(patch.name !== undefined ? { name: cleanViewName(patch.name) } : {}), ...(patch.shared !== undefined ? { shared: patch.shared && canEdit } : {}) };
+    // The Default view keeps its name and stays shared.
+    const allowed = target.isDefault ? { config: patch.config } : patch;
+    const clean = { ...allowed, ...(allowed.name !== undefined ? { name: cleanViewName(allowed.name) } : {}), ...(allowed.shared !== undefined ? { shared: allowed.shared && canEdit } : {}) };
     const saved = await services.repos.savedViews.update(target.id, clean).catch(fail("Could not change the view"));
     queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.map((v) => (v.id === saved.id ? saved : v)));
   };
 
   const remove = async (target: SavedBoardView) => {
+    if (target.isDefault) return;
     await services.repos.savedViews.delete(target.id).catch(fail("Could not delete the view"));
-    if (working?.id === target.id) open(null);
     queryClient.setQueryData<SavedBoardView[]>(key, (list) => list?.filter((v) => v.id !== target.id));
+    if (working?.id === target.id) open(null);
   };
 
-  return {
-    views,
-    active,
-    dirty,
-    canEdit,
-    userId,
-    open,
-    discard: () => active && open(active),
-    saveChanges,
-    create,
-    update,
-    remove,
+  const discard = () => {
+    if (active) open(active);
+    else open(null);
   };
+
+  return { views, defaultView, active, onDefault, dirty, maySave, canEdit, userId, open, discard, saveChanges, create, update, remove };
 }

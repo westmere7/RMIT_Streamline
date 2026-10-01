@@ -9,25 +9,31 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SAVED_VIEW_NAME_MAX, type SavedBoardView } from "@/domain";
+import { DEFAULT_VIEW_NAME, SAVED_VIEW_NAME_MAX, type SavedBoardView } from "@/domain";
 import { canChangeView, type SavedViewsController } from "@/features/boards/saved-views/saved-views";
 import { cn } from "@/lib/utils";
 
 type NameDialog = { mode: "new" } | { mode: "rename"; view: SavedBoardView } | { mode: "copy"; view: SavedBoardView };
 
 /**
- * The board's saved views, beside the filters: which one is open, a way back to
- * the default, and everything done to the open one. Edited, it says so, and
- * Save sits beside it for whoever may save it.
+ * The board's saved views, beside the filters: which one is open, the Default
+ * view, and everything done to the open one. Edited, it says so, and Save sits
+ * beside it for whoever may save it. The Default view saves like the rest but
+ * keeps its name, stays shared and cannot be deleted.
  */
 export function SavedViewsMenu({ controller, compact = false }: { controller: SavedViewsController; compact?: boolean }) {
-  const { views, active, dirty, canEdit, userId } = controller;
+  const { views, active, onDefault, dirty, maySave, canEdit, userId } = controller;
   const [dialog, setDialog] = React.useState<NameDialog | null>(null);
   const [deleting, setDeleting] = React.useState<SavedBoardView | null>(null);
   const [saving, setSaving] = React.useState(false);
-  const mayChange = !!active && canChangeView(active, userId, canEdit);
+  // A view with a name of its own, as opposed to the Default view.
+  const named = active && !active.isDefault ? active : null;
+  const mayChange = !!named && canChangeView(named, userId, canEdit);
   const shared = views.filter((v) => v.shared);
   const own = views.filter((v) => !v.shared);
+  // An unsaved Default view can be saved as it stands, changed or not.
+  const canSave = maySave && (dirty || (onDefault && !active));
+  const title = named ? named.name : DEFAULT_VIEW_NAME;
   // Not modal, so a dialog opened from it is the only thing holding the page.
   const later = (fn: () => void) => () => fn();
 
@@ -62,14 +68,15 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
               "max-w-56 shrink-0 rounded-full",
               // On a phone it is one of the tool chips, and looks it.
               compact && "h-11 max-w-44 border px-3 text-[13px]",
-              compact && !active && "border-border/70 text-muted-foreground",
-              active && (compact ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "state-on hover:bg-accent-soft hover:text-accent-soft-foreground"),
+              compact && !named && "border-border/70 text-muted-foreground",
+              named && (compact ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "state-on hover:bg-accent-soft hover:text-accent-soft-foreground"),
             )}
-            aria-label={active ? `Saved view: ${active.name}${dirty ? ", edited" : ""}` : "Saved views"}
+            aria-label={named || dirty ? `Saved view: ${title}${dirty ? ", edited" : ""}` : "Saved views"}
             data-testid="saved-views-button"
           >
-            <Bookmark className={cn(active && "fill-current")} />
-            <span className={cn("truncate", !compact && !active && "hidden @5xl:inline")}>{active ? active.name : "Saved views"}</span>
+            <Bookmark className={cn(named && "fill-current")} />
+            {/* The Default view is named only once it has been changed, so Save beside it says what it saves. */}
+            <span className={cn("truncate", !compact && !named && !dirty && "hidden @5xl:inline")}>{named || dirty ? title : "Saved views"}</span>
             {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" data-testid="saved-view-edited" />}
             <ChevronDown className="text-muted-foreground" />
           </Button>
@@ -78,41 +85,44 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
           <DropdownMenuLabel>Saved views</DropdownMenuLabel>
           <DropdownMenuItem onSelect={() => controller.open(null)} data-testid="saved-view-default">
             <Bookmark />
-            <span className="flex-1">Default view</span>
-            {!active && <Check className="size-3.5" />}
+            <span className="flex-1">{DEFAULT_VIEW_NAME}</span>
+            {onDefault && dirty && <span className="text-2xs text-amber-600 dark:text-amber-400">Edited</span>}
+            {onDefault && <Check className="size-3.5" />}
           </DropdownMenuItem>
           {shared.length > 0 && <DropdownMenuLabel className="pt-2 text-2xs font-medium text-muted-foreground uppercase">Shared</DropdownMenuLabel>}
           {shared.map(row)}
           {own.length > 0 && <DropdownMenuLabel className="pt-2 text-2xs font-medium text-muted-foreground uppercase">Only you</DropdownMenuLabel>}
           {own.map(row)}
 
-          {active && (
+          {(named || maySave || dirty) && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="truncate text-2xs font-medium text-muted-foreground">{active.name}</DropdownMenuLabel>
-              {mayChange && (
-                <DropdownMenuItem disabled={!dirty || saving} onSelect={() => void save()} data-testid="saved-view-save">
+              <DropdownMenuLabel className="truncate text-2xs font-medium text-muted-foreground">{title}</DropdownMenuLabel>
+              {maySave && (
+                <DropdownMenuItem disabled={!canSave || saving} onSelect={() => void save()} data-testid="saved-view-save">
                   <Save /> Save changes
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem disabled={!dirty} onSelect={() => controller.discard()} data-testid="saved-view-discard">
                 <RotateCcw /> Discard changes
               </DropdownMenuItem>
-              {mayChange && (
-                <DropdownMenuItem onSelect={later(() => setDialog({ mode: "rename", view: active }))} data-testid="saved-view-rename">
+              {mayChange && named && (
+                <DropdownMenuItem onSelect={later(() => setDialog({ mode: "rename", view: named }))} data-testid="saved-view-rename">
                   <Pencil /> Rename…
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={later(() => setDialog({ mode: "copy", view: active }))} data-testid="saved-view-duplicate">
-                <Copy /> Duplicate…
-              </DropdownMenuItem>
-              {mayChange && canEdit && (
-                <DropdownMenuItem onSelect={() => void controller.update(active, { shared: !active.shared }).catch(() => undefined)} data-testid="saved-view-share">
-                  {active.shared ? <Lock /> : <Users />} {active.shared ? "Make private" : "Share with the board"}
+              {active && (
+                <DropdownMenuItem onSelect={later(() => setDialog({ mode: "copy", view: active }))} data-testid="saved-view-duplicate">
+                  <Copy /> Duplicate…
                 </DropdownMenuItem>
               )}
-              {mayChange && (
-                <DropdownMenuItem variant="destructive" onSelect={later(() => setDeleting(active))} data-testid="saved-view-delete">
+              {mayChange && named && canEdit && (
+                <DropdownMenuItem onSelect={() => void controller.update(named, { shared: !named.shared }).catch(() => undefined)} data-testid="saved-view-share">
+                  {named.shared ? <Lock /> : <Users />} {named.shared ? "Make private" : "Share with the board"}
+                </DropdownMenuItem>
+              )}
+              {mayChange && named && (
+                <DropdownMenuItem variant="destructive" onSelect={later(() => setDeleting(named))} data-testid="saved-view-delete">
                   <Trash2 /> Delete…
                 </DropdownMenuItem>
               )}
@@ -125,7 +135,7 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {active && dirty && mayChange && (
+      {dirty && maySave && (
         <Button variant="outline" size="sm" className="shrink-0 rounded-full" disabled={saving} onClick={() => void save()} data-testid="saved-view-save-button">
           <Save /> Save
         </Button>

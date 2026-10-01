@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.75.0",
+    date: "2026-10-01",
+    title: "Save the Default view",
+    changes: [
+      "Board editors can save the Default view, which is what everyone sees on the board when no other view is open. It saves like any view but keeps its name and cannot be deleted.",
+      "When the board toolbar runs short of room, Person and Tags move into the Filter panel, then the buttons drop their words, instead of all of them shrinking at once.",
+    ],
+  },
+  {
     version: "0.74.0",
     date: "2026-10-01",
     title: "Saved views",

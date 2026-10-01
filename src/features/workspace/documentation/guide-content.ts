@@ -336,7 +336,9 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Open Saved views beside the filters and choose Save as new view. Board editors can share it with everyone on the board; otherwise it is yours alone.",
         "Pick a saved view from the same menu to put it all back. Its name shows on the button, and the link opens it for anyone it is shared with.",
         "Change anything while it is open and it is marked Edited: Save keeps the change, Discard changes puts the view back, and Save as new view keeps both.",
-        "Rename, Duplicate, Share with the board or Make private, and Delete are in the menu under the open view. Default view goes back to your own settings.",
+        "Rename, Duplicate, Share with the board or Make private, and Delete are in the menu under the open view.",
+        "Default view is what the board shows when no other view is open. Board editors can save it like any view, for everyone on the board; it cannot be renamed or deleted.",
+        "When the toolbar runs short of room, Person and Tags move into the Filter panel, then the buttons drop their words.",
       ], note: { title: "Hiding columns in a saved view", text: "With a saved view open, hiding a column hides it in that view only. The board's own columns are left as they are." } },
       { title: "If a view looks empty", bullets: [
         "Go back to Main Table and search the task's name. Open its group or parent.",
