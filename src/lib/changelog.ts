@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.73.4",
+    date: "2026-10-01",
+    title: "Overdue is red, no icon",
+    changes: ["Overdue dates and items are shown in red alone, without the warning icon: deliverables, board cells, Kanban, Calendar, Timeline, Gantt and the dashboard's boards list."],
+  },
+  {
     version: "0.73.3",
     date: "2026-10-01",
     title: "Work types in the PDF",

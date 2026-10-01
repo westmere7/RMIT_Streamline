@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, isWeekend, startOfMonth, startOfWeek, subMonths, subWeeks } from "date-fns";
-import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -180,8 +180,7 @@ function Chip({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: ()
   return (
     <button type="button" onClick={onOpen} title={`${entry.item.name}${entry.status ? ` · ${entry.status.name}` : ""}${entry.owners.length ? ` · ${entry.owners.map((u) => u.displayName).join(", ")}` : ""}`} className={cn("flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-2xs hover:bg-accent", entry.done && "text-muted-foreground")} data-testid="calendar-chip">
       <span className={cn("size-1.5 shrink-0 rounded-full", color.dot)} style={entry.stuck ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 2px)" } : undefined} />
-      <span className="min-w-0 flex-1 truncate">{entry.item.name}</span>
-      {late && <TriangleAlert className="size-2.5 shrink-0 text-red-600 dark:text-red-400" aria-label="Overdue" />}
+      <span className={cn("min-w-0 flex-1 truncate", late && "font-medium text-red-600 dark:text-red-400")}>{entry.item.name}</span>
       {entry.owners[0] && <UserAvatar user={entry.owners[0]} size="xs" tooltip={false} className="shrink-0 scale-75" />}
     </button>
   );
@@ -191,7 +190,7 @@ function Chip({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: ()
 function DayCard({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className={cn("block w-full rounded-lg border border-border/60 bg-card p-2 text-left shadow-xs hover:shadow-md", entry.done && "opacity-70")} data-testid="calendar-card">
-      <span className={cn("block text-xs font-medium leading-snug", entry.done && "text-muted-foreground")}>{entry.item.name}</span>
+      <span className={cn("block text-xs font-medium leading-snug", entry.done && "text-muted-foreground", late && "text-red-600 dark:text-red-400")}>{entry.item.name}</span>
       <span className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
         <span className={cn("size-1.5 rounded-full", colorClasses(entry.group.color).dot)} />
         <span className="truncate">{entry.group.name}</span>
@@ -199,7 +198,6 @@ function DayCard({ entry, late, onOpen }: { entry: Entry; late: boolean; onOpen:
       <span className="mt-1.5 flex flex-wrap items-center gap-1">
         {entry.status && <LabelPill label={entry.status} appearance="soft" size="sm" striped={entry.stuck} />}
         {entry.priority && <PriorityPill label={entry.priority} />}
-        {late && <TriangleAlert className="size-3 text-red-600 dark:text-red-400" aria-label="Overdue" />}
         {entry.owners.length > 0 && <AvatarStack users={entry.owners} size="xs" max={3} className="ml-auto" />}
       </span>
     </button>

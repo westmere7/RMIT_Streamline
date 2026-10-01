@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, FileText, Link2, Pencil, TriangleAlert } from "lucide-react";
+import { Check, ExternalLink, FileText, Link2, Pencil } from "lucide-react";
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
@@ -381,7 +381,7 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
             )}
           >
             <span className="flex min-w-0 items-center gap-1 truncate px-1.5">
-              {overdue > 0 && <TriangleAlert className="size-2.5 shrink-0 text-red-600 dark:text-red-400" aria-label={`${overdue} overdue`} />}
+              
               {/* Lines, not copies: "1 asset ×25" is one thing to make. The
                   receipt and the subitem list count it that way too. */}
               <span className="truncate text-muted-foreground">
@@ -508,7 +508,7 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
       trigger={
         v.date ? (
           <span className={cn("flex items-center gap-1 text-xs tabular", overdue ? "font-medium text-red-600 dark:text-red-400" : today ? "font-medium" : isDone ? "text-muted-foreground" : "")}>
-            {overdue && <TriangleAlert className="size-3" />}
+            
             {formatShortDate(v.date)}
           </span>
         ) : (

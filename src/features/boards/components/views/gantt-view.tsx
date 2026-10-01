@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ChevronDown, ChevronRight, Crosshair, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Crosshair } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { LabelPill } from "@/components/shared/label-pill";
@@ -259,12 +259,11 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
             </button>
           ))}
         {schedule && !schedule.milestone && width < 80 && zoom !== "month" && (
-          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 200 }}>
+          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : late && schedule ? "font-medium text-red-600 dark:text-red-400" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 200 }}>
             {item.name}
           </span>
         )}
-        {late && schedule && <TriangleAlert className="absolute top-1/2 size-3 -translate-y-1/2 text-red-600 dark:text-red-400" style={{ left: left + width + (width < 80 && zoom !== "month" ? 210 : 6) }} aria-label="Overdue" />}
-      </div>
+              </div>
     </div>
   );
 }

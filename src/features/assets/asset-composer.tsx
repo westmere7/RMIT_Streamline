@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, TriangleAlert, Ungroup, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, Ungroup, UserRound } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -609,7 +609,7 @@ function AssetRowCard({
               )}
               {showDue && (
                 <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-                  {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                  
                   {formatShortDate(shown.dueDate)}
                 </span>
               )}
@@ -630,7 +630,7 @@ function AssetRowCard({
               )}
               {fields.due && (
                 <span className={cn("flex items-center justify-end gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-                  {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                  
                   {shown.dueDate ? formatShortDate(shown.dueDate) : ""}
                 </span>
               )}
@@ -677,7 +677,7 @@ function AssetRowCard({
             )}
             {showDue && (
               <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-                {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+                
                 {formatShortDate(shown.dueDate)}
               </span>
             )}
@@ -798,7 +798,7 @@ function AssetRowCard({
                       aria-label={`Due: ${draft.dueDate ? formatShortDate(draft.dueDate) : "not set"}`}
                       data-testid="asset-due"
                     >
-                      {overdue ? <TriangleAlert className="size-3 shrink-0" /> : <CalendarDays className="size-3 shrink-0 opacity-60" />}
+                      <CalendarDays className="size-3 shrink-0 opacity-60" />
                       <span className={cn("truncate", !draft.dueDate && "text-muted-foreground/80")}>{draft.dueDate ? formatShortDate(draft.dueDate) : "Not set"}</span>
                     </button>
                   </PopoverTrigger>
@@ -1024,7 +1024,7 @@ function AssetBlockCard({
           </span>
           {fields.due && nextDue && (
             <span className={cn("flex items-center gap-1 tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>
-              {overdue && <TriangleAlert className="size-2.5 shrink-0" />}
+              
               {formatShortDate(nextDue)}
             </span>
           )}

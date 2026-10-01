@@ -3,7 +3,7 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw, TriangleAlert } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -269,7 +269,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, canEdit, tint, collapsed, a
         <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", tint && colors?.text)}>{lane.name}</h3>
         {overdue > 0 && (
           <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
-            <TriangleAlert className="size-2.5" /> {overdue}
+            {overdue}
           </span>
         )}
         <span className="ml-auto rounded-full bg-card/70 px-2 py-0.5 text-2xs text-muted-foreground tabular">{items.length}</span>
@@ -433,7 +433,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
               {due ? (
                 <span className={cn("inline-flex items-center gap-0.5 tabular", overdue && "font-medium text-red-600 dark:text-red-400", dueToday && "font-medium text-foreground")} title={span ?? undefined}>
-                  {overdue && <TriangleAlert className="size-3" />}
+                  
                   {dueToday ? "Today" : formatShortDate(due)}
                 </span>
               ) : (

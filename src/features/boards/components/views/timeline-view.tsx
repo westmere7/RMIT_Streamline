@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarX2, Crosshair, TriangleAlert } from "lucide-react";
+import { CalendarX2, Crosshair } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -156,7 +156,6 @@ function BarRow({ bar, group, range, zoom, users, today, onOpen }: { bar: Schedu
             <span className={cn("block truncate text-[13px]", done && "text-muted-foreground")}>{item.name}</span>
             <span className={cn("block truncate text-2xs tabular", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{dates}</span>
           </span>
-          {late && <TriangleAlert className="size-3 shrink-0 text-red-600 dark:text-red-400" aria-label="Overdue" />}
         </button>
       </div>
       <div className="relative h-full flex-1">

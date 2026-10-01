@@ -283,9 +283,7 @@ export function BoardsPanel({ rows, onOpen }: { rows: BoardRow[]; onOpen?: (boar
                 </span>
                 {b.overdue > 0 && (
                   <SimpleTooltip label={`${b.overdue} overdue`}>
-                    <span className="text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="size-3.5" />
-                    </span>
+                    <span className="text-2xs font-medium text-red-600 tabular dark:text-red-400">{b.overdue} late</span>
                   </SimpleTooltip>
                 )}
               </Row>
