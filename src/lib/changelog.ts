@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.71.1",
+    date: "2026-10-01",
+    title: "Portal columns in a pop-up",
+    changes: ["Portal settings show the columns as a short summary; Edit opens the list in a pop-up, shown columns first to drag into order, hidden ones below, special columns marked green."],
+  },
+  {
     version: "0.71.0",
     date: "2026-10-01",
     title: "Portal columns",

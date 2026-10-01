@@ -657,14 +657,16 @@ function PortalFields({ draft, set, placeholder, columns }: { draft: Draft; set:
 }
 
 /**
- * The portal board's columns: every one the boards use, in the order the portal
- * shows them, each switched on or off. Drag to reorder. Special columns are
- * marked, as they are in a board's column menu. A board's own column starts off:
- * switching it on is what publishes it.
+ * The portal board's columns, as a summary in the settings and the full list in
+ * a pop-up: the shown ones in their order, dragged to reorder, and the hidden
+ * ones under them. Special columns wear the green their type has in a board's
+ * column menu. A board's own column starts hidden: showing it is what publishes it.
  */
 function ColumnLayoutEditor({ layout, columns, onChange }: { layout: PortalColumnEntry[]; columns: PortalColumnCandidate[]; onChange: (next: PortalColumnEntry[]) => void }) {
   const byKey = React.useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
   const rows = layout.filter((entry) => byKey.has(entry.key));
+  const shown = rows.filter((entry) => !entry.hidden);
+  const hidden = rows.filter((entry) => entry.hidden);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -674,52 +676,105 @@ function ColumnLayoutEditor({ layout, columns, onChange }: { layout: PortalColum
     if (from < 0 || to < 0) return;
     onChange(arrayMove(layout, from, to));
   };
-  const shownCount = rows.filter((entry) => !entry.hidden).length;
+  // Shown again, a column goes to the end of the shown ones rather than back to wherever it once sat.
+  const toggle = (key: string, on: boolean) => {
+    const entry = layout.find((e) => e.key === key);
+    if (!entry) return;
+    const rest = layout.filter((e) => e.key !== key);
+    if (!on) return onChange(layout.map((e) => (e.key === key ? { ...e, hidden: true } : e)));
+    const lastShown = rest.reduce((at, e, index) => (!e.hidden && byKey.has(e.key) ? index : at), -1);
+    onChange([...rest.slice(0, lastShown + 1), { ...entry, hidden: false }, ...rest.slice(lastShown + 1)]);
+  };
+  const SUMMARY = 6;
+
   return (
-    <div className="grid gap-1.5" data-testid="portal-columns">
-      <p className="text-2xs text-muted-foreground">
-        {shownCount} of {rows.length} shown
-      </p>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
-        <SortableContext items={rows.map((entry) => entry.key)} strategy={verticalListSortingStrategy}>
-          <ul className="grid gap-1">
-            {rows.map((entry) => (
-              <ColumnLayoutRow
-                key={entry.key}
-                entry={entry}
-                column={byKey.get(entry.key)!}
-                onToggle={(on) => onChange(layout.map((e) => (e.key === entry.key ? { ...e, hidden: !on } : e)))}
-              />
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-accent/40"
+          data-testid="portal-columns-open"
+        >
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            {shown.slice(0, SUMMARY).map((entry) => (
+              <span key={entry.key} className="rounded-md bg-surface-strong px-1.5 py-0.5 text-2xs font-medium">
+                {byKey.get(entry.key)!.name}
+              </span>
             ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
-    </div>
+            {shown.length > SUMMARY && <span className="text-2xs text-muted-foreground">+{shown.length - SUMMARY}</span>}
+          </span>
+          <span className="shrink-0 text-2xs text-muted-foreground tabular">
+            {shown.length} of {rows.length}
+          </span>
+          <span className="shrink-0 text-[13px] font-medium text-foreground/80 group-hover:text-foreground">Edit</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="bottom" className="w-80 p-0" data-testid="portal-columns">
+        <div className="flex items-baseline justify-between border-b border-border/60 px-3 py-2.5">
+          <p className="text-[13px] font-semibold">Columns</p>
+          <p className="text-2xs text-muted-foreground">Drag to reorder</p>
+        </div>
+        <div className="scrollbar-thin max-h-[60vh] overflow-y-auto p-1.5">
+          <SectionLabel>Shown · {shown.length}</SectionLabel>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
+            <SortableContext items={shown.map((entry) => entry.key)} strategy={verticalListSortingStrategy}>
+              <ul>
+                {shown.map((entry) => (
+                  <ColumnLayoutRow key={entry.key} entry={entry} column={byKey.get(entry.key)!} onToggle={(on) => toggle(entry.key, on)} sortable />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+          {hidden.length > 0 && (
+            <>
+              <SectionLabel className="mt-2">Hidden · {hidden.length}</SectionLabel>
+              <ul>
+                {hidden.map((entry) => (
+                  <ColumnLayoutRow key={entry.key} entry={entry} column={byKey.get(entry.key)!} onToggle={(on) => toggle(entry.key, on)} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+        <p className="flex items-center gap-1.5 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">
+          <span aria-hidden className="size-1.5 rounded-full bg-green-500" /> Special column
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-function ColumnLayoutRow({ entry, column, onToggle }: { entry: PortalColumnEntry; column: PortalColumnCandidate; onToggle: (on: boolean) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.key });
+function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <p className={cn("px-2 pt-1 pb-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase", className)}>{children}</p>;
+}
+
+function ColumnLayoutRow({ entry, column, onToggle, sortable = false }: { entry: PortalColumnEntry; column: PortalColumnCandidate; onToggle: (on: boolean) => void; sortable?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.key, disabled: !sortable });
   const Icon = COLUMN_TYPE_ICONS[column.type];
   const on = !entry.hidden;
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card pr-2 pl-1 text-[13px]", isDragging && "z-10 shadow-md", !on && "text-muted-foreground")}
+      style={sortable ? { transform: CSS.Translate.toString(transform), transition } : undefined}
+      className={cn("group/col flex h-8 items-center gap-2 rounded-md pr-1.5 pl-1 text-[13px] hover:bg-accent/50", isDragging && "z-10 bg-card shadow-md", !on && "text-muted-foreground")}
       data-testid={`portal-column-row-${entry.key}`}
     >
-      <button type="button" aria-label={`Move ${column.name}`} className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/70 hover:text-foreground active:cursor-grabbing" {...attributes} {...listeners}>
-        <GripVertical className="size-3.5" />
-      </button>
-      <Icon className={cn("size-3.5 shrink-0", column.special ? "text-green-600 dark:text-green-400" : "text-muted-foreground")} />
+      {sortable ? (
+        <button type="button" aria-label={`Move ${column.name}`} className="flex size-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/50 group-hover/col:text-muted-foreground active:cursor-grabbing" {...attributes} {...listeners}>
+          <GripVertical className="size-3.5" />
+        </button>
+      ) : (
+        <span aria-hidden className="size-5 shrink-0" />
+      )}
+      <span className="relative shrink-0">
+        <Icon className={cn("size-3.5", column.special ? "text-green-600 dark:text-green-400" : "text-muted-foreground")} />
+        {column.special && <span aria-label="Special column" className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-green-500" />}
+      </span>
       <span className="min-w-0 flex-1 truncate">
         {column.name}
         {/* Two boards can each have a "Notes" of a different kind; the type tells them apart. */}
-        {!column.builtIn && !column.special && <span className="ml-1.5 text-2xs text-muted-foreground">{COLUMN_TYPE_LABELS[column.type]}</span>}
+        {!column.builtIn && !column.special && <span className="ml-1.5 text-2xs text-muted-foreground/80">{COLUMN_TYPE_LABELS[column.type]}</span>}
       </span>
-      {column.special && <span className="shrink-0 rounded-full bg-green-500/10 px-1.5 py-px text-[10px] font-semibold tracking-wide text-green-700 uppercase dark:text-green-400">Special</span>}
-      {!on && <EyeOff className="size-3.5 shrink-0" aria-hidden />}
       <span title={column.required ? "Always shown" : undefined}>
         <Switch size="sm" checked={on} disabled={column.required} onCheckedChange={onToggle} aria-label={`Show ${column.name}`} data-testid={`portal-column-${entry.key}`} />
       </span>

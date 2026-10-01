@@ -300,8 +300,11 @@ test.describe("the stakeholder portal", () => {
     await portalCard(page);
     // Hiding a column is about clutter on the page, not about access.
     await editSettings(page, "portal", async (panel) => {
-      await panel.getByTestId("portal-column-priority").click();
-      await expect(panel.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
+      // The columns list is a pop-up over the settings.
+      await panel.getByTestId("portal-columns-open").click();
+      await page.getByTestId("portal-column-priority").click();
+      await expect(page.getByTestId("portal-column-priority")).toHaveAttribute("aria-checked", "false");
+      await page.keyboard.press("Escape");
     });
     // And a link can be set to reading only, from the switch on the booking tile.
     const allow = page.getByTestId("portal-allow-booking");
