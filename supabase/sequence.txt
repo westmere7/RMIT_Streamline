@@ -138,3 +138,4 @@ migrations/0103_board_view_only.sql
 migrations/0104_board_status_since.sql
 migrations/0105_item_baselines.sql
 policies/0024_item_baselines_policies.sql
+migrations/0106_member_weekly_hours.sql

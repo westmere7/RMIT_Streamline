@@ -304,6 +304,12 @@ export class WorkspaceService {
     return this.repos.workspaces.updateMember(memberId, { role });
   }
 
+  /** The hours a week someone works here, for capacity; null puts them back on the usual week. */
+  async setMemberWeeklyHours(memberId: EntityId, hours: number | null): Promise<WorkspaceMember> {
+    if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 80)) throw new Error("Hours a week must be between 0 and 80.");
+    return this.repos.workspaces.updateMember(memberId, { weeklyHours: hours === null ? null : Math.round(hours * 10) / 10 });
+  }
+
   /**
    * Turns someone's access to this workspace off or on again.
    *

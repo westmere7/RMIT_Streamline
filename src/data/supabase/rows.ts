@@ -156,10 +156,13 @@ export interface WorkspaceMemberRow {
   role: WorkspaceRole;
   status: WorkspaceMemberStatus;
   joined_at: string;
+  /** numeric(4,1): PostgREST may hand it back as a string. */
+  weekly_hours?: number | string | null;
 }
 
 export function toWorkspaceMember(row: WorkspaceMemberRow): WorkspaceMember {
-  return { id: row.id, workspaceId: row.workspace_id, userId: row.user_id, role: row.role, status: row.status, joinedAt: row.joined_at };
+  const hours = row.weekly_hours === null || row.weekly_hours === undefined ? null : Number(row.weekly_hours);
+  return { id: row.id, workspaceId: row.workspace_id, userId: row.user_id, role: row.role, status: row.status, joinedAt: row.joined_at, weeklyHours: hours !== null && Number.isFinite(hours) ? hours : null };
 }
 
 export interface WorkspaceInvitationRow {

@@ -88,4 +88,19 @@ export interface WorkspaceMember {
   role: WorkspaceRole;
   status: WorkspaceMemberStatus;
   joinedAt: string;
+  /**
+   * Hours a week they work in this workspace, for capacity on the Workload
+   * view. Absent or null for the usual week, DEFAULT_WEEKLY_HOURS. On the seat
+   * because someone split across two workspaces works part of a week in each.
+   */
+  weeklyHours?: number | null;
+}
+
+/** A full-time week, for anyone whose seat does not say otherwise. */
+export const DEFAULT_WEEKLY_HOURS = 38;
+
+/** The hours a week someone has for the work in this workspace. */
+export function weeklyHoursOf(member: Pick<WorkspaceMember, "weeklyHours"> | null | undefined): number {
+  const hours = member?.weeklyHours;
+  return typeof hours === "number" && Number.isFinite(hours) && hours >= 0 ? hours : DEFAULT_WEEKLY_HOURS;
 }

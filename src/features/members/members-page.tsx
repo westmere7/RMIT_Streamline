@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { WORKSPACE_ROLES, type Team, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
+import { DEFAULT_WEEKLY_HOURS, WORKSPACE_ROLES, weeklyHoursOf, type Team, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { InviteLinkDialog } from "@/features/members/components/invite-link-dialog";
 import { AddToWorkspaceDialog } from "@/features/members/components/add-to-workspace-dialog";
@@ -56,7 +56,7 @@ const NO_TEAM = "__none__";
 /** Beyond this many members the list is split into pages. */
 export const MEMBERS_PAGE_SIZE = 100;
 
-type SortKey = "name" | "email" | "jobTitle" | "department" | "teams" | "workspaces" | "role" | "status" | "joined" | "boards";
+type SortKey = "name" | "email" | "jobTitle" | "department" | "teams" | "workspaces" | "role" | "hours" | "status" | "joined" | "boards";
 type SortDirection = "asc" | "desc";
 type Sort = { key: SortKey; direction: SortDirection };
 
@@ -72,6 +72,8 @@ const COLUMNS: Column[] = [
   // The other workspaces somebody is in: people are one pool, and a seat is per workspace.
   { sorts: [{ key: "workspaces", label: "Other workspaces" }], width: "w-40" },
   { sorts: [{ key: "role", label: "Role" }], width: "w-20" },
+  // Hours a week here, for capacity on the Workload view.
+  { sorts: [{ key: "hours", label: "Hours" }], width: "w-20", align: "right" },
   { sorts: [{ key: "status", label: "Status" }], width: "w-24" },
   { sorts: [{ key: "joined", label: "Joined" }], width: "w-20" },
   { sorts: [{ key: "boards", label: "Boards" }], width: "w-20", align: "right" },
@@ -105,6 +107,8 @@ function compareRows(a: Row, b: Row, key: SortKey): number {
       return a.workspaces.map((w) => w.name).join(", ").localeCompare(b.workspaces.map((w) => w.name).join(", "));
     case "role":
       return WORKSPACE_ROLES.indexOf(a.member.role) - WORKSPACE_ROLES.indexOf(b.member.role);
+    case "hours":
+      return weeklyHoursOf(a.member) - weeklyHoursOf(b.member);
     case "status":
       return STATUS_ORDER.indexOf(a.member.status) - STATUS_ORDER.indexOf(b.member.status);
     case "joined":
@@ -507,15 +511,15 @@ function exportCsv(rows: Row[], outsiders: Outsider[], workspaceName: string) {
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const header = ["Name", "Email", "Job title", "Department", "Teams", "Other workspaces", "Workspace role", "Status", "Joined", "Boards"];
+  const header = ["Name", "Email", "Job title", "Department", "Teams", "Other workspaces", "Workspace role", "Hours a week", "Status", "Joined", "Boards"];
   const lines = [
     ...rows.map(({ user, member, teams, department, boards, workspaces }) =>
-      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", teams.map((t) => t.name).join("; "), workspaces.map((w) => w.name).join("; "), ROLE_LABEL[member.role], STATUS_LABEL[member.status], member.joinedAt.slice(0, 10), boards]
+      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", teams.map((t) => t.name).join("; "), workspaces.map((w) => w.name).join("; "), ROLE_LABEL[member.role], weeklyHoursOf(member), STATUS_LABEL[member.status], member.joinedAt.slice(0, 10), boards]
         .map(cell)
         .join(","),
     ),
     ...outsiders.map(({ user, department, workspaces }) =>
-      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", "", workspaces.map((w) => w.name).join("; "), "", "Not in this workspace", "", 0].map(cell).join(","),
+      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", "", workspaces.map((w) => w.name).join("; "), "", "", "Not in this workspace", "", 0].map(cell).join(","),
     ),
   ];
   const blob = new Blob([[header.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
@@ -789,6 +793,9 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
         <WorkspaceChips workspaces={row.workspaces} />
       </td>
       <td className="truncate px-3">{ROLE_LABEL[member.role]}</td>
+      <td className="px-3 text-right tabular" data-testid="member-hours">
+        <HoursCell member={member} name={user.firstName || user.displayName} editable={manage && member.status !== "DEACTIVATED"} />
+      </td>
       <td className="px-3">
         <StatusChip member={member} invitation={invitation} />
       </td>
@@ -809,6 +816,56 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
         </td>
       )}
     </tr>
+  );
+}
+
+/**
+ * Hours a week here, typed straight into the row by whoever manages members.
+ * Empty is the usual week; saved on Enter or when the field is left.
+ */
+function HoursCell({ member, name, editable }: { member: WorkspaceMember; name: string; editable: boolean }) {
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const ws = useWorkspace();
+  const stored = member.weeklyHours ?? null;
+  const [draft, setDraft] = React.useState(stored === null ? "" : String(stored));
+  const [seen, setSeen] = React.useState(stored);
+  if (seen !== stored) {
+    setSeen(stored);
+    setDraft(stored === null ? "" : String(stored));
+  }
+  const save = useMutation({
+    mutationFn: (hours: number | null) => services.workspace.setMemberWeeklyHours(member.id, hours),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }),
+    onError: (error) => {
+      toast.error(error instanceof Error && error.message ? error.message : `Could not change ${name}'s hours`);
+      setDraft(stored === null ? "" : String(stored));
+    },
+  });
+  if (!editable) return <span className={cn(stored === null && "text-muted-foreground")}>{weeklyHoursOf(member)}</span>;
+  const commit = () => {
+    const text = draft.trim();
+    const next = text === "" ? null : Number(text);
+    if (next !== null && !Number.isFinite(next)) return setDraft(stored === null ? "" : String(stored));
+    if (next !== stored) save.mutate(next);
+  };
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      min={0}
+      max={80}
+      step={0.5}
+      value={draft}
+      placeholder={String(DEFAULT_WEEKLY_HOURS)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+      aria-label={`${name}'s hours a week`}
+      title="Hours a week in this workspace, for capacity. Empty is a full week."
+      className="h-7 w-14 rounded-md border border-transparent bg-transparent px-1.5 text-right tabular outline-none placeholder:text-muted-foreground hover:border-border focus:border-ring focus:bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+      data-testid="member-hours-input"
+    />
   );
 }
 
@@ -918,7 +975,7 @@ function OutsiderRow({ person, manage, onAdd }: { person: Outsider; manage: bool
       <td className="px-3">
         <WorkspaceChips workspaces={workspaces} />
       </td>
-      <td className="px-3" colSpan={4}>
+      <td className="px-3" colSpan={5}>
         {manage ? (
           <Button variant="outline" size="sm" onClick={onAdd} aria-label={`Add ${user.displayName} to ${ws.workspace.name}`} data-testid="member-add-to-workspace">
             <UserPlus /> Add to {ws.workspace.name}

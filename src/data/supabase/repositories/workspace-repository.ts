@@ -5,7 +5,7 @@ import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import { pruneUndefined, toWorkspace, toWorkspaceMember, WORKSPACE_COLUMNS, type WorkspaceMemberRow, type WorkspaceRow } from "../rows";
 
 const WORKSPACE = WORKSPACE_COLUMNS;
-const MEMBER = "id, workspace_id, user_id, role, status, joined_at";
+const MEMBER = "id, workspace_id, user_id, role, status, joined_at, weekly_hours";
 
 export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   async list(): Promise<Workspace[]> {
@@ -130,6 +130,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
       role: patch.role,
       status: patch.status,
       joined_at: patch.joinedAt,
+      weekly_hours: patch.weeklyHours,
     });
     const result = await db().from("workspace_members").update(payload).eq("id", id).select(MEMBER).single();
     return toWorkspaceMember(unwrap<WorkspaceMemberRow>(result, "workspace_members.updateMember"));

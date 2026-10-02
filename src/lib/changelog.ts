@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.88.0",
+    date: "2026-10-02",
+    title: "Workload with capacity",
+    changes: [
+      "Workload can measure Hours vs capacity: each task's deliverables at the workspace's rates, shared between its owners and spread over its working days, against each person's hours.",
+      "Members has an Hours column for each person's hours a week here; empty is a 38-hour week.",
+      "Hover a person for their open, stuck, overdue and undated work, busiest period and next due; hover a cell for its tasks and hours. Cells show a status or capacity bar, and done work is hidden unless Done is on.",
+    ],
+  },
+  {
     version: "0.87.0",
     date: "2026-10-02",
     title: "Gantt baselines",
