@@ -2,6 +2,7 @@ import type {
   Activity,
   ActivityInput,
   StatusChange,
+  StatusSince,
   AutomationEvent,
   AutomationHeartbeat,
   AutomationRule,
@@ -526,6 +527,8 @@ export interface ActivityRepository {
    * a Last updated column. `skipSynced` leaves out changes copied from a linked task.
    */
   listLastByBoard(boardId: EntityId, eventTypes: readonly ActivityEventType[], skipSynced: boolean): Promise<LastActivity[]>;
+  /** Each task's newest status change on a board, one row a task (board_status_since, migration 0104). */
+  listStatusSinceByBoard(boardId: EntityId): Promise<StatusSince[]>;
   create(input: ActivityInput): Promise<Activity>;
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
 }

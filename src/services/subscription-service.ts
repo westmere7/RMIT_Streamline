@@ -137,6 +137,7 @@ export function withFollowers(repos: Repositories, subscriptions: SubscriptionSe
       listStatusChanges: (workspaceId) => activities.listStatusChanges(workspaceId),
       // Named one by one: the spread above copies no methods off a class instance.
       listLastByBoard: (boardId, eventTypes, skipSynced) => activities.listLastByBoard(boardId, eventTypes, skipSynced),
+      listStatusSinceByBoard: (boardId) => activities.listStatusSinceByBoard(boardId),
       create: async (input: ActivityInput) => {
         const created = await activities.create(input);
         await subscriptions.track([created]);

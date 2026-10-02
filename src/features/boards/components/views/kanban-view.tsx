@@ -3,7 +3,7 @@
 import { closestCenter, closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronRight, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Archive, Boxes, Hourglass, ChevronRight, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { LabelPill } from "@/components/shared/label-pill";
@@ -30,6 +30,7 @@ import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 import { useMovingItems } from "@/features/booking/use-allocation";
 import { NONE, useKanbanLanes, useLaneOptions, useLaneReorder, type Lane, type LaneBy } from "./kanban-lanes";
+import { daysSince, useStatusSince } from "./use-status-since";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewSelect, ViewStat } from "./view-shell";
 
@@ -110,6 +111,17 @@ type RowsBy = "none" | LaneBy;
 /** What the rows are, so a card leaves out what its row already says. */
 const RowsByContext = React.createContext<RowsBy>("none");
 
+/**
+ * How long each card has sat in its status, for the age chip. A task whose
+ * status never changed has been where it is since it was made. Chips start at
+ * AGE_FROM days, turn amber at AGE_WARN and red at AGE_ALARM: aging work is
+ * the stall the Stuck label misses.
+ */
+const AgeContext = React.createContext<{ since: Map<string, string>; now: number } | null>(null);
+const AGE_FROM = 3;
+const AGE_WARN = 7;
+const AGE_ALARM = 14;
+
 /** A cell's id in swimlanes: the row and the lane it is the meeting of. */
 const cellKey = (rowId: string, laneId: string) => `${rowId}~${laneId}`;
 
@@ -141,6 +153,8 @@ interface KanbanSettings extends Record<string, unknown> {
   width: LaneWidth;
   /** Where clicking a card opens it. */
   openIn: ItemOpenMode;
+  /** Show how long a card has been in its status, once that is a few days. */
+  showAge: boolean;
 }
 
 /**
@@ -153,7 +167,7 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", rowsBy: "none", collapsedRows: [], tintLanes: true, tintStyle: "outline", collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", rowsBy: "none", collapsedRows: [], tintLanes: true, tintStyle: "outline", collapsed: [], detail: "standard", width: "wide", openIn: "popup", showAge: true });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const width: LaneWidth = LANE_WIDTH_OPTIONS.some((o) => o.value === settings.width) ? settings.width : "wide";
   const tint: TintStyle = TINT_STYLE_OPTIONS.some((o) => o.value === settings.tintStyle) ? settings.tintStyle : "outline";
@@ -169,6 +183,15 @@ export function KanbanView() {
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
 
   const lanes = useKanbanLanes(laneBy);
+  const showAge = settings.showAge !== false && !!model.statusColumn;
+  const since = useStatusSince(showAge);
+  // One clock for every card, moved on each hour so a board left open still counts the days.
+  const [now, setNow] = React.useState(Date.now);
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 3_600_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const age = React.useMemo(() => (showAge ? { since, now } : null), [showAge, since, now]);
   const rowLanes = useKanbanLanes(rowsBy === "none" ? laneBy : rowsBy);
   const rows = rowsBy === "none" ? null : rowLanes;
   // Lanes are put in order by dragging their header, where that order is the
@@ -372,6 +395,12 @@ export function KanbanView() {
             <DisplayRow label="Open cards in">
               <Segmented value={openIn} onChange={(next) => updateSettings({ openIn: next })} options={OPEN_IN_OPTIONS} ariaLabel="Open cards in" testId="kanban-open-in" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
             </DisplayRow>
+            {model.statusColumn && (
+              <label className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 text-[13px]">
+                Days in status
+                <Switch size="sm" checked={settings.showAge !== false} onCheckedChange={(on) => updateSettings({ showAge: on })} data-testid="kanban-age" />
+              </label>
+            )}
             <div className="space-y-2 border-t border-border/60 pt-3">
               <label className="flex items-center justify-between gap-2 text-[13px]">
                 Tint lanes
@@ -385,6 +414,7 @@ export function KanbanView() {
       <div className={cn("scrollbar-thin flex min-h-0 flex-1 p-5", rows ? "overflow-auto" : "overflow-x-auto", gap)} data-testid="kanban-lanes-scroller">
         <OpenInContext.Provider value={openIn}>
         <RowsByContext.Provider value={rowsBy}>
+        <AgeContext.Provider value={age}>
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => {
             setDrag(null);
             setLaneDragId(null);
@@ -458,6 +488,7 @@ export function KanbanView() {
               card is already in its new lane. */}
           <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} narrow={width === "narrow"} draggable overlay /> : null}</DragOverlay>
         </DndContext>
+        </AgeContext.Provider>
         </RowsByContext.Provider>
         </OpenInContext.Provider>
       </div>
@@ -720,6 +751,8 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
   });
   const ownerUsers = [...new Set(owners)].map((id) => users.find((u) => u.id === id)).filter((u): u is User => !!u);
   const due = model.dueDateOf(item.id);
+  const ageContext = React.useContext(AgeContext);
+  const ageDays = ageContext && !model.isDone(item.id) ? daysSince(ageContext.since.get(item.id) ?? item.createdAt, ageContext.now) : 0;
   const timeline = model.timelineColumn ? model.getValue(item.id, model.timelineColumn.id) : undefined;
   const span = timeline?.type === "TIMELINE" && (timeline.start || timeline.end) ? formatDateRange(timeline.start, timeline.end) : null;
   const done = model.isDone(item.id);
@@ -810,6 +843,15 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
           )}
           <div className={cn("flex items-center justify-between gap-2", compact ? "mt-1.5" : "mt-2.5")}>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+              {ageDays >= AGE_FROM && (
+                <span
+                  className={cn("inline-flex items-center gap-0.5 rounded-md px-1 py-px font-medium tabular", ageDays >= AGE_ALARM ? "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300" : ageDays >= AGE_WARN ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" : "bg-surface-strong text-muted-foreground")}
+                  title={`${statusLabel ? `In ${statusLabel.name}` : "In this status"} for ${ageDays} days`}
+                  data-testid="card-age"
+                >
+                  <Hourglass className="size-3" /> {ageDays}d
+                </span>
+              )}
               {due ? (
                 <span className={cn("inline-flex items-center gap-0.5 tabular", overdue && "font-medium text-red-600 dark:text-red-400", dueToday && "font-medium text-foreground")} title={span ?? undefined}>
                   

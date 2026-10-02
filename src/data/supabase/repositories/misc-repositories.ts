@@ -10,6 +10,7 @@ import type {
   NotificationPreferences,
   NotificationPreferencesInput,
   StatusChange,
+  StatusSince,
   StoredDelivery,
 } from "@/domain";
 import { BOARD_VIEWS, defaultNotificationPreferences } from "@/domain";
@@ -184,6 +185,12 @@ export class SupabaseActivityRepository implements ActivityRepository {
       at: row.created_at,
       eventType: row.event_type,
     }));
+  }
+
+  async listStatusSinceByBoard(boardId: string): Promise<StatusSince[]> {
+    const result = await db().rpc("board_status_since", { p_board_id: boardId });
+    if (result.error) throw new Error(`activities.listStatusSinceByBoard: ${result.error.message}`);
+    return ((result.data ?? []) as Array<{ item_id: string; changed_at: string }>).map((row) => ({ itemId: row.item_id, at: row.changed_at }));
   }
 
   async create(input: ActivityInput): Promise<Activity> {

@@ -25,7 +25,9 @@ export type HelpTopic =
   | "turnaround"
   | "onTime"
   | "sentBack"
-  | "inAndOut";
+  | "inAndOut"
+  | "aging"
+  | "service";
 
 export interface PanelHelpText {
   /** What the figure is, in a sentence. */
@@ -145,5 +147,19 @@ export const DASHBOARD_HELP: Record<HelpTopic, PanelHelpText> = {
       "New is tasks created in the month; finished is tasks that moved to Done in it. The figure under each month is what it did to the backlog (+ means more came in than went out), and the finish rate is finished as a share of new over the period.",
     read: "A month or two above the line is normal around a peak. More in than out month after month means the backlog is growing and deadlines will start to slip. A finish rate near 100% is a team keeping pace; well below it is one falling behind.",
     act: "When the backlog grows for three months running, act before it shows up as overdue work: pause low-value requests, bring in help, or agree with stakeholders which work waits.",
+  },
+  aging: {
+    shows: "Where open work is stalling: each status's open tasks, split by how long each has sat in that status.",
+    counted:
+      "Open tasks only, by the time since their last change of status (since they were made, for tasks that never moved). Bands are under 3 days, 3 to 6, 1 to 2 weeks, and 2 weeks or more; the statuses with most work waiting a week or more come first. Click a band to see its tasks. Kanban cards show the same age.",
+    read: "Some work sits for good reason. A status where most work is amber or red is a queue nobody is clearing: approvals waiting on a stakeholder, or work started and then parked. It catches stalls nobody marked Stuck.",
+    act: "Go through the red band each week: move it on, mark it Stuck with a reason, or close it. A review status that keeps filling up needs a named approver and a deadline for feedback.",
+  },
+  service: {
+    shows: "How each requesting department is being served: what it has open and waiting, and how quickly and reliably its work comes back.",
+    counted:
+      "Open, Waiting and Oldest are as of now: work in hand on the boards, requests not yet placed on a board, and the oldest open task's age. Picked up is the median time from a task being made to its first change of status, for work made in the period. Finished, Turnaround, On time and Sent back are for work finished in the period, counted as in the panels above. Work that names no department is left out. Figures past a usual limit show in red.",
+    read: "This is the service each stakeholder actually gets. A department with long pick-up times is waiting in the queue; one with a low on-time share or a high sent-back share usually has briefs or dates that need work at the start.",
+    act: "Share the row with each department's lead. Agree a pick-up time and a lead time per department, and use the slowest rows to decide where briefs, approvers or capacity need fixing first.",
   },
 };

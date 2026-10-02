@@ -76,7 +76,7 @@ export interface RateFigure {
   byDepartment: NamedCount[];
 }
 
-const medianTurnaround = (tasks: TaskFact[]) => median(tasks.map(turnaroundDays).filter((d): d is number => d !== null));
+export const medianTurnaround = (tasks: TaskFact[]) => median(tasks.map(turnaroundDays).filter((d): d is number => d !== null));
 
 /** Median days from made to done, for the work finished in the period. */
 export function turnaround(facts: DashboardFacts, period: ResolvedPeriod, teamIds: string[] | null): RateFigure {
@@ -92,7 +92,7 @@ export function turnaround(facts: DashboardFacts, period: ResolvedPeriod, teamId
 }
 
 /** Of the finished work that had a due date, the share done by it, in per cent. */
-function onTimeShare(tasks: TaskFact[]): number | null {
+export function onTimeShare(tasks: TaskFact[]): number | null {
   const dated = tasks.filter((t) => t.dueDate !== null);
   if (dated.length === 0) return null;
   return (dated.filter((t) => dayOf(t.flow.finishedAt!) <= t.dueDate!).length / dated.length) * 100;
@@ -112,7 +112,7 @@ export function onTime(facts: DashboardFacts, period: ResolvedPeriod, teamIds: s
 }
 
 /** Of the finished work, the share that went back at least once on its way, in per cent. */
-function sentBackShare(tasks: TaskFact[]): number | null {
+export function sentBackShare(tasks: TaskFact[]): number | null {
   if (tasks.length === 0) return null;
   return (tasks.filter((t) => t.flow.sentBack.length > 0).length / tasks.length) * 100;
 }

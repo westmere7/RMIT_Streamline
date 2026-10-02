@@ -14,6 +14,7 @@ import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { assetTypeTasks, monthTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
+import { ServiceSection } from "./service-section";
 import { WorkTypeProfilePanel } from "./work-types-section";
 import type { DashboardViewProps } from "./types";
 import { WorkloadSection } from "./workload-section";
@@ -288,6 +289,9 @@ export function DashboardBody(props: DashboardViewProps) {
 
       {/* How the work moves: speed, punctuality, rework, backlog and waits. */}
       <FlowSection {...props} />
+
+      {/* Where open work sits, and how each department is served. */}
+      <ServiceSection {...props} />
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
         <CoverageNote lines={coverageLines} />

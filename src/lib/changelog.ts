@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.86.0",
+    date: "2026-10-02",
+    title: "Aging work and department service",
+    changes: [
+      "Kanban cards show how long they have sat in their status once it is three days, amber from a week and red from two; Display turns it off.",
+      "The dashboard shows open work by how long it has been in each status, and a Departments table: open, waiting, oldest, pick-up time, finished, turnaround, on time and sent back.",
+    ],
+  },
+  {
     version: "0.85.0",
     date: "2026-10-02",
     title: "Kanban swimlanes",

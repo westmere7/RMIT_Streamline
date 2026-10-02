@@ -87,3 +87,9 @@ export interface StatusChange {
   from: string | null;
   to: string | null;
 }
+
+/** When a task last changed status: how long it has been where it is. */
+export interface StatusSince {
+  itemId: EntityId;
+  at: string;
+}
