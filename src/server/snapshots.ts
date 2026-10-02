@@ -566,6 +566,7 @@ export async function removePerson(workspaceId: string, userId: string, caller: 
         ["boards", "owner_id"],
         ["item_assets", "created_by"],
         ["trackers", "created_by"],
+        ["docs", "created_by"],
         ["booking_templates", "created_by"],
         ["board_templates", "created_by"],
         ["booking_saved_blocks", "created_by"],

@@ -1,6 +1,6 @@
 {
   "name": "rmit-streamline",
-  "version": "0.88.2",
+  "version": "0.89.0",
   "private": true,
   "scripts": {
     "figma:tokens": "node scripts/build-figma-tokens.mjs",
@@ -51,6 +51,7 @@
     "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.40.0",
+    "mammoth": "^1.13.0",
     "next": "16.3.4",
     "postgres": "^3.4.9",
     "radix-ui": "^1.6.7",

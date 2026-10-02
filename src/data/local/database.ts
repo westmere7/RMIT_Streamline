@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
 import type {
+  Doc,
   AutomationEvent,
   AutomationRule,
   AutomationRun,
@@ -107,6 +108,7 @@ export interface StreamlineDB extends DBSchema {
   itemLinks: { key: string; value: ItemLink; indexes: { byItemA: string; byItemB: string; byWorkspace: string } };
   trackers: { key: string; value: Tracker; indexes: { byWorkspace: string } };
   trackerSheets: { key: string; value: TrackerSheet; indexes: { byTracker: string } };
+  docs: { key: string; value: Doc; indexes: { byWorkspace: string } };
   comments: { key: string; value: Comment; indexes: { byItem: string } };
   itemAssets: { key: string; value: ItemAsset; indexes: { byItem: string; byBoard: string } };
   bookingTemplates: { key: string; value: BookingTemplate; indexes: { byWorkspace: string } };
@@ -166,6 +168,7 @@ export const ALL_STORES: StoreName[] = [
   "itemLinks",
   "trackers",
   "trackerSheets",
+  "docs",
   "comments",
   "itemAssets",
   "bookingTemplates",
@@ -198,7 +201,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 20;
+export const DB_VERSION = 21;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -434,6 +437,12 @@ function createBoardTemplatesStore(db: IDBPDatabase<StreamlineDB>): void {
   templates.createIndex("byWorkspace", "workspaceId");
 }
 
+/** v21: docs, pages of writing (or a kept PDF) in a team. */
+function createDocsStore(db: IDBPDatabase<StreamlineDB>): void {
+  if (db.objectStoreNames.contains("docs")) return;
+  db.createObjectStore("docs", { keyPath: "id" }).createIndex("byWorkspace", "workspaceId");
+}
+
 function createSavedViewsStore(db: IDBPDatabase<StreamlineDB>): void {
   if (db.objectStoreNames.contains("savedViews")) return;
   db.createObjectStore("savedViews", { keyPath: "id" }).createIndex("byBoard", "boardId");
@@ -473,6 +482,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 18) createSubscriptionsStore(db);
   if (oldVersion < 19) createItemFavouritesStore(db);
   if (oldVersion < 20) createSavedViewsStore(db);
+  if (oldVersion < 21) createDocsStore(db);
 }
 
 export interface OpenDatabaseOptions {

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.89.0",
+    date: "2026-10-02",
+    title: "Docs",
+    changes: [
+      "Docs sit in a team beside its boards and trackers: Add new → Doc, or the team's own menu.",
+      "Write in blocks: type / for headings, lists, to-dos, quotes, code and dividers, or use Markdown habits as you type; select text to bold it, italicise it or add a link.",
+      "Upload a Word (.docx), Markdown, text or HTML file to make it an editable page, or a PDF to keep it as it is, read only.",
+    ],
+  },
+  {
     version: "0.88.2",
     date: "2026-10-02",
     title: "Fainter Kanban card edges",

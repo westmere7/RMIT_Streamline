@@ -360,7 +360,7 @@ export class WorkspaceService {
   }
 
   /**
-   * Removes a team for good. Its boards and trackers either go with it — items,
+   * Removes a team for good. Its boards, trackers and docs either go with it — items,
    * updates, the lot — or stay in the workspace with no team, which is what the
    * database does on its own when a team disappears. Built-in teams cannot be
    * removed, and a built-in board is never deleted along with one.
@@ -383,6 +383,9 @@ export class WorkspaceService {
         await this.repos.trackers.delete(tracker.id);
         deletedTrackers += 1;
       }
+      // Its docs too: the team's writing goes with its work. Kept, they would be
+      // in no team and so in no sidebar, only on the Docs page.
+      for (const doc of (await this.repos.docs.listByWorkspace(team.workspaceId)).filter((d) => d.teamId === teamId)) await this.repos.docs.delete(doc.id);
     }
     await this.repos.teams.delete(teamId);
     return { deletedBoards, deletedTrackers };

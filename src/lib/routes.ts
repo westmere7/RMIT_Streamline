@@ -52,6 +52,8 @@ export const routes = {
   settings: (slug: string, section?: string) => `/workspace/${slug}/settings${section ? `?section=${section}` : ""}`,
   team: (slug: string, teamId: string) => `/workspace/${slug}/teams/${teamId}`,
   trackers: (slug: string) => `/workspace/${slug}/trackers`,
+  docs: (slug: string) => `/workspace/${slug}/docs`,
+  doc: (slug: string, docId: string) => `/workspace/${slug}/docs/${docId}`,
   tracker: (slug: string, trackerId: string, sheetId?: string | null) => `/workspace/${slug}/trackers/${trackerId}${sheetId ? `?sheet=${sheetId}` : ""}`,
   /**
    * A board's archive: everything taken off it, a page at a time.

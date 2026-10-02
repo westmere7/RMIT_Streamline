@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, FileSpreadsheet, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { RowMenu, type MenuAction } from "@/components/layout/row-menu";
 import { UserMenu } from "@/components/layout/user-menu";
-import type { Board, Team, Tracker } from "@/domain";
+import type { Board, DocSummary, Team, Tracker } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { AutomationOrbit } from "@/features/automations/activity-indicator";
 import { useAutomationActivity } from "@/features/automations/hooks";
@@ -30,6 +30,8 @@ import { useUnreadCounts } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
+import { CreateDocDialog } from "@/features/docs/create-doc-dialog";
+import { useDocMutations, useDocs } from "@/features/docs/hooks";
 import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
 import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
@@ -37,7 +39,7 @@ import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canEditDocs, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
@@ -52,6 +54,8 @@ interface SidebarActions {
   newBoardInTeam: (teamId: string) => void;
   newTrackerInTeam: (teamId: string) => void;
   requestDeleteTracker: (tracker: Tracker) => void;
+  newDocInTeam: (teamId: string) => void;
+  requestDeleteDoc: (doc: DocSummary) => void;
   editTeam: (team: Team) => void;
   archiveTeam: (team: Team) => void;
   deleteTeam: (team: Team) => void;
@@ -114,6 +118,11 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const [deletingTracker, setDeletingTracker] = React.useState<Tracker | null>(null);
   const trackers = useTrackers();
   const trackerMutations = useTrackerMutations();
+  const [createDocTeamId, setCreateDocTeamId] = React.useState<string | null>(null);
+  const [createDocOpen, setCreateDocOpen] = React.useState(false);
+  const [deletingDoc, setDeletingDoc] = React.useState<DocSummary | null>(null);
+  const docs = useDocs();
+  const docMutations = useDocMutations();
   const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
   const [sharingBoard, setSharingBoard] = React.useState<Board | null>(null);
   const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
@@ -160,6 +169,11 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         setCreateTrackerOpen(true);
       },
       requestDeleteTracker: (tracker) => setDeletingTracker(tracker),
+      newDocInTeam: (teamId) => {
+        setCreateDocTeamId(teamId);
+        setCreateDocOpen(true);
+      },
+      requestDeleteDoc: (doc) => setDeletingDoc(doc),
       editTeam: (team) => setEditingTeam(team),
       archiveTeam: (team) => setArchivingTeam(team),
       deleteTeam: (team) => setDeletingTeam(team),
@@ -172,6 +186,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
 
   const trackersForTeamOf = (teamId: string) => (trackers.data ?? []).filter((t) => t.teamId === teamId);
+  const docsForTeam = (teamId: string) => (docs.data ?? []).filter((d) => d.teamId === teamId).sort((a, b) => a.title.localeCompare(b.title));
   const accessibleBoards = ws.boards.filter((b) => canViewBoard(ws.permissions, b));
   const visibleBoards = accessibleBoards.filter((b) => b.archivedAt === null);
   const favouriteBoards = visibleBoards.filter((b) => ws.isFavourite(b.id));
@@ -187,6 +202,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const teams = allTeams.filter((t) => t !== adminTeam);
   const adminBoards = adminTeam ? ws.boardsForTeam(adminTeam.id).filter((b) => canViewBoard(ws.permissions, b)) : [];
   const adminTrackers = adminTeam ? trackersForTeamOf(adminTeam.id) : [];
+  const adminDocs = adminTeam ? docsForTeam(adminTeam.id) : [];
   const hasTeam = (b: Board) => !!b.teamId && allTeams.some((t) => t.id === b.teamId);
   const boardsWithoutTeam = visibleBoards.filter((b) => !hasTeam(b));
   const archivedWithoutTeam = accessibleBoards.filter((b) => b.archivedAt !== null && !hasTeam(b));
@@ -202,6 +218,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
     if (favouriteOpen !== null && favouriteOpen !== activeBoardSlug) setFavouriteOpen(null);
   }, [favouriteOpen, activeBoardSlug, setFavouriteOpen]);
   const activeTrackerId = pathname.includes("/trackers/") ? pathname.split("/trackers/")[1]?.split("/")[0] : null;
+  const activeDocId = pathname.includes("/docs/") ? pathname.split("/docs/")[1]?.split("/")[0] : null;
   const trackersForTeam = trackersForTeamOf;
   const activeTeamId = pathname.includes("/teams/") ? pathname.split("/teams/")[1]?.split("/")[0] : null;
   const isActivePath = (path: string) => pathname === path;
@@ -321,14 +338,16 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           )}
         </ul>
 
-        {adminTeam && (adminBoards.length > 0 || adminTrackers.length > 0) && (
+        {adminTeam && (adminBoards.length > 0 || adminTrackers.length > 0 || adminDocs.length > 0) && (
           <AdminNode
             team={adminTeam}
             boards={adminBoards}
             trackers={adminTrackers}
+            docs={adminDocs}
             collapsed={collapsed}
             activeBoardSlug={treeBoardSlug}
             activeTrackerId={activeTrackerId}
+            activeDocId={activeDocId}
             activeTeam={activeTeamId === adminTeam.id}
           />
         )}
@@ -367,10 +386,12 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                 team={team}
                 boards={ws.boardsForTeam(team.id).filter((b) => canViewBoard(ws.permissions, b))}
                 trackers={trackersForTeam(team.id)}
+                docs={docsForTeam(team.id)}
                 archivedBoards={accessibleBoards.filter((b) => b.archivedAt !== null && b.teamId === team.id)}
                 collapsed={collapsed}
                 activeBoardSlug={treeBoardSlug}
                 activeTrackerId={activeTrackerId}
+                activeDocId={activeDocId}
                 activeTeam={activeTeamId === team.id}
                 searchView={searchParams.get("view")}
               />
@@ -387,7 +408,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
               </ul>
             </div>
           )}
-          {!collapsed && (canCreateTeam(ws.permissions) || canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)) && (
+          {!collapsed && (canCreateTeam(ws.permissions) || canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)) && (
             <div className="mt-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -416,6 +437,17 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                       data-testid="sidebar-add-tracker"
                     >
                       <FileSpreadsheet /> Tracker
+                    </DropdownMenuItem>
+                  )}
+                  {canEditDocs(ws.permissions) && (
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setCreateDocTeamId(null);
+                        setCreateDocOpen(true);
+                      }}
+                      data-testid="sidebar-add-doc"
+                    >
+                      <FileText /> Doc
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -461,6 +493,20 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         destructive
         onConfirm={async () => {
           if (deletingTracker) await trackerMutations.remove.mutateAsync(deletingTracker.id);
+        }}
+      />
+      <CreateDocDialog key={createDocOpen ? `open:${createDocTeamId ?? ""}` : "closed"} open={createDocOpen} onOpenChange={setCreateDocOpen} defaultTeamId={createDocTeamId} />
+      <ConfirmDialog
+        open={deletingDoc !== null}
+        onOpenChange={(open) => !open && setDeletingDoc(null)}
+        title={`Delete “${deletingDoc?.title}”?`}
+        description="This deletes the doc for everyone. It cannot be brought back."
+        confirmLabel="Delete doc"
+        destructive
+        onConfirm={async () => {
+          if (!deletingDoc) return;
+          await docMutations.remove.mutateAsync(deletingDoc);
+          if (activeDocId === deletingDoc.id) router.push(routes.docs(ws.slug));
         }}
       />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
@@ -815,20 +861,24 @@ function TeamNode({
   team,
   boards,
   trackers,
+  docs,
   archivedBoards,
   collapsed,
   activeBoardSlug,
   activeTrackerId,
+  activeDocId,
   activeTeam,
   searchView,
 }: {
   team: Team;
   boards: Board[];
   trackers: Tracker[];
+  docs: DocSummary[];
   archivedBoards: Board[];
   collapsed: boolean;
   activeBoardSlug: string | null | undefined;
   activeTrackerId: string | null | undefined;
+  activeDocId: string | null | undefined;
   activeTeam: boolean;
   searchView: string | null;
 }) {
@@ -838,13 +888,13 @@ function TeamNode({
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
   const showCounts = useUiStore((s) => s.showTeamCounts);
-  const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug) || trackers.some((t) => t.id === activeTrackerId);
+  const containsActive = boards.some((b) => b.slug === activeBoardSlug) || archivedBoards.some((b) => b.slug === activeBoardSlug) || trackers.some((t) => t.id === activeTrackerId) || docs.some((d) => d.id === activeDocId);
   const expanded = expandedIds.includes(team.id);
   const setTeamExpanded = useUiStore((s) => s.setTeamExpanded);
   // Opening something from outside the sidebar — a link, search, the home page —
   // unfolds its team once so it can be seen in place. Folding it up again after
   // that sticks: the row keeps the highlight, so nothing is lost.
-  const openedKey = containsActive ? `${activeBoardSlug ?? ""}:${activeTrackerId ?? ""}` : "";
+  const openedKey = containsActive ? `${activeBoardSlug ?? ""}:${activeTrackerId ?? ""}:${activeDocId ?? ""}` : "";
   React.useEffect(() => {
     if (!openedKey) return;
     // Held until the stored preferences have landed. The store hydrates from a
@@ -860,7 +910,7 @@ function TeamNode({
 
   const teamActions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
-    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
+    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
       ? [
           {
             type: "sub",
@@ -869,6 +919,7 @@ function TeamNode({
             items: [
               ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
               ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditDocs(ws.permissions) ? [{ type: "item", label: "Doc", icon: <FileText />, onSelect: () => sidebar.newDocInTeam(team.id) } satisfies MenuAction] : []),
             ],
           } satisfies MenuAction,
         ]
@@ -914,12 +965,12 @@ function TeamNode({
           <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
           <span className="truncate">{team.name}</span>
         </Link>
-        {showCounts && <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length + trackers.length}</span>}
+        {showCounts && <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length + trackers.length + docs.length}</span>}
       </div>
       </RowMenu>
       {expanded && (
         <ul className="mt-1 ml-[17px] space-y-1 border-l border-sidebar-border/70 pl-2.5">
-          {boards.length === 0 && trackers.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">No boards or trackers yet</li>}
+          {boards.length === 0 && trackers.length === 0 && docs.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">Nothing here yet</li>}
           {boards.map((board) => (
             <BoardLink
               key={board.id}
@@ -932,6 +983,9 @@ function TeamNode({
           ))}
           {trackers.map((tracker) => (
             <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
+          ))}
+          {docs.map((doc) => (
+            <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
           ))}
           <ArchivedFolder boards={archivedBoards} activeBoardSlug={activeBoardSlug} />
         </ul>
@@ -954,17 +1008,21 @@ function AdminNode({
   team,
   boards,
   trackers,
+  docs,
   collapsed,
   activeBoardSlug,
   activeTrackerId,
+  activeDocId,
   activeTeam,
 }: {
   team: Team;
   boards: Board[];
   trackers: Tracker[];
+  docs: DocSummary[];
   collapsed: boolean;
   activeBoardSlug: string | null | undefined;
   activeTrackerId: string | null | undefined;
+  activeDocId: string | null | undefined;
   activeTeam: boolean;
 }) {
   const ws = useWorkspace();
@@ -977,7 +1035,7 @@ function AdminNode({
   const panelStyle = { "--team": colors.hex } as React.CSSProperties;
   const actions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
-    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions)
+    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
       ? [
           {
             type: "sub",
@@ -986,6 +1044,7 @@ function AdminNode({
             items: [
               ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
               ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditDocs(ws.permissions) ? [{ type: "item", label: "Doc", icon: <FileText />, onSelect: () => sidebar.newDocInTeam(team.id) } satisfies MenuAction] : []),
             ],
           } satisfies MenuAction,
         ]
@@ -1038,8 +1097,33 @@ function AdminNode({
         {trackers.map((tracker) => (
           <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
         ))}
+        {docs.map((doc) => (
+          <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
+        ))}
       </ul>
     </section>
+  );
+}
+
+/** A team's doc, shown after its boards and trackers, wearing its own emoji if it has one. */
+function DocLink({ doc, active }: { doc: DocSummary; active: boolean }) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const sidebar = useSidebarActions();
+  const href = routes.doc(ws.slug, doc.id);
+  const actions: MenuAction[] = [
+    { type: "item", label: "Open", icon: <FileText />, onSelect: () => router.push(href) },
+    ...(canEditDocs(ws.permissions) ? [{ type: "separator" } satisfies MenuAction, { type: "item", label: "Delete doc", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.requestDeleteDoc(doc) } satisfies MenuAction] : []),
+  ];
+  return (
+    <li>
+      <RowMenu label={`Options for ${doc.title}`} actions={actions}>
+        <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), "h-8 pl-2.5 pr-7 font-normal")} data-testid="sidebar-doc">
+          {doc.icon ? <span className="w-3.5 shrink-0 text-center text-[13px] leading-none">{doc.icon}</span> : <FileText className={cn("size-3.5 shrink-0", active ? "text-foreground" : doc.kind === "pdf" ? "text-red-500/80" : "text-muted-foreground/70")} />}
+          <span className="truncate">{doc.title}</span>
+        </Link>
+      </RowMenu>
+    </li>
   );
 }
 

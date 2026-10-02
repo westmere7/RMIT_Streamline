@@ -72,6 +72,8 @@ export const queryKeys = {
   trackers: (workspaceId: string) => ["trackers", workspaceId] as const,
   tracker: (trackerId: string) => ["tracker", trackerId] as const,
   trackerSheets: (trackerId: string) => ["tracker-sheets", trackerId] as const,
+  docs: (workspaceId: string) => ["docs", workspaceId] as const,
+  doc: (docId: string) => ["doc", docId] as const,
 
   notifications: (userId: string) => ["notifications", userId] as const,
   notificationPreferences: (userId: string) => ["notification-preferences", userId] as const,

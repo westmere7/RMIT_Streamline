@@ -66,6 +66,8 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
       // The sidebar lists the workspace's trackers; a sheet's contents are the
       // tracker page's business, not the shell's.
       { table: "trackers", filter: ws, keys: [queryKeys.trackers(workspaceId)] },
+      // The same for docs: the list, not what is on any one page.
+      { table: "docs", filter: ws, keys: [queryKeys.docs(workspaceId)] },
       // Which updates this person has caught up on, so the unread dot on a row
       // clears in the tab they did not read it in.
       { table: "item_reads", filter: me, keys: [queryKeys.itemReads(userId)] },

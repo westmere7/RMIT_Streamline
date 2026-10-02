@@ -52,6 +52,10 @@ export function LocalRealtimeSync() {
       if (kinds.has("assets")) {
         invalidate(["item-assets"]);
       }
+      if (kinds.has("docs")) {
+        invalidate(["docs"]);
+        invalidate(["doc"]);
+      }
       if (kinds.has("trackers")) {
         invalidate(["trackers"]);
         invalidate(["tracker"]);

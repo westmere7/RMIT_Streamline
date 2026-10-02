@@ -111,6 +111,7 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
       ["comments", "commentId", await idsUnder(db, "comments", "itemId", items)],
       ["teams", "teamId", await idsUnder(db, "teams", "workspaceId", workspace)],
       ["trackers", "trackerId", await idsUnder(db, "trackers", "workspaceId", workspace)],
+      ["docs", "docId", await idsUnder(db, "docs", "workspaceId", workspace)],
       ["automationRules", "ruleId", await idsUnder(db, "automationRules", "workspaceId", workspace)],
       ["departmentPortals", "portalId", await idsUnder(db, "departmentPortals", "workspaceId", workspace)],
     ];
@@ -152,6 +153,7 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
       ["boards", "ownerId"],
       ["itemAssets", "createdBy"],
       ["trackers", "createdBy"],
+      ["docs", "createdBy"],
       ["bookingTemplates", "createdBy"],
       ["boardTemplates", "createdBy"],
       ["savedViews", "createdBy"],

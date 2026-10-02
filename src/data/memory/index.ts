@@ -182,6 +182,13 @@ export function createMemoryRepositories(
       deleteSheet: readOnly("deleting a sheet"),
       reorderSheets: readOnly("reordering sheets"),
     },
+    docs: {
+      listByWorkspace: async () => [],
+      getById: async () => null,
+      create: readOnly("creating a doc"),
+      update: readOnly("editing a doc"),
+      delete: readOnly("deleting a doc"),
+    },
     comments: {
       listByItem: async (itemId) => payload().comments.filter((c) => c.itemId === itemId),
       listByItems: async (ids) => payload().comments.filter((c) => ids.includes(c.itemId)),

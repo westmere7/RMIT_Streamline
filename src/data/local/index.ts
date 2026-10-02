@@ -11,6 +11,7 @@ import { LocalItemFavouriteRepository } from "./repositories/item-favourite-repo
 import { LocalBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { LocalBoardTemplateRepository } from "./repositories/board-template-repository";
 import { LocalSavedViewRepository } from "./repositories/saved-view-repository";
+import { LocalDocRepository } from "./repositories/doc-repository";
 import { LocalBaselineRepository } from "./repositories/baseline-repository";
 import { LocalCommentRepository } from "./repositories/comment-repository";
 import { LocalDashboardShareRepository } from "./repositories/dashboard-share-repository";
@@ -63,6 +64,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     items: new LocalItemRepository(connection, automations),
     links: new LocalItemLinkRepository(connection),
     trackers: new LocalTrackerRepository(connection),
+    docs: new LocalDocRepository(connection),
     comments: new LocalCommentRepository(connection, automations),
     itemAssets: new LocalItemAssetRepository(connection),
     workspaceLists: new LocalWorkspaceListRepository(connection),

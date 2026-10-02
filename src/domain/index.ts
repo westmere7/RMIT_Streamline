@@ -26,6 +26,7 @@ export * from "./item/item-archive";
 export * from "./item/item-link";
 export * from "./item/item-asset";
 export * from "./tracker/tracker";
+export * from "./doc/doc";
 export * from "./comment/comment";
 export * from "./message/direct-message";
 export * from "./activity/activity";

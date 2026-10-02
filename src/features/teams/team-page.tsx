@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, FileSpreadsheet, SquareKanban, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
+import { Archive, FileSpreadsheet, FileText, SquareKanban, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -18,11 +18,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { useTrackers } from "@/features/trackers/hooks";
+import { CreateDocDialog } from "@/features/docs/create-doc-dialog";
+import { DocGlyph } from "@/features/docs/docs-page";
+import { useDocs } from "@/features/docs/hooks";
 import { useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canEditTrackers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canEditDocs, canEditTrackers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -40,6 +43,9 @@ export function TeamPage() {
   const [createTrackerOpen, setCreateTrackerOpen] = React.useState(false);
   const trackersQuery = useTrackers();
   const teamTrackers = (trackersQuery.data ?? []).filter((t) => t.teamId === params.teamId);
+  const [createDocOpen, setCreateDocOpen] = React.useState(false);
+  const docsQuery = useDocs();
+  const teamDocs = (docsQuery.data ?? []).filter((d) => d.teamId === params.teamId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const [addOpen, setAddOpen] = React.useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
@@ -169,6 +175,35 @@ export function TeamPage() {
                 </ul>
               )}
             </div>
+
+            <div className="mt-8">
+              <SectionHeading
+                action={
+                  canEditDocs(ws.permissions) && (
+                    <Button variant="ghost" size="sm" onClick={() => setCreateDocOpen(true)} data-testid="team-new-doc">
+                      <Plus /> New doc
+                    </Button>
+                  )
+                }
+              >
+                Docs
+              </SectionHeading>
+              {teamDocs.length === 0 ? (
+                <EmptyState icon={FileText} title="No docs yet" description="Briefs, processes and notes for this team, or a Word or PDF file it already has." compact />
+              ) : (
+                <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
+                  {teamDocs.map((doc) => (
+                    <li key={doc.id}>
+                      <Link href={routes.doc(ws.slug, doc.id)} className="flex h-11 items-center gap-3 px-3 text-[13px] hover:bg-accent" data-testid="team-doc">
+                        <DocGlyph doc={doc} className="size-6 text-sm" />
+                        <span className="min-w-0 flex-1 truncate font-medium">{doc.title}</span>
+                        <Badge variant="muted">{doc.kind === "pdf" ? "PDF" : "doc"}</Badge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
 
           <section>
@@ -246,6 +281,7 @@ export function TeamPage() {
       <CreateTeamDialog open={editOpen} onOpenChange={setEditOpen} team={team} />
       <CreateBoardDialog open={createBoardOpen} onOpenChange={setCreateBoardOpen} defaultTeamId={team.id} />
       <CreateTrackerDialog open={createTrackerOpen} onOpenChange={setCreateTrackerOpen} defaultTeamId={team.id} />
+      <CreateDocDialog key={createDocOpen ? "open" : "closed"} open={createDocOpen} onOpenChange={setCreateDocOpen} defaultTeamId={team.id} />
       <ConfirmDialog
         open={archiveOpen}
         onOpenChange={setArchiveOpen}

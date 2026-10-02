@@ -91,6 +91,11 @@ export function canEditTrackers(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
 }
 
+/** Docs are written by the same people as trackers: every member except guests. */
+export function canEditDocs(ctx: PermissionContext): boolean {
+  return canEditTrackers(ctx);
+}
+
 export function canCreateBoard(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && ctx.workspaceRole !== "GUEST";
 }

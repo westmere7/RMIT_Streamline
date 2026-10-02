@@ -18,6 +18,7 @@ import { NotificationService } from "./notification-service";
 import { ProfileService } from "./profile-service";
 import { SearchService } from "./search-service";
 import { TrackerService } from "./tracker-service";
+import { DocService } from "./doc-service";
 import { StakeholderPortalService, type PortalTransport } from "./stakeholder-portal-service";
 import { SubscriptionService, withFollowers } from "./subscription-service";
 import { TicketService } from "./ticket-service";
@@ -50,6 +51,7 @@ export interface Services {
   myWork: MyWorkService;
   search: SearchService;
   trackers: TrackerService;
+  docs: DocService;
   booking: BookingService;
   /** Bug reports, onto the App development board. */
   bugReports: BugReportService;
@@ -127,6 +129,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     myWork,
     search: new SearchService(repos),
     trackers: new TrackerService(repos),
+    docs: new DocService(repos),
   };
 }
 
@@ -141,6 +144,7 @@ export type { PrefixChange } from "./ticket-service";
 export type { LinkCandidate, LinkChange, LinkedItemView, LinkOptions, LinkSearch, LinkValidation } from "./item-link-service";
 export type { ColumnMapping, ColumnMappingReport } from "./item-link-sync";
 export type { CellEdit, CreateTrackerInput } from "./tracker-service";
+export type { CreateDocInput } from "./doc-service";
 export type { ImportedWorkbook } from "./tracker-xlsx";
 export type { MyWorkItem, MyWorkSection } from "./my-work-service";
 export type { DirectThreadView } from "./message-service";

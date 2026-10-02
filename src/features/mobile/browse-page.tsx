@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, FileSpreadsheet, Plus, Search, SquareKanban, Star, Users } from "lucide-react";
+import { ChevronRight, FileSpreadsheet, FileText, Plus, Search, SquareKanban, Star, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Board, Team } from "@/domain";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { useTrackers } from "@/features/trackers/hooks";
+import { useDocs } from "@/features/docs/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canViewBoard } from "@/lib/permissions/permissions";
@@ -26,6 +27,7 @@ import { cn, pluralize } from "@/lib/utils";
 export function BrowsePage() {
   const ws = useWorkspace();
   const trackers = useTrackers().data ?? [];
+  const docs = useDocs().data ?? [];
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
 
@@ -38,8 +40,9 @@ export function BrowsePage() {
   const boardsForTeam = (team: Team) => boards.filter((b) => b.teamId === team.id && matches(b.name));
   const looseBoards = boards.filter((b) => !b.teamId && matches(b.name));
   const visibleTrackers = trackers.filter((t) => matches(t.name));
+  const visibleDocs = docs.filter((d) => matches(d.title));
 
-  const nothing = favourites.length === 0 && looseBoards.length === 0 && visibleTrackers.length === 0 && teams.every((t) => boardsForTeam(t).length === 0 && !matches(t.name));
+  const nothing = favourites.length === 0 && looseBoards.length === 0 && visibleTrackers.length === 0 && visibleDocs.length === 0 && teams.every((t) => boardsForTeam(t).length === 0 && !matches(t.name));
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto overscroll-contain">
@@ -107,6 +110,16 @@ export function BrowsePage() {
             {visibleTrackers.map((tracker) => (
               <Row key={tracker.id} href={routes.tracker(ws.slug, tracker.id)} title={tracker.name} meta={tracker.description ?? undefined}>
                 <FileSpreadsheet className="size-4 text-muted-foreground" />
+              </Row>
+            ))}
+          </Section>
+        )}
+
+        {visibleDocs.length > 0 && (
+          <Section title="Docs" icon={FileText} action={{ href: routes.docs(ws.slug), label: "All docs" }}>
+            {visibleDocs.map((doc) => (
+              <Row key={doc.id} href={routes.doc(ws.slug, doc.id)} title={doc.title} meta={doc.kind === "pdf" ? "PDF" : undefined}>
+                {doc.icon ? <span className="text-base leading-none">{doc.icon}</span> : <FileText className="size-4 text-muted-foreground" />}
               </Row>
             ))}
           </Section>

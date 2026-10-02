@@ -41,6 +41,10 @@ import type {
   Team,
   TeamInput,
   Tracker,
+  Doc,
+  DocInput,
+  DocPatch,
+  DocSummary,
   TrackerInput,
   TrackerSheet,
   TrackerSheetInput,
@@ -310,6 +314,15 @@ export interface ItemLinkRepository {
   /** Returns the existing link when the pair is already linked. */
   create(input: ItemLinkInput): Promise<ItemLink>;
   update(id: EntityId, patch: Partial<Pick<ItemLink, "excluded" | "pairs">>): Promise<ItemLink>;
+  delete(id: EntityId): Promise<void>;
+}
+
+/** Docs (migration 0107): lists without the page, one doc with it. */
+export interface DocRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<DocSummary[]>;
+  getById(id: EntityId): Promise<Doc | null>;
+  create(input: DocInput): Promise<Doc>;
+  update(id: EntityId, patch: DocPatch): Promise<Doc>;
   delete(id: EntityId): Promise<void>;
 }
 
@@ -691,6 +704,7 @@ export interface Repositories {
   items: ItemRepository;
   links: ItemLinkRepository;
   trackers: TrackerRepository;
+  docs: DocRepository;
   comments: CommentRepository;
   itemAssets: ItemAssetRepository;
   workspaceLists: WorkspaceListRepository;

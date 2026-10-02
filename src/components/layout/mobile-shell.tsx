@@ -45,7 +45,7 @@ function useDestinations(): MobileDestination[] {
       label: "Browse",
       icon: Compass,
       // Boards, teams and trackers are all reached through Browse, so they keep it lit.
-      match: (p) => p.startsWith(routes.browse(ws.slug)) || p.includes("/boards/") || p.includes("/teams/") || p.includes("/trackers"),
+      match: (p) => p.startsWith(routes.browse(ws.slug)) || p.includes("/boards/") || p.includes("/teams/") || p.includes("/trackers") || p.includes("/docs"),
     },
     { href: routes.inbox(ws.slug), label: "Inbox", icon: Inbox, match: (p) => p.startsWith(routes.inbox(ws.slug)), badge: unread.notifications },
     { href: routes.more(ws.slug), label: "More", icon: Ellipsis, match: (p) => p.startsWith(routes.more(ws.slug)) },
