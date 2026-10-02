@@ -803,11 +803,11 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
           onClick={overlay ? undefined : open}
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
           className={cn(
-            // No outline: the lane is already a box, and a box of boxes reads as
-            // clutter. A card stands off its lane by its fill alone (a step
-            // lighter in the dark themes, where the lane sits on --card and the
-            // card on --surface), and lightens again on hover.
-            "group/card relative cursor-pointer overflow-hidden rounded-lg bg-card transition-colors hover:bg-accent/60 dark:bg-surface dark:hover:bg-surface-strong",
+            // A card stands off its lane mostly by its fill (a step lighter in
+            // the dark themes, where the lane sits on --card and the card on
+            // --surface), with only a faint edge: the lane is already a box, and
+            // a firm outline on every card inside it reads as clutter.
+            "group/card relative cursor-pointer overflow-hidden rounded-lg border border-border/40 bg-card transition-colors hover:border-border hover:bg-accent/60 dark:border-white/[0.04] dark:bg-surface dark:hover:border-white/10 dark:hover:bg-surface-strong",
             moving && "row-moving pointer-events-none",
             compact || narrow ? "px-2.5 py-2" : "p-3",
             overlay && "rotate-1 shadow-xl",

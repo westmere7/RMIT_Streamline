@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.88.2",
+    date: "2026-10-02",
+    title: "Fainter Kanban card edges",
+    changes: [
+      "Kanban cards keep a faint outline, firmer on hover.",
+    ],
+  },
+  {
     version: "0.88.1",
     date: "2026-10-02",
     title: "Kanban cards without outlines",
