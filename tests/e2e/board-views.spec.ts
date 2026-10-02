@@ -53,11 +53,18 @@ test.describe("board views", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("lane-Design")).toBeVisible();
 
-    // Clicking anywhere on a card opens it, and the panel floats over the lanes instead of squeezing them.
+    // Clicking anywhere on a card opens it as a pop-up, unless Display says the panel; the panel floats over the lanes instead of squeezing them.
+    await page.locator('[data-testid="kanban-card"][data-item-name="RMITinerary High Achiever"]').click({ position: { x: 20, y: 60 } });
+    await expect(page.getByTestId("item-popup")).toContainText("RMITinerary High Achiever", { timeout: 15000 });
+    await page.getByTestId("close-panel").click();
+    await page.getByTestId("kanban-display").click();
+    await page.getByTestId("kanban-open-in-panel").click();
+    await page.keyboard.press("Escape");
     const lanesBefore = (await page.getByTestId("kanban-lanes-scroller").boundingBox())!.width;
     await page.locator('[data-testid="kanban-card"][data-item-name="RMITinerary High Achiever"]').click({ position: { x: 20, y: 60 } });
     await expect(page.getByTestId("item-panel")).toContainText("RMITinerary High Achiever", { timeout: 15000 });
     expect((await page.getByTestId("kanban-lanes-scroller").boundingBox())!.width).toBe(lanesBefore);
+
     await page.getByTestId("close-panel").click();
   });
 

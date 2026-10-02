@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.83.2",
+    date: "2026-10-02",
+    title: "Kanban cards open as a pop-up",
+    changes: [
+      "Kanban cards open as a pop-up; Display, Open cards in switches them to the panel.",
+    ],
+  },
+  {
     version: "0.83.1",
     date: "2026-10-02",
     title: "Kanban Display menu",

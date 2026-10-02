@@ -3,7 +3,7 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -14,7 +14,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import type { ColumnLabel, Item, User } from "@/domain";
 import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { useBoardUiStore } from "@/stores/board-ui-store";
+import { useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 import { SizePill } from "@/features/boards/components/pickers/size-picker";
 import { formatTag, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { useBoardAssets } from "@/features/items/asset-hooks";
@@ -62,6 +62,17 @@ const LANE_WIDTH_CLASSES: Record<LaneWidth, string> = {
   narrow: "w-48",
 };
 
+const OPEN_IN_OPTIONS: ReadonlyArray<{ value: ItemOpenMode; label: string }> = [
+  { value: "popup", label: "Pop-up" },
+  { value: "panel", label: "Panel" },
+];
+
+/**
+ * Where a card opens. A pop-up by default: lanes are wide and a panel beside
+ * them covers the ones a card was being compared with.
+ */
+const OpenInContext = React.createContext<ItemOpenMode>("popup");
+
 interface KanbanSettings extends Record<string, unknown> {
   laneBy: LaneBy;
   /**
@@ -75,6 +86,8 @@ interface KanbanSettings extends Record<string, unknown> {
   detail: CardDetail;
   /** How wide each lane, and so each card, is. */
   width: LaneWidth;
+  /** Where clicking a card opens it. */
+  openIn: ItemOpenMode;
 }
 
 /**
@@ -87,9 +100,10 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard", width: "wide" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const width: LaneWidth = LANE_WIDTH_OPTIONS.some((o) => o.value === settings.width) ? settings.width : "wide";
+  const openIn: ItemOpenMode = OPEN_IN_OPTIONS.some((o) => o.value === settings.openIn) ? settings.openIn : "popup";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -244,6 +258,9 @@ export function KanbanView() {
             <DisplayRow label="Width">
               <Segmented value={width} onChange={(next) => updateSettings({ width: next })} options={LANE_WIDTH_OPTIONS} ariaLabel="Lane width" testId="kanban-width" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
             </DisplayRow>
+            <DisplayRow label="Open cards in">
+              <Segmented value={openIn} onChange={(next) => updateSettings({ openIn: next })} options={OPEN_IN_OPTIONS} ariaLabel="Open cards in" testId="kanban-open-in" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
+            </DisplayRow>
             <label className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 text-[13px]">
               Tint lanes
               <Switch size="sm" checked={settings.tintLanes} onCheckedChange={(on) => updateSettings({ tintLanes: on })} data-testid="kanban-tint" />
@@ -252,6 +269,7 @@ export function KanbanView() {
         </Popover>
       </ViewBar>
       <div className={cn("scrollbar-thin flex min-h-0 flex-1 overflow-x-auto p-5", width === "narrow" ? "gap-2" : "gap-3")} data-testid="kanban-lanes-scroller">
+        <OpenInContext.Provider value={openIn}>
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
           {lanes.map((lane) => (
             <LaneColumn
@@ -276,6 +294,7 @@ export function KanbanView() {
               card is already in its new lane. */}
           <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} narrow={width === "narrow"} draggable overlay /> : null}</DragOverlay>
         </DndContext>
+        </OpenInContext.Provider>
       </div>
     </div>
   );
@@ -404,6 +423,8 @@ function SortableCard({ item, laneBy, detail, narrow, disabled, ghost }: { item:
 function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; narrow?: boolean; draggable?: boolean; overlay?: boolean }) {
   const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates, mutations } = useBoardContext();
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
+  const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  const openIn = React.useContext(OpenInContext);
   const assets = useBoardAssets(board.id);
   const group = model.groups.find((g) => g.id === item.groupId);
   const statusColumn = model.statusColumn;
@@ -446,7 +467,13 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
   // Only the fullest cards carry the brief, and two lines of it at that.
   const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
   const shownTags = tags.slice(0, detailed ? 6 : 2);
-  const open = () => openItem(item.id);
+  const open = () => openItem(item.id, openIn);
+  // The board's own updates shortcut opens the panel; on these cards it opens where the card does.
+  const openUpdates = () => {
+    if (openIn === "panel") return openItemUpdates(item.id);
+    setRequestedItemTab({ itemId: item.id, tab: "updates" });
+    openItem(item.id, "popup");
+  };
   const moving = useMovingItems().has(item.id);
   const extras = useTaskMenuExtras(item, canEdit);
 
@@ -525,7 +552,7 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
               {!compact && blocked && <BlockedDot label="Waiting on a dependency" />}
               {!compact && linked && <RefreshCw className="size-3" aria-label="Linked to an item on another board" />}
               <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={() => openItemUpdates(item.id)} />
+                <UpdatesBadge summary={updates.get(item.id)} size="xs" onClick={openUpdates} />
               </span>
             </div>
             {ownerUsers.length > 0 && <AvatarStack users={ownerUsers} size="xs" max={3} />}
@@ -536,9 +563,16 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
         <ContextMenuItem onSelect={open}>
           <Maximize2 /> Open
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => openItem(item.id, "popup")}>
-          <PictureInPicture2 /> Open in pop-up
-        </ContextMenuItem>
+        {/* The other way of opening it, one click away. */}
+        {openIn === "popup" ? (
+          <ContextMenuItem onSelect={() => openItem(item.id, "panel")}>
+            <PanelRight /> Open in panel
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem onSelect={() => openItem(item.id, "popup")}>
+            <PictureInPicture2 /> Open in pop-up
+          </ContextMenuItem>
+        )}
         {renderContext([...extras.reading, ...extras.columns])}
         {canEdit && (
           <>
