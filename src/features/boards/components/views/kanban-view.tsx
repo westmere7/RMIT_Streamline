@@ -3,7 +3,7 @@
 import { closestCenter, closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Archive, Boxes, ChevronRight, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { LabelPill } from "@/components/shared/label-pill";
@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { useMovingItems } from "@/features/booking/use-allocation";
 import { NONE, useKanbanLanes, useLaneOptions, useLaneReorder, type Lane, type LaneBy } from "./kanban-lanes";
 import { useViewSettings } from "./view-settings";
-import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
+import { Segmented, ViewBar, ViewEmpty, ViewSelect, ViewStat } from "./view-shell";
 
 /**
  * How much of an item a card carries, and so how tall it stands: the name alone
@@ -100,8 +100,32 @@ const OPEN_IN_OPTIONS: ReadonlyArray<{ value: ItemOpenMode; label: string }> = [
  */
 const OpenInContext = React.createContext<ItemOpenMode>("popup");
 
+/**
+ * Swimlanes: the lanes split again into rows, by person, priority, group or a
+ * dropdown. A card sits in one cell, and a drop writes both its lane's value
+ * and its row's.
+ */
+type RowsBy = "none" | LaneBy;
+
+/** What the rows are, so a card leaves out what its row already says. */
+const RowsByContext = React.createContext<RowsBy>("none");
+
+/** A cell's id in swimlanes: the row and the lane it is the meeting of. */
+const cellKey = (rowId: string, laneId: string) => `${rowId}~${laneId}`;
+
+/** Lanes in swimlanes keep one width, so a lane's cells line up row under row. */
+const SWIM_WIDTH_CLASSES: Record<LaneWidth, string> = {
+  wide: "w-72",
+  medium: "w-60",
+  narrow: "w-48",
+};
+
 interface KanbanSettings extends Record<string, unknown> {
   laneBy: LaneBy;
+  /** What splits the lanes into rows, or "none" for plain lanes. */
+  rowsBy: RowsBy;
+  /** Rows folded to their header. */
+  collapsedRows: string[];
   /**
    * Wash each lane in its own colour. On unless turned off; a new key, since the
    * old `tint` was saved as false for everyone who ever changed the view.
@@ -129,19 +153,24 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, tintStyle: "outline", collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", rowsBy: "none", collapsedRows: [], tintLanes: true, tintStyle: "outline", collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const width: LaneWidth = LANE_WIDTH_OPTIONS.some((o) => o.value === settings.width) ? settings.width : "wide";
   const tint: TintStyle = TINT_STYLE_OPTIONS.some((o) => o.value === settings.tintStyle) ? settings.tintStyle : "outline";
   const openIn: ItemOpenMode = OPEN_IN_OPTIONS.some((o) => o.value === settings.openIn) ? settings.openIn : "popup";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
+  const collapsedRows = React.useMemo(() => new Set(settings.collapsedRows), [settings.collapsedRows]);
+  const rowOptions = React.useMemo<Array<{ value: RowsBy; label: string }>>(() => [{ value: "none", label: "None" }, ...options.filter((o) => o.value !== laneBy)], [options, laneBy]);
+  const rowsBy: RowsBy = rowOptions.some((o) => o.value === settings.rowsBy) ? settings.rowsBy : "none";
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
 
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
 
   const lanes = useKanbanLanes(laneBy);
+  const rowLanes = useKanbanLanes(rowsBy === "none" ? laneBy : rowsBy);
+  const rows = rowsBy === "none" ? null : rowLanes;
   // Lanes are put in order by dragging their header, where that order is the
   // board's (statuses, dropdown choices, groups); "No status" stays last.
   const reorder = useLaneReorder(laneBy);
@@ -160,7 +189,34 @@ export function KanbanView() {
    * A lane in hand only looks at the other lanes, and a card only at lanes and
    * cards, so the two kinds of drag never land on each other.
    */
-  const laneIds = React.useMemo(() => new Set(lanes.map((l) => l.id)), [lanes]);
+  /**
+   * Where cards can land, and which cards each holds. Plain lanes are cells of
+   * their own; in swimlanes each row crossed with each lane is one. A card goes
+   * in the first row that claims it, so a task with two owners shows once.
+   */
+  const cells = React.useMemo(() => {
+    const meta: Record<string, { lane: Lane; row: Lane | null }> = {};
+    const ids: Record<string, string[]> = {};
+    if (!rows) {
+      for (const lane of lanes) {
+        meta[lane.id] = { lane, row: null };
+        ids[lane.id] = lane.items.map((i) => i.id);
+      }
+      return { meta, ids };
+    }
+    const rowOf = new Map<string, string>();
+    for (const row of rows) for (const item of row.items) if (!rowOf.has(item.id)) rowOf.set(item.id, row.id);
+    for (const row of rows) {
+      for (const lane of lanes) {
+        const id = cellKey(row.id, lane.id);
+        meta[id] = { lane, row };
+        ids[id] = lane.items.filter((i) => rowOf.get(i.id) === row.id).map((i) => i.id);
+      }
+    }
+    return { meta, ids };
+  }, [lanes, rows]);
+  const laneItemIds = cells.ids;
+  const laneIds = React.useMemo(() => new Set(Object.keys(laneItemIds)), [laneItemIds]);
   const collisionDetection = React.useCallback<CollisionDetection>(
     (args) => {
       const laneDrag = String(args.active.id).startsWith(LANE_SORT);
@@ -173,7 +229,6 @@ export function KanbanView() {
     [laneIds],
   );
 
-  const laneItemIds = React.useMemo(() => Object.fromEntries(lanes.map((l) => [l.id, l.items.map((i) => i.id)])) as Record<string, string[]>, [lanes]);
   const [drag, setDrag] = React.useState<{ activeId: string; lanes: Record<string, string[]> } | null>(null);
   /** The last two landing places worked out, and where the card was when the latest one was. */
   const bounced = React.useRef<string[]>([]);
@@ -258,16 +313,18 @@ export function KanbanView() {
     const source = laneOf(activeId, laneItemIds);
     const target = laneOf(activeId, working.lanes);
     if (!source || !target) return;
-    const lane = lanes.find((l) => l.id === target);
-    if (!lane) return;
-    if (laneBy === "group") {
+    const to = cells.meta[target];
+    const from = cells.meta[source];
+    if (!to || !from) return;
+    if (!rows && laneBy === "group") {
       // Lanes are groups, so the ghost's position is a real position: keep it.
       const unchanged = target === source && working.lanes[target]!.join() === laneItemIds[source]!.join();
       if (unchanged) return;
       void mutations.moveItem({ itemId: item.id, toGroupId: target, orderedIdsInTargetGroup: working.lanes[target]!, orderedIdsInSourceGroup: target === source ? working.lanes[target]! : working.lanes[source]! });
       return;
     }
-    if (target !== source) lane.apply(item);
+    if (to.lane.id !== from.lane.id) to.lane.apply(item);
+    if (to.row && to.row.id !== from.row?.id) to.row.apply(item);
   };
 
   if (options.length === 0) return <ViewEmpty title="Kanban needs something to lane by" description="Add a Status, Priority or People column, or a group, to use the Kanban view." />;
@@ -278,6 +335,9 @@ export function KanbanView() {
   const done = visibleItems.filter((i) => model.isDone(i.id)).length;
   // The lane the card in hand would land in, outlined so the drop is never a guess.
   const targetLane = drag ? laneOf(drag.activeId, drag.lanes) : null;
+  const toggleRow = (id: string) => updateSettings({ collapsedRows: collapsedRows.has(id) ? settings.collapsedRows.filter((c) => c !== id) : [...settings.collapsedRows, id] });
+  const laneOverdue = (lane: Lane) => lane.items.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id), new Date(today))).length;
+  const gap = width === "narrow" ? "gap-2" : "gap-3";
   const toggleLane = (id: string) => updateSettings({ collapsed: collapsed.has(id) ? settings.collapsed.filter((c) => c !== id) : [...settings.collapsed, id] });
 
   return (
@@ -293,6 +353,8 @@ export function KanbanView() {
       >
         <span className="text-xs text-muted-foreground">Lanes by</span>
         <Segmented value={laneBy} onChange={(next) => updateSettings({ laneBy: next })} options={options} ariaLabel="Lanes by" testId="kanban-lanes" />
+        <span className="text-xs text-muted-foreground">Rows</span>
+        <ViewSelect value={rowsBy} onChange={(next) => updateSettings({ rowsBy: next })} options={rowOptions} ariaLabel="Rows" testId="kanban-rows" />
         {/* What the lanes are stays in the bar; how they look sits behind one button. */}
         <Popover>
           <PopoverTrigger asChild>
@@ -320,14 +382,58 @@ export function KanbanView() {
           </PopoverContent>
         </Popover>
       </ViewBar>
-      <div className={cn("scrollbar-thin flex min-h-0 flex-1 overflow-x-auto p-5", width === "narrow" ? "gap-2" : "gap-3")} data-testid="kanban-lanes-scroller">
+      <div className={cn("scrollbar-thin flex min-h-0 flex-1 p-5", rows ? "overflow-auto" : "overflow-x-auto", gap)} data-testid="kanban-lanes-scroller">
         <OpenInContext.Provider value={openIn}>
+        <RowsByContext.Provider value={rowsBy}>
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => {
             setDrag(null);
             setLaneDragId(null);
           }}>
           <SortableContext items={sortableLaneIds} strategy={horizontalListSortingStrategy}>
-          {lanes.map((lane) => (
+          {rows ? (
+            <div className="flex min-w-max flex-col gap-4" data-testid="kanban-swimlanes">
+              {/* The lanes' names along the top, staying put while the rows scroll under them. */}
+              <div className={cn("sticky -top-5 z-20 -mt-5 flex bg-background pt-5 pb-1", gap)}>
+                {lanes.map((lane) => (
+                  <LaneHead key={lane.id} lane={lane} width={width} canEdit={canEdit} tint={settings.tintLanes ? tint : null} sortable={sortableLaneIds.includes(LANE_SORT + lane.id)} collapsed={collapsed.has(lane.id)} overdue={laneOverdue(lane)} onToggle={() => toggleLane(lane.id)} />
+                ))}
+              </div>
+              {rows.map((row) => {
+                const folded = collapsedRows.has(row.id);
+                const count = lanes.reduce((n, lane) => n + (shown[cellKey(row.id, lane.id)]?.length ?? 0), 0);
+                return (
+                  <section key={row.id} aria-label={row.name} data-testid={`swimlane-${row.name}`} className="flex flex-col gap-2">
+                    <RowHeader row={row} count={count} folded={folded} onToggle={() => toggleRow(row.id)} />
+                    {!folded && (
+                      <div className={cn("flex", gap)}>
+                        {lanes.map((lane) => {
+                          const id = cellKey(row.id, lane.id);
+                          return (
+                            <SwimCell
+                              key={lane.id}
+                              id={id}
+                              lane={lane}
+                              row={row}
+                              itemIds={shown[id] ?? []}
+                              laneBy={laneBy}
+                              detail={detail}
+                              width={width}
+                              canEdit={canEdit}
+                              tint={settings.tintLanes ? tint : null}
+                              collapsed={collapsed.has(lane.id)}
+                              target={id === targetLane}
+                              activeId={drag?.activeId ?? null}
+                              onAdd={(name, initial) => void mutations.createItem({ groupId: initial.groupId, name, values: initial.values })}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : lanes.map((lane) => (
             <LaneColumn
               key={lane.id}
               lane={lane}
@@ -342,7 +448,7 @@ export function KanbanView() {
               target={lane.id === targetLane}
               activeId={drag?.activeId ?? null}
               onToggle={() => toggleLane(lane.id)}
-              overdue={lane.items.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id), new Date(today))).length}
+              overdue={laneOverdue(lane)}
               onAdd={(name) => lane.initial && void mutations.createItem({ groupId: lane.initial.groupId, name, values: lane.initial.values })}
             />
           ))}
@@ -352,6 +458,7 @@ export function KanbanView() {
               card is already in its new lane. */}
           <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} narrow={width === "narrow"} draggable overlay /> : null}</DragOverlay>
         </DndContext>
+        </RowsByContext.Provider>
         </OpenInContext.Provider>
       </div>
     </div>
@@ -379,8 +486,6 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sorta
     setSortRef(node);
   };
   const handle = sortable ? listeners : undefined;
-  const [draft, setDraft] = React.useState("");
-  const [adding, setAdding] = React.useState(false);
   const colors = lane.color ? colorClasses(lane.color) : null;
   // The lane a card would land in takes its own colour for an edge, or the focus ring's when it has none.
   const accent = colors?.hex ?? "var(--ring)";
@@ -411,30 +516,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sorta
   return (
     <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "scrollbar-host flex flex-col", LANE_WIDTH_CLASSES[width])}>
       <header {...handle} className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5", sortable && !renaming && "cursor-grab active:cursor-grabbing")}>
-        {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
-        {/* Double-click the name to rename what the lane stands for. */}
-        <h3 className={cn("min-w-0 text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>
-          <InlineEdit
-            value={lane.name}
-            editing={renaming}
-            onEditingChange={setRenaming}
-            onSubmit={(name) => lane.rename?.(name)}
-            trigger="doubleClick"
-            disabled={!canEdit || !lane.rename}
-            ariaLabel="Lane name"
-            className={cn("rounded-md px-1 -mx-1", canEdit && lane.rename && "hover:bg-accent/70")}
-            inputClassName="h-6 w-40 text-[13px] font-semibold"
-          />
-        </h3>
-        <span className="shrink-0 text-xs text-muted-foreground tabular">{items.length}</span>
-        {overdue > 0 && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
-            {overdue}
-          </span>
-        )}
-        <button type="button" onClick={onToggle} aria-label={`Collapse ${lane.name}`} className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-accent hover:text-foreground">
-          <ChevronsRightLeft className="size-3.5" />
-        </button>
+        <LaneTitle lane={lane} count={items.length} overdue={overdue} canEdit={canEdit} coloured={!!tint || target} renaming={renaming} onRenamingChange={setRenaming} onToggle={onToggle} />
       </header>
       {/* Under the name of the lane a card would land in, a bar in the lane's colour. */}
       <span aria-hidden className={cn("mb-2 h-0.5 rounded-full transition-opacity", narrow ? "mx-2.5" : "mx-3.5", target ? "opacity-100" : "opacity-0")} style={{ backgroundColor: accent }} />
@@ -448,35 +530,154 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sorta
       </SortableContext>
       {canEdit && lane.initial && (
         <div className={narrow ? "p-2" : "p-2.5"}>
-          {adding ? (
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => {
-                if (!draft.trim()) setAdding(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && draft.trim()) {
-                  onAdd(draft.trim());
-                  setDraft("");
-                } else if (e.key === "Escape") {
-                  setDraft("");
-                  setAdding(false);
-                }
-              }}
-              placeholder="Item name"
-              aria-label={`Add item to ${lane.name}`}
-              className="h-9 w-full rounded-lg border border-border bg-card px-3 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            />
-          ) : (
-            <button type="button" onClick={() => setAdding(true)} className="flex h-9 w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              <Plus className="size-3.5" /> Add item
-            </button>
-          )}
+          <QuickAdd label={lane.name} onAdd={onAdd} />
         </div>
       )}
     </section>
+  );
+}
+
+/** A lane's name, count and fold button: the top of a lane, or of its column in swimlanes. */
+function LaneTitle({ lane, count, overdue, canEdit, coloured, renaming, onRenamingChange, onToggle }: { lane: Lane; count: number; overdue: number; canEdit: boolean; coloured: boolean; renaming: boolean; onRenamingChange: (renaming: boolean) => void; onToggle: () => void }) {
+  const colors = lane.color ? colorClasses(lane.color) : null;
+  return (
+    <>
+      {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+      {/* Double-click the name to rename what the lane stands for. */}
+      <h3 className={cn("min-w-0 text-[13px] font-semibold tracking-tight", coloured && colors?.text)}>
+        <InlineEdit
+          value={lane.name}
+          editing={renaming}
+          onEditingChange={onRenamingChange}
+          onSubmit={(name) => lane.rename?.(name)}
+          trigger="doubleClick"
+          disabled={!canEdit || !lane.rename}
+          ariaLabel="Lane name"
+          className={cn("rounded-md px-1 -mx-1", canEdit && lane.rename && "hover:bg-accent/70")}
+          inputClassName="h-6 w-40 text-[13px] font-semibold"
+        />
+      </h3>
+      <span className="shrink-0 text-xs text-muted-foreground tabular">{count}</span>
+      {overdue > 0 && (
+        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
+          {overdue}
+        </span>
+      )}
+      <button type="button" onClick={onToggle} aria-label={`Collapse ${lane.name}`} className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-accent hover:text-foreground">
+        <ChevronsRightLeft className="size-3.5" />
+      </button>
+    </>
+  );
+}
+
+/** "+ Add item", opening to a name field; Enter adds and stays open for the next. */
+function QuickAdd({ label, onAdd, compact }: { label: string; onAdd: (name: string) => void; compact?: boolean }) {
+  const [draft, setDraft] = React.useState("");
+  const [adding, setAdding] = React.useState(false);
+  if (adding) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (!draft.trim()) setAdding(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && draft.trim()) {
+            onAdd(draft.trim());
+            setDraft("");
+          } else if (e.key === "Escape") {
+            setDraft("");
+            setAdding(false);
+          }
+        }}
+        placeholder="Item name"
+        aria-label={`Add item to ${label}`}
+        className={cn("w-full rounded-lg border border-border bg-card px-3 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20", compact ? "h-8" : "h-9")}
+      />
+    );
+  }
+  return (
+    <button type="button" onClick={() => setAdding(true)} aria-label={compact ? `Add item to ${label}` : undefined} className={cn("flex w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", compact ? "h-7" : "h-9")}>
+      <Plus className="size-3.5" /> Add item
+    </button>
+  );
+}
+
+/** A lane's head in swimlanes: its name and colour above its cells, picked up to reorder. */
+function LaneHead({ lane, width, canEdit, tint, sortable, collapsed, overdue, onToggle }: { lane: Lane; width: LaneWidth; canEdit: boolean; tint: TintStyle | null; sortable: boolean; collapsed: boolean; overdue: number; onToggle: () => void }) {
+  const [renaming, setRenaming] = React.useState(false);
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: LANE_SORT + lane.id, disabled: !sortable || renaming });
+  const colors = lane.color ? colorClasses(lane.color) : null;
+  const style: React.CSSProperties = { ...(tint && colors ? tintStyle(tint, colors.hex) : {}), transform: CSS.Translate.toString(transform), transition };
+  const shell = cn("shrink-0 rounded-xl border border-border/70 bg-surface/80 dark:border-white/[0.06] dark:bg-card", isDragging && "relative z-10 shadow-xl");
+  if (collapsed) {
+    return (
+      <div ref={setNodeRef} style={style} className={cn(shell, "flex w-10")} data-testid={`lane-${lane.name}`}>
+        <button type="button" onClick={onToggle} {...(sortable ? listeners : {})} aria-label={`Expand ${lane.name}`} title={lane.name} className="flex h-10 w-full items-center justify-center rounded-xl text-muted-foreground hover:text-foreground">
+          <ChevronsLeftRight className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div ref={setNodeRef} style={style} className={cn(shell, "flex items-center gap-1.5 px-3 py-2", SWIM_WIDTH_CLASSES[width], sortable && !renaming && "cursor-grab active:cursor-grabbing")} {...(sortable ? listeners : {})} data-testid={`lane-${lane.name}`}>
+      <LaneTitle lane={lane} count={lane.items.length} overdue={overdue} canEdit={canEdit} coloured={!!tint} renaming={renaming} onRenamingChange={setRenaming} onToggle={onToggle} />
+    </div>
+  );
+}
+
+/** A row's header in swimlanes: what the row is and how many cards it holds, folding the row away. */
+function RowHeader({ row, count, folded, onToggle }: { row: Lane; count: number; folded: boolean; onToggle: () => void }) {
+  const colors = row.color ? colorClasses(row.color) : null;
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={!folded} aria-label={`${folded ? "Expand" : "Collapse"} row ${row.name}`} className="sticky left-0 flex w-fit items-center gap-2 rounded-md px-1.5 py-1 text-[13px] font-semibold tracking-tight hover:bg-accent">
+      <ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", !folded && "rotate-90")} />
+      {row.user ? <UserAvatar user={row.user} size="xs" tooltip={false} /> : <span className={cn("size-2 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+      <span className={cn(colors?.text)}>{row.name}</span>
+      <span className="text-xs font-normal text-muted-foreground tabular">{count}</span>
+    </button>
+  );
+}
+
+/** Where a row meets a lane: a drop here writes both. */
+function SwimCell({ id, lane, row, itemIds, laneBy, detail, width, canEdit, tint, collapsed, target, activeId, onAdd }: { id: string; lane: Lane; row: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; width: LaneWidth; canEdit: boolean; tint: TintStyle | null; collapsed: boolean; target: boolean; activeId: string | null; onAdd: (name: string, initial: NonNullable<Lane["initial"]>) => void }) {
+  const { model } = useBoardContext();
+  const { setNodeRef } = useDroppable({ id, disabled: !canEdit });
+  const colors = lane.color ? colorClasses(lane.color) : null;
+  const accent = colors?.hex ?? "var(--ring)";
+  const items = itemIds.map((i) => model.itemById.get(i)).filter((i): i is Item => !!i);
+  const narrow = width === "narrow";
+  // A cell takes its lane's colour lightly: an outlined lane's edge without the
+  // wash at its top, which belongs to the lane's head.
+  const wash = tint && colors ? (tint === "outline" ? { borderColor: `${colors.hex}59` } : tintStyle(tint, colors.hex)) : {};
+  const style: React.CSSProperties = { ...wash, ...(target ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : {}) };
+  // What a card added here starts with: the lane's value and the row's, in the
+  // group whichever of the two is a group says.
+  const initial = lane.initial && row.initial ? { groupId: laneBy === "group" ? lane.initial.groupId : row.initial.groupId, values: [...lane.initial.values, ...row.initial.values] } : null;
+  const shell = "shrink-0 rounded-xl border border-border/70 bg-surface/80 transition-[border-color,box-shadow] dark:border-white/[0.06] dark:bg-card";
+  if (collapsed) {
+    return (
+      <div ref={setNodeRef} style={style} data-drop-target={target || undefined} className={cn(shell, "flex w-10 justify-center py-2")} title={`${lane.name} · ${row.name}`}>
+        <span className="text-2xs text-muted-foreground tabular">{items.length || ""}</span>
+      </div>
+    );
+  }
+  return (
+    <div ref={setNodeRef} style={style} data-drop-target={target || undefined} data-testid={`cell-${row.name}-${lane.name}`} className={cn(shell, "group/cell flex min-h-20 flex-col", SWIM_WIDTH_CLASSES[width], narrow ? "gap-2 p-2" : "gap-2.5 p-2.5")}>
+      <SortableContext id={id} items={itemIds} strategy={verticalListSortingStrategy}>
+        {items.map((item) => (
+          <SortableCard key={item.id} item={item} laneBy={laneBy} detail={detail} narrow={narrow} disabled={!canEdit} ghost={item.id === activeId} />
+        ))}
+      </SortableContext>
+      {items.length === 0 && activeId && <p className="py-3 text-center text-2xs text-muted-foreground">Drop here</p>}
+      {canEdit && initial && (
+        <div className={cn("mt-auto", items.length > 0 && "opacity-0 transition-opacity group-hover/cell:opacity-100 focus-within:opacity-100")}>
+          <QuickAdd compact label={`${lane.name}, ${row.name}`} onAdd={(name) => onAdd(name, initial)} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -542,8 +743,10 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
   const dueToday = !done && isToday(due);
   const compact = detail === "compact";
   const detailed = detail === "detailed";
-  const showStatus = laneBy !== "status" && statusLabel;
-  const showPriority = laneBy !== "priority" && priorityLabel;
+  // Leave out what the lane, or in swimlanes the row, already says.
+  const rowsBy = React.useContext(RowsByContext);
+  const showStatus = laneBy !== "status" && rowsBy !== "status" && statusLabel;
+  const showPriority = laneBy !== "priority" && rowsBy !== "priority" && priorityLabel;
   const chips = !compact && (showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size));
   // Only the fullest cards carry the brief, and two lines of it at that.
   const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
@@ -587,7 +790,7 @@ function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item
             {item.name}
           </button>
           {brief && <p className="mt-1 line-clamp-2 text-2xs leading-snug text-muted-foreground">{brief}</p>}
-          {!compact && group && laneBy !== "group" && (
+          {!compact && group && laneBy !== "group" && rowsBy !== "group" && (
             <p className="mt-1 flex items-center gap-1 text-2xs text-muted-foreground">
               <span className={cn("size-1.5 rounded-full", colorClasses(group.color).dot)} /> {group.name}
             </p>

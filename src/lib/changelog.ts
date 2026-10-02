@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.85.0",
+    date: "2026-10-02",
+    title: "Kanban swimlanes",
+    changes: [
+      "Rows split the Kanban's lanes by person, priority, group or a dropdown; drag a card to any cell to change both.",
+      "Rows fold away from their header, and a card can be added straight into a cell.",
+    ],
+  },
+  {
     version: "0.84.3",
     date: "2026-10-02",
     title: "Softer lane headers",
