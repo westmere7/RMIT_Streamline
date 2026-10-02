@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.83.1",
+    date: "2026-10-02",
+    title: "Kanban Display menu",
+    changes: [
+      "Cards, Width and Tint lanes moved into a Display menu beside Lanes by.",
+      "A lane's scrollbar shows only while the pointer is over the lane.",
+    ],
+  },
+  {
     version: "0.83.0",
     date: "2026-10-02",
     title: "Kanban lanes restyled",

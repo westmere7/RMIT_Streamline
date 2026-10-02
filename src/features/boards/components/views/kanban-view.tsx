@@ -3,11 +3,13 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { ColumnLabel, Item, User } from "@/domain";
 import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
@@ -228,19 +230,26 @@ export function KanbanView() {
       >
         <span className="text-xs text-muted-foreground">Lanes by</span>
         <Segmented value={laneBy} onChange={(next) => updateSettings({ laneBy: next })} options={options} ariaLabel="Lanes by" testId="kanban-lanes" />
-        <span className="text-xs text-muted-foreground">Cards</span>
-        <Segmented value={detail} onChange={(next) => updateSettings({ detail: next })} options={CARD_DETAIL_OPTIONS} ariaLabel="How much each card shows" testId="kanban-detail" />
-        <span className="text-xs text-muted-foreground">Width</span>
-        <Segmented value={width} onChange={(next) => updateSettings({ width: next })} options={LANE_WIDTH_OPTIONS} ariaLabel="Lane width" testId="kanban-width" />
-        <button
-          type="button"
-          onClick={() => updateSettings({ tintLanes: !settings.tintLanes })}
-          aria-pressed={settings.tintLanes}
-          className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border border-border/70 px-2.5 text-xs font-medium shadow-xs transition-colors", settings.tintLanes ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground")}
-          data-testid="kanban-tint"
-        >
-          <PaintBucket className="size-3.5" /> Tint lanes
-        </button>
+        {/* What the lanes are stays in the bar; how they look sits behind one button. */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border/70 bg-card px-3 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground max-md:h-11" data-testid="kanban-display">
+              <SlidersHorizontal className="size-3.5" /> Display
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-3 p-3">
+            <DisplayRow label="Cards">
+              <Segmented value={detail} onChange={(next) => updateSettings({ detail: next })} options={CARD_DETAIL_OPTIONS} ariaLabel="How much each card shows" testId="kanban-detail" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
+            </DisplayRow>
+            <DisplayRow label="Width">
+              <Segmented value={width} onChange={(next) => updateSettings({ width: next })} options={LANE_WIDTH_OPTIONS} ariaLabel="Lane width" testId="kanban-width" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
+            </DisplayRow>
+            <label className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 text-[13px]">
+              Tint lanes
+              <Switch size="sm" checked={settings.tintLanes} onCheckedChange={(on) => updateSettings({ tintLanes: on })} data-testid="kanban-tint" />
+            </label>
+          </PopoverContent>
+        </Popover>
       </ViewBar>
       <div className={cn("scrollbar-thin flex min-h-0 flex-1 overflow-x-auto p-5", width === "narrow" ? "gap-2" : "gap-3")} data-testid="kanban-lanes-scroller">
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
@@ -268,6 +277,16 @@ export function KanbanView() {
           <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} narrow={width === "narrow"} draggable overlay /> : null}</DragOverlay>
         </DndContext>
       </div>
+    </div>
+  );
+}
+
+/** One labelled setting in the Display popover. */
+function DisplayRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-2xs font-medium text-muted-foreground">{label}</p>
+      {children}
     </div>
   );
 }
@@ -303,7 +322,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, colla
   }
 
   return (
-    <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "flex flex-col", LANE_WIDTH_CLASSES[width])}>
+    <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "scrollbar-host flex flex-col", LANE_WIDTH_CLASSES[width])}>
       <header className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5")}>
         {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
         <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>{lane.name}</h3>
@@ -320,7 +339,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, colla
       {/* Under the name of the lane a card would land in, a bar in the lane's colour. */}
       <span aria-hidden className={cn("mb-2 h-0.5 rounded-full transition-opacity", narrow ? "mx-2.5" : "mx-3.5", target ? "opacity-100" : "opacity-0")} style={{ backgroundColor: accent }} />
       <SortableContext id={lane.id} items={itemIds} strategy={verticalListSortingStrategy}>
-        <div className={cn("scrollbar-thin flex-1 overflow-y-auto pb-1", narrow ? "space-y-2 px-2" : "space-y-2.5 px-2.5")}>
+        <div className={cn("scrollbar-thin scrollbar-hover flex-1 overflow-y-auto pb-1", narrow ? "space-y-2 px-2" : "space-y-2.5 px-2.5")}>
           {items.map((item) => (
             <SortableCard key={item.id} item={item} laneBy={laneBy} detail={detail} narrow={narrow} disabled={!canEdit} ghost={item.id === activeId} />
           ))}

@@ -319,6 +319,25 @@
     background: transparent;
   }
 
+  /* A thin scrollbar that only shows while the pointer is over it or over its
+     .scrollbar-host (a Kanban lane). It keeps its room while hidden, so nothing
+     shifts when it appears. */
+  .scrollbar-hover {
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-hover::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+  .scrollbar-hover:hover,
+  .scrollbar-host:hover .scrollbar-hover {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  .scrollbar-hover:hover::-webkit-scrollbar-thumb,
+  .scrollbar-host:hover .scrollbar-hover::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
   .tabular {
     font-variant-numeric: tabular-nums;
   }

@@ -42,13 +42,16 @@ test.describe("board views", () => {
     await expect(page.getByRole("button", { name: "Collapse Design" })).toBeVisible();
 
     // Lanes are washed in their colour unless turned off, and the choice is remembered for this person on this board.
-    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("kanban-display").click();
+    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("kanban-tint").click();
-    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-checked", "false");
     await page.reload();
-    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-pressed", "false", { timeout: 15000 });
-    await expect(page.getByTestId("lane-Design")).toBeVisible();
+    await page.getByTestId("kanban-display").click({ timeout: 15000 });
+    await expect(page.getByTestId("kanban-tint")).toHaveAttribute("aria-checked", "false", { timeout: 15000 });
     await page.getByTestId("kanban-tint").click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("lane-Design")).toBeVisible();
 
     // Clicking anywhere on a card opens it, and the panel floats over the lanes instead of squeezing them.
     const lanesBefore = (await page.getByTestId("kanban-lanes-scroller").boundingBox())!.width;
