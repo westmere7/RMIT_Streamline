@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.84.3",
+    date: "2026-10-02",
+    title: "Softer lane headers",
+    changes: [
+      "An outlined lane's colour at the top is fainter and fades out smoothly, with no edge under the header.",
+    ],
+  },
+  {
     version: "0.84.2",
     date: "2026-10-02",
     title: "Outlined Kanban lanes",

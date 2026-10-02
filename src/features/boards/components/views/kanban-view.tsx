@@ -64,8 +64,8 @@ const LANE_WIDTH_CLASSES: Record<LaneWidth, string> = {
 };
 
 /**
- * How a lane wears its colour once Tint lanes is on: an edge with its header
- * washed in the colour (the default), a soft wash over the whole lane, or a
+ * How a lane wears its colour once Tint lanes is on: an edge with a faint wash
+ * of the colour at the top (the default), a soft wash over the whole lane, or a
  * stronger one with an edge to match.
  */
 type TintStyle = "soft" | "strong" | "outline";
@@ -79,13 +79,11 @@ const TINT_STYLE_OPTIONS: ReadonlyArray<{ value: TintStyle; label: string }> = [
 /** Fill and edge for a lane of colour `hex` in each tint style (hex plus alpha). */
 function tintStyle(style: TintStyle, hex: string): React.CSSProperties {
   if (style === "strong") return { backgroundColor: `${hex}47`, borderColor: `${hex}80` };
-  if (style === "outline") return { borderColor: `${hex}b3` };
+  // An outlined lane keeps a trace of its colour at the top: a faint wash
+  // behind the header that eases out over the first cards, with no edge where
+  // it stops.
+  if (style === "outline") return { borderColor: `${hex}b3`, backgroundImage: `linear-gradient(to bottom, ${hex}1a 0, ${hex}12 1.75rem, ${hex}08 4rem, ${hex}00 7rem)` };
   return { backgroundColor: `${hex}1f` };
-}
-
-/** An outlined lane's header: its colour fading down into the lane. */
-function headerWash(hex: string, depth = "100%"): React.CSSProperties {
-  return { backgroundImage: `linear-gradient(to bottom, ${hex}38, ${hex}00 ${depth})` };
 }
 
 /** Lanes are sortable among themselves under ids of their own, apart from the lane ids cards drop on. */
@@ -394,14 +392,12 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sorta
   };
   const items = itemIds.map((id) => model.itemById.get(id)).filter((i): i is Item => !!i);
   const narrow = width === "narrow";
-  // Outlined lanes still carry their colour at the top, in the header.
-  const wash = tint === "outline" && colors ? colors.hex : null;
   const shell = cn("shrink-0 rounded-xl border border-border/70 bg-surface/80 transition-[border-color,box-shadow] dark:border-white/[0.06] dark:bg-card", isDragging && "relative z-10 shadow-xl");
 
   if (collapsed) {
     return (
       <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "flex w-10")}>
-        <button type="button" onClick={onToggle} {...handle} aria-label={`Expand ${lane.name}`} style={wash ? headerWash(wash, "8rem") : undefined} className="flex w-full flex-col items-center gap-3 rounded-[inherit] py-3 text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onToggle} {...handle} aria-label={`Expand ${lane.name}`} className="flex w-full flex-col items-center gap-3 rounded-xl py-3 text-muted-foreground hover:text-foreground">
           <ChevronsLeftRight className="size-3.5 shrink-0" />
           <span className="text-[13px] tracking-tight [writing-mode:vertical-rl]">
             <span className={cn("font-semibold text-foreground", (tint || target) && colors?.text)}>{lane.name}</span>
@@ -414,7 +410,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sorta
 
   return (
     <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "scrollbar-host flex flex-col", LANE_WIDTH_CLASSES[width])}>
-      <header {...handle} style={wash ? headerWash(wash) : undefined} className={cn("flex items-center gap-1.5 rounded-t-[inherit] pt-3 pb-2", narrow ? "px-2.5" : "px-3.5", sortable && !renaming && "cursor-grab active:cursor-grabbing")}>
+      <header {...handle} className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5", sortable && !renaming && "cursor-grab active:cursor-grabbing")}>
         {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
         {/* Double-click the name to rename what the lane stands for. */}
         <h3 className={cn("min-w-0 text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>
