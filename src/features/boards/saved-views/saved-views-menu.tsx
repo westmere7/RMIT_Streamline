@@ -29,8 +29,6 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
   // A view with a name of its own, as opposed to the Default view.
   const named = active && !active.isDefault ? active : null;
   const mayChange = !!named && canChangeView(named, userId, canEdit);
-  const shared = views.filter((v) => v.shared);
-  const own = views.filter((v) => !v.shared);
   // An unsaved Default view can be saved as it stands, changed or not.
   const canSave = maySave && (dirty || (onDefault && !active));
   const title = named ? named.name : DEFAULT_VIEW_NAME;
@@ -50,8 +48,12 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
 
   const row = (view: SavedBoardView) => (
     <DropdownMenuItem key={view.id} onSelect={() => controller.open(view)} data-testid="saved-view-option" data-view-name={view.name}>
-      {view.shared ? <Users /> : <Lock />}
+      <Bookmark />
       <span className="min-w-0 flex-1 truncate">{view.name}</span>
+      {/* One list, each view saying who sees it. */}
+      <span className="shrink-0 rounded-full bg-surface-strong px-1.5 py-0.5 text-2xs font-medium text-muted-foreground" data-testid="saved-view-audience">
+        {view.shared ? "Shared" : "Only you"}
+      </span>
       {active?.id === view.id && dirty && <span className="text-2xs text-amber-600 dark:text-amber-400">Edited</span>}
       {active?.id === view.id && <Check className="size-3.5" />}
     </DropdownMenuItem>
@@ -89,10 +91,7 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
             {onDefault && dirty && <span className="text-2xs text-amber-600 dark:text-amber-400">Edited</span>}
             {onDefault && <Check className="size-3.5" />}
           </DropdownMenuItem>
-          {shared.length > 0 && <DropdownMenuLabel className="pt-2 text-2xs font-medium text-muted-foreground uppercase">Shared</DropdownMenuLabel>}
-          {shared.map(row)}
-          {own.length > 0 && <DropdownMenuLabel className="pt-2 text-2xs font-medium text-muted-foreground uppercase">Only you</DropdownMenuLabel>}
-          {own.map(row)}
+          {views.map(row)}
 
           {(named || maySave || dirty) && (
             <>

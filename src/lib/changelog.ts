@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.84.1",
+    date: "2026-10-02",
+    title: "Saved views in one list",
+    changes: [
+      "Saved views are one list, each marked Shared or Only you.",
+      "The pop-up's Overview sits centred in its half.",
+    ],
+  },
+  {
     version: "0.84.0",
     date: "2026-10-02",
     title: "Rename and reorder Kanban lanes",

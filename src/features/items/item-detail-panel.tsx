@@ -467,7 +467,9 @@ function PopupBody({
               {comments > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments}</span>}
             </UnderlineTabsTrigger>
           </UnderlineTabsList>
-          <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+          {/* The scrollbar's room kept on both sides, so the overview sits centred
+              in its half rather than nudged left by the track on its right. */}
+          <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
             <Overview key={item.id} item={item} />
           </TabsContent>
           <TabsContent value="updates" className="min-h-0 flex-1">
