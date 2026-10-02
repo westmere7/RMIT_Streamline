@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.83.0",
+    date: "2026-10-02",
+    title: "Kanban lanes restyled",
+    changes: [
+      "Kanban cards show their ticket and a grip, and lanes have a quieter, outlined look.",
+      "The lane a dragged card would land in is outlined in its colour, folded lanes included.",
+      "A folded lane is a thin strip with its name and count; click it to open it again.",
+      "Width sets lanes to Wide, Medium or Narrow, so more fit across.",
+    ],
+  },
+  {
     version: "0.82.0",
     date: "2026-10-01",
     title: "Dropdown styles",

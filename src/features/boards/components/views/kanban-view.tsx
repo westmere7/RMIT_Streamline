@@ -3,7 +3,7 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Boxes, ChevronsLeftRight, Copy, CornerDownRight, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
+import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PaintBucket, PictureInPicture2, Plus, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -42,6 +42,24 @@ const CARD_DETAIL_OPTIONS: ReadonlyArray<{ value: CardDetail; label: string }> =
   { value: "detailed", label: "Detailed" },
 ];
 
+/**
+ * How wide a lane stands. Wide lanes share out the room the board has; the
+ * narrower ones keep their width, so more of them fit across before it scrolls.
+ */
+type LaneWidth = "wide" | "medium" | "narrow";
+
+const LANE_WIDTH_OPTIONS: ReadonlyArray<{ value: LaneWidth; label: string }> = [
+  { value: "wide", label: "Wide" },
+  { value: "medium", label: "Medium" },
+  { value: "narrow", label: "Narrow" },
+];
+
+const LANE_WIDTH_CLASSES: Record<LaneWidth, string> = {
+  wide: "w-72 max-w-sm grow",
+  medium: "w-60",
+  narrow: "w-48",
+};
+
 interface KanbanSettings extends Record<string, unknown> {
   laneBy: LaneBy;
   /**
@@ -53,6 +71,8 @@ interface KanbanSettings extends Record<string, unknown> {
   collapsed: string[];
   /** How much each card shows, and how tall it is. */
   detail: CardDetail;
+  /** How wide each lane, and so each card, is. */
+  width: LaneWidth;
 }
 
 /**
@@ -65,8 +85,9 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard", width: "wide" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
+  const width: LaneWidth = LANE_WIDTH_OPTIONS.some((o) => o.value === settings.width) ? settings.width : "wide";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -190,6 +211,8 @@ export function KanbanView() {
   const today = todayISO();
   const overdue = visibleItems.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id))).length;
   const done = visibleItems.filter((i) => model.isDone(i.id)).length;
+  // The lane the card in hand would land in, outlined so the drop is never a guess.
+  const targetLane = drag ? laneOf(drag.activeId, drag.lanes) : null;
   const toggleLane = (id: string) => updateSettings({ collapsed: collapsed.has(id) ? settings.collapsed.filter((c) => c !== id) : [...settings.collapsed, id] });
 
   return (
@@ -207,6 +230,8 @@ export function KanbanView() {
         <Segmented value={laneBy} onChange={(next) => updateSettings({ laneBy: next })} options={options} ariaLabel="Lanes by" testId="kanban-lanes" />
         <span className="text-xs text-muted-foreground">Cards</span>
         <Segmented value={detail} onChange={(next) => updateSettings({ detail: next })} options={CARD_DETAIL_OPTIONS} ariaLabel="How much each card shows" testId="kanban-detail" />
+        <span className="text-xs text-muted-foreground">Width</span>
+        <Segmented value={width} onChange={(next) => updateSettings({ width: next })} options={LANE_WIDTH_OPTIONS} ariaLabel="Lane width" testId="kanban-width" />
         <button
           type="button"
           onClick={() => updateSettings({ tintLanes: !settings.tintLanes })}
@@ -217,7 +242,7 @@ export function KanbanView() {
           <PaintBucket className="size-3.5" /> Tint lanes
         </button>
       </ViewBar>
-      <div className="scrollbar-thin flex min-h-0 flex-1 gap-3 overflow-x-auto p-5" data-testid="kanban-lanes-scroller">
+      <div className={cn("scrollbar-thin flex min-h-0 flex-1 overflow-x-auto p-5", width === "narrow" ? "gap-2" : "gap-3")} data-testid="kanban-lanes-scroller">
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
           {lanes.map((lane) => (
             <LaneColumn
@@ -226,9 +251,11 @@ export function KanbanView() {
               itemIds={shown[lane.id] ?? []}
               laneBy={laneBy}
               detail={detail}
+              width={width}
               canEdit={canEdit}
               tint={settings.tintLanes}
               collapsed={collapsed.has(lane.id)}
+              target={lane.id === targetLane}
               activeId={drag?.activeId ?? null}
               onToggle={() => toggleLane(lane.id)}
               overdue={lane.items.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id), new Date(today))).length}
@@ -238,60 +265,70 @@ export function KanbanView() {
           {/* No drop animation: dnd-kit would fly the card back to where it was
               picked up, which reads as the drop being refused even though the
               card is already in its new lane. */}
-          <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} overlay /> : null}</DragOverlay>
+          <DragOverlay dropAnimation={null}>{activeItem ? <Card item={activeItem} laneBy={laneBy} detail={detail} narrow={width === "narrow"} draggable overlay /> : null}</DragOverlay>
         </DndContext>
       </div>
     </div>
   );
 }
 
-function LaneColumn({ lane, itemIds, laneBy, detail, canEdit, tint, collapsed, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; canEdit: boolean; tint: boolean; collapsed: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
+function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, collapsed, target, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; width: LaneWidth; canEdit: boolean; tint: boolean; collapsed: boolean; target: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
   const { model } = useBoardContext();
-  const { setNodeRef, isOver } = useDroppable({ id: lane.id, disabled: !canEdit });
+  const { setNodeRef } = useDroppable({ id: lane.id, disabled: !canEdit });
   const [draft, setDraft] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const colors = lane.color ? colorClasses(lane.color) : null;
-  const wash = tint && colors ? { backgroundColor: `${colors.hex}1f` } : undefined;
+  // The lane a card would land in takes its own colour for an edge, or the focus ring's when it has none.
+  const accent = colors?.hex ?? "var(--ring)";
+  const style: React.CSSProperties = {
+    ...(tint && colors ? { backgroundColor: `${colors.hex}1f` } : {}),
+    ...(target ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : {}),
+  };
   const items = itemIds.map((id) => model.itemById.get(id)).filter((i): i is Item => !!i);
+  const narrow = width === "narrow";
+  const shell = "shrink-0 rounded-xl border border-border/70 bg-surface/80 transition-[border-color,box-shadow] dark:border-white/[0.06] dark:bg-card";
 
   if (collapsed) {
     return (
-      <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} style={wash} className={cn("flex w-11 shrink-0 flex-col items-center gap-2 rounded-2xl bg-surface/80 py-3", isOver && "ring-2 ring-ring/40")}>
-        <button type="button" onClick={onToggle} aria-label={`Expand ${lane.name}`} className="flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground">
-          <ChevronsLeftRight className="size-3.5" />
+      <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "flex w-10")}>
+        <button type="button" onClick={onToggle} aria-label={`Expand ${lane.name}`} className="flex w-full flex-col items-center gap-3 rounded-xl py-3 text-muted-foreground hover:text-foreground">
+          <ChevronsLeftRight className="size-3.5 shrink-0" />
+          <span className="text-[13px] tracking-tight [writing-mode:vertical-rl]">
+            <span className={cn("font-semibold text-foreground", (tint || target) && colors?.text)}>{lane.name}</span>
+            <span className="tabular"> · {items.length}</span>
+          </span>
         </button>
-        <span className={cn("size-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />
-        <span className="rounded-full bg-card/70 px-1.5 py-0.5 text-2xs text-muted-foreground tabular">{items.length}</span>
-        <span className="mt-1 text-[11px] font-semibold tracking-tight text-muted-foreground [writing-mode:vertical-rl]">{lane.name}</span>
       </section>
     );
   }
 
   return (
-    <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} style={wash} className={cn("flex w-72 max-w-sm shrink-0 grow flex-col rounded-2xl bg-surface/80 transition-shadow", isOver && "ring-2 ring-ring/40")}>
-      <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
-        {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2.5 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
-        <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", tint && colors?.text)}>{lane.name}</h3>
+    <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "flex flex-col", LANE_WIDTH_CLASSES[width])}>
+      <header className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5")}>
+        {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+        <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>{lane.name}</h3>
+        <span className="shrink-0 text-xs text-muted-foreground tabular">{items.length}</span>
         {overdue > 0 && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
             {overdue}
           </span>
         )}
-        <span className="ml-auto rounded-full bg-card/70 px-2 py-0.5 text-2xs text-muted-foreground tabular">{items.length}</span>
-        <button type="button" onClick={onToggle} aria-label={`Collapse ${lane.name}`} className="flex size-6 items-center justify-center rounded-full text-muted-foreground/70 hover:bg-card hover:text-foreground">
-          <ChevronsLeftRight className="size-3.5" />
+        <button type="button" onClick={onToggle} aria-label={`Collapse ${lane.name}`} className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-accent hover:text-foreground">
+          <ChevronsRightLeft className="size-3.5" />
         </button>
       </header>
+      {/* Under the name of the lane a card would land in, a bar in the lane's colour. */}
+      <span aria-hidden className={cn("mb-2 h-0.5 rounded-full transition-opacity", narrow ? "mx-2.5" : "mx-3.5", target ? "opacity-100" : "opacity-0")} style={{ backgroundColor: accent }} />
       <SortableContext id={lane.id} items={itemIds} strategy={verticalListSortingStrategy}>
-        <div className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto px-2.5 pb-1">
+        <div className={cn("scrollbar-thin flex-1 overflow-y-auto pb-1", narrow ? "space-y-2 px-2" : "space-y-2.5 px-2.5")}>
           {items.map((item) => (
-            <SortableCard key={item.id} item={item} laneBy={laneBy} detail={detail} disabled={!canEdit} ghost={item.id === activeId} />
+            <SortableCard key={item.id} item={item} laneBy={laneBy} detail={detail} narrow={narrow} disabled={!canEdit} ghost={item.id === activeId} />
           ))}
           {items.length === 0 && <p className="px-2 py-4 text-center text-2xs text-muted-foreground">{activeId ? "Drop here" : "No items"}</p>}
         </div>
       </SortableContext>
       {canEdit && lane.initial && (
-        <div className="p-2.5">
+        <div className={narrow ? "p-2" : "p-2.5"}>
           {adding ? (
             <input
               autoFocus
@@ -311,10 +348,10 @@ function LaneColumn({ lane, itemIds, laneBy, detail, canEdit, tint, collapsed, a
               }}
               placeholder="Item name"
               aria-label={`Add item to ${lane.name}`}
-              className="h-9 w-full rounded-xl border border-border bg-card px-3 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+              className="h-9 w-full rounded-lg border border-border bg-card px-3 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
           ) : (
-            <button type="button" onClick={() => setAdding(true)} className="flex h-9 w-full items-center gap-1.5 rounded-xl px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-card hover:text-foreground">
+            <button type="button" onClick={() => setAdding(true)} className="flex h-9 w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <Plus className="size-3.5" /> Add item
             </button>
           )}
@@ -325,7 +362,7 @@ function LaneColumn({ lane, itemIds, laneBy, detail, canEdit, tint, collapsed, a
 }
 
 /** A card that can be picked up; while it is in hand, this copy stays in the flow as a ghost marking where it will land. */
-function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; laneBy: LaneBy; detail: CardDetail; disabled: boolean; ghost: boolean }) {
+function SortableCard({ item, laneBy, detail, narrow, disabled, ghost }: { item: Item; laneBy: LaneBy; detail: CardDetail; narrow: boolean; disabled: boolean; ghost: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing")} data-testid={ghost ? "kanban-ghost" : undefined}>
@@ -334,18 +371,18 @@ function SortableCard({ item, laneBy, detail, disabled, ghost }: { item: Item; l
         // keeps its shape while the others make way.
         <div className="relative" aria-hidden>
           <div className="invisible">
-            <Card item={item} laneBy={laneBy} detail={detail} />
+            <Card item={item} laneBy={laneBy} detail={detail} narrow={narrow} draggable />
           </div>
-          <div className="absolute inset-0 rounded-xl border-2 border-dashed border-ring/50 bg-ring/5" />
+          <div className="absolute inset-0 rounded-lg border-2 border-dashed border-ring/50 bg-ring/5" />
         </div>
       ) : (
-        <Card item={item} laneBy={laneBy} detail={detail} />
+        <Card item={item} laneBy={laneBy} detail={detail} narrow={narrow} draggable={!disabled} />
       )}
     </div>
   );
 }
 
-function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; overlay?: boolean }) {
+function Card({ item, laneBy, detail, narrow, draggable, overlay }: { item: Item; laneBy: LaneBy; detail: CardDetail; narrow?: boolean; draggable?: boolean; overlay?: boolean }) {
   const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates, mutations } = useBoardContext();
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const assets = useBoardAssets(board.id);
@@ -403,20 +440,23 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
           onClick={overlay ? undefined : open}
           onKeyDown={overlay ? undefined : (e) => e.key === "Enter" && open()}
           className={cn(
-            // A step lighter than the lane in the dark themes (where --card sits
-            // below --surface), so a card stands off a tinted lane by its fill
-            // and edge rather than by a shadow.
-            "relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-ring/40 dark:border-white/10 dark:bg-surface-strong",
+            // A step lighter than the lane in the dark themes (the lane sits on
+            // --card, the card on --surface), so a card stands off its lane by
+            // its fill and edge rather than by a shadow.
+            "group/card relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-ring/40 dark:border-white/[0.08] dark:bg-surface dark:hover:border-white/20 dark:hover:bg-surface-strong",
             moving && "row-moving pointer-events-none",
-            compact ? "px-2.5 py-2" : "p-3",
+            compact || narrow ? "px-2.5 py-2" : "p-3",
             overlay && "rotate-1 shadow-xl",
             done && "opacity-70",
           )}
         >
           {/* A hairline of the status colour down the left when the lanes do not already say it. */}
           {laneBy !== "status" && statusLabel && <span aria-hidden className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", colorClasses(statusLabel.color).dot)} />}
+          {/* Where to take hold of it; the whole card picks up, this only says so. */}
+          {draggable && <GripVertical aria-hidden className={cn("absolute right-1.5 size-3.5 text-muted-foreground/40 transition-colors group-hover/card:text-muted-foreground", compact || narrow ? "top-2" : "top-3")} />}
           {!compact && <CardCover url={item.coverUrl} />}
-          <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-medium leading-snug hover:underline", done && "text-muted-foreground")} aria-label={`Open ${item.name}`}>
+          {item.ticket && <p className="mb-1 pr-4 font-mono text-2xs tracking-tight text-muted-foreground tabular">{item.ticket}</p>}
+          <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} onPointerDown={(e) => e.stopPropagation()} className={cn("block w-full text-left text-[13px] font-semibold leading-snug tracking-tight hover:underline", !item.ticket && "pr-4", done && "text-muted-foreground")} aria-label={`Open ${item.name}`}>
             {item.name}
           </button>
           {brief && <p className="mt-1 line-clamp-2 text-2xs leading-snug text-muted-foreground">{brief}</p>}
@@ -431,7 +471,7 @@ function Card({ item, laneBy, detail, overlay }: { item: Item; laneBy: LaneBy; d
               {showPriority && <PriorityPill label={priorityLabel} />}
               {size?.type === "SIZE" && size.size && <SizePill size={size.size} />}
               {shownTags.map((t) => (
-                <span key={t.name} className={cn("rounded-full px-1.5 py-0.5 text-2xs font-medium", colorClasses(t.color ?? tagColorFor(t.name)).soft)}>
+                <span key={t.name} className={cn("rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(t.color ?? tagColorFor(t.name)).soft)}>
                   {formatTag(t.name)}
                 </span>
               ))}
