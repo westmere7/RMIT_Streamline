@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.84.0",
+    date: "2026-10-02",
+    title: "Rename and reorder Kanban lanes",
+    changes: [
+      "Double-click a lane's name to rename its status, dropdown choice or group.",
+      "Drag a lane by its header to put lanes in a new order; the table and pickers follow.",
+      "Tint lanes has a style: Soft, Strong or Outline.",
+    ],
+  },
+  {
     version: "0.83.2",
     date: "2026-10-02",
     title: "Kanban cards open as a pop-up",

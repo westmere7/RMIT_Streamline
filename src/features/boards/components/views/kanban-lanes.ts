@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { BoardColumn, ColorToken, ColumnValue, Item, User } from "@/domain";
+import type { BoardColumn, ColorToken, ColumnLabel, ColumnSettings, ColumnValue, Item, User } from "@/domain";
 import { columnLabels } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 
@@ -29,6 +29,43 @@ export interface Lane {
   apply: (item: Item) => void;
   /** Initial values for a card added in this lane. */
   initial: { groupId: string; values: Array<{ columnId: string; value: ColumnValue }> } | null;
+  /**
+   * Renames what the lane stands for — the label or the group, so the table and
+   * every other view follow. Null where the name is not the board's to change: a
+   * person, a fixed priority, the lane of items with no value.
+   */
+  rename: ((name: string) => void) | null;
+}
+
+/** True where the board defines the column's labels (Status, Dropdown), so they can be renamed and reordered. */
+function labelsAreEditable(column: BoardColumn): boolean {
+  return column.settings.kind === "status" || column.settings.kind === "dropdown";
+}
+
+function withLabels(column: BoardColumn, labels: ColumnLabel[]): ColumnSettings {
+  return { ...column.settings, labels } as ColumnSettings;
+}
+
+/**
+ * Puts the lanes in a new order, or null when their order is not the board's
+ * to choose (people go by name, priority by its fixed steps). What is written
+ * is the labels' or the groups' own order, so the table and every status picker
+ * change with it.
+ */
+export function useLaneReorder(laneBy: LaneBy): ((orderedIds: string[]) => void) | null {
+  const { model, mutations } = useBoardContext();
+  return React.useMemo(() => {
+    if (laneBy === "group") return (orderedIds: string[]) => void mutations.reorderGroups(orderedIds);
+    const dropdownId = laneDropdownId(laneBy);
+    const column = laneBy === "status" ? model.statusColumn : dropdownId ? model.columns.find((c) => c.id === dropdownId && c.type === "DROPDOWN") : null;
+    if (!column || !labelsAreEditable(column)) return null;
+    return (orderedIds: string[]) => {
+      const labels = columnLabels(column);
+      const byId = new Map(labels.map((l) => [l.id, l]));
+      const ordered = [...orderedIds.map((id) => byId.get(id)).filter((l): l is ColumnLabel => !!l), ...labels.filter((l) => !orderedIds.includes(l.id))];
+      void mutations.updateColumn(column.id, { settings: withLabels(column, ordered) });
+    };
+  }, [laneBy, model, mutations]);
 }
 
 /**
@@ -84,10 +121,11 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
         items: visibleItems.filter((i) => valueOf(i) === label.id),
         apply: (item) => void mutations.setValue(item, column, { type, labelId: label.id } as ColumnValue),
         initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type, labelId: label.id } as ColumnValue }] } : null,
+        rename: labelsAreEditable(column) ? (name) => void mutations.updateColumn(column.id, { settings: withLabels(column, labels.map((l) => (l.id === label.id ? { ...l, name } : l))) }) : null,
       }));
       const unset = visibleItems.filter((i) => !labels.some((l) => l.id === valueOf(i)));
       const noneName = type === "STATUS" ? "No status" : type === "PRIORITY" ? "No priority" : `No ${column.name.toLowerCase()}`;
-      if (unset.length) out.push({ id: NONE, name: noneName, color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
+      if (unset.length) out.push({ id: NONE, name: noneName, color: null, items: unset, apply: (item) => void mutations.setValue(item, column, { type, labelId: null } as ColumnValue), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null, rename: null });
       return out;
     };
     if (laneBy === "status" && model.statusColumn) return byLabel(model.statusColumn, "STATUS");
@@ -114,9 +152,10 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
           items: visibleItems.filter((i) => ownersOf(i).includes(user.id)),
           apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [user.id] }),
           initial: firstGroup ? { groupId: firstGroup.id, values: [{ columnId: column.id, value: { type: "PERSON", userIds: [user.id] } }] } : null,
+          rename: null,
         }));
       const unassigned = visibleItems.filter((i) => ownersOf(i).length === 0);
-      out.push({ id: NONE, name: "Unassigned", color: null, items: unassigned, apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [] }), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null });
+      out.push({ id: NONE, name: "Unassigned", color: null, items: unassigned, apply: (item) => void mutations.setValue(item, column, { type: "PERSON", userIds: [] }), initial: firstGroup ? { groupId: firstGroup.id, values: [] } : null, rename: null });
       return out;
     }
     return model.groups.map((group) => ({
@@ -126,6 +165,7 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
       items: model.itemsByGroup.get(group.id) ?? [],
       apply: (item) => void mutations.moveItemsToGroup([item.id], group.id),
       initial: { groupId: group.id, values: [] },
+      rename: (name) => void mutations.updateGroup(group.id, { name }),
     }));
   }, [laneBy, model, visibleItems, named, personColumn, firstGroup, mutations]);
 }

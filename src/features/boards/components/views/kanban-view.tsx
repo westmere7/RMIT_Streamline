@@ -1,10 +1,11 @@
 "use client";
 
-import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { closestCenter, closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Archive, Boxes, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
+import { InlineEdit } from "@/components/shared/inline-edit";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
 import { AvatarStack, UserAvatar } from "@/components/shared/user-avatar";
@@ -28,7 +29,7 @@ import { formatDateRange, formatShortDate, isOverdue, isToday, todayISO } from "
 import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 import { useMovingItems } from "@/features/booking/use-allocation";
-import { useKanbanLanes, useLaneOptions, type Lane, type LaneBy } from "./kanban-lanes";
+import { NONE, useKanbanLanes, useLaneOptions, useLaneReorder, type Lane, type LaneBy } from "./kanban-lanes";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
 
@@ -62,6 +63,28 @@ const LANE_WIDTH_CLASSES: Record<LaneWidth, string> = {
   narrow: "w-48",
 };
 
+/**
+ * How a lane wears its colour once Tint lanes is on: a soft wash, a stronger
+ * one with an edge to match, or the edge alone.
+ */
+type TintStyle = "soft" | "strong" | "outline";
+
+const TINT_STYLE_OPTIONS: ReadonlyArray<{ value: TintStyle; label: string }> = [
+  { value: "soft", label: "Soft" },
+  { value: "strong", label: "Strong" },
+  { value: "outline", label: "Outline" },
+];
+
+/** Fill and edge for a lane of colour `hex` in each tint style (hex plus alpha). */
+function tintStyle(style: TintStyle, hex: string): React.CSSProperties {
+  if (style === "strong") return { backgroundColor: `${hex}47`, borderColor: `${hex}80` };
+  if (style === "outline") return { borderColor: `${hex}b3` };
+  return { backgroundColor: `${hex}1f` };
+}
+
+/** Lanes are sortable among themselves under ids of their own, apart from the lane ids cards drop on. */
+const LANE_SORT = "lane-sort:";
+
 const OPEN_IN_OPTIONS: ReadonlyArray<{ value: ItemOpenMode; label: string }> = [
   { value: "popup", label: "Pop-up" },
   { value: "panel", label: "Panel" },
@@ -80,6 +103,8 @@ interface KanbanSettings extends Record<string, unknown> {
    * old `tint` was saved as false for everyone who ever changed the view.
    */
   tintLanes: boolean;
+  /** How a tinted lane wears its colour. */
+  tintStyle: TintStyle;
   /** Lanes folded to a strip. */
   collapsed: string[];
   /** How much each card shows, and how tall it is. */
@@ -100,9 +125,10 @@ interface KanbanSettings extends Record<string, unknown> {
 export function KanbanView() {
   const { model, mutations, canEdit } = useBoardContext();
   const options = useLaneOptions();
-  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
+  const [settings, updateSettings] = useViewSettings<KanbanSettings>("kanban", { laneBy: options[0]?.value ?? "group", tintLanes: true, tintStyle: "soft", collapsed: [], detail: "standard", width: "wide", openIn: "popup" });
   const detail: CardDetail = CARD_DETAIL_OPTIONS.some((o) => o.value === settings.detail) ? settings.detail : "standard";
   const width: LaneWidth = LANE_WIDTH_OPTIONS.some((o) => o.value === settings.width) ? settings.width : "wide";
+  const tint: TintStyle = TINT_STYLE_OPTIONS.some((o) => o.value === settings.tintStyle) ? settings.tintStyle : "soft";
   const openIn: ItemOpenMode = OPEN_IN_OPTIONS.some((o) => o.value === settings.openIn) ? settings.openIn : "popup";
   const laneBy: LaneBy = options.some((o) => o.value === settings.laneBy) ? settings.laneBy : (options[0]?.value ?? "group");
   const collapsed = React.useMemo(() => new Set(settings.collapsed), [settings.collapsed]);
@@ -112,6 +138,11 @@ export function KanbanView() {
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
 
   const lanes = useKanbanLanes(laneBy);
+  // Lanes are put in order by dragging their header, where that order is the
+  // board's (statuses, dropdown choices, groups); "No status" stays last.
+  const reorder = useLaneReorder(laneBy);
+  const sortableLaneIds = React.useMemo(() => (canEdit && reorder ? lanes.filter((l) => l.id !== NONE).map((l) => LANE_SORT + l.id) : []), [lanes, canEdit, reorder]);
+  const [laneDragId, setLaneDragId] = React.useState<string | null>(null);
 
   // Which card sits where. During a drag this is a working copy that the pointer
   // rearranges, so the other cards make way for the ghost of the one in hand.
@@ -121,13 +152,19 @@ export function KanbanView() {
    * is always closer. So the pointer decides first — the lane it is inside wins,
    * and a card under it wins over the lane behind — and corners only settle it
    * when the pointer has left the lanes altogether.
+   *
+   * A lane in hand only looks at the other lanes, and a card only at lanes and
+   * cards, so the two kinds of drag never land on each other.
    */
   const laneIds = React.useMemo(() => new Set(lanes.map((l) => l.id)), [lanes]);
   const collisionDetection = React.useCallback<CollisionDetection>(
     (args) => {
-      const under = pointerWithin(args);
+      const laneDrag = String(args.active.id).startsWith(LANE_SORT);
+      const scoped = { ...args, droppableContainers: args.droppableContainers.filter((c) => String(c.id).startsWith(LANE_SORT) === laneDrag) };
+      if (laneDrag) return closestCenter(scoped);
+      const under = pointerWithin(scoped);
       if (under.length > 0) return [under.find((c) => !laneIds.has(String(c.id))) ?? under[0]!];
-      return closestCorners(args);
+      return closestCorners(scoped);
     },
     [laneIds],
   );
@@ -142,6 +179,7 @@ export function KanbanView() {
   const sameOrder = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
   const onDragStart = (event: DragStartEvent) => {
+    if (String(event.active.id).startsWith(LANE_SORT)) return setLaneDragId(String(event.active.id));
     bounced.current = [];
     at.current = null;
     setDrag({ activeId: String(event.active.id), lanes: laneItemIds });
@@ -163,7 +201,7 @@ export function KanbanView() {
    */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || laneDragId) return;
     const activeId = String(active.id);
     const overId = String(over.id);
     if (overId === activeId) return;
@@ -200,6 +238,13 @@ export function KanbanView() {
   };
 
   const onDragEnd = (event: DragEndEvent) => {
+    if (laneDragId) {
+      setLaneDragId(null);
+      const from = sortableLaneIds.indexOf(laneDragId);
+      const to = event.over ? sortableLaneIds.indexOf(String(event.over.id)) : -1;
+      if (reorder && from >= 0 && to >= 0 && from !== to) reorder(arrayMove(sortableLaneIds, from, to).map((id) => id.slice(LANE_SORT.length)));
+      return;
+    }
     const working = drag;
     setDrag(null);
     if (!working) return;
@@ -261,16 +306,23 @@ export function KanbanView() {
             <DisplayRow label="Open cards in">
               <Segmented value={openIn} onChange={(next) => updateSettings({ openIn: next })} options={OPEN_IN_OPTIONS} ariaLabel="Open cards in" testId="kanban-open-in" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />
             </DisplayRow>
-            <label className="flex items-center justify-between gap-2 border-t border-border/60 pt-3 text-[13px]">
-              Tint lanes
-              <Switch size="sm" checked={settings.tintLanes} onCheckedChange={(on) => updateSettings({ tintLanes: on })} data-testid="kanban-tint" />
-            </label>
+            <div className="space-y-2 border-t border-border/60 pt-3">
+              <label className="flex items-center justify-between gap-2 text-[13px]">
+                Tint lanes
+                <Switch size="sm" checked={settings.tintLanes} onCheckedChange={(on) => updateSettings({ tintLanes: on })} data-testid="kanban-tint" />
+              </label>
+              {settings.tintLanes && <Segmented value={tint} onChange={(next) => updateSettings({ tintStyle: next })} options={TINT_STYLE_OPTIONS} ariaLabel="Tint style" testId="kanban-tint-style" className="flex w-full [&>button]:flex-1 [&>button]:justify-center" />}
+            </div>
           </PopoverContent>
         </Popover>
       </ViewBar>
       <div className={cn("scrollbar-thin flex min-h-0 flex-1 overflow-x-auto p-5", width === "narrow" ? "gap-2" : "gap-3")} data-testid="kanban-lanes-scroller">
         <OpenInContext.Provider value={openIn}>
-        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setDrag(null)}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => {
+            setDrag(null);
+            setLaneDragId(null);
+          }}>
+          <SortableContext items={sortableLaneIds} strategy={horizontalListSortingStrategy}>
           {lanes.map((lane) => (
             <LaneColumn
               key={lane.id}
@@ -280,7 +332,8 @@ export function KanbanView() {
               detail={detail}
               width={width}
               canEdit={canEdit}
-              tint={settings.tintLanes}
+              tint={settings.tintLanes ? tint : null}
+              sortable={sortableLaneIds.includes(LANE_SORT + lane.id)}
               collapsed={collapsed.has(lane.id)}
               target={lane.id === targetLane}
               activeId={drag?.activeId ?? null}
@@ -289,6 +342,7 @@ export function KanbanView() {
               onAdd={(name) => lane.initial && void mutations.createItem({ groupId: lane.initial.groupId, name, values: lane.initial.values })}
             />
           ))}
+          </SortableContext>
           {/* No drop animation: dnd-kit would fly the card back to where it was
               picked up, which reads as the drop being refused even though the
               card is already in its new lane. */}
@@ -310,26 +364,36 @@ function DisplayRow({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, collapsed, target, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; width: LaneWidth; canEdit: boolean; tint: boolean; collapsed: boolean; target: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
+function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, sortable, collapsed, target, activeId, onToggle, overdue, onAdd }: { lane: Lane; itemIds: string[]; laneBy: LaneBy; detail: CardDetail; width: LaneWidth; canEdit: boolean; tint: TintStyle | null; sortable: boolean; collapsed: boolean; target: boolean; activeId: string | null; onToggle: () => void; overdue: number; onAdd: (name: string) => void }) {
   const { model } = useBoardContext();
-  const { setNodeRef } = useDroppable({ id: lane.id, disabled: !canEdit });
+  const { setNodeRef: setDropRef } = useDroppable({ id: lane.id, disabled: !canEdit });
+  const [renaming, setRenaming] = React.useState(false);
+  // Picked up by its header (or the whole strip when folded); not while its name is being typed.
+  const { listeners, setNodeRef: setSortRef, transform, transition, isDragging } = useSortable({ id: LANE_SORT + lane.id, disabled: !sortable || renaming });
+  const setNodeRef = (node: HTMLElement | null) => {
+    setDropRef(node);
+    setSortRef(node);
+  };
+  const handle = sortable ? listeners : undefined;
   const [draft, setDraft] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const colors = lane.color ? colorClasses(lane.color) : null;
   // The lane a card would land in takes its own colour for an edge, or the focus ring's when it has none.
   const accent = colors?.hex ?? "var(--ring)";
   const style: React.CSSProperties = {
-    ...(tint && colors ? { backgroundColor: `${colors.hex}1f` } : {}),
+    ...(tint && colors ? tintStyle(tint, colors.hex) : {}),
     ...(target ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : {}),
+    transform: CSS.Translate.toString(transform),
+    transition,
   };
   const items = itemIds.map((id) => model.itemById.get(id)).filter((i): i is Item => !!i);
   const narrow = width === "narrow";
-  const shell = "shrink-0 rounded-xl border border-border/70 bg-surface/80 transition-[border-color,box-shadow] dark:border-white/[0.06] dark:bg-card";
+  const shell = cn("shrink-0 rounded-xl border border-border/70 bg-surface/80 transition-[border-color,box-shadow] dark:border-white/[0.06] dark:bg-card", isDragging && "relative z-10 shadow-xl");
 
   if (collapsed) {
     return (
       <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "flex w-10")}>
-        <button type="button" onClick={onToggle} aria-label={`Expand ${lane.name}`} className="flex w-full flex-col items-center gap-3 rounded-xl py-3 text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onToggle} {...handle} aria-label={`Expand ${lane.name}`} className="flex w-full flex-col items-center gap-3 rounded-xl py-3 text-muted-foreground hover:text-foreground">
           <ChevronsLeftRight className="size-3.5 shrink-0" />
           <span className="text-[13px] tracking-tight [writing-mode:vertical-rl]">
             <span className={cn("font-semibold text-foreground", (tint || target) && colors?.text)}>{lane.name}</span>
@@ -342,9 +406,22 @@ function LaneColumn({ lane, itemIds, laneBy, detail, width, canEdit, tint, colla
 
   return (
     <section ref={setNodeRef} aria-label={lane.name} data-testid={`lane-${lane.name}`} data-drop-target={target || undefined} style={style} className={cn(shell, "scrollbar-host flex flex-col", LANE_WIDTH_CLASSES[width])}>
-      <header className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5")}>
+      <header {...handle} className={cn("flex items-center gap-1.5 pt-3 pb-2", narrow ? "px-2.5" : "px-3.5", sortable && !renaming && "cursor-grab active:cursor-grabbing")}>
         {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
-        <h3 className={cn("truncate text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>{lane.name}</h3>
+        {/* Double-click the name to rename what the lane stands for. */}
+        <h3 className={cn("min-w-0 text-[13px] font-semibold tracking-tight", (tint || target) && colors?.text)}>
+          <InlineEdit
+            value={lane.name}
+            editing={renaming}
+            onEditingChange={setRenaming}
+            onSubmit={(name) => lane.rename?.(name)}
+            trigger="doubleClick"
+            disabled={!canEdit || !lane.rename}
+            ariaLabel="Lane name"
+            className={cn("rounded-md px-1 -mx-1", canEdit && lane.rename && "hover:bg-accent/70")}
+            inputClassName="h-6 w-40 text-[13px] font-semibold"
+          />
+        </h3>
         <span className="shrink-0 text-xs text-muted-foreground tabular">{items.length}</span>
         {overdue > 0 && (
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-0.5 text-2xs font-medium text-red-700 tabular dark:bg-red-500/15 dark:text-red-300" title={`${overdue} overdue`}>
