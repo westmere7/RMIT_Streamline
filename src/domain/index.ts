@@ -20,6 +20,7 @@ export * from "./board/board-template";
 export * from "./board/saved-view";
 export * from "./dashboard/dashboard";
 export * from "./item/item";
+export * from "./item/baseline";
 export * from "./item/ticket";
 export * from "./item/item-archive";
 export * from "./item/item-link";

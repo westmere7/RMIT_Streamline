@@ -1,19 +1,22 @@
 "use client";
 
 import { format } from "date-fns";
-import { ChevronDown, ChevronRight, Crosshair } from "lucide-react";
+import { ChevronDown, ChevronRight, Crosshair, Flag, Save, Trash2 } from "lucide-react";
 import * as React from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LabelPill } from "@/components/shared/label-pill";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import type { BoardGroup, Item, User } from "@/domain";
-import { columnLabels } from "@/domain";
+import type { BoardGroup, Item, ItemBaseline, User } from "@/domain";
+import { columnLabels, daysBetweenDates } from "@/domain";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { useBoardContext } from "@/features/boards/board-context";
 import { colorClasses } from "@/lib/colors";
-import { formatDateRange, toISODate } from "@/lib/dates/dates";
+import { formatDateRange, parseISODate, toISODate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { barColor, DateScaleHeader, RowBackdrop, STUCK_STRIPES, TodayLine, useDateRange, useScrollToToday, ZOOM_OPTIONS, scheduleOf, type DateRange, type Scheduled, type Zoom } from "./date-scale";
+import { useBaseline } from "./use-baseline";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewStat } from "./view-shell";
 
@@ -35,10 +38,18 @@ type Row =
  * Dependency column, red when the work upstream is not done and the dependent
  * work has already started. Progress on a parent is the share of its subitems
  * that are done. Read-only: dates are changed on the item, not by dragging.
+ *
+ * With a baseline saved, each bar carries the plan under it as a thin grey
+ * line, and a task whose end has moved says by how much: "+3d" late, "−2d"
+ * early. Slips are counted on the end date, which is the one promised.
  */
 export function GanttView() {
-  const { model, users: assignable, people: users = assignable, openItem, now } = useBoardContext();
-  const [settings, updateSettings] = useViewSettings("gantt", { zoom: "week" as Zoom });
+  const { model, users: assignable, people: users = assignable, openItem, now, canEdit } = useBoardContext();
+  const [settings, updateSettings] = useViewSettings("gantt", { zoom: "week" as Zoom, showBaseline: true });
+  const baseline = useBaseline();
+  const [confirm, setConfirm] = React.useState<"save" | "clear" | null>(null);
+  const hasBaseline = baseline.byItem.size > 0;
+  const showBaseline = hasBaseline && settings.showBaseline !== false;
   const zoom = settings.zoom;
   const setZoom = (next: Zoom) => updateSettings({ zoom: next });
   const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set());
@@ -109,6 +120,7 @@ export function GanttView() {
   const milestones = itemRows.filter((r) => r.schedule?.milestone).length;
   const blocked = itemRows.filter((r) => model.isBlocked(r.item.id)).length;
   const undated = itemRows.filter((r) => !r.schedule).length;
+  const slipped = showBaseline ? itemRows.filter((r) => (slipOf(baseline.byItem.get(r.item.id), r.schedule) ?? 0) > 0).length : 0;
 
   if (itemRows.length === 0) return <ViewEmpty title="Nothing to schedule yet" description="Add items with a Timeline or Due Date and they appear here with their subitems and dependencies." />;
 
@@ -126,6 +138,7 @@ export function GanttView() {
             {arrows.length > 0 && <ViewStat value={arrows.length} label="dependencies" />}
             {blocked > 0 && <ViewStat value={blocked} label="blocked" tone="warn" testId="gantt-blocked" />}
             {undated > 0 && <ViewStat value={undated} label="undated" />}
+            {slipped > 0 && <ViewStat value={slipped} label="slipped" tone="warn" testId="gantt-slipped" />}
           </>
         }
       >
@@ -133,6 +146,36 @@ export function GanttView() {
         <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={scrollToToday}>
           <Crosshair /> Today
         </Button>
+        {(canEdit || hasBaseline) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className={cn("h-8 rounded-full", showBaseline && "state-on")} data-testid="gantt-baseline">
+                <Flag /> Baseline <ChevronDown className="text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-60">
+              <DropdownMenuLabel className="text-2xs font-medium text-muted-foreground">{baseline.savedAt ? `Saved ${format(new Date(baseline.savedAt), "d MMM yyyy, HH:mm")}` : "No baseline yet"}</DropdownMenuLabel>
+              {canEdit && (
+                <DropdownMenuItem disabled={baseline.saving} onSelect={() => (hasBaseline ? setConfirm("save") : void baseline.save())} data-testid="gantt-baseline-save">
+                  <Save /> {hasBaseline ? "Save new baseline" : "Save baseline"}
+                </DropdownMenuItem>
+              )}
+              {hasBaseline && (
+                <DropdownMenuCheckboxItem checked={settings.showBaseline !== false} onCheckedChange={(on) => updateSettings({ showBaseline: on === true })} data-testid="gantt-baseline-show">
+                  Show on bars
+                </DropdownMenuCheckboxItem>
+              )}
+              {canEdit && hasBaseline && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" disabled={baseline.saving} onSelect={() => setConfirm("clear")} data-testid="gantt-baseline-clear">
+                    <Trash2 /> Clear baseline
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {itemRows.some((r) => r.children > 0) && (
           <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => (expanded.size ? setExpanded(new Set()) : expandAll())} data-testid="gantt-expand">
             {expanded.size ? <ChevronDown /> : <ChevronRight />} {expanded.size ? "Collapse subitems" : "Expand subitems"}
@@ -180,17 +223,37 @@ export function GanttView() {
                   </div>
                 </div>
               ) : (
-                <ItemRow key={row.key} row={row} range={range} zoom={zoom} users={users} today={today} expanded={expanded.has(row.item.id)} onToggle={() => toggleItem(row.item.id)} onOpen={() => openItem(row.item.id)} />
+                <ItemRow key={row.key} row={row} range={range} zoom={zoom} users={users} today={today} baseline={showBaseline ? (baseline.byItem.get(row.item.id) ?? null) : null} expanded={expanded.has(row.item.id)} onToggle={() => toggleItem(row.item.id)} onOpen={() => openItem(row.item.id)} />
               ),
             )}
           </div>
         </div>
       </div>
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm === "clear" ? "Clear the baseline?" : "Replace the baseline?"}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm === "clear" ? "Slips stop showing until a new one is saved." : "Today's dates become the plan that slips are counted from."}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void (confirm === "clear" ? baseline.clear() : baseline.save())} data-testid="gantt-baseline-confirm">
+              {confirm === "clear" ? "Clear" : "Replace"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }: { row: Extract<Row, { kind: "item" }>; range: DateRange; zoom: Zoom; users: User[]; today: string; expanded: boolean; onToggle: () => void; onOpen: () => void }) {
+/** Days a task's end has moved since the baseline: positive is later. Null without a planned end or a date now. */
+function slipOf(planned: ItemBaseline | null | undefined, schedule: Scheduled | null): number | null {
+  if (!planned?.end || !schedule) return null;
+  return daysBetweenDates(planned.end, toISODate(schedule.end));
+}
+
+function ItemRow({ row, range, zoom, users, today, baseline, expanded, onToggle, onOpen }: { row: Extract<Row, { kind: "item" }>; range: DateRange; zoom: Zoom; users: User[]; today: string; baseline: ItemBaseline | null; expanded: boolean; onToggle: () => void; onOpen: () => void }) {
   const { model } = useBoardContext();
   const { item, schedule, group } = row;
   const done = model.isDone(item.id);
@@ -209,6 +272,12 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
   const dates = schedule ? (schedule.milestone ? format(schedule.end, "MMM d") : formatDateRange(toISODate(schedule.start), toISODate(schedule.end))) : "—";
   const left = schedule ? range.x(schedule.start) : 0;
   const width = schedule ? Math.max(range.width(schedule.start, schedule.end), schedule.milestone ? 14 : range.dayWidth) : 0;
+  const plannedEnd = baseline?.end ? parseISODate(baseline.end) : null;
+  const plannedStart = baseline?.start ? parseISODate(baseline.start) : plannedEnd;
+  const slip = slipOf(baseline, schedule);
+  // Where the bar's right-hand side is, so the slip and then the name can sit after it.
+  const after = schedule ? (schedule.milestone ? left + range.dayWidth / 2 + 10 : left + width + 6) : 0;
+  const slipWidth = slip ? 34 : 0;
 
   return (
     <div className={cn("flex items-center border-b border-border/60", row.depth === 1 && "bg-surface/30")} style={{ height: ROW }} data-testid={row.depth === 0 ? "gantt-row" : "gantt-subrow"} data-item-name={item.name}>
@@ -239,6 +308,27 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
       </div>
       <div className="relative h-full flex-1">
         <RowBackdrop range={range} zoom={zoom} />
+        {/* The plan, as a thin line under the bar. */}
+        {plannedStart && plannedEnd && (
+          <span
+            aria-hidden
+            className="absolute bottom-[3px] h-[3px] rounded-full bg-muted-foreground/45"
+            style={{ left: range.x(plannedStart), width: Math.max(range.width(plannedStart, plannedEnd), Math.max(4, range.dayWidth / 2)) }}
+            title={`Planned ${baseline!.start ? formatDateRange(baseline!.start, baseline!.end) : format(plannedEnd, "MMM d")}`}
+            data-testid="gantt-baseline-bar"
+          />
+        )}
+        {slip !== null && slip !== 0 && (
+          <span
+            className={cn("absolute top-1/2 -translate-y-1/2 rounded px-1 text-2xs font-semibold tabular", slip > 0 ? "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300")}
+            style={{ left: after - 2 }}
+            title={`${Math.abs(slip)} ${Math.abs(slip) === 1 ? "day" : "days"} ${slip > 0 ? "later" : "earlier"} than planned`}
+            data-testid="gantt-slip"
+          >
+            {slip > 0 ? "+" : "−"}
+            {Math.abs(slip)}d
+          </span>
+        )}
         {schedule &&
           (schedule.milestone ? (
             <button type="button" onClick={onOpen} title={`${item.name}: due ${dates}`} aria-label={`${item.name}, due ${dates}`} className="absolute top-1/2 -translate-y-1/2 hover:brightness-95" style={{ left: left + range.dayWidth / 2 - 6 }} data-testid="gantt-milestone">
@@ -259,7 +349,7 @@ function ItemRow({ row, range, zoom, users, today, expanded, onToggle, onOpen }:
             </button>
           ))}
         {schedule && !schedule.milestone && width < 80 && zoom !== "month" && (
-          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : late && schedule ? "font-medium text-red-600 dark:text-red-400" : "text-foreground/80")} style={{ left: left + width + 6, maxWidth: 200 }}>
+          <span className={cn("absolute top-1/2 -translate-y-1/2 truncate text-2xs whitespace-nowrap", done ? "text-muted-foreground" : late && schedule ? "font-medium text-red-600 dark:text-red-400" : "text-foreground/80")} style={{ left: after + slipWidth, maxWidth: 200 }}>
             {item.name}
           </span>
         )}

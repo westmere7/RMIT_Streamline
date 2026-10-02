@@ -53,7 +53,7 @@ import type {
   WorkspaceMember,
 } from "@/domain";
 import type { ActivityEventType, LastActivity } from "@/domain";
-import type { ArchivePage, ArchiveQuery, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, ItemBaseline, ItemBaselineInput, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -457,6 +457,13 @@ export interface BoardTemplateRepository {
  * A board's views saved under a name: the shared ones, and the asker's own.
  * Somebody else's private views are never listed.
  */
+/** A board's baseline: each task's planned dates, saved and replaced whole (migration 0105). */
+export interface BaselineRepository {
+  listByBoard(boardId: EntityId): Promise<ItemBaseline[]>;
+  saveForBoard(boardId: EntityId, rows: ItemBaselineInput[]): Promise<void>;
+  clearForBoard(boardId: EntityId): Promise<void>;
+}
+
 export interface SavedViewRepository {
   listByBoard(boardId: EntityId, userId: EntityId): Promise<SavedBoardView[]>;
   create(input: SavedBoardViewInput): Promise<SavedBoardView>;
@@ -691,6 +698,7 @@ export interface Repositories {
   bookingTemplates: BookingTemplateRepository;
   boardTemplates: BoardTemplateRepository;
   savedViews: SavedViewRepository;
+  baselines: BaselineRepository;
   bookingSavedBlocks: BookingSavedBlockRepository;
   subscriptions: SubscriptionRepository;
   itemFavourites: ItemFavouriteRepository;

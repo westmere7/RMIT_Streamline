@@ -136,3 +136,5 @@ migrations/0101_last_updated_and_button_columns.sql
 migrations/0102_board_primary_action.sql
 migrations/0103_board_view_only.sql
 migrations/0104_board_status_since.sql
+migrations/0105_item_baselines.sql
+policies/0024_item_baselines_policies.sql

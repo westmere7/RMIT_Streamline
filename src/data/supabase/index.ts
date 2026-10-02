@@ -8,6 +8,7 @@ import { SupabaseItemFavouriteRepository } from "./repositories/item-favourite-r
 import { SupabaseBookingTemplateRepository } from "./repositories/booking-template-repository";
 import { SupabaseBoardTemplateRepository } from "./repositories/board-template-repository";
 import { SupabaseSavedViewRepository } from "./repositories/saved-view-repository";
+import { SupabaseBaselineRepository } from "./repositories/baseline-repository";
 import { SupabaseDashboardShareRepository } from "./repositories/dashboard-share-repository";
 import { SupabaseItemLinkRepository } from "./repositories/item-link-repository";
 import { SupabaseItemRepository } from "./repositories/item-repository";
@@ -60,6 +61,7 @@ export function createSupabaseRepositories(): Repositories {
     bookingTemplates: new SupabaseBookingTemplateRepository(),
     boardTemplates: new SupabaseBoardTemplateRepository(),
     savedViews: new SupabaseSavedViewRepository(),
+    baselines: new SupabaseBaselineRepository(),
     bookingSavedBlocks: new SupabaseBookingSavedBlockRepository(),
     subscriptions: new SupabaseSubscriptionRepository(),
     itemFavourites: new SupabaseItemFavouriteRepository(),

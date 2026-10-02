@@ -249,6 +249,11 @@ export function createMemoryRepositories(
       update: readOnly("saving a board template"),
       delete: readOnly("deleting a board template"),
     },
+    baselines: {
+      listByBoard: async () => [],
+      saveForBoard: readOnly("saving a baseline"),
+      clearForBoard: readOnly("clearing a baseline"),
+    },
     savedViews: {
       listByBoard: async () => [],
       create: readOnly("saving a view"),

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.87.0",
+    date: "2026-10-02",
+    title: "Gantt baselines",
+    changes: [
+      "Save a baseline on the Gantt to keep today's dates as the plan; each bar then shows the plan under it and how many days it has slipped.",
+      "The Gantt counts slipped tasks; the baseline can be replaced, hidden or cleared from its menu.",
+    ],
+  },
+  {
     version: "0.86.0",
     date: "2026-10-02",
     title: "Aging work and department service",
