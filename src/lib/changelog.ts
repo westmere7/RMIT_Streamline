@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.90.1",
+    date: "2026-10-03",
+    title: "Clearer connection cover",
+    changes: [
+      "The connection cover says what is wrong: the server isn't answering, the server answered with an error (usually maintenance), or the device is offline.",
+      "It says since when and how many checks have failed, what happens to work in the meantime, and to tell an admin if it lasts.",
+    ],
+  },
+  {
     version: "0.90.0",
     date: "2026-10-03",
     title: "Connection status",

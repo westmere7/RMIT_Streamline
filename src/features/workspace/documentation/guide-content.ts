@@ -794,7 +794,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Settings forms and the booking form editor have their own Save or Publish.",
         "If the app warns about unsaved work, stay on the page until it has saved.",
       ] },
-      { title: "When the connection drops", paragraphs: ["If the app cannot reach the server, or your device goes offline, it covers the page and pauses editing until the connection is back, so nothing you type is lost. It tries again on its own; Try now checks at once. When it is back, the page reads its data again, and a doc or tracker that could not save tries again."], note: { title: "Keep the tab open", text: "Reloading or signing in again will not help until the connection returns." } },
+      { title: "When the connection drops", paragraphs: ["If the app cannot reach the server, or your device goes offline, it covers the page and pauses editing until the connection is back, so nothing you type is lost. The cover says which it is: the server not answering, the server answering with an error (usually maintenance), or no internet on your device. It also says since when, and how many checks have failed. It tries again on its own; Try now checks at once. When it is back, the page reads its data again, and a doc or tracker that could not save tries again."], note: { title: "Keep the tab open", text: "Reloading or signing in again will not help until the connection returns." } },
       { title: "Snapshots", steps: [
         "Owners: open Settings → Snapshots and choose Take snapshot, with a name if you like. A snapshot holds every workspace.",
         "Download any snapshot as a file, or upload one downloaded before.",
@@ -857,7 +857,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "A completed task still looks open", paragraphs: ["Ask the board's owner to check that its status label means done. Check its deliverables and subitems separately."] },
       { title: "A value or department was refused", paragraphs: ["A department must be one on the list in Settings → Departments. A ticket must be unique in the workspace, unless the tasks are linked. A Booking time column belongs on Task Allocation only."] },
       { title: "The page is covered: can't reach the server", bullets: [
-        "The app cannot reach the server, or your device is offline. Editing pauses so nothing typed is lost.",
+        "Read the cover: Can't reach the server means no answer; The server is unavailable means it answered with an error, usually maintenance; You're offline means your device has no internet. Editing pauses so nothing typed is lost.",
         "Check your own connection first. If colleagues are fine, wait: it tries again on its own, or press Try now.",
         "When it clears, the page reads its data again. Check your last change arrived before making it twice.",
       ] },

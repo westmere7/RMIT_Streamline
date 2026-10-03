@@ -17,11 +17,21 @@
 
 export type ServerStatus = "ok" | "checking" | "down" | "offline";
 
+/** Why the server counts as down: no answer at all, or an answer that is an error (maintenance, overload). */
+export type DownReason = "unreachable" | "error";
+
 export interface ServerStatusSnapshot {
   status: ServerStatus;
   /** When the next automatic probe runs, while down. */
   retryAt: number | null;
+  /** When this outage began, down or offline. */
+  since: number | null;
+  /** Probes that have failed in this outage. */
+  failures: number;
+  reason: DownReason | null;
 }
+
+export const SERVER_OK: ServerStatusSnapshot = { status: "ok", retryAt: null, since: null, failures: 0, reason: null };
 
 /** Waits between probes while down: quick at first, then every half minute. */
 export const RETRY_STEPS_MS = [5_000, 10_000, 20_000, 30_000] as const;
@@ -32,9 +42,11 @@ export const HEARTBEAT_MS = 60_000;
 /** The device has to stay without a network this long before it counts. */
 export const OFFLINE_GRACE_MS = 2_000;
 
-type Probe = () => Promise<boolean>;
+/** true or "up" when the server answered; false counts as unreachable. */
+type ProbeResult = "up" | DownReason;
+type Probe = () => Promise<boolean | ProbeResult>;
 
-let snapshot: ServerStatusSnapshot = { status: "ok", retryAt: null };
+let snapshot: ServerStatusSnapshot = SERVER_OK;
 const listeners = new Set<() => void>();
 const recoveryListeners = new Set<() => void>();
 let probe: Probe | null = null;
@@ -45,7 +57,7 @@ let attempt = 0;
 let lastHeard = 0;
 
 function set(next: ServerStatusSnapshot) {
-  if (next.status === snapshot.status && next.retryAt === snapshot.retryAt) return;
+  if ((Object.keys(next) as (keyof ServerStatusSnapshot)[]).every((key) => next[key] === snapshot[key])) return;
   const wasBad = snapshot.status === "down" || snapshot.status === "offline";
   snapshot = next;
   listeners.forEach((listener) => listener());
@@ -72,20 +84,21 @@ function clearRetry() {
   retryTimer = null;
 }
 
-function scheduleRetry() {
+function scheduleRetry(reason: DownReason, failed: number) {
   clearRetry();
   const wait = RETRY_STEPS_MS[Math.min(attempt, RETRY_STEPS_MS.length - 1)]!;
   attempt += 1;
-  set({ status: "down", retryAt: Date.now() + wait });
+  set({ status: "down", retryAt: Date.now() + wait, since: snapshot.since ?? Date.now(), failures: snapshot.failures + failed, reason });
   retryTimer = setTimeout(() => void checkNow(), wait);
 }
 
-async function runProbe(): Promise<boolean> {
-  if (!probe) return true;
+async function runProbe(): Promise<ProbeResult> {
+  if (!probe) return "up";
   try {
-    return await probe();
+    const result = await probe();
+    return result === true ? "up" : result === false ? "unreachable" : result;
   } catch {
-    return false;
+    return "unreachable";
   }
 }
 
@@ -101,19 +114,21 @@ export function checkNow(): Promise<void> {
   probing = (async () => {
     clearRetry();
     const wasDown = snapshot.status === "down";
-    if (!wasDown) set({ status: "checking", retryAt: null });
-    let up = await runProbe();
-    if (!up && !wasDown) {
+    if (!wasDown) set({ ...SERVER_OK, status: "checking" });
+    let result = await runProbe();
+    let failed = result === "up" ? 0 : 1;
+    if (result !== "up" && !wasDown) {
       await new Promise((resolve) => setTimeout(resolve, CONFIRM_DELAY_MS));
-      up = await runProbe();
+      result = await runProbe();
+      if (result !== "up") failed += 1;
     }
     if (snapshot.status === "offline") return;
-    if (up) {
+    if (result === "up") {
       attempt = 0;
       lastHeard = Date.now();
-      set({ status: "ok", retryAt: null });
+      set(SERVER_OK);
     } else {
-      scheduleRetry();
+      scheduleRetry(result, failed);
     }
   })().finally(() => {
     probing = null;
@@ -139,18 +154,18 @@ export function setDeviceOnline(online: boolean): void {
   if (!online) {
     offlineTimer = setTimeout(() => {
       clearRetry();
-      set({ status: "offline", retryAt: null });
+      set({ status: "offline", retryAt: null, since: snapshot.since ?? Date.now() - OFFLINE_GRACE_MS, failures: 0, reason: null });
     }, OFFLINE_GRACE_MS);
     return;
   }
   if (snapshot.status !== "offline") return;
   if (!probe) {
-    set({ status: "ok", retryAt: null });
+    set(SERVER_OK);
     return;
   }
   attempt = 0;
   // Back on the network says nothing yet about the server; ask it.
-  set({ status: "down", retryAt: null });
+  set({ status: "down", retryAt: null, since: snapshot.since, failures: 0, reason: null });
   void checkNow();
 }
 
@@ -175,7 +190,7 @@ export function resetServerStatus(): void {
   attempt = 0;
   lastHeard = 0;
   probe = null;
-  snapshot = { status: "ok", retryAt: null };
+  snapshot = SERVER_OK;
   listeners.clear();
   recoveryListeners.clear();
 }
@@ -205,7 +220,8 @@ export const monitoredFetch: typeof fetch = async (input, init) => {
 /**
  * The probe for the hosted data server: a header-only read of one table with
  * the public key. Row rules may well return nothing, or refuse; either way the
- * server answered. Only no answer, or a 5xx, means it is not there.
+ * server answered. A 5xx is an error answer (maintenance, overload, a paused
+ * project); no answer within eight seconds is unreachable.
  */
 export function dataServerProbe(baseUrl: string, publicKey: string): Probe {
   const url = `${baseUrl.replace(/\/$/, "")}/rest/v1/workspaces?select=id&limit=1`;
@@ -214,7 +230,7 @@ export function dataServerProbe(baseUrl: string, publicKey: string): Probe {
     const timeout = setTimeout(() => controller.abort(), 8_000);
     try {
       const response = await fetch(url, { method: "HEAD", headers: { apikey: publicKey }, cache: "no-store", signal: controller.signal });
-      return !isServerError(response.status);
+      return isServerError(response.status) ? "error" : "up";
     } finally {
       clearTimeout(timeout);
     }

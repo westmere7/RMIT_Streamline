@@ -63,6 +63,27 @@
       }
     },
     {
+      "name": "dev-preview-noserver",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3400"
+      ],
+      "port": 3400,
+      "env": {
+        "NEXT_PUBLIC_DATA_PROVIDER": "supabase",
+        "NEXT_PUBLIC_SUPABASE_URL": "http://127.0.0.1:9",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "no-server",
+        "SUPABASE_SERVICE_ROLE_KEY": "no-server",
+        "SUPABASE_DB_URL": "postgres://no-server@127.0.0.1:9/none",
+        "SKIP_DB_MIGRATE": "1",
+        "NEXT_DIST_DIR": ".next-preview-noserver"
+      }
+    },
+    {
       "name": "live-site",
       "url": "https://rmit-streamline.vercel.app"
     }

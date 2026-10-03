@@ -51,6 +51,21 @@ describe("server status", () => {
     expect(getServerStatus().retryAt).toBe(Date.now() + RETRY_STEPS_MS[0]);
   });
 
+  it("says why it is down, since when, and how many checks failed", async () => {
+    const started = Date.now();
+    probe.mockImplementation(async () => "error" as unknown as boolean);
+    reportServerFailure();
+    await vi.advanceTimersByTimeAsync(CONFIRM_DELAY_MS);
+    expect(getServerStatus()).toMatchObject({ status: "down", reason: "error", failures: 2, since: started + CONFIRM_DELAY_MS });
+    probe.mockImplementation(async () => false);
+    await vi.advanceTimersByTimeAsync(RETRY_STEPS_MS[0]);
+    expect(getServerStatus()).toMatchObject({ reason: "unreachable", failures: 3, since: started + CONFIRM_DELAY_MS });
+    probe.mockImplementation(async () => up);
+    up = true;
+    await checkNow();
+    expect(getServerStatus()).toMatchObject({ status: "ok", reason: null, failures: 0, since: null });
+  });
+
   it("retries on a widening interval and recovers on the first answer", async () => {
     const recovered = vi.fn();
     onServerRecovered(recovered);
