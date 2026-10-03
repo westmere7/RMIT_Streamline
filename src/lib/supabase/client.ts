@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getAppConfig } from "@/lib/config";
+import { monitoredFetch } from "@/lib/server-status";
 
 /**
  * Supabase client factory.
@@ -24,6 +25,8 @@ export function getSupabaseClient(): SupabaseClient {
   }
   cached = createClient(config.supabaseUrl, config.supabaseAnonKey, {
     auth: { persistSession: true, autoRefreshToken: true },
+    // Every request reports how it went, so an outage shows on screen (connection-guard.tsx).
+    global: { fetch: monitoredFetch },
   });
   return cached;
 }

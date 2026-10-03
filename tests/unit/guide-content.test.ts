@@ -24,7 +24,7 @@ describe("the in-app guide", () => {
 
   it("describes the current app, not work in progress or screens that are gone", () => {
     const text = guideMarkdown();
-    for (const stale of ["being updated", "pending completion", "Demand & Delivery", "Settings → Lists", "Settings → Data", "Export data", "do not synchronize asset lines"]) {
+    for (const stale of ["being updated", "pending completion", "Demand & Delivery", "Settings → Lists", "Settings → Data", "Export data", "do not synchronize asset lines", "a bar says so", "Admins, shared workspaces only", "Admins: open Settings → Snapshots"]) {
       expect(text, `the guide still says "${stale}"`).not.toContain(stale);
     }
   });
@@ -34,5 +34,9 @@ describe("the in-app guide", () => {
     expect(searchGuide("snapshot").map((a) => a.id)).toContain("data");
     expect(searchGuide("template").map((a) => a.id)).toContain("boards");
     expect(searchGuide("reaction").map((a) => a.id)).toContain("collaboration");
+    expect(searchGuide("docx").map((a) => a.id)).toContain("docs");
+    expect(searchGuide("baseline").map((a) => a.id)).toContain("views");
+    expect(searchGuide("rows splits").map((a) => a.id)).toContain("views");
+    expect(searchGuide("reach the server").map((a) => a.id)).toEqual(expect.arrayContaining(["data", "troubleshooting"]));
   });
 });

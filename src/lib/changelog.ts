@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.90.0",
+    date: "2026-10-03",
+    title: "Connection status",
+    changes: [
+      "When the server can't be reached, or the device goes offline, the page is covered and editing pauses until it's back, so nothing typed is lost. It retries on its own; Try now checks at once.",
+      "When the connection returns, the page reads its data again, and a doc or tracker that could not save tries again.",
+      "The guide covers docs, View only boards, Kanban rows and lanes, Gantt baselines, Workload capacity, work types, the Departments and Aging work panels, more than one workspace and Report a bug.",
+    ],
+  },
+  {
     version: "0.89.0",
     date: "2026-10-02",
     title: "Docs",

@@ -96,7 +96,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         <footer className="rounded-b-2xl border-t border-border/70 bg-surface/60 px-6 py-3.5" data-testid="about-facts">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
             <Fact label="Workspace" value={ws.workspace.name} />
-            <Fact label="Data" value={providerKind === "supabase" ? "Supabase · shared" : "This browser only"} />
+            <Fact label="Data" value={providerKind === "supabase" ? "Server · shared" : "This browser only"} />
             <Fact label="Deployment" value={DEPLOY_ENV} />
             <Fact label="Commit" value={shortBuildId(CURRENT_VERSION.buildId)} mono />
             <Fact label="Backend region" value={BACKEND_REGION ?? (projectRef ? `${projectRef} · region not set` : "—")} />

@@ -11,6 +11,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
+import { onServerRecovered } from "@/lib/server-status";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { CreateDocInput } from "@/services";
 
@@ -95,6 +96,8 @@ export function useDocSaver(docId: string) {
   const flush = React.useRef<(() => void) | null>(null);
   /** True from the first keystroke until its save lands, so a remote copy does not replace what is being typed. */
   const dirty = React.useRef(false);
+  /** What failed to save, kept so it can go again once the server is back. */
+  const failed = React.useRef<DocContent | null>(null);
 
   const save = React.useCallback(
     (content: DocContent) => {
@@ -108,12 +111,14 @@ export function useDocSaver(docId: string) {
         setState("saving");
         try {
           const saved = await services.docs.update(docId, { content }, user.id);
+          failed.current = null;
           dirty.current = timer.current !== null;
           queryClient.setQueryData(queryKeys.doc(docId), saved);
           void queryClient.invalidateQueries({ queryKey: ["docs"] });
           publishDataChange({ kinds: ["docs"] });
           setState(timer.current ? "pending" : "idle");
         } catch (error) {
+          if (!timer.current) failed.current = content;
           setState("error");
           toast.error("Could not save the doc", { description: error instanceof Error ? error.message : undefined });
         } finally {
@@ -133,6 +138,14 @@ export function useDocSaver(docId: string) {
   );
 
   React.useEffect(() => () => flush.current?.(), []);
+
+  React.useEffect(
+    () =>
+      onServerRecovered(() => {
+        if (failed.current) save(failed.current);
+      }),
+    [save],
+  );
 
   return { save, state, dirty };
 }

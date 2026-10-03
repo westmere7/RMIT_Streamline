@@ -158,7 +158,7 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
         </div>
 
         <p className="text-2xs text-muted-foreground sm:col-span-2">
-          Email is <span className="font-medium">{user.email}</span> — sign-in addresses are changed in Supabase Auth.
+          Email is <span className="font-medium">{user.email}</span> — ask an admin to change it.
         </p>
       </div>
 

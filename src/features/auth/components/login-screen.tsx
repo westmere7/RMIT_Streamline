@@ -88,7 +88,7 @@ export function LoginScreen() {
       footnote={
         <span className="inline-flex items-center gap-2">
           <span className={cn("size-1.5 rounded-full", needsPassword ? "bg-green-400" : "bg-amber-300")} />
-          {needsPassword ? "Connected to Supabase · data is shared across the workspace" : "Local development build · data stays in this browser"}
+          {needsPassword ? "Connected · data is shared across the workspace" : "Local development build · data stays in this browser"}
         </span>
       }
       cardTestId="login-card"

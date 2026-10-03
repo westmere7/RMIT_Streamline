@@ -10,6 +10,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
+import { onServerRecovered } from "@/lib/server-status";
 import { beginUnsavedWork } from "@/lib/unsaved-work";
 import type { CreateTrackerInput } from "@/services";
 
@@ -187,6 +188,8 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
   // cancel. See the effect at the bottom of this hook.
   const flush = React.useRef<(() => void) | null>(null);
   const [saving, setSaving] = React.useState<"idle" | "pending" | "saving" | "error">("idle");
+  // The sheet that failed to save, sent again once the server is back.
+  const failed = React.useRef<TrackerSheet | null>(null);
 
   // A newer server copy (another tab saved) replaces the local one while nothing
   // local is pending — derived state, resolved during render.
@@ -211,10 +214,12 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
         try {
           const saved = await services.trackers.saveSheet(next.id, { columns: next.columns, rows: next.rows, frozenColumns: next.frozenColumns });
           store.dirty = false;
+          failed.current = null;
           queryClient.setQueryData<TrackerSheet[]>(queryKeys.trackerSheets(next.trackerId), (old) => old?.map((s) => (s.id === saved.id ? saved : s)));
           publishDataChange({ kinds: ["trackers"] });
           setSaving("idle");
         } catch (error) {
+          if (!timer.current) failed.current = next;
           setSaving("error");
           toast.error("Could not save the sheet", { description: error instanceof Error ? error.message : undefined });
         } finally {
@@ -230,6 +235,14 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
       timer.current = window.setTimeout(() => void run(), 600);
     },
     [services, queryClient, store],
+  );
+
+  React.useEffect(
+    () =>
+      onServerRecovered(() => {
+        if (failed.current) persist(failed.current);
+      }),
+    [persist],
   );
 
   const commit = React.useCallback(

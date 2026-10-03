@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { useState } from "react";
 import { Toaster } from "sonner";
+import { ConnectionGuard } from "@/components/shared/connection-guard";
 import { AuthProviderContext } from "@/features/auth/auth-context";
 import { DataProviderContext } from "@/features/data/data-context";
 import { LocalRealtimeSync } from "@/features/data/local-realtime-sync";
@@ -53,6 +54,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
                 },
               }}
             />
+            <ConnectionGuard />
           </TooltipPrimitive.Provider>
         </AuthProviderContext>
       </DataProviderContext>

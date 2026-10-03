@@ -1272,7 +1272,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 - Below 768 CSS px `useIsMobile()` (the only place 767 appears; `useSyncExternalStore`, server snapshot `false`) switches `AppShell` to the phone shell: a top bar (brand, title, search) and five destinations — Home, My Work, Browse, Inbox, More. The desktop frame is not mounted at all.
 - `browse` and `more` carry what the sidebar holds on desktop. Automations sit under More, with a running mark on the More tab.
 - **Overlays (v0.50).** `DialogContent` and `AlertDialogContent` carry phone classes (`max-md:`): a bottom sheet, full width, up to 92dvh, a grabber, a 44 px close button, the safe area below. Every dialog took that shape at once, with no per-caller change. Search (`command.tsx`) is full screen with Cancel. Popovers and dropdown menus are capped to the space Radix reports (`--radix-popover-content-available-height`) and to the screen's width.
-- **App-like (v0.50).** `src/app/manifest.ts` (standalone, start `/`, 192/512/maskable icons from the logo), an Apple touch icon, `viewport.themeColor` for light and dark, and `appleWebApp` metadata. An offline bar (`offline-banner.tsx`) shows in both shells; mutations pause offline and resume. On an iPhone or iPad outside the installed app, Notification settings says to add Streamline to the Home Screen (`homeScreenNeeded` in `browser-notifications.ts`). The restore and wipe screens hold a screen wake lock.
+- **App-like (v0.50).** `src/app/manifest.ts` (standalone, start `/`, 192/512/maskable icons from the logo), an Apple touch icon, `viewport.themeColor` for light and dark, and `appleWebApp` metadata. An offline bar showed in both shells until v0.90, when the connection guard replaced it (see Connection guard). On an iPhone or iPad outside the installed app, Notification settings says to add Streamline to the Home Screen (`homeScreenNeeded` in `browser-notifications.ts`). The restore and wipe screens hold a screen wake lock.
 - `Test_prompts/audits/2026-09-26-full-e2e/MOBILE_AUDIT.md` has the page-by-page audit, what v0.50 built, and what is left.
 
 **The phone board.**
@@ -1590,6 +1590,10 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 ### Unsaved-work guard
 
 `beginUnsavedWork()` counts in-flight saves. `beforeunload` asks the browser to confirm while the count is above zero. Tracker autosave uses it; it is not an offline queue.
+
+### Connection guard (v0.90)
+
+`src/lib/server-status.ts` is a small store: `ok`, `checking`, `down` or `offline`. The Supabase client is built with `monitoredFetch`, so every request reports a network error or 5xx (`reportServerFailure`) or an answer. A failure starts a probe, a `HEAD /rest/v1/workspaces?select=id&limit=1` with the anon key (any status under 500 is up); two failed probes 1.5 s apart mark it down, then it re-probes at 5, 10, 20 and 30 s. The browser's `offline` event counts after 2 s. A visible tab that has heard nothing for a minute probes once a minute. `ConnectionGuard` (mounted in `AppProviders`, so the login page and public links have it too) covers the page while down or offline, swallows keys except reload, and on recovery resumes paused mutations and invalidates every query; the doc and tracker savers re-send a save that failed (`onServerRecovered`). The copy never names the backend. Local mode has no probe, only the offline state.
 
 ## 17. Database operations
 

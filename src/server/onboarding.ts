@@ -151,9 +151,9 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
     if (created.error || !created.data.user) {
       const message = created.error?.message ?? "unknown error";
       if (/already|exists|registered/i.test(message)) {
-        throw new HttpError(409, `An account for ${input.email} already exists in Supabase Auth without a profile. Remove it in the Supabase dashboard or use a different email.`);
+        throw new HttpError(409, `An account for ${input.email} already exists without a profile. Remove that account or use a different email.`);
       }
-      throw new HttpError(502, `Supabase Auth could not create the account: ${message}`);
+      throw new HttpError(502, `The sign-in service could not create the account: ${message}`);
     }
     // handle_new_user() runs in the same transaction as the auth insert, so the profile exists now.
     const updated = await admin
@@ -389,7 +389,7 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
   });
   if (account.error) {
     const message = account.error.message;
-    throw new HttpError(/password/i.test(message) ? 400 : 502, /password/i.test(message) ? message : `Supabase Auth could not set the password: ${message}`);
+    throw new HttpError(/password/i.test(message) ? 400 : 502, /password/i.test(message) ? message : `The sign-in service could not set the password: ${message}`);
   }
 
   const now = new Date().toISOString();

@@ -158,12 +158,13 @@ test.describe("on a phone", () => {
     await expect(page.getByText("Made on a phone").first()).toBeVisible();
   });
 
-  test("losing the connection says so, and coming back clears it", async ({ page, context }) => {
+  test("losing the connection says so and pauses editing, and coming back clears it", async ({ page, context }) => {
     await expect(page.getByTestId("mobile-shell")).toBeVisible();
     await context.setOffline(true);
-    await expect(page.getByTestId("offline-banner")).toBeVisible();
+    await expect(page.getByTestId("connection-guard")).toBeVisible();
+    await expect(page.getByTestId("connection-guard")).toHaveAttribute("data-state", "offline");
     await context.setOffline(false);
-    await expect(page.getByTestId("offline-banner")).toHaveCount(0);
+    await expect(page.getByTestId("connection-guard")).toHaveCount(0);
   });
 
   test("the form's save and publish controls sit above the form, not under it", async ({ page }) => {
