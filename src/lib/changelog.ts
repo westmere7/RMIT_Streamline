@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.91.1",
+    date: "2026-10-06",
+    title: "Better column guesses for asset sheets",
+    changes: [
+      "Using a sheet for a task now recognises Versions, Copies and Pcs as the quantity, and Signed off, Ready, Live and similar ticks as done.",
+    ],
+  },
+  {
     version: "0.91.0",
     date: "2026-10-06",
     title: "Tracker sheets as task assets",

@@ -93,9 +93,11 @@ export function suggestAssetMapping(sheet: Pick<TrackerSheet, "columns">): Track
   const mapping = emptyAssetMapping();
   mapping.pic.columnId = pick((c) => c.type === "person") ?? pick((c) => c.type === "text" && named(/^(pic|owner|designer|assignee|assigned to|who|in charge|person|people)$/i)(c));
   mapping.due.columnId = pick((c) => c.type === "date" && named(/due|deadline|live|delivery|deliver by|launch/i)(c)) ?? pick((c) => c.type === "date");
-  mapping.quantity.columnId = pick((c) => c.type === "number" && named(/^(qty|quantity|count|units?|#|no\.?|number|amount|pieces|variants?)$/i)(c)) ?? pick((c) => c.type === "number" && named(/qty|quantity|count/i)(c));
+  mapping.quantity.columnId =
+    pick((c) => c.type === "number" && named(/^(qty|quantity|count|units?|#|no\.?|number|amount|pieces|pcs|variants?|versions?|copies|sizes|formats)$/i)(c)) ??
+    pick((c) => c.type === "number" && named(/qty|quantity|count|variants?|versions?|copies/i)(c));
   mapping.type.columnId = pick((c) => (c.type === "list" || c.type === "text") && named(/^(type|asset type|deliverable type|kind|category)$/i)(c));
-  const done = pick((c) => c.type === "checkbox" && named(/done|complete|delivered|approved|final/i)(c)) ?? pick((c) => c.type === "list" && named(/^status$|status|state|progress|stage/i)(c) && (c.options ?? []).some((o) => DONE_WORDS.test(o)));
+  const done = pick((c) => c.type === "checkbox" && named(/done|complete|delivered|approved|final|signed[ -]?off|sign[ -]?off|sent|live|published|ready|finished/i)(c)) ?? pick((c) => c.type === "list" && named(/^status$|status|state|progress|stage/i)(c) && (c.options ?? []).some((o) => DONE_WORDS.test(o)));
   if (done) {
     const column = cols.find((c) => c.id === done)!;
     mapping.done = { columnId: done, values: column.type === "list" ? (column.options ?? []).filter((o) => DONE_WORDS.test(o)) : [] };

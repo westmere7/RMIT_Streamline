@@ -72,6 +72,13 @@ describe("a sheet as assets", () => {
     expect(coercePeople("Jane Morrison, u2", people)).toBe("u1,u2");
   });
 
+  it("knows the usual other names for quantity and done", () => {
+    const m = suggestAssetMapping({ columns: [col("a", "Deliverable", "text"), col("v", "Versions", "number"), col("s", "Signed off", "checkbox")] });
+    expect(m.name).toBe("a");
+    expect(m.quantity.columnId).toBe("v");
+    expect(m.done.columnId).toBe("s");
+  });
+
   it("is used only when it can name a line", () => {
     expect(sheetAssetLines({ columns: COLUMNS, rows: [data("r", { "c-asset": "X" })] }, emptyAssetMapping())).toEqual([]);
   });
