@@ -1,5 +1,5 @@
 import type { TrackerCellValue, TrackerColumn, TrackerNumberFormat, TrackerRow, TrackerSheet, TrackerSummaryKind } from "@/domain";
-import { isBlankCell } from "@/domain";
+import { isBlankCell, personNames } from "@/domain";
 import { formatCell, type CellAddress, type CellRange } from "@/features/trackers/grid-model";
 import { TrackerService, type CellEdit } from "@/services/tracker-service";
 
@@ -69,6 +69,7 @@ function sortKey(column: TrackerColumn, value: TrackerCellValue | undefined): nu
   if (isBlankCell(value) && value !== false) return null;
   if (typeof value === "number") return value;
   if (typeof value === "boolean") return value ? 0 : 1;
+  if (column.type === "person") return personNames(value).toLowerCase();
   if (column.type === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   if (column.type === "number") {
     const n = Number(String(value).replace(/[,\s]/g, ""));

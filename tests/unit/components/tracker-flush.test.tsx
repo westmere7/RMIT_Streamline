@@ -19,11 +19,13 @@ import { useSheetEditor } from "@/features/trackers/hooks";
  * still passes.
  */
 
-const saveSheet = vi.fn(async (id: string, patch: Record<string, unknown>) => ({ ...sheet(), id, ...patch }) as TrackerSheet);
+const saveSheet = vi.fn(async (id: string, patch: Record<string, unknown>) => ({ sheet: { ...sheet(), id, ...patch, updatedAt: "2026-01-01T00:00:01.000Z" } as TrackerSheet, sync: null }));
 
 vi.mock("@/features/data/data-context", () => ({
-  useServices: () => ({ trackers: { saveSheet } }),
+  useServices: () => ({ trackers: { saveSheetDraft: saveSheet } }),
 }));
+
+vi.mock("@/features/auth/auth-context", () => ({ useCurrentUser: () => ({ id: "user-1" }) }));
 
 vi.mock("@/lib/sync/broadcast", () => ({ publishDataChange: () => undefined }));
 vi.mock("@/features/unsaved/unsaved-work", () => ({ beginUnsavedWork: () => () => undefined }));

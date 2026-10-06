@@ -1,5 +1,5 @@
-import type { ActivityEventType, ActivityInput, ActivityMetadata, AssetLink, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
-import { picFromAssets, progressColumnValue, recapAssets, recapColumnValue, resolveColumnRoles } from "@/domain";
+import type { ActivityEventType, ActivityInput, ActivityMetadata, AssetLink, EntityId, ItemAsset, ItemAssetInput, ItemAssetPatch, SheetAssetLine, TrackerSheet } from "@/domain";
+import { isMappingUsable, picFromAssets, progressColumnValue, recapAssets, recapColumnValue, resolveColumnRoles, sheetAssetLines } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { todayISO } from "@/lib/dates/dates";
@@ -28,12 +28,104 @@ export interface BoardAssets {
   linkedBoardIds: EntityId[];
 }
 
+/** Where a tracker sheet's line is ticked off when somebody ticks it on the task. Set by TrackerService. */
+export type SheetLineDoneHandler = (line: ItemAsset, done: boolean, actorId: EntityId) => Promise<void>;
+
+/** What a sheet sync changed, for the save indicator and the tests. */
+export interface SheetSyncResult {
+  added: number;
+  updated: number;
+  removed: number;
+}
+
+/** Positions after the task's own lines, so a sheet's lines read as their own group. */
+const SHEET_POSITION_BASE = 100_000;
+
 export class ItemAssetService {
+  private sheetLineDone: SheetLineDoneHandler | null = null;
+
   /** `items` writes the PIC a line's people feed (see `syncPic`); without it the PIC is left alone. */
   constructor(
     private readonly repos: Repositories,
     private readonly items?: ItemService,
   ) {}
+
+  /** Lets ticking a sheet's line on the task tick the row in the sheet instead (see `update`). */
+  onSheetLineDone(handler: SheetLineDoneHandler): void {
+    this.sheetLineDone = handler;
+  }
+
+  /**
+   * Makes a task's asset lines match its tracker sheet: one line a data row,
+   * added, changed and removed by row id, so a line keeps its id (and anything
+   * hanging off it) while its row lives. Only what moved is written, and a save
+   * that changed nothing the lines show writes nothing at all.
+   *
+   * An unlinked sheet, or one whose mapping cannot name a line, has no lines:
+   * any it wrote before are taken off.
+   */
+  async syncFromSheet(sheet: Pick<TrackerSheet, "id" | "itemId" | "assetMapping" | "columns" | "rows">, actorId: EntityId): Promise<SheetSyncResult> {
+    const existing = await this.repos.itemAssets.listBySheet(sheet.id);
+    const itemId = sheet.itemId ?? existing[0]?.itemId ?? null;
+    if (!itemId) return { added: 0, updated: 0, removed: 0 };
+    const item = await this.repos.items.getById(itemId);
+    if (!item) return { added: 0, updated: 0, removed: 0 };
+
+    const linked = sheet.itemId === item.id && isMappingUsable(sheet.assetMapping);
+    const desired = linked ? sheetAssetLines(sheet, sheet.assetMapping!, await this.people()) : [];
+    const byRow = new Map(existing.map((line) => [line.trackerRowId ?? "", line]));
+    const wanted = new Set(desired.map((line) => line.rowId));
+
+    const creates: ItemAssetInput[] = [];
+    const updates: Array<{ line: ItemAsset; patch: ItemAssetPatch }> = [];
+    const now = new Date().toISOString();
+    for (const line of desired) {
+      const current = byRow.get(line.rowId);
+      if (!current) {
+        creates.push({ ...fieldsOf(line), itemId: item.id, boardId: item.boardId, completedAt: line.done ? now : null, trackerSheetId: sheet.id, trackerRowId: line.rowId, createdBy: actorId });
+        continue;
+      }
+      const patch = diffLine(current, line, now);
+      if (patch) updates.push({ line: current, patch });
+    }
+    const removals = existing.filter((line) => !wanted.has(line.trackerRowId ?? "") || line.itemId !== item.id);
+    if (creates.length === 0 && updates.length === 0 && removals.length === 0) return { added: 0, updated: 0, removed: 0 };
+
+    const people = await this.assigneesOf(item.id);
+    if (removals.length) await this.repos.itemAssets.deleteMany(removals.map((line) => line.id));
+    for (const { line, patch } of updates) await this.repos.itemAssets.update(line.id, patch);
+    if (creates.length) await this.repos.itemAssets.createMany(creates);
+    await this.recompute(item.id, item.boardId);
+
+    // The feed hears about arrivals, departures and things finished, once each
+    // and summed: typing in a sheet saves every second, and a renamed cell is
+    // not news.
+    const events: AssetEvent[] = [];
+    if (creates.length) events.push({ eventType: "ASSET_ADDED", metadata: creates.length === 1 ? { assetName: creates[0]!.name } : { count: creates.length } });
+    if (removals.length) events.push({ eventType: "ASSET_REMOVED", metadata: { assetName: removals.length === 1 ? removals[0]!.name : `${removals.length} lines` } });
+    const finished = updates.filter(({ line, patch }) => patch.completedAt && !line.completedAt);
+    if (finished.length) events.push({ eventType: "ASSET_COMPLETED", metadata: { assetName: finished.length === 1 ? (finished[0]!.patch.name ?? finished[0]!.line.name) : `${finished.length} lines` } });
+    const reopened = updates.filter(({ line, patch }) => patch.completedAt === null && line.completedAt);
+    if (reopened.length) events.push({ eventType: "ASSET_REOPENED", metadata: { assetName: reopened.length === 1 ? reopened[0]!.line.name : `${reopened.length} lines` } });
+    await this.record(item.id, item.boardId, actorId, events);
+    await this.syncPic(item.id, people, actorId);
+    return { added: creates.length, updated: updates.length, removed: removals.length };
+  }
+
+  /** Everyone a PIC cell may name, under each name they go by. */
+  private async people(): Promise<Array<{ id: EntityId; name: string; email: string | null }>> {
+    const users = await this.repos.users.list();
+    return users.flatMap((u) => {
+      const full = `${u.firstName} ${u.lastName}`.trim();
+      const names = [...new Set([u.displayName, full].filter(Boolean))];
+      return names.map((name) => ({ id: u.id, name, email: u.email }));
+    });
+  }
+
+  /** Refuses an edit to a sheet's line: those are changed in the sheet. */
+  private guardSheetLine(line: ItemAsset | null | undefined): void {
+    if (line?.trackerSheetId) throw new Error("This line comes from a tracker sheet. Change it in the sheet.");
+  }
 
   /**
    * The item's deliverables, which on a linked task means the pair's.
@@ -171,7 +263,7 @@ export class ItemAssetService {
   async add(input: Omit<ItemAssetInput, "position" | "createdBy">, actorId: EntityId): Promise<ItemAsset> {
     if (!input.name.trim()) throw new Error("Say what the asset is");
     const people = await this.assigneesOf(input.itemId);
-    const existing = await this.repos.itemAssets.listByItem(input.itemId);
+    const existing = (await this.repos.itemAssets.listByItem(input.itemId)).filter((a) => !a.trackerSheetId);
     const position = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
     const created = await this.repos.itemAssets.create({ ...input, position, createdBy: actorId });
     await this.recompute(input.itemId, created.boardId);
@@ -188,7 +280,7 @@ export class ItemAssetService {
     const kept = lines.filter((line) => line.name.trim());
     if (kept.length === 0) return [];
     const people = await this.assigneesOf(kept[0]!.itemId);
-    const existing = await this.repos.itemAssets.listByItem(kept[0]!.itemId);
+    const existing = (await this.repos.itemAssets.listByItem(kept[0]!.itemId)).filter((a) => !a.trackerSheetId);
     const start = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
     const created = await Promise.all(kept.map((line, index) => this.repos.itemAssets.create({ ...line, position: start + index, createdBy: actorId })));
     const first = created[0]!;
@@ -214,6 +306,7 @@ export class ItemAssetService {
     const people = peopleOn(all);
     const lines = all.filter((line) => line.blockId === blockId);
     if (lines.length === 0) throw new NotFoundError("Block", blockId);
+    this.guardSheetLine(lines[0]);
     const first = lines[0]!;
     const linePatch: ItemAssetPatch = {};
     if (patch.ungroup) Object.assign(linePatch, { blockId: null, blockName: null, blockLinks: [] });
@@ -254,6 +347,7 @@ export class ItemAssetService {
     const current = all.filter((line) => line.blockId === blockId);
     if (current.length === 0) throw new NotFoundError("Block", blockId);
     const first = current[0]!;
+    this.guardSheetLine(first);
     const shared: ItemAssetPatch = { blockName, assigneeIds: form.assigneeIds, blockLinks: form.links };
     const events: AssetEvent[] = [];
 
@@ -280,7 +374,7 @@ export class ItemAssetService {
     }
     const fresh = form.lines.filter((line) => !line.id && line.name.trim());
     if (fresh.length) {
-      const existing = await this.repos.itemAssets.listByItem(first.itemId);
+      const existing = (await this.repos.itemAssets.listByItem(first.itemId)).filter((a) => !a.trackerSheetId);
       const start = existing.length ? Math.max(...existing.map((a) => a.position)) + 1 : 0;
       for (const [index, line] of fresh.entries()) {
         const created = await this.repos.itemAssets.create({
@@ -311,6 +405,7 @@ export class ItemAssetService {
     const lines = all.filter((line) => line.blockId === blockId);
     if (lines.length === 0) return;
     const first = lines[0]!;
+    this.guardSheetLine(first);
     await Promise.all(lines.map((line) => this.repos.itemAssets.delete(line.id)));
     await this.recompute(first.itemId, first.boardId);
     await this.record(first.itemId, first.boardId, actorId, [{ eventType: "ASSET_REMOVED", metadata: { assetName: first.blockName ?? "a block" } }]);
@@ -321,6 +416,16 @@ export class ItemAssetService {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Say what the asset is");
     if (patch.quantity !== undefined && patch.quantity !== null && (!Number.isFinite(patch.quantity) || patch.quantity < 0)) throw new Error("Quantity must be zero or more");
     const before = await this.repos.itemAssets.getById(id);
+    if (before?.trackerSheetId) {
+      // A sheet's line is ticked off on the task like any other, by ticking its
+      // row in the sheet; nothing else about it is changed here.
+      const keys = Object.keys(patch).filter((key) => patch[key as keyof ItemAssetPatch] !== undefined);
+      if (keys.length === 1 && keys[0] === "completedAt" && this.sheetLineDone) {
+        await this.sheetLineDone(before, patch.completedAt !== null, actorId);
+        return (await this.repos.itemAssets.getById(id)) ?? before;
+      }
+      this.guardSheetLine(before);
+    }
     // Only a change of people can move the PIC, so nothing else pays for the read.
     const people = before && patch.assigneeIds !== undefined ? await this.assigneesOf(before.itemId) : null;
     const updated = await this.repos.itemAssets.update(id, patch);
@@ -332,6 +437,7 @@ export class ItemAssetService {
 
   async remove(id: EntityId, itemId: EntityId, boardId: EntityId, actorId: EntityId): Promise<void> {
     const before = await this.repos.itemAssets.getById(id);
+    this.guardSheetLine(before);
     const people = await this.assigneesOf(itemId);
     await this.repos.itemAssets.delete(id);
     await this.recompute(itemId, boardId);
@@ -469,6 +575,42 @@ export class ItemAssetService {
 /** The columns worked out from a task's asset lines rather than typed in. */
 export function isAssetColumn<T extends { type: string }>(column: T): column is T & { type: "ASSETS_RECAP" | "PROGRESS" } {
   return column.type === "ASSETS_RECAP" || column.type === "PROGRESS";
+}
+
+/** The stored fields a sheet line sets. */
+function fieldsOf(line: SheetAssetLine) {
+  return {
+    name: line.name,
+    assetType: line.assetType,
+    quantity: line.quantity,
+    assigneeIds: line.assigneeIds,
+    dueDate: line.dueDate,
+    notes: line.notes,
+    links: line.links,
+    blockId: line.blockId,
+    blockName: line.blockName,
+    blockLinks: [],
+    position: SHEET_POSITION_BASE + line.position,
+  };
+}
+
+/** What has to change on a stored line to match its row, or null when nothing does. Done keeps the moment it was first ticked. */
+function diffLine(current: ItemAsset, line: SheetAssetLine, now: string): ItemAssetPatch | null {
+  const want = fieldsOf(line);
+  const patch: ItemAssetPatch = {};
+  if (current.name !== want.name) patch.name = want.name;
+  if ((current.assetType ?? null) !== want.assetType) patch.assetType = want.assetType;
+  if ((current.quantity ?? null) !== want.quantity) patch.quantity = want.quantity;
+  if (current.assigneeIds.join(",") !== want.assigneeIds.join(",")) patch.assigneeIds = want.assigneeIds;
+  if ((current.dueDate ?? null) !== want.dueDate) patch.dueDate = want.dueDate;
+  if ((current.notes ?? null) !== want.notes) patch.notes = want.notes;
+  if (JSON.stringify(current.links.map((l) => [l.label, l.url])) !== JSON.stringify(want.links.map((l) => [l.label, l.url]))) patch.links = want.links;
+  if ((current.blockId ?? null) !== want.blockId) patch.blockId = want.blockId;
+  if ((current.blockName ?? null) !== want.blockName) patch.blockName = want.blockName;
+  if (current.position !== want.position) patch.position = want.position;
+  if (line.done && !current.completedAt) patch.completedAt = now;
+  if (!line.done && current.completedAt) patch.completedAt = null;
+  return Object.keys(patch).length ? patch : null;
 }
 
 function peopleOn(lines: readonly ItemAsset[]): Set<EntityId> {

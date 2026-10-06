@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, ListPlus, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Undo2, WrapText } from "lucide-react";
+import { ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, ListPlus, MoveHorizontal, Package, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Undo2, WrapText } from "lucide-react";
 import { toast } from "sonner";
 import * as React from "react";
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useEditFocus } from "@/components/shared/inline-edit";
 import {
   TRACKER_COLUMN_TYPES,
   TRACKER_COLUMN_TYPE_LABELS,
@@ -45,7 +46,11 @@ import {
   type TrackerRow,
   type TrackerRowKind,
   type TrackerSheet,
+  type User,
 } from "@/domain";
+import { ASSET_ROLE_LABELS, PeopleCellView, PeopleEditor, assetFallbacks, assetRoles, type AssetRole } from "@/features/trackers/tracker-asset-ui";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { type CellAddress, type CellRange, clampAddress, formatCell, frozenOffsets, inRange, parseTsv, rangeBetween, rangeToTsv } from "@/features/trackers/grid-model";
 import { EMPTY_VIEW, clearVisible, effectiveSummary, fillDown, formatNumber, isViewFiltering, jumpTarget, pasteVisible, projectSheet, selectionStats, summaryKindsFor, type SheetView } from "@/features/trackers/sheet-view";
 import { FilterValuesDialog, HeaderViewMarks, SheetViewBar, SummaryCell } from "@/features/trackers/tracker-grid-extras";
@@ -111,7 +116,20 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
   const visibleRowsOf = (s: TrackerSheet) => projectSheet(s, sheetView).rows;
   const dataRowCount = (list: TrackerRow[]) => list.filter((r) => r.kind === "data").length;
 
-  const columns = sheet.columns.map((c) => ({ ...c, width: widthOverrides[c.id] ?? c.width }));
+  const ws = useWorkspace();
+  const users = ws.users;
+  const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
+  const roles = React.useMemo(() => assetRoles(sheet.assetMapping), [sheet.assetMapping]);
+  const fallbacks = React.useMemo(() => assetFallbacks(sheet.assetMapping), [sheet.assetMapping]);
+  // The column a linked sheet reads asset types from offers the workspace's
+  // asset types, so a row's type is one the dashboard counts.
+  const columns = sheet.columns.map((c) => {
+    const sized = { ...c, width: widthOverrides[c.id] ?? c.width };
+    if (roles.get(c.id) !== "type" || c.type !== "list") return sized;
+    const options = [...(c.options ?? [])];
+    for (const t of assetTypes) if (!options.some((o) => o.toLowerCase() === t.name.toLowerCase())) options.push(t.name);
+    return { ...sized, options };
+  });
   const frozen = Math.min(sheet.frozenColumns, columns.length);
   const offsets = frozenOffsets(columns, frozen, GUTTER);
   const totalWidth = GUTTER + columns.reduce((sum, c) => sum + c.width, 0) + 40;
@@ -139,7 +157,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
       toggleCheckbox(address);
       return;
     }
-    setEditing({ row: address.row, col: address.col, initial });
+    setEditing({ row: address.row, col: address.col, initial: target.column.type === "person" ? undefined : initial });
   };
 
   const toggleCheckbox = (address: CellAddress) => {
@@ -364,6 +382,12 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the active cell moves; widths are read live
   }, [active]);
 
+  /** Double-clicking a column's edge: as wide as its longest value, as in Excel. */
+  const autoFit = (column: TrackerColumn) => {
+    const width = fitWidth(column, sheet.rows);
+    if (width !== column.width) commit((s) => TrackerService.updateColumn(s, column.id, { width }));
+  };
+
   const resizeColumn = (column: TrackerColumn, event: React.PointerEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -413,7 +437,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
         onEditRow={canEdit && activeDataRow ? () => setRowEditorOpen(true) : null}
       />
       <SheetViewBar sheet={sheet} view={sheetView} hidden={projection.hiddenDataRows} visibleDataRows={dataRowCount(rows)} onChange={setSheetView} searchRef={searchRef} />
-      <MobileRowEditor sheet={sheet} row={activeDataRow} open={rowEditorOpen} onOpenChange={setRowEditorOpen} commit={commit} />
+      <MobileRowEditor sheet={sheet} row={activeDataRow} open={rowEditorOpen} onOpenChange={setRowEditorOpen} commit={commit} users={users} />
       <div
         ref={containerRef}
         tabIndex={0}
@@ -467,6 +491,8 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                     focusGrid();
                   }}
                   onResize={(e) => resizeColumn(column, e)}
+                  onAutoFit={() => autoFit(column)}
+                  role={roles.get(column.id) ?? null}
                   onChange={(patch) => commit((s) => TrackerService.updateColumn(s, column.id, patch))}
                   onInsert={(side) => commit((s) => TrackerService.insertColumn(s, side === "left" ? index : index + 1))}
                   onMove={(delta) => commit((s) => TrackerService.moveColumn(s, column.id, index + delta))}
@@ -519,6 +545,8 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                 }}
                 view={view}
                 rowHeight={rowHeight}
+                users={users}
+                fallbacks={fallbacks}
                 striped={view.stripes && r % 2 === 1}
                 onDoubleClickCell={(c) => startEdit({ row: r, col: c })}
                 onSelectRow={(extend) => {
@@ -652,6 +680,9 @@ interface ColumnHeaderProps {
   onFilter: () => void;
   onSelectColumn: (extend: boolean) => void;
   onResize: (e: React.PointerEvent) => void;
+  onAutoFit: () => void;
+  /** The part the column plays in the sheet's assets, when it plays one. */
+  role: AssetRole | null;
   onChange: (patch: Partial<Omit<TrackerColumn, "id">>) => void;
   onInsert: (side: "left" | "right") => void;
   onMove: (delta: number) => void;
@@ -659,10 +690,21 @@ interface ColumnHeaderProps {
   onFreeze: () => void;
 }
 
-function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
+function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onAutoFit, role, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
   const [renaming, setRenaming] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(column.name);
+  const renameRef = React.useRef<HTMLInputElement>(null);
+  const settling = useEditFocus(renaming, renameRef);
+  const startRename = () => {
+    if (!canEdit) return;
+    setDraft(column.name);
+    setRenaming(true);
+  };
+  const finishRename = () => {
+    if (draft.trim() && draft.trim() !== column.name) onChange({ name: draft.trim() });
+    setRenaming(false);
+  };
 
   // Sorting and filtering change only what is shown, so viewers get them too.
   const viewMenu = (
@@ -687,12 +729,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
       <DropdownMenuLabel>
         {columnLetter(index)} · {TRACKER_COLUMN_TYPE_LABELS[column.type]}
       </DropdownMenuLabel>
-      <DropdownMenuItem
-        onSelect={() => {
-          setDraft(column.name);
-          setRenaming(true);
-        }}
-      >
+      <DropdownMenuItem onSelect={startRename}>
         <Pencil /> Rename
       </DropdownMenuItem>
       <DropdownMenuSub>
@@ -770,6 +807,9 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
       <DropdownMenuItem onSelect={onFreeze}>
         <Snowflake /> {isFrozenEdge ? "Unfreeze columns" : `Freeze up to ${columnLetter(index)}`}
       </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onAutoFit}>
+        <MoveHorizontal /> Fit width to contents
+      </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem variant="destructive" disabled={count <= 1} onSelect={onDelete}>
         <Trash2 /> Delete column
@@ -790,26 +830,43 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex h-full items-center gap-1 pr-6 pl-2" style={{ height: HEADER_HEIGHT }} onMouseDown={(e) => e.button === 0 && onSelectColumn(e.shiftKey)}>
+          <div
+            className="flex h-full items-center gap-1 pr-6 pl-2"
+            style={{ height: HEADER_HEIGHT }}
+            onMouseDown={(e) => e.button === 0 && !renaming && onSelectColumn(e.shiftKey)}
+            onDoubleClick={(e) => {
+              if (renaming) return;
+              e.preventDefault();
+              startRename();
+            }}
+          >
             {renaming ? (
               <Input
-                autoFocus
+                ref={renameRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onBlur={() => {
-                  if (draft.trim() && draft.trim() !== column.name) onChange({ name: draft.trim() });
-                  setRenaming(false);
+                  // A closing menu takes focus back for a moment; that is not leaving the field.
+                  if (settling()) return;
+                  finishRename();
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  e.stopPropagation();
+                  if (e.key === "Enter") finishRename();
                   if (e.key === "Escape") setRenaming(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
                 className="h-6 bg-white px-1 text-xs text-foreground"
                 aria-label="Column name"
               />
             ) : (
               <>
+                {role && (
+                  <SimpleTooltip label={`${ASSET_ROLE_LABELS[role]} of each asset`}>
+                    <Package className="size-3 shrink-0 text-white/70" aria-label={`Asset ${ASSET_ROLE_LABELS[role].toLowerCase()}`} data-testid="asset-role-mark" />
+                  </SimpleTooltip>
+                )}
                 <span className="truncate" title={column.name}>
                   {column.name}
                 </span>
@@ -818,7 +875,9 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
             )}
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-56">{contextFromDropdown(canEdit ? menu : viewMenu)}</ContextMenuContent>
+        <ContextMenuContent className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+          {contextFromDropdown(canEdit ? menu : viewMenu)}
+        </ContextMenuContent>
       </ContextMenu>
       {(
         <DropdownMenu>
@@ -832,7 +891,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
               <ChevronDown className="size-3.5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuContent align="start" className="w-56" onCloseAutoFocus={(e) => renaming && e.preventDefault()}>
             {canEdit ? menu : viewMenu}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -844,6 +903,11 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
           aria-label={`Resize ${column.name}`}
           onPointerDown={onResize}
           onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            onAutoFit();
+          }}
+          title="Drag to resize, double-click to fit"
           className="absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-white/40"
         />
       )}
@@ -1028,6 +1092,9 @@ interface GridRowProps {
   view: TrackerViewSettings;
   rowHeight: number;
   striped: boolean;
+  users: User[];
+  /** What empty cells of a mapped column stand for (see assetFallbacks). */
+  fallbacks: Map<string, string>;
 }
 
 const GridRow = React.memo(function GridRow({
@@ -1054,6 +1121,8 @@ const GridRow = React.memo(function GridRow({
   view,
   rowHeight,
   striped,
+  users,
+  fallbacks,
 }: GridRowProps) {
   const rowSelected = !!range && range.top <= index && index <= range.bottom;
   const inActiveRow = view.crosshair && active?.row === index;
@@ -1095,6 +1164,8 @@ const GridRow = React.memo(function GridRow({
             wrap={view.wrap}
             striped={striped}
             rowHeight={rowHeight}
+            users={users}
+            fallback={fallbacks.get(column.id)}
             editing={editing?.col === c ? editing : null}
             canEdit={canEdit}
             onMouseDown={(e) => onMouseDownCell(c, e)}
@@ -1242,6 +1313,9 @@ interface GridCellProps {
   wrap: boolean;
   striped: boolean;
   rowHeight: number;
+  users: User[];
+  /** Shown faintly while the cell is empty: the value every empty cell of this column counts as. */
+  fallback?: string;
 }
 
 const GridCell = React.memo(function GridCell({
@@ -1266,6 +1340,8 @@ const GridCell = React.memo(function GridCell({
   wrap,
   striped,
   rowHeight,
+  users,
+  fallback,
 }: GridCellProps) {
   const text = column.type === "number" && typeof value === "number" && column.numberFormat && column.numberFormat !== "plain" ? formatNumber(value, column.numberFormat) : formatCell(column, value);
   const isChip = column.type === "list" && typeof value === "string" && value !== "";
@@ -1296,7 +1372,7 @@ const GridCell = React.memo(function GridCell({
       onDoubleClick={onDoubleClick}
     >
       {editing ? (
-        <CellEditor column={column} value={value} initial={editing.initial} onCommit={onCommit} onCancel={onCancel} onAddOption={onAddOption} />
+        <CellEditor column={column} value={value} initial={editing.initial} onCommit={onCommit} onCancel={onCancel} onAddOption={onAddOption} users={users} />
       ) : (
         <div
           className={cn(
@@ -1337,6 +1413,12 @@ const GridCell = React.memo(function GridCell({
             >
               {value === true && <Check className="size-3" strokeWidth={3} />}
             </button>
+          ) : column.type === "person" ? (
+            <PeopleCellView value={value || fallback} users={users} faded={!value && !!fallback} />
+          ) : !text && fallback ? (
+            <span className="truncate text-muted-foreground/60 italic" title="Every empty cell in this column counts as this">
+              {formatCell(column, fallback)}
+            </span>
           ) : column.type === "url" && typeof value === "string" && /^https?:\/\//i.test(value) ? (
             <>
               <ExternalLink className="size-3 shrink-0 text-blue-600 dark:text-blue-300" />
@@ -1518,6 +1600,7 @@ function CellEditor({
   onCommit,
   onCancel,
   onAddOption,
+  users,
 }: {
   column: TrackerColumn;
   value: TrackerCellValue | undefined;
@@ -1525,6 +1608,7 @@ function CellEditor({
   onCommit: (raw: string, move: EditMove) => void;
   onCancel: () => void;
   onAddOption: (option: string) => void;
+  users: User[];
 }) {
   const current = initial ?? (column.type === "date" && typeof value === "string" ? value : formatCell(column, value));
   const [draft, setDraft] = React.useState(current);
@@ -1563,6 +1647,9 @@ function CellEditor({
         onCancel={onCancel}
       />
     );
+  }
+  if (column.type === "person") {
+    return <PeopleEditor value={typeof value === "string" ? value : ""} users={users} onCommit={(ids) => finish("none", ids ?? "")} onCancel={onCancel} />;
   }
   if (column.type === "longText") {
     return (
@@ -1748,4 +1835,37 @@ function ListEditor({
       </ul>
     </div>
   );
+}
+
+let measureCanvas: HTMLCanvasElement | null = null;
+
+/** How wide a text is in the grid's font, in pixels. */
+function textWidth(text: string, font: string): number {
+  if (typeof document === "undefined") return text.length * 7;
+  measureCanvas ??= document.createElement("canvas");
+  const ctx = measureCanvas.getContext("2d");
+  if (!ctx) return text.length * 7;
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+/**
+ * The width a column needs for its name and its longest value, the way Excel
+ * fits a column on a double-click of its edge. Chips, faces and the header's
+ * menu button are allowed for; very long text stops at a sensible width.
+ */
+export function fitWidth(column: TrackerColumn, rows: TrackerRow[]): number {
+  const family = typeof document === "undefined" ? "sans-serif" : getComputedStyle(document.body).fontFamily || "sans-serif";
+  let widest = textWidth(column.name, `600 12px ${family}`) + 44;
+  const extra = column.type === "list" ? 34 : column.type === "person" ? 52 : column.type === "url" ? 34 : 20;
+  for (const row of rows) {
+    if (row.kind !== "data") continue;
+    const value = row.cells[column.id];
+    if (value === undefined || value === null || value === "") continue;
+    const shown = column.type === "number" && typeof value === "number" && column.numberFormat && column.numberFormat !== "plain" ? formatNumber(value, column.numberFormat) : formatCell(column, value);
+    const longest = column.type === "longText" ? shown.split("\n").reduce((a, b) => (b.length > a.length ? b : a), "") : shown;
+    widest = Math.max(widest, textWidth(longest, `13px ${family}`) + extra);
+  }
+  if (column.type === "checkbox") widest = Math.max(widest, 70);
+  return Math.round(Math.min(480, Math.max(MIN_COLUMN_WIDTH, widest)));
 }

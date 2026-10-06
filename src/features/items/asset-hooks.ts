@@ -154,8 +154,10 @@ export function useAssetMutations(item: Item) {
     // My Work lists the lines on you, and the PIC they may have just moved.
     void queryClient.invalidateQueries({ queryKey: ["my-assets"] });
     void queryClient.invalidateQueries({ queryKey: ["my-work"] });
+    // A tracker sheet's line is ticked by ticking its row in the sheet.
+    void queryClient.invalidateQueries({ queryKey: ["tracker-sheets"] });
     const linked = await services.links.connectedItemIds(item.id).catch(() => []);
-    publishDataChange({ itemIds: [item.id, ...linked], boardIds: [item.boardId], kinds: ["assets", "board"] });
+    publishDataChange({ itemIds: [item.id, ...linked], boardIds: [item.boardId], kinds: ["assets", "board", "trackers"] });
   };
   const rollback = (previous: ItemAsset[] | undefined, error: unknown, fallback: string) => {
     if (previous) queryClient.setQueryData(key, previous);

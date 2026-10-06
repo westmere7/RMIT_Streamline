@@ -7,6 +7,7 @@ import { groupAssetBlocks } from "@/domain";
 import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
 import { MyAssetsStrip, MyAssetsToggle } from "@/features/items/my-assets-filter";
+import { ItemTrackerSheet } from "@/features/items/item-tracker-sheet";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
@@ -26,11 +27,17 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   const mutations = useAssetMutations(item);
   const ws = useWorkspace();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
-  const rows = React.useMemo(() => (assets.data ?? []).slice().sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)), [assets.data]);
+  const all = React.useMemo(() => (assets.data ?? []).slice().sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)), [assets.data]);
+  // A tracker sheet's lines are listed apart and changed in the sheet; the
+  // composer edits the task's own.
+  const rows = React.useMemo(() => all.filter((line) => !line.trackerSheetId), [all]);
+  const sheetLines = React.useMemo(() => all.filter((line) => line.trackerSheetId), [all]);
   const [onlyMine, setOnlyMine] = React.useState(false);
   const meId = ws.currentUser.id;
   const mine = React.useMemo(() => rows.filter((row) => row.assigneeIds.includes(meId)), [rows, meId]);
-  const todo = mine.filter((row) => !row.completedAt).length;
+  // The To-do count and strip cover the sheet's lines too: they are the task's.
+  const mineAll = React.useMemo(() => all.filter((row) => row.assigneeIds.includes(meId)), [all, meId]);
+  const todo = mineAll.filter((row) => !row.completedAt).length;
   // Numbered as the whole list numbers them, so "3" filtered is "3" in full.
   const numbers = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -48,10 +55,11 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
 
   // Nothing on this task is theirs: no toggle. Kept while it is on, so taking
   // the last line off yourself does not snap the list back.
-  const toggle = mine.length > 0 || onlyMine ? <MyAssetsToggle on={onlyMine} todo={todo} onChange={setOnlyMine} /> : null;
+  const toggle = mineAll.length > 0 || onlyMine ? <MyAssetsToggle on={onlyMine} todo={todo} onChange={setOnlyMine} /> : null;
 
   return (
     <div className="p-4" data-testid="assets-tab">
+      <ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />
       <AssetComposer
         rows={onlyMine ? mine : rows}
         assetTypes={assetTypes}
@@ -63,7 +71,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         actions={
           onlyMine ? (
             <>
-              <MyAssetsStrip shown={mine.length} total={rows.length} onShowAll={() => setOnlyMine(false)} />
+              <MyAssetsStrip shown={mineAll.length} total={all.length} onShowAll={() => setOnlyMine(false)} />
               {toggle}
             </>
           ) : (

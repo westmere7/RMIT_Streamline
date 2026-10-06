@@ -18,6 +18,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.91.0",
+    date: "2026-10-06",
+    title: "Tracker sheets as task assets",
+    changes: [
+      "A tracker sheet can hold a task's assets: choose Use for a task on the sheet, or Use a tracker sheet on the task's Assets tab. Each row becomes one of the task's assets, counted in its recap, My Work, Workload and the dashboard by type, quantity and PIC.",
+      "Pick which columns give each asset its name, type, quantity, PIC, due date and done, or give one value for every row, such as one PIC for the whole list.",
+      "A People column picks workspace members; it exports to Excel as names.",
+      "Tick a sheet's asset off on the task and its row is ticked in the sheet. Only people who can edit the task can change its sheet.",
+      "Two people editing one sheet no longer overwrite each other: changes are merged cell by cell.",
+      "Rename from any menu keeps the cursor in the box; double-click a column header to rename it, or its edge to fit it.",
+      "Sheets reorder by dragging their tabs or with Move left and right; Duplicate sheet copies the rows too. Trackers can be duplicated or moved to another team.",
+    ],
+  },
+  {
     version: "0.90.1",
     date: "2026-10-03",
     title: "Clearer connection cover",

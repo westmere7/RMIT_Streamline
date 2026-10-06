@@ -128,7 +128,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     profiles: new ProfileService(repos, myWork),
     myWork,
     search: new SearchService(repos),
-    trackers: new TrackerService(repos),
+    trackers: new TrackerService(repos, assets),
     docs: new DocService(repos),
   };
 }

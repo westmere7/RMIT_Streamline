@@ -10,7 +10,7 @@ import type { EntityId, Timestamps } from "@/domain/common/types";
 
 export type TrackerCellValue = string | number | boolean | null;
 
-export const TRACKER_COLUMN_TYPES = ["text", "longText", "list", "date", "url", "number", "checkbox"] as const;
+export const TRACKER_COLUMN_TYPES = ["text", "longText", "list", "date", "url", "number", "checkbox", "person"] as const;
 export type TrackerColumnType = (typeof TRACKER_COLUMN_TYPES)[number];
 
 export const TRACKER_COLUMN_TYPE_LABELS: Record<TrackerColumnType, string> = {
@@ -21,6 +21,7 @@ export const TRACKER_COLUMN_TYPE_LABELS: Record<TrackerColumnType, string> = {
   url: "Link",
   number: "Number",
   checkbox: "Checkbox",
+  person: "People",
 };
 
 /**
@@ -92,6 +93,41 @@ export interface TrackerSheet extends Timestamps {
   rows: TrackerRow[];
   /** Leading columns that stay put while scrolling horizontally (Excel freeze panes). */
   frozenColumns: number;
+  /**
+   * The task this sheet holds the deliverables of, or null. One task a sheet and
+   * one sheet a task: while linked, each data row is one of the task's asset
+   * lines (see tracker-assets.ts), counted everywhere asset lines are.
+   */
+  itemId?: EntityId | null;
+  /** How rows become asset lines: which column holds the name, type, PIC and so on. */
+  assetMapping?: TrackerAssetMapping | null;
+}
+
+/**
+ * Where one detail of an asset comes from: a column, a value for every row, or
+ * both, in which case the value fills the column's empty cells. "Every row is
+ * Jane's" is a value with no column; "mostly Jane's" is a column and a value.
+ */
+export interface TrackerAssetSource<T> {
+  columnId: EntityId | null;
+  value: T | null;
+}
+
+export interface TrackerAssetMapping {
+  /** The column naming each asset. A row with neither a name nor a type is not an asset. */
+  name: EntityId | null;
+  type: TrackerAssetSource<string>;
+  quantity: TrackerAssetSource<number>;
+  /** People column ids, or a text column of names; the value is user ids. */
+  pic: TrackerAssetSource<EntityId[]>;
+  /** A date column; the value is an ISO date. */
+  due: TrackerAssetSource<string>;
+  /** A checkbox (ticked is done) or a dropdown, with the choices that count as done. */
+  done: { columnId: EntityId | null; values: string[] };
+  /** Columns written into the line's spec, "Format: HTML5 · Size: 300x250". */
+  spec: EntityId[];
+  /** Link columns, each becoming a link on the line under the column's name. */
+  links: EntityId[];
 }
 
 export interface Tracker extends Timestamps {
@@ -104,7 +140,7 @@ export interface Tracker extends Timestamps {
 }
 
 export type TrackerInput = Pick<Tracker, "workspaceId" | "teamId" | "name" | "description" | "createdBy">;
-export type TrackerSheetInput = Pick<TrackerSheet, "trackerId" | "name" | "columns" | "rows" | "frozenColumns"> & { position?: number };
+export type TrackerSheetInput = Pick<TrackerSheet, "trackerId" | "name" | "columns" | "rows" | "frozenColumns"> & { position?: number; assetMapping?: TrackerAssetMapping | null };
 
 /** Column letters the way Excel names them (A, B, …, Z, AA). */
 export function columnLetter(index: number): string {
@@ -116,6 +152,17 @@ export function columnLetter(index: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+/** A People cell holds user ids, comma separated, so a cell stays one plain value. */
+export function personIds(value: TrackerCellValue | undefined): string[] {
+  if (typeof value !== "string" || !value) return [];
+  return [...new Set(value.split(",").map((id) => id.trim()).filter(Boolean))];
+}
+
+export function personValue(ids: readonly string[]): string | null {
+  const unique = [...new Set(ids.filter(Boolean))];
+  return unique.length ? unique.join(",") : null;
 }
 
 export function isBlankCell(value: TrackerCellValue | undefined): boolean {

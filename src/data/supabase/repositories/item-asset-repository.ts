@@ -4,7 +4,7 @@ import type { ItemAssetRepository } from "@/data/repositories";
 import { assertOk, chunk, db, unwrap, unwrapList } from "../client";
 
 const ASSET =
-  "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, links, block_id, block_name, block_links, position, created_by, created_at, updated_at";
+  "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, links, block_id, block_name, block_links, position, tracker_sheet_id, tracker_row_id, created_by, created_at, updated_at";
 
 interface ItemAssetRow {
   id: string;
@@ -22,6 +22,8 @@ interface ItemAssetRow {
   block_name: string | null;
   block_links: unknown;
   position: number;
+  tracker_sheet_id?: string | null;
+  tracker_row_id?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -44,6 +46,8 @@ function toItemAsset(row: ItemAssetRow): ItemAsset {
     blockName: row.block_name,
     blockLinks: normalizeAssetLinks(row.block_links),
     position: row.position,
+    trackerSheetId: row.tracker_sheet_id ?? null,
+    trackerRowId: row.tracker_row_id ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -86,25 +90,23 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
   }
 
   async create(input: ItemAssetInput): Promise<ItemAsset> {
-    const payload = {
-      item_id: input.itemId,
-      board_id: input.boardId,
-      name: input.name.trim(),
-      asset_type: input.assetType?.trim() || null,
-      quantity: input.quantity ?? null,
-      assignee_ids: input.assigneeIds ?? [],
-      due_date: input.dueDate ?? null,
-      completed_at: null,
-      notes: input.notes?.trim() || null,
-      links: cleanLinks(input.links ?? []),
-      block_id: input.blockId ?? null,
-      block_name: input.blockId ? input.blockName?.trim() || null : null,
-      block_links: input.blockId ? cleanLinks(input.blockLinks ?? []) : [],
-      position: input.position ?? 0,
-      created_by: input.createdBy,
-    };
-    const result = await db().from("item_assets").insert(payload).select(ASSET).single();
+    const result = await db().from("item_assets").insert(insertPayload(input)).select(ASSET).single();
     return toItemAsset(unwrap<ItemAssetRow>(result, "item_assets.create"));
+  }
+
+  async createMany(inputs: ItemAssetInput[]): Promise<ItemAsset[]> {
+    if (inputs.length === 0) return [];
+    const pages = await Promise.all(chunk(inputs, 200).map(async (part) => unwrapList<ItemAssetRow>(await db().from("item_assets").insert(part.map(insertPayload)).select(ASSET), "item_assets.createMany")));
+    return pages.flat().map(toItemAsset);
+  }
+
+  async deleteMany(ids: string[]): Promise<void> {
+    for (const part of chunk(ids)) assertOk(await db().from("item_assets").delete().in("id", part), "item_assets.deleteMany");
+  }
+
+  async listBySheet(sheetId: string): Promise<ItemAsset[]> {
+    const result = await db().from("item_assets").select(ASSET).eq("tracker_sheet_id", sheetId).order("position", { ascending: true });
+    return unwrapList<ItemAssetRow>(result, "item_assets.listBySheet").map(toItemAsset);
   }
 
   async update(id: string, patch: ItemAssetPatch): Promise<ItemAsset> {
@@ -112,7 +114,7 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
     if (patch.name !== undefined) payload.name = patch.name.trim();
     if (patch.assetType !== undefined) payload.asset_type = patch.assetType?.trim() || null;
     if (patch.quantity !== undefined) payload.quantity = patch.quantity;
-    if (patch.assigneeIds !== undefined) payload.assignee_ids = patch.assigneeIds;
+    if (patch.assigneeIds !== undefined) payload.assignee_ids = peopleIds(patch.assigneeIds);
     if (patch.dueDate !== undefined) payload.due_date = patch.dueDate;
     if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
     if (patch.links !== undefined) payload.links = cleanLinks(patch.links);
@@ -128,6 +130,36 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
   async delete(id: string): Promise<void> {
     assertOk(await db().from("item_assets").delete().eq("id", id), "item_assets.delete");
   }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The column is uuid[]: a stray value from a sheet cell would fail the whole write, so it is left out. */
+function peopleIds(ids: readonly string[]): string[] {
+  return ids.filter((id) => UUID.test(id));
+}
+
+/** One line as inserted. */
+function insertPayload(input: ItemAssetInput): Record<string, unknown> {
+  return {
+    item_id: input.itemId,
+    board_id: input.boardId,
+    name: input.name.trim(),
+    asset_type: input.assetType?.trim() || null,
+    quantity: input.quantity ?? null,
+    assignee_ids: peopleIds(input.assigneeIds ?? []),
+    due_date: input.dueDate ?? null,
+    completed_at: input.completedAt ?? null,
+    notes: input.notes?.trim() || null,
+    links: cleanLinks(input.links ?? []),
+    block_id: input.blockId ?? null,
+    block_name: input.blockId ? input.blockName?.trim() || null : null,
+    block_links: input.blockId ? cleanLinks(input.blockLinks ?? []) : [],
+    position: input.position ?? 0,
+    tracker_sheet_id: input.trackerSheetId ?? null,
+    tracker_row_id: input.trackerSheetId ? (input.trackerRowId ?? null) : null,
+    created_by: input.createdBy,
+  };
 }
 
 /** What is written: the same list, trimmed, with empty links left out. */

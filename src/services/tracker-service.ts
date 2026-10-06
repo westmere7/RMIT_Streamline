@@ -1,6 +1,8 @@
-import type { EntityId, Tracker, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
+import type { EntityId, Item, ItemAsset, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
+import { coercePeople, isMappingUsable, normalizeAssetMapping, personNames } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
 import { blankSheet, emptyTemplateSheet } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
 
@@ -26,8 +28,31 @@ export interface CellEdit {
  * edits instantly and saves the sheet document. The service exposes the row and
  * column operations so those edits stay consistent (and testable) outside React.
  */
+/** A save that found somebody else's save in the way: the sheet as it now is, to merge with. */
+export interface SheetSaveConflict {
+  conflict: TrackerSheet;
+}
+
+/** The grid's part of a sheet: what the editor saves. */
+export type SheetGridPatch = Partial<Pick<TrackerSheet, "columns" | "rows" | "frozenColumns">>;
+
+/**
+ * Trackers are edited as whole sheets: the grid keeps a local copy, applies
+ * edits instantly and saves the sheet document. The service exposes the row and
+ * column operations so those edits stay consistent (and testable) outside React.
+ *
+ * A sheet can also hold one task's deliverables (`itemId`, `assetMapping`):
+ * every save of such a sheet rewrites the task's asset lines through
+ * ItemAssetService.syncFromSheet, and ticking one of those lines off on the task
+ * ticks its row here.
+ */
 export class TrackerService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    private readonly assets?: ItemAssetService,
+  ) {
+    assets?.onSheetLineDone((line, done, actorId) => this.setLineDone(line, done, actorId));
+  }
 
   // ---- Trackers ------------------------------------------------------------
 
@@ -62,8 +87,27 @@ export class TrackerService {
     return this.repos.trackers.update(trackerId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
   }
 
-  async delete(trackerId: EntityId): Promise<void> {
+  /** Deletes the tracker. Linked sheets let go of their tasks first, so each task's counts and PIC are put right. */
+  async delete(trackerId: EntityId, actorId?: EntityId): Promise<void> {
+    if (actorId) for (const sheet of await this.repos.trackers.listSheets(trackerId)) if (sheet.itemId) await this.unlinkSheet(sheet.id, actorId);
     await this.repos.trackers.delete(trackerId);
+  }
+
+  /** Copies a tracker: every sheet with its rows. Copies hold no task's assets. */
+  async duplicate(trackerId: EntityId, actorId: EntityId): Promise<{ tracker: Tracker; sheets: TrackerSheet[] }> {
+    const source = await this.get(trackerId);
+    const sheets = await this.repos.trackers.listSheets(trackerId);
+    return this.create(
+      {
+        workspaceId: source.workspaceId,
+        teamId: source.teamId,
+        name: `${source.name} (copy)`,
+        description: source.description,
+        layout: "blank",
+        sheets: sheets.map((s) => ({ name: s.name, columns: s.columns, rows: s.rows, frozenColumns: s.frozenColumns, assetMapping: s.assetMapping ?? null })),
+      },
+      actorId,
+    );
   }
 
   // ---- Sheets --------------------------------------------------------------
@@ -78,12 +122,22 @@ export class TrackerService {
     return sheet;
   }
 
-  async addSheet(trackerId: EntityId, name: string, layout: "campaign" | "blank" | "copy", copyOf?: EntityId): Promise<TrackerSheet> {
+  async addSheet(trackerId: EntityId, name: string, layout: "campaign" | "blank" | "copy" | "duplicate", copyOf?: EntityId): Promise<TrackerSheet> {
     const trimmed = name.trim() || "New sheet";
-    if (layout === "copy" && copyOf) {
+    if ((layout === "copy" || layout === "duplicate") && copyOf) {
       const source = await this.getSheet(copyOf);
-      // A copy keeps the columns (ids included, so pastes between the two line up) and clears the rows.
-      return this.repos.trackers.createSheet({ trackerId, name: trimmed, columns: source.columns, rows: source.rows.map((r) => ({ ...r, id: newId(), cells: r.kind === "data" ? {} : r.cells })), frozenColumns: source.frozenColumns });
+      // A copy keeps the columns (ids included, so pastes between the two line up).
+      // "copy" clears the rows and keeps the bands; "duplicate" keeps everything.
+      // Neither holds a task's assets: a sheet does that for one task only.
+      const rows = source.rows.map((r) => ({ ...r, id: newId(), cells: layout === "duplicate" || r.kind !== "data" ? { ...r.cells } : {} }));
+      const created = await this.repos.trackers.createSheet({ trackerId, name: trimmed, columns: source.columns, rows, frozenColumns: source.frozenColumns, assetMapping: source.assetMapping ?? null });
+      if (source.position !== undefined) {
+        // Straight after the sheet it copies, as Excel puts a copied sheet.
+        const order = (await this.repos.trackers.listSheets(trackerId)).map((s) => s.id).filter((id) => id !== created.id);
+        order.splice(order.indexOf(source.id) + 1, 0, created.id);
+        await this.repos.trackers.reorderSheets(trackerId, order);
+      }
+      return (await this.repos.trackers.getSheet(created.id)) ?? created;
     }
     const draft = layout === "campaign" ? emptyTemplateSheet(trackerId, trimmed) : blankSheet(trackerId, trimmed);
     return this.repos.trackers.createSheet(draft);
@@ -95,10 +149,11 @@ export class TrackerService {
     return this.repos.trackers.updateSheet(sheetId, { name: trimmed });
   }
 
-  async deleteSheet(sheetId: EntityId): Promise<void> {
+  async deleteSheet(sheetId: EntityId, actorId?: EntityId): Promise<void> {
     const sheet = await this.getSheet(sheetId);
     const siblings = await this.repos.trackers.listSheets(sheet.trackerId);
     if (siblings.length <= 1) throw new Error("A tracker needs at least one sheet");
+    if (sheet.itemId && actorId) await this.unlinkSheet(sheetId, actorId);
     await this.repos.trackers.deleteSheet(sheetId);
   }
 
@@ -107,8 +162,117 @@ export class TrackerService {
   }
 
   /** Replaces the sheet's grid (columns, rows, frozen columns) with the edited copy. */
-  async saveSheet(sheetId: EntityId, patch: Partial<Pick<TrackerSheet, "columns" | "rows" | "frozenColumns" | "name">>): Promise<TrackerSheet> {
-    return this.repos.trackers.updateSheet(sheetId, patch);
+  async saveSheet(sheetId: EntityId, patch: Partial<Pick<TrackerSheet, "columns" | "rows" | "frozenColumns" | "name">>, actorId?: EntityId): Promise<TrackerSheet> {
+    const saved = await this.repos.trackers.updateSheet(sheetId, patch);
+    if (actorId) await this.syncAssets(saved, actorId);
+    return saved;
+  }
+
+  /**
+   * The editor's save: written only if the sheet is still the version the
+   * editor started from (`expectedUpdatedAt`). If somebody saved in between,
+   * nothing is written and the sheet as it now is comes back, for the editor to
+   * merge with and save again. A linked sheet then rewrites its task's lines.
+   */
+  async saveSheetDraft(sheetId: EntityId, patch: SheetGridPatch, expectedUpdatedAt: string, actorId: EntityId): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null; syncError?: string } | SheetSaveConflict> {
+    const saved = await this.repos.trackers.updateSheetIfCurrent(sheetId, patch, expectedUpdatedAt);
+    if (!saved) return { conflict: await this.getSheet(sheetId) };
+    // The sheet is saved whatever happens next; a task that could not be
+    // brought into line is reported, and caught up by the next save.
+    try {
+      return { sheet: saved, sync: await this.syncAssets(saved, actorId) };
+    } catch (error) {
+      return { sheet: saved, sync: null, syncError: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /** Moves a sheet one place left or right among its tracker's sheets. */
+  async moveSheet(sheetId: EntityId, delta: -1 | 1): Promise<TrackerSheet[]> {
+    const sheet = await this.getSheet(sheetId);
+    const ids = (await this.repos.trackers.listSheets(sheet.trackerId)).map((s) => s.id);
+    const from = ids.indexOf(sheetId);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= ids.length) return this.repos.trackers.listSheets(sheet.trackerId);
+    ids.splice(from, 1);
+    ids.splice(to, 0, sheetId);
+    return this.repos.trackers.reorderSheets(sheet.trackerId, ids);
+  }
+
+  // ---- A sheet as a task's assets ------------------------------------------
+
+  /** The sheet holding a task's deliverables, if any. */
+  sheetForItem(itemId: EntityId): Promise<TrackerSheet | null> {
+    return this.repos.trackers.getSheetByItem(itemId);
+  }
+
+  /**
+   * Makes the sheet the task's deliverables, read through `mapping`. A sheet
+   * belongs to one task and a task has one sheet, so linking either to a second
+   * is refused, naming the first.
+   */
+  async linkSheet(sheetId: EntityId, itemId: EntityId, mapping: TrackerAssetMapping, actorId: EntityId): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null }> {
+    const sheet = await this.getSheet(sheetId);
+    const item = await this.repos.items.getById(itemId);
+    if (!item) throw new NotFoundError("Item", itemId);
+    if (sheet.itemId && sheet.itemId !== itemId) {
+      const other = await this.repos.items.getById(sheet.itemId);
+      throw new Error(`This sheet already holds the assets of “${other?.name ?? "another task"}”. Unlink it there first.`);
+    }
+    const taken = await this.repos.trackers.getSheetByItem(itemId);
+    if (taken && taken.id !== sheetId) throw new Error(`“${item.name}” already takes its assets from the sheet “${taken.name}”.`);
+    const clean = normalizeAssetMapping(mapping, sheet.columns);
+    if (!isMappingUsable(clean)) throw new Error("Choose the column that names each asset.");
+    const saved = await this.repos.trackers.updateSheet(sheetId, { itemId, assetMapping: clean });
+    return { sheet: saved, sync: await this.syncAssets(saved, actorId) };
+  }
+
+  /** Changes how a linked (or not yet linked) sheet's rows read as assets. */
+  async setAssetMapping(sheetId: EntityId, mapping: TrackerAssetMapping, actorId: EntityId): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null }> {
+    const sheet = await this.getSheet(sheetId);
+    const clean = normalizeAssetMapping(mapping, sheet.columns);
+    if (sheet.itemId && !isMappingUsable(clean)) throw new Error("Choose the column that names each asset.");
+    const saved = await this.repos.trackers.updateSheet(sheetId, { assetMapping: clean });
+    return { sheet: saved, sync: await this.syncAssets(saved, actorId) };
+  }
+
+  /** Lets the sheet go of its task: the task's lines from it are taken off. The rows stay in the sheet. */
+  async unlinkSheet(sheetId: EntityId, actorId: EntityId): Promise<TrackerSheet> {
+    const sheet = await this.getSheet(sheetId);
+    if (!sheet.itemId) return sheet;
+    await this.assets?.syncFromSheet({ ...sheet, itemId: sheet.itemId, assetMapping: null }, actorId);
+    return this.repos.trackers.updateSheet(sheetId, { itemId: null });
+  }
+
+  /** The task a sheet holds the assets of, or null (unlinked, or deleted since). */
+  async linkedItem(sheet: Pick<TrackerSheet, "itemId">): Promise<Item | null> {
+    return sheet.itemId ? this.repos.items.getById(sheet.itemId) : null;
+  }
+
+  private async syncAssets(sheet: TrackerSheet, actorId: EntityId): Promise<SheetSyncResult | null> {
+    if (!this.assets || (!sheet.itemId && !sheet.assetMapping)) return null;
+    return this.assets.syncFromSheet(sheet, actorId);
+  }
+
+  /**
+   * Ticks a sheet's line off (or opens it again) by setting its row's Done cell:
+   * the sheet stays the truth, and the save writes the line. Retried over a
+   * concurrent save, so somebody typing in the sheet does not lose the tick or
+   * their typing.
+   */
+  private async setLineDone(line: ItemAsset, done: boolean, actorId: EntityId): Promise<void> {
+    if (!line.trackerSheetId || !line.trackerRowId) return;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const sheet = await this.getSheet(line.trackerSheetId);
+      const mapping = sheet.assetMapping;
+      const column = mapping?.done.columnId ? sheet.columns.find((c) => c.id === mapping.done.columnId) : null;
+      if (!mapping || !column) throw new Error("The sheet has no Done column to tick. Choose one in its asset settings.");
+      if (column.type === "list" && mapping.done.values.length === 0) throw new Error("No choice in the sheet's Done column means done. Choose one in its asset settings.");
+      const value: TrackerCellValue = column.type === "checkbox" ? done : done ? mapping.done.values[0]! : null;
+      const edited = TrackerService.applyEdits(sheet, [{ rowId: line.trackerRowId, columnId: column.id, value }]);
+      const result = await this.saveSheetDraft(sheet.id, { rows: edited.rows }, sheet.updatedAt, actorId);
+      if (!("conflict" in result)) return;
+    }
+    throw new Error("The sheet kept changing. Try again in a moment.");
   }
 
   // ---- Pure grid operations (used by the editor and by tests) --------------
@@ -193,8 +357,26 @@ export class TrackerService {
   }
 
   static updateColumn(sheet: TrackerSheet, columnId: EntityId, patch: Partial<Omit<TrackerColumn, "id">>): TrackerSheet {
+    const before = sheet.columns.find((c) => c.id === columnId);
+    // Into or out of People, the cells change form: names become people, and
+    // people become their names, so nothing typed is lost either way.
+    const convert =
+      before && patch.type && patch.type !== before.type && (patch.type === "person" || before.type === "person")
+        ? (value: TrackerCellValue): TrackerCellValue => (patch.type === "person" ? coercePeople(typeof value === "string" ? value : String(value ?? "")) : personNames(value) || null)
+        : null;
+    const rows = convert
+      ? sheet.rows.map((row) => {
+          if (row.kind !== "data" || !(columnId in row.cells)) return row;
+          const cells = { ...row.cells };
+          const next = convert(cells[columnId]!);
+          if (next === null || next === "") delete cells[columnId];
+          else cells[columnId] = next;
+          return { ...row, cells };
+        })
+      : sheet.rows;
     return {
       ...sheet,
+      rows,
       columns: sheet.columns.map((c) => {
         if (c.id !== columnId) return c;
         const next: TrackerColumn = { ...c, ...patch };
@@ -262,6 +444,12 @@ export class TrackerService {
         if (typeof raw === "number") return toIsoDate(excelSerialToDate(raw));
         return String(raw);
       }
+      case "person": {
+        // Ids as stored; anything else typed or pasted is a name, looked up by
+        // the grid (coercePeople) before it gets here.
+        if (typeof raw !== "string") return null;
+        return coercePeople(raw);
+      }
       default: {
         if (typeof raw === "boolean") return raw ? "Y" : "N";
         const s = typeof raw === "number" ? String(raw) : String(raw);
@@ -271,7 +459,7 @@ export class TrackerService {
   }
 }
 
-export const TRACKER_TYPE_ORDER: TrackerColumnType[] = ["text", "longText", "list", "date", "url", "number", "checkbox"];
+export const TRACKER_TYPE_ORDER: TrackerColumnType[] = ["text", "longText", "list", "date", "url", "number", "checkbox", "person"];
 
 function toIsoDate(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;

@@ -52,7 +52,7 @@ import type {
   WorkspaceMemberStatus,
   WorkspaceRole,
 } from "@/domain";
-import { defaultNotificationPreferences, normaliseAssetRates, normaliseWorkTypes, normaliseTicketPrefix } from "@/domain";
+import { defaultNotificationPreferences, normaliseAssetRates, normaliseWorkTypes, normaliseTicketPrefix, normalizeAssetMapping } from "@/domain";
 
 /**
  * Row shapes for `supabase/migrations/*.sql` and the mappers between them and the
@@ -518,6 +518,8 @@ export interface TrackerSheetRow {
   columns: TrackerColumn[];
   rows: TrackerRow[];
   frozen_columns: number;
+  item_id?: string | null;
+  asset_mapping?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -531,6 +533,8 @@ export function toTrackerSheet(row: TrackerSheetRow): TrackerSheet {
     columns: row.columns ?? [],
     rows: row.rows ?? [],
     frozenColumns: row.frozen_columns,
+    itemId: row.item_id ?? null,
+    assetMapping: normalizeAssetMapping(row.asset_mapping, row.columns ?? []),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

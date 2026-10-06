@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, ChevronDown, Copy, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, Copy, CopyPlus, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Package, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { TrackerSheet } from "@/domain";
@@ -17,6 +17,7 @@ import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations,
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
+import { LinkedSheetBar, TaskAssetsDialog, useLinkedTask, useTrackerPeopleDirectory } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { canEditTrackers } from "@/lib/permissions/permissions";
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 export function TrackerPage() {
   const params = useParams<{ trackerId: string }>();
   const ws = useWorkspace();
+  useTrackerPeopleDirectory();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -40,9 +42,14 @@ export function TrackerPage() {
   const [exporting, setExporting] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
+  const [assetsOpen, setAssetsOpen] = React.useState(false);
+
   const sheetParam = searchParams.get("sheet");
   const activeSheet: TrackerSheet | undefined = sheets.data?.find((s) => s.id === sheetParam) ?? sheets.data?.[0];
   const selectSheet = (id: string) => router.replace(`${pathname}?sheet=${id}`, { scroll: false });
+  // A sheet that holds a task's assets is that task's: editing it takes the right to edit the task.
+  const linkedTask = useLinkedTask(activeSheet);
+  const canEditSheet = canEdit && (!activeSheet?.itemId || (!linkedTask.loading && (linkedTask.canEditTask || !linkedTask.item)));
 
   if (tracker.isLoading || sheets.isLoading) {
     return (
@@ -80,7 +87,7 @@ export function TrackerPage() {
   };
 
   return (
-    <SheetEditorProvider key={activeSheet?.id ?? "none"} sheet={activeSheet} canEdit={canEdit}>
+    <SheetEditorProvider key={activeSheet?.id ?? "none"} sheet={activeSheet} canEdit={canEditSheet}>
       <div className="flex h-full min-h-0 flex-col" data-testid="tracker-page">
         <header className="border-b px-6 pt-4 pb-3 max-md:px-4">
           <div className="flex items-start gap-3.5 max-md:flex-wrap">
@@ -134,6 +141,11 @@ export function TrackerPage() {
 
             <div className="flex shrink-0 items-center gap-1.5 max-md:w-full max-md:justify-end">
               <EditorControls canEdit={canEdit} />
+              {canEdit && activeSheet && (
+                <Button variant="outline" size="sm" onClick={() => setAssetsOpen(true)} disabled={!!activeSheet.itemId && !canEditSheet} data-testid="task-assets-button">
+                  <Package /> {activeSheet.itemId ? "Task assets" : "Use for a task"}
+                </Button>
+              )}
               {canEdit && (
                 <>
                   <input
@@ -178,9 +190,36 @@ export function TrackerPage() {
                       <MoreHorizontal />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
                     <DropdownMenuItem onSelect={() => setRenaming(true)}>
                       <Pencil /> Rename tracker
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setEditingDescription(true)}>
+                      <Pencil /> Edit description
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Users /> Move to team
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-52">
+                        {ws.teams
+                          .filter((team) => team.archivedAt === null)
+                          .map((team) => (
+                            <DropdownMenuItem key={team.id} onSelect={() => team.id !== t.teamId && mutations.update.mutate({ trackerId: t.id, patch: { teamId: team.id } })}>
+                              <span className="flex-1 truncate">{team.name}</span>
+                              {team.id === t.teamId && <Check className="size-3.5" />}
+                            </DropdownMenuItem>
+                          ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        mutations.duplicate.mutate(t.id, {
+                          onSuccess: ({ tracker: copy }) => router.push(routes.tracker(ws.slug, copy.id)),
+                        })
+                      }
+                    >
+                      <CopyPlus /> Duplicate tracker
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
@@ -193,15 +232,23 @@ export function TrackerPage() {
           </div>
         </header>
 
-        <SheetTabs sheets={sheets.data ?? []} activeId={activeSheet?.id ?? null} trackerId={t.id} canEdit={canEdit} onSelect={selectSheet} />
+        <SheetTabs sheets={sheets.data ?? []} activeId={activeSheet?.id ?? null} trackerId={t.id} canEdit={canEdit} onSelect={selectSheet} onTaskAssets={() => setAssetsOpen(true)} />
 
-        <ActiveGrid canEdit={canEdit} />
+        {activeSheet?.itemId && <LinkedSheetBar sheet={activeSheet} onSettings={canEditSheet ? () => setAssetsOpen(true) : null} />}
+
+        <ActiveGrid canEdit={canEditSheet} />
+
+        {activeSheet && <ActiveTaskAssetsDialog open={assetsOpen} onOpenChange={setAssetsOpen} />}
 
         <ConfirmDialog
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
           title={`Delete “${t.name}”?`}
-          description="This permanently deletes the tracker and every sheet in it. Export it first if you want a copy."
+          description={
+            (sheets.data ?? []).some((s) => s.itemId)
+              ? "This permanently deletes the tracker and every sheet in it, and the assets its sheets give their tasks. Export it first if you want a copy."
+              : "This permanently deletes the tracker and every sheet in it. Export it first if you want a copy."
+          }
           confirmLabel="Delete tracker"
           destructive
           onConfirm={async () => {
@@ -223,6 +270,13 @@ function EditorControls({ canEdit }: { canEdit: boolean }) {
       {canEdit && <span aria-hidden className="mx-1 h-6 w-px bg-border" />}
     </>
   );
+}
+
+/** The Task assets dialog for the sheet on screen, read from the editor so it sees unsaved columns too. */
+function ActiveTaskAssetsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const editor = useSheetEditorContext();
+  if (!editor.sheet) return null;
+  return <TaskAssetsDialog sheet={editor.sheet} open={open} onOpenChange={onOpenChange} />;
 }
 
 function ActiveGrid({ canEdit }: { canEdit: boolean }) {
@@ -270,7 +324,7 @@ function MobileSheetActions({ sheet, canDelete, onRename, onDuplicate, onDelete 
         title={sheet.name}
         actions={[
           { type: "item", label: "Rename sheet", onSelect: onRename },
-          { type: "item", label: "Duplicate layout", onSelect: onDuplicate },
+          { type: "item", label: "Duplicate sheet", onSelect: onDuplicate },
           { type: "separator" },
           { type: "item", label: "Delete sheet", destructive: true, disabled: !canDelete, onSelect: onDelete },
         ]}
@@ -279,35 +333,50 @@ function MobileSheetActions({ sheet, canDelete, onRename, onDuplicate, onDelete 
   );
 }
 
-/** Excel-style sheet tabs: click to switch, double-click to rename, right-click for more. */
-function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets: TrackerSheet[]; activeId: string | null; trackerId: string; canEdit: boolean; onSelect: (id: string) => void }) {
+/**
+ * Excel-style sheet tabs: click to switch, double-click to rename, drag to
+ * reorder, right-click for the rest. A sheet holding a task's assets carries a
+ * small box beside its name.
+ */
+function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAssets }: { sheets: TrackerSheet[]; activeId: string | null; trackerId: string; canEdit: boolean; onSelect: (id: string) => void; onTaskAssets: () => void }) {
   const mutations = useTrackerMutations();
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState<TrackerSheet | null>(null);
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  const [dropAt, setDropAt] = React.useState<number | null>(null);
   const activeSheet = sheets.find((sheet) => sheet.id === activeId) ?? null;
 
   const add = (layout: "campaign" | "blank" | "copy") => {
     const name = `Sheet ${sheets.length + 1}`;
     mutations.addSheet.mutate({ trackerId, name, layout, copyOf: activeId ?? undefined }, { onSuccess: (sheet) => onSelect(sheet.id) });
   };
+  const duplicate = (sheet: TrackerSheet, layout: "copy" | "duplicate") =>
+    mutations.addSheet.mutate({ trackerId, name: layout === "duplicate" ? `${sheet.name} (copy)` : `${sheet.name} (layout)`, layout, copyOf: sheet.id }, { onSuccess: (s) => onSelect(s.id) });
+  const drop = (index: number) => {
+    if (!dragId) return;
+    const ids = sheets.map((s) => s.id).filter((id) => id !== dragId);
+    const from = sheets.findIndex((s) => s.id === dragId);
+    ids.splice(index > from ? index - 1 : index, 0, dragId);
+    if (ids.join() !== sheets.map((s) => s.id).join()) mutations.reorderSheets.mutate({ trackerId, orderedIds: ids });
+    setDragId(null);
+    setDropAt(null);
+  };
 
   return (
     <div role="tablist" aria-label="Sheets" className="scrollbar-none flex items-end gap-0.5 overflow-x-auto overscroll-x-contain border-b px-6 max-md:px-3" data-testid="sheet-tabs">
-      {sheets.map((sheet) => {
+      {sheets.map((sheet, index) => {
         const active = sheet.id === activeId;
-        const tab = (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelect(sheet.id)}
-            onDoubleClick={() => canEdit && setRenamingId(sheet.id)}
-            className={cn(
-              "relative -mb-px flex h-10 max-w-56 shrink-0 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring max-md:h-12",
-              active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {renamingId === sheet.id ? (
+        const className = cn(
+          "relative -mb-px flex h-10 max-w-56 shrink-0 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring max-md:h-12",
+          active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+          dropAt === index && dragId && "before:absolute before:inset-y-2 before:-left-px before:w-0.5 before:rounded before:bg-primary",
+          dragId === sheet.id && "opacity-50",
+        );
+        // While renaming, the field stands in for the tab: an input inside a
+        // button would hand its keys and clicks to the button.
+        if (renamingId === sheet.id) {
+          return (
+            <div key={sheet.id} className={className}>
               <InlineEdit
                 value={sheet.name}
                 editing
@@ -316,21 +385,72 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
                 ariaLabel="Sheet name"
                 inputClassName="h-7 w-40 text-[13px]"
               />
-            ) : (
-              <span className="truncate">{sheet.name}</span>
-            )}
+            </div>
+          );
+        }
+        const tab = (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onSelect(sheet.id)}
+            onDoubleClick={() => canEdit && setRenamingId(sheet.id)}
+            draggable={canEdit && sheets.length > 1}
+            onDragStart={(e) => {
+              setDragId(sheet.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", sheet.name);
+            }}
+            onDragOver={(e) => {
+              if (!dragId) return;
+              e.preventDefault();
+              const box = e.currentTarget.getBoundingClientRect();
+              setDropAt(e.clientX < box.left + box.width / 2 ? index : index + 1);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dropAt !== null) drop(dropAt);
+            }}
+            onDragEnd={() => {
+              setDragId(null);
+              setDropAt(null);
+            }}
+            className={className}
+            data-testid="sheet-tab"
+          >
+            {sheet.itemId && <Package className="size-3.5 shrink-0 text-primary" aria-label="Holds a task's assets" />}
+            <span className="truncate">{sheet.name}</span>
           </button>
         );
         if (!canEdit) return <React.Fragment key={sheet.id}>{tab}</React.Fragment>;
         return (
           <ContextMenu key={sheet.id}>
             <ContextMenuTrigger asChild>{tab}</ContextMenuTrigger>
-            <ContextMenuContent className="w-48">
+            <ContextMenuContent className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
               <ContextMenuItem onSelect={() => setRenamingId(sheet.id)}>
                 <Pencil /> Rename sheet
               </ContextMenuItem>
-              <ContextMenuItem onSelect={() => mutations.addSheet.mutate({ trackerId, name: `${sheet.name} (copy)`, layout: "copy", copyOf: sheet.id }, { onSuccess: (s) => onSelect(s.id) })}>
-                <Copy /> Duplicate layout
+              <ContextMenuItem onSelect={() => duplicate(sheet, "duplicate")}>
+                <CopyPlus /> Duplicate sheet
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => duplicate(sheet, "copy")}>
+                <Copy /> Duplicate layout only
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem disabled={index === 0} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: -1 })}>
+                <ArrowLeftToLine /> Move left
+              </ContextMenuItem>
+              <ContextMenuItem disabled={index === sheets.length - 1} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: 1 })}>
+                <ArrowRightToLine /> Move right
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => {
+                  onSelect(sheet.id);
+                  onTaskAssets();
+                }}
+              >
+                <Package /> {sheet.itemId ? "Task assets…" : "Use for a task…"}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem variant="destructive" disabled={sheets.length <= 1} onSelect={() => setDeleting(sheet)}>
@@ -367,7 +487,7 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
           sheet={activeSheet}
           canDelete={sheets.length > 1}
           onRename={() => setRenamingId(activeSheet.id)}
-          onDuplicate={() => mutations.addSheet.mutate({ trackerId, name: `${activeSheet.name} (copy)`, layout: "copy", copyOf: activeSheet.id }, { onSuccess: (sheet) => onSelect(sheet.id) })}
+          onDuplicate={() => duplicate(activeSheet, "duplicate")}
           onDelete={() => setDeleting(activeSheet)}
         />
       )}
@@ -375,7 +495,7 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect }: { sheets:
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete “${deleting?.name}”?`}
-        description="Every row on this sheet is permanently removed."
+        description={deleting?.itemId ? "Every row on this sheet is permanently removed, and the task it holds the assets of loses them." : "Every row on this sheet is permanently removed."}
         confirmLabel="Delete sheet"
         destructive
         onConfirm={async () => {

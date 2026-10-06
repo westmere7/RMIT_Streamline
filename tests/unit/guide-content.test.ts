@@ -37,6 +37,7 @@ describe("the in-app guide", () => {
     expect(searchGuide("docx").map((a) => a.id)).toContain("docs");
     expect(searchGuide("baseline").map((a) => a.id)).toContain("views");
     expect(searchGuide("rows splits").map((a) => a.id)).toContain("views");
+    expect(searchGuide("use a tracker sheet").map((a) => a.id)).toEqual(expect.arrayContaining(["trackers", "assets"]));
     expect(searchGuide("reach the server").map((a) => a.id)).toEqual(expect.arrayContaining(["data", "troubleshooting"]));
   });
 });

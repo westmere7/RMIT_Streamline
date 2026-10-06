@@ -155,8 +155,9 @@ describe("deleting a team", () => {
     expect(left.some((b) => theirBoards.some((x) => x.id === b.id))).toBe(false);
     expect(await services.repos.items.listByBoard(theirBoards[0]!.id)).toEqual([]);
     // Emptying a team of five boards and their months of history is a lot of
-    // writes; the browser shows a spinner while it runs.
-  }, 30_000);
+    // writes; the browser shows a spinner while it runs. About 19 s on its own,
+    // so a busy full run needs the headroom.
+  }, 60_000);
 
   it("refuses to delete a built-in team", async () => {
     const { team } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);

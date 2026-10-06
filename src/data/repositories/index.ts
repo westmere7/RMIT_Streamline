@@ -338,6 +338,13 @@ export interface TrackerRepository {
   getSheet(id: EntityId): Promise<TrackerSheet | null>;
   createSheet(input: TrackerSheetInput): Promise<TrackerSheet>;
   updateSheet(id: EntityId, patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>): Promise<TrackerSheet>;
+  /**
+   * The same, only if nobody saved the sheet since `expectedUpdatedAt`; null
+   * when somebody did, so the caller can merge their change and try again.
+   */
+  updateSheetIfCurrent(id: EntityId, patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>, expectedUpdatedAt: string): Promise<TrackerSheet | null>;
+  /** The sheet holding a task's deliverables, if one does. */
+  getSheetByItem(itemId: EntityId): Promise<TrackerSheet | null>;
   deleteSheet(id: EntityId): Promise<void>;
   reorderSheets(trackerId: EntityId, orderedIds: EntityId[]): Promise<TrackerSheet[]>;
 }
@@ -412,6 +419,11 @@ export interface ItemAssetRepository {
   create(input: ItemAssetInput): Promise<ItemAsset>;
   update(id: EntityId, patch: ItemAssetPatch): Promise<ItemAsset>;
   delete(id: EntityId): Promise<void>;
+  /** The lines a tracker sheet wrote. */
+  listBySheet(sheetId: EntityId): Promise<ItemAsset[]>;
+  /** Several lines in one write, as a sheet is linked or grows. */
+  createMany(inputs: ItemAssetInput[]): Promise<ItemAsset[]>;
+  deleteMany(ids: EntityId[]): Promise<void>;
 }
 
 /**

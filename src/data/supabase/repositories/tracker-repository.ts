@@ -5,7 +5,7 @@ import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import { pruneUndefined, toTracker, toTrackerSheet, type TrackerSheetRow, type TrackerTableRow } from "../rows";
 
 const TRACKER = "id, workspace_id, team_id, name, description, created_by, created_at, updated_at";
-const SHEET = "id, tracker_id, name, position, columns, rows, frozen_columns, created_at, updated_at";
+const SHEET = "id, tracker_id, name, position, columns, rows, frozen_columns, item_id, asset_mapping, created_at, updated_at";
 
 export class SupabaseTrackerRepository implements TrackerRepository {
   async listByWorkspace(workspaceId: string): Promise<Tracker[]> {
@@ -77,21 +77,33 @@ export class SupabaseTrackerRepository implements TrackerRepository {
       columns: input.columns,
       rows: input.rows,
       frozen_columns: input.frozenColumns,
+      asset_mapping: input.assetMapping ?? null,
     };
     const result = await db().from("tracker_sheets").insert(payload).select(SHEET).single();
     return toTrackerSheet(unwrap<TrackerSheetRow>(result, "tracker_sheets.createSheet"));
   }
 
   async updateSheet(id: string, patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>): Promise<TrackerSheet> {
-    const payload = pruneUndefined({
-      name: patch.name,
-      position: patch.position,
-      columns: patch.columns,
-      rows: patch.rows,
-      frozen_columns: patch.frozenColumns,
-    });
-    const result = await db().from("tracker_sheets").update(payload).eq("id", id).select(SHEET).single();
+    const result = await db().from("tracker_sheets").update(sheetPayload(patch)).eq("id", id).select(SHEET).single();
     return toTrackerSheet(unwrap<TrackerSheetRow>(result, "tracker_sheets.updateSheet"));
+  }
+
+  async updateSheetIfCurrent(id: string, patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>, expectedUpdatedAt: string): Promise<TrackerSheet | null> {
+    const result = await db().from("tracker_sheets").update(sheetPayload(patch)).eq("id", id).eq("updated_at", expectedUpdatedAt).select(SHEET).maybeSingle();
+    const row = unwrapMaybe<TrackerSheetRow>(result, "tracker_sheets.updateSheetIfCurrent");
+    if (row) return toTrackerSheet(row);
+    // Nothing matched: either someone saved in between, or the sheet is gone
+    // or no longer ours to edit. Only the first is worth a merge and a retry.
+    const current = await this.getSheet(id);
+    if (!current) throw new Error("This sheet no longer exists.");
+    if (current.updatedAt === expectedUpdatedAt) throw new Error("You can no longer edit this sheet.");
+    return null;
+  }
+
+  async getSheetByItem(itemId: string): Promise<TrackerSheet | null> {
+    const result = await db().from("tracker_sheets").select(SHEET).eq("item_id", itemId).maybeSingle();
+    const row = unwrapMaybe<TrackerSheetRow>(result, "tracker_sheets.getSheetByItem");
+    return row ? toTrackerSheet(row) : null;
   }
 
   async deleteSheet(id: string): Promise<void> {
@@ -102,11 +114,24 @@ export class SupabaseTrackerRepository implements TrackerRepository {
     const sheets = await this.listSheets(trackerId);
     const order = new Map(orderedIds.map((id, index) => [id, index]));
     const updated = sheets.map((s) => ({ ...s, position: order.get(s.id) ?? s.position + orderedIds.length }));
-    await Promise.all(
+    const results = await Promise.all(
       updated
         .filter((s, index) => s.position !== sheets[index]?.position)
         .map((s) => db().from("tracker_sheets").update({ position: s.position }).eq("id", s.id)),
     );
+    for (const result of results) assertOk(result, "tracker_sheets.reorderSheets");
     return sortByPosition(updated);
   }
+}
+
+function sheetPayload(patch: Partial<Omit<TrackerSheet, "id" | "trackerId" | "createdAt">>): Record<string, unknown> {
+  return pruneUndefined({
+    name: patch.name,
+    position: patch.position,
+    columns: patch.columns,
+    rows: patch.rows,
+    frozen_columns: patch.frozenColumns,
+    item_id: patch.itemId,
+    asset_mapping: patch.assetMapping,
+  });
 }

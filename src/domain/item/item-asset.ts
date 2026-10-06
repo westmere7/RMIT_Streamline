@@ -51,10 +51,18 @@ export interface ItemAsset extends Timestamps {
   blockLinks: AssetLink[];
   position: number;
   createdBy: EntityId;
+  /**
+   * The tracker sheet this line comes from, or null for a line added on the
+   * task. A sheet's lines are written by the sheet (TrackerService) and only
+   * ticked off elsewhere; everything else about them is edited in the sheet.
+   */
+  trackerSheetId?: EntityId | null;
+  /** The sheet row the line is, so a sync updates it rather than adding another. */
+  trackerRowId?: string | null;
 }
 
 export type ItemAssetInput = Pick<ItemAsset, "itemId" | "boardId" | "name" | "createdBy"> &
-  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position">>;
+  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position" | "trackerSheetId" | "trackerRowId">>;
 
 export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position">>;
 

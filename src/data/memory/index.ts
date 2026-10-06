@@ -179,6 +179,8 @@ export function createMemoryRepositories(
       getSheet: async () => null,
       createSheet: readOnly("adding a sheet"),
       updateSheet: readOnly("editing a sheet"),
+      updateSheetIfCurrent: readOnly("editing a sheet"),
+      getSheetByItem: async () => null,
       deleteSheet: readOnly("deleting a sheet"),
       reorderSheets: readOnly("reordering sheets"),
     },
@@ -241,6 +243,9 @@ export function createMemoryRepositories(
       create: readOnly("adding an asset"),
       update: readOnly("editing an asset"),
       delete: readOnly("deleting an asset"),
+      listBySheet: async (sheetId) => payload().assets.filter((a) => a.trackerSheetId === sheetId),
+      createMany: readOnly("adding assets"),
+      deleteMany: readOnly("deleting assets"),
     },
     bookingTemplates: {
       listByWorkspace: async () => [],

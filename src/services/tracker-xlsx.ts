@@ -1,5 +1,5 @@
 import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { columnLetter } from "@/domain";
+import { columnLetter, personNames } from "@/domain";
 import { effectiveSummary, excelNumberFormat } from "@/features/trackers/sheet-view";
 import { STATUS_COLORS, TEMPLATE_STYLE, YES_NO_COLORS, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
@@ -89,6 +89,11 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
           break;
         case "checkbox":
           cell.value = value === true ? "Y" : "N";
+          break;
+        case "person":
+          // Names, not ids: the workbook is read by people, and importing it
+          // back reads the names as a PIC column the asset mapping understands.
+          cell.value = personNames(value);
           break;
         case "number": {
           const n = typeof value === "number" ? value : Number(String(value).replace(/[,\s]/g, ""));

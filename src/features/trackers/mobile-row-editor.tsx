@@ -6,7 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import type { TrackerRow, TrackerSheet } from "@/domain";
+import type { TrackerRow, TrackerSheet, User } from "@/domain";
+import { personIds } from "@/domain";
 import { TrackerService } from "@/services/tracker-service";
 
 /** Radix rejects an empty option value; this stands in for "not set". */
@@ -31,8 +32,11 @@ export function MobileRowEditor({
   open,
   onOpenChange,
   commit,
+  users = [],
 }: {
   sheet: TrackerSheet;
+  /** Who a People field can name. */
+  users?: User[];
   row: TrackerRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -97,6 +101,23 @@ export function MobileRowEditor({
                       ))}
                     </SelectContent>
                   </Select>
+                ) : column.type === "person" ? (
+                  // The phone's own multiple picker: a list it knows how to show.
+                  <select
+                    multiple
+                    value={personIds(value)}
+                    onChange={(e) => set([...e.target.selectedOptions].map((o) => o.value).join(","))}
+                    aria-label={column.name}
+                    className="min-h-24 w-full rounded-md border bg-background p-1 text-[15px]"
+                  >
+                    {users
+                      .filter((u) => u.deactivatedAt === null || personIds(value).includes(u.id))
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.displayName}
+                        </option>
+                      ))}
+                  </select>
                 ) : column.type === "checkbox" ? (
                   <span className="flex min-h-11 items-center">
                     <Checkbox checked={value === "true"} onCheckedChange={(checked) => set(checked === true ? "true" : "false")} aria-label={column.name} className="size-5" />

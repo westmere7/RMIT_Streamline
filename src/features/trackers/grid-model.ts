@@ -1,4 +1,5 @@
 import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet } from "@/domain";
+import { personNames } from "@/domain";
 import { TrackerService } from "@/services/tracker-service";
 
 /**
@@ -34,6 +35,7 @@ export function clampAddress(sheet: Pick<TrackerSheet, "rows" | "columns">, addr
 export function formatCell(column: TrackerColumn, value: TrackerCellValue | undefined): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "Y" : "N";
+  if (column.type === "person") return personNames(value);
   if (column.type === "date" && typeof value === "string") {
     const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) return `${m[3]}/${m[2]}/${m[1]}`;
@@ -168,7 +170,7 @@ export function sheetToCsv(sheet: TrackerSheet): string {
           const value = row.cells[column.id];
           if (value === null || value === undefined) return "";
           if (typeof value === "boolean") return value ? "Y" : "N";
-          return escape(String(value));
+          return escape(column.type === "person" ? personNames(value) : String(value));
         })
         .join(","),
     );

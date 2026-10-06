@@ -23,6 +23,8 @@ function normalize(asset: ItemAsset): ItemAsset {
     blockId: asset.blockId ?? null,
     blockName: asset.blockId ? asset.blockName ?? null : null,
     blockLinks: asset.blockId && Array.isArray(asset.blockLinks) ? normalizeAssetLinks(asset.blockLinks) : [],
+    trackerSheetId: asset.trackerSheetId ?? null,
+    trackerRowId: asset.trackerRowId ?? null,
   };
 }
 
@@ -57,29 +59,46 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     // The board is the item's, whatever the caller said — the same rule the database enforces.
     const item = await db.get("items", input.itemId);
     if (!item) throw new NotFoundError("Item", input.itemId);
-    const now = nowIso();
-    const asset: ItemAsset = {
-      id: newId(),
-      itemId: input.itemId,
-      boardId: item.boardId,
-      name: input.name.trim(),
-      assetType: input.assetType?.trim() || null,
-      quantity: input.quantity ?? null,
-      assigneeIds: input.assigneeIds ?? [],
-      dueDate: input.dueDate ?? null,
-      completedAt: null,
-      notes: input.notes?.trim() || null,
-      links: normalizeAssetLinks(input.links ?? []),
-      blockId: input.blockId ?? null,
-      blockName: input.blockId ? input.blockName?.trim() || null : null,
-      blockLinks: input.blockId ? normalizeAssetLinks(input.blockLinks ?? []) : [],
-      position: input.position ?? 0,
-      createdBy: input.createdBy,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const asset = build(input, item.boardId);
     await db.put("itemAssets", asset);
     return asset;
+  }
+
+  async createMany(inputs: ItemAssetInput[]): Promise<ItemAsset[]> {
+    if (inputs.length === 0) return [];
+    const db = await this.conn.getDb();
+    const tx = db.transaction(["items", "itemAssets"], "readwrite");
+    const created: ItemAsset[] = [];
+    for (const input of inputs) {
+      const item = await tx.objectStore("items").get(input.itemId);
+      if (!item) throw new NotFoundError("Item", input.itemId);
+      created.push(build(input, item.boardId));
+    }
+    // The pair (sheet, row) is unique, as the database's constraint has it.
+    const taken = new Set((await tx.objectStore("itemAssets").getAll()).filter((a) => a.trackerSheetId).map((a) => a.trackerSheetId + ":" + a.trackerRowId));
+    for (const asset of created) {
+      if (asset.trackerSheetId) {
+        const key = asset.trackerSheetId + ":" + asset.trackerRowId;
+        if (taken.has(key)) throw new Error("That sheet row already has an asset line");
+        taken.add(key);
+      }
+      await tx.objectStore("itemAssets").put(asset);
+    }
+    await tx.done;
+    return created;
+  }
+
+  async deleteMany(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await this.conn.getDb();
+    const tx = db.transaction("itemAssets", "readwrite");
+    await Promise.all(ids.map((id) => tx.store.delete(id)));
+    await tx.done;
+  }
+
+  async listBySheet(sheetId: string): Promise<ItemAsset[]> {
+    const db = await this.conn.getDb();
+    return (await db.getAll("itemAssets")).filter((a) => a.trackerSheetId === sheetId).map(normalize).sort(byPosition);
   }
 
   async update(id: string, patch: ItemAssetPatch): Promise<ItemAsset> {
@@ -106,4 +125,30 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     const db = await this.conn.getDb();
     await db.delete("itemAssets", id);
   }
+}
+
+function build(input: ItemAssetInput, boardId: string): ItemAsset {
+  const now = nowIso();
+  return {
+      id: newId(),
+      itemId: input.itemId,
+      boardId,
+      name: input.name.trim(),
+      assetType: input.assetType?.trim() || null,
+      quantity: input.quantity ?? null,
+      assigneeIds: input.assigneeIds ?? [],
+      dueDate: input.dueDate ?? null,
+      completedAt: input.completedAt ?? null,
+      notes: input.notes?.trim() || null,
+      links: normalizeAssetLinks(input.links ?? []),
+      blockId: input.blockId ?? null,
+      blockName: input.blockId ? input.blockName?.trim() || null : null,
+      blockLinks: input.blockId ? normalizeAssetLinks(input.blockLinks ?? []) : [],
+      position: input.position ?? 0,
+      trackerSheetId: input.trackerSheetId ?? null,
+      trackerRowId: input.trackerSheetId ? (input.trackerRowId ?? null) : null,
+      createdBy: input.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    };
 }
