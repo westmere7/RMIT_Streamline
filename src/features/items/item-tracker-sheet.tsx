@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ExternalLink, FileSpreadsheet, Link2, Loader2, Settings2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Settings2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -15,7 +15,7 @@ import { useItemTrackerSheet, useTracker } from "@/features/trackers/hooks";
 import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { formatShortDate } from "@/lib/dates/dates";
+import { formatShortDate, isOverdue } from "@/lib/dates/dates";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -120,13 +120,15 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
       {collapsed ? null : lines.length === 0 ? (
         <p className="px-3 py-3 text-[13px] text-muted-foreground">No rows in the sheet read as assets yet.</p>
       ) : (
-        <ul className="divide-y" data-testid="tracker-sheet-lines">
+        // Laid out as the task's own list is: a number in the margin, a rail, a card a line.
+        <ul className="space-y-1.5 px-1.5 py-2" data-testid="tracker-sheet-lines">
           {groups.map((group, g) => (
             <React.Fragment key={`${group.name}-${g}`}>
-              {group.name && <li className="bg-surface/40 px-3 py-1 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{group.name}</li>}
+              {group.name && <li className={cn("pr-1 pb-0.5 pl-[1.875rem] text-2xs font-semibold tracking-wide text-muted-foreground uppercase", g > 0 && "pt-1.5")}>{group.name}</li>}
               {group.lines.map((line) => (
                 <SheetLine
                   key={line.id}
+                  number={lines.indexOf(line) + 1}
                   line={line}
                   canEdit={canEdit}
                   editable={editable}
@@ -172,6 +174,7 @@ function useSheetCollapsed(key: string): [boolean, (collapsed: boolean) => void]
 }
 
 function SheetLine({
+  number,
   line,
   canEdit,
   editable,
@@ -181,6 +184,7 @@ function SheetLine({
   onToggle,
   onSave,
 }: {
+  number: number;
   line: ItemAsset;
   canEdit: boolean;
   editable: Partial<Record<SheetLineField, string>>;
@@ -195,39 +199,61 @@ function SheetLine({
   const finished = !!line.completedAt;
   // Opens to change what a column gives, or to read a spec and links the row is too narrow for.
   const opens = Object.keys(editable).some((field) => field !== "completedAt") || !!line.notes || line.links.length > 0;
-  return (
-    <li data-testid="tracker-sheet-line">
-    <div className={cn("flex items-center gap-2.5 px-3 py-1.5 text-[13px]", open && "bg-surface/60")}>
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={finished}
-        aria-label={finished ? `Open ${line.name} again` : `Mark ${line.name} done`}
-        disabled={!canEdit}
-        onClick={onToggle}
-        className={cn("flex size-4 shrink-0 items-center justify-center rounded-[4px] border", finished ? "border-green-600 bg-green-600 text-white" : "border-input", canEdit && "hover:border-ring")}
-      >
-        {finished && <Check className="size-3" strokeWidth={3} />}
-      </button>
-      {opens ? (
-        <button type="button" onClick={() => onOpen(!open)} aria-expanded={open} className={cn("min-w-0 flex-1 truncate text-left hover:underline", finished && "text-muted-foreground line-through")} data-testid="tracker-sheet-line-open">
-          {line.name}
-        </button>
-      ) : (
-        <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{line.name}</span>
-      )}
-      {line.assetType && <span className="hidden shrink-0 rounded-full bg-surface px-2 py-0.5 text-2xs sm:inline">{line.assetType}</span>}
-      {line.quantity !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular">×{line.quantity}</span>}
+  const overdue = !finished && isOverdue(line.dueDate);
+  const count = line.quantity ?? 1;
+  const meta = (
+    <>
+      {count > 1 && <span className="rounded bg-muted/70 px-1 py-px text-[10px] font-medium tabular text-muted-foreground">×{count}</span>}
+      {line.assetType && <span className="max-w-32 truncate">{line.assetType}</span>}
       {people.length > 0 && (
-        <span className="flex shrink-0 -space-x-1.5">
+        <span className="flex -space-x-1">
           {people.slice(0, 3).map((user, i) => (
-            <UserAvatar key={line.assigneeIds[i]} user={user} size="xs" className="ring-2 ring-background" />
+            <UserAvatar key={line.assigneeIds[i]} user={user} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
           ))}
         </span>
       )}
-      {line.dueDate && <span className="shrink-0 text-2xs text-muted-foreground tabular">{formatShortDate(line.dueDate)}</span>}
-    </div>
-    {open && <SheetLineEditor line={line} editable={editable} specColumnName={specColumnName} onCancel={() => onOpen(false)} onSave={onSave} />}
+      {line.dueDate && <span className={cn("tabular", overdue && "font-medium text-red-600 dark:text-red-400")}>{formatShortDate(line.dueDate)}</span>}
+    </>
+  );
+  const hasMeta = count > 1 || !!line.assetType || people.length > 0 || !!line.dueDate;
+  return (
+    <li className="flex items-stretch gap-1.5" data-testid="tracker-sheet-line">
+      <span className="w-4 shrink-0 pt-3 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden>
+        {number}
+      </span>
+      {/* Red when late, as on the task's own lines. */}
+      <span aria-hidden className={cn("w-1 shrink-0", overdue ? "bg-red-500" : finished ? "bg-muted-foreground/15" : "bg-muted-foreground/30")} />
+      <div className={cn("min-w-0 flex-1 rounded-xl border border-border/70 bg-card shadow-xs", finished && "bg-card/60", open && "border-border ring-1 ring-border/60")}>
+        <div className="flex items-center gap-2 px-2.5 py-2 text-[13px]">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={finished}
+            aria-label={finished ? `Open ${line.name} again` : `Mark ${line.name} done`}
+            disabled={!canEdit}
+            onClick={onToggle}
+            className={cn("flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors", finished ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80", canEdit ? "hover:border-ring" : "cursor-default opacity-70")}
+          >
+            {finished && <Check className="size-3" strokeWidth={3} />}
+          </button>
+          {opens ? (
+            <button type="button" onClick={() => onOpen(!open)} aria-expanded={open} className="min-w-0 flex-1 truncate text-left font-medium" data-testid="tracker-sheet-line-open">
+              <span className={cn(finished && "text-muted-foreground line-through")}>{line.name}</span>
+            </button>
+          ) : (
+            <span className={cn("min-w-0 flex-1 truncate font-medium", finished && "text-muted-foreground line-through")}>{line.name}</span>
+          )}
+          {!open && hasMeta && <span className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground @max-[28rem]/assets:hidden">{meta}</span>}
+          {opens && (
+            <button type="button" onClick={() => onOpen(!open)} aria-label={open ? `Close ${line.name}` : `Open ${line.name}`} className="shrink-0 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground">
+              <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+            </button>
+          )}
+        </div>
+        {/* Narrow: the details on a line of their own under the name. */}
+        {!open && hasMeta && <div className="hidden flex-wrap items-center gap-x-2 gap-y-1 pr-2.5 pb-2 pl-[2.125rem] text-2xs text-muted-foreground @max-[28rem]/assets:flex">{meta}</div>}
+        {open && <SheetLineEditor line={line} editable={editable} specColumnName={specColumnName} onCancel={() => onOpen(false)} onSave={onSave} />}
+      </div>
     </li>
   );
 }
@@ -284,7 +310,7 @@ function SheetLineEditor({
   );
   return (
     <div
-      className="space-y-2 border-t bg-surface/30 px-3 py-2.5"
+      className="space-y-2 border-t px-3 py-2.5"
       onKeyDown={(e) => {
         if (e.key === "Escape") onCancel();
         if (e.key === "Enter" && changed && (e.target as HTMLElement).tagName === "INPUT") onSave(patch);

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.3",
+    date: "2026-10-12",
+    title: "A sheet's assets look like the task's",
+    changes: [
+      "A sheet's assets on a task are numbered and laid out as cards like the task's own, with the quantity, type, people and deadline, late ones marked red.",
+    ],
+  },
+  {
     version: "0.93.2",
     date: "2026-10-12",
     title: "PIC set on a sheet's asset sticks",
