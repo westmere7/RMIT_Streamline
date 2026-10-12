@@ -120,11 +120,11 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
       {collapsed ? null : lines.length === 0 ? (
         <p className="px-3 py-3 text-[13px] text-muted-foreground">No rows in the sheet read as assets yet.</p>
       ) : (
-        // Laid out as the task's own list is: a number in the margin, a rail, a card a line.
+        // Laid out as the task's own list is: a number in the margin, a card a line.
         <ul className="space-y-1.5 px-1.5 py-2" data-testid="tracker-sheet-lines">
           {groups.map((group, g) => (
             <React.Fragment key={`${group.name}-${g}`}>
-              {group.name && <li className={cn("pr-1 pb-0.5 pl-[1.875rem] text-2xs font-semibold tracking-wide text-muted-foreground uppercase", g > 0 && "pt-1.5")}>{group.name}</li>}
+              {group.name && <li className={cn("pr-1 pb-0.5 pl-[1.5rem] text-2xs font-semibold tracking-wide text-muted-foreground uppercase", g > 0 && "pt-1.5")}>{group.name}</li>}
               {group.lines.map((line) => (
                 <SheetLine
                   key={line.id}
@@ -221,8 +221,6 @@ function SheetLine({
       <span className="w-4 shrink-0 pt-3 pr-0.5 text-right text-2xs font-medium tabular text-muted-foreground/60 @max-[28rem]/assets:hidden" aria-hidden>
         {number}
       </span>
-      {/* Red when late, as on the task's own lines. */}
-      <span aria-hidden className={cn("w-1 shrink-0", overdue ? "bg-red-500" : finished ? "bg-muted-foreground/15" : "bg-muted-foreground/30")} />
       <div className={cn("min-w-0 flex-1 rounded-xl border border-border/70 bg-card shadow-xs", finished && "bg-card/60", open && "border-border ring-1 ring-border/60")}>
         <div className="flex items-center gap-2 px-2.5 py-2 text-[13px]">
           <button

@@ -524,13 +524,6 @@ function AssetRowCard({
         </span>
       )}
 
-      {/* The row's standing as a straight line the height of the card, so what
-          is late reads down the margin before anyone reads a date: red for late,
-          a neutral rail for the rest and a fainter one once done — the tick and
-          the struck name already say that, and a second colour for it made a
-          long list loud. A rail rather than nothing, so the column is unbroken. */}
-      {!detailed && <span aria-hidden className={cn("w-1 shrink-0 transition-colors", overdue ? "bg-red-500" : done ? "bg-muted-foreground/15" : "bg-muted-foreground/30")} data-testid="asset-standing" />}
-
       <div
         className={cn(
           "min-w-0 flex-1 rounded-xl border border-border/70 bg-card shadow-xs transition-colors",
