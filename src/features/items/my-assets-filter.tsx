@@ -31,15 +31,16 @@ export function MyAssetsToggle({ on, todo, onChange }: { on: boolean; todo: numb
 }
 
 /**
- * Beside the toggle while the list is filtered, in warning colours: everyone
- * else's lines are hidden, and a short list must not be read as the whole of
- * it. Says how many are hidden, with the way back beside it.
+ * Beside the toggle while the list is filtered, in warning colours but with no
+ * box of its own (the panel has enough of those): everyone else's lines are
+ * hidden, and a short list must not be read as the whole of it. Says how many
+ * are hidden, with the way back beside it.
  */
 export function MyAssetsStrip({ shown, total, onShowAll }: { shown: number; total: number; onShowAll: () => void }) {
   const hidden = Math.max(0, total - shown);
   return (
     <div
-      className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-amber-400 bg-amber-100 pr-1 pl-3 text-xs text-amber-950 shadow-xs dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
+      className="flex min-w-0 flex-1 items-center gap-2 pl-1 text-xs text-amber-800 dark:text-amber-300"
       role="status"
       data-testid="asset-mine-strip"
     >

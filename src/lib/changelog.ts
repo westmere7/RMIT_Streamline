@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.6",
+    date: "2026-10-12",
+    title: "To-do warning without a box",
+    changes: [
+      "The To-do warning keeps its amber text and Show all button without a box around it.",
+    ],
+  },
+  {
     version: "0.93.5",
     date: "2026-10-12",
     title: "To-do says what it hides",
