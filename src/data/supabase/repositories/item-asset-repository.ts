@@ -1,7 +1,7 @@
 import type { AssetLink, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import { normalizeAssetLinks } from "@/domain";
 import type { ItemAssetRepository } from "@/data/repositories";
-import { assertOk, chunk, db, unwrap, unwrapList } from "../client";
+import { assertOk, chunk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const ASSET =
   "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, links, block_id, block_name, block_links, position, tracker_sheet_id, tracker_row_id, created_by, created_at, updated_at";
@@ -62,7 +62,7 @@ function toItemAsset(row: ItemAssetRow): ItemAsset {
 export class SupabaseItemAssetRepository implements ItemAssetRepository {
   async getById(id: string): Promise<ItemAsset | null> {
     const result = await db().from("item_assets").select(ASSET).eq("id", id).maybeSingle();
-    const row = unwrap<ItemAssetRow | null>(result, "item_assets.getById");
+    const row = unwrapMaybe<ItemAssetRow>(result, "item_assets.getById");
     return row ? toItemAsset(row) : null;
   }
 

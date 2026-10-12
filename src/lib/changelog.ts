@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.91.2",
+    date: "2026-10-12",
+    title: "Removing asset lines quickly",
+    changes: [
+      "Removing asset lines in quick succession no longer shows an \"item_assets.getById\" error.",
+    ],
+  },
+  {
     version: "0.91.1",
     date: "2026-10-06",
     title: "Better column guesses for asset sheets",

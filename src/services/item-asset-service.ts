@@ -437,6 +437,8 @@ export class ItemAssetService {
 
   async remove(id: EntityId, itemId: EntityId, boardId: EntityId, actorId: EntityId): Promise<void> {
     const before = await this.repos.itemAssets.getById(id);
+    // Already gone (a second click on the same bin): nothing to remove or record.
+    if (!before) return;
     this.guardSheetLine(before);
     const people = await this.assigneesOf(itemId);
     await this.repos.itemAssets.delete(id);
