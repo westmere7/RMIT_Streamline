@@ -142,6 +142,22 @@ export function assignAssetRole(mapping: TrackerAssetMapping, column: Pick<Track
   return next;
 }
 
+/**
+ * What to write in a text cell so it reads back as this person and nobody
+ * else: the first of their names that resolves to them alone, else their
+ * email. Two people can share a display name (a real account and a demo
+ * person, say), and the first of them would otherwise take the line.
+ */
+export function cellNameFor(id: EntityId, people: readonly AssetPerson[]): string | null {
+  const own = people.filter((p) => p.id === id);
+  const candidates = [...own.map((p) => p.name), ...own.map((p) => p.email ?? "")].filter(Boolean);
+  for (const candidate of candidates) {
+    const found = resolvePeople(candidate, people);
+    if (found.length === 1 && found[0] === id) return candidate;
+  }
+  return candidates[0] ?? null;
+}
+
 /** What a role calls one value it reads, for the warning about cells it cannot. */
 const ROLE_VALUE: Partial<Record<AssetRole, string>> = { quantity: "a number", pic: "a person", due: "a date", link: "a web address" };
 
@@ -277,7 +293,7 @@ export function sheetLineCells(
     else if (field === "quantity") value = raw === null ? null : column.type === "number" ? (raw as number) : String(raw);
     else if (field === "assigneeIds") {
       const ids = raw as string[];
-      value = column.type === "person" ? personValue(ids) : ids.map((id) => people.find((p) => p.id === id)?.name ?? "").filter(Boolean).join(", ") || null;
+      value = column.type === "person" ? personValue(ids) : ids.map((id) => cellNameFor(id, people) ?? "").filter(Boolean).join(", ") || null;
     } else {
       const done = raw !== null;
       if (column.type === "list" && mapping.done.values.length === 0) return { cells: [], refused: "No choice in the sheet's Done column means done. Choose one in its asset settings." };

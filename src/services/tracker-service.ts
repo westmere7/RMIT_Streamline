@@ -269,7 +269,10 @@ export class TrackerService {
       if (cells.length === 0) return;
       const edited = TrackerService.applyEdits(sheet, cells.map((cell) => ({ rowId: line.trackerRowId!, ...cell })));
       const result = await this.saveSheetDraft(sheet.id, { rows: edited.rows }, sheet.updatedAt, actorId);
-      if (!("conflict" in result)) return;
+      if ("conflict" in result) continue;
+      // The row took the change but the task did not: say so, rather than let the line snap back unexplained.
+      if (result.syncError) throw new Error(`The sheet took the change, but the task's assets could not be updated: ${result.syncError}`);
+      return;
     }
     throw new Error("The sheet kept changing. Try again in a moment.");
   }

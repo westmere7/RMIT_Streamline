@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_TEAM_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { asUuid, assetRoleOf, assignAssetRole, coercePeople, normalizeAssetMapping, roleMismatch, sheetLineCells, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
+import { asUuid, assetRoleOf, assignAssetRole, cellNameFor, coercePeople, normalizeAssetMapping, roleMismatch, sheetLineCells, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
 import { createServices } from "@/services";
 import { TrackerService } from "@/services/tracker-service";
 import { sheetsToWorkbook, workbookToSheets } from "@/services/tracker-xlsx";
@@ -128,6 +128,23 @@ describe("a sheet as assets", () => {
     // A spec from several columns is the sheet's to change; dividers do not count as columns.
     expect(sheetLineCells({ columns }, { ...mapping, spec: ["q", "sep:1"] }, { notes: "5" }).cells).toEqual([{ columnId: "q", value: "5" }]);
     expect(sheetLineCells({ columns }, { ...mapping, spec: ["q", "p"] }, { notes: "5" }).refused).toMatch(/several columns/);
+  });
+
+  it("writes a person into a text cell under a name only they answer to", () => {
+    const people = [
+      { id: "demo", name: "Danh Nguyen", email: "danh@demo.test" },
+      { id: "me", name: "Danh Nguyen", email: "me@rmit.test" },
+      { id: "me", name: "Danh Van Nguyen", email: "me@rmit.test" },
+      { id: "jane", name: "Jane Doe", email: "jane@rmit.test" },
+    ];
+    expect(cellNameFor("jane", people)).toBe("Jane Doe");
+    expect(cellNameFor("demo", people)).toBe("Danh Nguyen");
+    // The shared name would read back as the demo person, so the next one of theirs is written.
+    expect(cellNameFor("me", people)).toBe("Danh Van Nguyen");
+    const lines = sheetAssetLines({ columns: [col("n", "Name", "text"), col("p", "PIC", "text")], rows: [data("a", { n: "X", p: cellNameFor("me", people) })] }, { ...emptyAssetMapping(), name: "n", pic: { columnId: "p", value: null } }, people);
+    expect(lines[0]!.assigneeIds).toEqual(["me"]);
+    // Nothing of theirs is theirs alone: the email is.
+    expect(cellNameFor("me", people.filter((p) => p.name !== "Danh Van Nguyen"))).toBe("me@rmit.test");
   });
 
   it("reads any column for any part: text as done, people as spec names, only addresses as links", () => {

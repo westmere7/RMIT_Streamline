@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.2",
+    date: "2026-10-12",
+    title: "PIC set on a sheet's asset sticks",
+    changes: [
+      "Setting the PIC of a sheet's asset from the task no longer snaps back when someone else has the same name: the sheet gets a name only that person goes by, or their email.",
+      "If the sheet takes a change but the task's assets cannot follow, you are told instead of the change quietly undoing itself.",
+    ],
+  },
+  {
     version: "0.93.1",
     date: "2026-10-12",
     title: "To-do covers a sheet's assets",

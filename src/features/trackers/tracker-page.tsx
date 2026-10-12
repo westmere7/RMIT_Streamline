@@ -266,7 +266,7 @@ export function TrackerPage() {
         <ConfirmDialog
           open={!!roleCheck}
           onOpenChange={(open) => !open && setRoleCheck(null)}
-          title={roleCheck ? `Use “${roleCheck.column.name}” as ${ASSET_ROLE_LABELS[roleCheck.role].toLowerCase()}?` : ""}
+          title={roleCheck ? `Use “${roleCheck.column.name}” as ${(roleCheck.role === "pic" ? "PIC" : ASSET_ROLE_LABELS[roleCheck.role].toLowerCase())}?` : ""}
           description={roleCheck?.message}
           confirmLabel="Use anyway"
           onConfirm={() => {
