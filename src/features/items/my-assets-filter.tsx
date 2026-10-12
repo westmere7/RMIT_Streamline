@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecks, X } from "lucide-react";
+import { EyeOff, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -30,17 +30,32 @@ export function MyAssetsToggle({ on, todo, onChange }: { on: boolean; todo: numb
   );
 }
 
-/** Beside the toggle while the list is filtered, so a short list is not read as the whole of it. */
+/**
+ * Beside the toggle while the list is filtered, in warning colours: everyone
+ * else's lines are hidden, and a short list must not be read as the whole of
+ * it. Says how many are hidden, with the way back beside it.
+ */
 export function MyAssetsStrip({ shown, total, onShowAll }: { shown: number; total: number; onShowAll: () => void }) {
+  const hidden = Math.max(0, total - shown);
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-accent-soft/60 pl-3 pr-1 text-xs text-accent-soft-foreground" role="status" data-testid="asset-mine-strip">
-      <ListChecks className="size-3.5 shrink-0" aria-hidden />
+    <div
+      className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-amber-400 bg-amber-100 pr-1 pl-3 text-xs text-amber-950 shadow-xs dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
+      role="status"
+      data-testid="asset-mine-strip"
+    >
+      <EyeOff className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       <span className="min-w-0 flex-1 truncate">
-        <span className="font-semibold">Only yours</span>
-        <span className="tabular"> · {shown} of {total} items</span>
+        <span className="font-semibold">{hidden === 1 ? "1 item hidden" : `${hidden} items hidden`}</span>
+        <span> · only yours shown</span>
       </span>
-      <Button type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={onShowAll} data-testid="asset-mine-show-all">
-        <X className="size-3" /> Show all
+      <Button
+        type="button"
+        size="sm"
+        className="h-7 shrink-0 bg-amber-500 px-2.5 text-xs font-semibold text-amber-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
+        onClick={onShowAll}
+        data-testid="asset-mine-show-all"
+      >
+        Show all
       </Button>
     </div>
   );

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.5",
+    date: "2026-10-12",
+    title: "To-do says what it hides",
+    changes: [
+      "With To-do on, an amber strip says how many items are hidden, with Show all beside it.",
+    ],
+  },
+  {
     version: "0.93.4",
     date: "2026-10-12",
     title: "No bars beside asset lines",
