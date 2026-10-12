@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.1",
+    date: "2026-10-12",
+    title: "To-do covers a sheet's assets",
+    changes: [
+      "To-do on a task's Assets tab lists your assets from its tracker sheet beside the ones added on the task, and leaves the sheet out when none there are yours.",
+    ],
+  },
+  {
     version: "0.93.0",
     date: "2026-10-12",
     title: "Edit a sheet's assets on the task",

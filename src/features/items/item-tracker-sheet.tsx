@@ -28,13 +28,15 @@ import { cn } from "@/lib/utils";
  * Without a sheet, an editor can pick one, which opens the same asset settings
  * the tracker shows.
  */
-export function ItemTrackerSheet({ item, lines, canEdit }: { item: Item; lines: ItemAsset[]; canEdit: boolean }) {
+export function ItemTrackerSheet({ item, lines, canEdit, filtered = false }: { item: Item; lines: ItemAsset[]; canEdit: boolean; filtered?: boolean }) {
   const linked = useItemTrackerSheet(item.id);
   const sheet = linked.data ?? null;
   const [picking, setPicking] = React.useState(false);
   const [settings, setSettings] = React.useState<TrackerSheet | null>(null);
 
   if (linked.isLoading) return null;
+  // Under To-do, a sheet with none of the viewer's lines is left out rather than shown empty.
+  if (filtered && lines.length === 0) return null;
   // Lines shared in from a linked task's sheet still show, under their own sheet.
   if (!sheet && lines.length === 0) {
     if (!canEdit) return null;
@@ -142,7 +144,7 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
           ))}
         </ul>
       )}
-      {!collapsed && <p className="border-t px-3 py-1.5 text-2xs text-muted-foreground">{Object.keys(editable).length > 0 ? "Changes here are made in the sheet too." : "Change these in the sheet. Ticking one here ticks its row there."}</p>}
+      {!collapsed && Object.keys(editable).length === 0 && <p className="border-t px-3 py-1.5 text-2xs text-muted-foreground">Change these in the sheet. Ticking one here ticks its row there.</p>}
     </section>
   );
 }

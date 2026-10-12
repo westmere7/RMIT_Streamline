@@ -38,6 +38,8 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   // The To-do count and strip cover the sheet's lines too: they are the task's.
   const mineAll = React.useMemo(() => all.filter((row) => row.assigneeIds.includes(meId)), [all, meId]);
   const todo = mineAll.filter((row) => !row.completedAt).length;
+  // To-do narrows both lists, the sheet's and the task's own, to the viewer's lines.
+  const shownSheetLines = onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines;
   // Numbered as the whole list numbers them, so "3" filtered is "3" in full.
   const numbers = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -66,12 +68,12 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         canEdit={canEdit}
         addable={!onlyMine}
         numbers={numbers}
-        emptyText={onlyMine ? "Nothing here is on you." : sheetLines.length > 0 ? "Nothing added on this task." : canEdit ? "No items yet." : "No items listed."}
+        emptyText={onlyMine ? (shownSheetLines.length > 0 ? "Nothing added on this task is on you." : "Nothing here is on you.") : sheetLines.length > 0 ? "Nothing added on this task." : canEdit ? "No items yet." : "No items listed."}
         beforeList={
           <>
-            <ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />
+            <ItemTrackerSheet item={item} lines={shownSheetLines} canEdit={canEdit} filtered={onlyMine} />
             {/* With a sheet above, the task's own lines get a name of their own. */}
-            {sheetLines.length > 0 && <h4 className="mb-1 px-0.5 text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
+            {shownSheetLines.length > 0 && <h4 className="mb-1 px-0.5 text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
           </>
         }
         actions={
