@@ -207,6 +207,24 @@ function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue
   }
 }
 
+/** The column a part gets when the sheet has none for it: a name and a type that read as that part. */
+export const NEW_ASSET_COLUMN: Record<Exclude<AssetRole, "spec">, { name: string; type: TrackerColumn["type"] }> = {
+  name: { name: "Asset", type: "text" },
+  type: { name: "Type", type: "list" },
+  quantity: { name: "Quantity", type: "number" },
+  pic: { name: "PIC", type: "person" },
+  due: { name: "Due date", type: "date" },
+  done: { name: "Done", type: "checkbox" },
+  link: { name: "Link", type: "url" },
+};
+
+/** A column name not yet on the sheet: "Type", else "Type 2", "Type 3"… */
+export function freeColumnName(columns: readonly Pick<TrackerColumn, "name">[], name: string): string {
+  const taken = new Set(columns.map((c) => c.name.trim().toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  for (let n = 2; ; n++) if (!taken.has(`${name} ${n}`.toLowerCase())) return `${name} ${n}`;
+}
+
 /** What a ticked line writes into a Done column that is neither a checkbox nor has Done choices. */
 export const DONE_TEXT = "Done";
 

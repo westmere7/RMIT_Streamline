@@ -51,6 +51,8 @@ export function LocalRealtimeSync() {
       }
       if (kinds.has("assets")) {
         invalidate(["item-assets"]);
+        // The lines on the person looking, for My Work's Assets tab.
+        invalidate(["my-assets"]);
       }
       if (kinds.has("docs")) {
         invalidate(["docs"]);

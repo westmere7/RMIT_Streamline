@@ -142,6 +142,7 @@ function peopleIds(ids: readonly string[]): string[] {
 /** One line as inserted. */
 function insertPayload(input: ItemAssetInput): Record<string, unknown> {
   return {
+    ...(input.id ? { id: input.id } : {}),
     item_id: input.itemId,
     board_id: input.boardId,
     name: input.name.trim(),

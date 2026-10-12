@@ -61,8 +61,9 @@ export interface ItemAsset extends Timestamps {
   trackerRowId?: string | null;
 }
 
+/** `id` is optional: a caller that shows the line before it is saved passes the id it showed it under. */
 export type ItemAssetInput = Pick<ItemAsset, "itemId" | "boardId" | "name" | "createdBy"> &
-  Partial<Pick<ItemAsset, "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position" | "trackerSheetId" | "trackerRowId">>;
+  Partial<Pick<ItemAsset, "id" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position" | "trackerSheetId" | "trackerRowId">>;
 
 export type ItemAssetPatch = Partial<Pick<ItemAsset, "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links" | "blockId" | "blockName" | "blockLinks" | "position">>;
 

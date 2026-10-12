@@ -130,7 +130,7 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
 function build(input: ItemAssetInput, boardId: string): ItemAsset {
   const now = nowIso();
   return {
-      id: newId(),
+      id: input.id ?? newId(),
       itemId: input.itemId,
       boardId,
       name: input.name.trim(),

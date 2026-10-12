@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.0",
+    date: "2026-10-12",
+    title: "New columns from the asset settings",
+    changes: [
+      "Task assets settings can make the column a part is missing, from its column list: a Type dropdown of your asset types, a Quantity, a PIC People column, a Due date, a Done tick, a Link.",
+      "Column letters sit in a rounded badge with room before the name.",
+      "Picking a PIC in a form with Update wakes Update at once, without closing the list first.",
+      "A line just added can be opened and edited straight away without its picker closing as it saves.",
+      "A task open in another tab follows edits made in its tracker sheet.",
+    ],
+  },
+  {
     version: "0.93.6",
     date: "2026-10-12",
     title: "To-do warning without a box",

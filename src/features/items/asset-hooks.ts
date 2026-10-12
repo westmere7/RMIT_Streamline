@@ -164,11 +164,15 @@ export function useAssetMutations(item: Item) {
     toast.error(error instanceof Error ? error.message : fallback);
   };
 
-  /** A line as it is shown until the server has answered. */
+  /**
+   * A line as it is shown until the server has answered, under the id it is
+   * saved with: the saved line then takes its place without remounting it, so
+   * a picker opened on it straight away stays open.
+   */
   const tempLine = (line: NewAssetLine, position: number): ItemAsset => {
     const now = nowIso();
     return {
-      id: newId(),
+      id: line.id ?? newId(),
       itemId: item.id,
       boardId: item.boardId,
       name: line.name.trim(),
@@ -190,7 +194,7 @@ export function useAssetMutations(item: Item) {
   };
   const nextPosition = (previous: ItemAsset[] | undefined) => (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1;
 
-  const add = useMutation({
+  const addLine = useMutation({
     mutationFn: (line: NewAssetLine) => services.assets.add({ ...line, itemId: item.id, boardId: item.boardId }, user.id),
     onMutate: async (line) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -202,19 +206,16 @@ export function useAssetMutations(item: Item) {
     onSettled: settle,
   });
 
-  /** A new block: its lines, all under one name and the same people. */
-  const addBlock = useMutation({
-    mutationFn: ({ name, assigneeIds, links, lines }: { name: string; assigneeIds: string[]; links: AssetLink[]; lines: NewAssetLine[] }) => {
-      const blockId = newId();
-      return services.assets.addMany(
+  /** A new block: its lines, all under one name and the same people. Ids are given up front, as for one line. */
+  const addBlockLines = useMutation({
+    mutationFn: ({ name, assigneeIds, links, lines, blockId }: { name: string; assigneeIds: string[]; links: AssetLink[]; lines: NewAssetLine[]; blockId: string }) =>
+      services.assets.addMany(
         lines.map((line) => ({ ...line, itemId: item.id, boardId: item.boardId, assigneeIds, blockId, blockName: name.trim(), blockLinks: links })),
         user.id,
-      );
-    },
-    onMutate: async ({ name, assigneeIds, links, lines }) => {
+      ),
+    onMutate: async ({ name, assigneeIds, links, lines, blockId }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ItemAsset[]>(key);
-      const blockId = newId();
       const start = nextPosition(previous);
       queryClient.setQueryData<ItemAsset[]>(key, (old = []) => [...old, ...lines.map((line, i) => tempLine({ ...line, assigneeIds, blockId, blockName: name.trim(), blockLinks: links }, start + i))]);
       return { previous };
@@ -308,6 +309,14 @@ export function useAssetMutations(item: Item) {
     onError: (error, _id, ctx) => rollback(ctx?.previous, error, "Could not remove the asset"),
     onSettled: settle,
   });
+
+  // Each new line gets its id here, before the optimistic copy is drawn.
+  const add = { ...addLine, mutate: (line: NewAssetLine) => addLine.mutate({ ...line, id: line.id ?? newId() }) };
+  const addBlock = {
+    ...addBlockLines,
+    mutate: (block: { name: string; assigneeIds: string[]; links: AssetLink[]; lines: NewAssetLine[] }) =>
+      addBlockLines.mutate({ ...block, blockId: newId(), lines: block.lines.map((line) => ({ ...line, id: line.id ?? newId() })) }),
+  };
 
   return { add, addBlock, update, updateBlock, saveBlock, remove, removeBlock };
 }

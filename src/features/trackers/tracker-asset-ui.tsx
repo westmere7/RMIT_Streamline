@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { Check, CornerDownLeft, GripVertical, Link2, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { Check, CornerDownLeft, GripVertical, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -84,9 +84,35 @@ export function PeopleCellView({ value, users, faded }: { value: unknown; users:
 /**
  * Picks the people in a cell: type to narrow, click or Enter to toggle, and
  * Done (or Tab, or clicking away) to keep it. Several people are allowed.
+ * `onPick` hears every toggle as it happens, for a form whose Update should
+ * wake up at the first pick rather than when the list closes.
  */
-export function PeopleEditor({ value, users, onCommit, onCancel }: { value: string; users: User[]; onCommit: (value: string | null) => void; onCancel: () => void }) {
+export function PeopleEditor({
+  value,
+  users,
+  onCommit,
+  onCancel,
+  onPick,
+}: {
+  value: string;
+  users: User[];
+  onCommit: (value: string | null) => void;
+  onCancel: () => void;
+  onPick?: (ids: string[]) => void;
+}) {
   const [chosen, setChosen] = React.useState<string[]>(() => personIds(value));
+  const pickRef = React.useRef(onPick);
+  React.useEffect(() => {
+    pickRef.current = onPick;
+  });
+  const first = React.useRef(true);
+  React.useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    pickRef.current?.(chosen);
+  }, [chosen]);
   const [query, setQuery] = React.useState("");
   const [highlight, setHighlight] = React.useState(0);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -342,14 +368,24 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const linked = useLinkedTask(sheet);
   const mutations = useSheetAssetMutations();
   const [mapping, setMapping] = React.useState<TrackerAssetMapping>(() => initialMapping ?? sheet.assetMapping ?? suggestAssetMapping(sheet));
+  // Columns made from here, shown before the sheet on screen has caught up with them.
+  const [made, setMade] = React.useState<TrackerColumn[]>([]);
+  const columns = React.useMemo(() => [...sheet.columns, ...made.filter((c) => !sheet.columns.some((s) => s.id === c.id))], [sheet.columns, made]);
+  const shown = React.useMemo(() => ({ ...sheet, columns }), [sheet, columns]);
+  /** Makes the column a part is missing, and gives the part to it. */
+  const newColumn = (role: Exclude<AssetRole, "spec">) => async () => {
+    const { column } = await mutations.addColumn.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, role, options: role === "type" ? assetTypes.map((t) => t.name) : undefined });
+    setMade((list) => [...list, column]);
+    setMapping((m) => assignAssetRole(m, column, role));
+  };
   const [chosen, setChosen] = React.useState<Item | null>(presetItem);
   const [query, setQuery] = React.useState("");
   const hits = useTaskSearch(query, !sheet.itemId && !presetItem);
   const task = sheet.itemId ? linked.item : chosen;
-  const lines = React.useMemo(() => (isMappingUsable(mapping) ? sheetAssetLines(sheet, mapping) : []), [sheet, mapping]);
+  const lines = React.useMemo(() => (isMappingUsable(mapping) ? sheetAssetLines(shown, mapping) : []), [shown, mapping]);
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
-  const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending;
+  const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending;
   // A column plays one part: choosing it for one takes it out of Spec and Links.
   const set = (patch: Partial<TrackerAssetMapping>) =>
     setMapping((m) => {
@@ -361,7 +397,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const pick = (role: AssetRole) => (columnId: string | null) =>
     setMapping((m) => {
       const current = role === "name" ? m.name : role === "spec" || role === "link" ? null : m[role].columnId;
-      const column = sheet.columns.find((c) => c.id === (columnId ?? current));
+      const column = columns.find((c) => c.id === (columnId ?? current));
       return column ? assignAssetRole(m, column, columnId ? role : null) : m;
     });
   const taken = new Set([mapping.name, mapping.type.columnId, mapping.quantity.columnId, mapping.pic.columnId, mapping.due.columnId, mapping.done.columnId].filter((id): id is string => !!id));
@@ -372,9 +408,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     onClose();
   };
 
-  const listCol = mapping.done.columnId ? sheet.columns.find((c) => c.id === mapping.done.columnId) : null;
+  const listCol = mapping.done.columnId ? columns.find((c) => c.id === mapping.done.columnId) : null;
   const warn = (columnId: string | null, role: AssetRole) => {
-    const mismatch = columnId ? roleMismatch(sheet, columnId, role, trackerPeople()) : null;
+    const mismatch = columnId ? roleMismatch(shown, columnId, role, trackerPeople()) : null;
     return mismatch ? (
       <MapRow label="">
         <span className="text-xs text-amber-700 dark:text-amber-400" data-testid={`map-warning-${role}`}>
@@ -456,10 +492,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
       <section className="space-y-2.5">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
         <MapRow label="Asset name">
-          <ColumnSelect columns={sheet.columns} value={mapping.name} onChange={pick("name")} none="Choose a column" testId="map-name" />
+          <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
         </MapRow>
         <MapRow label="Type">
-          <ColumnSelect columns={sheet.columns} value={mapping.type.columnId} onChange={pick("type")} none="No column" testId="map-type" />
+          <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
           <select
             value={mapping.type.value ?? ""}
             onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
@@ -477,7 +513,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </select>
         </MapRow>
         <MapRow label="Quantity">
-          <ColumnSelect columns={sheet.columns} value={mapping.quantity.columnId} onChange={pick("quantity")} none="No column" testId="map-quantity" />
+          <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
           <Input
             type="number"
             min={0}
@@ -490,20 +526,21 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         </MapRow>
         {warn(mapping.quantity.columnId, "quantity")}
         <MapRow label="PIC">
-          <ColumnSelect columns={sheet.columns} value={mapping.pic.columnId} onChange={pick("pic")} none="No column" testId="map-pic" />
+          <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
           <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
         </MapRow>
         {warn(mapping.pic.columnId, "pic")}
         <MapRow label="Due date">
-          <ColumnSelect columns={sheet.columns} value={mapping.due.columnId} onChange={pick("due")} none="No column" testId="map-due" />
+          <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
           <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
         </MapRow>
         {warn(mapping.due.columnId, "due")}
         <MapRow label="Done">
           <ColumnSelect
-            columns={sheet.columns}
+            columns={columns}
             value={mapping.done.columnId}
             onChange={pick("done")}
+            onCreate={newColumn("done")}
             none="Nothing counts as done"
             testId="map-done"
           />
@@ -535,10 +572,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </MapRow>
         )}
         <MapRow label="Spec">
-          <SpecChips columns={sheet.columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
+          <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
         </MapRow>
         <MapRow label="Links">
-          <ColumnChips columns={sheet.columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
+          <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
         </MapRow>
       </section>
 
@@ -588,19 +625,40 @@ function MapRow({ label, children }: { label: string; children: React.ReactNode 
 /** A sheet column's letter, as the grid's header menu names it. */
 function ColumnBadge({ index }: { index: number }) {
   return (
-    <span aria-hidden className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px] leading-none font-semibold text-muted-foreground">
+    <span aria-hidden className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-foreground/10 px-1.5 font-mono text-[10px] leading-none font-semibold text-muted-foreground">
       {columnLetter(index)}
     </span>
   );
 }
 
 const NO_COLUMN = "__none";
+const NEW_COLUMN = "__new";
 
-/** Any column of the sheet, each with its letter. */
-function ColumnSelect({ columns, value, onChange, none, testId }: { columns: TrackerColumn[]; value: string | null; onChange: (id: string | null) => void; none: string; testId?: string }) {
+/** Any column of the sheet, each with its letter; and, with `onCreate`, a new one made for the part. */
+function ColumnSelect({
+  columns,
+  value,
+  onChange,
+  onCreate,
+  none,
+  testId,
+}: {
+  columns: TrackerColumn[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+  onCreate?: () => Promise<void>;
+  none: string;
+  testId?: string;
+}) {
   return (
-    <Select value={value ?? NO_COLUMN} onValueChange={(next) => onChange(next === NO_COLUMN ? null : next)}>
-      <SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 max-md:h-10 [&>span]:flex [&>span]:items-center [&>span]:gap-2" aria-label={none} data-testid={testId}>
+    <Select
+      value={value ?? NO_COLUMN}
+      onValueChange={(next) => {
+        if (next === NEW_COLUMN) void onCreate?.().catch(() => undefined);
+        else onChange(next === NO_COLUMN ? null : next);
+      }}
+    >
+      <SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 max-md:h-10" aria-label={none} data-testid={testId}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -610,10 +668,24 @@ function ColumnSelect({ columns, value, onChange, none, testId }: { columns: Tra
         <SelectSeparator />
         {columns.map((c, index) => (
           <SelectItem key={c.id} value={c.id}>
-            <ColumnBadge index={index} />
-            <span className="truncate">{c.name}</span>
+            {/* One flex row inside the item's text, so the letter keeps its distance from the name here and in the closed select. */}
+            <span className="flex min-w-0 items-center gap-2">
+              <ColumnBadge index={index} />
+              <span className="truncate">{c.name}</span>
+            </span>
           </SelectItem>
         ))}
+        {onCreate && (
+          <>
+            <SelectSeparator />
+            <SelectItem value={NEW_COLUMN} className="text-primary" data-testid={testId ? `${testId}-new` : undefined}>
+              <span className="flex items-center gap-2">
+                <Plus className="size-3.5 shrink-0" aria-hidden />
+                New column
+              </span>
+            </SelectItem>
+          </>
+        )}
       </SelectContent>
     </Select>
   );
@@ -766,6 +838,7 @@ export function PeopleValue({
         <PeopleEditor
           value={value.join(",")}
           users={users}
+          onPick={onChange}
           onCommit={(next) => {
             onChange(personIds(next));
             setOpen(false);

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import type { Tracker, TrackerAssetMapping, TrackerSheet } from "@/domain";
+import type { AssetRole, Tracker, TrackerAssetMapping, TrackerSheet } from "@/domain";
 import { mergeSheets } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -168,7 +168,7 @@ export function useSheetAssetMutations() {
     void queryClient.invalidateQueries({ queryKey: ["board-assets"] });
     void queryClient.invalidateQueries({ queryKey: ["tracker-sheet-item"] });
     void queryClient.invalidateQueries({ queryKey: ["item-tracker-sheet"] });
-    publishDataChange({ kinds: ["trackers", "items"] });
+    publishDataChange({ kinds: ["trackers", "items", "assets"] });
   };
   const fail = (title: string) => (error: unknown) => toast.error(title, { description: error instanceof Error ? error.message : undefined });
   const link = useMutation({
@@ -182,13 +182,20 @@ export function useSheetAssetMutations() {
     onError: fail("Could not save the asset settings"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
+  /** A column for a part the sheet has none for; the settings then point the part at it. */
+  const addColumn = useMutation({
+    mutationFn: ({ sheetId, role, options }: { sheetId: string; trackerId: string; role: Exclude<AssetRole, "spec">; options?: string[] }) => services.trackers.addAssetColumn(sheetId, role, user.id, options),
+    onSuccess: ({ sheet }, { trackerId }) => queryClient.setQueryData<TrackerSheet[]>(queryKeys.trackerSheets(trackerId), (old) => old?.map((s) => (s.id === sheet.id ? sheet : s))),
+    onError: fail("Could not add the column"),
+    onSettled: (_data, _error, { trackerId }) => settle(trackerId),
+  });
   const unlink = useMutation({
     mutationFn: ({ sheetId }: { sheetId: string; trackerId: string }) => services.trackers.unlinkSheet(sheetId, user.id),
     onSuccess: () => toast.success("Unlinked. The task no longer counts this sheet's rows."),
     onError: fail("Could not unlink the sheet"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
-  return { link, setMapping, unlink };
+  return { link, setMapping, unlink, addColumn };
 }
 
 /** The sheet holding a task's assets, for the task's Assets tab. */
@@ -323,7 +330,8 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
         if (result.sync && result.sync.added + result.sync.updated + result.sync.removed > 0) {
           void queryClient.invalidateQueries({ queryKey: ["item-assets"] });
           void queryClient.invalidateQueries({ queryKey: ["board-assets"] });
-          publishDataChange({ kinds: ["items"] });
+          // "assets" too: a task open in another tab lists these lines, and only that kind refreshes them there.
+          publishDataChange({ kinds: ["items", "assets"] });
         }
         if (result.syncError) toast.error("The sheet saved, but its task's assets could not be updated", { description: result.syncError });
         publishDataChange({ kinds: ["trackers"] });

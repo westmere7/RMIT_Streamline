@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_TEAM_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { asUuid, assetRoleOf, assignAssetRole, cellNameFor, coercePeople, normalizeAssetMapping, roleMismatch, sheetLineCells, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
+import { asUuid, assetRoleOf, assignAssetRole, cellNameFor, freeColumnName, coercePeople, normalizeAssetMapping, roleMismatch, sheetLineCells, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
 import { createServices } from "@/services";
 import { TrackerService } from "@/services/tracker-service";
 import { sheetsToWorkbook, workbookToSheets } from "@/services/tracker-xlsx";
@@ -302,6 +302,17 @@ describe("a linked sheet keeps the task's assets", () => {
     expect([again.cells["c-format"], again.cells["c-link"]]).toEqual(["A3", "https://x.test/b"]);
     expect((await sheetLines())[0]!.notes).toBe("Format: A3");
     await expect(services.assets.remove(line!.id, itemId, line!.boardId, SEED_USER_IDS.jun)).rejects.toThrow(/tracker sheet/);
+  });
+
+  it("makes a column for a part the sheet has none for, named so it does not clash", async () => {
+    const { column, sheet: saved } = await services.trackers.addAssetColumn(sheet.id, "type", SEED_USER_IDS.jun, ["Banner", "Poster"]);
+    // The sheet already has a "Type" column, so this one is "Type 2": a dropdown of the asset types, at the end.
+    expect(column).toMatchObject({ name: "Type 2", type: "list", options: ["Banner", "Poster"] });
+    expect(saved.columns.at(-1)!.id).toBe(column.id);
+    const due = await services.trackers.addAssetColumn(sheet.id, "due", SEED_USER_IDS.jun);
+    expect(due.column).toMatchObject({ name: "Due date 2", type: "date" });
+    expect((await services.trackers.getSheet(sheet.id))!.columns.map((c) => c.id)).toContain(column.id);
+    expect(freeColumnName([{ name: "PIC" }, { name: "pic 2" }], "PIC")).toBe("PIC 3");
   });
 
   it("keeps one task a sheet and one sheet a task", async () => {

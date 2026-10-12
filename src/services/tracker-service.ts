@@ -1,5 +1,5 @@
 import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { coercePeople, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells } from "@/domain";
+import { NEW_ASSET_COLUMN, coercePeople, freeColumnName, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, type AssetRole } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -233,6 +233,23 @@ export class TrackerService {
     if (sheet.itemId && !isMappingUsable(clean)) throw new Error("Choose the column that names each asset.");
     const saved = await this.repos.trackers.updateSheet(sheetId, { assetMapping: clean });
     return { sheet: saved, sync: await this.syncAssets(saved, actorId) };
+  }
+
+  /**
+   * Adds a column for a part the sheet has no column for (a Type dropdown of
+   * the workspace's asset types, a Quantity number, a PIC People column…), at
+   * the end, and hands it back for the mapping to use. Saved like any edit, so
+   * an editor open on the sheet merges it in.
+   */
+  async addAssetColumn(sheetId: EntityId, role: Exclude<AssetRole, "spec">, actorId: EntityId, options: string[] = []): Promise<{ sheet: TrackerSheet; column: TrackerColumn }> {
+    const shape = NEW_ASSET_COLUMN[role];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const sheet = await this.getSheet(sheetId);
+      const column: TrackerColumn = { id: newId(), name: freeColumnName(sheet.columns, shape.name), type: shape.type, width: 160, ...(shape.type === "list" ? { options } : {}) };
+      const result = await this.saveSheetDraft(sheetId, { columns: [...sheet.columns, column] }, sheet.updatedAt, actorId);
+      if (!("conflict" in result)) return { sheet: result.sheet, column };
+    }
+    throw new Error("The sheet kept changing. Try again in a moment.");
   }
 
   /** Lets the sheet go of its task: the task's lines from it are taken off. The rows stay in the sheet. */
