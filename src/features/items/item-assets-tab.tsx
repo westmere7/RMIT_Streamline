@@ -66,8 +66,14 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         canEdit={canEdit}
         addable={!onlyMine}
         numbers={numbers}
-        emptyText={onlyMine ? "Nothing here is on you." : canEdit ? "No items yet." : "No items listed."}
-        beforeList={<ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />}
+        emptyText={onlyMine ? "Nothing here is on you." : sheetLines.length > 0 ? "Nothing added on this task." : canEdit ? "No items yet." : "No items listed."}
+        beforeList={
+          <>
+            <ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />
+            {/* With a sheet above, the task's own lines get a name of their own. */}
+            {sheetLines.length > 0 && <h4 className="mb-1 px-0.5 text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
+          </>
+        }
         actions={
           onlyMine ? (
             <>

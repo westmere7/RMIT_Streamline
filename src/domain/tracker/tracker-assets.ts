@@ -1,6 +1,6 @@
 import type { EntityId } from "@/domain/common/types";
 import type { AssetLink } from "@/domain/item/item-asset";
-import { personIds, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerSheet } from "@/domain/tracker/tracker";
+import { personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerSheet } from "@/domain/tracker/tracker";
 
 /**
  * A tracker sheet as a task's deliverables.
@@ -193,6 +193,100 @@ function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue
 
 /** What a ticked line writes into a Done column that is neither a checkbox nor has Done choices. */
 export const DONE_TEXT = "Done";
+
+/** What a line from a sheet can have changed on the task: each one cell of its row. */
+export type SheetLineField = "name" | "assetType" | "quantity" | "assigneeIds" | "dueDate" | "completedAt" | "notes" | "links";
+
+const SHEET_LINE_FIELD_LABELS: Record<SheetLineField, string> = {
+  name: "name",
+  assetType: "type",
+  quantity: "quantity",
+  assigneeIds: "PIC",
+  dueDate: "due date",
+  completedAt: "done mark",
+  notes: "spec",
+  links: "link",
+};
+
+/** The spec columns, without the dividers and line breaks between them. */
+export function specColumnIds(mapping: Pick<TrackerAssetMapping, "spec">): string[] {
+  return mapping.spec.filter((id) => !specBreakKind(id));
+}
+
+/**
+ * The column each changeable part of a line is written to, where the mapping
+ * has one. Spec and links are put together from their columns, so they can be
+ * changed on the task only while one column gives them.
+ */
+export function sheetLineColumns(mapping: TrackerAssetMapping | null | undefined): Partial<Record<SheetLineField, string>> {
+  if (!mapping) return {};
+  const out: Partial<Record<SheetLineField, string>> = {};
+  if (mapping.name) out.name = mapping.name;
+  if (mapping.type.columnId) out.assetType = mapping.type.columnId;
+  if (mapping.quantity.columnId) out.quantity = mapping.quantity.columnId;
+  if (mapping.pic.columnId) out.assigneeIds = mapping.pic.columnId;
+  if (mapping.due.columnId) out.dueDate = mapping.due.columnId;
+  if (mapping.done.columnId) out.completedAt = mapping.done.columnId;
+  const spec = specColumnIds(mapping);
+  if (spec.length === 1) out.notes = spec[0];
+  if (mapping.links.length === 1) out.links = mapping.links[0];
+  return out;
+}
+
+export interface SheetLinePatch {
+  name?: string;
+  assetType?: string | null;
+  quantity?: number | null;
+  assigneeIds?: string[];
+  dueDate?: string | null;
+  completedAt?: string | null;
+  /** The spec column's value alone, without its "Name: " (one spec column only). */
+  notes?: string | null;
+  /** The link column's address is the first link's (one link column only). */
+  links?: Array<{ url: string }>;
+  [other: string]: unknown;
+}
+
+/**
+ * A change made to a sheet's line on the task, as the cells of its row to
+ * write: the sheet stays the truth, and its save rewrites the line. Spec and
+ * links put together from several columns, and a band (a row of its own), are
+ * refused, as is a part no column gives (a value for every row is the sheet's,
+ * not one row's).
+ */
+export function sheetLineCells(
+  sheet: Pick<TrackerSheet, "columns">,
+  mapping: TrackerAssetMapping,
+  patch: SheetLinePatch,
+  people: readonly AssetPerson[] = [],
+): { cells: Array<{ columnId: string; value: TrackerCellValue }>; refused: string | null } {
+  const targets = sheetLineColumns(mapping);
+  const cells: Array<{ columnId: string; value: TrackerCellValue }> = [];
+  for (const [key, raw] of Object.entries(patch)) {
+    if (raw === undefined) continue;
+    if (!(key in SHEET_LINE_FIELD_LABELS)) return { cells: [], refused: "Bands come from the sheet. Change them there." };
+    const field = key as SheetLineField;
+    const several = (field === "notes" && specColumnIds(mapping).length > 1) || (field === "links" && mapping.links.length > 1);
+    if (several) return { cells: [], refused: `The ${SHEET_LINE_FIELD_LABELS[field]} comes from several columns of the sheet. Change it there.` };
+    const column = sheet.columns.find((c) => c.id === targets[field]);
+    if (!column) return { cells: [], refused: `No column in the sheet gives the ${SHEET_LINE_FIELD_LABELS[field]}. Choose one in its asset settings.` };
+    let value: TrackerCellValue;
+    if (field === "name" || field === "notes") value = raw === null ? null : String(raw).trim() || null;
+    else if (field === "links") value = (raw as Array<{ url: string }>)[0]?.url.trim() || null;
+    else if (field === "assetType" || field === "dueDate") value = (raw as string | null) || null;
+    else if (field === "quantity") value = raw === null ? null : column.type === "number" ? (raw as number) : String(raw);
+    else if (field === "assigneeIds") {
+      const ids = raw as string[];
+      value = column.type === "person" ? personValue(ids) : ids.map((id) => people.find((p) => p.id === id)?.name ?? "").filter(Boolean).join(", ") || null;
+    } else {
+      const done = raw !== null;
+      if (column.type === "list" && mapping.done.values.length === 0) return { cells: [], refused: "No choice in the sheet's Done column means done. Choose one in its asset settings." };
+      value = column.type === "checkbox" ? done : done ? (mapping.done.values[0] ?? DONE_TEXT) : null;
+    }
+    cells.push({ columnId: column.id, value });
+  }
+  return { cells, refused: null };
+}
 
 /**
  * A first guess at the mapping from the column names and types, so linking a

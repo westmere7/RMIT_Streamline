@@ -1,17 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ExternalLink, FileSpreadsheet, Loader2, Package, Settings2 } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, FileSpreadsheet, Link2, Loader2, Settings2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { Item, ItemAsset, TrackerSheet } from "@/domain";
+import { Input } from "@/components/ui/input";
+import { sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type SheetLineField, type TrackerSheet } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useAssetMutations } from "@/features/items/asset-hooks";
 import { useItemTrackerSheet, useTracker } from "@/features/trackers/hooks";
-import { TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
+import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatShortDate } from "@/lib/dates/dates";
 import { routes } from "@/lib/routes";
@@ -20,9 +22,11 @@ import { cn } from "@/lib/utils";
 /**
  * The part of a task's Assets tab that comes from a tracker sheet.
  *
- * A linked sheet's rows are the task's lines: listed here as they are, ticked
- * off here or in the sheet, and changed in the sheet. Without a sheet, an
- * editor can pick one, which opens the same asset settings the tracker shows.
+ * A linked sheet's rows are the task's lines: listed here as they are, and
+ * ticked off or changed here or in the sheet. A change made here is written to
+ * the line's row (see TrackerService.editLine), so the sheet stays the truth.
+ * Without a sheet, an editor can pick one, which opens the same asset settings
+ * the tracker shows.
  */
 export function ItemTrackerSheet({ item, lines, canEdit }: { item: Item; lines: ItemAsset[]; canEdit: boolean }) {
   const linked = useItemTrackerSheet(item.id);
@@ -60,6 +64,12 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
   const ws = useWorkspace();
   const tracker = useTracker(sheet?.trackerId ?? null);
   const mutations = useAssetMutations(item);
+  // What a line can have changed here: the parts a column of the sheet gives.
+  const editable = React.useMemo(() => (sheet && canEdit ? sheetLineColumns(sheet.assetMapping) : {}), [sheet, canEdit]);
+  // Spec or links from several columns are shown as they read, and changed in the sheet.
+  const specColumn = sheet?.assetMapping && specColumnIds(sheet.assetMapping).length === 1 ? (sheet.columns.find((c) => c.id === editable.notes) ?? null) : null;
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [collapsed, setCollapsed] = useSheetCollapsed(sheet?.id ?? `shared-${item.id}`);
   const done = lines.filter((l) => l.completedAt).length;
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const groups: Array<{ name: string | null; lines: ItemAsset[] }> = [];
@@ -70,9 +80,22 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
   }
   const href = sheet ? routes.tracker(ws.slug, sheet.trackerId, sheet.id) : null;
   return (
-    <section className="mb-4 rounded-lg border" data-testid="tracker-sheet-section">
-      <header className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-surface/60 px-3 py-2 text-[13px]">
-        <Package className="size-4 shrink-0 text-primary" aria-hidden />
+    // Tinted and marked as a sheet, so its lines are not mistaken for the ones added on the task below.
+    <section className="mb-4 overflow-hidden rounded-lg border border-emerald-600/30 bg-emerald-600/[0.03] dark:border-emerald-400/25 dark:bg-emerald-400/[0.04]" data-testid="tracker-sheet-section">
+      <header className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 border-emerald-600/20 bg-emerald-600/[0.06] px-3 py-2 text-[13px] dark:border-emerald-400/20 dark:bg-emerald-400/[0.07]", !collapsed && "border-b")}>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className="-ml-1"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Show the sheet's assets" : "Hide the sheet's assets"}
+          onClick={() => setCollapsed(!collapsed)}
+          data-testid="tracker-sheet-collapse"
+        >
+          <ChevronDown className={cn("transition-transform", collapsed && "-rotate-90")} />
+        </Button>
+        <FileSpreadsheet className="size-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
+        <span className="shrink-0 rounded bg-emerald-600/15 px-1.5 py-px text-2xs font-semibold text-emerald-800 uppercase dark:bg-emerald-400/15 dark:text-emerald-300">Sheet</span>
         <span className="min-w-0 truncate font-medium">{sheet ? `${tracker.data?.name ?? "Tracker"} › ${sheet.name}` : "From a linked task's tracker sheet"}</span>
         <span className="text-muted-foreground tabular">
           · {done}/{lines.length} done · {units} {units === 1 ? "unit" : "units"}
@@ -92,7 +115,7 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
           )}
         </span>
       </header>
-      {lines.length === 0 ? (
+      {collapsed ? null : lines.length === 0 ? (
         <p className="px-3 py-3 text-[13px] text-muted-foreground">No rows in the sheet read as assets yet.</p>
       ) : (
         <ul className="divide-y" data-testid="tracker-sheet-lines">
@@ -100,23 +123,79 @@ function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item;
             <React.Fragment key={`${group.name}-${g}`}>
               {group.name && <li className="bg-surface/40 px-3 py-1 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{group.name}</li>}
               {group.lines.map((line) => (
-                <SheetLine key={line.id} line={line} canEdit={canEdit} onToggle={() => mutations.update.mutate({ id: line.id, patch: { completedAt: line.completedAt ? null : new Date().toISOString() } })} />
+                <SheetLine
+                  key={line.id}
+                  line={line}
+                  canEdit={canEdit}
+                  editable={editable}
+                  specColumnName={specColumn?.name ?? null}
+                  open={openId === line.id}
+                  onOpen={(open) => setOpenId(open ? line.id : null)}
+                  onToggle={() => mutations.update.mutate({ id: line.id, patch: { completedAt: line.completedAt ? null : new Date().toISOString() } })}
+                  onSave={(patch) => {
+                    mutations.update.mutate({ id: line.id, patch });
+                    setOpenId(null);
+                  }}
+                />
               ))}
             </React.Fragment>
           ))}
         </ul>
       )}
-      <p className="border-t px-3 py-1.5 text-2xs text-muted-foreground">Change these in the sheet. Ticking one here ticks its row there.</p>
+      {!collapsed && <p className="border-t px-3 py-1.5 text-2xs text-muted-foreground">{Object.keys(editable).length > 0 ? "Changes here are made in the sheet too." : "Change these in the sheet. Ticking one here ticks its row there."}</p>}
     </section>
   );
 }
 
-function SheetLine({ line, canEdit, onToggle }: { line: ItemAsset; canEdit: boolean; onToggle: () => void }) {
+/** Whether this viewer folded a sheet's section away, remembered in the browser per sheet. */
+function useSheetCollapsed(key: string): [boolean, (collapsed: boolean) => void] {
+  const storageKey = `streamline:sheet-collapsed:${key}`;
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try {
+      return window.localStorage.getItem(storageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (next: boolean) => {
+    setCollapsed(next);
+    try {
+      if (next) window.localStorage.setItem(storageKey, "1");
+      else window.localStorage.removeItem(storageKey);
+    } catch {
+      // Storage off: it stays folded until the panel closes.
+    }
+  };
+  return [collapsed, set];
+}
+
+function SheetLine({
+  line,
+  canEdit,
+  editable,
+  specColumnName,
+  open,
+  onOpen,
+  onToggle,
+  onSave,
+}: {
+  line: ItemAsset;
+  canEdit: boolean;
+  editable: Partial<Record<SheetLineField, string>>;
+  specColumnName: string | null;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  onToggle: () => void;
+  onSave: (patch: ItemAssetPatch) => void;
+}) {
   const ws = useWorkspace();
   const people = line.assigneeIds.map((id) => ws.users.find((u) => u.id === id) ?? null);
   const finished = !!line.completedAt;
+  // Opens to change what a column gives, or to read a spec and links the row is too narrow for.
+  const opens = Object.keys(editable).some((field) => field !== "completedAt") || !!line.notes || line.links.length > 0;
   return (
-    <li className="flex items-center gap-2.5 px-3 py-1.5 text-[13px]" data-testid="tracker-sheet-line">
+    <li data-testid="tracker-sheet-line">
+    <div className={cn("flex items-center gap-2.5 px-3 py-1.5 text-[13px]", open && "bg-surface/60")}>
       <button
         type="button"
         role="checkbox"
@@ -128,7 +207,13 @@ function SheetLine({ line, canEdit, onToggle }: { line: ItemAsset; canEdit: bool
       >
         {finished && <Check className="size-3" strokeWidth={3} />}
       </button>
-      <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{line.name}</span>
+      {opens ? (
+        <button type="button" onClick={() => onOpen(!open)} aria-expanded={open} className={cn("min-w-0 flex-1 truncate text-left hover:underline", finished && "text-muted-foreground line-through")} data-testid="tracker-sheet-line-open">
+          {line.name}
+        </button>
+      ) : (
+        <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{line.name}</span>
+      )}
       {line.assetType && <span className="hidden shrink-0 rounded-full bg-surface px-2 py-0.5 text-2xs sm:inline">{line.assetType}</span>}
       {line.quantity !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular">×{line.quantity}</span>}
       {people.length > 0 && (
@@ -139,7 +224,126 @@ function SheetLine({ line, canEdit, onToggle }: { line: ItemAsset; canEdit: bool
         </span>
       )}
       {line.dueDate && <span className="shrink-0 text-2xs text-muted-foreground tabular">{formatShortDate(line.dueDate)}</span>}
+    </div>
+    {open && <SheetLineEditor line={line} editable={editable} specColumnName={specColumnName} onCancel={() => onOpen(false)} onSave={onSave} />}
     </li>
+  );
+}
+
+/**
+ * A sheet's line opened on the task: everything it has, the parts one column
+ * gives as a draft until Update, which writes them into the line's row. Spec
+ * and links put together from several columns are shown as they read.
+ */
+function SheetLineEditor({
+  line,
+  editable,
+  specColumnName,
+  onCancel,
+  onSave,
+}: {
+  line: ItemAsset;
+  editable: Partial<Record<SheetLineField, string>>;
+  specColumnName: string | null;
+  onCancel: () => void;
+  onSave: (patch: ItemAssetPatch) => void;
+}) {
+  const ws = useWorkspace();
+  const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
+  const [name, setName] = React.useState(line.name);
+  const [assetType, setAssetType] = React.useState(line.assetType ?? "");
+  const [quantity, setQuantity] = React.useState(line.quantity === null ? "" : String(line.quantity));
+  const [assigneeIds, setAssigneeIds] = React.useState(line.assigneeIds);
+  const [dueDate, setDueDate] = React.useState(line.dueDate ?? "");
+  // One spec column: its value alone, without the "Name: " the line reads with.
+  const specPrefix = specColumnName ? `${specColumnName}: ` : "";
+  const specValue = line.notes && specPrefix && line.notes.startsWith(specPrefix) ? line.notes.slice(specPrefix.length) : (line.notes ?? "");
+  const [spec, setSpec] = React.useState(specValue);
+  const [link, setLink] = React.useState(line.links[0]?.url ?? "");
+  const types = [...new Set([...assetTypes.map((t) => t.name), ...(line.assetType ? [line.assetType] : [])])];
+
+  const patch: ItemAssetPatch = {};
+  if (editable.name && name.trim() && name.trim() !== line.name) patch.name = name.trim();
+  if (editable.assetType && (assetType || null) !== line.assetType) patch.assetType = assetType || null;
+  const qty = quantity.trim() === "" ? null : Math.max(0, Math.round(Number(quantity)));
+  if (editable.quantity && (qty === null || Number.isFinite(qty)) && qty !== line.quantity) patch.quantity = qty;
+  if (editable.assigneeIds && assigneeIds.join(",") !== line.assigneeIds.join(",")) patch.assigneeIds = assigneeIds;
+  if (editable.dueDate && (dueDate || null) !== line.dueDate) patch.dueDate = dueDate || null;
+  if (editable.notes && spec.trim() !== specValue.trim()) patch.notes = spec.trim() || null;
+  if (editable.links && link.trim() !== (line.links[0]?.url ?? "")) patch.links = link.trim() ? [{ id: `col-${editable.links}`, label: line.links[0]?.label ?? "Link", url: link.trim(), icon: "link" }] : [];
+  const changed = Object.keys(patch).length > 0;
+  const changeable = Object.keys(editable).some((key) => key !== "completedAt");
+
+  const field = (label: string, control: React.ReactNode) => (
+    <label className="grid grid-cols-[5.5rem_1fr] items-center gap-2 max-sm:grid-cols-1">
+      <span className="text-2xs font-medium text-muted-foreground">{label}</span>
+      {control}
+    </label>
+  );
+  return (
+    <div
+      className="space-y-2 border-t bg-surface/30 px-3 py-2.5"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+        if (e.key === "Enter" && changed && (e.target as HTMLElement).tagName === "INPUT") onSave(patch);
+      }}
+      data-testid="tracker-sheet-line-editor"
+    >
+      {editable.name && field("Name", <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8" autoFocus data-testid="sheet-line-name" />)}
+      {editable.assetType &&
+        field(
+          "Type",
+          <select value={assetType} onChange={(e) => setAssetType(e.target.value)} className="h-8 min-w-0 rounded-md border bg-background px-2 text-[13px]" data-testid="sheet-line-type">
+            <option value="">None</option>
+            {types.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>,
+        )}
+      {editable.quantity && field("Quantity", <Input type="number" min={0} value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-8 w-28" data-testid="sheet-line-quantity" />)}
+      {editable.assigneeIds &&
+        field("PIC", <PeopleValue users={ws.activeUsers} value={assigneeIds} onChange={setAssigneeIds} placeholder="PIC" label="PIC" testId="sheet-line-pic" />)}
+      {editable.dueDate && field("Due date", <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-8 w-44" data-testid="sheet-line-due" />)}
+      {!editable.name && field("Name", <span className="text-[13px]">{line.name}</span>)}
+      {!editable.assetType && line.assetType && field("Type", <span className="text-[13px]">{line.assetType}</span>)}
+      {!editable.quantity && line.quantity !== null && field("Quantity", <span className="text-[13px] tabular">{line.quantity}</span>)}
+      {!editable.dueDate && line.dueDate && field("Due date", <span className="text-[13px] tabular">{formatShortDate(line.dueDate)}</span>)}
+      {editable.notes
+        ? field(specColumnName ?? "Spec", <Input value={spec} onChange={(e) => setSpec(e.target.value)} className="h-8" data-testid="sheet-line-spec" />)
+        : line.notes && field("Spec", <span className="text-[13px] whitespace-pre-line" data-testid="sheet-line-spec-text">{line.notes}</span>)}
+      {editable.links
+        ? field(line.links[0]?.label ?? "Link", <Input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" className="h-8" data-testid="sheet-line-link" />)
+        : line.links.length > 0 &&
+          field(
+            "Links",
+            <span className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[13px]">
+              {line.links.map((l) => (
+                <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 text-primary hover:underline">
+                  <Link2 className="size-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">{l.label}</span>
+                </a>
+              ))}
+            </span>,
+          )}
+      <div className="flex justify-end gap-2 pt-0.5">
+        {changeable ? (
+          <>
+            <Button size="sm" variant="ghost" className="h-7" onClick={onCancel}>
+              Discard
+            </Button>
+            <Button size="sm" className="h-7" disabled={!changed} onClick={() => onSave(patch)} data-testid="sheet-line-update">
+              Update
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" className="h-7" onClick={onCancel}>
+            Close
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 

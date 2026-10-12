@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_TEAM_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { asUuid, assetRoleOf, assignAssetRole, coercePeople, normalizeAssetMapping, roleMismatch, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
+import { asUuid, assetRoleOf, assignAssetRole, coercePeople, normalizeAssetMapping, roleMismatch, sheetLineCells, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
 import { createServices } from "@/services";
 import { TrackerService } from "@/services/tracker-service";
 import { sheetsToWorkbook, workbookToSheets } from "@/services/tracker-xlsx";
@@ -117,6 +117,17 @@ describe("a sheet as assets", () => {
     // A break at either end, or before an empty cell's column, has nothing to split.
     expect(lines(["br:0", "d", "sep:1"])).toBe("Duration: 30s");
     expect(normalizeAssetMapping({ name: "n", spec: ["d", "sep:x", "gone", "br:y"] }, columns)!.spec).toEqual(["d", "sep:x", "br:y"]);
+  });
+
+  it("writes a line's change to the right cells, by column type", () => {
+    const columns = [col("n", "Name", "text"), col("q", "Qty", "text"), col("p", "Owner", "text"), col("d", "Done", "text")];
+    const mapping = { ...emptyAssetMapping(), name: "n", quantity: { columnId: "q", value: null }, pic: { columnId: "p", value: null }, done: { columnId: "d", values: [] } };
+    const out = sheetLineCells({ columns }, mapping, { quantity: 3, assigneeIds: ["u1"], completedAt: "2026-10-12T00:00:00Z" }, [{ id: "u1", name: "Jane" }]);
+    expect(out).toEqual({ refused: null, cells: [{ columnId: "q", value: "3" }, { columnId: "p", value: "Jane" }, { columnId: "d", value: "Done" }] });
+    expect(sheetLineCells({ columns }, mapping, { dueDate: "2026-10-12" }).refused).toMatch(/due date/);
+    // A spec from several columns is the sheet's to change; dividers do not count as columns.
+    expect(sheetLineCells({ columns }, { ...mapping, spec: ["q", "sep:1"] }, { notes: "5" }).cells).toEqual([{ columnId: "q", value: "5" }]);
+    expect(sheetLineCells({ columns }, { ...mapping, spec: ["q", "p"] }, { notes: "5" }).refused).toMatch(/several columns/);
   });
 
   it("reads any column for any part: text as done, people as spec names, only addresses as links", () => {
@@ -254,7 +265,7 @@ describe("a linked sheet keeps the task's assets", () => {
     expect("conflict" in result && result.conflict.frozenColumns).toBe(3);
   });
 
-  it("ticks the sheet's row when the line is ticked on the task, and refuses other edits there", async () => {
+  it("ticks the sheet's row when the line is ticked on the task, and writes other changes to the row", async () => {
     await services.trackers.linkSheet(sheet.id, itemId, suggestAssetMapping(sheet), SEED_USER_IDS.jun);
     const [line] = await sheetLines();
     await services.assets.update(line!.id, { completedAt: new Date().toISOString() }, SEED_USER_IDS.jun);
@@ -264,7 +275,15 @@ describe("a linked sheet keeps the task's assets", () => {
     await services.assets.update(line!.id, { completedAt: null }, SEED_USER_IDS.jun);
     expect((await services.trackers.getSheet(sheet.id))!.rows.find((r) => r.id === "r1")!.cells["c-status"]).toBeUndefined();
 
-    await expect(services.assets.update(line!.id, { name: "Renamed" }, SEED_USER_IDS.jun)).rejects.toThrow(/tracker sheet/);
+    await services.assets.update(line!.id, { name: "Renamed", quantity: 5, assigneeIds: [SEED_USER_IDS.jun], dueDate: "2026-12-01", assetType: "Banner" }, SEED_USER_IDS.jun);
+    const row = (await services.trackers.getSheet(sheet.id))!.rows.find((r) => r.id === "r1")!;
+    expect([row.cells["c-asset"], row.cells["c-qty"], row.cells["c-pic"], row.cells["c-due"], row.cells["c-type"]]).toEqual(["Renamed", 5, SEED_USER_IDS.jun, "2026-12-01", "Banner"]);
+    expect((await sheetLines())[0]).toMatchObject({ name: "Renamed", quantity: 5, assigneeIds: [SEED_USER_IDS.jun], dueDate: "2026-12-01", assetType: "Banner" });
+    // One spec column and one link column: their cells take the value alone.
+    await services.assets.update(line!.id, { notes: "A3", links: [{ id: "l", label: "Final artwork", url: "https://x.test/b", icon: "link" }] }, SEED_USER_IDS.jun);
+    const again = (await services.trackers.getSheet(sheet.id))!.rows.find((r) => r.id === "r1")!;
+    expect([again.cells["c-format"], again.cells["c-link"]]).toEqual(["A3", "https://x.test/b"]);
+    expect((await sheetLines())[0]!.notes).toBe("Format: A3");
     await expect(services.assets.remove(line!.id, itemId, line!.boardId, SEED_USER_IDS.jun)).rejects.toThrow(/tracker sheet/);
   });
 

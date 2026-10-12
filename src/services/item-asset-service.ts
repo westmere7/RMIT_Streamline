@@ -28,8 +28,8 @@ export interface BoardAssets {
   linkedBoardIds: EntityId[];
 }
 
-/** Where a tracker sheet's line is ticked off when somebody ticks it on the task. Set by TrackerService. */
-export type SheetLineDoneHandler = (line: ItemAsset, done: boolean, actorId: EntityId) => Promise<void>;
+/** Where a change to a tracker sheet's line made on the task is written: its row in the sheet. Set by TrackerService. */
+export type SheetLineEditHandler = (line: ItemAsset, patch: ItemAssetPatch, actorId: EntityId, people: Array<{ id: EntityId; name: string; email: string | null }>) => Promise<void>;
 
 /** What a sheet sync changed, for the save indicator and the tests. */
 export interface SheetSyncResult {
@@ -42,7 +42,7 @@ export interface SheetSyncResult {
 const SHEET_POSITION_BASE = 100_000;
 
 export class ItemAssetService {
-  private sheetLineDone: SheetLineDoneHandler | null = null;
+  private sheetLineEdit: SheetLineEditHandler | null = null;
 
   /** `items` writes the PIC a line's people feed (see `syncPic`); without it the PIC is left alone. */
   constructor(
@@ -50,9 +50,9 @@ export class ItemAssetService {
     private readonly items?: ItemService,
   ) {}
 
-  /** Lets ticking a sheet's line on the task tick the row in the sheet instead (see `update`). */
-  onSheetLineDone(handler: SheetLineDoneHandler): void {
-    this.sheetLineDone = handler;
+  /** Lets a change to a sheet's line on the task change its row in the sheet instead (see `update`). */
+  onSheetLineEdit(handler: SheetLineEditHandler): void {
+    this.sheetLineEdit = handler;
   }
 
   /**
@@ -417,14 +417,11 @@ export class ItemAssetService {
     if (patch.quantity !== undefined && patch.quantity !== null && (!Number.isFinite(patch.quantity) || patch.quantity < 0)) throw new Error("Quantity must be zero or more");
     const before = await this.repos.itemAssets.getById(id);
     if (before?.trackerSheetId) {
-      // A sheet's line is ticked off on the task like any other, by ticking its
-      // row in the sheet; nothing else about it is changed here.
-      const keys = Object.keys(patch).filter((key) => patch[key as keyof ItemAssetPatch] !== undefined);
-      if (keys.length === 1 && keys[0] === "completedAt" && this.sheetLineDone) {
-        await this.sheetLineDone(before, patch.completedAt !== null, actorId);
-        return (await this.repos.itemAssets.getById(id)) ?? before;
-      }
-      this.guardSheetLine(before);
+      // A sheet's line is changed on the task like any other, by changing its
+      // row in the sheet: the sheet's save then rewrites the line.
+      if (!this.sheetLineEdit) this.guardSheetLine(before);
+      await this.sheetLineEdit!(before, patch, actorId, await this.people());
+      return (await this.repos.itemAssets.getById(id)) ?? before;
     }
     // Only a change of people can move the PIC, so nothing else pays for the read.
     const people = before && patch.assigneeIds !== undefined ? await this.assigneesOf(before.itemId) : null;

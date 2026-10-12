@@ -741,11 +741,25 @@ function SortableSpecChip({ id, index, name, onRemove }: { id: string; index: nu
 }
 
 /** People for every row (or every empty cell). */
-function PeopleValue({ users, value, onChange, placeholder }: { users: User[]; value: string[]; onChange: (ids: string[]) => void; placeholder: string }) {
+export function PeopleValue({
+  users,
+  value,
+  onChange,
+  placeholder,
+  label = "PIC for every row",
+  testId = "map-pic-value",
+}: {
+  users: User[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  placeholder: string;
+  label?: string;
+  testId?: string;
+}) {
   const [open, setOpen] = React.useState(false);
   return (
     <div className="relative min-w-0 flex-1">
-      <button type="button" onClick={() => setOpen(true)} className="flex h-8 w-full items-center gap-1.5 rounded-md border bg-background px-2 text-left text-[13px]" aria-label="PIC for every row" data-testid="map-pic-value">
+      <button type="button" onClick={() => setOpen(true)} className="flex h-8 w-full items-center gap-1.5 rounded-md border bg-background px-2 text-left text-[13px]" aria-label={label} data-testid={testId}>
         {value.length ? <PeopleCellView value={value.join(",")} users={users} /> : <span className="text-muted-foreground">{placeholder}: nobody</span>}
       </button>
       {open && (

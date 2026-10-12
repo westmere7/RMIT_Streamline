@@ -1,5 +1,5 @@
-import type { EntityId, Item, ItemAsset, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { DONE_TEXT, coercePeople, isMappingUsable, normalizeAssetMapping, personNames } from "@/domain";
+import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
+import { coercePeople, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -51,7 +51,7 @@ export class TrackerService {
     private readonly repos: Repositories,
     private readonly assets?: ItemAssetService,
   ) {
-    assets?.onSheetLineDone((line, done, actorId) => this.setLineDone(line, done, actorId));
+    assets?.onSheetLineEdit((line, patch, actorId, people) => this.editLine(line, patch, actorId, people));
   }
 
   // ---- Trackers ------------------------------------------------------------
@@ -254,21 +254,20 @@ export class TrackerService {
   }
 
   /**
-   * Ticks a sheet's line off (or opens it again) by setting its row's Done cell:
-   * the sheet stays the truth, and the save writes the line. Retried over a
-   * concurrent save, so somebody typing in the sheet does not lose the tick or
-   * their typing.
+   * Changes a sheet's line made on the task (ticked off, renamed, a new PIC or
+   * due date) by setting the cells of its row: the sheet stays the truth, and
+   * the save writes the line. Retried over a concurrent save, so somebody
+   * typing in the sheet does not lose the change or their typing.
    */
-  private async setLineDone(line: ItemAsset, done: boolean, actorId: EntityId): Promise<void> {
+  private async editLine(line: ItemAsset, patch: ItemAssetPatch, actorId: EntityId, people: Array<{ id: EntityId; name: string; email: string | null }>): Promise<void> {
     if (!line.trackerSheetId || !line.trackerRowId) return;
     for (let attempt = 0; attempt < 4; attempt++) {
       const sheet = await this.getSheet(line.trackerSheetId);
-      const mapping = sheet.assetMapping;
-      const column = mapping?.done.columnId ? sheet.columns.find((c) => c.id === mapping.done.columnId) : null;
-      if (!mapping || !column) throw new Error("The sheet has no Done column to tick. Choose one in its asset settings.");
-      if (column.type === "list" && mapping.done.values.length === 0) throw new Error("No choice in the sheet's Done column means done. Choose one in its asset settings.");
-      const value: TrackerCellValue = column.type === "checkbox" ? done : done ? (mapping.done.values[0] ?? DONE_TEXT) : null;
-      const edited = TrackerService.applyEdits(sheet, [{ rowId: line.trackerRowId, columnId: column.id, value }]);
+      if (!sheet.assetMapping) throw new Error("The sheet no longer holds this task's assets.");
+      const { cells, refused } = sheetLineCells(sheet, sheet.assetMapping, patch, people);
+      if (refused) throw new Error(refused);
+      if (cells.length === 0) return;
+      const edited = TrackerService.applyEdits(sheet, cells.map((cell) => ({ rowId: line.trackerRowId!, ...cell })));
       const result = await this.saveSheetDraft(sheet.id, { rows: edited.rows }, sheet.updatedAt, actorId);
       if (!("conflict" in result)) return;
     }

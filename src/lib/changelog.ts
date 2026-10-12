@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.93.0",
+    date: "2026-10-12",
+    title: "Edit a sheet's assets on the task",
+    changes: [
+      "A task's assets from a tracker sheet open on the task: everything the sheet gives is shown, and the name, type, quantity, PIC, due date, and a spec or link from one column can be changed there. The change is made in the sheet.",
+      "A sheet's assets sit in their own tinted card marked Sheet, which folds away, and the task's own assets below it are headed Added on this task.",
+    ],
+  },
+  {
     version: "0.92.0",
     date: "2026-10-12",
     title: "Asset roles from the column menu",
