@@ -37,6 +37,7 @@ import {
   TRACKER_NUMBER_FORMATS,
   TRACKER_NUMBER_FORMAT_LABELS,
   TRACKER_SUMMARY_LABELS,
+  ASSET_ROLES,
   columnLetter,
   type TrackerNumberFormat,
   type TrackerSummaryKind,
@@ -75,6 +76,8 @@ export interface TrackerGridProps {
   commit: (updater: (sheet: TrackerSheet) => TrackerSheet) => void;
   onUndo: () => void;
   onRedo: () => void;
+  /** Gives a column a part in the sheet's assets (or none), from its header menu. */
+  onAssetRole?: (column: TrackerColumn, role: AssetRole | null) => void;
 }
 
 interface EditingState {
@@ -91,7 +94,7 @@ interface EditingState {
  * editors, frozen columns, phase/channel bands, and right-click row and column
  * menus. No formulas — trackers are lists, not models.
  */
-export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerGridProps) {
+export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRole }: TrackerGridProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [active, setActive] = React.useState<CellAddress | null>(null);
   const [rowEditorOpen, setRowEditorOpen] = React.useState(false);
@@ -120,6 +123,15 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
   const users = ws.users;
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const roles = React.useMemo(() => assetRoles(sheet.assetMapping), [sheet.assetMapping]);
+  // Which column holds each one-column part, by letter, for the header menu.
+  const roleHolders = React.useMemo(() => {
+    const map = new Map<AssetRole, string>();
+    sheet.columns.forEach((c, i) => {
+      const role = roles.get(c.id);
+      if (role && role !== "spec" && role !== "link") map.set(role, columnLetter(i));
+    });
+    return map;
+  }, [sheet.columns, roles]);
   const fallbacks = React.useMemo(() => assetFallbacks(sheet.assetMapping), [sheet.assetMapping]);
   // The column a linked sheet reads asset types from offers the workspace's
   // asset types, so a row's type is one the dashboard counts.
@@ -493,6 +505,8 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo }: TrackerG
                   onResize={(e) => resizeColumn(column, e)}
                   onAutoFit={() => autoFit(column)}
                   role={roles.get(column.id) ?? null}
+                  onAssetRole={onAssetRole ? (role) => onAssetRole(column, role) : undefined}
+                  roleHolders={roleHolders}
                   onChange={(patch) => commit((s) => TrackerService.updateColumn(s, column.id, patch))}
                   onInsert={(side) => commit((s) => TrackerService.insertColumn(s, side === "left" ? index : index + 1))}
                   onMove={(delta) => commit((s) => TrackerService.moveColumn(s, column.id, index + delta))}
@@ -683,6 +697,9 @@ interface ColumnHeaderProps {
   onAutoFit: () => void;
   /** The part the column plays in the sheet's assets, when it plays one. */
   role: AssetRole | null;
+  onAssetRole?: (role: AssetRole | null) => void;
+  /** The letter of the column holding each one-column part. */
+  roleHolders?: ReadonlyMap<AssetRole, string>;
   onChange: (patch: Partial<Omit<TrackerColumn, "id">>) => void;
   onInsert: (side: "left" | "right") => void;
   onMove: (delta: number) => void;
@@ -690,7 +707,7 @@ interface ColumnHeaderProps {
   onFreeze: () => void;
 }
 
-function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onAutoFit, role, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
+function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onAutoFit, role, onAssetRole, roleHolders, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
   const [renaming, setRenaming] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(column.name);
@@ -781,6 +798,25 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
           </DropdownMenuRadioGroup>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+      {onAssetRole && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Package /> Asset role
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={role ?? "none"} onValueChange={(next) => onAssetRole(next === "none" ? null : (next as AssetRole))}>
+              <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+              {ASSET_ROLES.map((r) => (
+                <DropdownMenuRadioItem key={r} value={r} data-testid={`asset-role-${r}`}>
+                  {ASSET_ROLE_LABELS[r]}
+                  {/* Held by another column: picking it here moves it. */}
+                  {r !== role && roleHolders?.get(r) && <span className="ml-auto pl-3 font-mono text-2xs text-muted-foreground">{roleHolders.get(r)}</span>}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => onSort(sort === "asc" ? null : "asc")}>
         <ArrowDownAZ /> {sort === "asc" ? "Remove sort" : "Sort A → Z"}

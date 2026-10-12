@@ -59,7 +59,6 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
 
   return (
     <div className="p-4" data-testid="assets-tab">
-      <ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />
       <AssetComposer
         rows={onlyMine ? mine : rows}
         assetTypes={assetTypes}
@@ -68,6 +67,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         addable={!onlyMine}
         numbers={numbers}
         emptyText={onlyMine ? "Nothing here is on you." : canEdit ? "No items yet." : "No items listed."}
+        beforeList={<ItemTrackerSheet item={item} lines={onlyMine ? sheetLines.filter((line) => line.assigneeIds.includes(meId)) : sheetLines} canEdit={canEdit} />}
         actions={
           onlyMine ? (
             <>

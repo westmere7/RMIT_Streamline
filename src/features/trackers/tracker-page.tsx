@@ -12,12 +12,13 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import type { TrackerSheet } from "@/domain";
-import { exportSheetToCsv, exportTrackerToFile, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
+import { toast } from "sonner";
+import { assignAssetRole, isMappingUsable, roleMismatch, suggestAssetMapping, trackerPeople, type AssetRole, type TrackerAssetMapping, type TrackerColumn, type TrackerSheet } from "@/domain";
+import { exportSheetToCsv, exportTrackerToFile, useSheetAssetMutations, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
-import { LinkedSheetBar, TaskAssetsDialog, useLinkedTask, useTrackerPeopleDirectory } from "@/features/trackers/tracker-asset-ui";
+import { ASSET_ROLE_LABELS, LinkedSheetBar, TaskAssetsDialog, mismatchText, useLinkedTask, useTrackerPeopleDirectory } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { canEditTrackers } from "@/lib/permissions/permissions";
@@ -43,6 +44,11 @@ export function TrackerPage() {
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const [assetsOpen, setAssetsOpen] = React.useState(false);
+  // A part picked from a column's menu on a sheet that holds no task yet: the dialog opens on it.
+  const [seedMapping, setSeedMapping] = React.useState<TrackerAssetMapping | null>(null);
+  const sheetAssets = useSheetAssetMutations();
+  // A role picked for a column whose cells it cannot all read waits here for a yes.
+  const [roleCheck, setRoleCheck] = React.useState<{ sheet: TrackerSheet; column: TrackerColumn; role: AssetRole; message: string } | null>(null);
 
   const sheetParam = searchParams.get("sheet");
   const activeSheet: TrackerSheet | undefined = sheets.data?.find((s) => s.id === sheetParam) ?? sheets.data?.[0];
@@ -50,6 +56,25 @@ export function TrackerPage() {
   // A sheet that holds a task's assets is that task's: editing it takes the right to edit the task.
   const linkedTask = useLinkedTask(activeSheet);
   const canEditSheet = canEdit && (!activeSheet?.itemId || (!linkedTask.loading && (linkedTask.canEditTask || !linkedTask.item)));
+
+  /** A column's part, picked from its header menu: saved at once on a linked sheet, else the dialog opens on it to choose the task. */
+  const pickAssetRole = (sheet: TrackerSheet, column: TrackerColumn, role: AssetRole | null) => {
+    const mismatch = role ? roleMismatch(sheet, column.id, role, trackerPeople()) : null;
+    if (mismatch && role) return setRoleCheck({ sheet, column, role, message: mismatchText(mismatch) });
+    applyAssetRole(sheet, column, role);
+  };
+  const applyAssetRole = (sheet: TrackerSheet, column: TrackerColumn, role: AssetRole | null) => {
+    const mapping = assignAssetRole(sheet.assetMapping ?? suggestAssetMapping(sheet), column, role);
+    if (!sheet.itemId) {
+      setSeedMapping(mapping);
+      setAssetsOpen(true);
+      return;
+    }
+    // The mapping is checked against the saved columns, so a column still being saved would be dropped.
+    if (!activeSheet?.columns.some((c) => c.id === column.id)) return void toast.info("The sheet is still saving. Try again in a moment.");
+    if (!isMappingUsable(mapping)) return void toast.error("Each asset needs a name column", { description: "Give another column the Asset name role first." });
+    sheetAssets.setMapping.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
+  };
 
   if (tracker.isLoading || sheets.isLoading) {
     return (
@@ -236,9 +261,29 @@ export function TrackerPage() {
 
         {activeSheet?.itemId && <LinkedSheetBar sheet={activeSheet} onSettings={canEditSheet ? () => setAssetsOpen(true) : null} />}
 
-        <ActiveGrid canEdit={canEditSheet} />
+        <ActiveGrid canEdit={canEditSheet} onAssetRole={canEditSheet ? pickAssetRole : undefined} />
 
-        {activeSheet && <ActiveTaskAssetsDialog open={assetsOpen} onOpenChange={setAssetsOpen} />}
+        <ConfirmDialog
+          open={!!roleCheck}
+          onOpenChange={(open) => !open && setRoleCheck(null)}
+          title={roleCheck ? `Use “${roleCheck.column.name}” as ${ASSET_ROLE_LABELS[roleCheck.role].toLowerCase()}?` : ""}
+          description={roleCheck?.message}
+          confirmLabel="Use anyway"
+          onConfirm={() => {
+            if (roleCheck) applyAssetRole(roleCheck.sheet, roleCheck.column, roleCheck.role);
+            setRoleCheck(null);
+          }}
+        />
+        {activeSheet && (
+          <ActiveTaskAssetsDialog
+            open={assetsOpen}
+            initialMapping={seedMapping}
+            onOpenChange={(open) => {
+              setAssetsOpen(open);
+              if (!open) setSeedMapping(null);
+            }}
+          />
+        )}
 
         <ConfirmDialog
           open={deleteOpen}
@@ -273,16 +318,26 @@ function EditorControls({ canEdit }: { canEdit: boolean }) {
 }
 
 /** The Task assets dialog for the sheet on screen, read from the editor so it sees unsaved columns too. */
-function ActiveTaskAssetsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function ActiveTaskAssetsDialog({ open, onOpenChange, initialMapping }: { open: boolean; onOpenChange: (open: boolean) => void; initialMapping: TrackerAssetMapping | null }) {
   const editor = useSheetEditorContext();
   if (!editor.sheet) return null;
-  return <TaskAssetsDialog sheet={editor.sheet} open={open} onOpenChange={onOpenChange} />;
+  return <TaskAssetsDialog sheet={editor.sheet} open={open} onOpenChange={onOpenChange} initialMapping={initialMapping} />;
 }
 
-function ActiveGrid({ canEdit }: { canEdit: boolean }) {
+function ActiveGrid({ canEdit, onAssetRole }: { canEdit: boolean; onAssetRole?: (sheet: TrackerSheet, column: TrackerColumn, role: AssetRole | null) => void }) {
   const editor = useSheetEditorContext();
-  if (!editor.sheet) return <EmptyState icon={FileSpreadsheet} title="No sheets" description="Add a sheet to start tracking." />;
-  return <TrackerGrid sheet={editor.sheet} canEdit={canEdit} commit={editor.commit} onUndo={editor.undo} onRedo={editor.redo} />;
+  const sheet = editor.sheet;
+  if (!sheet) return <EmptyState icon={FileSpreadsheet} title="No sheets" description="Add a sheet to start tracking." />;
+  return (
+    <TrackerGrid
+      sheet={sheet}
+      canEdit={canEdit}
+      commit={editor.commit}
+      onUndo={editor.undo}
+      onRedo={editor.redo}
+      onAssetRole={onAssetRole ? (column, role) => onAssetRole(sheet, column, role) : undefined}
+    />
+  );
 }
 
 function SaveIndicator({ state }: { state: "idle" | "pending" | "saving" | "error" }) {

@@ -105,6 +105,7 @@ export function AssetComposer({
   emptyText,
   addable = true,
   actions,
+  beforeList,
   numbers: numberOverride,
   detailed = false,
   onAdd,
@@ -131,6 +132,8 @@ export function AssetComposer({
   addable?: boolean;
   /** More buttons beside Block, or on a row of their own when nothing can be added. */
   actions?: React.ReactNode;
+  /** Shown between the boxes for adding and the list (a task's tracker sheet lines), so adding stays on top. */
+  beforeList?: React.ReactNode;
   /** Line numbers from a longer list this view is part of, so a line keeps its number. */
   numbers?: ReadonlyMap<string, number>;
   /** Closed rows spell out what they have: when it is due and how far off, then quantity, type, spec and links on one quiet line. No numbers or rails in the margin. */
@@ -271,6 +274,8 @@ export function AssetComposer({
           onSubmit={(block) => onAddBlock!(block)}
         />
       )}
+
+      {beforeList && <div className={cn("empty:hidden", (adding || actions) && "mt-3")}>{beforeList}</div>}
 
       <ul className={cn("space-y-1.5", (adding || actions) && "mt-2")} data-testid="asset-lines">
         {entries.map((entry) =>

@@ -662,7 +662,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "Track a task's assets in a sheet", steps: [
         "Open the sheet and choose Use for a task, or choose Use a tracker sheet on the task's Assets tab.",
         "Pick the task. A sheet holds one task's assets, and a task takes its assets from one sheet.",
-        "Check the columns: which names each asset, and which give its type, quantity, PIC, due date, and whether it is done. Spec and link columns are copied onto each asset.",
+        "Check the columns, each shown with its letter: which names each asset, and which give its type, quantity, PIC, due date, and whether it is done. Any column can play any part, but only one column plays each. Spec and link columns are copied onto each asset; drag the spec columns into the order they should read, and add a divider or a line break between them.",
+        "Or give a column its part from its header menu, under Asset role. Picking a part another column has moves it. If some of the column's cells cannot be read that way, such as text in a Due date column, you are warned first: those assets get nothing from them, and the sheet keeps them.",
         "Where a detail is the same for every row, such as one PIC for the whole list, give it once instead of a column. With a column chosen as well, the value fills the column's empty cells.",
         "Check the count at the foot of the dialog, then save. Every data row with a name becomes one of the task's assets, under its band.",
       ], note: { title: "Counted like any other asset", text: "A sheet's rows count in the task's recap and progress, My Work, Workload, and the dashboard, by type, quantity, and PIC. Change them in the sheet; ticking one off on the task ticks its row in the sheet. Unlinking takes them off the task and leaves the rows in the sheet." } },

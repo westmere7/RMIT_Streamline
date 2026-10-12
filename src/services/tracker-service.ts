@@ -1,5 +1,5 @@
 import type { EntityId, Item, ItemAsset, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { coercePeople, isMappingUsable, normalizeAssetMapping, personNames } from "@/domain";
+import { DONE_TEXT, coercePeople, isMappingUsable, normalizeAssetMapping, personNames } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -267,7 +267,7 @@ export class TrackerService {
       const column = mapping?.done.columnId ? sheet.columns.find((c) => c.id === mapping.done.columnId) : null;
       if (!mapping || !column) throw new Error("The sheet has no Done column to tick. Choose one in its asset settings.");
       if (column.type === "list" && mapping.done.values.length === 0) throw new Error("No choice in the sheet's Done column means done. Choose one in its asset settings.");
-      const value: TrackerCellValue = column.type === "checkbox" ? done : done ? mapping.done.values[0]! : null;
+      const value: TrackerCellValue = column.type === "checkbox" ? done : done ? (mapping.done.values[0] ?? DONE_TEXT) : null;
       const edited = TrackerService.applyEdits(sheet, [{ rowId: line.trackerRowId, columnId: column.id, value }]);
       const result = await this.saveSheetDraft(sheet.id, { rows: edited.rows }, sheet.updatedAt, actorId);
       if (!("conflict" in result)) return;

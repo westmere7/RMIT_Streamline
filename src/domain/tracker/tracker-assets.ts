@@ -68,13 +68,131 @@ export function normalizeAssetMapping(raw: unknown, columns: readonly TrackerCol
     pic: source(m.pic, (v) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string" && !!id) : null)),
     due: source(m.due, (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)),
     done: { columnId: column(done.columnId), values: Array.isArray(done.values) ? done.values.filter((v): v is string => typeof v === "string") : [] },
-    spec: Array.isArray(m.spec) ? m.spec.map(column).filter((id): id is string => !!id) : [],
+    spec: Array.isArray(m.spec) ? m.spec.map((id) => (specBreakKind(id) ? (id as string) : column(id))).filter((id): id is string => !!id) : [],
     links: Array.isArray(m.links) ? m.links.map(column).filter((id): id is string => !!id) : [],
   };
 }
 
+/**
+ * A spec line can be broken up between its columns: a divider ("Duration: 30s
+ * | Ratio: 9:16") or a new line. Each sits in `spec` beside the column ids as
+ * "sep:<id>" or "br:<id>", so it can be dragged into place like a column.
+ */
+export type SpecBreakKind = "sep" | "br";
+
+export function specBreakKind(id: unknown): SpecBreakKind | null {
+  return typeof id === "string" ? (id.startsWith("sep:") ? "sep" : id.startsWith("br:") ? "br" : null) : null;
+}
+
+export function newSpecBreak(kind: SpecBreakKind): string {
+  return `${kind}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /** Choices that read as finished, offered as the Done values of a dropdown. */
 const DONE_WORDS = /^(done|complete|completed|delivered|approved|final|finished|live|published|sent|signed off|closed)$/i;
+
+/** A dropdown's choices that read as finished, ticked as its Done values when it is chosen. */
+export function doneChoicesOf(column: Pick<TrackerColumn, "type" | "options">): string[] {
+  return column.type === "list" ? (column.options ?? []).filter((o) => DONE_WORDS.test(o)) : [];
+}
+
+/** The part a column plays in a sheet's assets. */
+export type AssetRole = "name" | "type" | "quantity" | "pic" | "due" | "done" | "spec" | "link";
+
+export const ASSET_ROLES: readonly AssetRole[] = ["name", "type", "quantity", "pic", "due", "done", "spec", "link"];
+
+/** The part a column plays, or null. */
+export function assetRoleOf(mapping: TrackerAssetMapping | null | undefined, columnId: string): AssetRole | null {
+  if (!mapping) return null;
+  if (mapping.name === columnId) return "name";
+  if (mapping.type.columnId === columnId) return "type";
+  if (mapping.quantity.columnId === columnId) return "quantity";
+  if (mapping.pic.columnId === columnId) return "pic";
+  if (mapping.due.columnId === columnId) return "due";
+  if (mapping.done.columnId === columnId) return "done";
+  if (mapping.spec.includes(columnId)) return "spec";
+  if (mapping.links.includes(columnId)) return "link";
+  return null;
+}
+
+/**
+ * Gives a column one part, or none: it leaves whatever part it played, and
+ * takes a single part (name, type, quantity, PIC, due, done) over from the
+ * column that had it. Any column can play any part; a value for every row is
+ * kept.
+ */
+export function assignAssetRole(mapping: TrackerAssetMapping, column: Pick<TrackerColumn, "id" | "type" | "options">, role: AssetRole | null): TrackerAssetMapping {
+  const id = column.id;
+  const off = <T extends { columnId: string | null }>(source: T): T => (source.columnId === id ? { ...source, columnId: null } : source);
+  const next: TrackerAssetMapping = {
+    name: mapping.name === id ? null : mapping.name,
+    type: off(mapping.type),
+    quantity: off(mapping.quantity),
+    pic: off(mapping.pic),
+    due: off(mapping.due),
+    done: mapping.done.columnId === id ? { columnId: null, values: [] } : mapping.done,
+    spec: mapping.spec.filter((c) => c !== id),
+    links: mapping.links.filter((c) => c !== id),
+  };
+  if (role === "name") next.name = id;
+  else if (role === "type" || role === "quantity" || role === "pic" || role === "due") next[role] = { ...next[role], columnId: id } as never;
+  else if (role === "done") next.done = { columnId: id, values: doneChoicesOf(column) };
+  else if (role === "spec") next.spec = [...next.spec, id];
+  else if (role === "link") next.links = [...next.links, id];
+  return next;
+}
+
+/** What a role calls one value it reads, for the warning about cells it cannot. */
+const ROLE_VALUE: Partial<Record<AssetRole, string>> = { quantity: "a number", pic: "a person", due: "a date", link: "a web address" };
+
+/**
+ * How many filled cells of a column a role cannot read, for a warning before
+ * the column takes it: text in a Quantity column, "next week" as a due date,
+ * a name nobody has as the PIC. The sheet keeps those cells; the task's assets
+ * just get nothing from them. Null when every cell reads (or the role reads
+ * anything, like the name or a spec).
+ */
+export function roleMismatch(
+  sheet: Pick<TrackerSheet, "columns" | "rows">,
+  columnId: string,
+  role: AssetRole | null,
+  people: readonly AssetPerson[] = [],
+): { unreadable: number; filled: number; expected: string } | null {
+  const column = sheet.columns.find((c) => c.id === columnId);
+  const expected = role ? ROLE_VALUE[role] : undefined;
+  if (!column || !role || !expected) return null;
+  let filled = 0;
+  let unreadable = 0;
+  for (const row of sheet.rows) {
+    if (row.kind !== "data") continue;
+    const value = row.cells[columnId];
+    const text = cellText(value);
+    if (!text) continue;
+    filled++;
+    if (!readsAs(role, column, value, text, people)) unreadable++;
+  }
+  return unreadable > 0 ? { unreadable, filled, expected } : null;
+}
+
+function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue | undefined, text: string, people: readonly AssetPerson[]): boolean {
+  switch (role) {
+    case "quantity": {
+      const n = typeof value === "number" ? value : Number(text.replace(/[,\s]/g, ""));
+      return Number.isFinite(n) && n >= 0;
+    }
+    case "pic":
+      return column.type === "person" ? personIds(value).length > 0 : resolvePeople(text, people).length > 0;
+    case "due":
+      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    case "link":
+      return column.type === "url" || LOOKS_LIKE_URL.test(text);
+    default:
+      return true;
+  }
+}
+
+/** What a ticked line writes into a Done column that is neither a checkbox nor has Done choices. */
+export const DONE_TEXT = "Done";
 
 /**
  * A first guess at the mapping from the column names and types, so linking a
@@ -149,7 +267,6 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
   const dueCol = col(mapping.due.columnId);
   const doneCol = col(mapping.done.columnId);
   const doneValues = new Set(mapping.done.values.map((v) => v.toLowerCase()));
-  const specCols = mapping.spec.map(col).filter((c): c is TrackerColumn => !!c);
   const linkCols = mapping.links.map(col).filter((c): c is TrackerColumn => !!c);
 
   const lines: SheetAssetLine[] = [];
@@ -176,16 +293,13 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
     const dueDate = typeof dueCell === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dueCell) ? dueCell : mapping.due.value;
 
     const doneCell = cell(doneCol);
-    const done = doneCol ? (doneCol.type === "checkbox" ? doneCell === true : doneValues.has(cellText(doneCell).toLowerCase()) && cellText(doneCell) !== "") : false;
+    const done = doneCol ? (doneCol.type === "checkbox" ? doneCell === true : isDoneText(cellText(doneCell), doneCol, doneValues)) : false;
 
-    const spec = specCols
-      .map((c) => [c.name, cellText(row.cells[c.id])] as const)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(" · ");
+    const spec = specText(mapping.spec, col, (c) => (c.type === "person" ? namesIn(row.cells[c.id], people) : cellText(row.cells[c.id])));
     const links: AssetLink[] = linkCols.flatMap((c) => {
       const url = cellText(row.cells[c.id]);
-      return url ? [{ id: `col-${c.id}`, label: c.name.slice(0, 60) || "Link", url: url.slice(0, 2000), icon: "link" as const }] : [];
+      // Only a link column is taken at its word; any other column's cell has to look like an address.
+      return url && (c.type === "url" || LOOKS_LIKE_URL.test(url)) ? [{ id: `col-${c.id}`, label: c.name.slice(0, 60) || "Link", url: url.slice(0, 2000), icon: "link" as const }] : [];
     });
 
     lines.push({
@@ -204,6 +318,50 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
     });
   }
   return lines;
+}
+
+/**
+ * "Name: value" for each spec column with a value, joined by " · ", or by a
+ * divider or a new line where one was put. A break with nothing after it, or
+ * before it, is left out.
+ */
+function specText(spec: readonly string[], col: (id: string) => TrackerColumn | null, valueOf: (column: TrackerColumn) => string): string {
+  let out = "";
+  let joiner = " · ";
+  for (const id of spec) {
+    const kind = specBreakKind(id);
+    if (kind) {
+      if (out) joiner = kind === "br" ? "\n" : " | ";
+      continue;
+    }
+    const column = col(id);
+    const value = column ? valueOf(column) : "";
+    if (!column || !value) continue;
+    out += `${out ? joiner : ""}${column.name}: ${value}`;
+    joiner = " · ";
+  }
+  return out;
+}
+
+const LOOKS_LIKE_URL = /^(https?:\/\/|www\.)\S+$/i;
+
+/**
+ * A text cell reads as done when it is one of the chosen values; a column that
+ * is not a dropdown and has none chosen takes the usual words (Done, Delivered,
+ * Approved…).
+ */
+function isDoneText(text: string, column: TrackerColumn, values: ReadonlySet<string>): boolean {
+  if (!text) return false;
+  if (values.size > 0) return values.has(text.toLowerCase());
+  return column.type !== "list" && DONE_WORDS.test(text);
+}
+
+/** A People cell as names, for a spec line. */
+function namesIn(value: TrackerCellValue | undefined, people: readonly AssetPerson[]): string {
+  return personIds(value)
+    .map((id) => people.find((p) => p.id === id)?.name ?? "")
+    .filter(Boolean)
+    .join(", ");
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

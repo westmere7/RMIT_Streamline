@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.92.0",
+    date: "2026-10-12",
+    title: "Asset roles from the column menu",
+    changes: [
+      "A tracker column's header menu has Asset role: make it the asset name, type, quantity, PIC, due date, done, a spec or a link without opening the settings.",
+      "Any column can play any part, one column per part; you are warned when some of its cells cannot be read that way.",
+      "Task assets settings show each column's letter, and spec columns can be dragged into order with dividers and line breaks between them.",
+      "On a task's Assets tab, the add box, Block and To-do sit at the top, above a tracker sheet's lines.",
+    ],
+  },
+  {
     version: "0.91.2",
     date: "2026-10-12",
     title: "Removing asset lines quickly",

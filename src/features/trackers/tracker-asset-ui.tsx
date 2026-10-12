@@ -1,25 +1,37 @@
 "use client";
 
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Link2, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { Check, CornerDownLeft, GripVertical, Link2, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
+  assignAssetRole,
+  columnLetter,
   isMappingUsable,
+  newSpecBreak,
   personIds,
+  specBreakKind,
+  roleMismatch,
+  trackerPeople,
   personValue,
   setTrackerPeople,
   sheetAssetLines,
   suggestAssetMapping,
   trackerPersonName,
+  type AssetRole,
   type Item,
   type TrackerAssetMapping,
   type TrackerColumn,
-  type TrackerColumnType,
   type TrackerSheet,
   type User,
 } from "@/domain";
@@ -173,7 +185,7 @@ export function PeopleEditor({ value, users, onCommit, onCancel }: { value: stri
 
 // ---- Which column plays which part --------------------------------------------
 
-export type AssetRole = "name" | "type" | "quantity" | "pic" | "due" | "done" | "spec" | "link";
+export type { AssetRole };
 
 export const ASSET_ROLE_LABELS: Record<AssetRole, string> = {
   name: "Asset name",
@@ -295,33 +307,41 @@ function useTaskSearch(query: string, enabled: boolean) {
   });
 }
 
-/** Columns of the right kinds for a part, by name. */
-function columnsFor(columns: TrackerColumn[], types: TrackerColumnType[] | null): TrackerColumn[] {
-  return types ? columns.filter((c) => types.includes(c.type)) : columns;
-}
-
 /**
  * Makes a sheet a task's deliverables, or changes how it is read. The task is
  * picked once; the columns are guessed from their names and every guess can
  * be changed, or replaced by one value for every row ("everything here is
  * Jane's"). A line count underneath says what the task will get.
  */
-export function TaskAssetsDialog({ sheet, open, onOpenChange, presetItem }: { sheet: TrackerSheet; open: boolean; onOpenChange: (open: boolean) => void; presetItem?: Item | null }) {
+export function TaskAssetsDialog({
+  sheet,
+  open,
+  onOpenChange,
+  presetItem,
+  initialMapping,
+}: {
+  sheet: TrackerSheet;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  presetItem?: Item | null;
+  /** Opens on this mapping instead of the saved one (a part picked from a column's menu). */
+  initialMapping?: TrackerAssetMapping | null;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg" className="max-h-[90dvh] overflow-y-auto" data-testid="task-assets-dialog">
-        {open && <TaskAssetsForm sheet={sheet} presetItem={presetItem ?? null} onClose={() => onOpenChange(false)} />}
+        {open && <TaskAssetsForm sheet={sheet} presetItem={presetItem ?? null} initialMapping={initialMapping ?? null} onClose={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; presetItem: Item | null; onClose: () => void }) {
+function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet: TrackerSheet; presetItem: Item | null; initialMapping: TrackerAssetMapping | null; onClose: () => void }) {
   const ws = useWorkspace();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const linked = useLinkedTask(sheet);
   const mutations = useSheetAssetMutations();
-  const [mapping, setMapping] = React.useState<TrackerAssetMapping>(() => sheet.assetMapping ?? suggestAssetMapping(sheet));
+  const [mapping, setMapping] = React.useState<TrackerAssetMapping>(() => initialMapping ?? sheet.assetMapping ?? suggestAssetMapping(sheet));
   const [chosen, setChosen] = React.useState<Item | null>(presetItem);
   const [query, setQuery] = React.useState("");
   const hits = useTaskSearch(query, !sheet.itemId && !presetItem);
@@ -337,7 +357,14 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
       const taken = new Set([next.name, next.type.columnId, next.quantity.columnId, next.pic.columnId, next.due.columnId, next.done.columnId].filter(Boolean));
       return { ...next, spec: next.spec.filter((id) => !taken.has(id)), links: next.links.filter((id) => !taken.has(id)) };
     });
-  const taken = new Set([mapping.name, mapping.type.columnId, mapping.quantity.columnId, mapping.pic.columnId, mapping.due.columnId, mapping.done.columnId].filter(Boolean));
+  // One column per part: picking a column for one takes it from whichever part had it.
+  const pick = (role: AssetRole) => (columnId: string | null) =>
+    setMapping((m) => {
+      const current = role === "name" ? m.name : role === "spec" || role === "link" ? null : m[role].columnId;
+      const column = sheet.columns.find((c) => c.id === (columnId ?? current));
+      return column ? assignAssetRole(m, column, columnId ? role : null) : m;
+    });
+  const taken = new Set([mapping.name, mapping.type.columnId, mapping.quantity.columnId, mapping.pic.columnId, mapping.due.columnId, mapping.done.columnId].filter((id): id is string => !!id));
 
   const save = async () => {
     if (sheet.itemId) await mutations.setMapping.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
@@ -346,6 +373,16 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
   };
 
   const listCol = mapping.done.columnId ? sheet.columns.find((c) => c.id === mapping.done.columnId) : null;
+  const warn = (columnId: string | null, role: AssetRole) => {
+    const mismatch = columnId ? roleMismatch(sheet, columnId, role, trackerPeople()) : null;
+    return mismatch ? (
+      <MapRow label="">
+        <span className="text-xs text-amber-700 dark:text-amber-400" data-testid={`map-warning-${role}`}>
+          {mismatchText(mismatch)}
+        </span>
+      </MapRow>
+    ) : null;
+  };
 
   return (
     <>
@@ -419,10 +456,10 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
       <section className="space-y-2.5">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
         <MapRow label="Asset name">
-          <ColumnSelect columns={columnsFor(sheet.columns, ["text", "longText", "list"])} value={mapping.name} onChange={(name) => set({ name })} none="Choose a column" testId="map-name" />
+          <ColumnSelect columns={sheet.columns} value={mapping.name} onChange={pick("name")} none="Choose a column" testId="map-name" />
         </MapRow>
         <MapRow label="Type">
-          <ColumnSelect columns={columnsFor(sheet.columns, ["list", "text"])} value={mapping.type.columnId} onChange={(columnId) => set({ type: { ...mapping.type, columnId } })} none="No column" testId="map-type" />
+          <ColumnSelect columns={sheet.columns} value={mapping.type.columnId} onChange={pick("type")} none="No column" testId="map-type" />
           <select
             value={mapping.type.value ?? ""}
             onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
@@ -440,7 +477,7 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
           </select>
         </MapRow>
         <MapRow label="Quantity">
-          <ColumnSelect columns={columnsFor(sheet.columns, ["number"])} value={mapping.quantity.columnId} onChange={(columnId) => set({ quantity: { ...mapping.quantity, columnId } })} none="No column" testId="map-quantity" />
+          <ColumnSelect columns={sheet.columns} value={mapping.quantity.columnId} onChange={pick("quantity")} none="No column" testId="map-quantity" />
           <Input
             type="number"
             min={0}
@@ -451,27 +488,31 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
             className="h-8 min-w-0 flex-1"
           />
         </MapRow>
+        {warn(mapping.quantity.columnId, "quantity")}
         <MapRow label="PIC">
-          <ColumnSelect columns={columnsFor(sheet.columns, ["person", "text"])} value={mapping.pic.columnId} onChange={(columnId) => set({ pic: { ...mapping.pic, columnId } })} none="No column" testId="map-pic" />
+          <ColumnSelect columns={sheet.columns} value={mapping.pic.columnId} onChange={pick("pic")} none="No column" testId="map-pic" />
           <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
         </MapRow>
+        {warn(mapping.pic.columnId, "pic")}
         <MapRow label="Due date">
-          <ColumnSelect columns={columnsFor(sheet.columns, ["date"])} value={mapping.due.columnId} onChange={(columnId) => set({ due: { ...mapping.due, columnId } })} none="No column" testId="map-due" />
+          <ColumnSelect columns={sheet.columns} value={mapping.due.columnId} onChange={pick("due")} none="No column" testId="map-due" />
           <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
         </MapRow>
+        {warn(mapping.due.columnId, "due")}
         <MapRow label="Done">
           <ColumnSelect
-            columns={columnsFor(sheet.columns, ["checkbox", "list"])}
+            columns={sheet.columns}
             value={mapping.done.columnId}
-            onChange={(columnId) => {
-              const column = sheet.columns.find((c) => c.id === columnId);
-              const values = column?.type === "list" ? (column.options ?? []).filter((o) => /^(done|complete|completed|delivered|approved|final|live|published)$/i.test(o)) : [];
-              set({ done: { columnId, values } });
-            }}
+            onChange={pick("done")}
             none="Nothing counts as done"
             testId="map-done"
           />
         </MapRow>
+        {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
+          <MapRow label="">
+            <span className="text-xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</span>
+          </MapRow>
+        )}
         {listCol?.type === "list" && (
           <MapRow label="">
             <div className="flex flex-wrap gap-1.5" aria-label="Choices that count as done">
@@ -494,10 +535,10 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
           </MapRow>
         )}
         <MapRow label="Spec">
-          <ColumnChips columns={sheet.columns.filter((c) => c.type !== "checkbox" && c.type !== "person" && c.type !== "url" && !taken.has(c.id))} value={mapping.spec} onChange={(spec) => set({ spec })} />
+          <SpecChips columns={sheet.columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
         </MapRow>
         <MapRow label="Links">
-          <ColumnChips columns={columnsFor(sheet.columns, ["url"]).filter((c) => !taken.has(c.id))} value={mapping.links} onChange={(links) => set({ links })} empty="No link columns" />
+          <ColumnChips columns={sheet.columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
         </MapRow>
       </section>
 
@@ -530,6 +571,11 @@ function TaskAssetsForm({ sheet, presetItem, onClose }: { sheet: TrackerSheet; p
   );
 }
 
+/** The warning for cells a role cannot read; the sheet keeps them either way. */
+export function mismatchText({ unreadable, filled, expected }: { unreadable: number; filled: number; expected: string }): string {
+  return `${unreadable === filled ? `All ${filled}` : `${unreadable} of ${filled}`} filled cells aren’t ${expected}. Those assets get nothing from them; the sheet keeps them.`;
+}
+
 function MapRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[6.5rem_1fr] items-center gap-2 max-sm:grid-cols-1">
@@ -539,24 +585,47 @@ function MapRow({ label, children }: { label: string; children: React.ReactNode 
   );
 }
 
-function ColumnSelect({ columns, value, onChange, none, testId }: { columns: TrackerColumn[]; value: string | null; onChange: (id: string | null) => void; none: string; testId?: string }) {
+/** A sheet column's letter, as the grid's header menu names it. */
+function ColumnBadge({ index }: { index: number }) {
   return (
-    <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-[13px]" aria-label={none} data-testid={testId}>
-      <option value="">{none}</option>
-      {columns.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
+    <span aria-hidden className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px] leading-none font-semibold text-muted-foreground">
+      {columnLetter(index)}
+    </span>
   );
 }
 
-function ColumnChips({ columns, value, onChange, empty = "No columns" }: { columns: TrackerColumn[]; value: string[]; onChange: (ids: string[]) => void; empty?: string }) {
-  if (columns.length === 0) return <span className="text-[13px] text-muted-foreground">{empty}</span>;
+const NO_COLUMN = "__none";
+
+/** Any column of the sheet, each with its letter. */
+function ColumnSelect({ columns, value, onChange, none, testId }: { columns: TrackerColumn[]; value: string | null; onChange: (id: string | null) => void; none: string; testId?: string }) {
+  return (
+    <Select value={value ?? NO_COLUMN} onValueChange={(next) => onChange(next === NO_COLUMN ? null : next)}>
+      <SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 max-md:h-10 [&>span]:flex [&>span]:items-center [&>span]:gap-2" aria-label={none} data-testid={testId}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_COLUMN} className="text-muted-foreground">
+          {none}
+        </SelectItem>
+        <SelectSeparator />
+        {columns.map((c, index) => (
+          <SelectItem key={c.id} value={c.id}>
+            <ColumnBadge index={index} />
+            <span className="truncate">{c.name}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Columns as toggles, each with its letter; `hidden` are playing another part. */
+function ColumnChips({ columns, hidden, value, onChange }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void }) {
+  const shown = columns.map((c, index) => ({ c, index })).filter(({ c }) => !hidden.has(c.id));
+  if (shown.length === 0) return <span className="text-[13px] text-muted-foreground">No columns left</span>;
   return (
     <div className="flex flex-wrap gap-1.5">
-      {columns.map((c) => {
+      {shown.map(({ c, index }) => {
         const on = value.includes(c.id);
         return (
           <button
@@ -564,13 +633,110 @@ function ColumnChips({ columns, value, onChange, empty = "No columns" }: { colum
             type="button"
             aria-pressed={on}
             onClick={() => onChange(on ? value.filter((id) => id !== c.id) : [...value, c.id])}
-            className={cn("rounded-full border px-2.5 py-0.5 text-xs", on ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent")}
+            className={cn("inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-xs", on ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent")}
           >
+            <ColumnBadge index={index} />
             {c.name}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Spec columns: the chosen ones first, in the order the spec line reads
+ * ("Duration: 30s · Aspect ratio: 9:16"), dragged to reorder and clicked to
+ * take out; the rest after them, clicked to add at the end.
+ */
+function SpecChips({ columns, hidden, value, onChange }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const indexOf = new Map(columns.map((c, i) => [c.id, i]));
+  const chosen = value.filter((id) => indexOf.has(id) || specBreakKind(id));
+  const rest = columns.map((c, index) => ({ c, index })).filter(({ c }) => !hidden.has(c.id) && !value.includes(c.id));
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    onChange(arrayMove(chosen, chosen.indexOf(String(active.id)), chosen.indexOf(String(over.id))));
+  };
+  if (chosen.length === 0 && rest.length === 0) return <span className="text-[13px] text-muted-foreground">No columns left</span>;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid="map-spec">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onDragEnd}>
+        <SortableContext items={chosen} strategy={rectSortingStrategy}>
+          {chosen.map((id) => (
+            <SortableSpecChip key={id} id={id} index={indexOf.get(id) ?? null} name={columns[indexOf.get(id) ?? -1]?.name ?? ""} onRemove={() => onChange(chosen.filter((x) => x !== id))} />
+          ))}
+        </SortableContext>
+      </DndContext>
+      {chosen.length > 0 && (
+        <>
+          <SimpleTooltip label="Add a divider">
+            <Button type="button" size="icon-xs" variant="ghost" className="rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground" aria-label="Add a divider" onClick={() => onChange([...chosen, newSpecBreak("sep")])} data-testid="map-spec-add-sep">
+              <SeparatorVertical />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip label="Add a line break">
+            <Button type="button" size="icon-xs" variant="ghost" className="rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground" aria-label="Add a line break" onClick={() => onChange([...chosen, newSpecBreak("br")])} data-testid="map-spec-add-br">
+              <CornerDownLeft />
+            </Button>
+          </SimpleTooltip>
+        </>
+      )}
+      {chosen.length > 0 && rest.length > 0 && <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />}
+      {rest.map(({ c, index }) => (
+        <button
+          key={c.id}
+          type="button"
+          aria-pressed={false}
+          onClick={() => onChange([...chosen, c.id])}
+          className="inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-xs text-muted-foreground hover:bg-accent"
+        >
+          <ColumnBadge index={index} />
+          {c.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SortableSpecChip({ id, index, name, onRemove }: { id: string; index: number | null; name: string; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const kind = specBreakKind(id);
+  if (kind) {
+    const label = kind === "sep" ? "Divider" : "Line break";
+    return (
+      <button
+        ref={setNodeRef}
+        type="button"
+        style={{ transform: CSS.Translate.toString(transform), transition }}
+        {...attributes}
+        {...listeners}
+        onClick={onRemove}
+        aria-label={`${label}: drag to move, click to take out`}
+        title={`${label}: drag to move, click to take out`}
+        className={cn("inline-flex h-[22px] cursor-grab touch-none items-center rounded-full border border-primary bg-primary/10 px-2 text-foreground active:cursor-grabbing", isDragging && "z-10 shadow-md")}
+        data-testid={`map-spec-${kind}`}
+      >
+        {kind === "sep" ? <SeparatorVertical className="size-3.5" /> : <CornerDownLeft className="size-3.5" />}
+      </button>
+    );
+  }
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      onClick={onRemove}
+      title="Drag to reorder, click to take out"
+      className={cn("inline-flex cursor-grab touch-none items-center gap-1 rounded-full border border-primary bg-primary/10 py-0.5 pr-2.5 pl-0.5 text-xs text-foreground active:cursor-grabbing", isDragging && "z-10 shadow-md")}
+      data-testid={`map-spec-${id}`}
+    >
+      <GripVertical className="size-3 text-muted-foreground" aria-hidden />
+      {index !== null && <ColumnBadge index={index} />}
+      {name}
+    </button>
   );
 }
 

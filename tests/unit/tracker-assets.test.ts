@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_TEAM_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { asUuid, coercePeople, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
+import { asUuid, assetRoleOf, assignAssetRole, coercePeople, normalizeAssetMapping, roleMismatch, emptyAssetMapping, mergeSheets, setTrackerPeople, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow, type TrackerSheet } from "@/domain";
 import { createServices } from "@/services";
 import { TrackerService } from "@/services/tracker-service";
 import { sheetsToWorkbook, workbookToSheets } from "@/services/tracker-xlsx";
@@ -81,6 +81,52 @@ describe("a sheet as assets", () => {
 
   it("is used only when it can name a line", () => {
     expect(sheetAssetLines({ columns: COLUMNS, rows: [data("r", { "c-asset": "X" })] }, emptyAssetMapping())).toEqual([]);
+  });
+
+  it("gives a column one part from its menu, taking it over from the column that had it", () => {
+    const start = suggestAssetMapping({ columns: COLUMNS });
+    // Format becomes the name: Asset loses it, Format leaves Spec.
+    const renamed = assignAssetRole(start, COLUMNS[6]!, "name");
+    expect(renamed.name).toBe("c-format");
+    expect(renamed.spec).toEqual([]);
+    expect(assetRoleOf(renamed, "c-asset")).toBeNull();
+    // A dropdown as Done ticks its finished choices; a text column as Done keeps none.
+    expect(assignAssetRole(start, COLUMNS[1]!, "done").done).toEqual({ columnId: "c-type", values: [] });
+    expect(assignAssetRole(start, COLUMNS[5]!, "done").done).toEqual({ columnId: "c-status", values: ["Approved", "Delivered"] });
+    // Any column can play any part; None takes it out, keeping a value for every row.
+    const withValue = { ...start, quantity: { columnId: "c-qty", value: 2 } };
+    expect(assignAssetRole(withValue, COLUMNS[2]!, null).quantity).toEqual({ columnId: null, value: 2 });
+    expect(assignAssetRole(start, COLUMNS[3]!, "spec").spec).toEqual(["c-format", "c-pic"]);
+    expect(assetRoleOf(assignAssetRole(start, COLUMNS[0]!, "link"), "c-asset")).toBe("link");
+  });
+
+  it("counts the filled cells a part cannot read, for the warning before it is given", () => {
+    const columns = [col("t", "When", "text"), col("q", "Count", "text")];
+    const rows = [data("a", { t: "2026-10-01", q: "3" }), data("b", { t: "next week", q: "lots" }), data("c", {})];
+    expect(roleMismatch({ columns, rows }, "t", "due")).toEqual({ unreadable: 1, filled: 2, expected: "a date" });
+    expect(roleMismatch({ columns, rows }, "q", "quantity")).toEqual({ unreadable: 1, filled: 2, expected: "a number" });
+    expect(roleMismatch({ columns, rows }, "t", "name")).toBeNull();
+  });
+
+  it("orders the spec line as chosen, with dividers and line breaks between columns", () => {
+    const columns = [col("d", "Duration", "text"), col("r", "Ratio", "text"), col("f", "Format", "text"), col("n", "Name", "text")];
+    const row = data("a", { n: "Teaser", d: "30s", r: "9:16", f: "MP4" });
+    const lines = (spec: string[]) => sheetAssetLines({ columns, rows: [row] }, { ...emptyAssetMapping(), name: "n", spec }, [])[0]!.notes;
+    expect(lines(["r", "d"])).toBe("Ratio: 9:16 · Duration: 30s");
+    expect(lines(["d", "sep:1", "r", "br:2", "f"])).toBe("Duration: 30s | Ratio: 9:16\nFormat: MP4");
+    // A break at either end, or before an empty cell's column, has nothing to split.
+    expect(lines(["br:0", "d", "sep:1"])).toBe("Duration: 30s");
+    expect(normalizeAssetMapping({ name: "n", spec: ["d", "sep:x", "gone", "br:y"] }, columns)!.spec).toEqual(["d", "sep:x", "br:y"]);
+  });
+
+  it("reads any column for any part: text as done, people as spec names, only addresses as links", () => {
+    const columns = [col("n", "Name", "text"), col("d", "State", "text"), col("p", "Reviewer", "person"), col("l", "Notes", "text")];
+    const mapping = { ...emptyAssetMapping(), name: "n", done: { columnId: "d", values: [] }, spec: ["p"], links: ["l"] };
+    const rows = [data("a", { n: "One", d: "Delivered", p: "u-jane", l: "https://x.test/1" }), data("b", { n: "Two", d: "Waiting", l: "see brief" })];
+    const lines = sheetAssetLines({ columns, rows }, mapping, [{ id: "u-jane", name: "Jane Doe" }]);
+    expect(lines[0]).toMatchObject({ done: true, notes: "Reviewer: Jane Doe" });
+    expect(lines[0]!.links.map((l) => l.url)).toEqual(["https://x.test/1"]);
+    expect(lines[1]).toMatchObject({ done: false, notes: null, links: [] });
   });
 });
 

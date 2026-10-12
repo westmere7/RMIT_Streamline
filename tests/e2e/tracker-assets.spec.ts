@@ -34,8 +34,10 @@ test.describe("tracker sheets as task assets", () => {
     await expect(dialog.getByTestId("task-assets-task")).toContainText(taskName);
 
     // Name each asset by the Format column, and count a row as done when its status is COMPLETED.
-    await dialog.getByTestId("map-name").selectOption({ label: "Format" });
-    await dialog.getByTestId("map-done").selectOption({ label: "STATUS" });
+    await dialog.getByTestId("map-name").click();
+    await page.getByRole("option", { name: "Format", exact: true }).click();
+    await dialog.getByTestId("map-done").click();
+    await page.getByRole("option", { name: "STATUS", exact: true }).click();
     // Only COMPLETED counts as done, so ticking on the task writes exactly that.
     const chips = dialog.getByLabel("Choices that count as done").getByRole("button");
     for (let i = 0; i < (await chips.count()); i++) {
@@ -82,7 +84,8 @@ test.describe("tracker sheets as task assets", () => {
     const dialog = page.getByTestId("task-assets-dialog");
     await dialog.getByTestId("task-assets-search").fill("a");
     await dialog.getByTestId("task-assets-hits").getByRole("button").first().click();
-    await dialog.getByTestId("map-name").selectOption({ label: "Format" });
+    await dialog.getByTestId("map-name").click();
+    await page.getByRole("option", { name: "Format", exact: true }).click();
     await dialog.getByTestId("task-assets-save").click();
     const bar = page.getByTestId("linked-sheet-bar");
     await expect(bar).toContainText(/\d+ assets?/, { timeout: 10_000 });
@@ -115,7 +118,8 @@ test.describe("tracker sheets as task assets", () => {
     await page.getByTestId("pick-sheet-dialog").getByTestId("pick-sheet").first().click();
     const dialog = page.getByTestId("task-assets-dialog");
     await expect(dialog.getByTestId("task-assets-task")).toBeVisible();
-    await dialog.getByTestId("map-name").selectOption({ label: "Format" });
+    await dialog.getByTestId("map-name").click();
+    await page.getByRole("option", { name: "Format", exact: true }).click();
     await dialog.getByTestId("task-assets-save").click();
     await expect(panel.getByTestId("tracker-sheet-section")).toBeVisible({ timeout: 10_000 });
     await expect(panel.getByTestId("tracker-sheet-line").first()).toBeVisible();
