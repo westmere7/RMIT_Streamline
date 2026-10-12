@@ -84,6 +84,24 @@
       }
     },
     {
+      "name": "dev-disposable-supabase",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "../_streamline_sb",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3300"
+      ],
+      "port": 3300,
+      "env": {
+        "SKIP_DB_MIGRATE": "1",
+        "NEXT_DIST_DIR": ".next-sb"
+      }
+    },
+    {
       "name": "live-site",
       "url": "https://rmit-streamline.vercel.app"
     }
