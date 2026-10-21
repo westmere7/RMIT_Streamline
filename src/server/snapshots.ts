@@ -415,6 +415,11 @@ export async function refill(tx: postgres.TransactionSql, doc: SnapshotDocument)
       `select setval(pg_get_serial_sequence('public.${ident(table_name)}', '${column_name}'), coalesce((select max(${ident(column_name)}) from public.${ident(table_name)}), 0) + 1, false)`,
     );
   }
+  // Triggers were off, so nothing told an open dashboard link that everything
+  // changed (migration 0109). The bump stamps the time as well as the number,
+  // so a revision put back from the snapshot cannot match one a screen holds.
+  const [bump] = await tx<{ ok: boolean }[]>`select to_regprocedure('private.bump_all_workspace_revisions()') is not null as ok`;
+  if (bump?.ok) await tx`select private.bump_all_workspace_revisions()`;
   return { rowCount, skippedTables };
 }
 

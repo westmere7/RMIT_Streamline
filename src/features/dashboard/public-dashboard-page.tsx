@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Maximize2, Minimize2, Moon, Sun } from "lucide-react";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -31,6 +31,10 @@ import { ShareAccessError } from "@/services";
  * workspace, so at ten seconds one such screen was on course for tens of
  * gigabytes of egress a day; at a minute it is a few. Nobody reading a total
  * off a wall can tell the difference.
+ *
+ * And a few only while the workspace is being worked on: each poll sends the
+ * revision it holds (migration 0109), and while nothing has changed the answer
+ * is a few bytes rather than the whole workspace.
  */
 const REFRESH_MS = 60_000;
 
@@ -41,13 +45,15 @@ const REFRESH_MS = 60_000;
  */
 export function PublicDashboardPage({ token }: { token: string }) {
   const services = useServices();
+  const queryClient = useQueryClient();
   const [password, setPassword] = React.useState<string | null>(null);
 
   const gate = useQuery({ queryKey: ["dashboard-gate", token], queryFn: () => services.dashboard.gate(token), retry: false, staleTime: 60_000 });
   const needsPassword = gate.data?.needsPassword ?? false;
   const payload = useQuery({
     queryKey: ["dashboard-public", token],
-    queryFn: () => services.dashboard.loadPublic(token, password),
+    // The copy on screen goes along, so an unchanged workspace costs a few bytes rather than a full read.
+    queryFn: () => services.dashboard.loadPublic(token, password, queryClient.getQueryData<PublicDashboardPayload>(["dashboard-public", token]) ?? null),
     enabled: !!gate.data?.open && (!needsPassword || password !== null),
     retry: false,
     staleTime: 0,

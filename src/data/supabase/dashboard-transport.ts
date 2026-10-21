@@ -1,4 +1,4 @@
-import type { DashboardShareGate, DashboardSnapshot, PublicDashboardPayload } from "@/domain";
+import type { DashboardShareGate, DashboardSnapshot, PublicDashboardResponse } from "@/domain";
 import { callApi } from "./api-call";
 import type { PublicDashboardTransport } from "@/services/dashboard-service";
 import { ShareAccessError, type ShareFailure } from "@/services/board-share-service";
@@ -14,8 +14,8 @@ export class HttpDashboardTransport implements PublicDashboardTransport {
     return call<DashboardShareGate>(`/api/dashboard/${encodeURIComponent(token)}`, { method: "GET" });
   }
 
-  async load(token: string, password: string | null): Promise<PublicDashboardPayload> {
-    return call<PublicDashboardPayload>(`/api/dashboard/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify({ password }) });
+  async load(token: string, password: string | null, revision: string | null): Promise<PublicDashboardResponse> {
+    return call<PublicDashboardResponse>(`/api/dashboard/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify({ password, revision }) });
   }
 
   /** The workspace's own dashboard, every board counted, for the signed-in member. */

@@ -64,6 +64,20 @@ async function fingerprints(tx: postgres.Sql | postgres.TransactionSql, tables: 
 
 class Rollback extends Error {}
 
+const REVISIONS = "workspace_revisions";
+type RevisionRow = { workspace_id: string; revision: string; changed_at: Date };
+
+/** Workspaces whose dashboard revision the refill did not move on by one, with a later time. */
+async function unbumpedWorkspaces(tx: postgres.TransactionSql, before: RevisionRow[]): Promise<string[]> {
+  const after = new Map((await tx<RevisionRow[]>`select workspace_id, revision, changed_at from public.workspace_revisions`).map((r) => [r.workspace_id, r]));
+  return before
+    .filter((b) => {
+      const a = after.get(b.workspace_id);
+      return !a || BigInt(a.revision) !== BigInt(b.revision) + 1n || a.changed_at.getTime() <= b.changed_at.getTime();
+    })
+    .map((b) => b.workspace_id);
+}
+
 const flag = process.argv.indexOf("--snapshot");
 const saved = flag >= 0 ? (process.argv[flag + 1] ?? "latest") : null;
 
@@ -114,6 +128,7 @@ try {
   console.log(`Captured ${captured.rowCount.toLocaleString()} rows in ${tables.length} tables, ${(captured.file.length / 1024).toFixed(0)} KB gzipped (${Date.now() - started} ms).`);
 
   const before = await fingerprints(sql, tables);
+  const revisionsBefore = tables.includes(REVISIONS) ? await sql<RevisionRow[]>`select workspace_id, revision, changed_at from public.workspace_revisions` : [];
   let report = "";
   try {
     await sql.begin(async (tx) => {
@@ -121,12 +136,17 @@ try {
       const { rowCount, skippedTables } = await refill(tx, doc);
       const refillMs = Date.now() - t0;
       const after = await fingerprints(tx, tables);
-      const differ = tables.filter((t) => before.get(t) !== after.get(t));
+      // The one table a restore is meant to change: it bumps every workspace's
+      // revision so an open dashboard link reloads (migration 0109). Checked
+      // for that instead of for sameness.
+      const differ = tables.filter((t) => t !== REVISIONS && before.get(t) !== after.get(t));
+      const unbumped = tables.includes(REVISIONS) ? await unbumpedWorkspaces(tx, revisionsBefore) : [];
       report = [
         `Refilled ${rowCount.toLocaleString()} rows in ${refillMs} ms.`,
         skippedTables.length ? `Skipped (not in this schema): ${skippedTables.join(", ")}` : "No tables skipped.",
         differ.length ? `DIFFERENT after refill: ${differ.map((t) => `${t} (${before.get(t)} → ${after.get(t)})`).join("; ")}` : "Every table matches what it held before.",
-      ].join("\n");
+        tables.includes(REVISIONS) ? (unbumped.length ? `DIFFERENT: dashboard revision not bumped for ${unbumped.join(", ")}` : "Every workspace's dashboard revision was bumped.") : "",
+      ].filter(Boolean).join("\n");
       throw new Rollback();
     });
   } catch (error) {

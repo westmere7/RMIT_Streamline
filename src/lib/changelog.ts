@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.3",
+    date: "2026-10-21",
+    title: "Lighter public dashboard links",
+    changes: [
+      "A public dashboard link left open re-reads the workspace only when something in it has changed.",
+    ],
+  },
+  {
     version: "0.94.2",
     date: "2026-10-21",
     title: "Tooltips on the board's controls",

@@ -13,12 +13,15 @@ export const GET = handleRoute(async (_request: Request, { params }: Context) =>
   return json(await loadDashboardGate(decodeURIComponent(token)));
 });
 
-/** The dashboard behind the link. A POST because the password belongs in the body, not in server logs. */
+/**
+ * The dashboard behind the link. A POST because the password belongs in the body, not in server logs.
+ * Given the revision the page holds, the answer is `{ unchanged: true }` until the workspace changes.
+ */
 export const POST = handleRoute(async (request: Request, { params }: Context) => {
   const { token } = await params;
   const body = dashboardPasswordSchema.parse(await readJson(request));
   try {
-    return json(await loadPublicDashboard(decodeURIComponent(token), body.password ?? null));
+    return json(await loadPublicDashboard(decodeURIComponent(token), body.password ?? null, body.revision ?? null));
   } catch (error) {
     if (error instanceof ShareAccessError) return json({ error: error.message, reason: error.reason }, shareErrorStatus(error));
     throw error;

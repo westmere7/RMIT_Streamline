@@ -97,7 +97,22 @@ export function refuseDashboardShare(share: DashboardShare | null, today: ISODat
 export interface PublicDashboardPayload {
   snapshot: DashboardSnapshot;
   expiresAt: ISODate | null;
+  /**
+   * The workspace's revision when the snapshot was read (migration 0109), or
+   * null where there is none to compare (the local provider). Handed back on
+   * the next poll, it lets the server answer "unchanged" without reading.
+   */
+  revision?: string | null;
 }
+
+/** The answer to a poll that already holds the current revision: nothing to send. */
+export interface PublicDashboardUnchanged {
+  unchanged: true;
+  revision: string;
+  expiresAt: ISODate | null;
+}
+
+export type PublicDashboardResponse = PublicDashboardPayload | PublicDashboardUnchanged;
 
 /**
  * The snapshot a public link serves.

@@ -1,4 +1,4 @@
-import type { Board, DashboardShare, DashboardShareGate, DashboardSnapshot, EntityId, ISODate, PublicDashboardPayload, ShareRefusal, User } from "@/domain";
+import type { Board, DashboardShare, DashboardShareGate, DashboardSnapshot, EntityId, ISODate, PublicDashboardPayload, PublicDashboardResponse, ShareRefusal, User } from "@/domain";
 import { generateShareToken, isPlausibleShareToken, publicDashboardSnapshot, refuseDashboardShare, viewerDashboardSnapshot } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -22,7 +22,8 @@ export interface DashboardShareSettings {
  */
 export interface PublicDashboardTransport {
   gate(token: string): Promise<DashboardShareGate>;
-  load(token: string, password: string | null): Promise<PublicDashboardPayload>;
+  /** `revision` is the one the page already holds; the answer may then be "unchanged". */
+  load(token: string, password: string | null, revision: string | null): Promise<PublicDashboardResponse>;
   /** The workspace's own dashboard for the signed-in reader, counted over every board (src/server/workspace-dashboard.ts). */
   loadWorkspace(workspaceSlug: string): Promise<DashboardSnapshot>;
 }
@@ -103,10 +104,23 @@ export class DashboardService {
     return gateDashboardShare(this.repos, token);
   }
 
-  /** The dashboard behind the link. Throws ShareAccessError when the link or the password does not hold up. */
-  async loadPublic(token: string, password: string | null): Promise<PublicDashboardPayload> {
-    if (this.transport) return this.transport.load(token, password);
-    return loadSharedDashboard(this.repos, token, password);
+  /**
+   * The dashboard behind the link. Throws ShareAccessError when the link or the
+   * password does not hold up.
+   *
+   * Given the payload the page already shows, the server is asked whether the
+   * workspace has changed since, and when it has not, that payload comes back
+   * with only the link's expiry and the snapshot's time renewed. The snapshot
+   * is still a new object, so figures that turn on the date (overdue, due this
+   * week) are worked out again, as they were when every poll read everything.
+   */
+  async loadPublic(token: string, password: string | null, previous: PublicDashboardPayload | null = null): Promise<PublicDashboardPayload> {
+    const known = previous?.revision ?? null;
+    const response = this.transport ? await this.transport.load(token, password, known) : await loadSharedDashboard(this.repos, token, password);
+    if (!("unchanged" in response)) return response;
+    // Only an answer to the revision we sent can be "unchanged"; anything else is the server's mistake.
+    if (!previous || response.revision !== known) throw new Error("The dashboard answered unchanged to a revision it was not given.");
+    return { ...previous, expiresAt: response.expiresAt, revision: response.revision, snapshot: { ...previous.snapshot, generatedAt: new Date().toISOString() } };
   }
 
   private async nextPasswordHash(existing: DashboardShare | null, password: string | null | undefined): Promise<string | null> {
@@ -202,11 +216,30 @@ export async function gateDashboardShare(repos: Repositories, token: string): Pr
 }
 
 /**
+ * How the server knows whether a page's copy is current: the workspace's
+ * revision (migration 0109) and the one the page sent. The local provider has
+ * neither, and always reads everything.
+ */
+export interface DashboardRevisionCheck {
+  /** The revision the page holds, if any. */
+  known: string | null;
+  /** The workspace's current revision, or null when it cannot be read (then everything is read). */
+  current: (workspaceId: EntityId) => Promise<string | null>;
+}
+
+/**
  * Everything the public dashboard needs, in one read: the snapshot over every
  * active board of the workspace, trimmed of anything personal. Used by the local
  * provider directly and by the service-role route for Supabase.
+ *
+ * With a revision check, the link and the password are checked as always, then
+ * the revision is read *before* the data: a change committed after it is read
+ * shows up as a newer revision on the next poll, never as a missed one. When
+ * the page already holds that revision, nothing else is read.
  */
-export async function loadSharedDashboard(repos: Repositories, token: string, password: string | null): Promise<PublicDashboardPayload> {
+export async function loadSharedDashboard(repos: Repositories, token: string, password: string | null): Promise<PublicDashboardPayload>;
+export async function loadSharedDashboard(repos: Repositories, token: string, password: string | null, check: DashboardRevisionCheck): Promise<PublicDashboardResponse>;
+export async function loadSharedDashboard(repos: Repositories, token: string, password: string | null, check?: DashboardRevisionCheck): Promise<PublicDashboardResponse> {
   const share = isPlausibleShareToken(token) ? await repos.dashboardShares.getByToken(token) : null;
   const refusal = refuseDashboardShare(share, todayISO());
   if (refusal || !share) throw new ShareAccessError(refusal ?? "unknown", refusalMessage(refusal ?? "unknown"));
@@ -215,9 +248,11 @@ export async function loadSharedDashboard(repos: Repositories, token: string, pa
     const ok = password !== null && !!salt && !!hash && (await verifyPassword(password, salt, hash));
     if (!ok) throw new ShareAccessError("password", "That password is not right.");
   }
+  const revision = check ? await check.current(share.workspaceId) : null;
+  if (revision !== null && revision === check?.known) return { unchanged: true, revision, expiresAt: share.expiresAt };
   const boards = await repos.boards.listByWorkspace(share.workspaceId);
   const snapshot = await loadDashboardSnapshot(repos, share.workspaceId, boards);
-  return { snapshot: publicDashboardSnapshot(snapshot), expiresAt: share.expiresAt };
+  return { snapshot: publicDashboardSnapshot(snapshot), expiresAt: share.expiresAt, revision };
 }
 
 /** The dashboard link is public-only, so "signin" never reaches here. */

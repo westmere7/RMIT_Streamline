@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { refuseDashboardShare, type DashboardShare } from "@/domain";
+import { refuseDashboardShare, type DashboardShare, type PublicDashboardResponse } from "@/domain";
 import { createServices } from "@/services";
 import { ShareAccessError } from "@/services/board-share-service";
+import { DashboardService, loadSharedDashboard, type PublicDashboardTransport } from "@/services/dashboard-service";
 
 let counter = 0;
 function freshServices() {
@@ -74,5 +75,65 @@ describe("DashboardService", () => {
     expect(payload.snapshot.users.every((u) => u.email === "")).toBe(true);
     expect(payload.snapshot.values.some((v) => v.value.type === "LONG_TEXT")).toBe(false);
     await expect(services.dashboard.loadPublic("not-a-real-token-0000", null)).rejects.toMatchObject({ reason: "unknown" });
+  });
+});
+
+describe("a dashboard link that already holds the current revision", () => {
+  it("answers unchanged without reading the workspace, and reads it all when the revision moved", async () => {
+    const { repos, services } = freshServices();
+    const share = await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true });
+    const listBoards = vi.spyOn(repos.boards, "listByWorkspace");
+
+    const first = await loadSharedDashboard(repos, share.token, null, { known: null, current: async () => "7:2026-10-21T00:00:00Z" });
+    expect(first).toMatchObject({ revision: "7:2026-10-21T00:00:00Z" });
+    expect("snapshot" in first && first.snapshot.items.length).toBeGreaterThan(50);
+    expect(listBoards).toHaveBeenCalledTimes(1);
+
+    const same = await loadSharedDashboard(repos, share.token, null, { known: "7:2026-10-21T00:00:00Z", current: async () => "7:2026-10-21T00:00:00Z" });
+    expect(same).toEqual({ unchanged: true, revision: "7:2026-10-21T00:00:00Z", expiresAt: null });
+    expect(listBoards).toHaveBeenCalledTimes(1);
+
+    const moved = await loadSharedDashboard(repos, share.token, null, { known: "7:2026-10-21T00:00:00Z", current: async () => "8:2026-10-21T00:01:00Z" });
+    expect(moved).toMatchObject({ revision: "8:2026-10-21T00:01:00Z" });
+    expect(listBoards).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads everything when the revision cannot be read, and still checks the link and password first", async () => {
+    const { repos, services } = freshServices();
+    const share = await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true, password: "open-sesame" });
+    const unreadable = await loadSharedDashboard(repos, share.token, "open-sesame", { known: null, current: async () => null });
+    expect(unreadable).toMatchObject({ revision: null });
+    expect("snapshot" in unreadable).toBe(true);
+    // Holding the right revision is no way round the password, nor round a link switched off.
+    await expect(loadSharedDashboard(repos, share.token, "wrong", { known: "3", current: async () => "3" })).rejects.toMatchObject({ reason: "password" });
+    await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: false });
+    await expect(loadSharedDashboard(repos, share.token, "open-sesame", { known: "3", current: async () => "3" })).rejects.toMatchObject({ reason: "off" });
+  });
+
+  it("keeps the page's copy on an unchanged answer, with a new snapshot object and the link's latest expiry", async () => {
+    const { repos, services } = freshServices();
+    const share = await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true });
+    const full = await services.dashboard.loadPublic(share.token, null);
+    const previous = { ...full, revision: "4:t" };
+    const answers: PublicDashboardResponse[] = [{ unchanged: true, revision: "4:t", expiresAt: "2026-12-31" }];
+    const sent: Array<string | null> = [];
+    const transport: PublicDashboardTransport = {
+      gate: async () => ({ open: true, refusal: null, needsPassword: false, access: "PUBLIC" }),
+      load: async (_token, _password, revision) => {
+        sent.push(revision);
+        return answers.shift()!;
+      },
+      loadWorkspace: async () => full.snapshot,
+    };
+    const remote = new DashboardService(repos, transport);
+    const kept = await remote.loadPublic(share.token, null, previous);
+    expect(sent).toEqual(["4:t"]);
+    expect(kept.expiresAt).toBe("2026-12-31");
+    expect(kept.revision).toBe("4:t");
+    expect(kept.snapshot.items).toBe(previous.snapshot.items);
+    expect(kept.snapshot).not.toBe(previous.snapshot);
+    // An unchanged answer to a page with nothing on screen is the server's mistake, not a blank dashboard.
+    answers.push({ unchanged: true, revision: "4:t", expiresAt: null });
+    await expect(remote.loadPublic(share.token, null, null)).rejects.toThrow(/unchanged/);
   });
 });
