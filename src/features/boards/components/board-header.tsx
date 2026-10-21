@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Globe, History, MoreHorizontal, Share2, Star, UserPlus, Zap } from "lucide-react";
+import { ArrowLeft, Crown, Eye, Globe, History, MoreHorizontal, Pencil, Share2, ShieldCheck, Star, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -24,7 +24,7 @@ import { ShareBoardDialog, useBoardShareStatus } from "@/features/boards/compone
 import { copyToClipboard } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canManageBoard } from "@/lib/permissions/permissions";
+import { boardRoleFor, canManageBoard, type PermissionContext } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { FollowControl } from "@/features/notifications/follow-control";
@@ -106,6 +106,7 @@ export function BoardHeader({ board }: { board: Board }) {
                 </button>
               </SimpleTooltip>
             )}
+            <BoardAccessBadge permissions={ws.permissions} board={board} />
             {board.visibility !== "WORKSPACE" && (
               <Badge variant="outline" className="capitalize">
                 {board.visibility.toLowerCase()}
@@ -206,5 +207,27 @@ export function BoardHeader({ board }: { board: Board }) {
       <ShareBoardDialog board={board} open={shareOpen} onOpenChange={setShareOpen} />
       <DeleteBoardDialog board={board} open={deleteOpen} onOpenChange={setDeleteOpen} onConfirm={() => actions.deleteBoard.mutateAsync().then(() => undefined)} />
     </header>
+  );
+}
+
+/** What the person looking at the board may do on it, always on show beside its name. */
+const ACCESS = {
+  owner: { label: "Owner", tip: "You own this board.", icon: Crown, variant: "primary" },
+  manage: { label: "Can manage", tip: "You can edit and manage this board.", icon: ShieldCheck, variant: "primary" },
+  edit: { label: "Can edit", tip: "You can edit items. Settings are the owner's.", icon: Pencil, variant: "outline" },
+  view: { label: "View only", tip: "You can read this board but not change it.", icon: Eye, variant: "warning" },
+} as const;
+
+function BoardAccessBadge({ permissions, board }: { permissions: PermissionContext; board: Board }) {
+  const role = boardRoleFor(permissions, board);
+  if (!role) return null;
+  const access = ACCESS[role === "OWNER" ? "owner" : canManageBoard(permissions, board) ? "manage" : role === "EDITOR" ? "edit" : "view"];
+  const Icon = access.icon;
+  return (
+    <SimpleTooltip label={access.tip}>
+      <Badge variant={access.variant} className="shrink-0 cursor-default" data-testid="board-access-badge">
+        <Icon /> {access.label}
+      </Badge>
+    </SimpleTooltip>
   );
 }

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.1",
+    date: "2026-10-21",
+    title: "Your access on every board",
+    changes: [
+      "A badge beside the board name shows what you can do there: Owner, Can manage, Can edit or View only.",
+    ],
+  },
+  {
     version: "0.94.0",
     date: "2026-10-12",
     title: "New columns from the asset settings",
