@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import type { BoardColumn, Item, ItemAsset } from "@/domain";
+import type { BoardColumn, ColorToken, Item, ItemAsset } from "@/domain";
 import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
@@ -59,6 +59,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
+import type { BoardModel } from "@/features/boards/board-model";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
@@ -96,7 +97,20 @@ function panelClasses(shared: boolean, narrow: boolean, overlay: boolean): strin
 }
 
 /**
- * The panel's edge in the board's colour: a hairline across the top that runs
+ * The task's accent: the colour of its status, so the panel says at a glance
+ * where the work stands. The board's colour where the board has no status
+ * column or the task has no status yet.
+ */
+function itemAccent(model: BoardModel, itemId: string, fallback: ColorToken): ColorToken {
+  const column = model.statusColumn;
+  if (!column || column.settings.kind !== "status") return fallback;
+  const value = model.getValue(itemId, column.id);
+  const labelId = value?.type === "STATUS" ? value.labelId : null;
+  return column.settings.labels.find((l) => l.id === labelId)?.color ?? fallback;
+}
+
+/**
+ * The panel's edge in the task's accent colour (itemAccent): a hairline across the top that runs
  * round the corners and fades into the ordinary border a short way down each
  * side, so the panel lifts off the board without a frame around it.
  *
@@ -393,7 +407,7 @@ export function ItemDetailPanel({
     );
   }
 
-  const edge = narrow || item?.coverUrl ? null : colorClasses(board.color).hex;
+  const edge = narrow || item?.coverUrl || !item ? null : colorClasses(itemAccent(model, item.id, board.color)).hex;
   return (
     <aside
       role="dialog"
@@ -545,11 +559,11 @@ function PanelHeader({
     // Its own surface under the tabs: what the task is, set apart from the work
     // on it. Three lines, in order of weight: where it is (small), what it is
     // (large, alone), and the facts about it (small, quiet). A wash of the
-    // board's colour across the top marks the band off from the fields below.
+    // task's status colour across the top marks the band off from the fields below.
     <div className="relative overflow-hidden border-b border-border bg-card" data-testid="panel-header">
       <span
         aria-hidden
-        className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 opacity-[0.09]", colorClasses(board.color).dot)}
+        className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 opacity-[0.09] transition-colors duration-300", colorClasses(itemAccent(model, item.id, board.color)).dot)}
         style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }}
       />
       <div className="relative">

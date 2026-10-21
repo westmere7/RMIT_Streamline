@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.4",
+    date: "2026-10-21",
+    title: "Task panel in its status colour",
+    changes: [
+      "An open task's panel takes the colour of its status along its top edge and header, so you can see where it stands at a glance. A task with no status keeps the board's colour.",
+    ],
+  },
+  {
     version: "0.94.3",
     date: "2026-10-21",
     title: "Lighter public dashboard links",
