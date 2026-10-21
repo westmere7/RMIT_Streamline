@@ -123,9 +123,13 @@ function itemIsStuck(model: BoardModel, itemId: string): boolean {
  * photo, which already fills the top of the panel.
  */
 function stuckStripesStyle(hex: string): React.CSSProperties {
-  const fade = "linear-gradient(to bottom, black, transparent)";
+  // Strongest at the top middle and gone well before the header ends, softening
+  // towards the sides as well as downwards, on an eased curve rather than a
+  // straight ramp. Each stripe is a soft ramp up and down with no solid band.
+  const fade =
+    "radial-gradient(120% 100% at 50% 0%, rgb(0 0 0 / 0.8), rgb(0 0 0 / 0.58) 15%, rgb(0 0 0 / 0.36) 30%, rgb(0 0 0 / 0.18) 45%, rgb(0 0 0 / 0.06) 60%, transparent 75%)";
   return {
-    backgroundImage: `repeating-linear-gradient(-45deg, ${hex} 0 6px, transparent 9px 18px, ${hex} 21px 24px)`,
+    backgroundImage: `repeating-linear-gradient(-45deg, ${hex} 0, transparent 13px, ${hex} 26px)`,
     maskImage: fade,
     WebkitMaskImage: fade,
   };
