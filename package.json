@@ -1,6 +1,6 @@
 {
   "name": "rmit-streamline",
-  "version": "0.94.7",
+  "version": "0.94.8",
   "private": true,
   "scripts": {
     "figma:tokens": "node scripts/build-figma-tokens.mjs",
