@@ -31,7 +31,7 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardColumn, ColorToken, Item, ItemAsset } from "@/domain";
-import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isStuckLabel, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
@@ -107,6 +107,28 @@ function itemAccent(model: BoardModel, itemId: string, fallback: ColorToken): Co
   const value = model.getValue(itemId, column.id);
   const labelId = value?.type === "STATUS" ? value.labelId : null;
   return column.settings.labels.find((l) => l.id === labelId)?.color ?? fallback;
+}
+
+/** Whether the task's status is one the board counts as stuck. */
+function itemIsStuck(model: BoardModel, itemId: string): boolean {
+  const column = model.statusColumn;
+  if (!column) return false;
+  const value = model.getValue(itemId, column.id);
+  return isStuckLabel(column, value?.type === "STATUS" ? value.labelId : null);
+}
+
+/**
+ * The stuck label's hazard stripes, carried up into the header: wide and soft
+ * edged, in the status colour, fading out as the wash does. Not over a cover
+ * photo, which already fills the top of the panel.
+ */
+function stuckStripesStyle(hex: string): React.CSSProperties {
+  const fade = "linear-gradient(to bottom, black, transparent)";
+  return {
+    backgroundImage: `repeating-linear-gradient(-45deg, ${hex} 0 6px, transparent 9px 18px, ${hex} 21px 24px)`,
+    maskImage: fade,
+    WebkitMaskImage: fade,
+  };
 }
 
 /**
@@ -566,6 +588,17 @@ function PanelHeader({
         className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 opacity-[0.09] transition-colors duration-300", colorClasses(itemAccent(model, item.id, board.color)).dot)}
         style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }}
       />
+      {/* Always there without a cover, and faded in or out, so a task that
+          becomes stuck (or comes unstuck) eases into it. */}
+      {!item.coverUrl && (
+        <span
+          aria-hidden
+          className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 transition-opacity duration-500", itemIsStuck(model, item.id) ? "opacity-[0.12]" : "opacity-0")}
+          style={stuckStripesStyle(colorClasses(itemAccent(model, item.id, board.color)).hex)}
+          data-testid="panel-stuck-stripes"
+          data-stuck={itemIsStuck(model, item.id) || undefined}
+        />
+      )}
       <div className="relative">
         <ItemCover item={item} canEdit={canEdit} />
       </div>

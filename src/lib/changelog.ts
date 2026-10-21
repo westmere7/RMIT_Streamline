@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.5",
+    date: "2026-10-21",
+    title: "Stuck tasks striped in the panel",
+    changes: [
+      "A stuck task's panel carries faint hazard stripes across its header, fading out down the page, unless the task has a cover photo.",
+    ],
+  },
+  {
     version: "0.94.4",
     date: "2026-10-21",
     title: "Task panel in its status colour",
