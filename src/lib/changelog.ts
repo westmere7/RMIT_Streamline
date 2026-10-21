@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.95.0",
+    date: "2026-10-21",
+    title: "T-shirt sizes that mean something",
+    changes: [
+      "Settings → Sizes says what each size stands for: a span of working time, the kind of work and typical jobs. It starts from the GCMC sizing sheet, XS a week to XL three to six months.",
+      "A task's size picker shows every size's span and what it covers.",
+      "With assets on the task, the picker shows their hours at your output rates, which size they fit, and sets it in one click.",
+      "Follow assets keeps a task's size in step as its assets change. Asset types without a rate are named and left out.",
+    ],
+  },
+  {
     version: "0.94.8",
     date: "2026-10-21",
     title: "No stripes on the task panel",

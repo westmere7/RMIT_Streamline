@@ -13,6 +13,8 @@ import { CountdownPicker, DateTimePicker, TimePicker } from "@/features/boards/c
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
+import { sizeEvidence, useAssetRates, useSizeScale } from "@/features/boards/size-fit";
+import { routes } from "@/lib/routes";
 import { useBoardContext } from "@/features/boards/board-context";
 import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -325,20 +327,34 @@ export function SizeCell({ item, column, value, onChange, readOnly, width }: Cel
       ariaLabel={`${column.name}: ${v.size ?? "not set"} for ${item.name}`}
       testId="size-cell"
       align={columnAlign(column.type)}
-      contentClassName="p-2"
-      trigger={<SizePill size={v.size} />}
+      contentClassName="w-auto p-0"
+      trigger={<SizePill size={v.size} auto={!!v.auto && !!v.size} />}
     >
       {(close) => (
-        <SizePicker
+        <SizePickerFor
+          itemId={item.id}
           value={v.size}
-          onChange={(size) => {
-            onChange({ type: "SIZE", size });
-            close();
+          auto={!!v.auto}
+          onChange={(size, auto, keepOpen) => {
+            onChange(auto ? { type: "SIZE", size, auto: true } : { type: "SIZE", size });
+            // Turning "Follow assets" on or off is a setting, not a choice: the picker stays open for it.
+            if (!keepOpen) close();
           }}
         />
       )}
     </PopoverCell>
   );
+}
+
+/** The picker with what it needs to describe the sizes and the task's fit, read only once it is open. */
+function SizePickerFor({ itemId, value, auto, onChange }: { itemId: string; value: ColumnValueOf<"SIZE">["size"]; auto: boolean; onChange: (size: ColumnValueOf<"SIZE">["size"], auto: boolean, keepOpen?: boolean) => void }) {
+  const { board } = useBoardContext();
+  const ws = useWorkspace();
+  const scale = useSizeScale();
+  const rates = useAssetRates();
+  const assets = useBoardAssets(board.id);
+  const evidence = React.useMemo(() => (assets.data ? sizeEvidence(assets.data.byItem.get(itemId), rates, scale) : null), [assets.data, itemId, rates, scale]);
+  return <SizePicker value={value} auto={auto} onChange={onChange} scale={scale} evidence={evidence} settingsHref={ws.slug ? routes.settings(ws.slug, "sizes") : null} />;
 }
 
 // ---- Assets recap --------------------------------------------------------------

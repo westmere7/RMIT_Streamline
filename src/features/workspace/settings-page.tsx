@@ -22,6 +22,7 @@ import {
   Plus,
   Shapes,
   ShieldCheck,
+  Shirt,
   Sun,
   SunDim,
   TriangleAlert,
@@ -46,6 +47,7 @@ import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
 import { WorkTypesSection } from "@/features/workspace/work-types-section";
+import { SizesSection } from "@/features/workspace/sizes-section";
 import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { WorkspacesSection } from "@/features/workspace/workspaces-section";
@@ -62,7 +64,7 @@ import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "sizes", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -94,6 +96,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
   general: { label: "Overview", icon: LayoutGrid, description: "The workspace's name, address, size and menu.", width: "narrow", scope: "workspace" },
   tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow", scope: "workspace" },
   teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow", scope: "workspace" },
+  sizes: { label: "Sizes", icon: Shirt, description: "What each T-shirt size means in working time, and the work it covers.", width: "wide", scope: "workspace" },
   "asset-types": { label: "Asset types", icon: Shapes, description: "What a deliverable can be, and how long each one takes to make.", width: "wide", scope: "workspace" },
   permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow", scope: "workspace" },
   danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and Owners only.", width: "wide", scope: "workspace" },
@@ -110,7 +113,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
  * own name, so which one is being changed is never in doubt.
  */
 const NAV_GROUPS: Array<{ label: string; scope: SectionScope; sections: Section[]; about?: boolean }> = [
-  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "permissions", "danger"] },
+  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "sizes", "permissions", "danger"] },
   { label: "Every workspace", scope: "app", sections: ["departments", "workspaces", "snapshots"] },
   { label: "You", scope: "you", sections: ["view"] },
   { label: "Help", scope: "help", sections: ["documentation"], about: true },
@@ -209,6 +212,7 @@ export function SettingsPage() {
                 <WorkTypesSection />
               </>
             )}
+            {section === "sizes" && <SizesSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}

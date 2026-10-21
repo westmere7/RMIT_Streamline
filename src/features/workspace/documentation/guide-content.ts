@@ -285,7 +285,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         ["Due date / Timeline", "The deadline, and the start and end. Overdue, calendars, and the Gantt read them."],
         ["Priority", "Four steps, the same on every board."],
         ["Department", "Who the work is for, from Settings → Departments."],
-        ["Size", "A relative estimate: XS, S, M, L, or XL."],
+        ["Size", "A T-shirt size, XS to XL, each a span of working time set in Settings → Sizes. The picker says which size a task's assets fit, sets it in one click, and can follow the assets as they change."],
         ["Assets recap", "A summary of the task's deliverables."],
         ["Brief", "The booking's brief as a formatted document. Download it as a Word file from its pop-up."],
       ] } },
@@ -346,6 +346,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Replace the baseline when the plan is agreed again, hide it, or clear it, from the same menu.",
       ] },
       { title: "Workload and capacity", paragraphs: ["Workload shows each person's tasks by week or day. Measure switches between Tasks and Hours vs capacity. Hours come from each task's deliverables at the output rates, shared between its owners and spread over its working days, against the person's hours a week from Members (38 when empty).", "Hover a person for their open, stuck, overdue, and undated work, their busiest period, and their next due date; hover a cell for its tasks. Done work is hidden unless Done is on."] },
+      { title: "T-shirt sizes", paragraphs: ["Settings → Sizes says what each size means: a span of working time (XS up to a week to XL three to six months, by default), the kind of work, and typical jobs. A week is five working days of eight hours.", "Open a task's size to see every size's span and, once the task has assets, its hours at the output rates and the size they fit. Set to applies it; Follow assets keeps it in step as lines are added or removed, whenever the board is open with the right to edit it. Asset types without a rate are named and left out."] },
       { title: "Saved views", steps: [
         "Set up the board the way you want it: the view, search, filters, sort, hidden columns, and the view's own settings such as Kanban lanes.",
         "Open the views button beside the filters, which names the view on screen (Default view to start), and choose Save as new view. Board editors can share it with everyone on the board; otherwise it is yours alone.",

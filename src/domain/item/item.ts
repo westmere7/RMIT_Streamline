@@ -73,7 +73,11 @@ export type ColumnValue =
   | { type: "TAGS"; tags: string[] }
   /** Who the work is for. The name of one of the workspace's stakeholder groups (Settings → Departments). */
   | { type: "STAKEHOLDER"; group: string | null }
-  | { type: "SIZE"; size: TShirtSize | null }
+  /**
+   * `auto`: the size follows the task's assets (Settings → Sizes), kept in
+   * step by whoever has the board open with the right to edit it.
+   */
+  | { type: "SIZE"; size: TShirtSize | null; auto?: boolean }
   /** A cached summary of the item's asset lines (src/domain/item/item-asset.ts), rewritten whenever they change. */
   | { type: "ASSETS_RECAP"; lines: number; quantity: number; types: number; people: number; nextDue: ISODate | null; overdue: number }
   /**

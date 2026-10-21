@@ -19,6 +19,7 @@ import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { ArchiveItemsDialog } from "@/features/boards/components/dialogs/archive-items-dialog";
 import { ButtonSettingsHost } from "@/features/boards/components/dialogs/button-settings-dialog";
+import { SizeAutoAdjust } from "@/features/boards/size-fit";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
 import { EditTagsDialog } from "@/features/boards/components/pickers/edit-tags-dialog";
 import { BoardTable } from "@/features/boards/components/table/board-table";
@@ -384,6 +385,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
             <ButtonSettingsHost />
+            <SizeAutoAdjust />
           </BoardContextProvider>
         )}
         </div>
@@ -454,6 +456,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
             <ButtonSettingsHost />
+            <SizeAutoAdjust />
         </BoardContextProvider>
       )}
       </div>

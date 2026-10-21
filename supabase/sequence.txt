@@ -144,3 +144,4 @@ policies/0025_docs_policies.sql
 migrations/0108_tracker_sheet_assets.sql
 policies/0026_tracker_sheet_assets_policies.sql
 migrations/0109_workspace_revisions.sql
+migrations/0110_size_scale.sql
