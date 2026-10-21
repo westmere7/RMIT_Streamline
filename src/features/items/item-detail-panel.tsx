@@ -127,7 +127,7 @@ function stuckStripesStyle(hex: string): React.CSSProperties {
   // towards the sides as well as downwards, on an eased curve rather than a
   // straight ramp. Each stripe is a soft ramp up and down with no solid band.
   const fade =
-    "radial-gradient(120% 100% at 50% 0%, rgb(0 0 0 / 0.8), rgb(0 0 0 / 0.58) 15%, rgb(0 0 0 / 0.36) 30%, rgb(0 0 0 / 0.18) 45%, rgb(0 0 0 / 0.06) 60%, transparent 75%)";
+    "radial-gradient(120% 100% at 50% 0%, black, rgb(0 0 0 / 0.72) 12%, rgb(0 0 0 / 0.42) 26%, rgb(0 0 0 / 0.2) 42%, rgb(0 0 0 / 0.07) 58%, transparent 75%)";
   return {
     backgroundImage: `repeating-linear-gradient(-45deg, ${hex} 0, transparent 13px, ${hex} 26px)`,
     maskImage: fade,
@@ -597,7 +597,7 @@ function PanelHeader({
       {!item.coverUrl && (
         <span
           aria-hidden
-          className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 transition-opacity duration-500", itemIsStuck(model, item.id) ? "opacity-[0.12]" : "opacity-0")}
+          className={cn("pointer-events-none absolute inset-x-0 top-0 h-32 transition-opacity duration-500", itemIsStuck(model, item.id) ? "opacity-[0.16]" : "opacity-0")}
           style={stuckStripesStyle(colorClasses(itemAccent(model, item.id, board.color)).hex)}
           data-testid="panel-stuck-stripes"
           data-stuck={itemIsStuck(model, item.id) || undefined}

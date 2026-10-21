@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.7",
+    date: "2026-10-21",
+    title: "Stuck stripes clearer at the top",
+    changes: [
+      "The stripes on a stuck task's panel are a little stronger along the top edge, still fading out quickly below it.",
+    ],
+  },
+  {
     version: "0.94.6",
     date: "2026-10-21",
     title: "Softer stuck stripes",
