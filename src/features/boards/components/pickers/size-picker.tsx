@@ -56,9 +56,8 @@ export interface SizeEvidence {
 /**
  * The size of a task, with what each size means and where the task's assets put it.
  *
- * Five tiles with their spans; under them, the task's hours as a marker on the
- * same row, so "fits S" can be seen as well as read. Hovering a tile describes
- * that size. With assets, the fitting size is one click away, and "Follow
+ * Five tiles with their spans. Hovering a tile names that size's span and the
+ * kind of work. With assets, the fitting size is one click away, and "Follow
  * assets" keeps the size in step as the lines change.
  */
 export function SizePicker({
@@ -113,13 +112,6 @@ export function SizePicker({
             );
           })}
         </div>
-        {/* The task's hours on the same row as the tiles: each tile is a span, and the marker sits where the hours fall in it. */}
-        {fit && (
-          <div className="relative mt-2 h-1.5 rounded-full bg-muted" aria-hidden data-testid="size-fit-track">
-            <div className="absolute inset-y-0 left-0 rounded-full bg-foreground/25" style={{ width: `${fit.position * 100}%` }} />
-            <span className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-popover bg-foreground shadow-sm" style={{ left: `${Math.min(fit.position * 100, 98.5)}%` }} />
-          </div>
-        )}
       </div>
 
       <div className="border-t border-border/70 px-3 py-2.5" data-testid="size-definition">
@@ -129,17 +121,6 @@ export function SizePicker({
           <span className="font-medium tabular">{formatSizeSpan(definition.span)}</span>
         </p>
         {definition.scope && <p className="text-2xs text-muted-foreground">{definition.scope}</p>}
-        {definition.examples.length > 0 && (
-          <ul className="mt-1.5 space-y-0.5 text-2xs text-foreground/80">
-            {definition.examples.slice(0, 4).map((example) => (
-              <li key={example} className="flex gap-1.5">
-                <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                <span className="min-w-0">{example}</span>
-              </li>
-            ))}
-            {definition.examples.length > 4 && <li className="pl-2.5 text-muted-foreground">and {definition.examples.length - 4} more</li>}
-          </ul>
-        )}
       </div>
 
       {evidence && <FitSection value={value} auto={auto} evidence={evidence} onChange={onChange} settingsHref={settingsHref} />}

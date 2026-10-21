@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.95.1",
+    date: "2026-10-21",
+    title: "A simpler size picker",
+    changes: [
+      "The size picker drops its list of example jobs and the marker under the sizes: each size's span and the kind of work it covers, then where the task fits.",
+    ],
+  },
+  {
     version: "0.95.0",
     date: "2026-10-21",
     title: "T-shirt sizes that mean something",
