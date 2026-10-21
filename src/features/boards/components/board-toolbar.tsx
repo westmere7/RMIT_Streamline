@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { columnLabels, type BoardViewKind, boardViewsFor } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { boardBarClasses, BoardViewSwitcher, type ArchiveEntry } from "@/features/boards/components/board-view-switcher";
@@ -110,27 +111,31 @@ export function BoardToolbar({
             {!folded && <PersonFilter labelClass={labelClass} />}
             {!folded && <TagFilter labelClass={labelClass} />}
             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
-                  <Filter /> <span className={labelClass}>Filter</span>
-                  {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
-                </Button>
-              </PopoverTrigger>
+              <SimpleTooltip label="Filter items">
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
+                    <Filter /> <span className={labelClass}>Filter</span>
+                    {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
+                  </Button>
+                </PopoverTrigger>
+              </SimpleTooltip>
               <PopoverContent className="w-[520px] p-3">
                 <FilterPanel folded={folded} />
               </PopoverContent>
             </Popover>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
-                  <ArrowUpDown /> <span className={labelClass}>Sort</span>
-                  {ui.sort && (
-                    <span className="flex items-center gap-0.5 text-2xs">
-                      {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
+              <SimpleTooltip label="Sort items">
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
+                    <ArrowUpDown /> <span className={labelClass}>Sort</span>
+                    {ui.sort && (
+                      <span className="flex items-center gap-0.5 text-2xs">
+                        {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+              </SimpleTooltip>
               <DropdownMenuContent align="start" className="w-48">
                 <DropdownMenuLabel>Sort by</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
@@ -153,12 +158,14 @@ export function BoardToolbar({
               </DropdownMenuContent>
             </DropdownMenu>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="Hide columns" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
-                  <EyeOff /> <span className={labelClass}>Hide</span>
-                  {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
-                </Button>
-              </DropdownMenuTrigger>
+              <SimpleTooltip label="Show or hide columns">
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label="Hide columns" className={cn("rounded-full", hiddenCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}>
+                    <EyeOff /> <span className={labelClass}>Hide</span>
+                    {hiddenCount > 0 && <span className="text-2xs">{hiddenCount}</span>}
+                  </Button>
+                </DropdownMenuTrigger>
+              </SimpleTooltip>
               <DropdownMenuContent align="start" className="w-52">
                 <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
                 {/* Not a column of the board, but it is one on screen, and this
@@ -178,18 +185,20 @@ export function BoardToolbar({
               </DropdownMenuContent>
             </DropdownMenu>
             {(filterCount > 0 || ui.search || ui.sort) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full text-muted-foreground"
-                onClick={() => {
-                  store.clearFilters(board.id);
-                  store.setSearch(board.id, "");
-                  store.setSort(board.id, null);
-                }}
-              >
-                <X /> Clear all
-              </Button>
+              <SimpleTooltip label="Clear search, filters and sort">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full text-muted-foreground"
+                  onClick={() => {
+                    store.clearFilters(board.id);
+                    store.setSearch(board.id, "");
+                    store.setSort(board.id, null);
+                  }}
+                >
+                  <X /> Clear all
+                </Button>
+              </SimpleTooltip>
             )}
           </>
         )}
@@ -239,9 +248,11 @@ export function SearchBox({ value, onChange, className }: { value: string; onCha
         className="h-9 w-full rounded-full border-transparent bg-surface pl-9 pr-8 hover:bg-surface-strong/70 focus-visible:bg-card"
       />
       {value && (
-        <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <X className="size-3.5" />
-        </button>
+        <SimpleTooltip label="Clear search">
+          <button type="button" aria-label="Clear search" onClick={() => onChange("")} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <X className="size-3.5" />
+          </button>
+        </SimpleTooltip>
       )}
     </div>
   );
@@ -294,12 +305,14 @@ function PersonFilter({ labelClass }: { labelClass: string }) {
   const selected = useBoardUi(board.id).filters.personIds;
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label="Filter by person" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
-          <UserRound /> <span className={labelClass}>Person</span>
-          {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
-        </Button>
-      </PopoverTrigger>
+      <SimpleTooltip label="Filter by person">
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" aria-label="Filter by person" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="person-filter">
+            <UserRound /> <span className={labelClass}>Person</span>
+            {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
+          </Button>
+        </PopoverTrigger>
+      </SimpleTooltip>
       <PopoverContent className="w-72 p-3">
         <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by owner</p>
         <PersonChoices />
@@ -379,12 +392,14 @@ function TagFilter({ labelClass }: { labelClass: string }) {
   if (!hasTags) return null;
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label="Filter by tag" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="tag-filter">
-          <Hash /> <span className={labelClass}>Tags</span>
-          {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
-        </Button>
-      </PopoverTrigger>
+      <SimpleTooltip label="Filter by tag">
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" aria-label="Filter by tag" className={cn("rounded-full", selected.length > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="tag-filter">
+            <Hash /> <span className={labelClass}>Tags</span>
+            {selected.length > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{selected.length}</span>}
+          </Button>
+        </PopoverTrigger>
+      </SimpleTooltip>
       <PopoverContent className="w-72 p-3" data-testid="tag-filter-panel">
         <p className="mb-2.5 text-xs font-medium text-muted-foreground">Filter items by tag</p>
         <TagChoices options={options} />
@@ -542,11 +557,13 @@ function NewItemButton() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button size="sm" disabled={model.groups.length === 0} data-testid="new-item-button">
-          <Plus /> New Item
-        </Button>
-      </PopoverTrigger>
+      <SimpleTooltip label="Add an item">
+        <PopoverTrigger asChild>
+          <Button size="sm" disabled={model.groups.length === 0} data-testid="new-item-button">
+            <Plus /> New Item
+          </Button>
+        </PopoverTrigger>
+      </SimpleTooltip>
       <PopoverContent className="w-80 p-3">
         <form
           className="space-y-2"

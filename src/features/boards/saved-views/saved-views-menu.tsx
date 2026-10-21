@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_VIEW_NAME, SAVED_VIEW_NAME_MAX, type SavedBoardView } from "@/domain";
@@ -62,27 +63,29 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
   return (
     <>
       <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "max-w-56 shrink-0 rounded-full",
-              // On a phone it is one of the tool chips, and looks it.
-              compact && "h-11 max-w-44 border px-3 text-[13px]",
-              compact && !named && "border-border/70 text-muted-foreground",
-              named && (compact ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "state-on hover:bg-accent-soft hover:text-accent-soft-foreground"),
-            )}
-            aria-label={`Saved views: ${title}${dirty ? ", edited" : ""}`}
-            data-testid="saved-views-button"
-          >
-            <Bookmark className={cn(named && "fill-current")} />
-            {/* Always the view on screen, the Default view included, so Save beside it says what it saves. */}
-            <span className="truncate">{title}</span>
-            {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" data-testid="saved-view-edited" />}
-            <ChevronDown className="text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
+        <SimpleTooltip label="Saved views">
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "max-w-56 shrink-0 rounded-full",
+                // On a phone it is one of the tool chips, and looks it.
+                compact && "h-11 max-w-44 border px-3 text-[13px]",
+                compact && !named && "border-border/70 text-muted-foreground",
+                named && (compact ? "border-ring bg-accent-soft/60 text-accent-soft-foreground" : "state-on hover:bg-accent-soft hover:text-accent-soft-foreground"),
+              )}
+              aria-label={`Saved views: ${title}${dirty ? ", edited" : ""}`}
+              data-testid="saved-views-button"
+            >
+              <Bookmark className={cn(named && "fill-current")} />
+              {/* Always the view on screen, the Default view included, so Save beside it says what it saves. */}
+              <span className="truncate">{title}</span>
+              {dirty && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-amber-500" data-testid="saved-view-edited" />}
+              <ChevronDown className="text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+        </SimpleTooltip>
         <DropdownMenuContent align="end" className="w-72" data-testid="saved-views-menu">
           <DropdownMenuLabel>Saved views</DropdownMenuLabel>
           <DropdownMenuItem onSelect={() => controller.open(null)} data-testid="saved-view-default">
@@ -135,9 +138,11 @@ export function SavedViewsMenu({ controller, compact = false }: { controller: Sa
       </DropdownMenu>
 
       {dirty && maySave && (
-        <Button variant="outline" size="sm" className="shrink-0 rounded-full" disabled={saving} onClick={() => void save()} data-testid="saved-view-save-button">
-          <Save /> Save
-        </Button>
+        <SimpleTooltip label={`Save changes to ${title}`}>
+          <Button variant="outline" size="sm" className="shrink-0 rounded-full" disabled={saving} onClick={() => void save()} data-testid="saved-view-save-button">
+            <Save /> Save
+          </Button>
+        </SimpleTooltip>
       )}
 
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>

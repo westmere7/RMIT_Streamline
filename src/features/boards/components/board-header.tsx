@@ -73,9 +73,17 @@ export function BoardHeader({ board }: { board: Board }) {
             </Link>
           </Button>
         </SimpleTooltip>
-        <span className={cn("mt-0.5 hidden size-10 shrink-0 items-center justify-center rounded-xl shadow-xs sm:flex", colorClasses(board.color).solid)}>
-          <DynamicIcon name={board.icon} className="size-5" />
-        </span>
+        <SimpleTooltip label={manage ? "Change icon and colour" : board.name}>
+          {manage ? (
+            <button type="button" onClick={() => setSettings("general")} aria-label="Change icon and colour" className={cn("mt-0.5 hidden size-10 shrink-0 items-center justify-center rounded-xl shadow-xs transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-ring sm:flex", colorClasses(board.color).solid)}>
+              <DynamicIcon name={board.icon} className="size-5" />
+            </button>
+          ) : (
+            <span className={cn("mt-0.5 hidden size-10 shrink-0 items-center justify-center rounded-xl shadow-xs sm:flex", colorClasses(board.color).solid)}>
+              <DynamicIcon name={board.icon} className="size-5" />
+            </span>
+          )}
+        </SimpleTooltip>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <h1 className="min-w-0 text-lg font-semibold tracking-tight sm:text-[22px]">
@@ -90,7 +98,11 @@ export function BoardHeader({ board }: { board: Board }) {
                 inputClassName="h-9 w-96 text-[22px] font-semibold"
               />
             </h1>
-            {board.archivedAt && <Badge variant="muted">Archived</Badge>}
+            {board.archivedAt && (
+              <SimpleTooltip label="Archived. Restore it from the board menu.">
+                <Badge variant="muted" className="cursor-default">Archived</Badge>
+              </SimpleTooltip>
+            )}
             {shared && (
               <SimpleTooltip label="Shared by link. Click to copy it; anyone with it can read the board.">
                 <button
@@ -108,17 +120,21 @@ export function BoardHeader({ board }: { board: Board }) {
             )}
             <BoardAccessBadge permissions={ws.permissions} board={board} />
             {board.visibility !== "WORKSPACE" && (
-              <Badge variant="outline" className="capitalize">
-                {board.visibility.toLowerCase()}
-              </Badge>
+              <SimpleTooltip label={board.visibility === "TEAM" ? `Only ${team?.name ?? "its team"} and people added to the board can see it.` : "Only people added to the board can see it."}>
+                <Badge variant="outline" className="cursor-default capitalize" data-testid="board-visibility-badge">
+                  {board.visibility.toLowerCase()}
+                </Badge>
+              </SimpleTooltip>
             )}
           </div>
           <p className="mt-1.5 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground max-sm:hidden">
             {team && (
               <>
-                <Link href={routes.team(ws.slug, team.id)} className="shrink-0 whitespace-nowrap hover:text-foreground hover:underline">
-                  {team.name}
-                </Link>
+                <SimpleTooltip label={`Open ${team.name}`}>
+                  <Link href={routes.team(ws.slug, team.id)} className="shrink-0 whitespace-nowrap hover:text-foreground hover:underline">
+                    {team.name}
+                  </Link>
+                </SimpleTooltip>
                 <span aria-hidden>·</span>
               </>
             )}
@@ -189,11 +205,13 @@ export function BoardHeader({ board }: { board: Board }) {
             </Button>
           </SimpleTooltip>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Board options" data-testid="board-menu">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
+            <SimpleTooltip label="Board options">
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Board options" data-testid="board-menu">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+            </SimpleTooltip>
             <DropdownMenuContent align="end" className="w-56">
               {renderDropdown(menuActions)}
             </DropdownMenuContent>

@@ -10,6 +10,7 @@ import { IconPicker } from "@/components/shared/icon-picker";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -157,11 +158,13 @@ export function PrimaryActionSlot({ newItem }: { newItem: React.ReactNode }) {
         )}
         {canManage && (
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className={cn("rounded-l-none border-l border-white/20 px-1.5", active && colorClasses(active.color).solid, active && colorClasses(active.color).solidHover)} aria-label="Choose this button" data-testid="primary-action-menu">
-                <ChevronDown />
-              </Button>
-            </DropdownMenuTrigger>
+            <SimpleTooltip label="Change this button">
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className={cn("rounded-l-none border-l border-white/20 px-1.5", active && colorClasses(active.color).solid, active && colorClasses(active.color).solidHover)} aria-label="Choose this button" data-testid="primary-action-menu">
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+            </SimpleTooltip>
             <DropdownMenuContent align="start" className="w-64">
               <DropdownMenuLabel>When nothing is selected</DropdownMenuLabel>
               {/* Always here and never edited: the board's own way to add a task. */}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardViewKind } from "@/domain";
 
 export const VIEWS: Array<{ id: BoardViewKind; label: string; hint: string; icon: React.ComponentType<{ className?: string }> }> = [
@@ -40,11 +41,13 @@ export function BoardViewSwitcher({ view, onChange, archive, views }: { view: Bo
   const CurrentIcon = current.icon;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="default" className="shrink-0 rounded-full pl-3 pr-2.5 font-semibold" aria-label={`Board view: ${current.label}`} data-testid="view-switcher">
-          <CurrentIcon /> {current.label} <ChevronDown className="text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
+      <SimpleTooltip label="Switch view">
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="default" className="shrink-0 rounded-full pl-3 pr-2.5 font-semibold" aria-label={`Board view: ${current.label}`} data-testid="view-switcher">
+            <CurrentIcon /> {current.label} <ChevronDown className="text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+      </SimpleTooltip>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>Views</DropdownMenuLabel>
         {VIEWS.filter((v) => !views || views.includes(v.id)).map(({ id, label, hint, icon: Icon }) => (

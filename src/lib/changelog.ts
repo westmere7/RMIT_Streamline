@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.94.2",
+    date: "2026-10-21",
+    title: "Tooltips on the board's controls",
+    changes: [
+      "The board's header and toolbar explain themselves on hover: the Team and Private badges say who can see the board, and View, Saved views, Person, Tags, Filter, Sort, Hide, Clear all, New Item and the board menu each have a tooltip.",
+      "Board managers can click the board's icon to change its icon and colour.",
+    ],
+  },
+  {
     version: "0.94.1",
     date: "2026-10-21",
     title: "Your access on every board",
