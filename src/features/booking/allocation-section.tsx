@@ -62,15 +62,17 @@ export function AllocationSection({ item }: { item: Item }) {
     .map((team) => ({ team, boards: ws.boardsForTeam(team.id).filter((b) => !b.system && canViewBoard(ws.permissions, b)).sort(byName) }))
     .filter((g) => g.boards.length > 0);
   const loose = ws.boards.filter((b) => b.archivedAt === null && !b.system && !b.teamId && canViewBoard(ws.permissions, b)).sort(byName);
+  // Nowhere to send it: say so rather than offer an empty list.
+  const nowhere = groups.length === 0 && loose.length === 0;
 
   return (
     <section data-testid="allocation-section">
       <h3 className="mb-1.5 label-quiet">Allocation</h3>
       <div className="space-y-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs">
         <p className="text-[13px] text-muted-foreground" data-testid="allocation-status">
-          Pick the board that should do the work. The request moves there.
+          {nowhere ? "No team boards yet. Add a board to a team to allocate requests to it." : "Pick the board that should do the work. The request moves there."}
         </p>
-        {canEdit && (
+        {canEdit && !nowhere && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <Select value={targetId} onValueChange={setTargetId}>
               <SelectTrigger aria-label="Team board" className="h-9 flex-1" data-testid="allocation-target">

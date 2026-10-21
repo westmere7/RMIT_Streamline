@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.95.2",
+    date: "2026-10-21",
+    title: "Allocate with no boards to allocate to",
+    changes: [
+      "On Task Allocation, Allocate to no longer spins for ever when no team has a board: it shows greyed out with \"No boards\", the bulk bar's button is disabled, and the task panel says to add a board to a team.",
+    ],
+  },
+  {
     version: "0.95.1",
     date: "2026-10-21",
     title: "A simpler size picker",

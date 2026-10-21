@@ -4,6 +4,7 @@ import { Archive, ArrowRight, ArrowRightLeft, Copy, LoaderCircle, Trash2, X } fr
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { useAllocation } from "@/features/booking/use-allocation";
@@ -56,7 +57,17 @@ export function BulkActionsBar() {
         <span className="mr-2 text-[13px]">{ids.length === 1 ? "item selected" : "items selected"}</span>
         {/* The allocation queue's whole purpose, on the selection: pick the
             board and the lot of them go. */}
-        {allocation.available && (
+        {allocation.available && allocation.empty && (
+          // Nowhere to send them: the button is there, blocked, and says why.
+          <SimpleTooltip label="No team boards to allocate to">
+            <span tabIndex={0} className="rounded-md">
+              <Button variant="ghost" size="sm" disabled data-testid="bulk-allocate">
+                <ArrowRightLeft /> Allocate to
+              </Button>
+            </span>
+          </SimpleTooltip>
+        )}
+        {allocation.available && !allocation.empty && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" data-testid="bulk-allocate">
@@ -64,11 +75,6 @@ export function BulkActionsBar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="max-h-80 w-52 overflow-y-auto">
-              {allocation.loading && (
-                <DropdownMenuItem disabled>
-                  <LoaderCircle className="animate-spin" /> Finding the team boards…
-                </DropdownMenuItem>
-              )}
               {/* Team, then board, so every line is one name long. */}
               {allocation.targets.map(({ team, boards }) => {
                 const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : null;

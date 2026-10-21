@@ -102,15 +102,16 @@ export function useAllocation() {
 
   /**
    * Only the allocation queue allocates, and only somebody who may edit it.
-   *
-   * Deliberately not "…and the boards have loaded". The menu has to open the
-   * instant it is asked for, so the entry is there from the first frame and
-   * says it is fetching; hiding it until the workspace has answered means the
-   * one thing this board is for appears a beat after the menu, under the
-   * cursor, which is how a manager clicks Archive by accident.
+   * The entry stays in place even with nowhere to send a request, so the menu
+   * does not change shape under the cursor; it is shown blocked instead.
    */
   const available = board.system === "TASK_ALLOCATION" && canEdit;
-  const loading = targets.length === 0;
+  /**
+   * No board to send a request to. Not a wait: the workspace's boards are
+   * loaded before any board renders, so an empty list is the answer. This
+   * used to read as "still loading" and spun for ever.
+   */
+  const empty = targets.length === 0;
 
-  return { available, loading, targets, allocate, pending: allocate.isPending };
+  return { available, empty, targets, allocate, pending: allocate.isPending };
 }

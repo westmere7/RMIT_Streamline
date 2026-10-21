@@ -87,31 +87,31 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const movingTo = useMovingItems().get(item.id);
   const movingBoard = movingTo ? allocation.targets.flatMap((t) => t.boards).find((b) => b.id === movingTo) : undefined;
   const allocating = selected ? selectedIds : [item.id];
-  const allocateAction: MenuAction | null =
-    allocation.available && item.parentItemId === null
-      ? {
+  const allocateLabel = selected && selectedIds.length > 1 ? `Allocate ${selectedIds.length} requests to` : "Allocate to";
+  const allocateAction: MenuAction | null = !allocation.available || item.parentItemId !== null
+    ? null
+    : allocation.empty
+      ? // Nowhere to send it: there, but blocked, and it says why.
+        { type: "item", label: allocateLabel, icon: <ArrowRightLeft />, disabled: true, hint: "No boards", onSelect: () => {}, testId: "allocate-blocked" }
+      : {
           type: "sub",
-          label: selected && selectedIds.length > 1 ? `Allocate ${selectedIds.length} requests to` : "Allocate to",
+          label: allocateLabel,
           icon: <ArrowRightLeft />,
           accent: true,
           // Team, then board: one name per line, and no entry long enough to
           // wrap. A team with a single board still opens to it, so the board
           // a request lands on is always named before it is sent there.
-          items: allocation.loading
-            ? // The menu opens now and fills in when the workspace answers.
-              [{ type: "item" as const, label: "Finding the team boards…", icon: <LoaderCircle className="animate-spin" />, disabled: true, onSelect: () => {} }]
-            : allocation.targets.map(({ team, boards }) => {
-                const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />;
-                const send = (boardId: string) => allocation.allocate.mutate({ itemIds: allocating, boardId });
-                return {
-                  type: "sub" as const,
-                  label: team ? team.name : "No team",
-                  icon,
-                  items: boards.map((target) => ({ type: "item" as const, label: target.name, onSelect: () => send(target.id) })),
-                };
-              }),
-        }
-      : null;
+          items: allocation.targets.map(({ team, boards }) => {
+            const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />;
+            const send = (boardId: string) => allocation.allocate.mutate({ itemIds: allocating, boardId });
+            return {
+              type: "sub" as const,
+              label: team ? team.name : "No team",
+              icon,
+              items: boards.map((target) => ({ type: "item" as const, label: target.name, onSelect: () => send(target.id) })),
+            };
+          }),
+        };
 
   // What the panel offers beyond these: the journey, the star, following, hidden columns.
   const extras = useTaskMenuExtras(item, canEdit);
