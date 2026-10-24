@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.96.1",
+    date: "2026-10-24",
+    title: "Right-click on Members",
+    changes: [
+      "Right-click a person on Members for the same menu as their ⋯ button.",
+      "The edit details dialog keeps its buttons clear of the last field.",
+    ],
+  },
+  {
     version: "0.96.0",
     date: "2026-10-24",
     title: "Admins edit member info",

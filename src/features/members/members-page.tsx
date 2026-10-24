@@ -27,6 +27,20 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DEFAULT_WEEKLY_HOURS, WORKSPACE_ROLES, weeklyHoursOf, type Team, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
@@ -751,7 +765,7 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
   const isSelf = user.id === ws.currentUser.id;
   const pending = member.status === "INVITED";
 
-  return (
+  const draw = (button: React.ReactNode) => (
     <tr className={cn("h-11", CARD_ROW, "hover:[&>td]:bg-accent/60", member.status === "DEACTIVATED" && "text-muted-foreground", selected && "[&>td]:border-ring/40 [&>td]:bg-accent/50")} data-testid="member-row" data-member-status={member.status}>
       {manage && (
         <td className="pl-3">
@@ -811,12 +825,16 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
       <td className="px-3 text-right tabular" data-testid="member-boards">
         {boards || <span className="text-muted-foreground">0</span>}
       </td>
-      {manage && (
-        <td className="px-2 text-right">
-          <MemberActions row={row} invitation={invitation} />
-        </td>
-      )}
+      {manage && <td className="px-2 text-right">{button}</td>}
     </tr>
+  );
+  // A right-click on the row opens the same menu as its ⋯ button.
+  return manage ? (
+    <MemberActions row={row} invitation={invitation}>
+      {draw}
+    </MemberActions>
+  ) : (
+    draw(null)
   );
 }
 
@@ -896,7 +914,7 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
   const isSelf = user.id === ws.currentUser.id;
   const pending = member.status === "INVITED";
 
-  return (
+  const draw = (button: React.ReactNode) => (
     <li className="flex items-start gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5 shadow-xs" data-testid="member-row" data-member-status={member.status}>
       <Link href={routes.person(ws.slug, user.id)} className="flex min-w-0 flex-1 items-start gap-3" data-testid="member-profile-link">
         <UserAvatar user={user} size="lg" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
@@ -921,12 +939,15 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
           {row.workspaces.length > 0 && <span className="mt-1 block truncate text-2xs text-muted-foreground">Also in {row.workspaces.map((w) => w.name).join(", ")}</span>}
         </span>
       </Link>
-      {manage && (
-        <span className="flex shrink-0 items-center">
-          <MemberActions row={row} invitation={invitation} />
-        </span>
-      )}
+      {button && <span className="flex shrink-0 items-center">{button}</span>}
     </li>
+  );
+  return manage ? (
+    <MemberActions row={row} invitation={invitation}>
+      {draw}
+    </MemberActions>
+  ) : (
+    draw(null)
   );
 }
 
@@ -1010,7 +1031,40 @@ function MobileOutsiderCard({ person, manage, onAdd }: { person: Outsider; manag
 }
 
 /** A member's mutations, menu and confirmations. Shared by the table row and the phone card. */
-function MemberActions({ row: { member, user, teams }, invitation }: { row: Row; invitation: WorkspaceInvitation | null }) {
+/** The menu pieces MemberActions draws its items with, for the ⋯ dropdown. */
+const DROPDOWN_KIT = {
+  Item: DropdownMenuItem,
+  Label: DropdownMenuLabel,
+  Separator: DropdownMenuSeparator,
+  RadioGroup: DropdownMenuRadioGroup,
+  RadioItem: DropdownMenuRadioItem,
+  CheckboxItem: DropdownMenuCheckboxItem,
+  Sub: DropdownMenuSub,
+  SubTrigger: DropdownMenuSubTrigger,
+  SubContent: DropdownMenuSubContent,
+};
+type MenuKit = typeof DROPDOWN_KIT;
+
+/** The same pieces for the right-click menu. */
+const CONTEXT_KIT: MenuKit = {
+  Item: ContextMenuItem,
+  Label: ContextMenuLabel,
+  Separator: ContextMenuSeparator,
+  RadioGroup: ContextMenuRadioGroup,
+  RadioItem: ContextMenuRadioItem,
+  CheckboxItem: ContextMenuCheckboxItem,
+  Sub: ContextMenuSub,
+  SubTrigger: ContextMenuSubTrigger,
+  SubContent: ContextMenuSubContent,
+};
+
+/**
+ * Everything an admin can do to one person, from the row's ⋯ button and from a
+ * right-click anywhere on the row: one list of items, drawn in either menu.
+ * `children` draws the row, given the ⋯ button to put in it (null when this
+ * person's seat is not the reader's to manage, as an Owner's is not an admin's).
+ */
+function MemberActions({ row: { member, user, teams }, invitation, children }: { row: Row; invitation: WorkspaceInvitation | null; children: (button: React.ReactNode) => React.ReactElement }) {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
@@ -1078,98 +1132,113 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
   });
 
   // An Owner's seat is the Owners' business: an admin sees them, and that is all.
-  if (!canManageMember(ws.permissions, member)) return null;
+  if (!canManageMember(ws.permissions, member)) return children(null);
+
+  const items = (k: MenuKit) => (
+    <>
+      {pending && (
+        <>
+          <k.Label>Invitation</k.Label>
+          <k.Item disabled={!invitation} onSelect={() => invitation && void copyToClipboard(invitationUrl(invitation))}>
+            Copy invite link
+          </k.Item>
+          <k.Item onSelect={() => setLinkOpen(true)} data-testid="invite-link-button">
+            Show or renew link
+          </k.Item>
+          <k.Separator />
+        </>
+      )}
+      <k.Item asChild>
+        <Link href={routes.person(ws.slug, user.id)}>Open profile</Link>
+      </k.Item>
+      {canEditProfile(ws.permissions, { userId: user.id, isOwner: ownerRow }) && (
+        <k.Item onSelect={() => setEditing(true)} data-testid="member-edit-info">
+          Edit info
+        </k.Item>
+      )}
+      <k.Item onSelect={() => void copyToClipboard(user.email, "Email copied")}>Copy email</k.Item>
+      <k.Separator />
+      <k.Label>Workspace role</k.Label>
+      {ownerRow ? (
+        <k.Item disabled data-testid="member-owner-note">
+          Owner of every workspace
+        </k.Item>
+      ) : (
+        <k.RadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
+          {ASSIGNABLE_ROLES.map((role) => (
+            <k.RadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
+              {ROLE_LABEL[role]}
+            </k.RadioItem>
+          ))}
+        </k.RadioGroup>
+      )}
+      {iAmOwner && member.status === "ACTIVE" && (
+        <k.Item onSelect={() => setConfirmOwner(ownerRow ? "remove" : "make")} data-testid={ownerRow ? "member-remove-owner" : "member-make-owner"}>
+          {ownerRow ? "Remove as Owner" : "Make Owner"}
+        </k.Item>
+      )}
+      <k.Separator />
+      <k.Sub>
+        <k.SubTrigger>Teams</k.SubTrigger>
+        <k.SubContent className="w-48">
+          {ws.teams
+            .filter((t) => t.archivedAt === null)
+            .map((team) => {
+              const inTeam = teams.some((t) => t.id === team.id);
+              return (
+                <k.CheckboxItem key={team.id} checked={inTeam} onCheckedChange={(next) => toggleTeam.mutate({ teamId: team.id, join: !!next })}>
+                  {team.name}
+                </k.CheckboxItem>
+              );
+            })}
+        </k.SubContent>
+      </k.Sub>
+      <k.Separator />
+      {pending ? (
+        <k.Item variant="destructive" onSelect={() => setConfirmCancel(true)} data-testid="cancel-invitation">
+          Cancel invitation
+        </k.Item>
+      ) : (
+        <>
+          <k.Item disabled={isSelf || ownerRow} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
+            Reinitiate onboarding
+          </k.Item>
+          {member.status === "DEACTIVATED" ? (
+            <k.Item onSelect={() => setActive.mutate(true)}>Reactivate</k.Item>
+          ) : (
+            <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmDeactivate(true)}>
+              Deactivate
+            </k.Item>
+          )}
+        </>
+      )}
+      <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmRemove(true)} data-testid="member-remove-completely">
+        Remove completely
+      </k.Item>
+    </>
+  );
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${user.displayName}`}>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          {pending && (
-            <>
-              <DropdownMenuLabel>Invitation</DropdownMenuLabel>
-              <DropdownMenuItem disabled={!invitation} onSelect={() => invitation && void copyToClipboard(invitationUrl(invitation))}>
-                Copy invite link
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setLinkOpen(true)} data-testid="invite-link-button">
-                Show or renew link
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {children(
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${user.displayName}`}>
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {items(DROPDOWN_KIT)}
+              </DropdownMenuContent>
+            </DropdownMenu>,
           )}
-          <DropdownMenuItem asChild>
-            <Link href={routes.person(ws.slug, user.id)}>Open profile</Link>
-          </DropdownMenuItem>
-          {canEditProfile(ws.permissions, { userId: user.id, isOwner: ownerRow }) && (
-            <DropdownMenuItem onSelect={() => setEditing(true)} data-testid="member-edit-info">
-              Edit info
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onSelect={() => void copyToClipboard(user.email, "Email copied")}>Copy email</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Workspace role</DropdownMenuLabel>
-          {ownerRow ? (
-            <DropdownMenuItem disabled data-testid="member-owner-note">
-              Owner of every workspace
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuRadioGroup value={member.role} onValueChange={(v) => changeRole.mutate(v as WorkspaceRole)}>
-              {ASSIGNABLE_ROLES.map((role) => (
-                <DropdownMenuRadioItem key={role} value={role} disabled={isSelf && role !== member.role}>
-                  {ROLE_LABEL[role]}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          )}
-          {iAmOwner && member.status === "ACTIVE" && (
-            <DropdownMenuItem onSelect={() => setConfirmOwner(ownerRow ? "remove" : "make")} data-testid={ownerRow ? "member-remove-owner" : "member-make-owner"}>
-              {ownerRow ? "Remove as Owner" : "Make Owner"}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Teams</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-48">
-              {ws.teams
-                .filter((t) => t.archivedAt === null)
-                .map((team) => {
-                  const inTeam = teams.some((t) => t.id === team.id);
-                  return (
-                    <DropdownMenuCheckboxItem key={team.id} checked={inTeam} onCheckedChange={(next) => toggleTeam.mutate({ teamId: team.id, join: !!next })}>
-                      {team.name}
-                    </DropdownMenuCheckboxItem>
-                  );
-                })}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          {pending ? (
-            <DropdownMenuItem variant="destructive" onSelect={() => setConfirmCancel(true)} data-testid="cancel-invitation">
-              Cancel invitation
-            </DropdownMenuItem>
-          ) : (
-            <>
-              <DropdownMenuItem disabled={isSelf || ownerRow} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
-                Reinitiate onboarding
-              </DropdownMenuItem>
-              {member.status === "DEACTIVATED" ? (
-                <DropdownMenuItem onSelect={() => setActive.mutate(true)}>Reactivate</DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmDeactivate(true)}>
-                  Deactivate
-                </DropdownMenuItem>
-              )}
-            </>
-          )}
-          <DropdownMenuItem variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmRemove(true)} data-testid="member-remove-completely">
-            Remove completely
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-56" data-testid="member-context-menu">
+          {items(CONTEXT_KIT)}
+        </ContextMenuContent>
+      </ContextMenu>
       <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} canChangeEmail={canChangeEmail(ws.permissions, { userId: user.id, isOwner: ownerRow })} />
       <ConfirmDialog
         open={confirmOwner !== null}

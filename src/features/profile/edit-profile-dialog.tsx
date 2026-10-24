@@ -83,13 +83,13 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
   };
 
   return (
-    <form onSubmit={(event) => void submit(event)}>
+    <form onSubmit={(event) => void submit(event)} className="grid gap-5">
       <DialogHeader>
         <DialogTitle>{isSelf ? "Edit profile" : `Edit ${user.displayName}`}</DialogTitle>
         <DialogDescription>Name, contact details and photo.</DialogDescription>
       </DialogHeader>
 
-      <div className="flex items-center gap-4 py-2">
+      <div className="flex items-center gap-4">
         <UserAvatar user={user} size="xl" tooltip={false} className="size-16 text-base" />
         <div className="space-y-1.5">
           <input
@@ -115,7 +115,6 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
               </Button>
             )}
           </div>
-          <p className="text-2xs text-muted-foreground">Square crop, 256px, WebP.</p>
         </div>
       </div>
 
