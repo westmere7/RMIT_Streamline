@@ -197,11 +197,23 @@ export function canDeleteComment(ctx: PermissionContext, comment: { authorId: st
 }
 
 /**
- * Whether this person may edit someone's profile: their own always; somebody
- * else's only as an admin while that person has not finished joining. Once
- * they have, their details are theirs (private.profile_edit_guard).
+ * Whether this person may edit someone's profile: their own always; anybody
+ * else's as an admin, joined or not, except an Owner's, which only Owners
+ * edit. The database adds one rule this cannot see from one workspace: a
+ * person active in another workspace is only edited by somebody who runs that
+ * one too (profiles_update_admin, migration 0111).
  */
-export function canEditProfile(ctx: PermissionContext, target: { userId: string; joined: boolean }): boolean {
+export function canEditProfile(ctx: PermissionContext, target: { userId: string; isOwner: boolean }): boolean {
   if (target.userId === ctx.userId) return true;
-  return isWorkspaceAdmin(ctx) && !target.joined;
+  return isWorkspaceAdmin(ctx) && (!target.isOwner || isOwner(ctx));
+}
+
+/**
+ * Whether this person may change someone's email, which is their sign-in
+ * address too: an admin, on the same terms as their other details. Nobody
+ * changes their own here; that is an admin's job, so a typo cannot lock
+ * somebody out of their own account.
+ */
+export function canChangeEmail(ctx: PermissionContext, target: { userId: string; isOwner: boolean }): boolean {
+  return isWorkspaceAdmin(ctx) && (!target.isOwner || isOwner(ctx));
 }

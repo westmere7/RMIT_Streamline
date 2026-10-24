@@ -70,6 +70,8 @@ export interface UserRepository {
   getByEmail(email: string): Promise<User | null>;
   create(input: UserInput): Promise<User>;
   update(id: EntityId, patch: Partial<Omit<User, "id" | "createdAt">>): Promise<User>;
+  /** Somebody's email, which is their sign-in address too: changed together, by an admin of `workspaceId`. */
+  changeEmail(input: { workspaceId: EntityId; userId: EntityId; email: string }): Promise<void>;
 }
 
 export interface WorkspaceRepository {

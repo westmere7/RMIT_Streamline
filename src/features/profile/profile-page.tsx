@@ -1,7 +1,6 @@
 "use client";
 
 import { Boxes, CalendarCheck, Clock, History, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -16,7 +15,6 @@ import type { WorkspaceRole } from "@/domain";
 import { assetCount, formatWorkHours, isProgressLabel, isStuckLabel, priorityStrength } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { useServices } from "@/features/data/data-context";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useProfile } from "@/features/profile/hooks";
@@ -25,7 +23,7 @@ import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { bucketDate, formatShortDate, isOverdue } from "@/lib/dates/dates";
-import { canEditProfile } from "@/lib/permissions/permissions";
+import { canChangeEmail, canEditProfile } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { BoardRelation } from "@/services";
@@ -55,12 +53,7 @@ export function ProfilePage({ userId }: { userId: string }) {
   const [taskFilter, setTaskFilter] = React.useState<"open" | "done">("open");
   const [showAll, setShowAll] = React.useState(false);
 
-  const services = useServices();
   const isSelf = me.id === userId;
-  // Your own details; somebody else's only as an admin while they have not
-  // finished joining. After that they are theirs (private.profile_edit_guard).
-  const joined = useQuery({ queryKey: ["has-joined", userId], queryFn: () => services.profiles.hasJoined(userId), enabled: !isSelf, staleTime: 30_000 });
-  const canEdit = canEditProfile(ws.permissions, { userId, joined: isSelf || joined.data !== false });
 
   if (profile.isLoading) {
     return (
@@ -85,6 +78,9 @@ export function ProfilePage({ userId }: { userId: string }) {
   }
 
   const { user, member, joinedAt, teams, boards, tasks, assets, activity } = profile.data;
+  // Your own details; anybody's as an admin, but an Owner's only as an Owner.
+  const isOwnerProfile = member?.role === "OWNER";
+  const canEdit = canEditProfile(ws.permissions, { userId, isOwner: isOwnerProfile });
   const hours = formatWorkHours(user);
   const group = user.stakeholderGroup ?? null;
   const groupColor = groups.find((g) => g.name.toLowerCase() === (group ?? "").toLowerCase())?.color ?? (group ? tagColorFor(group) : "gray");
@@ -307,7 +303,7 @@ export function ProfilePage({ userId }: { userId: string }) {
         </Tabs>
       </div>
 
-      <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} />
+      <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} canChangeEmail={canChangeEmail(ws.permissions, { userId, isOwner: isOwnerProfile })} />
     </div>
   );
 }

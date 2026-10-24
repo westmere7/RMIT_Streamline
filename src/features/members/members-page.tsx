@@ -38,7 +38,8 @@ import { copyToClipboard, invitationUrl, useLiveInvitations, useMemberMutations,
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDateTime, formatShortDate } from "@/lib/dates/dates";
-import { canManageMember, canManageMembers, isOwner } from "@/lib/permissions/permissions";
+import { canChangeEmail, canEditProfile, canManageMember, canManageMembers, isOwner } from "@/lib/permissions/permissions";
+import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
 import { useWorkspaceAdmin } from "@/features/workspace/workspaces";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
@@ -1020,6 +1021,7 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [confirmOwner, setConfirmOwner] = React.useState<null | "make" | "remove">(null);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
   const [typedName, setTypedName] = React.useState("");
   const { setOwner } = useWorkspaceAdmin();
   const isSelf = user.id === ws.currentUser.id;
@@ -1102,6 +1104,11 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
           <DropdownMenuItem asChild>
             <Link href={routes.person(ws.slug, user.id)}>Open profile</Link>
           </DropdownMenuItem>
+          {canEditProfile(ws.permissions, { userId: user.id, isOwner: ownerRow }) && (
+            <DropdownMenuItem onSelect={() => setEditing(true)} data-testid="member-edit-info">
+              Edit info
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => void copyToClipboard(user.email, "Email copied")}>Copy email</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Workspace role</DropdownMenuLabel>
@@ -1163,6 +1170,7 @@ function MemberActions({ row: { member, user, teams }, invitation }: { row: Row;
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} canChangeEmail={canChangeEmail(ws.permissions, { userId: user.id, isOwner: ownerRow })} />
       <ConfirmDialog
         open={confirmOwner !== null}
         onOpenChange={(open) => !open && setConfirmOwner(null)}

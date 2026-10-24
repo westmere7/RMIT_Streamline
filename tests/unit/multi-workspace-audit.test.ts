@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BookingRequest, EntityId } from "@/domain";
-import { buildPermissionContext, canDeleteComment, canEditProfile } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canChangeEmail, canDeleteComment, canEditProfile } from "@/lib/permissions/permissions";
 import { createServices, type Services } from "@/services";
 
 /**
@@ -259,16 +259,30 @@ describe("comments and profiles belong to their people", () => {
     expect(canDeleteComment(ctx("MEMBER", ["board-1"]), { authorId: "other" }, board)).toBe(false);
   });
 
-  it("an admin edits somebody's details only until they have joined", async () => {
-    expect(canEditProfile(ctx("ADMIN"), { userId: "other", joined: false })).toBe(true);
-    expect(canEditProfile(ctx("ADMIN"), { userId: "other", joined: true })).toBe(false);
-    expect(canEditProfile(ctx("OWNER"), { userId: "other", joined: true })).toBe(false);
-    expect(canEditProfile(ctx("MEMBER"), { userId: "me", joined: true })).toBe(true);
+  it("an admin edits anybody's details, joined or not; an Owner's only as an Owner", async () => {
+    expect(canEditProfile(ctx("ADMIN"), { userId: "other", isOwner: false })).toBe(true);
+    expect(canEditProfile(ctx("ADMIN"), { userId: "other", isOwner: true })).toBe(false);
+    expect(canEditProfile(ctx("OWNER"), { userId: "other", isOwner: true })).toBe(true);
+    expect(canEditProfile(ctx("MEMBER"), { userId: "other", isOwner: false })).toBe(false);
+    expect(canEditProfile(ctx("MEMBER"), { userId: "me", isOwner: false })).toBe(true);
+    // An email is the sign-in address: an admin's to change, never your own here.
+    expect(canChangeEmail(ctx("ADMIN"), { userId: "other", isOwner: false })).toBe(true);
+    expect(canChangeEmail(ctx("ADMIN"), { userId: "other", isOwner: true })).toBe(false);
+    expect(canChangeEmail(ctx("MEMBER"), { userId: "me", isOwner: false })).toBe(false);
     const { services } = fresh();
-    await expect(services.profiles.updateProfile(jun, { jobTitle: "Hijacked" }, emily)).rejects.toThrow(/theirs to change/);
-    await expect(services.profiles.updateProfile(jun, { jobTitle: "Producer" }, jun)).resolves.toMatchObject({ jobTitle: "Producer" });
-    // Somebody still pending: an admin fills them in.
+    // Joined, and still the admin's to edit.
+    await expect(services.profiles.updateProfile(jun, { jobTitle: "Producer" }, emily)).resolves.toMatchObject({ jobTitle: "Producer" });
     await expect(services.profiles.updateProfile(anh, { jobTitle: "Designer" }, emily)).resolves.toMatchObject({ jobTitle: "Designer" });
+  });
+
+  it("an email change is refused when somebody else has the address", async () => {
+    const { repos } = fresh();
+    const juns = (await repos.users.getById(jun))!;
+    const emilys = (await repos.users.getById(emily))!;
+    await expect(repos.users.changeEmail({ workspaceId: A, userId: jun, email: emilys.email.toUpperCase() })).rejects.toThrow(/already belongs/);
+    await repos.users.changeEmail({ workspaceId: A, userId: jun, email: "  Jun.New@Example.com " });
+    expect((await repos.users.getById(jun))!.email).toBe("jun.new@example.com");
+    expect(juns.email).not.toBe("jun.new@example.com");
   });
 });
 

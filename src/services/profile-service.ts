@@ -131,17 +131,16 @@ export class ProfileService {
   }
 
   /**
-   * Edits someone's details: your own, or, as an admin, those of somebody who
-   * has not finished joining yet. Once a person has joined, their details are
-   * theirs. The database holds to the same rule (private.profile_edit_guard);
-   * this says so first, and is the only gate in the local provider.
+   * Edits someone's details: your own, or anybody's as an admin (an Owner's
+   * only as an Owner). Who may is the UI's canEditProfile and, with Supabase,
+   * the update policy (profiles_update_admin, migration 0111). `_actorId` is
+   * kept for the callers that pass it.
    */
   async updateProfile(
     userId: EntityId,
     patch: Partial<Pick<User, "firstName" | "lastName" | "displayName" | "jobTitle" | "department" | "timezone" | "avatarUrl" | "stakeholderGroup" | "workHoursStart" | "workHoursEnd">>,
-    actorId?: EntityId,
+    _actorId?: EntityId,
   ): Promise<User> {
-    if (actorId && actorId !== userId && (await this.hasJoined(userId))) throw new Error("Once somebody has joined, their details are theirs to change.");
     const cleaned = { ...patch };
     if (cleaned.firstName !== undefined) cleaned.firstName = cleaned.firstName.trim();
     if (cleaned.lastName !== undefined) cleaned.lastName = cleaned.lastName.trim();
@@ -156,6 +155,16 @@ export class ProfileService {
     if (cleaned.workHoursStart !== undefined) cleaned.workHoursStart = cleaned.workHoursStart?.trim() || null;
     if (cleaned.workHoursEnd !== undefined) cleaned.workHoursEnd = cleaned.workHoursEnd?.trim() || null;
     return this.repos.users.update(userId, cleaned);
+  }
+
+  /**
+   * Somebody's email, which is their sign-in address too. With Supabase this
+   * goes through the server, which checks the caller may (src/server/people.ts).
+   */
+  async changeEmail(workspaceId: EntityId, userId: EntityId, email: string): Promise<void> {
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error("Enter a valid email address.");
+    await this.repos.users.changeEmail({ workspaceId, userId, email: clean });
   }
 
   /** Whether they have joined a workspace: a seat that is, or was, active. The directory covers workspaces the caller is not in. */

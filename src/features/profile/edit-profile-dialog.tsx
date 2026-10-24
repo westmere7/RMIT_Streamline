@@ -19,24 +19,29 @@ export interface EditProfileDialogProps {
   user: User;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** An admin may change the email, which is the sign-in address too (canChangeEmail). */
+  canChangeEmail?: boolean;
 }
 
 /** Edits one person's details. Who may open it is decided by the caller; the database enforces it too. */
-export function EditProfileDialog({ user, open, onOpenChange }: EditProfileDialogProps) {
+export function EditProfileDialog({ user, open, onOpenChange, canChangeEmail = false }: EditProfileDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="edit-profile-dialog">
         {/* Mounted only while open, so the form re-initialises from the user each time. */}
-        {open && <ProfileForm user={user} onClose={() => onOpenChange(false)} />}
+        {open && <ProfileForm user={user} canChangeEmail={canChangeEmail} onClose={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
+function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeEmail: boolean; onClose: () => void }) {
   const ws = useWorkspace();
   const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
-  const { save, changeAvatar, removeAvatar } = useProfileMutations(user.id);
+  const { save, changeEmail, changeAvatar, removeAvatar } = useProfileMutations(user.id);
+  const isSelf = ws.currentUser.id === user.id;
+  const [email, setEmail] = React.useState(user.email);
+  const emailChanged = canChangeEmail && email.trim().toLowerCase() !== user.email.toLowerCase();
   const fileRef = React.useRef<HTMLInputElement>(null);
   const [form, setForm] = React.useState({
     firstName: user.firstName,
@@ -52,8 +57,16 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
   const zones = TIMEZONES.includes(user.timezone) ? TIMEZONES : [user.timezone, ...TIMEZONES];
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    // The email first: it can be refused (the address is taken), and then nothing else changes either.
+    if (emailChanged) {
+      try {
+        await changeEmail.mutateAsync(email);
+      } catch {
+        return;
+      }
+    }
     save.mutate(
       {
         firstName: form.firstName,
@@ -70,10 +83,10 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
   };
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={(event) => void submit(event)}>
       <DialogHeader>
-        <DialogTitle>Edit profile</DialogTitle>
-        <DialogDescription>Name, contact details and photo. Images are converted to WebP before they are stored.</DialogDescription>
+        <DialogTitle>{isSelf ? "Edit profile" : `Edit ${user.displayName}`}</DialogTitle>
+        <DialogDescription>Name, contact details and photo.</DialogDescription>
       </DialogHeader>
 
       <div className="flex items-center gap-4 py-2">
@@ -157,17 +170,25 @@ function ProfileForm({ user, onClose }: { user: User; onClose: () => void }) {
           <Input id="workHoursEnd" type="time" value={form.workHoursEnd} onChange={(e) => set({ workHoursEnd: e.target.value })} data-testid="profile-hours-end" />
         </div>
 
-        <p className="text-2xs text-muted-foreground sm:col-span-2">
-          Email is <span className="font-medium">{user.email}</span> — ask an admin to change it.
-        </p>
+        {canChangeEmail ? (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-testid="profile-email" />
+            {emailChanged && <p className="text-2xs text-muted-foreground">{isSelf ? "You'll sign in with this address from now on." : `${user.firstName || user.displayName} will sign in with this address from now on.`}</p>}
+          </div>
+        ) : (
+          <p className="text-2xs text-muted-foreground sm:col-span-2">
+            Email is <span className="font-medium">{user.email}</span>. Ask an admin to change it.
+          </p>
+        )}
       </div>
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!form.displayName.trim() || save.isPending} data-testid="profile-save">
-          {save.isPending ? <Loader2 className="animate-spin" /> : null} Save changes
+        <Button type="submit" disabled={!form.displayName.trim() || save.isPending || changeEmail.isPending} data-testid="profile-save">
+          {save.isPending || changeEmail.isPending ? <Loader2 className="animate-spin" /> : null} Save changes
         </Button>
       </DialogFooter>
     </form>

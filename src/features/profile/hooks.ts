@@ -45,6 +45,13 @@ export function useProfileMutations(userId: string) {
     onSettled: settle,
   });
 
+  /** Their email, sign-in included; the caller saves the rest after it. */
+  const changeEmail = useMutation({
+    mutationFn: (email: string) => services.profiles.changeEmail(ws.workspace.id, userId, email),
+    onError: (error) => toast.error("Could not change the email", { description: error instanceof Error ? error.message : undefined }),
+    onSettled: settle,
+  });
+
   /** Converts to WebP, stores it, then points the profile at the new file. */
   const changeAvatar = useMutation({
     mutationFn: async (file: File) => {
@@ -63,5 +70,5 @@ export function useProfileMutations(userId: string) {
     onSettled: settle,
   });
 
-  return { save, changeAvatar, removeAvatar };
+  return { save, changeEmail, changeAvatar, removeAvatar };
 }

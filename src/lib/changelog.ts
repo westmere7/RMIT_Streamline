@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.96.0",
+    date: "2026-10-24",
+    title: "Admins edit member info",
+    changes: [
+      "Admins can edit any member's details, joined or not: name, title, department, timezone, work hours, photo. An Owner's details stay with the Owners.",
+      "Admins can change a member's email, which changes the address they sign in with too. Their work stays theirs.",
+      "Members has Edit info in each person's menu.",
+      "Somebody who is also in a workspace you don't run is edited by an Owner.",
+    ],
+  },
+  {
     version: "0.95.2",
     date: "2026-10-21",
     title: "Allocate with no boards to allocate to",

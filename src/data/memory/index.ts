@@ -53,6 +53,7 @@ export function createMemoryRepositories(
       getByEmail: async () => null,
       create: readOnly("adding people"),
       update: readOnly("editing a profile"),
+      changeEmail: readOnly("changing an email"),
     },
     workspaces: {
       list: async () => [workspace()],

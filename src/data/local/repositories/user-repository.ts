@@ -46,4 +46,16 @@ export class LocalUserRepository implements UserRepository {
     await db.put("users", updated);
     return updated;
   }
+
+  /** Locally there is no separate sign-in account: the profile's email is the one. */
+  async changeEmail(input: { workspaceId: string; userId: string; email: string }): Promise<void> {
+    const email = input.email.trim().toLowerCase();
+    const db = await this.conn.getDb();
+    const existing = await db.get("users", input.userId);
+    if (!existing) throw new NotFoundError("User", input.userId);
+    if (existing.email.toLowerCase() === email) return;
+    const all = await db.getAll("users");
+    if (all.some((u) => u.id !== input.userId && u.email.toLowerCase() === email)) throw new Error(`${email} already belongs to someone else.`);
+    await db.put("users", { ...existing, email, updatedAt: nowIso() });
+  }
 }
