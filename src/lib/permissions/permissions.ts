@@ -82,8 +82,9 @@ export function canCreateTeam(ctx: PermissionContext): boolean {
   return ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN" || ctx.workspaceRole === "MEMBER";
 }
 
+/** A team row outlives deactivation, so it counts only with an active seat (0112). */
 export function canManageTeam(ctx: PermissionContext, teamId: string): boolean {
-  return isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
+  return isWorkspaceAdmin(ctx) || (ctx.workspaceRole !== null && ctx.teamIds.has(teamId));
 }
 
 /** Trackers are workspace-wide sheets: every member except guests can edit them. */

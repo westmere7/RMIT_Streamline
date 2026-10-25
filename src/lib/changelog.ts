@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.96.3",
+    date: "2026-10-25",
+    title: "Deactivation reaches teams",
+    changes: ["Someone deactivated in a workspace can no longer rename its teams or change who is on them."],
+  },
+  {
     version: "0.96.2",
     date: "2026-10-25",
     title: "Right-click for everyone on Members",

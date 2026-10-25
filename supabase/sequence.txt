@@ -146,3 +146,4 @@ policies/0026_tracker_sheet_assets_policies.sql
 migrations/0109_workspace_revisions.sql
 migrations/0110_size_scale.sql
 migrations/0111_admins_edit_profiles.sql
+migrations/0112_team_rights_need_a_seat.sql

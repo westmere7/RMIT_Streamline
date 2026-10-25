@@ -9,6 +9,7 @@ import {
   canEditBoard,
   canEditComment,
   canManageMembers,
+  canManageTeam,
   canManageWorkspace,
   canViewBoard,
 } from "@/lib/permissions/permissions";
@@ -46,6 +47,19 @@ describe("workspace permissions", () => {
 
   it("non-members have no access", () => {
     expect(canViewBoard(ctx({ userId: "outsider" }), board())).toBe(false);
+  });
+
+  it("team members manage their team only while active in the workspace", () => {
+    expect(canManageTeam(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"] }), "team-1")).toBe(true);
+    expect(canManageTeam(ctx({ userId: "u", role: "MEMBER" }), "team-1")).toBe(false);
+    expect(canManageTeam(ctx({ userId: "u", role: "ADMIN" }), "team-1")).toBe(true);
+    const deactivated = buildPermissionContext({
+      userId: "u",
+      workspaceMembers: [{ id: "wm", workspaceId: "ws", userId: "u", role: "MEMBER", status: "DEACTIVATED", joinedAt: "" }],
+      teamMembers: [{ id: "tm", teamId: "team-1", userId: "u", role: "MEMBER" }],
+      boardMembers: [],
+    });
+    expect(canManageTeam(deactivated, "team-1")).toBe(false);
   });
 });
 

@@ -51,7 +51,7 @@ replaced a definition, the table above says which one holds.
 | `private.is_workspace_admin(ws)` | `isWorkspaceAdmin` (OWNER or ADMIN) |
 | `private.can_create_board(ws)` | `canCreateBoard` (any role except GUEST) |
 | `private.can_create_team(ws)` | `canCreateTeam` (OWNER, ADMIN, MEMBER) |
-| `private.is_team_member(team)` | `ctx.teamIds.has(teamId)` |
+| `private.is_team_member(team)` | `workspaceRole !== null && ctx.teamIds.has(teamId)` (0112) |
 | `private.can_manage_team(team)` | `canManageTeam` |
 | `private.board_role(board)` | `boardRoleFor` (same check order) |
 | `private.can_view_board(board)` | `canViewBoard` |
