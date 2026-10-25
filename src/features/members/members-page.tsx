@@ -834,7 +834,9 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
       {draw}
     </MemberActions>
   ) : (
-    draw(null)
+    <MemberViewMenu user={user} isOwner={member.role === "OWNER"}>
+      {draw(null)}
+    </MemberViewMenu>
   );
 }
 
@@ -947,7 +949,9 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
       {draw}
     </MemberActions>
   ) : (
-    draw(null)
+    <MemberViewMenu user={user} isOwner={member.role === "OWNER"}>
+      {draw(null)}
+    </MemberViewMenu>
   );
 }
 
@@ -1027,6 +1031,36 @@ function MobileOutsiderCard({ person, manage, onAdd }: { person: Outsider; manag
         </Button>
       )}
     </li>
+  );
+}
+
+/**
+ * The right-click menu for a person whose seat the reader cannot manage: the
+ * profile, their own details, the email. It stands in for the browser's menu.
+ */
+function MemberViewMenu({ user, isOwner: ownerRow, children }: { user: Row["user"]; isOwner: boolean; children: React.ReactElement }) {
+  const ws = useWorkspace();
+  const [editing, setEditing] = React.useState(false);
+  const target = { userId: user.id, isOwner: ownerRow };
+  const editable = canEditProfile(ws.permissions, target);
+  return (
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+        <ContextMenuContent className="w-56" data-testid="member-context-menu">
+          <ContextMenuItem asChild>
+            <Link href={routes.person(ws.slug, user.id)}>Open profile</Link>
+          </ContextMenuItem>
+          {editable && (
+            <ContextMenuItem onSelect={() => setEditing(true)} data-testid="member-edit-info">
+              Edit info
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem onSelect={() => void copyToClipboard(user.email, "Email copied")}>Copy email</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+      {editable && <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} canChangeEmail={canChangeEmail(ws.permissions, target)} />}
+    </>
   );
 }
 
@@ -1132,7 +1166,7 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
   });
 
   // An Owner's seat is the Owners' business: an admin sees them, and that is all.
-  if (!canManageMember(ws.permissions, member)) return children(null);
+  if (!canManageMember(ws.permissions, member)) return <MemberViewMenu user={user} isOwner={ownerRow}>{children(null)}</MemberViewMenu>;
 
   const items = (k: MenuKit) => (
     <>

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.96.2",
+    date: "2026-10-25",
+    title: "Right-click for everyone on Members",
+    changes: ["Right-clicking a person you can't manage opens a short menu (profile, copy email, your own details) instead of the browser's."],
+  },
+  {
     version: "0.96.1",
     date: "2026-10-24",
     title: "Right-click on Members",
