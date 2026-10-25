@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.96.4",
+    date: "2026-10-25",
+    title: "Team buttons for those who can use them",
+    changes: [
+      "Settings → Teams shows Edit and Archive only on teams you can manage: as an admin of the workspace, or on the team yourself. New team is for members and up.",
+      "An archive that is refused says why.",
+    ],
+  },
+  {
     version: "0.96.3",
     date: "2026-10-25",
     title: "Deactivation reaches teams",

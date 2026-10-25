@@ -57,7 +57,7 @@ import { useAppUpdatedNoticeSetting } from "@/features/version/app-updated-card"
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
-import { canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
+import { canCreateTeam, canManageTeam, canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useThemePreference, type ThemePreference } from "@/lib/theme";
@@ -409,20 +409,25 @@ function TeamsSection() {
       await invalidate();
       toast.success(team.archivedAt ? `${team.name} archived` : `${team.name} restored`);
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change the team"),
   });
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground tabular">{ws.teams.length} teams</p>
-        <Button size="sm" onClick={() => setEditing(null)}>
-          <Plus /> New team
-        </Button>
+        {canCreateTeam(ws.permissions) && (
+          <Button size="sm" onClick={() => setEditing(null)}>
+            <Plus /> New team
+          </Button>
+        )}
       </div>
       <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
         {ws.teams.map((team) => {
           const memberCount = ws.teamMembers.filter((m) => m.teamId === team.id).length;
           const boardCount = ws.boards.filter((b) => b.teamId === team.id && !b.archivedAt).length;
           const colors = colorClasses(team.color);
+          // The same test as the sidebar and the team's page: this workspace's admins, and the team's own people.
+          const manage = canManageTeam(ws.permissions, team.id);
           return (
             <li key={team.id} className={cn("flex h-14 items-center gap-3 px-3 text-[13px]", team.archivedAt && "opacity-60")}>
               <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", colors.soft)} aria-hidden>
@@ -438,10 +443,12 @@ function TeamsSection() {
               </span>
               {team.archivedAt && <Badge variant="muted">Archived</Badge>}
               {team.system && <Badge variant="primary">Built in</Badge>}
-              <Button variant="ghost" size="icon-sm" aria-label={`Edit ${team.name}`} onClick={() => setEditing(team)}>
-                <Pencil />
-              </Button>
-              {!team.system && (
+              {manage && (
+                <Button variant="ghost" size="icon-sm" aria-label={`Edit ${team.name}`} onClick={() => setEditing(team)}>
+                  <Pencil />
+                </Button>
+              )}
+              {manage && !team.system && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
