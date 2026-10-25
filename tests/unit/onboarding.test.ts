@@ -130,6 +130,43 @@ describe("onboarding through the local store", () => {
     expect(session.userId).toBe(user.id);
   });
 
+  it("carries a department from Add member to the join page, where it can be changed or cleared", async () => {
+    const lists = await services.lists.lists(WS);
+    const [first, second] = lists.STAKEHOLDER_GROUPS.map((g) => g.name);
+    expect(first && second).toBeTruthy();
+
+    // Not on the list: refused before anyone is created.
+    await expect(inviteSam(services, { department: "Not A Department" })).rejects.toThrow(/from the list/);
+
+    // Spelled any way, stored as the workspace spells it.
+    const { user, invitation } = await inviteSam(services, { department: first!.toUpperCase() });
+    expect((await repos.users.getById(user.id))?.stakeholderGroup).toBe(first);
+
+    const preview = await services.workspace.previewInvitation(invitation!.token);
+    if (preview.status !== "PENDING") throw new Error("expected a pending invitation");
+    expect(preview.department).toBe(first);
+    expect(preview.departments).toEqual(lists.STAKEHOLDER_GROUPS.map((g) => g.name));
+
+    // A pick that is not on the list leaves the link usable.
+    const base = { token: invitation!.token, password: "correct horse battery", firstName: "Sam", lastName: "Rivera", jobTitle: null };
+    await expect(services.workspace.completeOnboarding({ ...base, department: "Nope" })).rejects.toThrow(/from the list/);
+    expect((await services.workspace.previewInvitation(invitation!.token)).status).toBe("PENDING");
+
+    await services.workspace.completeOnboarding({ ...base, department: second });
+    expect((await repos.users.getById(user.id))?.stakeholderGroup).toBe(second);
+  });
+
+  it("keeps the department set at invite when the join page leaves it out, and clears it on Not set", async () => {
+    const [first] = (await services.lists.lists(WS)).STAKEHOLDER_GROUPS.map((g) => g.name);
+    const a = await inviteSam(services, { department: first });
+    await services.workspace.completeOnboarding({ token: a.invitation!.token, password: "correct horse battery", firstName: "Sam", lastName: "Rivera", jobTitle: null });
+    expect((await repos.users.getById(a.user.id))?.stakeholderGroup).toBe(first);
+
+    const b = await inviteSam(services, { email: "kim@rmit.edu.au", firstName: "Kim", department: first });
+    await services.workspace.completeOnboarding({ token: b.invitation!.token, password: "correct horse battery", firstName: "Kim", lastName: "Rivera", jobTitle: null, department: null });
+    expect((await repos.users.getById(b.user.id))?.stakeholderGroup).toBeNull();
+  });
+
   it("rejects bad input on completion without burning the link", async () => {
     const { invitation } = await inviteSam(services);
     await expect(services.workspace.completeOnboarding({ token: invitation!.token, password: "short", firstName: "Sam", lastName: "Rivera", jobTitle: null })).rejects.toThrow(/at least 8/);

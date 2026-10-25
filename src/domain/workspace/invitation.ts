@@ -63,6 +63,10 @@ export type InvitationPreview =
       firstName: string;
       lastName: string;
       jobTitle: string | null;
+      /** Their department, if whoever added them chose one. */
+      department: string | null;
+      /** The workspace's departments to choose from (Settings → Departments): the joiner is not signed in to read them. */
+      departments: string[];
       expiresAt: string;
     };
 
@@ -73,6 +77,8 @@ export interface InviteMemberInput {
   firstName: string;
   lastName: string;
   jobTitle: string | null;
+  /** One of the workspace's departments, or nothing. The person can change it when they join. */
+  department?: string | null;
   role: WorkspaceRole;
   teamIds: EntityId[];
 }
@@ -83,6 +89,19 @@ export interface CompleteOnboardingInput {
   firstName: string;
   lastName: string;
   jobTitle: string | null;
+  /** One of the workspace's departments, or null for none. Left out, whatever was set stays. */
+  department?: string | null;
+}
+
+/**
+ * The department a joiner picked, as the workspace spells it, or null.
+ * Anything not on the list is refused rather than stored: the list is what
+ * every department filter and figure groups by.
+ */
+export function matchDepartment(departments: readonly string[], picked: string | null | undefined): string | null | "invalid" {
+  const name = picked?.trim();
+  if (!name) return null;
+  return departments.find((d) => d.toLowerCase() === name.toLowerCase()) ?? "invalid";
 }
 
 export const PASSWORD_MIN_LENGTH = 8;

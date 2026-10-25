@@ -13,7 +13,7 @@ import { AuthShell } from "@/features/auth/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PASSWORD_MIN_LENGTH, invitationStatusMessage, type InvitationPreview } from "@/domain";
+import { matchDepartment, PASSWORD_MIN_LENGTH, invitationStatusMessage, type InvitationPreview } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { AvatarError, uploadAvatar } from "@/features/profile/avatar-upload";
@@ -27,6 +27,7 @@ const schema = z
     firstName: z.string().trim().min(1, "Required").max(80),
     lastName: z.string().trim().min(1, "Required").max(80),
     jobTitle: z.string().trim().max(120).optional(),
+    department: z.string(),
     password: z.string().min(PASSWORD_MIN_LENGTH, `At least ${PASSWORD_MIN_LENGTH} characters`).max(72, "At most 72 characters"),
     confirm: z.string(),
   })
@@ -122,9 +123,12 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
   const [photo, setPhoto] = React.useState<{ file: File; url: string } | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
+  // The department they were added with, while it is still on the list: a
+  // renamed or removed one would be refused, so it starts as "Not set".
+  const presetDepartment = matchDepartment(invitation.departments, invitation.department);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { firstName: invitation.firstName, lastName: invitation.lastName, jobTitle: invitation.jobTitle ?? "", password: "", confirm: "" },
+    defaultValues: { firstName: invitation.firstName, lastName: invitation.lastName, jobTitle: invitation.jobTitle ?? "", department: presetDepartment === "invalid" ? "" : (presetDepartment ?? ""), password: "", confirm: "" },
   });
 
   React.useEffect(() => {
@@ -152,6 +156,7 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
         firstName: values.firstName,
         lastName: values.lastName,
         jobTitle: values.jobTitle || null,
+        department: values.department || null,
       });
 
       setPhase("signing-in");
@@ -253,9 +258,25 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
           <Input id="ob-last" autoComplete="family-name" {...form.register("lastName")} aria-invalid={!!form.formState.errors.lastName} />
           {form.formState.errors.lastName && <p className="text-2xs text-destructive">{form.formState.errors.lastName.message}</p>}
         </div>
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5">
           <Label htmlFor="ob-title">Job title</Label>
-          <Input id="ob-title" placeholder="Optional, e.g. Graphic Designer" autoComplete="organization-title" {...form.register("jobTitle")} />
+          <Input id="ob-title" placeholder="Optional" autoComplete="organization-title" {...form.register("jobTitle")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ob-department">Department</Label>
+          <select
+            id="ob-department"
+            className="h-9 w-full rounded-lg border border-border bg-transparent px-2.5 text-[13px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            data-testid="onboarding-department"
+            {...form.register("department")}
+          >
+            <option value="">Not set</option>
+            {invitation.departments.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="ob-password">Password</Label>

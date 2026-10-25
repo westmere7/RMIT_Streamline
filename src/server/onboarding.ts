@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import {
+  DEFAULT_STAKEHOLDER_GROUPS,
   INVITATION_TTL_DAYS,
   PASSWORD_MIN_LENGTH,
   generateInvitationToken,
   invitationStatus,
   invitationStatusMessage,
   isPlausibleInvitationToken,
+  matchDepartment,
   type InvitationPreview,
   type WorkspaceInvitation,
 } from "@/domain";
@@ -45,6 +47,7 @@ export const inviteSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
   jobTitle: z.string().trim().max(120).nullable().optional(),
+  department: z.string().trim().max(60).nullable().optional(),
   role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
   teamIds: z.array(z.uuid()).max(50).default([]),
 });
@@ -59,6 +62,7 @@ export const completeSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required").max(80),
   lastName: z.string().trim().min(1, "Last name is required").max(80),
   jobTitle: z.string().trim().max(120).nullable().optional(),
+  department: z.string().trim().max(60).nullable().optional(),
 });
 
 type Admin = SupabaseClient;
@@ -82,6 +86,26 @@ export async function requireWorkspaceAdmin(request: Request, workspaceId: strin
     throw new HttpError(403, `Only workspace admins can ${doing}.`);
   }
   return data.user.id;
+}
+
+/**
+ * The workspace's departments by name, in their order (Settings → Departments),
+ * or the built-in ones while nobody has edited the list. Read here with the
+ * service role because a joiner is not signed in yet.
+ */
+async function workspaceDepartments(admin: Admin, workspaceId: string): Promise<string[]> {
+  const result = await admin.from("workspace_lists").select("name, position").eq("workspace_id", workspaceId).eq("list_key", "STAKEHOLDER_GROUPS").order("position", { ascending: true });
+  if (result.error) fail("workspace_lists.departments", result.error);
+  const rows = (result.data ?? []) as Array<{ name: string }>;
+  return rows.length > 0 ? rows.map((r) => r.name) : DEFAULT_STAKEHOLDER_GROUPS.map((g) => g.name);
+}
+
+/** The department as the workspace spells it, refusing one not on its list. */
+async function checkedDepartment(admin: Admin, workspaceId: string, picked: string | null | undefined): Promise<string | null> {
+  if (!picked?.trim()) return null;
+  const match = matchDepartment(await workspaceDepartments(admin, workspaceId), picked);
+  if (match === "invalid") throw new HttpError(400, "Pick a department from the list.");
+  return match;
 }
 
 async function profileByEmail(admin: Admin, email: string): Promise<ProfileRow | null> {
@@ -131,8 +155,17 @@ async function revokeLiveInvitations(admin: Admin, workspaceId: string, userId: 
 export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedBy: string): Promise<InviteResult> {
   const admin = getSupabaseAdminClient();
   const displayName = `${input.firstName} ${input.lastName}`.trim();
+  // Before anything is created: a refusal here must leave no account behind.
+  const department = await checkedDepartment(admin, input.workspaceId, input.department);
 
   let profile = await profileByEmail(admin, input.email);
+  if (profile && department && !profile.stakeholder_group) {
+    // Somebody already known (a past requester, say) with no department yet
+    // takes this one. One they already have is theirs and stays.
+    const filled = await admin.from("profiles").update({ stakeholder_group: department }).eq("id", profile.id).is("stakeholder_group", null);
+    if (filled.error) fail("profiles.department", filled.error);
+    profile = { ...profile, stakeholder_group: department };
+  }
   if (profile) {
     const existing = await addKnownAccount(admin, input, profile);
     if (existing) return existing;
@@ -158,7 +191,7 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
     // handle_new_user() runs in the same transaction as the auth insert, so the profile exists now.
     const updated = await admin
       .from("profiles")
-      .update({ job_title: input.jobTitle?.trim() || null, timezone: DEFAULT_TIMEZONE, first_name: input.firstName, last_name: input.lastName, display_name: displayName })
+      .update({ job_title: input.jobTitle?.trim() || null, stakeholder_group: department, timezone: DEFAULT_TIMEZONE, first_name: input.firstName, last_name: input.lastName, display_name: displayName })
       .eq("id", created.data.user.id)
       .select(PROFILE_COLUMNS)
       .maybeSingle();
@@ -351,7 +384,7 @@ async function resolveToken(admin: Admin, token: string): Promise<{ preview: Inv
   const status = invitationStatus(invitation);
   if (status !== "PENDING" || !workspace) return { preview: { status: status === "PENDING" ? "INVALID" : status, workspaceName }, resolved: null };
 
-  const [profile, member] = await Promise.all([profileById(admin, invitation.userId), memberOf(admin, invitation.workspaceId, invitation.userId)]);
+  const [profile, member, departments] = await Promise.all([profileById(admin, invitation.userId), memberOf(admin, invitation.workspaceId, invitation.userId), workspaceDepartments(admin, invitation.workspaceId)]);
   if (!profile || !member) return { preview: { status: "INVALID", workspaceName }, resolved: null };
   if (member.status !== "INVITED") return { preview: { status: "ACCEPTED", workspaceName }, resolved: null };
 
@@ -364,6 +397,8 @@ async function resolveToken(admin: Admin, token: string): Promise<{ preview: Inv
       firstName: profile.first_name,
       lastName: profile.last_name,
       jobTitle: profile.job_title,
+      department: profile.stakeholder_group ?? null,
+      departments,
       expiresAt: invitation.expiresAt,
     },
     resolved: { invitation, workspace, profile, member },
@@ -381,6 +416,8 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
   if (!resolved) throw new HttpError(410, invitationStatusMessage(preview.status));
   const { invitation, profile, member } = resolved;
   const displayName = `${input.firstName} ${input.lastName}`;
+  // Checked before the password is set, so a bad pick changes nothing.
+  const department = input.department === undefined ? undefined : await checkedDepartment(admin, invitation.workspaceId, input.department);
 
   const account = await admin.auth.admin.updateUserById(profile.id, {
     password: input.password,
@@ -395,7 +432,7 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
   const now = new Date().toISOString();
   const updatedProfile = await admin
     .from("profiles")
-    .update({ first_name: input.firstName, last_name: input.lastName, display_name: displayName, job_title: input.jobTitle?.trim() || null })
+    .update({ first_name: input.firstName, last_name: input.lastName, display_name: displayName, job_title: input.jobTitle?.trim() || null, ...(department !== undefined ? { stakeholder_group: department } : {}) })
     .eq("id", profile.id);
   if (updatedProfile.error) fail("profiles.update", updatedProfile.error);
 

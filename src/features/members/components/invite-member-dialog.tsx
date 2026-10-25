@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WORKSPACE_ROLES } from "@/domain";
 import type { InviteResult } from "@/data/repositories";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const schema = z.object({
   firstName: z.string().trim().min(1, "Required"),
   lastName: z.string().trim().min(1, "Required"),
   jobTitle: z.string().trim().optional(),
+  department: z.string(),
   // Owners are made from Members once someone has joined, never on the way in.
   role: z.enum(["ADMIN", "MEMBER", "GUEST"]),
   teamIds: z.array(z.string()),
@@ -31,7 +33,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const EMPTY: FormValues = { email: "", firstName: "", lastName: "", jobTitle: "", role: "MEMBER", teamIds: [] };
+/** Radix Select wants a value for every option, "not set" included. */
+const NO_DEPARTMENT = "__none";
+
+const EMPTY: FormValues = { email: "", firstName: "", lastName: "", jobTitle: "", department: NO_DEPARTMENT, role: "MEMBER", teamIds: [] };
 
 /**
  * Adds people to the workspace, both ways on one screen: first the team's join
@@ -53,6 +58,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
 function InviteMemberBody({ onClose }: { onClose: () => void }) {
   const ws = useWorkspace();
   const { invite } = useMemberMutations();
+  const departments = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
   const [result, setResult] = React.useState<InviteResult | null>(null);
 
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
@@ -64,6 +70,7 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
         firstName: values.firstName,
         lastName: values.lastName,
         jobTitle: values.jobTitle || null,
+        department: values.department === NO_DEPARTMENT ? null : values.department,
         role: values.role,
         teamIds: values.teamIds,
       },
@@ -142,6 +149,31 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
             <Label htmlFor="invite-title">Job title</Label>
             <Input id="invite-title" placeholder="Optional" {...form.register("jobTitle")} />
           </div>
+          {/* Set here, it is already chosen when they join; they can change it there. */}
+          <div className="grid gap-1.5">
+            <Label>Department</Label>
+            <Controller
+              control={form.control}
+              name="department"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger aria-label="Department" data-testid="invite-department">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_DEPARTMENT}>Not set</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d.name} value={d.name}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+        </div>
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label>Workspace role</Label>
             <Controller

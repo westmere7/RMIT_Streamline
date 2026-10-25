@@ -5,6 +5,8 @@ import {
   generateInvitationToken,
   invitationStatus,
   invitationStatusMessage,
+  matchDepartment,
+  workspaceLists,
   type CompleteOnboardingInput,
   type InvitationPreview,
   type InviteMemberInput,
@@ -55,8 +57,15 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     const firstName = input.firstName.trim();
     const lastName = input.lastName.trim();
     const now = nowIso();
+    // Before anything is created: a refusal here must leave nobody behind.
+    const department = await this.checkedDepartment(input.workspaceId, input.department);
 
     let user = (await db.getFromIndex("users", "byEmail", email)) ?? null;
+    if (user && department && !user.stakeholderGroup) {
+      // Somebody already known with no department yet takes this one; one they have stays.
+      user = { ...user, stakeholderGroup: department, updatedAt: now };
+      await db.put("users", user);
+    }
     // One person, one account, across every workspace: somebody who joined a
     // workspace before is let in here at once, with no link (a link sets the
     // password, and theirs is set). The same rules as src/server/onboarding.ts.
@@ -99,6 +108,7 @@ export class LocalOnboardingRepository implements OnboardingRepository {
         avatarUrl: null,
         jobTitle: input.jobTitle?.trim() || null,
         department: null,
+        stakeholderGroup: department,
         timezone: "Australia/Melbourne",
         deactivatedAt: null,
         createdAt: now,
@@ -237,6 +247,20 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     await tx.done;
   }
 
+  /** The workspace's departments by name, as the server reads them (src/server/onboarding.ts). */
+  private async departments(workspaceId: string): Promise<string[]> {
+    const db = await this.conn.getDb();
+    const rows = (await db.getAllFromIndex("workspaceLists", "byWorkspace", workspaceId)).filter((r) => r.listKey === "STAKEHOLDER_GROUPS");
+    return workspaceLists(rows).STAKEHOLDER_GROUPS.map((g) => g.name);
+  }
+
+  /** The department as the workspace spells it, refusing one not on its list. */
+  private async checkedDepartment(workspaceId: string, picked: string | null | undefined): Promise<string | null> {
+    const match = matchDepartment(await this.departments(workspaceId), picked);
+    if (match === "invalid") throw new Error("Pick a department from the list.");
+    return match;
+  }
+
   async preview(token: string): Promise<InvitationPreview> {
     const db = await this.conn.getDb();
     const invitation = (await db.getFromIndex("workspaceInvitations", "byToken", token)) ?? null;
@@ -257,6 +281,8 @@ export class LocalOnboardingRepository implements OnboardingRepository {
       firstName: user.firstName,
       lastName: user.lastName,
       jobTitle: user.jobTitle,
+      department: user.stakeholderGroup ?? null,
+      departments: await this.departments(invitation.workspaceId),
       expiresAt: invitation.expiresAt,
     };
   }
@@ -278,6 +304,8 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     if (!member) throw new Error(invitationStatusMessage("INVALID"));
     if (member.status !== "INVITED") throw new Error(invitationStatusMessage("ACCEPTED"));
 
+    // Left out, whatever was set stays; given, it has to be on the list.
+    const department = input.department === undefined ? undefined : await this.checkedDepartment(invitation.workspaceId, input.department);
     const now = nowIso();
     const salt = newSalt();
     const hash = await hashPassword(input.password, salt);
@@ -287,6 +315,7 @@ export class LocalOnboardingRepository implements OnboardingRepository {
       lastName,
       displayName: `${firstName} ${lastName}`,
       jobTitle: input.jobTitle?.trim() || null,
+      ...(department !== undefined ? { stakeholderGroup: department } : {}),
       updatedAt: now,
     };
 

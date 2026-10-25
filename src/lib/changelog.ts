@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.97.0",
+    date: "2026-10-25",
+    title: "Department when joining",
+    changes: [
+      "Add member has a Department, so the person arrives with one.",
+      "The join page asks for a department too, already chosen if the admin set one, and the person can change it or leave it unset.",
+      "Only departments from Settings → Departments can be picked.",
+    ],
+  },
+  {
     version: "0.96.4",
     date: "2026-10-25",
     title: "Team buttons for those who can use them",
