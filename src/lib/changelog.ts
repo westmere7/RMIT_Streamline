@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.98.0",
+    date: "2026-10-26",
+    title: "Remove from one workspace",
+    changes: [
+      "A member who is also in another workspace can be removed from this one only. Their other workspaces are not touched, and they can be added back from From other workspaces.",
+      "Reinitiate, deactivate and remove sit together at the end of a member's menu.",
+    ],
+  },
+  {
     version: "0.97.1",
     date: "2026-10-26",
     title: "Other workspaces behind a button",

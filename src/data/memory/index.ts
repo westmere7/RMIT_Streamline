@@ -65,6 +65,7 @@ export function createMemoryRepositories(
       listOwners: async () => [],
       listDirectory: async () => [],
       removePerson: readOnly("removing a person"),
+      removeSeat: readOnly("removing a person from a workspace"),
       addOwner: readOnly("making an Owner"),
       removeOwner: readOnly("removing an Owner"),
       allocateTicketNumbers: readOnly("handing out a ticket"),

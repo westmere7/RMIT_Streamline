@@ -53,6 +53,11 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     await callApi(`/api/people/${encodeURIComponent(input.userId)}/remove`, { method: "POST", body: JSON.stringify({ workspaceId: input.workspaceId, confirmName: input.confirmName }) }, { auth: "required" });
   }
 
+  /** Through the server, which reaches board places on boards the remover cannot open. */
+  async removeSeat(input: { workspaceId: string; userId: string; handTo: string }): Promise<void> {
+    await callApi(`/api/people/${encodeURIComponent(input.userId)}/remove-seat`, { method: "POST", body: JSON.stringify({ workspaceId: input.workspaceId }) }, { auth: "required" });
+  }
+
   async listOwners(): Promise<string[]> {
     const result = await db().from("app_owners").select("user_id");
     return unwrapList<{ user_id: string }>(result, "app_owners.list").map((row) => row.user_id);

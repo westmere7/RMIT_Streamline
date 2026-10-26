@@ -212,6 +212,40 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     await db.delete("users", userId);
   }
 
+  /** The same removal the server does (src/server/people.ts, removeSeat), inside IndexedDB. */
+  async removeSeat(input: { workspaceId: string; userId: string; handTo: string }): Promise<void> {
+    const db = await this.conn.getDb();
+    const { workspaceId, userId, handTo } = input;
+    const user = await db.get("users", userId);
+    if (!user) throw new NotFoundError("User", userId);
+    if (userId === handTo) throw new Error("You cannot remove yourself.");
+    if ((await readOwners(db)).includes(userId)) throw new Error(OWNER_RULES.ownerCannotLeave);
+    const seats = await db.getAllFromIndex("workspaceMembers", "byUser", userId);
+    const seat = seats.find((s) => s.workspaceId === workspaceId);
+    if (!seat) throw new Error("That person is not in this workspace.");
+    if (!seats.some((s) => s.workspaceId !== workspaceId && s.status === "ACTIVE")) {
+      throw new Error(`${user.displayName} is in no other workspace. Deactivate them here, or remove them completely.`);
+    }
+
+    const boards = await db.getAllFromIndex("boards", "byWorkspace", workspaceId);
+    const boardIds = new Set(boards.map((b) => b.id));
+    const teamIds = new Set((await db.getAllFromIndex("teams", "byWorkspace", workspaceId)).map((t) => t.id));
+    const tx = db.transaction(["boards", "boardMembers", "teamMembers", "workspaceInvitations", "workspaceMembers"], "readwrite");
+    // Boards they own here stay with this workspace, under the remover.
+    for (const board of boards) if (board.ownerId === userId) await tx.objectStore("boards").put({ ...board, ownerId: handTo });
+    for (const place of await tx.objectStore("boardMembers").index("byUser").getAll(userId)) {
+      if (boardIds.has(place.boardId)) await tx.objectStore("boardMembers").delete(place.id);
+    }
+    for (const place of await tx.objectStore("teamMembers").index("byUser").getAll(userId)) {
+      if (teamIds.has(place.teamId)) await tx.objectStore("teamMembers").delete(place.id);
+    }
+    for (const invitation of await tx.objectStore("workspaceInvitations").index("byUser").getAll(userId)) {
+      if (invitation.workspaceId === workspaceId) await tx.objectStore("workspaceInvitations").delete(invitation.id);
+    }
+    await tx.objectStore("workspaceMembers").delete(seat.id);
+    await tx.done;
+  }
+
   async listOwners(): Promise<string[]> {
     return readOwners(await this.conn.getDb());
   }

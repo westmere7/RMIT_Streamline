@@ -156,6 +156,18 @@ export class WorkspaceService {
     await this.repos.workspaces.removePerson({ workspaceId, userId, handTo: actorId, confirmName: typedName });
   }
 
+  /**
+   * Takes somebody out of this workspace only: their seat, teams and board
+   * places here go, boards they own here pass to `actorId`, and their other
+   * workspaces are untouched. Their tasks and history here stay, so adding them
+   * back shows them on their tasks again. Only for someone active in another
+   * workspace; otherwise it is Deactivate or Remove completely.
+   */
+  async removeFromWorkspace(workspaceId: EntityId, userId: EntityId, actorId: EntityId): Promise<void> {
+    if (userId === actorId) throw new Error("You cannot remove yourself.");
+    await this.repos.workspaces.removeSeat({ workspaceId, userId, handTo: actorId });
+  }
+
   /** Makes someone an Owner. They must have finished joining, and they are seated as OWNER in every workspace. */
   async grantOwner(userId: EntityId, actorId: EntityId): Promise<void> {
     await this.requireOwner(actorId, "make Owners");

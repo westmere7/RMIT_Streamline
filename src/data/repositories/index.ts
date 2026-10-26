@@ -100,6 +100,13 @@ export interface WorkspaceRepository {
    * asked from, `confirmName` their name typed back.
    */
   removePerson(input: { workspaceId: EntityId; userId: EntityId; handTo: EntityId; confirmName: string }): Promise<void>;
+  /**
+   * Takes somebody out of one workspace and leaves the rest of them alone (see
+   * WorkspaceService.removeFromWorkspace): their seat, teams and board places
+   * here go, boards they own here pass to `handTo`. Refused for an Owner and for
+   * anyone not active in another workspace.
+   */
+  removeSeat(input: { workspaceId: EntityId; userId: EntityId; handTo: EntityId }): Promise<void>;
   /** Makes an onboarded, active person an Owner, which seats them as OWNER in every workspace. */
   addOwner(userId: EntityId, grantedBy: EntityId): Promise<void>;
   /** Unmakes an Owner; their seats stay as MEMBER. Refused for the last Owner. */

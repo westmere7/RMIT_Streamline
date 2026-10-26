@@ -993,7 +993,7 @@ const CONTEXT_KIT: MenuKit = {
  * `children` draws the row, given the ⋯ button to put in it (null when this
  * person's seat is not the reader's to manage, as an Owner's is not an admin's).
  */
-function MemberActions({ row: { member, user, teams }, invitation, children }: { row: Row; invitation: WorkspaceInvitation | null; children: (button: React.ReactNode) => React.ReactElement }) {
+function MemberActions({ row: { member, user, teams, workspaces }, invitation, children }: { row: Row; invitation: WorkspaceInvitation | null; children: (button: React.ReactNode) => React.ReactElement }) {
   const ws = useWorkspace();
   const services = useServices();
   const queryClient = useQueryClient();
@@ -1004,6 +1004,7 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [confirmOwner, setConfirmOwner] = React.useState<null | "make" | "remove">(null);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const [confirmLeave, setConfirmLeave] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
   const [typedName, setTypedName] = React.useState("");
   const { setOwner } = useWorkspaceAdmin();
@@ -1011,6 +1012,8 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
   const pending = member.status === "INVITED";
   const ownerRow = member.role === "OWNER";
   const iAmOwner = isOwner(ws.permissions);
+  // Active in another workspace (one the reader can see): only then can they leave this one and still be somewhere.
+  const elsewhere = workspaces.length > 0;
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
 
   /**
@@ -1048,6 +1051,15 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
       await invalidate();
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceInvitations(ws.workspace.id) });
       toast.success(`${user.displayName} was removed`);
+    },
+    onError: refused(`Could not remove ${user.firstName}`),
+  });
+  const leave = useMutation({
+    mutationFn: () => services.workspace.removeFromWorkspace(ws.workspace.id, user.id, ws.currentUser.id),
+    onSuccess: async () => {
+      await Promise.all([invalidate(), queryClient.invalidateQueries({ queryKey: ["people-pool"] })]);
+      publishDataChange({ kinds: ["workspace"] });
+      toast.success(`${user.displayName} was removed from ${ws.workspace.name}`);
     },
     onError: refused(`Could not remove ${user.firstName}`),
   });
@@ -1123,6 +1135,7 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
         </k.SubContent>
       </k.Sub>
       <k.Separator />
+      {/* Whether they can get in, and every way out: the ways out last, from least to most. */}
       {pending ? (
         <k.Item variant="destructive" onSelect={() => setConfirmCancel(true)} data-testid="cancel-invitation">
           Cancel invitation
@@ -1133,10 +1146,17 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
             Reinitiate onboarding
           </k.Item>
           {member.status === "DEACTIVATED" ? (
-            <k.Item onSelect={() => setActive.mutate(true)}>Reactivate</k.Item>
+            <k.Item onSelect={() => setActive.mutate(true)} data-testid="member-reactivate">
+              Reactivate
+            </k.Item>
           ) : (
-            <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmDeactivate(true)}>
-              Deactivate
+            <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmDeactivate(true)} data-testid="member-deactivate">
+              Deactivate here
+            </k.Item>
+          )}
+          {elsewhere && (
+            <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmLeave(true)} data-testid="member-remove-from-workspace">
+              Remove from {ws.workspace.name}
             </k.Item>
           )}
         </>
@@ -1215,6 +1235,15 @@ function MemberActions({ row: { member, user, teams }, invitation, children }: {
         confirmLabel="Deactivate"
         destructive
         onConfirm={() => setActive.mutateAsync(false).then(() => undefined)}
+      />
+      <ConfirmDialog
+        open={confirmLeave}
+        onOpenChange={setConfirmLeave}
+        title={`Remove ${user.displayName} from ${ws.workspace.name}?`}
+        description={`They leave this workspace's teams and boards, and boards they own here pass to you. ${workspaces.map((w) => w.name).join(", ")} ${workspaces.length === 1 ? "is" : "are"} not affected.`}
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => leave.mutateAsync().then(() => undefined)}
       />
       <ConfirmDialog
         open={confirmCancel}
