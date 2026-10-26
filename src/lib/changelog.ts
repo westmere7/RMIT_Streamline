@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.97.1",
+    date: "2026-10-26",
+    title: "Other workspaces behind a button",
+    changes: [
+      "Members lists only this workspace's people. Everyone else is under From other workspaces, with a search and an Add on each person.",
+    ],
+  },
+  {
     version: "0.97.0",
     date: "2026-10-25",
     title: "Department when joining",

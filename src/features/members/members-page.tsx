@@ -48,6 +48,7 @@ import { useServices } from "@/features/data/data-context";
 import { InviteLinkDialog } from "@/features/members/components/invite-link-dialog";
 import { AddToWorkspaceDialog } from "@/features/members/components/add-to-workspace-dialog";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
+import { OtherWorkspacesDialog, type Outsider } from "@/features/members/components/other-workspaces-dialog";
 import { copyToClipboard, invitationUrl, useLiveInvitations, useMemberMutations, usePeoplePool, type PoolWorkspace } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -98,8 +99,6 @@ const COLUMNS: Column[] = [
 const TEAM_CHIPS = 2;
 
 type Row = { member: WorkspaceMember; user: User; teams: Team[]; department: string | null; boards: number; workspaces: PoolWorkspace[] };
-/** Somebody from the pool who has no seat in this workspace. */
-type Outsider = { user: User; department: string | null; workspaces: PoolWorkspace[] };
 
 function compareRows(a: Row, b: Row, key: SortKey): number {
   switch (key) {
@@ -163,10 +162,9 @@ function StatusChip({ member, invitation }: { member: WorkspaceMember; invitatio
  * Everyone in the app, and the tools to run this workspace's seats.
  *
  * People are one pool: an account is one person across every workspace, and a
- * workspace is who of them has a seat in it, each seat with its own role. So
- * the page lists this workspace's members first and, under them, everybody
- * else — with the workspaces they are in — for an admin to give a seat here.
- * "This workspace" narrows it to the members alone.
+ * workspace is who of them has a seat in it, each seat with its own role. The
+ * page lists this workspace's members; everybody else is a button away, for an
+ * admin to give a seat here.
  *
  * A search and filters by status, role and team, a table with what an admin asks about a person (their
  * department, when they joined, how many boards they are on), and for admins a
@@ -186,7 +184,7 @@ export function MembersPage() {
   const [page, setPage] = React.useState(1);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [inviteOpen, setInviteOpen] = React.useState(false);
-  const [scope, setScope] = React.useState<"everyone" | "workspace">("everyone");
+  const [othersOpen, setOthersOpen] = React.useState(false);
   const [adding, setAdding] = React.useState<User | null>(null);
   const manage = canManageMembers(ws.permissions);
   const isMobile = useIsMobile();
@@ -247,8 +245,7 @@ export function MembersPage() {
     return list;
   }, [allRows, query, statuses, roles, teamFilter, sort]);
 
-  // Everybody without a seat here. They have no status, role or team in this
-  // workspace, so any of those filters leaves them out; the search still finds them.
+  // Everybody without a seat here, offered from the header rather than listed.
   const seated = React.useMemo(() => new Set(ws.members.map((m) => m.userId)), [ws.members]);
   const allOutsiders = React.useMemo<Outsider[]>(
     () =>
@@ -258,12 +255,6 @@ export function MembersPage() {
         .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName)),
     [pool.data, seated, otherWorkspaces],
   );
-  const outsiders = React.useMemo(() => {
-    if (scope === "workspace" || filtered) return [];
-    const q = query.trim().toLowerCase();
-    if (!q) return allOutsiders;
-    return allOutsiders.filter(({ user, department }) => [user.displayName, user.email, user.jobTitle ?? "", department ?? ""].some((v) => v.toLowerCase().includes(q)));
-  }, [allOutsiders, scope, filtered, query]);
 
   // A batch acts on who is selected and still listed: filtering someone away takes them out of it.
   const selectedRows = rows.filter((r) => selected.has(r.member.id));
@@ -271,8 +262,6 @@ export function MembersPage() {
   const pageCount = Math.max(1, Math.ceil(rows.length / MEMBERS_PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageRows = rows.slice((currentPage - 1) * MEMBERS_PAGE_SIZE, currentPage * MEMBERS_PAGE_SIZE);
-  // The rest of the pool follows the members, on the last page.
-  const pageOutsiders = currentPage === pageCount ? outsiders : [];
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, direction: prev.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "joined" || key === "boards" ? "desc" : "asc" }));
@@ -308,40 +297,28 @@ export function MembersPage() {
           <span data-testid="members-summary">
             {activeCount} active {activeCount === 1 ? "member" : "members"}
             {pendingCount > 0 && ` · ${pendingCount} pending onboarding`}
-            {allOutsiders.length > 0 && ` · ${allOutsiders.length} more in other workspaces`}
           </span>
         }
         actions={
           manage && (
-            <Button onClick={() => setInviteOpen(true)} data-testid="add-member">
-              <UserPlus /> Add member
-            </Button>
+            <>
+              {allOutsiders.length > 0 && (
+                <Button variant="outline" onClick={() => setOthersOpen(true)} aria-label="Add from other workspaces" data-testid="members-other-workspaces">
+                  <Users /> <span className="max-sm:hidden">From other workspaces</span>
+                  <span className="sm:hidden">Others</span>
+                  <span className="rounded-full bg-muted px-1.5 text-2xs tabular">{allOutsiders.length}</span>
+                </Button>
+              )}
+              <Button onClick={() => setInviteOpen(true)} data-testid="add-member">
+                <UserPlus /> Add member
+              </Button>
+            </>
           )
         }
       />
       <div className="scrollbar-thin flex-1 overflow-auto pb-8">
         <div className="mx-auto w-full max-w-[108rem] px-4 sm:px-7">
           <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="members-filters">
-            <div role="radiogroup" aria-label="Who to list" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
-              {(
-                [
-                  ["everyone", "Everyone"],
-                  ["workspace", "This workspace"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={scope === value}
-                  onClick={() => (setScope(value), setPage(1))}
-                  className={cn("h-8 rounded-full px-3 text-xs font-medium transition-colors", scope === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-                  data-testid={`members-scope-${value}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
             <div className="relative min-w-0 flex-1 sm:max-w-72">
               <Search className="pointer-events-none absolute top-2 left-2 size-4 text-muted-foreground" />
               <Input
@@ -388,13 +365,11 @@ export function MembersPage() {
             )}
             <span className="ml-auto flex items-center gap-2">
               <span className="text-2xs text-muted-foreground tabular" data-testid="members-count">
-                {rows.length + outsiders.length === allRows.length + (scope === "everyone" ? allOutsiders.length : 0)
-                  ? `${rows.length + outsiders.length} people`
-                  : `${rows.length + outsiders.length} of ${allRows.length + (scope === "everyone" ? allOutsiders.length : 0)}`}
+                {rows.length === allRows.length ? `${rows.length} people` : `${rows.length} of ${allRows.length}`}
               </span>
               {manage && (
                 <SimpleTooltip label="Download what is listed as a spreadsheet (.csv)">
-                  <Button variant="outline" size="sm" onClick={() => exportCsv(rows, outsiders, ws.workspace.name)} data-testid="members-export">
+                  <Button variant="outline" size="sm" onClick={() => exportCsv(rows, ws.workspace.name)} data-testid="members-export">
                     <Download /> Export
                   </Button>
                 </SimpleTooltip>
@@ -404,21 +379,13 @@ export function MembersPage() {
 
           {manage && selectedRows.length > 0 && <BulkBar rows={selectedRows} invitations={invitations.data ?? null} onClear={() => setSelected(new Set())} />}
 
-          {rows.length === 0 && outsiders.length === 0 ? (
+          {rows.length === 0 ? (
             <EmptyState icon={Users} title="No one matches" description="Try a different name, or clear the filters." />
           ) : isMobile ? (
             <>
               <ul className="space-y-1.5">
                 {pageRows.map((row) => (
                   <MobileMemberCard key={row.member.id} row={row} manage={manage} invitation={invitations.data?.get(row.user.id) ?? null} />
-                ))}
-                {pageOutsiders.length > 0 && (
-                  <li className="px-1 pt-2.5 pb-0.5 text-2xs font-medium text-muted-foreground" data-testid="members-outsiders-heading">
-                    Not in {ws.workspace.name} · {pageOutsiders.length}
-                  </li>
-                )}
-                {pageOutsiders.map((person) => (
-                  <MobileOutsiderCard key={person.user.id} person={person} manage={manage} onAdd={() => setAdding(person.user)} />
                 ))}
               </ul>
               {rows.length > MEMBERS_PAGE_SIZE && <Pagination page={currentPage} pageCount={pageCount} total={rows.length} onChange={setPage} />}
@@ -480,16 +447,6 @@ export function MembersPage() {
                         }
                       />
                     ))}
-                    {pageOutsiders.length > 0 && (
-                      <tr className="h-8" data-testid="members-outsiders-heading">
-                        <td colSpan={COLUMNS.length + (manage ? 2 : 0)} className="px-3 text-2xs font-medium text-muted-foreground">
-                          Not in {ws.workspace.name} · {pageOutsiders.length} {pageOutsiders.length === 1 ? "person" : "people"} in other workspaces
-                        </td>
-                      </tr>
-                    )}
-                    {pageOutsiders.map((person) => (
-                      <OutsiderRow key={person.user.id} person={person} manage={manage} onAdd={() => setAdding(person.user)} />
-                    ))}
                   </tbody>
                 </table>
               </div>
@@ -499,6 +456,7 @@ export function MembersPage() {
         </div>
       </div>
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <OtherWorkspacesDialog people={allOutsiders} open={othersOpen} onOpenChange={setOthersOpen} onAdd={(user) => (setOthersOpen(false), setAdding(user))} />
       <AddToWorkspaceDialog key={adding?.id ?? "none"} user={adding} onOpenChange={(open) => !open && setAdding(null)} />
     </div>
   );
@@ -521,22 +479,17 @@ function FilterMenu({ label, count, testId, children }: { label: string; count: 
 }
 
 /** What is listed, as a spreadsheet: one row a person, the columns the table shows plus their email. */
-function exportCsv(rows: Row[], outsiders: Outsider[], workspaceName: string) {
+function exportCsv(rows: Row[], workspaceName: string) {
   const cell = (value: string | number) => {
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   const header = ["Name", "Email", "Job title", "Department", "Teams", "Other workspaces", "Workspace role", "Hours a week", "Status", "Joined", "Boards"];
-  const lines = [
-    ...rows.map(({ user, member, teams, department, boards, workspaces }) =>
-      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", teams.map((t) => t.name).join("; "), workspaces.map((w) => w.name).join("; "), ROLE_LABEL[member.role], weeklyHoursOf(member), STATUS_LABEL[member.status], member.joinedAt.slice(0, 10), boards]
-        .map(cell)
-        .join(","),
-    ),
-    ...outsiders.map(({ user, department, workspaces }) =>
-      [user.displayName, user.email, user.jobTitle ?? "", department ?? "", "", workspaces.map((w) => w.name).join("; "), "", "", "Not in this workspace", "", 0].map(cell).join(","),
-    ),
-  ];
+  const lines = rows.map(({ user, member, teams, department, boards, workspaces }) =>
+    [user.displayName, user.email, user.jobTitle ?? "", department ?? "", teams.map((t) => t.name).join("; "), workspaces.map((w) => w.name).join("; "), ROLE_LABEL[member.role], weeklyHoursOf(member), STATUS_LABEL[member.status], member.joinedAt.slice(0, 10), boards]
+      .map(cell)
+      .join(","),
+  );
   const blob = new Blob([[header.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -973,64 +926,6 @@ function WorkspaceChips({ workspaces }: { workspaces: PoolWorkspace[] }) {
         </SimpleTooltip>
       )}
     </span>
-  );
-}
-
-/**
- * Somebody from the pool with no seat here: who they are, where they are, and
- * for an admin the way to give them one. No profile link — their profile is
- * read inside a workspace they belong to — and nothing about this workspace to
- * show, since they are not in it.
- */
-function OutsiderRow({ person, manage, onAdd }: { person: Outsider; manage: boolean; onAdd: () => void }) {
-  const ws = useWorkspace();
-  const { user, department, workspaces } = person;
-  return (
-    <tr className={cn("h-11 text-muted-foreground", CARD_ROW, "[&>td]:border-dashed [&>td]:bg-card/50 hover:[&>td]:bg-accent/40")} data-testid="member-outsider-row">
-      {manage && <td className="pl-3" />}
-      <td className="px-3">
-        <span className="flex min-w-0 items-center gap-2.5">
-          <UserAvatar user={user} size="sm" tooltip={false} className="opacity-70" />
-          <span className="min-w-0 truncate font-medium text-foreground/85">{user.displayName}</span>
-        </span>
-      </td>
-      <OneLineCell value={user.email} />
-      <OneLineCell value={department} />
-      <OneLineCell value={user.jobTitle} />
-      <td className="px-3">&mdash;</td>
-      <td className="px-3">
-        <WorkspaceChips workspaces={workspaces} />
-      </td>
-      <td className="px-3" colSpan={5}>
-        {manage ? (
-          <Button variant="outline" size="sm" onClick={onAdd} aria-label={`Add ${user.displayName} to ${ws.workspace.name}`} data-testid="member-add-to-workspace">
-            <UserPlus /> Add to {ws.workspace.name}
-          </Button>
-        ) : (
-          <span className="text-2xs">Not in this workspace</span>
-        )}
-      </td>
-      {manage && <td />}
-    </tr>
-  );
-}
-
-function MobileOutsiderCard({ person, manage, onAdd }: { person: Outsider; manage: boolean; onAdd: () => void }) {
-  const { user, department, workspaces } = person;
-  return (
-    <li className="flex items-center gap-3 rounded-lg border border-dashed border-border/70 bg-card/50 px-3 py-2.5" data-testid="member-outsider-row">
-      <UserAvatar user={user} size="lg" tooltip={false} className="opacity-70" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium text-foreground/85">{user.displayName}</span>
-        <span className="block truncate text-[13px] text-muted-foreground">{[user.jobTitle ?? user.email, department].filter(Boolean).join(" · ")}</span>
-        {workspaces.length > 0 && <span className="mt-0.5 block truncate text-2xs text-muted-foreground">In {workspaces.map((w) => w.name).join(", ")}</span>}
-      </span>
-      {manage && (
-        <Button variant="outline" size="sm" onClick={onAdd} aria-label={`Add ${user.displayName} to this workspace`} data-testid="member-add-to-workspace">
-          <UserPlus /> Add
-        </Button>
-      )}
-    </li>
   );
 }
 
