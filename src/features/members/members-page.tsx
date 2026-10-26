@@ -1156,7 +1156,7 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
           )}
           {elsewhere && (
             <k.Item variant="destructive" disabled={isSelf || ownerRow} onSelect={() => setConfirmLeave(true)} data-testid="member-remove-from-workspace">
-              Remove from {ws.workspace.name}
+              Remove from workspace
             </k.Item>
           )}
         </>

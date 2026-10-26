@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.98.1",
+    date: "2026-10-26",
+    title: "Shorter menu item",
+    changes: ["A member's menu says Remove from workspace, on one line."],
+  },
+  {
     version: "0.98.0",
     date: "2026-10-26",
     title: "Remove from one workspace",
