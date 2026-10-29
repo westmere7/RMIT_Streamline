@@ -440,7 +440,7 @@ export const SERVICE_ERROR_KEY = "service";
  * whether it is asked is the portal's business, not the workspace's.
  */
 
-/** And the sub-service chips', which belong to the service rather than to the form. */
+/** And the work type chips', which belong to the service rather than to the form. */
 export const SUBSERVICE_ERROR_KEY = "subServices";
 
 /**
@@ -531,7 +531,7 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
   const lines: string[] = [];
   // The two facts a producer looks at first, on their own lines above the rule.
   if (service) lines.push(`**Service:** ${plain(service.name)}`);
-  if (request.subServices.length) lines.push("", `**Involves:** ${request.subServices.map(plain).join(", ")}`);
+  if (request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
   if (lines.length) lines.push("", "---");
 
   const numbers = questionNumbers(service?.blocks ?? []);

@@ -16,11 +16,13 @@ import { colorClasses } from "@/lib/colors";
 import { newId } from "@/lib/ids";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
+import { syncBookingFormsWithWorkTypes } from "@/services/booking-work-types";
 
 /**
  * The work types themselves: a name and a colour each, up to eight. Which asset
- * types belong to them is chosen on the asset types' own rows above; this only
- * names the groups. Removing one takes it off every asset type. Nothing is
+ * types belong to them is chosen on the asset types' own rows above, and which
+ * a booking service offers in the booking form editor; this only names them,
+ * and a rename or removal here reaches every booking form. Removing one takes it off every asset type. Nothing is
  * written until Save, and a save leaves the rows' assignments as they are.
  */
 export function WorkTypesSection() {
@@ -48,8 +50,24 @@ export function WorkTypesSection() {
         const kept = list.filter((id) => ids.has(id));
         if (kept.length > 0) assets[type] = kept;
       }
-      await services.repos.workspaces.update(ws.workspace.id, { workTypes: normaliseWorkTypes({ workTypes: draft, assets }) });
-      await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }), queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(ws.workspace.id) })]);
+      const saved = normaliseWorkTypes({ workTypes: draft, assets });
+      await services.repos.workspaces.update(ws.workspace.id, { workTypes: saved });
+      // The booking form offers work types by name: renamed ones are renamed
+      // there, removed ones taken off, in every form this workspace keeps.
+      const before = new Map(current.workTypes.map((w) => [w.id, w.name]));
+      const renames = new Map<string, string>();
+      for (const w of saved.workTypes) {
+        const was = before.get(w.id);
+        if (was && was !== w.name) renames.set(was, w.name);
+      }
+      await syncBookingFormsWithWorkTypes(services.repos, ws.workspace.id, saved.workTypes, renames);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(ws.workspace.id) }),
+        queryClient.invalidateQueries({ queryKey: ["booking-form"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.bookingDraft(ws.workspace.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) }),
+      ]);
     },
     onSuccess: () => toast.success("Work types saved"),
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the work types"),

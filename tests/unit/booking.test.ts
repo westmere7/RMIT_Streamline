@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BoardColumn, BookingAnswer, BookingBlock, BookingChoiceBlock, BookingFormTemplate, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
@@ -80,17 +81,17 @@ const request = (overrides: Partial<BookingRequest> = {}): BookingRequest => {
     ...overrides,
   };
   // The brief is composed, never typed; a caller may still override it outright.
-  return overrides.brief === undefined ? { ...base, brief: composeBrief(base, defaultBookingFormTemplate()) } : base;
+  return overrides.brief === undefined ? { ...base, brief: composeBrief(base, fixtureBookingFormTemplate()) } : base;
 };
 
 describe("the brief a service's answers compose", () => {
   it("leads with the service, numbers the questions as the form did, and leaves the blanks out", () => {
-    const brief = composeBrief(request(), defaultBookingFormTemplate());
+    const brief = composeBrief(request(), fixtureBookingFormTemplate());
     // Composed as rich text: each question is a heading and its answer the
     // paragraph under it, so the brief opens formatted wherever it is read
     // (see src/lib/rich-text.ts).
     expect(brief).toContain("**Service:** Design");
-    expect(brief).toContain("**Involves:** Print");
+    expect(brief).toContain("**Work types:** Print");
     expect(brief).toContain("## 1. What are you asking for?");
     expect(brief).toContain("## 2. Sizes, formats and where it will run");
     expect(brief).toContain("## 3. Is the copy written?");
@@ -100,7 +101,7 @@ describe("the brief a service's answers compose", () => {
   });
 
   it("keeps a heading the team wrote in, and drops the instructions that were only for the person filling it in", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     const design = serviceById(template, "svc-design")!;
     design.blocks = [
       { id: "h", kind: "text", level: "heading", text: "The work itself" },
@@ -140,7 +141,7 @@ describe("the brief a service's answers compose", () => {
   });
 
   it("writes several choices as a list and one as a sentence", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
       { id: "m", kind: "multi", label: "Where will it run?", description: null, required: false, options: [{ name: "Social", color: "blue" }, { name: "Print", color: "orange" }] },
     ];
@@ -150,7 +151,7 @@ describe("the brief a service's answers compose", () => {
   });
 
   it("turns a separator in the form into a rule across the brief", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
       { id: "a", kind: "short", label: "First", description: null, required: false },
       { id: "sep", kind: "separator" },
@@ -163,7 +164,7 @@ describe("the brief a service's answers compose", () => {
   });
 
   it("writes a link with the words that were given for it", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [{ id: "l", kind: "link", label: "Assets", description: null, required: false }];
     // A link with words for it becomes a link with those words on it, so the
     // brief opens something rather than showing an address to copy out.
@@ -191,7 +192,7 @@ describe("placing a booking's answers on a board", () => {
     expect(plan.referenceUrl?.name).toBe("Reference");
 
     const req = request();
-    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate(), stakeholder: "Comm.", requesterId: "user-priya" });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: fixtureBookingFormTemplate(), stakeholder: "Comm.", requesterId: "user-priya" });
     expect(placement.leftover).toEqual([]);
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Requester")).toEqual({ type: "REQUESTER", userIds: ["user-priya"] });
@@ -232,7 +233,7 @@ describe("placing a booking's answers on a board", () => {
     expect(plan.referenceUrl).toBeNull();
 
     const req = request({ assetTypes: ["Print", "Digital"] });
-    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Vietnam Creative" }, template: defaultBookingFormTemplate() });
+    const placement = mapBookingToColumns(req, columns, { team: { id: "t", name: "Vietnam Creative" }, template: fixtureBookingFormTemplate() });
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Format")).toEqual({ type: "TEXT", text: "Print, Digital" });
     expect(byName.has("Designer")).toBe(false);
@@ -253,7 +254,7 @@ describe("placing a booking's answers on a board", () => {
   it("writes the brief into the Brief column whatever it is called, ahead of any rich-text column", () => {
     const columns = [column("Request notes", "RICH_TEXT", 0), column("What they asked for", "BRIEF", 1)];
     const req = request({ assets: [] });
-    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate() });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: fixtureBookingFormTemplate() });
     // Stored as rich text, like any rich-text column.
     expect(placement.values).toContainEqual({ columnId: "col-1", value: { type: "RICH_TEXT", text: req.brief } });
     expect(placement.values.some((v) => v.columnId === "col-0")).toBe(false);
@@ -262,7 +263,7 @@ describe("placing a booking's answers on a board", () => {
   it("writes the brief into a column named for it, and never twice", () => {
     const columns = [column("Status", "STATUS", 0), column("Brief", "RICH_TEXT", 1), column("Notes", "LONG_TEXT", 2)];
     const req = request({ assets: [] });
-    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate() });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: fixtureBookingFormTemplate() });
     expect(placement.values).toContainEqual({ columnId: "col-1", value: { type: "RICH_TEXT", text: req.brief } });
     expect(placement.leftover.some((l) => l.field === "brief")).toBe(false);
     // "Notes" is left alone, and the description carries only what had no
@@ -278,7 +279,7 @@ describe("placing a booking's answers on a board", () => {
     // built by hand is still long text, and markup in a plain cell is noise.
     const columns = [column("Brief", "LONG_TEXT", 0)];
     const req = request({ assets: [] });
-    const placement = mapBookingToColumns(req, columns, { team: null, template: defaultBookingFormTemplate() });
+    const placement = mapBookingToColumns(req, columns, { team: null, template: fixtureBookingFormTemplate() });
     expect(placement.values).toContainEqual({ columnId: "col-0", value: { type: "LONG_TEXT", text: richTextToPlain(req.brief) } });
     expect(placement.briefPlaced).toBe(true);
   });
@@ -313,7 +314,7 @@ describe("placing a booking's answers on a board", () => {
  * camera?" → "Yes" → who is arranging their consent, and how many of them.
  */
 const withFollowUps = (): BookingFormTemplate => {
-  const template = defaultBookingFormTemplate();
+  const template = fixtureBookingFormTemplate();
   serviceById(template, "svc-design")!.blocks = [
     { id: "what", kind: "short", label: "What is it?", description: null, required: true },
     {
@@ -452,7 +453,7 @@ describe("a question that opens other questions", () => {
 });
 
 describe("what a step will not let a stakeholder past", () => {
-  const template = defaultBookingFormTemplate();
+  const template = fixtureBookingFormTemplate();
 
   it("insists on the questions step one marks required, and on a service", () => {
     expect(validateBookingStep("basics", request(), template)).toEqual({});
@@ -464,8 +465,8 @@ describe("what a step will not let a stakeholder past", () => {
       "std-dueDate": "Needed by is required",
       "std-priority": "How urgent? is required",
     });
-    // A service offering sub-services wants one of them.
-    expect(validateBookingStep("basics", request({ subServices: [] }), template)).toEqual({ subServices: "What does it involve? — pick at least one" });
+    // A service offering work types wants one of them.
+    expect(validateBookingStep("basics", request({ subServices: [] }), template)).toEqual({ subServices: "Work types — pick at least one" });
     // A question the caller never shows cannot be required of anybody.
     expect(validateBookingStep("basics", request({ department: null }), template, ["department"])).toEqual({});
   });
@@ -569,8 +570,10 @@ describe("the built-in Admin team and Task Allocation board", () => {
 describe("booking a task", () => {
   let services: ReturnType<typeof createServices>;
   const owner = SEED_USER_IDS.danh;
-  beforeEach(() => {
+  beforeEach(async () => {
     services = createServices(createLocalRepositories({ databaseName: `booking-${Date.now()}-${Math.random()}` }));
+    // A workspace whose form offers work types on its services; the built-in one offers none.
+    await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate());
   });
 
   const keyFor = async () => (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingKey!;
@@ -619,7 +622,7 @@ describe("booking a task", () => {
     expect(valueOf("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     // The brief is the Brief column's, formatted — and the description is left
     // empty rather than holding the same page a second time.
-    expect(valueOf("Brief")).toEqual({ type: "RICH_TEXT", text: composeBrief(request(), defaultBookingFormTemplate()) });
+    expect(valueOf("Brief")).toEqual({ type: "RICH_TEXT", text: composeBrief(request(), fixtureBookingFormTemplate()) });
     expect(item.description).toBeNull();
     expect(valueOf("Status")).toEqual({ type: "STATUS", labelId: "not_started" });
     expect(valueOf("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });
@@ -643,7 +646,7 @@ describe("booking a task", () => {
     });
     const brief = await briefText(services, receipt.itemId);
     expect(brief).not.toContain("Something the caller made up");
-    expect(brief).toContain("Involves: Print");
+    expect(brief).toContain("Work types: Print");
     expect(brief).not.toContain("Not a sub-service");
     expect(brief).not.toContain("should never appear");
   });
@@ -678,7 +681,7 @@ describe("booking a task", () => {
     const board = boards.find((b) => b.teamId === team.id && !b.archivedAt && !b.system)!;
     await services.workspace.updateTeam(team.id, { bookingBoardId: board.id });
 
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.teamId = team.id;
     await services.booking.publishForm(SEED_WORKSPACE_ID, template);
 
@@ -700,7 +703,7 @@ describe("booking a task", () => {
 
   it("names the published form, stamps when, and counts bookings from then", async () => {
     await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
-    await services.booking.publishForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");
+    await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");
     let workspace = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!;
     expect(workspace.bookingFormName).toBe("RMIT Marketing · 25 Sep 2026, 10:42");
     expect(workspace.bookingFormPublishedAt).toBeTruthy();
@@ -715,7 +718,7 @@ describe("booking a task", () => {
   it("falls back to the allocation queue when the service names a team that has gone", async () => {
     const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
     const events = teams.find((t) => t.name === "Events")!;
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.teamId = events.id;
     await services.booking.publishForm(SEED_WORKSPACE_ID, template);
     await services.workspace.archiveTeam(events.id, true);
@@ -806,21 +809,21 @@ describe("shaping the booking form", () => {
     const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
     expect(form.template).toEqual(defaultBookingFormTemplate());
 
-    const noEmail = defaultBookingFormTemplate();
+    const noEmail = fixtureBookingFormTemplate();
     noEmail.basics.fields = noEmail.basics.fields.filter((f) => f.key !== "requesterEmail");
     await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noEmail)).rejects.toThrow(/requester's email/);
 
-    const noDepartment = defaultBookingFormTemplate();
+    const noDepartment = fixtureBookingFormTemplate();
     noDepartment.basics.fields = noDepartment.basics.fields.filter((f) => f.key !== "department");
     await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noDepartment)).rejects.toThrow(/school or department/);
 
-    const noServices = defaultBookingFormTemplate();
+    const noServices = fixtureBookingFormTemplate();
     noServices.services = [];
     await expect(services.booking.saveDraft(SEED_WORKSPACE_ID, noServices)).rejects.toThrow(/at least one type of service/);
   });
 
   it("keeps a draft to itself until it is published", async () => {
-    const draft = defaultBookingFormTemplate();
+    const draft = fixtureBookingFormTemplate();
     draft.review.submitLabel = "Send the request";
     draft.basics.title = "Who are you?";
     await services.booking.saveDraft(SEED_WORKSPACE_ID, draft);
@@ -839,11 +842,11 @@ describe("shaping the booking form", () => {
   });
 
   it("publishes a saved template and leaves the draft where it was", async () => {
-    const wip = defaultBookingFormTemplate();
+    const wip = fixtureBookingFormTemplate();
     wip.review.submitLabel = "Half-written";
     await services.booking.saveDraft(SEED_WORKSPACE_ID, wip);
 
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     template.review.submitLabel = "From the template";
     await services.booking.publishForm(SEED_WORKSPACE_ID, template, "Summer intake", { keepDraft: true });
 
@@ -853,11 +856,11 @@ describe("shaping the booking form", () => {
   });
 
   it("throws a draft away without touching what is live", async () => {
-    const published = defaultBookingFormTemplate();
+    const published = fixtureBookingFormTemplate();
     published.review.submitLabel = "Send it";
     await services.booking.publishForm(SEED_WORKSPACE_ID, published);
 
-    const wip = defaultBookingFormTemplate();
+    const wip = fixtureBookingFormTemplate();
     wip.review.submitLabel = "Half-written";
     await services.booking.saveDraft(SEED_WORKSPACE_ID, wip);
     expect((await services.booking.discardDraft(SEED_WORKSPACE_ID)).review.submitLabel).toBe("Send it");
@@ -866,7 +869,7 @@ describe("shaping the booking form", () => {
   });
 
   it("saves a service of the workspace's own, with its own questions, and asks them of nobody else", async () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     template.services = [
       {
         ...template.services[1]!,
@@ -908,14 +911,14 @@ describe("shaping the booking form", () => {
   });
 
   it("keeps forms by name with what they are for, replaces on the same name, and swaps them back in", async () => {
-    const lean = defaultBookingFormTemplate();
+    const lean = fixtureBookingFormTemplate();
     lean.services = lean.services.slice(0, 1);
     const saved = await services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: "Lean", description: "Brand only, for the shutdown.", template: lean }, owner);
     expect(saved.name).toBe("Lean");
     expect(saved.description).toBe("Brand only, for the shutdown.");
     expect(saved.template.services).toHaveLength(1);
 
-    const again = await services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: " lean ", description: null, template: defaultBookingFormTemplate() }, owner);
+    const again = await services.booking.saveTemplate(SEED_WORKSPACE_ID, { name: " lean ", description: null, template: fixtureBookingFormTemplate() }, owner);
     expect(again.id).toBe(saved.id);
     expect(again.description).toBeNull();
     expect(again.template.services).toHaveLength(3);
@@ -952,14 +955,14 @@ describe("shaping the booking form", () => {
     await services.booking.publishForm(SEED_WORKSPACE_ID, defaultBookingFormTemplate());
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm ?? null).toBeNull();
 
-    const own = defaultBookingFormTemplate();
+    const own = fixtureBookingFormTemplate();
     own.review.submitLabel = "Send it";
     await services.booking.publishForm(SEED_WORKSPACE_ID, own);
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingForm?.review.submitLabel).toBe("Send it");
   });
 
   it("goes back to the built-in form on reset, draft and all", async () => {
-    const custom = defaultBookingFormTemplate();
+    const custom = fixtureBookingFormTemplate();
     custom.review.submitLabel = "Go";
     await services.booking.publishForm(SEED_WORKSPACE_ID, custom);
     await services.booking.saveDraft(SEED_WORKSPACE_ID, { ...custom, review: { ...custom.review, submitLabel: "Still going" } });
@@ -1045,7 +1048,7 @@ describe("the reference a booking carries", () => {
 
 describe("everything a request validates against at once", () => {
   it("gathers the problems of every step, keyed by the question that has one", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     const broken = request({ title: "", answers: {} });
     const problems = validateBookingAgainstTemplate(broken, template);
     expect(problems["std-title"]).toBe("What should we call this? is required");

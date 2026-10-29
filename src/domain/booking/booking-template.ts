@@ -300,7 +300,7 @@ export function formatBookingAnswer(answer: BookingAnswer): string {
  *
  * The main choice of step one and the only thing that changes step two. Brand,
  * Design and Production ship with the app; a workspace adds, renames and
- * removes them freely, and each one carries its own sub-services and its own
+ * removes them freely, and each one offers its own work types and its own
  * blocks, so rewriting Production's brief cannot disturb Design's.
  *
  * `teamId` is the routing this used to ask a stakeholder about directly. They
@@ -315,7 +315,11 @@ export interface BookingServiceType {
   color: ColorToken;
   /** A Lucide icon name, as `DynamicIcon` takes them. */
   icon: string;
-  /** The multi-select shown under the service, as chips. Their answers become chips in the brief. */
+  /**
+   * The work types this service offers, as chips under it: a subset of the
+   * workspace's work types (Settings → Asset types), by name and colour, kept
+   * in step with them by syncFormWorkTypes. Their answers go in the brief.
+   */
   subServices: TagOption[];
   subServiceLabel: string;
   subServiceHint: string | null;
@@ -563,6 +567,36 @@ export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
 
 const tags = (...names: Array<[string, ColorToken]>): TagOption[] => names.map(([name, color]) => ({ name, color }));
 
+/** What the question over a service's work types says until the team words it otherwise. */
+export const WORK_TYPES_LABEL = "Work types";
+
+/**
+ * Keeps every service's work types to the workspace's own: a renamed work
+ * type is renamed here (`renames`, old name to new), one that no longer
+ * exists is dropped, and each takes the work type's colour. Names match
+ * without regard to case. Returns the same template when nothing changed.
+ */
+export function syncFormWorkTypes(template: BookingFormTemplate, workTypes: readonly { name: string; color: ColorToken }[], renames: ReadonlyMap<string, string> = new Map()): BookingFormTemplate {
+  const byName = new Map(workTypes.map((w) => [w.name.trim().toLowerCase(), w]));
+  const lowerRenames = new Map([...renames].map(([from, to]) => [from.trim().toLowerCase(), to]));
+  let changed = false;
+  const services = template.services.map((service) => {
+    const seen = new Set<string>();
+    const next: TagOption[] = [];
+    for (const option of service.subServices) {
+      const name = lowerRenames.get(option.name.trim().toLowerCase()) ?? option.name;
+      const match = byName.get(name.trim().toLowerCase());
+      if (!match || seen.has(match.name)) continue;
+      seen.add(match.name);
+      next.push({ name: match.name, color: match.color });
+    }
+    if (next.length === service.subServices.length && next.every((o, i) => o.name === service.subServices[i]!.name && o.color === service.subServices[i]!.color)) return service;
+    changed = true;
+    return { ...service, subServices: next };
+  });
+  return changed ? { ...template, services } : template;
+}
+
 /** A service type with nothing in its brief yet, as the editor's "Add a service" makes one. */
 export function newServiceType(name: string): BookingServiceType {
   return {
@@ -572,7 +606,7 @@ export function newServiceType(name: string): BookingServiceType {
     color: "blue",
     icon: "Shapes",
     subServices: [],
-    subServiceLabel: "What does it involve?",
+    subServiceLabel: WORK_TYPES_LABEL,
     subServiceHint: "Pick every one that applies.",
     briefTitle: `About the ${name.toLowerCase()} work`,
     briefHint: null,
@@ -584,7 +618,7 @@ export function newServiceType(name: string): BookingServiceType {
 /**
  * The three services the app ships with, and the questions each of them asks.
  *
- * The sub-service lists are the team's own; the briefs are a starting point an
+ * The work types offered are the workspace's own (none to start); the briefs are a starting point an
  * administrator is expected to rewrite. They are deliberately short — a first
  * brief that asks twelve questions teaches everybody to skim.
  */
@@ -596,8 +630,8 @@ function defaultServices(): BookingServiceType[] {
       description: "Brand guardianship, approvals, and anything carrying the RMIT identity.",
       color: "violet",
       icon: "BadgeCheck",
-      subServices: tags(["Approval", "green"], ["Digital / Social", "blue"], ["Print", "orange"], ["Publication", "amber"], ["Installation", "teal"], ["Others", "gray"]),
-      subServiceLabel: "What does it involve?",
+      subServices: [],
+      subServiceLabel: WORK_TYPES_LABEL,
       subServiceHint: "Pick every one that applies.",
       briefTitle: "About the brand work",
       briefHint: "The more precisely this is answered, the fewer rounds of review it takes.",
@@ -623,8 +657,8 @@ function defaultServices(): BookingServiceType[] {
       description: "Artwork, layouts and key visuals, from a single flyer to a campaign.",
       color: "blue",
       icon: "PenTool",
-      subServices: tags(["Digital / Social", "blue"], ["Print", "orange"], ["Publication", "amber"], ["Installation", "teal"], ["Key Visual", "pink"], ["Others", "gray"]),
-      subServiceLabel: "What does it involve?",
+      subServices: [],
+      subServiceLabel: WORK_TYPES_LABEL,
       subServiceHint: "Pick every one that applies.",
       briefTitle: "About the design work",
       briefHint: "Sizes, formats and copy are what hold a job up. Say what you know.",
@@ -650,8 +684,8 @@ function defaultServices(): BookingServiceType[] {
       description: "Photography and video, on location or in the studio.",
       color: "orange",
       icon: "Clapperboard",
-      subServices: tags(["Photography", "sky"], ["Videography", "purple"]),
-      subServiceLabel: "What does it involve?",
+      subServices: [],
+      subServiceLabel: WORK_TYPES_LABEL,
       subServiceHint: "Pick every one that applies.",
       briefTitle: "About the shoot",
       briefHint: "A shoot is booked around a date and a place, so those two matter most.",

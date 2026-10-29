@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.99.0",
+    date: "2026-10-29",
+    title: "One list of work types",
+    changes: [
+      "The booking form's sub-services are now work types: each service offers some of the workspace's work types (Settings → Asset types), picked in the form editor.",
+      "Renaming or removing a work type changes it in the published form, the draft and every saved form.",
+      "A booking's brief lists them as Work types.",
+    ],
+  },
+  {
     version: "0.98.3",
     date: "2026-10-29",
     title: "Work type heading",

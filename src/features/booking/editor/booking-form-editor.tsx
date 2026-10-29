@@ -25,6 +25,9 @@ import {
   isRequesterKey,
   newServiceType,
   newStandardField,
+  normaliseWorkTypes,
+  syncFormWorkTypes,
+  type TagOption,
 } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -32,11 +35,13 @@ import { bookingFormTemplateSchema, normaliseBookingTemplate } from "@/services/
 import { AssetList, AssetTypePicker, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
-import { ChoiceChips } from "./choice-chips";
 import { PreviewDialog } from "./preview-dialog";
 import { PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
+import Link from "next/link";
+import { useWorkspace } from "@/features/workspace/workspace-context";
+import { routes } from "@/lib/routes";
 
 /**
  * The form editor: four steps, edited in the order a stakeholder meets them.
@@ -116,6 +121,7 @@ export function BookingFormEditor({
   onDeleteSavedBlock,
   panelContainer,
 }: BookingFormEditorProps) {
+  const ws = useWorkspace();
   const [draft, setDraft] = React.useState<BookingFormTemplate>(() => clone(initial));
   /**
    * What was last written down, as far as this editor is concerned.
@@ -255,7 +261,8 @@ export function BookingFormEditor({
         templates={templates}
         current={draft}
         onLoad={(t) => {
-          setDraft(clone(t.template));
+          // A saved form may name work types since renamed or removed: it comes in as the work types stand now.
+          setDraft(clone(syncFormWorkTypes(t.template, normaliseWorkTypes(ws.workspace.workTypes).workTypes)));
           setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
           setSelectedService(t.template.services[0]?.id ?? null);
           toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
@@ -651,7 +658,7 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-/** The settings of the picked service: its words, its look, where it goes, and its sub-services. */
+/** The settings of the picked service: its words, its look, where it goes, and the work types it offers. */
 function ServicePanel({
   service,
   form,
@@ -734,10 +741,10 @@ function ServicePanel({
       </Labeled>
 
       <div className="grid gap-1.5 border-t border-border/60 pt-2.5">
-        <span className="label-quiet">Sub-services, asked once this card is picked</span>
-        <TextBox value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Sub-service question" placeholder="What does it involve?" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
-        <TextBox value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Sub-service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
-        <ChoiceChips options={service.subServices} onChange={(subServices) => onPatch({ subServices })} addLabel="Add a sub-service" testIdPrefix={`editor-service-subs-${key}`} />
+        <span className="label-quiet">Work types, asked once this card is picked</span>
+        <TextBox value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Work types question" placeholder="Work types" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
+        <TextBox value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Work types hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+        <WorkTypeToggles selected={service.subServices} onChange={(subServices) => onPatch({ subServices })} testIdPrefix={`editor-service-worktypes-${key}`} />
       </div>
 
       <div className="flex justify-end border-t border-border/60 pt-2.5">
@@ -746,6 +753,58 @@ function ServicePanel({
         </Button>
       </div>
     </EditorSection>
+  );
+}
+
+/**
+ * The workspace's work types as chips to switch on and off for one service.
+ * Nothing else can be offered: the work types are one list, kept in
+ * Settings → Asset types, and a rename or removal there reaches every form.
+ */
+function WorkTypeToggles({ selected, onChange, testIdPrefix }: { selected: readonly TagOption[]; onChange: (next: TagOption[]) => void; testIdPrefix: string }) {
+  const ws = useWorkspace();
+  const workTypes = React.useMemo(() => normaliseWorkTypes(ws.workspace.workTypes).workTypes, [ws.workspace.workTypes]);
+  if (workTypes.length === 0) {
+    return (
+      <p className="text-2xs text-muted-foreground">
+        No work types yet.{" "}
+        <Link href={`${routes.settings(ws.slug, "asset-types")}#work-types`} className="font-medium text-foreground underline-offset-2 hover:underline">
+          Add them
+        </Link>
+      </p>
+    );
+  }
+  const chosen = new Set(selected.map((s) => s.name.toLowerCase()));
+  // Always in the work types' own order, and only work types that exist: any toggle also clears a stale one.
+  const toggle = (name: string) => {
+    const key = name.toLowerCase();
+    const next = new Set(chosen);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onChange(workTypes.filter((w) => next.has(w.name.toLowerCase())).map((w) => ({ name: w.name, color: w.color })));
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Work types offered">
+      {workTypes.map((w) => {
+        const on = chosen.has(w.name.toLowerCase());
+        return (
+          <button
+            key={w.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => toggle(w.name)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
+              on ? cn("border-transparent", colorClasses(w.color).soft) : "border-border/70 text-muted-foreground hover:bg-accent/60",
+            )}
+            data-testid={`${testIdPrefix}-${slug(w.name)}`}
+          >
+            <span aria-hidden className={cn("size-1.5 rounded-full", colorClasses(w.color).dot, !on && "opacity-40")} />
+            {w.name}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

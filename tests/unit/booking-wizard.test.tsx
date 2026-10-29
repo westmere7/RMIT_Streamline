@@ -1,14 +1,15 @@
 import * as React from "react";
+import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { describe, expect, it, vi } from "vitest";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
-import { defaultBookingFormTemplate, serviceById } from "@/domain";
+import { serviceById } from "@/domain";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 
-const formWith = (template: BookingFormTemplate = defaultBookingFormTemplate()): BookingFormData => ({
+const formWith = (template: BookingFormTemplate = fixtureBookingFormTemplate()): BookingFormData => ({
   workspaceId: "ws-1",
   workspaceName: "RMIT VN MKT",
   workspaceSlug: "rmit",
@@ -151,7 +152,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
   });
 
   it("puts help text under the question, and asks a dropdown single choice as a select", async () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
       { id: "b-help", kind: "short", label: "With help", description: "Shown under the question", required: false },
       {
@@ -185,7 +186,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     // The two boxes of a link question are one answer written by two controls.
     // Both used to build the next answers map from the render's own copy of the
     // request, so whichever fired second threw the other away.
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     serviceById(template, "svc-design")!.blocks = [
       { id: "l", kind: "link", label: "A link", description: null, required: false },
       { id: "q", kind: "short", label: "And a question", description: null, required: false },
@@ -314,13 +315,13 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     expect(sent.answers["design-copy"]).toEqual({ kind: "choice", values: ["Yes, final and approved"] });
     // Composed as rich text, so it arrives formatted wherever it is read.
     expect(sent.brief).toContain("**Service:** Design");
-    expect(sent.brief).toContain("**Involves:** Digital / Social, Print");
+    expect(sent.brief).toContain("**Work types:** Digital / Social, Print");
     expect(sent.brief).toContain("## 1. What are you asking for?");
     expect(sent.brief).toContain("Six A1 posters for Brunswick.");
   });
 
   it("hands back the ticket and whatever the team wrote as its reply", async () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     template.review.autoReply = "Thanks — a producer reads every booking.";
     const { user } = renderWizard({ form: formWith(template) });
     await fillBasics(user);
@@ -448,7 +449,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
   });
 
   it("drops the deliverables step altogether when the form turns it off", () => {
-    const template = defaultBookingFormTemplate();
+    const template = fixtureBookingFormTemplate();
     template.assets.enabled = false;
     renderWizard({ form: formWith(template) });
     const bar = screen.getByTestId("booking-progress");

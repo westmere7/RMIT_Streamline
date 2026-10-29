@@ -129,7 +129,7 @@ export interface BookingRequest {
    * The brief as one document.
    *
    * Composed rather than typed: the wizard writes it out of the service, the
-   * sub-services and the step-two answers (`composeBrief`), and the server
+   * work types and the step-two answers (`composeBrief`), and the server
    * composes it again from the same parts before anything is stored, so what
    * lands on the board is what the template asked for and not what a caller
    * chose to send.
@@ -140,7 +140,7 @@ export interface BookingRequest {
   assets: BookingAssetLine[];
   /** The kind of work, as a `BookingServiceType` id. Decides step two, and where the booking is routed. */
   serviceTypeId: string | null;
-  /** The sub-services chosen under it, by name. Chips in the brief. */
+  /** The work types chosen under it, by name (the workspace's work types). Chips in the brief. */
   subServices: string[];
   teamId: EntityId | null;
   dueDate: ISODate | null;
