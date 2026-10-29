@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.98.2",
+    date: "2026-10-29",
+    title: "Asset type heading",
+    changes: ["Settings → Asset types heads its first column \"Asset type\"."],
+  },
+  {
     version: "0.98.1",
     date: "2026-10-26",
     title: "Shorter menu item",

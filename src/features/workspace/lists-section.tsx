@@ -224,7 +224,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         {carriesRates && (
           <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground max-md:hidden">
-            <span className="min-w-0 flex-1">Type</span>
+            <span className="min-w-0 flex-1">Asset type</span>
             <span className="w-[11rem] shrink-0">
               Work type{" "}
               <a href="#work-types" className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline">
