@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.100.1",
+    date: "2026-10-29",
+    title: "Change password in your profile",
+    changes: ["Change password moves from your menu into Edit profile, beside your email. It shows only on your own profile."],
+  },
+  {
     version: "0.100.0",
     date: "2026-10-29",
     title: "Change your password",

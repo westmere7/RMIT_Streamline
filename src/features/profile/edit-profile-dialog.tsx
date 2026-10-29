@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { ImagePlus, KeyRound, Loader2, Trash2 } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { User } from "@/domain";
+import { ChangePasswordDialog } from "@/features/auth/components/change-password-dialog";
 import { useProfileMutations } from "@/features/profile/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -40,6 +41,7 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
   const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
   const { save, changeEmail, changeAvatar, removeAvatar } = useProfileMutations(user.id);
   const isSelf = ws.currentUser.id === user.id;
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [email, setEmail] = React.useState(user.email);
   const emailChanged = canChangeEmail && email.trim().toLowerCase() !== user.email.toLowerCase();
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -83,6 +85,7 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
   };
 
   return (
+    <>
     <form onSubmit={(event) => void submit(event)} className="grid gap-5">
       <DialogHeader>
         <DialogTitle>{isSelf ? "Edit profile" : `Edit ${user.displayName}`}</DialogTitle>
@@ -180,6 +183,17 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
             Email is <span className="font-medium">{user.email}</span>. Ask an admin to change it.
           </p>
         )}
+
+        {/* Your own only: an admin editing somebody never sees it. Its own dialog, because a
+            password needs the current one and changes at once, apart from Save changes. */}
+        {isSelf && (
+          <div className="flex items-center justify-between gap-3 sm:col-span-2">
+            <Label>Password</Label>
+            <Button type="button" variant="outline" size="sm" onClick={() => setPasswordOpen(true)} data-testid="profile-change-password">
+              <KeyRound /> Change password
+            </Button>
+          </div>
+        )}
       </div>
 
       <DialogFooter>
@@ -191,6 +205,9 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
         </Button>
       </DialogFooter>
     </form>
+    {/* Outside the form: React carries a submit up through portals, and the password form's must not save the profile. */}
+    <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
+    </>
   );
 }
 
