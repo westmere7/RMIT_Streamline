@@ -22,6 +22,8 @@ export interface AuthProvider {
   getSession(): Promise<AuthSession | null>;
   signIn(input: SignInWithEmailInput): Promise<AuthSession>;
   signOut(): Promise<void>;
+  /** The signed-in person changes their own password, giving the current one. Other sessions end. */
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
   /** Subscribe to session changes. Returns an unsubscribe function. */
   onSessionChange(listener: (session: AuthSession | null) => void): () => void;
 }

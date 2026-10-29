@@ -1,4 +1,4 @@
-import { AuthError, type AuthProvider, type AuthSession, type SignInWithEmailInput, type WorkspaceMember } from "@/domain";
+import { AuthError, PASSWORD_MIN_LENGTH, type AuthProvider, type AuthSession, type SignInWithEmailInput, type WorkspaceMember } from "@/domain";
 import type { UserRepository, WorkspaceRepository } from "@/data/repositories";
 
 const STORAGE_KEY = "streamline.local-session";
@@ -14,6 +14,8 @@ export const PENDING_SIGN_IN_MESSAGE = "This account has not finished onboarding
 export interface LocalPasswordVerifier {
   /** True/false when a password exists for the account; null when onboarding never stored one. */
   verifyPassword(userId: string, password: string): Promise<boolean | null>;
+  /** Stores a new password for the account, replacing any it had. */
+  setPassword(userId: string, password: string): Promise<void>;
 }
 
 function readStorage(): AuthSession | null {
@@ -87,6 +89,22 @@ export class LocalAuthProvider implements AuthProvider {
   async signOut(): Promise<void> {
     writeStorage(null);
     this.emit(null);
+  }
+
+  /**
+   * The same rules as the server: the current password has to be right where
+   * one was ever set (a seeded account never had one), and the new one has to
+   * differ. There are no other sessions to end in a single browser.
+   */
+  async changePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+    const session = readStorage();
+    if (!session) throw new AuthError("Sign in to change your password.");
+    if (!this.passwords) throw new AuthError("Passwords cannot be changed here.");
+    if (input.newPassword.length < PASSWORD_MIN_LENGTH) throw new AuthError(`Passwords need at least ${PASSWORD_MIN_LENGTH} characters`);
+    if (input.newPassword.length > 72) throw new AuthError("Passwords can be at most 72 characters");
+    if (input.newPassword === input.currentPassword) throw new AuthError("Choose a password different from the one you have.");
+    if ((await this.passwords.verifyPassword(session.userId, input.currentPassword)) === false) throw new AuthError("Your current password is not right.");
+    await this.passwords.setPassword(session.userId, input.newPassword);
   }
 
   onSessionChange(listener: (session: AuthSession | null) => void): () => void {

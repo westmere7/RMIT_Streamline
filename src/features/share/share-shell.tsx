@@ -215,6 +215,9 @@ function guestAuthProvider(guest: User): AuthProvider {
       throw new Error("This is a shared link. Open Streamline itself to sign in.");
     },
     signOut: async () => undefined,
+    changePassword: async () => {
+      throw new Error("This is a shared link. Open Streamline itself to change your password.");
+    },
     onSessionChange: () => () => undefined,
   };
 }

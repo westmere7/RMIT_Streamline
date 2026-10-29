@@ -334,6 +334,12 @@ export class LocalOnboardingRepository implements OnboardingRepository {
   }
 
   /** Used by LocalAuthProvider: whether a password set through onboarding matches. Null when none is stored. */
+  async setPassword(userId: string, password: string): Promise<void> {
+    const db = await this.conn.getDb();
+    const salt = newSalt();
+    await db.put("credentials", { userId, salt, hash: await hashPassword(password, salt), createdAt: nowIso() });
+  }
+
   async verifyPassword(userId: string, password: string): Promise<boolean | null> {
     const db = await this.conn.getDb();
     const credential = await db.get("credentials", userId);

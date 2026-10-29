@@ -1,5 +1,6 @@
 import { AuthError, type AuthProvider, type AuthSession, type SignInWithEmailInput } from "@/domain";
 import { describeSignInError } from "@/lib/auth/auth-messages";
+import { callApi } from "@/data/supabase/api-call";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 /**
@@ -56,6 +57,22 @@ export class SupabaseAuthProvider implements AuthProvider {
     // still ended everywhere.
     const { error } = await getSupabaseClient().auth.signOut({ scope: "local" });
     if (error) throw new AuthError(error.message);
+  }
+
+  /**
+   * Through the server, which checks the current password, sets the new one
+   * and ends the account's other sessions (src/server/account.ts). Supabase
+   * Auth ends every session when a password is set, this one included, so the
+   * tab then signs straight back in with the new password: the person carries
+   * on where they were, on a fresh session.
+   */
+  async changePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+    const { data } = await getSupabaseClient().auth.getSession();
+    const email = data.session?.user.email;
+    if (!email) throw new AuthError("Sign in to change your password.");
+    await callApi<{ ok: true }>("/api/account/password", { method: "POST", body: JSON.stringify(input) }, { auth: "required" });
+    const again = await getSupabaseClient().auth.signInWithPassword({ email, password: input.newPassword });
+    if (again.error) throw new AuthError("Your password was changed. Sign in again with the new one.");
   }
 
   onSessionChange(listener: (session: AuthSession | null) => void): () => void {

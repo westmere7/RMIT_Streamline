@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, Building2, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
+import { Bug, Building2, ChevronsUpDown, Database, Eye, KeyRound, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useCurrentUser } from "@/features/auth/auth-context";
+import { ChangePasswordDialog } from "@/features/auth/components/change-password-dialog";
 import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
@@ -43,6 +44,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [resetOpen, setResetOpen] = React.useState(false);
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [theme, setTheme] = useThemePreference();
   const unreadMessages = useUnreadMessages().data ?? 0;
   const showDevTools = IS_DEV || providerKind === "local";
@@ -108,6 +110,12 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuItem onSelect={() => router.push(routes.person(ws.slug, user.id))} data-testid="menu-your-profile">
             <UserRound /> Your profile
           </DropdownMenuItem>
+          {/* Your own account, not somebody you are viewing the app as. */}
+          {!ws.viewingAs && (
+            <DropdownMenuItem onSelect={() => setPasswordOpen(true)} data-testid="menu-change-password">
+              <KeyRound /> Change password
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => router.push(routes.messages(ws.slug))} data-testid="menu-messages">
             <MessageSquare /> Messages
             {unreadMessages > 0 && (
@@ -191,6 +199,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
       <ConfirmDialog
         open={resetOpen}
         onOpenChange={setResetOpen}

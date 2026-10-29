@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.100.0",
+    date: "2026-10-29",
+    title: "Change your password",
+    changes: [
+      "Change password in your menu: give your current password and a new one twice.",
+      "Your other devices are signed out; you stay signed in where you made the change.",
+    ],
+  },
+  {
     version: "0.99.0",
     date: "2026-10-29",
     title: "One list of work types",

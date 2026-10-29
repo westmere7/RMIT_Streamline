@@ -15,6 +15,8 @@ export interface AuthContextValue {
   user: User | null;
   signIn: (email: string, password?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Changes the signed-in person's own password. Absent where nobody is really signed in (a shared link). */
+  changePassword?: (input: { currentPassword: string; newPassword: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,13 +66,15 @@ export function AuthProviderContext({ children }: { children: React.ReactNode })
     queryClient.clear();
   }, [auth, queryClient]);
 
+  const changePassword = useCallback((input: { currentPassword: string; newPassword: string }) => auth.changePassword(input), [auth]);
+
   const value = useMemo<AuthContextValue>(() => {
     let status: AuthStatus = "loading";
     if (session === null) status = "signed-out";
     else if (session && userQuery.data) status = "signed-in";
     else if (session && userQuery.isError) status = "signed-out";
-    return { status, session: session ?? null, user: session ? (userQuery.data ?? null) : null, signIn, signOut };
-  }, [session, userQuery.data, userQuery.isError, signIn, signOut]);
+    return { status, session: session ?? null, user: session ? (userQuery.data ?? null) : null, signIn, signOut, changePassword };
+  }, [session, userQuery.data, userQuery.isError, signIn, signOut, changePassword]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
