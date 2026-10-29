@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.98.3",
+    date: "2026-10-29",
+    title: "Work type heading",
+    changes: ["The Work type heading in Settings → Asset types drops its edit link; the work types are edited just below."],
+  },
+  {
     version: "0.98.2",
     date: "2026-10-29",
     title: "Asset type heading",

@@ -225,12 +225,7 @@ function ListEditor({ listKey, options, canEdit }: { listKey: WorkspaceListKey; 
         {carriesRates && (
           <div className="flex items-center gap-2 border-b border-border/60 bg-surface/50 px-3 py-2 text-2xs text-muted-foreground max-md:hidden">
             <span className="min-w-0 flex-1">Asset type</span>
-            <span className="w-[11rem] shrink-0">
-              Work type{" "}
-              <a href="#work-types" className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline">
-                edit
-              </a>
-            </span>
+            <span className="w-[11rem] shrink-0">Work type</span>
             <span className="w-[19.5rem] shrink-0">Output rate — how many the team finishes</span>
             <span className="w-[10rem] shrink-0">Time for one</span>
             <span className="w-7 shrink-0" />
