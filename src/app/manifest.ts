@@ -7,9 +7,9 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Streamline · RMIT Creative Team",
+    name: "Streamline",
     short_name: "Streamline",
-    description: "Work management for the RMIT creative and marketing team.",
+    description: "Boards, briefs and approvals in one place.",
     start_url: "/",
     scope: "/",
     display: "standalone",

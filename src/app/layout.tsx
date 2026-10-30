@@ -12,10 +12,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Streamline · RMIT Creative Team",
+    default: "Streamline",
     template: "%s · Streamline",
   },
-  description: "Work management for the RMIT creative and marketing team.",
+  // The line a shared link shows where no page says more; a workspace's own
+  // links say its name and description instead (app/workspace/[workspaceSlug]/layout.tsx).
+  description: "Boards, briefs and approvals in one place.",
+  openGraph: { title: "Streamline", description: "Boards, briefs and approvals in one place.", siteName: "Streamline", type: "website" },
   // Added to a home screen, it opens as an app of its own, named under its icon,
   // without the browser's bars (the manifest says the same for Android).
   appleWebApp: { capable: true, title: "Streamline", statusBarStyle: "default" },

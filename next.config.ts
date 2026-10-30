@@ -29,6 +29,12 @@ const nextConfig: NextConfig = {
   // beside your own server on :3000, runs from a folder of its own.
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   generateBuildId: () => buildId,
+  // Chat apps that unfurl a link read the head without running the page, so
+  // they get the metadata before the page rather than streamed after it. Next's
+  // own list, plus the chat apps it leaves out (Telegram matches it only as
+  // "like TwitterBot").
+  htmlLimitedBots:
+    /[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight|TelegramBot|Zalo|Viber|Line\/|MicrosoftPreview|Teams/i,
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
     NEXT_PUBLIC_BUILD_ID: buildId,

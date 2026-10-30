@@ -1,0 +1,94 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { AppShell } from "@/components/layout/app-shell";
+import { FullPageLoader } from "@/components/layout/full-page-loader";
+import { ErrorState } from "@/components/shared/error-state";
+import { PersonCardProvider } from "@/components/shared/user-avatar";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/features/auth/auth-context";
+import { useServices } from "@/features/data/data-context";
+import { renderPersonCard } from "@/features/members/person-card";
+import { WorkspaceProvider } from "@/features/workspace/workspace-context";
+import { rememberWorkspace } from "@/features/workspace/workspaces";
+import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/lib/routes";
+
+export function WorkspaceShell({ children }: { children: React.ReactNode }) {
+  const params = useParams<{ workspaceSlug: string }>();
+  const slug = params.workspaceSlug;
+  const router = useRouter();
+  const { status, user, signOut } = useAuth();
+  const services = useServices();
+
+  useEffect(() => {
+    if (status === "signed-out") router.replace(routes.login());
+  }, [status, router]);
+
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.workspace(slug),
+    queryFn: () => services.workspace.getWorkspaceBySlug(slug),
+    enabled: status === "signed-in",
+  });
+  const membershipQuery = useQuery({
+    queryKey: [...queryKeys.workspaceMembers(workspaceQuery.data?.id ?? ""), "self", user?.id],
+    queryFn: async () => {
+      const members = await services.repos.workspaces.listMembers(workspaceQuery.data!.id);
+      return members.find((m) => m.userId === user!.id) ?? null;
+    },
+    enabled: !!workspaceQuery.data && !!user,
+  });
+
+  // The workspace to come back to next time: this one, once it has let them in.
+  const admitted = membershipQuery.data?.status === "ACTIVE";
+  useEffect(() => {
+    if (admitted) rememberWorkspace(slug);
+  }, [admitted, slug]);
+
+  if (status === "loading" || status === "signed-out" || !user) return <FullPageLoader label="Checking your session…" />;
+  if (workspaceQuery.isLoading) return <FullPageLoader label="Opening workspace…" />;
+  if (workspaceQuery.isError) return <ErrorState title="Could not load this workspace." error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />;
+
+  const workspace = workspaceQuery.data;
+  if (!workspace) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface text-center">
+        <p className="text-base font-semibold">Workspace not found</p>
+        <p className="text-[13px] text-muted-foreground">There is no workspace at /workspace/{slug}.</p>
+        <Button variant="outline" onClick={() => router.replace(routes.root())}>
+          Go to my workspace
+        </Button>
+      </div>
+    );
+  }
+  if (membershipQuery.isLoading) return <FullPageLoader label="Opening workspace…" />;
+  // Only an active seat lets anyone in. A pending one (a booking's, or somebody
+  // who has not finished joining) is no access: with one account across every
+  // workspace, a person signed in from another workspace could otherwise walk in.
+  if (membershipQuery.data === null || (membershipQuery.data && membershipQuery.data.status !== "ACTIVE")) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface text-center">
+        <p className="text-base font-semibold">You do not have access to {workspace.name}</p>
+        <p className="text-[13px] text-muted-foreground">Ask a workspace admin to add you, or open one of your other workspaces.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.replace(routes.root())} data-testid="no-access-my-workspaces">
+            My workspaces
+          </Button>
+          <Button variant="ghost" onClick={() => void signOut()}>
+            Sign out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <WorkspaceProvider workspace={workspace}>
+      <PersonCardProvider value={renderPersonCard}>
+        <AppShell>{children}</AppShell>
+      </PersonCardProvider>
+    </WorkspaceProvider>
+  );
+}

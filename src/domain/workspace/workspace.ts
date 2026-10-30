@@ -48,6 +48,12 @@ export interface Workspace extends Timestamps {
   assetRates?: AssetRates | null;
   /** Which work type each asset type belongs to, for the dashboard's work type radar. See `@/domain/workspace/work-type`. */
   workTypes?: WorkTypes | null;
+  /**
+   * One line about the workspace (Settings → Overview), at most
+   * MAX_WORKSPACE_DESCRIPTION characters. Shown in link previews to anyone who
+   * has a link, so nothing private belongs in it.
+   */
+  description?: string | null;
   /** What each T-shirt size means in working time. Absent means the defaults. See `@/domain/workspace/size-scale`. */
   sizeScale?: SizeScale | null;
   /**
@@ -100,6 +106,9 @@ export interface WorkspaceMember {
 }
 
 /** A full-time week, for anyone whose seat does not say otherwise. */
+/** A workspace description is one line for a link preview, not a page. */
+export const MAX_WORKSPACE_DESCRIPTION = 280;
+
 export const DEFAULT_WEEKLY_HOURS = 38;
 
 /** The hours a week someone has for the work in this workspace. */

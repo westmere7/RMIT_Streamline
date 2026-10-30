@@ -18,7 +18,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, suggestTicketPrefix } from "@/domain";
+import { MAX_WORKSPACE_DESCRIPTION, defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, suggestTicketPrefix } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -227,9 +227,16 @@ export class WorkspaceService {
     return this.repos.workspaces.update(workspaceId, { showPortalMenu: on });
   }
 
-  async updateWorkspace(workspaceId: EntityId, patch: Partial<Pick<Workspace, "name">>): Promise<Workspace> {
+  async updateWorkspace(workspaceId: EntityId, patch: Partial<Pick<Workspace, "name" | "description">>): Promise<Workspace> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Workspace name cannot be empty");
-    return this.repos.workspaces.update(workspaceId, patch.name !== undefined ? { name: patch.name.trim() } : patch);
+    const next: Partial<Pick<Workspace, "name" | "description">> = {};
+    if (patch.name !== undefined) next.name = patch.name.trim();
+    if (patch.description !== undefined) {
+      const line = patch.description?.trim().replace(/\s+/g, " ") ?? "";
+      if (line.length > MAX_WORKSPACE_DESCRIPTION) throw new Error(`Keep the description to ${MAX_WORKSPACE_DESCRIPTION} characters`);
+      next.description = line || null;
+    }
+    return this.repos.workspaces.update(workspaceId, next);
   }
 
   // ---- Members -------------------------------------------------------------

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.0",
+    date: "2026-10-30",
+    title: "Workspace descriptions in shared links",
+    changes: ["A workspace can have a short description (Settings → Overview). A shared link to the workspace shows its name and that description."],
+  },
+  {
     version: "0.100.1",
     date: "2026-10-29",
     title: "Change password in your profile",

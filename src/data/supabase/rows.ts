@@ -133,6 +133,7 @@ export interface WorkspaceRow {
   asset_rates: unknown;
   work_types?: unknown;
   size_scale?: unknown;
+  description?: string | null;
   creative_team_name: string | null;
   ticket_prefix: string | null;
   ticket_counter: number | null;
@@ -144,10 +145,10 @@ export interface WorkspaceRow {
   updated_at: string;
 }
 
-export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_bookings, creative_team_name, asset_rates, work_types, size_scale, ticket_prefix, ticket_counter, bug_board_id, bug_ticket_counter, join_key, show_portal_menu, created_at, updated_at";
+export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_key, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_bookings, creative_team_name, asset_rates, work_types, size_scale, description, ticket_prefix, ticket_counter, bug_board_id, bug_ticket_counter, join_key, show_portal_menu, created_at, updated_at";
 
 export function toWorkspace(row: WorkspaceRow): Workspace {
-  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, bookingFormName: row.booking_form_name ?? null, bookingFormPublishedAt: row.booking_form_published_at ?? null, bookingFormBookings: row.booking_form_bookings ?? 0, creativeTeamName: row.creative_team_name ?? null, assetRates: normaliseAssetRates(row.asset_rates), workTypes: normaliseWorkTypes(row.work_types), sizeScale: row.size_scale ? normaliseSizeScale(row.size_scale) : null, ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, bugBoardId: row.bug_board_id ?? null, bugTicketCounter: row.bug_ticket_counter ?? 0, joinKey: row.join_key ?? null, showPortalMenu: row.show_portal_menu ?? true, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, logoUrl: row.logo_url, bookingKey: row.booking_key ?? null, bookingForm: row.booking_form ?? null, bookingFormDraft: row.booking_form_draft ?? null, bookingFormName: row.booking_form_name ?? null, bookingFormPublishedAt: row.booking_form_published_at ?? null, bookingFormBookings: row.booking_form_bookings ?? 0, creativeTeamName: row.creative_team_name ?? null, description: row.description ?? null, assetRates: normaliseAssetRates(row.asset_rates), workTypes: normaliseWorkTypes(row.work_types), sizeScale: row.size_scale ? normaliseSizeScale(row.size_scale) : null, ticketPrefix: normaliseTicketPrefix(row.ticket_prefix), ticketCounter: row.ticket_counter ?? 0, bugBoardId: row.bug_board_id ?? null, bugTicketCounter: row.bug_ticket_counter ?? 0, joinKey: row.join_key ?? null, showPortalMenu: row.show_portal_menu ?? true, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export interface WorkspaceMemberRow {

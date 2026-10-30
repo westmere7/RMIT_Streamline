@@ -39,9 +39,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { Team } from "@/domain";
+import { MAX_WORKSPACE_DESCRIPTION } from "@/domain";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { AboutDialog } from "@/features/version/about-dialog";
@@ -314,9 +316,14 @@ function OverviewSection({ onGo }: { onGo: (section: Section) => void }) {
   const queryClient = useQueryClient();
   const manage = canManageWorkspace(ws.permissions);
   const [name, setName] = React.useState(ws.workspace.name);
+  const [description, setDescription] = React.useState(ws.workspace.description ?? "");
+  const dirty = name.trim() !== ws.workspace.name || description.trim() !== (ws.workspace.description ?? "");
   const save = useMutation({
-    mutationFn: () => services.workspace.updateWorkspace(ws.workspace.id, { name }),
-    onSuccess: async () => {
+    mutationFn: () => services.workspace.updateWorkspace(ws.workspace.id, { name, description }),
+    onSuccess: async (saved) => {
+      // As stored (trimmed, spaces folded), so the fields read clean again.
+      setName(saved.name);
+      setDescription(saved.description ?? "");
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspace(ws.slug) });
       toast.success("Changes saved");
@@ -364,15 +371,28 @@ function OverviewSection({ onGo }: { onGo: (section: Section) => void }) {
         >
           <div className="grid gap-1.5">
             <Label htmlFor="ws-name">Workspace name</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} className="max-w-sm" />
-              {manage && (
-                <Button type="submit" disabled={save.isPending || name.trim() === ws.workspace.name || !name.trim()}>
-                  Save
-                </Button>
-              )}
-            </div>
+            <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} className="max-w-sm" />
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ws-description">Description</Label>
+            <Textarea
+              id="ws-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value.replace(/\s*\n\s*/g, " "))}
+              maxLength={MAX_WORKSPACE_DESCRIPTION}
+              rows={2}
+              disabled={!manage}
+              placeholder="What this workspace is for"
+              className="max-w-xl resize-none"
+              data-testid="ws-description"
+            />
+            <p className="text-2xs text-muted-foreground">Shown when a link to the workspace is shared, to anyone with the link.</p>
+          </div>
+          {manage && (
+            <Button type="submit" disabled={save.isPending || !dirty || !name.trim()} data-testid="ws-identity-save">
+              Save
+            </Button>
+          )}
           <div className="grid gap-1.5">
             <Label>Address</Label>
             <p className="font-mono text-[13px] text-muted-foreground">/workspace/{ws.slug}</p>
