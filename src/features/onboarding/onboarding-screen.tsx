@@ -57,7 +57,7 @@ export function OnboardingScreen({ token }: { token: string }) {
     <AuthShell
       headline="You have been invited."
       lead="Set a password and tell the team who you are. It takes a minute, and you only do it once."
-      footnote="Boards, briefs and approvals in one place."
+      footnote="Boards, briefs and reporting in one place."
       cardTestId="onboarding-card"
       progress={preview.isLoading}
     >

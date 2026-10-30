@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, SquareKanban, Table2 } from "lucide-react";
+import { ClipboardList, LayoutDashboard, SquareKanban } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { CURRENT_VERSION } from "@/lib/version";
@@ -76,8 +76,8 @@ export function AuthShell({
           <h1 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">{headline}</h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
           <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
-            <Feature icon={SquareKanban}>Boards for campaigns, requests and publications</Feature>
-            <Feature icon={Table2}>Trackers that replace the spreadsheets</Feature>
+            <Feature icon={SquareKanban}>Boards and trackers that replace the spreadsheets</Feature>
+            <Feature icon={LayoutDashboard}>Dashboards that report workload and delivery</Feature>
             <Feature icon={ClipboardList}>Approvals, updates and mentions in one inbox</Feature>
           </ul>
         </div>

@@ -83,8 +83,8 @@ export function LoginScreen() {
 
   return (
     <AuthShell
-      headline="Boards, briefs and approvals in one place."
-      lead="Track campaign production, creative requests and publication work across the Melbourne and Vietnam teams."
+      headline="Boards, briefs and reporting in one place."
+      lead="Track campaigns, creative requests and publications for the Vietnam marketing team, and report on them."
       footnote={
         <span className="inline-flex items-center gap-2">
           <span className={cn("size-1.5 rounded-full", needsPassword ? "bg-green-400" : "bg-amber-300")} />

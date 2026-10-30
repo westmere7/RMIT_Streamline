@@ -44,7 +44,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             </div>
           </DialogTitle>
           <DialogDescription className="relative mt-4 max-w-md text-[13px] leading-relaxed text-white/70">
-            Work management for the RMIT creative and marketing team: campaign production, creative requests and publication work across the Melbourne and Vietnam teams.
+            Work management for the RMIT Vietnam marketing team: campaigns, creative requests, publications and the reporting on them.
           </DialogDescription>
         </div>
 

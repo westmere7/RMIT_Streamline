@@ -3,7 +3,7 @@ import { getSupabaseAdminClient, isOnboardingServerConfigured } from "@/lib/supa
 
 /** What a link preview says about the app when it says nothing about one workspace. */
 export const APP_LINK_TITLE = "Streamline";
-export const APP_LINK_DESCRIPTION = "Boards, briefs and approvals in one place.";
+export const APP_LINK_DESCRIPTION = "Boards, briefs and reporting in one place.";
 
 /**
  * The two things a link to a workspace may say about it, for the chat that
