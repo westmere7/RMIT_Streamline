@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.4",
+    date: "2026-10-30",
+    title: "About keeps its feature list",
+    changes: ["About goes back to its own feature list."],
+  },
+  {
     version: "0.101.2",
     date: "2026-10-30",
     title: "Sign-in page copy",
