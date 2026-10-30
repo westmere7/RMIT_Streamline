@@ -1,10 +1,10 @@
 "use client";
 
-import { Boxes, Bug, ChartColumnBig, ChevronRight, Globe, Link2, Sparkles, Zap } from "lucide-react";
+import { Bug, ChevronRight, Sparkles } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "@/features/auth/components/auth-shell";
+import { APP_POINTS, BrandLogo } from "@/features/auth/components/auth-shell";
 import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext } from "@/features/data/data-context";
 import { ChangelogDialog } from "@/features/version/changelog-dialog";
@@ -49,22 +49,16 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </div>
 
         <div className="space-y-5 px-6 pt-5 pb-6">
-          <ul className="grid gap-3.5 text-[13px]" data-testid="about-features">
-            <Feature icon={ChartColumnBig} title="Workspace dashboard">
-              Delivery, workload and effort from every board in one place, shareable by link.
-            </Feature>
-            <Feature icon={Link2} title="Tasks linked across boards">
-              One piece of work on two boards: fields, updates and deliverables stay in step.
-            </Feature>
-            <Feature icon={Zap} title="Automations">
-              Rules run in the database the moment something changes, browser open or not.
-            </Feature>
-            <Feature icon={Globe} title="Booking and a portal for departments">
-              A form that routes each request to the right board, and one link to follow it.
-            </Feature>
-            <Feature icon={Boxes} title="Deliverables, checklists and progress">
-              Assets line by line with owners and dates, summed up live on every board.
-            </Feature>
+          {/* The sign-in panel's three points, side by side. */}
+          <ul className="grid gap-2.5 text-[13px] sm:grid-cols-3" data-testid="about-features">
+            {APP_POINTS.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 p-3 sm:flex-col sm:items-start">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-soft-foreground">
+                  <Icon className="size-3.5" />
+                </span>
+                <span className="leading-snug font-medium text-foreground">{text}</span>
+              </li>
+            ))}
           </ul>
 
           <button
@@ -107,20 +101,6 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
       </DialogContent>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
     </Dialog>
-  );
-}
-
-function Feature({ icon: Icon, title, children }: { icon: React.ComponentType<{ className?: string }>; title: string; children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5">
-      <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-soft-foreground">
-        <Icon className="size-3.5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block font-medium text-foreground">{title}</span>
-        <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">{children}</span>
-      </span>
-    </li>
   );
 }
 
