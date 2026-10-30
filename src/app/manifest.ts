@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Streamline",
     short_name: "Streamline",
-    description: "Boards, briefs and reporting in one place.",
+    description: "From brief to report, in one place.",
     start_url: "/",
     scope: "/",
     display: "standalone",

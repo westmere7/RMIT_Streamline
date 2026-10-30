@@ -76,8 +76,8 @@ export function AuthShell({
           <h1 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">{headline}</h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
           <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
-            <Feature icon={SquareKanban}>Boards and trackers that replace the spreadsheets</Feature>
-            <Feature icon={LayoutDashboard}>Dashboards that report workload and delivery</Feature>
+            <Feature icon={SquareKanban}>Boards and trackers instead of spreadsheets</Feature>
+            <Feature icon={LayoutDashboard}>Dashboards on workload and delivery</Feature>
             <Feature icon={ClipboardList}>Approvals, updates and mentions in one inbox</Feature>
           </ul>
         </div>
