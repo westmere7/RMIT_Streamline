@@ -76,11 +76,9 @@ export function AuthShell({
           <h1 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">{headline}</h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
           <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
-            {APP_POINTS.map(({ icon, text }) => (
-              <Feature key={text} icon={icon}>
-                {text}
-              </Feature>
-            ))}
+            <Feature icon={SquareKanban}>Boards and trackers instead of spreadsheets</Feature>
+            <Feature icon={LayoutDashboard}>Dashboards on workload and delivery</Feature>
+            <Feature icon={ClipboardList}>Approvals, updates and mentions in one inbox</Feature>
           </ul>
         </div>
 
@@ -160,13 +158,6 @@ export function BrandLogo({ className, tone = "auto" }: { className?: string; to
     </>
   );
 }
-
-/** What the app is for, in three points: the sign-in panel and About both list them. */
-export const APP_POINTS: Array<{ icon: React.ComponentType<{ className?: string }>; text: string }> = [
-  { icon: SquareKanban, text: "Boards and trackers instead of spreadsheets" },
-  { icon: LayoutDashboard, text: "Dashboards on workload and delivery" },
-  { icon: ClipboardList, text: "Approvals, updates and mentions in one inbox" },
-];
 
 function Feature({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (

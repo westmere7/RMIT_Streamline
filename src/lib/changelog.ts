@@ -18,12 +18,6 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.101.3",
-    date: "2026-10-30",
-    title: "About lists the same three points",
-    changes: ["About shows the sign-in page's three points side by side, in place of the longer feature list."],
-  },
-  {
     version: "0.101.2",
     date: "2026-10-30",
     title: "Sign-in page copy",
