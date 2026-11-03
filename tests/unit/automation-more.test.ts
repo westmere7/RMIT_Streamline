@@ -37,6 +37,20 @@ describe("more triggers and actions", () => {
   /** Melbourne, 9am, a Monday in September: the hour every scheduled test uses. */
   const NINE_AM = new Date("2026-09-20T23:00:00Z");
 
+  /**
+   * The first 9am in Melbourne at least `days` from the real now. The seed
+   * stamps its values with the real clock, so a test about how long a value
+   * has sat still has to run its mornings from the same clock, not a date that
+   * today will one day pass.
+   */
+  function nineAmAfter(days: number): Date {
+    const hourIn = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", hourCycle: "h23" });
+    const at = new Date(Date.now() + days * 86_400_000);
+    at.setUTCMinutes(0, 0, 0);
+    while (Number(hourIn.format(at)) !== 9) at.setTime(at.getTime() + 3_600_000);
+    return at;
+  }
+
   function engine(at = NINE_AM): AutomationEngine {
     return new AutomationEngine(repos, services.items, services.comments, services.notifications, { timezone: "Australia/Melbourne", now: () => at });
   }
@@ -161,16 +175,16 @@ describe("more triggers and actions", () => {
     const status = await column("Status");
     await addRule({ kind: "column_unchanged_for", columnId: status.id, days: 7, atHour: 9 }, [{ kind: "add_comment", body: "Still" }]);
     // The seed wrote every value moments ago; a runner a month on finds them all stale.
-    const later = new Date("2026-10-20T22:00:00Z"); // 9am Melbourne, after the clocks change.
+    const later = nineAmAfter(30);
     const first = await engine(later).drain(100);
     expect(first.scheduled).toBeGreaterThan(0);
     // The next morning nothing has moved, so nothing is flagged again.
-    expect((await engine(new Date("2026-10-21T22:00:00Z")).drain(100)).scheduled).toBe(0);
+    expect((await engine(nineAmAfter(31)).drain(100)).scheduled).toBe(0);
     // Touch one and it starts a new stretch; a month later that one alone is flagged.
     const item = await anItem();
     await setValue(item, status, { type: "STATUS", labelId: labelIdFor(status, "Stuck") });
     for (const event of await repos.automations.claimEvents(100)) await repos.automations.finishEvent(event.id, {});
-    expect((await engine(new Date("2026-11-20T22:00:00Z")).drain(100)).scheduled).toBe(1);
+    expect((await engine(nineAmAfter(60)).drain(100)).scheduled).toBe(1);
   });
 
   it("wakes only at its hour", async () => {
