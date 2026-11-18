@@ -70,7 +70,21 @@ function firstOfType(columns: readonly BoardColumn[], type: BoardColumn["type"])
 }
 
 export function toPortalPerson(user: User): PortalPerson {
-  return { id: user.id, displayName: user.displayName, initials: userInitials(user), color: avatarColorFor(user.id) };
+  return { id: user.id, displayName: user.displayName, initials: userInitials(user), color: avatarColorFor(user.id), avatarUrl: user.avatarUrl ?? null };
+}
+
+/**
+ * The brief as the board has it now: the task's Brief column, which the team
+ * keeps up to date. The copy a portal booking saved is only what was asked on
+ * the day, and a task booked any other way has none, so a brief the board
+ * showed in full read "Empty" on the portal.
+ */
+export function projectBrief(item: Item, ctx: ProjectionContext): string | null {
+  const board = ctx.boards.get(item.boardId);
+  const column = board ? firstOfType(board.columns, "BRIEF") : null;
+  const value = column ? board?.values.get(item.id)?.get(column.id) : undefined;
+  const text = value?.type === "RICH_TEXT" ? value.text.trim() : "";
+  return text || null;
 }
 
 /** The status a row is in, as a name, a colour and a meaning. */

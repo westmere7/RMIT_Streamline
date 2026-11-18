@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.15",
+    date: "2026-11-18",
+    title: "The portal shows what the task holds",
+    changes: [
+      "Every column switched on in the portal's settings shows, even before anything is in it.",
+      "The brief is the one on the board, including for tasks not booked through the portal.",
+      "People show with their photos.",
+    ],
+  },
+  {
     version: "0.101.14",
     date: "2026-11-18",
     title: "Wider service cards in the editor",

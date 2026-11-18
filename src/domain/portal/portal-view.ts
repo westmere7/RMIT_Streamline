@@ -16,9 +16,9 @@ import type { PortalStakeholderOption, PortalTheme, PortalView } from "@/domain/
  *    board had no column for — the requester's name, their email address, the
  *    department they typed — under a "Request details" heading. The brief the
  *    requester actually wrote is captured separately at booking time.
- *  · People. A request names the person in charge by display name and avatar
- *    colour; the workspace's directory, emails and profiles are nobody's
- *    business at the end of a link.
+ *  · People. A request names the person in charge by display name and face
+ *    (their photo, or initials on their colour); the workspace's directory,
+ *    emails and profiles are nobody's business at the end of a link.
  *  · Anything from another department, and anything internal: comments,
  *    activity, hidden columns, asset notes, allocation chatter, board internals.
  */
@@ -29,6 +29,8 @@ export interface PortalPerson {
   displayName: string;
   initials: string;
   color: ColorToken;
+  /** Their photo, already a public link in the avatars bucket. Null shows the initials. */
+  avatarUrl?: string | null;
 }
 
 /**

@@ -187,9 +187,9 @@ test.describe("the stakeholder portal", () => {
     await page.getByTestId("portal-stakeholder-all").click();
     await expect(page.getByRole("button", { name: "Comm only request", exact: true })).toBeVisible();
     await expect(page.getByTestId("portal-stakeholder-name")).toHaveText("All departments");
-    // Only Comm. has work in the window, and a Department column would say
-    // the same word on every row, so there is none until a second one does.
-    await expect(page.getByRole("columnheader", { name: "Department" })).toHaveCount(0);
+    // Every department's work, so the Department column the settings switch on
+    // is there, even while only Comm. has work in the window.
+    await expect(page.getByRole("columnheader", { name: "Department" })).toHaveCount(1);
   });
 
   test("opens on the last three months, and offers the windows either side of it", async ({ page }) => {

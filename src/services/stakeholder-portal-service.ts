@@ -64,6 +64,7 @@ import { projectPortalExtras } from "./portal/portal-extra-columns";
 import {
   matchesPortalSearch,
   toPortalPerson,
+  projectBrief,
   projectDeliverable,
   projectStatus,
   projectSubitem,
@@ -434,7 +435,7 @@ export class StakeholderPortalService {
       if (!item) continue;
       tasks.push({
         task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null),
-        brief: entry.publicBrief,
+        brief: projectBrief(item, ctx.projection) ?? entry.publicBrief,
         deliverables: (ctx.projection.assetsByItem.get(entry.itemId) ?? []).map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
         subitems: (ctx.projection.subitemsByParent.get(entry.itemId) ?? []).map((subitem) => projectSubitem(subitem, ctx.projection)),
       });
@@ -712,12 +713,12 @@ export class StakeholderPortalService {
     const projected = all
       .map((entry) => {
         const item = ctx.itemsById.get(entry.itemId);
-        return item ? { entry, task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null) } : null;
+        return item ? { entry, task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null), brief: projectBrief(item, ctx.projection) ?? entry.publicBrief } : null;
       })
-      .filter((row): row is { entry: PortalScopeEntry; task: PortalTask } => !!row);
+      .filter((row): row is { entry: PortalScopeEntry; task: PortalTask; brief: string | null } => !!row);
 
     const search = options.search?.trim() ?? "";
-    const matching = search ? projected.filter((row) => matchesPortalSearch(row.task, row.entry.publicBrief, search)) : projected;
+    const matching = search ? projected.filter((row) => matchesPortalSearch(row.task, row.brief, search)) : projected;
     const totals = summarise(
       matching.map((row) => row.task),
       ctx.projection.today,
@@ -778,7 +779,11 @@ export class StakeholderPortalService {
 
     return {
       ...base,
-      brief: entry.publicBrief,
+      // Plain words, as this field has always been: the board's Brief column flattened, else the booking's copy.
+      brief: (() => {
+        const fromBoard = projectBrief(item, ctx.projection);
+        return fromBoard ? richTextToPlain(fromBoard).trim() || null : entry.publicBrief;
+      })(),
       fullDeliverables: assets.map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
       fullSubitems: subitems.map((sub) => projectSubitem(sub, ctx.projection)),
       linked,

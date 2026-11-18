@@ -140,9 +140,18 @@ describe("a department's requests as a board", () => {
     expect(groupOf("d")).toBe(byName.get("Requests"));
   });
 
-  it("leaves out the columns nothing would fill", () => {
+  it("draws every column the team switched on, even with nothing to fill it", () => {
+    // One request with no timeline, deliverables or brief, in one department:
+    // the settings say all of these are shown, so the portal shows them.
     const bare = build([entry(task({ id: "a" }))]);
-    expect(bare.columns.map((c) => c.name)).toEqual(["Requested", "Status", "Priority", "PIC", "Due date"]);
+    expect(bare.columns.map((c) => c.name)).toEqual(["Requested", "Department", "Status", "Priority", "PIC", "Due date", "Timeline", "Assets recap", "Asset type", "Brief"]);
+    // Narrowed to one department, its own column would say the same word on every row.
+    const one = buildPortalBoard({ portalId: DEPARTMENT.id, workspaceId: DEPARTMENT.workspaceId, tasks: [entry(task({ id: "a" }))], links: [], comments: [], commentAuthors: [], workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z", showStakeholder: false });
+    expect(one.columns.map((c) => c.name)).not.toContain("Department");
+    // Switched off is still off.
+    const off = buildPortalBoard({ portalId: DEPARTMENT.id, workspaceId: DEPARTMENT.workspaceId, tasks: [entry(task({ id: "a" }))], links: [], comments: [], commentAuthors: [], workspaceName: "RMIT Marketing Team", now: "2026-09-09T00:00:00.000Z", hiddenColumns: ["timeline", "brief"] });
+    expect(off.columns.map((c) => c.name)).not.toContain("Timeline");
+    expect(off.columns.map((c) => c.name)).not.toContain("Brief");
 
     const rich = build([
       entry(task({ id: "a", timeline: { start: "2026-09-01", end: "2026-09-30" }, deliverables: { total: 2, done: 1 } }), {

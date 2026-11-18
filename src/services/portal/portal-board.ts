@@ -182,9 +182,9 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     if (task.stakeholder && !stakeholders.has(task.stakeholder.name)) stakeholders.set(task.stakeholder.name, { name: task.stakeholder.name, color: task.stakeholder.color });
   }
   const stakeholderNames = [...stakeholders.values()].sort((a, b) => a.name.localeCompare(b.name));
-  // One stakeholder on screen says the same word on every row; none at all
-  // means there is nothing to say.
-  const showStakeholder = (input.showStakeholder ?? true) && stakeholderNames.length > 1;
+  // Left out when the visitor has narrowed the portal to one department, where
+  // it would say the same word on every row. Otherwise the team's switch decides.
+  const showStakeholder = input.showStakeholder ?? true;
 
   // ---- the labels the boards between them use ---------------------------------
   const statuses = new Map<string, PortalStatus>();
@@ -197,8 +197,6 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   const statusIdByName = new Map(statusLabels.map((label) => [label.name, label.id]));
 
   // ---- columns ----------------------------------------------------------------
-  const hasTimeline = tasks.some(({ task }) => task.timeline?.start || task.timeline?.end);
-  const hasDeliverables = tasks.some(({ task }) => task.deliverables.total > 0);
   // Both sources: what each request asked for, and what its deliverables were
   // typed as. Deliverables alone missed every request that named more than one
   // kind, because a line can only carry one and the writer leaves it unset
@@ -213,6 +211,11 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   };
   // A value with no column is dead weight in the payload, and the item panel
   // reads its fields from the columns, so the two have to agree.
+  //
+  // A column the team switched on is drawn whether or not the requests on
+  // screen have anything in it. Leaving the empty ones out made the portal
+  // disagree with its own settings: with one request and no timeline, brief or
+  // deliverables, five columns the team had picked simply were not there.
   const shown = (key: string) => !hidden.has(key);
 
   // When the request arrived, first, and as text rather than a date. A DATE cell
@@ -248,15 +251,12 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
   column("priority", "Priority", "PRIORITY", { kind: "priority", labels: DEFAULT_PRIORITY_LABELS.map((label) => ({ ...label })) }, 120);
   column("people", PORTAL_COLUMN_LABELS.people, "PERSON", { kind: "person", allowMultiple: true }, 150);
   column("due", PORTAL_COLUMN_LABELS.due, "DATE", { kind: "none" }, 130);
-  if (hasTimeline) column("timeline", "Timeline", "TIMELINE", { kind: "none" }, 190);
-  if (hasDeliverables) column("assets", PORTAL_COLUMN_LABELS.assets, "ASSETS_RECAP", { kind: "none" }, 150);
-  if (assetTypes.length > 0) {
-    column("asset-types", PORTAL_COLUMN_LABELS["asset-types"], "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
-  }
+  column("timeline", "Timeline", "TIMELINE", { kind: "none" }, 190);
+  column("assets", PORTAL_COLUMN_LABELS.assets, "ASSETS_RECAP", { kind: "none" }, 150);
+  column("asset-types", PORTAL_COLUMN_LABELS["asset-types"], "TAGS", { kind: "tags", options: assetTypes.map((name) => ({ name, color: assetTypeColor(name) })) }, 170);
   // The brief as a Brief row, the way the app shows it, rather than a block of
   // plain text in the description.
-  const hasBrief = tasks.some(({ brief }) => !!brief?.trim());
-  if (hasBrief) column("brief", PORTAL_COLUMN_LABELS.brief, "BRIEF", { kind: "none" }, 110);
+  column("brief", PORTAL_COLUMN_LABELS.brief, "BRIEF", { kind: "none" }, 110);
   // The boards' own columns the team switched on, merged one per key.
   for (const extra of extras?.columns ?? []) column(extra.key, extra.name, extra.type, extra.settings, extra.width);
   // In the team's order; status stays where it is put but is never hidden.
@@ -315,13 +315,13 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     if (shown("due")) value(task.id, "due", { type: "DATE", date: task.dueDate }, task.updatedAt);
     if (shown("requested")) value(task.id, "requested", { type: "TEXT", text: task.bookedAt ? formatShortDate(task.bookedAt.slice(0, 10)) : "" }, task.updatedAt);
     if (showStakeholder) value(task.id, "stakeholder", { type: "TAGS", tags: task.stakeholder ? [task.stakeholder.name] : [] }, task.updatedAt);
-    if (assetTypes.length > 0 && shown("asset-types")) {
+    if (shown("asset-types")) {
       const kinds = [...new Set([...task.assetTypes, ...deliverables.map((d) => d.assetType)].filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
       value(task.id, "asset-types", { type: "TAGS", tags: kinds }, task.updatedAt);
     }
-    if (hasBrief && shown("brief") && brief?.trim()) value(task.id, "brief", { type: "RICH_TEXT", text: portalBriefMarkdown(brief) }, task.updatedAt);
-    if (hasTimeline && shown("timeline")) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
-    if (hasDeliverables && shown("assets")) {
+    if (shown("brief") && brief?.trim()) value(task.id, "brief", { type: "RICH_TEXT", text: portalBriefMarkdown(brief) }, task.updatedAt);
+    if (shown("timeline")) value(task.id, "timeline", { type: "TIMELINE", start: task.timeline?.start ?? null, end: task.timeline?.end ?? null }, task.updatedAt);
+    if (shown("assets")) {
       const outstanding = deliverables.filter((d) => !d.done);
       const dues = outstanding.map((d) => d.dueDate).filter((d): d is string => !!d).sort();
       value(
@@ -441,13 +441,13 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
 /**
  * A person as an avatar and a name.
  *
- * The board components take a `User`, so one is assembled from the two things
- * the portal publishes about somebody. Their avatar colour is derived from
- * their id (`avatarColorFor`) exactly as it is everywhere else, so nothing has
- * to be carried across for the faces to match. The rest is blank on purpose:
- * no email, no job title, no department.
+ * The board components take a `User`, so one is assembled from what the portal
+ * publishes about somebody: a name and their photo. Without a photo the avatar
+ * colour is derived from their id (`avatarColorFor`) exactly as it is
+ * everywhere else. The rest is blank on purpose: no email, no job title, no
+ * department.
  */
-function rememberPerson(into: Map<EntityId, User>, person: { id: EntityId; displayName: string }): void {
+function rememberPerson(into: Map<EntityId, User>, person: { id: EntityId; displayName: string; avatarUrl?: string | null }): void {
   if (into.has(person.id)) return;
   const [firstName, ...rest] = person.displayName.split(" ");
   into.set(person.id, {
@@ -456,7 +456,7 @@ function rememberPerson(into: Map<EntityId, User>, person: { id: EntityId; displ
     firstName: firstName ?? person.displayName,
     lastName: rest.join(" "),
     displayName: person.displayName,
-    avatarUrl: null,
+    avatarUrl: person.avatarUrl ?? null,
     jobTitle: null,
     department: null,
     timezone: "",
