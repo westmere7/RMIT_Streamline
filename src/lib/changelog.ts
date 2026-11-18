@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.12",
+    date: "2026-11-18",
+    title: "Delete teams in Settings",
+    changes: [
+      "Settings → Teams has a Delete button for workspace owners and admins, with the same choice to delete the team's boards, trackers and docs too.",
+      "The delete dialog's count now includes archived boards, which go with the team when its boards are deleted.",
+    ],
+  },
+  {
     version: "0.103.11",
     date: "2026-11-18",
     title: "Deleting a team",

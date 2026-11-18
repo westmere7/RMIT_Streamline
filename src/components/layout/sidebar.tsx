@@ -539,7 +539,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       />
       <DeleteTeamDialog
         team={deletingTeam}
-        boardCount={deletingTeam ? ws.boardsForTeam(deletingTeam.id).length : 0}
+        boardCount={deletingTeam ? ws.boards.filter((b) => b.teamId === deletingTeam.id && !b.system).length : 0}
         trackerCount={deletingTeam ? (trackers.data ?? []).filter((t) => t.teamId === deletingTeam.id).length : 0}
         busy={deleteTeam.isPending}
         onOpenChange={(open) => !open && setDeletingTeam(null)}

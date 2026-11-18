@@ -25,6 +25,7 @@ import {
   Shirt,
   Sun,
   SunDim,
+  Trash2,
   TriangleAlert,
   UserCog,
   Users,
@@ -46,6 +47,8 @@ import type { Team } from "@/domain";
 import { MAX_WORKSPACE_DESCRIPTION } from "@/domain";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
+import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog";
+import { useTrackers } from "@/features/trackers/hooks";
 import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
 import { WorkTypesSection } from "@/features/workspace/work-types-section";
@@ -59,11 +62,11 @@ import { useAppUpdatedNoticeSetting } from "@/features/version/app-updated-card"
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
-import { canCreateTeam, canManageTeam, canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
+import { canCreateTeam, canDeleteTeam, canManageTeam, canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useThemePreference, type ThemePreference } from "@/lib/theme";
-import { cn } from "@/lib/utils";
+import { cn, pluralize } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
 const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "sizes", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
@@ -462,6 +465,8 @@ function TeamsSection() {
   const services = useServices();
   const queryClient = useQueryClient();
   const [editing, setEditing] = React.useState<Team | null | undefined>(undefined);
+  const [deleting, setDeleting] = React.useState<Team | null>(null);
+  const trackers = useTrackers();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
   const archive = useMutation({
     mutationFn: ({ team, archived }: { team: Team; archived: boolean }) => services.workspace.archiveTeam(team.id, archived),
@@ -471,6 +476,21 @@ function TeamsSection() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change the team"),
   });
+  // The same delete as the team's menu in the sidebar, boards and all if asked.
+  const remove = useMutation({
+    mutationFn: ({ team, withBoards }: { team: Team; withBoards: boolean }) => services.workspace.deleteTeam(team.id, { deleteBoards: withBoards }),
+    onSuccess: async (result, { team }) => {
+      await ws.refresh();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trackers(ws.workspace.id) });
+      setDeleting(null);
+      toast.success(`${team.name} deleted`, {
+        description: result.deletedBoards > 0 ? `${pluralize(result.deletedBoards, "board")} went with it.` : "Its boards are still here, without a team.",
+      });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not delete team"),
+  });
+  // Archived boards count: deleting the team with its boards takes them too.
+  const ownBoards = (team: Team) => ws.boards.filter((b) => b.teamId === team.id && !b.system);
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -518,11 +538,24 @@ function TeamsSection() {
                   {team.archivedAt ? <ArchiveRestore /> : <Archive />}
                 </Button>
               )}
+              {canDeleteTeam(ws.permissions) && !team.system && (
+                <Button variant="ghost" size="icon-sm" className="text-destructive hover:text-destructive" aria-label={`Delete ${team.name}`} onClick={() => setDeleting(team)} data-testid="settings-team-delete">
+                  <Trash2 />
+                </Button>
+              )}
             </li>
           );
         })}
       </ul>
       <CreateTeamDialog open={editing !== undefined} onOpenChange={(open) => !open && setEditing(undefined)} team={editing ?? null} />
+      <DeleteTeamDialog
+        team={deleting}
+        boardCount={deleting ? ownBoards(deleting).length : 0}
+        trackerCount={deleting ? (trackers.data ?? []).filter((t) => t.teamId === deleting.id).length : 0}
+        busy={remove.isPending}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        onConfirm={(withBoards) => deleting && remove.mutate({ team: deleting, withBoards })}
+      />
     </>
   );
 }
@@ -538,6 +571,7 @@ function PermissionsSection() {
   const rows: Array<[string, string, string, string, string]> = [
     ["View workspace boards", "✓", "✓", "✓", "Shared only"],
     ["Create boards and teams", "✓", "✓", "✓", "—"],
+    ["Delete teams", "✓", "✓", "—", "—"],
     ["Manage members and roles", "✓", "✓", "—", "—"],
     ["Edit any board", "✓", "✓", "If editor", "If editor"],
     ["Delete boards", "✓", "✓", "Own boards", "—"],
