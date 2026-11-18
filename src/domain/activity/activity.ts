@@ -29,6 +29,19 @@ export const ACTIVITY_EVENT_TYPES = [
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
 /**
+ * Where an ITEM_MOVED went, and where from, whichever kind of move it was.
+ *
+ * A move between groups names the groups (toGroupName, fromGroupName). A move
+ * to another board, which is how a booked task leaves Task Allocation for a
+ * team's board, names the boards in `to` and `from` instead. Reading only the
+ * group names left that one as "moved the task to" and nothing after it.
+ */
+export function moveEnds(m: ActivityMetadata): { to: string | null; from: string | null } {
+  if (m.toGroupName) return { to: m.toGroupName, from: m.fromGroupName ?? null };
+  return { to: m.to ?? m.boardName ?? null, from: m.from ?? null };
+}
+
+/**
  * Metadata is stored as JSON. Keys are human-facing so the feed can be rendered
  * without joining other tables (e.g. after an item is deleted).
  */

@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { Activity, User } from "@/domain";
+import { moveEnds, type Activity, type User } from "@/domain";
 import { Mention, type MentionLinks } from "@/features/workspace/mention-link";
 import { formatShortDate } from "@/lib/dates/dates";
 import { clipActivityValue } from "@/services/column-display";
@@ -82,13 +82,20 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
           {m.linkedBoardName ? <span className="text-muted-foreground"> on {m.linkedBoardName}</span> : null}
         </>
       );
-    case "ITEM_MOVED":
+    case "ITEM_MOVED": {
+      const ends = moveEnds(m);
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> moved {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "the item"} to <Mention>{m.toGroupName}</Mention>
-          {m.fromGroupName ? <span className="text-muted-foreground"> from {m.fromGroupName}</span> : null}
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> moved {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "the item"}
+          {ends.to ? (
+            <>
+              {" "}to <Mention>{ends.to}</Mention>
+            </>
+          ) : null}
+          {ends.from ? <span className="text-muted-foreground"> from {ends.from}</span> : null}
         </>
       );
+    }
     case "ITEM_ARCHIVED":
       return (
         <>
@@ -280,8 +287,10 @@ export function describeActivityText(activity: Activity, users: readonly User[])
       }
       if (isDocumentColumn(m.columnType)) return `${actor} ${m.from ? "edited" : "wrote"} ${m.columnName}`;
       return `${actor} changed ${m.columnName}${m.from ? ` from ${formatValue(m.columnType, m.from)}` : ""} to ${formatValue(m.columnType, m.to)}`;
-    case "ITEM_MOVED":
-      return `${actor} moved the item to ${m.toGroupName}`;
+    case "ITEM_MOVED": {
+      const to = moveEnds(m).to;
+      return to ? `${actor} moved the item to ${to}` : `${actor} moved the item`;
+    }
     case "ITEM_CREATED":
       return `${actor} created ${m.itemName}`;
     case "ITEM_LINKED":

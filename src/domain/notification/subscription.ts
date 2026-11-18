@@ -1,4 +1,4 @@
-import type { Activity } from "@/domain/activity/activity";
+import { moveEnds, type Activity } from "@/domain/activity/activity";
 import type { EntityId } from "@/domain/common/types";
 
 /**
@@ -103,8 +103,10 @@ export function subscriptionMessage(activity: Pick<Activity, "eventType" | "meta
       return { title: `${actorName} reopened "${m.assetName ?? "an asset"}" on ${task}`, body: null };
     case "ITEM_CREATED":
       return { title: `${actorName} added ${task}${m.boardName ? ` to ${m.boardName}` : ""}`, body: m.groupName ?? null };
-    case "ITEM_MOVED":
-      return { title: `${actorName} moved ${task}${m.toGroupName ? ` to ${m.toGroupName}` : ""}`, body: m.fromGroupName ? `From ${m.fromGroupName}` : null };
+    case "ITEM_MOVED": {
+      const ends = moveEnds(m);
+      return { title: `${actorName} moved ${task}${ends.to ? ` to ${ends.to}` : ""}`, body: ends.from ? `From ${ends.from}` : null };
+    }
     case "ITEM_ARCHIVED":
       return { title: `${actorName} archived ${task}`, body: null };
     case "ITEM_RESTORED":

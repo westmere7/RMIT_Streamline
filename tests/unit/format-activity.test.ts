@@ -1,6 +1,9 @@
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Activity, User } from "@/domain";
-import { describeActivityText } from "@/features/activity/format-activity";
+import { moveEnds } from "@/domain";
+import { describeActivity, describeActivityText } from "@/features/activity/format-activity";
 
 const users: User[] = [
   { id: "danh", email: "danh@rmit.local", firstName: "Danh", lastName: "Nguyen", displayName: "Danh Nguyen", avatarUrl: null, jobTitle: null, department: null, timezone: "UTC", deactivatedAt: null, createdAt: "", updatedAt: "" },
@@ -31,5 +34,18 @@ describe("describeActivityText", () => {
   it("describes moves and unknown actors", () => {
     expect(describeActivityText(activity({ eventType: "ITEM_MOVED", metadata: { toGroupName: "Completed" } }), users)).toBe("Danh moved the item to Completed");
     expect(describeActivityText(activity({ actorId: "ghost", eventType: "ITEM_MOVED", metadata: { toGroupName: "Done" } }), users)).toBe("Someone moved the item to Done");
+  });
+
+  // Allocating a booked task moves it to another board, and that move names the
+  // boards (`from`, `to`) rather than groups: it read "moved the item to" with
+  // nothing after it.
+  it("names the board a task was moved to, and where from", () => {
+    const allocated = activity({ eventType: "ITEM_MOVED", metadata: { itemName: "FB post", boardName: "Design", from: "Task Allocation", to: "Design" } });
+    expect(moveEnds(allocated.metadata)).toEqual({ to: "Design", from: "Task Allocation" });
+    expect(describeActivityText(allocated, users)).toBe("Danh moved the item to Design");
+    const html = renderToStaticMarkup(React.createElement(React.Fragment, null, describeActivity(allocated, users, true)));
+    expect(html.replace(/<[^>]+>/g, "")).toBe("Danh moved FB post to Design from Task Allocation");
+    // With nowhere recorded at all, it stops at the task rather than at "to".
+    expect(describeActivityText(activity({ eventType: "ITEM_MOVED", metadata: {} }), users)).toBe("Danh moved the item");
   });
 });

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.105.3",
+    date: "2026-11-18",
+    title: "Moves in activity",
+    changes: [
+      "A task moved to another board, such as allocated from Task Allocation, now says where it went in activity and notifications instead of stopping at \"to\".",
+    ],
+  },
+  {
     version: "0.105.2",
     date: "2026-11-18",
     title: "Assets",
