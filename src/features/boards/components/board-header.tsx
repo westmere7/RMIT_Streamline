@@ -228,12 +228,16 @@ export function BoardHeader({ board }: { board: Board }) {
   );
 }
 
-/** What the person looking at the board may do on it, always on show beside its name. */
+/**
+ * What the person looking at the board may do on it, beside its name: an icon,
+ * with the words in its tooltip. Quiet except for View only, which is the one
+ * worth noticing before trying to change something.
+ */
 const ACCESS = {
-  owner: { label: "Owner", tip: "You own this board.", icon: Crown, variant: "primary" },
-  manage: { label: "Can manage", tip: "You can edit and manage this board.", icon: ShieldCheck, variant: "primary" },
-  edit: { label: "Can edit", tip: "You can edit items. Settings are the owner's.", icon: Pencil, variant: "outline" },
-  view: { label: "View only", tip: "You can read this board but not change it.", icon: Eye, variant: "warning" },
+  owner: { label: "Owner", tip: "You own this board.", icon: Crown, tone: "text-muted-foreground" },
+  manage: { label: "Can manage", tip: "You can edit and manage this board.", icon: ShieldCheck, tone: "text-muted-foreground" },
+  edit: { label: "Can edit", tip: "You can edit items. Settings are the owner's.", icon: Pencil, tone: "text-muted-foreground" },
+  view: { label: "View only", tip: "You can read this board but not change it.", icon: Eye, tone: "text-amber-600 dark:text-amber-400" },
 } as const;
 
 function BoardAccessBadge({ permissions, board }: { permissions: PermissionContext; board: Board }) {
@@ -242,10 +246,10 @@ function BoardAccessBadge({ permissions, board }: { permissions: PermissionConte
   const access = ACCESS[role === "OWNER" ? "owner" : canManageBoard(permissions, board) ? "manage" : role === "EDITOR" ? "edit" : "view"];
   const Icon = access.icon;
   return (
-    <SimpleTooltip label={access.tip}>
-      <Badge variant={access.variant} className="shrink-0 cursor-default" data-testid="board-access-badge">
-        <Icon /> {access.label}
-      </Badge>
+    <SimpleTooltip label={`${access.label}: ${access.tip}`}>
+      <span role="img" aria-label={access.label} tabIndex={0} className={cn("inline-flex size-6 shrink-0 cursor-default items-center justify-center rounded-md outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring", access.tone)} data-testid="board-access-badge">
+        <Icon className="size-4" />
+      </span>
     </SimpleTooltip>
   );
 }

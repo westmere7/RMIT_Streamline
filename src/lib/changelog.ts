@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.16",
+    date: "2026-11-18",
+    title: "Quieter board access",
+    changes: ["A board's header shows your access as an icon beside its name; hover it for what it means."],
+  },
+  {
     version: "0.101.15",
     date: "2026-11-18",
     title: "The portal shows what the task holds",
