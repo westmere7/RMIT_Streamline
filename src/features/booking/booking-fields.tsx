@@ -661,7 +661,7 @@ export function Chip({ active, onClick, color, testId, disabled, children }: { a
         active ? "border-foreground/80 bg-foreground text-background" : "border-border bg-card text-foreground enabled:hover:border-foreground/40 enabled:hover:bg-accent",
       )}
     >
-      {color && <ColorDot color={color} className={cn(active && "ring-1 ring-background/60")} />}
+      {color && <ColorDot color={color} />}
       {children}
     </button>
   );
