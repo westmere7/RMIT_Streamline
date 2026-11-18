@@ -97,7 +97,7 @@ export function DashboardBody(props: DashboardViewProps) {
   if (prefs.basis === "due" && report.current.undatedTasks > 0) coverageLines.push(`${report.current.undatedTasks} tasks have no due date and are not counted here`);
   if (gaps.withoutDepartment > 0) coverageLines.push(`${gaps.withoutDepartment} of ${gaps.tasks} have no department`);
   if (gaps.withoutStatus > 0) coverageLines.push(`${gaps.withoutStatus} have no status`);
-  if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Asset types");
+  if (!ratesOn) coverageLines.push("no output rates recorded, so there is no effort figure — Settings → Asset & Work types");
   const opsDetails = operationsDetails(ops);
   const operationsItems = [
     { key: "overdue", label: "open and overdue", count: ops.overdue.length, tone: "urgent" as const, hint: "Open, non-done work with a due date before today.", details: opsDetails.overdue },

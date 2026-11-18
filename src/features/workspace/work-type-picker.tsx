@@ -1,10 +1,13 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { WorkType } from "@/domain";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,11 +18,12 @@ import { cn } from "@/lib/utils";
 export function WorkTypePicker({ workTypes, value, onChange, disabled, typeName }: { workTypes: WorkType[]; value: string[]; onChange?: (ids: string[]) => void; disabled?: boolean; typeName: string }) {
   const chosen = workTypes.filter((w) => value.includes(w.id));
   const toggle = (id: string) => onChange?.(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  const slug = useWorkspace().slug;
   if (workTypes.length === 0) {
     return (
-      <a href="#work-types" className="text-2xs text-muted-foreground/70 hover:text-foreground">
-        Add work types below
-      </a>
+      <Link href={routes.settings(slug, "work-types")} replace scroll={false} className="text-2xs text-muted-foreground/70 hover:text-foreground">
+        Add work types first
+      </Link>
     );
   }
   return (

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.7",
+    date: "2026-11-18",
+    title: "Asset & Work types",
+    changes: ["Settings: Asset types is now Asset & Work types, with a tab for each."],
+  },
+  {
     version: "0.101.6",
     date: "2026-11-18",
     title: "Wider service cards on the booking form",

@@ -74,7 +74,7 @@ type Section = (typeof SECTIONS)[number];
  * tabs, and "rates" was a section of its own before rates moved onto the asset
  * types they belong to.
  */
-const SECTION_ALIASES: Record<string, Section> = { lists: "asset-types", rates: "asset-types" };
+const SECTION_ALIASES: Record<string, Section> = { lists: "asset-types", rates: "asset-types", "work-types": "asset-types" };
 
 /**
  * Who a section's settings reach: only you, in this browser; everyone in this
@@ -99,7 +99,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
   tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow", scope: "workspace" },
   teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow", scope: "workspace" },
   sizes: { label: "Sizes", icon: Shirt, description: "What each T-shirt size means in working time, and the work it covers.", width: "wide", scope: "workspace" },
-  "asset-types": { label: "Asset types", icon: Shapes, description: "What a deliverable can be, and how long each one takes to make.", width: "wide", scope: "workspace" },
+  "asset-types": { label: "Asset & Work types", icon: Shapes, description: "What a deliverable can be, how long each one takes, and the work types they group into.", width: "wide", scope: "workspace" },
   permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow", scope: "workspace" },
   danger: { label: "Danger zone", icon: TriangleAlert, description: "What cannot be done by accident. Admins and Owners only.", width: "wide", scope: "workspace" },
   departments: { label: "Departments", icon: Building2, description: "Who the work is for. Any admin can change them, and a change reaches every workspace.", width: "wide", scope: "app" },
@@ -208,12 +208,7 @@ export function SettingsPage() {
             {section === "tickets" && <TicketsSection />}
             {section === "teams" && <TeamsSection />}
             {section === "departments" && <ListSection listKey="STAKEHOLDER_GROUPS" />}
-            {section === "asset-types" && (
-              <>
-                <ListSection listKey="ASSET_TYPES" />
-                <WorkTypesSection />
-              </>
-            )}
+            {section === "asset-types" && <AssetAndWorkTypesSection tab={raw === "work-types" ? "work-types" : "asset-types"} />}
             {section === "sizes" && <SizesSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
@@ -279,7 +274,52 @@ function PhoneSectionList({ slug, visible, onAbout, className }: { slug: string;
 }
 
 /** The section's icon, name, who it reaches, and one line on what it is for. */
-function SectionHeader({ meta, description, scope }: { meta: SectionMeta; description?: string; scope?: string | null }) {
+/**
+ * Asset types and work types, a tab each. Each has its own Save, and both stay
+ * mounted with the other one hidden, so a change waiting on one tab is still
+ * there after a look at the other. The address holds the tab (section=
+ * work-types), so a link to the work types lands on them and a refresh stays.
+ */
+function AssetAndWorkTypesSection({ tab }: { tab: "asset-types" | "work-types" }) {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const setTab = (next: typeof tab) => router.replace(routes.settings(ws.slug, next), { scroll: false });
+  return (
+    <>
+      <div role="tablist" aria-label="Asset and work types" className="mb-5 flex items-end gap-0.5 border-b border-border/70">
+        {(
+          [
+            ["asset-types", "Asset types"],
+            ["work-types", "Work types"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={cn(
+              "relative -mb-px inline-flex h-10 items-center rounded-t-lg px-3 text-[13px] font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent max-md:h-12",
+              tab === id ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground",
+            )}
+            data-testid={`settings-tab-${id}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" hidden={tab !== "asset-types"}>
+        <ListSection listKey="ASSET_TYPES" />
+      </div>
+      <div role="tabpanel" hidden={tab !== "work-types"}>
+        <WorkTypesSection />
+      </div>
+    </>
+  );
+}
+
+function SectionHeader({ meta, description, scope }:{ meta: SectionMeta; description?: string; scope?: string | null }) {
   const Icon = meta.icon;
   return (
     <div className="mb-6 flex items-start gap-3">

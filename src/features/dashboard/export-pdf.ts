@@ -547,7 +547,7 @@ function workTypesFigure(profile: WorkTypeProfile, people: Array<{ name: string;
   return {
     height: (width) => Math.max(width * 0.42 * 0.86 + 8, tableH + peopleH + 6),
     draw: (pen, x, y, w) => {
-      if (rows.length < 3) return pen.text("Group the asset types into at least three work types (Settings -> Asset types) to draw this.", x, y + 2, 8, { colour: MUTED });
+      if (rows.length < 3) return pen.text("Group the asset types into at least three work types (Settings -> Asset & Work types) to draw this.", x, y + 2, 8, { colour: MUTED });
       const doc = pen.doc;
       const radarW = w * 0.42;
       const cx = x + radarW / 2;

@@ -80,7 +80,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
   if (workTypes.workTypes.length < MIN_RADAR_WORK_TYPES) {
     return (
       <Panel title="Work types" subtitle="Deliverables by the kind of work" help="workTypes" className="p-4" testId="dashboard-work-types">
-        <ChartEmpty message={workTypes.workTypes.length === 0 ? "Group the asset types into work types in Settings → Asset types to see this." : `The radar needs at least ${MIN_RADAR_WORK_TYPES} work types — Settings → Asset types.`} />
+        <ChartEmpty message={workTypes.workTypes.length === 0 ? "Group the asset types into work types in Settings → Asset & Work types to see this." : `The radar needs at least ${MIN_RADAR_WORK_TYPES} work types — Settings → Asset & Work types.`} />
       </Panel>
     );
   }
@@ -178,7 +178,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
             {profile.unassignedUnits > 0 && (
               <p className="mt-2 px-2 text-2xs text-muted-foreground" data-testid="dashboard-work-types-unassigned">
                 {formatCount(profile.unassignedUnits)} {profile.unassignedUnits === 1 ? "unit" : "units"} in types with no work type ({profile.unassignedTypes.slice(0, 3).join(", ")}
-                {profile.unassignedTypes.length > 3 ? "…" : ""}) are not drawn — Settings → Asset types.
+                {profile.unassignedTypes.length > 3 ? "…" : ""}) are not drawn — Settings → Asset & Work types.
               </p>
             )}
           </div>

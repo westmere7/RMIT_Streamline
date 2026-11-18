@@ -768,7 +768,7 @@ function WorkTypeToggles({ selected, onChange, testIdPrefix }: { selected: reado
     return (
       <p className="text-2xs text-muted-foreground">
         No work types yet.{" "}
-        <Link href={`${routes.settings(ws.slug, "asset-types")}#work-types`} className="font-medium text-foreground underline-offset-2 hover:underline">
+        <Link href={routes.settings(ws.slug, "work-types")} className="font-medium text-foreground underline-offset-2 hover:underline">
           Add them
         </Link>
       </p>

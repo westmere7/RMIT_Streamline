@@ -20,7 +20,7 @@ import { syncBookingFormsWithWorkTypes } from "@/services/booking-work-types";
 
 /**
  * The work types themselves: a name and a colour each, up to eight. Which asset
- * types belong to them is chosen on the asset types' own rows above, and which
+ * types belong to them is chosen on the asset types' own rows (the other tab), and which
  * a booking service offers in the booking form editor; this only names them,
  * and a rename or removal here reaches every booking form. Removing one takes it off every asset type. Nothing is
  * written until Save, and a save leaves the rows' assignments as they are.
@@ -82,11 +82,8 @@ export function WorkTypesSection() {
     });
 
   return (
-    <section className="mt-8" id="work-types" data-testid="work-types">
-      <div className="mb-2 flex items-baseline gap-2">
-        <h3 className="text-[15px] font-semibold tracking-tight">Work types</h3>
-        <p className="text-2xs text-muted-foreground">Pick them for each asset type above.</p>
-      </div>
+    <section id="work-types" data-testid="work-types">
+      <p className="mb-2 text-2xs text-muted-foreground">Pick them for each asset type on the Asset types tab.</p>
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card p-3 shadow-xs">
         {draft.map((workType) => (
           <div key={workType.id} className="flex items-center gap-1 rounded-full border border-border/70 bg-surface/50 py-0.5 pr-1 pl-1" data-testid="work-type">
