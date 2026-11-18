@@ -374,6 +374,18 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
               />
             </div>
           )}
+          {block.kind === "multi" && (
+            <label className="flex w-fit items-center gap-2 text-[13px] text-muted-foreground">
+              <Switch
+                size="sm"
+                checked={block.allowOwn === true}
+                onCheckedChange={(on) => onPatch({ allowOwn: on || undefined } as Partial<BookingBlock>)}
+                aria-label="Let them add their own"
+                data-testid={`editor-block-allow-own-${block.id}`}
+              />
+              Let them add their own
+            </label>
+          )}
           {branching && <FollowUpTree block={block} followUps={followUps} setFor={setFor} />}
         </div>
       )}

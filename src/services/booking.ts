@@ -158,7 +158,7 @@ const furniture = [
 const leafBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("short"), ...questionBase }),
   z.object({ kind: z.literal("long"), ...questionBase }),
-  z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
+  z.object({ kind: z.literal("multi"), ...choiceBase, allowOwn: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
   z.object({ kind: z.literal("ack"), ...questionBase }),
@@ -172,7 +172,7 @@ const followUpsSchema = z.record(z.string().trim().min(1).max(120), z.array(leaf
 export const bookingBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("short"), ...questionBase }),
   z.object({ kind: z.literal("long"), ...questionBase }),
-  z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
+  z.object({ kind: z.literal("multi"), ...choiceBase, allowOwn: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, followUps: followUpsSchema, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
   z.object({ kind: z.literal("ack"), ...questionBase }),

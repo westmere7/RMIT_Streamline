@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.105.0",
+    date: "2026-11-18",
+    title: "Add your own choice",
+    changes: [
+      "Booking form editor: a multiple choice question can let requesters add their own answers beside the ones offered (Let them add their own).",
+      "On the form they type it into Add your own; it joins their choices and goes into the brief with them.",
+    ],
+  },
+  {
     version: "0.104.2",
     date: "2026-11-18",
     title: "New questions start required",

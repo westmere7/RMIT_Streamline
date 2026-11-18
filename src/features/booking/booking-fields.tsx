@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { AssetComposerRow } from "@/features/assets/asset-composer";
 import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
-import { emptyAnswerFor, priorityStrength, usableAnswer } from "@/domain";
+import { MAX_OWN_CHOICES, MAX_OWN_CHOICE_LENGTH, allowsOwnChoices, emptyAnswerFor, priorityStrength, usableAnswer } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -339,7 +339,9 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
           <Textarea id={id} rows={4} value={text} onChange={(e) => onChange({ kind: "text", text: e.target.value })} aria-invalid={!!error} className="resize-y" disabled={preview} data-testid={testId} />
         </Field>
       );
-    case "multi":
+    case "multi": {
+      const offered = new Set(block.options.map((o) => o.name));
+      const own = values.filter((v) => !offered.has(v));
       return (
         <Field {...shell}>
           <ChipGroup ariaLabel={block.label}>
@@ -355,9 +357,27 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
                 {option.name}
               </Chip>
             ))}
+            {/* Their own: chosen by being added, and gone when clicked again. */}
+            {own.map((value) => (
+              <Chip key={`own-${value}`} active disabled={preview} onClick={() => onChange({ kind: "choice", values: values.filter((v) => v !== value) })} testId={testId ? `${testId}-own-${slug(value)}` : undefined}>
+                {value}
+                <X className="size-3.5 opacity-70" aria-hidden />
+              </Chip>
+            ))}
+            {allowsOwnChoices(block) && own.length < MAX_OWN_CHOICES && (
+              <OwnChoiceAdder
+                disabled={preview}
+                onAdd={(value) => {
+                  const taken = values.some((v) => v.toLowerCase() === value.toLowerCase());
+                  if (!taken) onChange({ kind: "choice", values: [...values, value] });
+                }}
+                testId={testId ? `${testId}-own` : undefined}
+              />
+            )}
           </ChipGroup>
         </Field>
       );
+    }
     case "single":
       if (block.display === "dropdown") {
         // A dropdown for choices that are sentences: chips that long wrap into
@@ -691,6 +711,59 @@ export function ChipGroup({ ariaLabel, children }: { ariaLabel: string; children
     <div role="group" aria-label={ariaLabel} className="flex flex-wrap gap-1.5">
       {children}
     </div>
+  );
+}
+
+/**
+ * "Add your own" on a multiple choice that allows it: a chip that becomes a
+ * box. Enter adds what was typed as a chosen chip and keeps the box open for
+ * another; Escape or leaving it empty closes it.
+ */
+function OwnChoiceAdder({ onAdd, disabled, testId }: { onAdd: (value: string) => void; disabled?: boolean; testId?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [text, setText] = React.useState("");
+  const commit = () => {
+    const value = text.trim();
+    if (value) onAdd(value);
+    setText("");
+  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-3 text-[13px] text-muted-foreground transition-colors enabled:hover:border-foreground/40 enabled:hover:text-foreground disabled:opacity-70 max-md:h-11 max-md:text-[15px]"
+        data-testid={testId}
+      >
+        <Plus className="size-3.5" aria-hidden /> Add your own
+      </button>
+    );
+  }
+  return (
+    <Input
+      autoFocus
+      value={text}
+      maxLength={MAX_OWN_CHOICE_LENGTH}
+      placeholder="Type and press Enter"
+      aria-label="Your own choice"
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          setText("");
+          setOpen(false);
+        }
+      }}
+      onBlur={() => {
+        commit();
+        setOpen(false);
+      }}
+      className="h-8 w-48 rounded-full px-3 text-[13px] max-md:h-11 max-md:text-[15px]"
+      data-testid={testId ? `${testId}-input` : undefined}
+    />
   );
 }
 

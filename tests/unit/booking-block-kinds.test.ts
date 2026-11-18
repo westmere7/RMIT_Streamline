@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BookingBlock, BookingChoiceBlock, BookingRequest } from "@/domain";
 import { BOOKING_STANDARD_KEYS, convertBlock, defaultBookingFormTemplate, newBookingBlock, newStandardField, switchableKinds, usableAnswer } from "@/domain";
-import { composeBrief, normaliseBookingTemplate, readBookingBlock, validateBookingStep } from "@/services/booking";
+import { composeBrief, emptyBookingRequest, normaliseBookingTemplate, readBookingBlock, validateBookingStep } from "@/services/booking";
 import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 
 const single = (): BookingChoiceBlock => ({
@@ -70,6 +70,30 @@ describe("an answer given before its question changed kind", () => {
     expect(usableAnswer({ ...short, kind: "link" }, { kind: "text", text: "Room 4" })).toBeUndefined();
     // A multiple choice that became a single one keeps the first choice.
     expect(usableAnswer(single(), { kind: "choice", values: ["Yes", "No"] })).toEqual({ kind: "choice", values: ["Yes"] });
+  });
+});
+
+describe("a multiple choice that lets them add their own", () => {
+  const multi = (allowOwn?: boolean): BookingChoiceBlock => ({ id: "m", kind: "multi", label: "Where will it run?", description: null, required: true, options: [{ name: "Social", color: "blue" }, { name: "Print", color: "gray" }], ...(allowOwn ? { allowOwn } : {}) });
+
+  it("keeps their own choices, tidied, beside the ones offered", () => {
+    const answer = { kind: "choice" as const, values: ["Social", "  Digital screens ", "digital screens", "Social"] };
+    expect(usableAnswer(multi(true), answer)).toEqual({ kind: "choice", values: ["Social", "Digital screens"] });
+    // At most five of their own, and none longer than sixty characters.
+    const many = { kind: "choice" as const, values: ["a", "b", "c", "d", "e", "f", "x".repeat(80)] };
+    expect(usableAnswer(multi(true), many)).toEqual({ kind: "choice", values: ["a", "b", "c", "d", "e"] });
+  });
+
+  it("drops them where the question does not take them", () => {
+    expect(usableAnswer(multi(), { kind: "choice", values: ["Social", "Digital screens"] })).toEqual({ kind: "choice", values: ["Social"] });
+  });
+
+  it("puts them in the brief, and a switch to single choice leaves the setting behind", () => {
+    const template = fixtureBookingFormTemplate();
+    template.services.find((s) => s.id === "svc-design")!.blocks = [multi(true)];
+    const request = { ...emptyBookingRequest(), serviceTypeId: "svc-design", answers: { m: { kind: "choice" as const, values: ["Social", "Digital screens"] } } };
+    expect(composeBrief(request, template)).toContain("- Social\n- Digital screens");
+    expect(convertBlock(multi(true), "single").block).not.toHaveProperty("allowOwn");
   });
 });
 

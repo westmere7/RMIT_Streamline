@@ -73,6 +73,11 @@ export interface BookingChoiceBlock extends BookingQuestionBase {
   options: TagOption[];
   display?: BookingChoiceDisplay;
   /**
+   * A multiple choice only: the requester may add choices of their own beside
+   * the ones offered, for the answer the list did not think of. Absent means no.
+   */
+  allowOwn?: boolean;
+  /**
    * Questions that only exist once a particular choice has been made, keyed by
    * the choice that opens them.
    *
@@ -86,6 +91,15 @@ export interface BookingChoiceBlock extends BookingQuestionBase {
    * editor remaps these when an option is renamed (see `renameFollowUpKey`).
    */
   followUps?: BookingFollowUps;
+}
+
+/** How many choices of their own a requester may add to one question, and how long each may be. */
+export const MAX_OWN_CHOICES = 5;
+export const MAX_OWN_CHOICE_LENGTH = 60;
+
+/** True when this block lets the requester add choices of their own. */
+export function allowsOwnChoices(block: BookingBlock): block is BookingChoiceBlock {
+  return block.kind === "multi" && block.allowOwn === true;
 }
 
 /** The follow-ups of a single-choice question: option name → the questions it opens. */
@@ -349,6 +363,26 @@ export function answerKindFor(kind: BookingQuestionBlock["kind"]): BookingAnswer
 export function usableAnswer(block: BookingQuestionBlock, answer: BookingAnswer | undefined): BookingAnswer | undefined {
   if (!answer || answer.kind !== answerKindFor(block.kind)) return undefined;
   if (block.kind === "single" && answer.kind === "choice" && answer.values.length > 1) return { kind: "choice", values: answer.values.slice(0, 1) };
+  if (block.kind === "multi" && answer.kind === "choice") {
+    // The choices offered, and the requester's own where the question allows
+    // them: trimmed, no repeats, at most MAX_OWN_CHOICES. Anything else (a
+    // choice since renamed, or own ones on a question that no longer takes
+    // them) is not part of the answer.
+    const offered = new Set(block.options.map((o) => o.name));
+    const seen = new Set<string>();
+    let own = 0;
+    const values = answer.values.flatMap((raw) => {
+      if (offered.has(raw)) return seen.has(raw) ? [] : (seen.add(raw), [raw]);
+      if (!allowsOwnChoices(block)) return [];
+      const value = raw.trim().slice(0, MAX_OWN_CHOICE_LENGTH);
+      const key = value.toLowerCase();
+      if (!value || own >= MAX_OWN_CHOICES || [...seen].some((v) => v.toLowerCase() === key)) return [];
+      own += 1;
+      seen.add(value);
+      return [value];
+    });
+    return values.length === answer.values.length && values.every((v, i) => v === answer.values[i]) ? answer : { kind: "choice", values };
+  }
   return answer;
 }
 
