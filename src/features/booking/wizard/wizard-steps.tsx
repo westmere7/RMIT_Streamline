@@ -92,8 +92,10 @@ export function StepBasics({
       <div className="space-y-3">
         <Field label={template.basics.serviceLabel} required description={template.basics.serviceHint} error={errors[SERVICE_ERROR_KEY]}>
           {/* Cards rather than a dropdown: this is the one answer that decides
-              what the rest of the form asks, so it is worth the room. */}
-          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
+              what the rest of the form asks, so it is worth the room. As many
+              to a row as fit at a width that holds the name, then another row:
+              the form is a fixed card, so the window's width says nothing. */}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-2" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
             {template.services.map((option) => (
               <ServiceCard
                 key={option.id}
@@ -137,7 +139,7 @@ function ServiceCard({ service, selected, onSelect }: { service: BookingServiceT
       icon={service.icon}
       selected={selected}
       onSelect={onSelect}
-      name={<span className="block truncate">{service.name}</span>}
+      name={<span className="block break-words">{service.name}</span>}
       description={service.description ? <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
       testId={`booking-service-${slug(service.name)}`}
     />

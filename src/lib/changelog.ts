@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.6",
+    date: "2026-11-18",
+    title: "Wider service cards on the booking form",
+    changes: ["Booking: the kinds of work show in wider cards, with more rows when needed, so names are no longer cut off."],
+  },
+  {
     version: "0.101.5",
     date: "2026-11-18",
     title: "Portal links open from their cards",
