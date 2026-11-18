@@ -20,7 +20,8 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
   const { token } = await params;
   const body = sharePasswordSchema.parse(await readJson(request));
   try {
-    return json(await loadShareItem(decodeURIComponent(token), body.password ?? null, await shareViewer(request)));
+    // As the board link: checked every time, read only when the task has moved.
+    return json(await loadShareItem(decodeURIComponent(token), body.password ?? null, await shareViewer(request), body.revision ?? null));
   } catch (error) {
     // The page needs the reason: ask for a password again, or ask them to sign in.
     if (error instanceof ShareAccessError) return json({ error: error.message, reason: error.reason }, shareErrorStatus(error));

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.8",
+    date: "2026-11-18",
+    title: "Lighter shared links",
+    changes: ["Shared board and task links check whether anything has changed before reading the board again, and still update within seconds when it has."],
+  },
+  {
     version: "0.103.7",
     date: "2026-11-18",
     title: "Lighter portal refreshes",

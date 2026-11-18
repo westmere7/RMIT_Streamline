@@ -1,10 +1,20 @@
-import type { BoardShareGate, EntityId, ItemShare, PublicItemPayload } from "@/domain";
+import type { Board, BoardShareGate, EntityId, Item, ItemShare, PublicItemPayload } from "@/domain";
 import { generateShareToken, isPlausibleShareToken, refuseShare, shownColumns, toPublicUser, type ShareLike } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt } from "@/lib/auth/password-hash";
 import { todayISO } from "@/lib/dates/dates";
-import { checkShareAccess, checkSharePassword, shareAccessMessage, ShareAccessError, shareGate, type ShareSettings, type ShareViewer } from "./board-share-service";
+import {
+  checkShareAccess,
+  checkSharePassword,
+  shareAccessMessage,
+  ShareAccessError,
+  shareGate,
+  type ShareRefreshAnswer,
+  type ShareRevisionCheck,
+  type ShareSettings,
+  type ShareViewer,
+} from "./board-share-service";
 
 /** How much of the task's history travels with it. */
 const ITEM_ACTIVITY_LIMIT = 100;
@@ -107,6 +117,26 @@ export async function gateItemShare(repos: Repositories, token: string): Promise
  * the panel shows; the groups, because an item belongs to one.
  */
 export async function loadSharedItem(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<PublicItemPayload> {
+  const { share, item, board } = await admitSharedItem(repos, token, password, viewer);
+  return readSharedItem(repos, share, item, board);
+}
+
+/** The task behind the link, unless the revision the page holds is still the current one (see loadSharedBoardIfChanged). */
+export async function loadSharedItemIfChanged(
+  repos: Repositories,
+  token: string,
+  password: string | null,
+  viewer: ShareViewer | null,
+  revision: ShareRevisionCheck,
+): Promise<ShareRefreshAnswer<PublicItemPayload>> {
+  const { share, item, board } = await admitSharedItem(repos, token, password, viewer);
+  const current = await revision.current(board.workspaceId, share);
+  if (current !== null && current === revision.known) return { unchanged: true, revision: current };
+  return { ...(await readSharedItem(repos, share, item, board)), revision: current };
+}
+
+/** The link's checks, in order, and the task still being on its board; the share, task and board when they hold. */
+async function admitSharedItem(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<{ share: ItemShare; item: Item; board: Board }> {
   const share = isPlausibleShareToken(token) ? await repos.itemShares.getByToken(token) : null;
   const refusal = refuseShare(share, todayISO());
   if (refusal || !share) throw new ShareAccessError(refusal ?? "unknown", shareAccessMessage(refusal ?? "unknown"));
@@ -117,7 +147,10 @@ export async function loadSharedItem(repos: Repositories, token: string, passwor
 
   if (!item || item.archivedAt !== null) throw new ShareAccessError("unknown", shareAccessMessage("unknown"));
   if (!board) throw new NotFoundError("Board", item.boardId);
+  return { share, item, board };
+}
 
+async function readSharedItem(repos: Repositories, share: ItemShare, item: Item, board: Board): Promise<PublicItemPayload> {
   const [workspace, groups, allColumns, boardItems, assets, activities, users] = await Promise.all([
     repos.workspaces.getById(board.workspaceId),
     repos.boards.listGroups(board.id),

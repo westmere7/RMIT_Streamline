@@ -151,3 +151,4 @@ migrations/0113_workspace_description.sql
 migrations/0114_cron_run_log_cleanup.sql
 migrations/0115_image_buckets_take_jpeg.sql
 migrations/0116_portal_revisions.sql
+migrations/0117_share_revisions.sql

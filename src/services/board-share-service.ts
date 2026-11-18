@@ -203,12 +203,50 @@ export function shareGate(share: ShareLike | null): BoardShareGate {
  * those refer to.
  */
 export async function loadSharedBoard(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<PublicBoardPayload> {
+  const { share, board } = await admitSharedBoard(repos, token, password, viewer);
+  return readSharedBoard(repos, share, board);
+}
+
+/**
+ * How a page that refreshes a shared link asks for it: with the revision of
+ * what it holds, and a way to work out the current one. The link is checked in
+ * full first (live, not expired, password, sign-in) and only then compared, so
+ * a refresh never skips the checks; it only skips reading what has not moved.
+ */
+export interface ShareRevisionCheck {
+  known: string | null;
+  current(workspaceId: EntityId, share: Pick<BoardShare, "id" | "updatedAt" | "expiresAt" | "access">): Promise<string | null>;
+}
+
+/** The payload and its revision, or word that the one held is still current. */
+export type ShareRefreshAnswer<T> = (T & { revision: string | null }) | { unchanged: true; revision: string };
+
+/** The board behind the link, unless the revision the page holds is still the current one. */
+export async function loadSharedBoardIfChanged(
+  repos: Repositories,
+  token: string,
+  password: string | null,
+  viewer: ShareViewer | null,
+  revision: ShareRevisionCheck,
+): Promise<ShareRefreshAnswer<PublicBoardPayload>> {
+  const { share, board } = await admitSharedBoard(repos, token, password, viewer);
+  // Read before the board, so a change committed while it is read is caught next time.
+  const current = await revision.current(board.workspaceId, share);
+  if (current !== null && current === revision.known) return { unchanged: true, revision: current };
+  return { ...(await readSharedBoard(repos, share, board)), revision: current };
+}
+
+/** The link's checks, in order; the share and its board when they all hold. */
+async function admitSharedBoard(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<{ share: BoardShare; board: Board }> {
   const share = await resolveShare(repos, token);
   const board = await repos.boards.getById(share.boardId);
   checkShareAccess(share, viewer, board?.workspaceId);
   await checkSharePassword(share, password);
   if (!board) throw new NotFoundError("Board", share.boardId);
+  return { share, board };
+}
 
+async function readSharedBoard(repos: Repositories, share: BoardShare, board: Board): Promise<PublicBoardPayload> {
   const [workspace, groups, allColumns, items, allValues, assets, activities, users] = await Promise.all([
     repos.workspaces.getById(board.workspaceId),
     repos.boards.listGroups(board.id),
