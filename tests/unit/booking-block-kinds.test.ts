@@ -97,6 +97,32 @@ describe("a multiple choice that lets them add their own", () => {
   });
 });
 
+describe("a question answered with formatting", () => {
+  const formatted = "**Six posters**, A1 portrait\n\n- Brunswick\n- City\n\nSee [the guide](https://brand.example.edu)";
+  const withQuestion = (rich: boolean) => {
+    const template = fixtureBookingFormTemplate();
+    template.services.find((s) => s.id === "svc-design")!.blocks = [{ id: "what", kind: "long", label: "What do you need?", description: null, required: true, ...(rich ? { rich: true } : {}) }];
+    return template;
+  };
+  const request = { ...emptyBookingRequest(), serviceTypeId: "svc-design", answers: { what: { kind: "text" as const, text: formatted } } };
+
+  it("keeps the formatting in the brief", () => {
+    const brief = composeBrief(request, withQuestion(true));
+    expect(brief).toContain("## 1. What do you need?\n**Six posters**, A1 portrait\n\n- Brunswick\n- City\n\nSee [the guide](https://brand.example.edu)");
+  });
+
+  it("escapes it on a plain question, as before", () => {
+    expect(composeBrief(request, withQuestion(false))).toContain(String.raw`\*\*Six posters\*\*`);
+  });
+
+  it("is kept between a short and a long answer, and left behind by a link", () => {
+    const short: BookingBlock = { id: "s", kind: "short", label: "Where?", description: null, required: true, rich: true };
+    expect(convertBlock(short, "long").block).toMatchObject({ kind: "long", rich: true });
+    expect(convertBlock(short, "link").block).not.toHaveProperty("rich");
+    expect(readBookingBlock(short)).toMatchObject({ rich: true });
+  });
+});
+
 describe("an acknowledgement", () => {
   const withAck = () => {
     const template = fixtureBookingFormTemplate();

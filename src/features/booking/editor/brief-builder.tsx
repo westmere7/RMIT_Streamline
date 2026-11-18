@@ -334,6 +334,18 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
         className="text-2xs text-muted-foreground"
         testId={`editor-block-description-${block.id}`}
       />
+      {(block.kind === "short" || block.kind === "long") && (
+        <label className="flex w-fit items-center gap-2 text-[13px] text-muted-foreground">
+          <Switch
+            size="sm"
+            checked={block.rich === true}
+            onCheckedChange={(on) => onPatch({ rich: on || undefined } as Partial<BookingBlock>)}
+            aria-label="Allow formatting"
+            data-testid={`editor-block-rich-${block.id}`}
+          />
+          Allow formatting
+        </label>
+      )}
       {choice && (
         <div className="mt-1 grid gap-2">
           <ChoiceChips

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.106.0",
+    date: "2026-11-18",
+    title: "Formatted answers",
+    changes: [
+      "Booking form editor: short and long questions can allow formatting. Requesters then answer in the same editor as the Brief field: bold, italic, headings, lists, links and colour.",
+      "The formatting is kept in the brief the team receives.",
+    ],
+  },
+  {
     version: "0.105.3",
     date: "2026-11-18",
     title: "Moves in activity",

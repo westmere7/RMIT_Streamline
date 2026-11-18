@@ -25,6 +25,7 @@ import {
   BOOKING_STANDARD_KEYS,
   BOOKING_TEXT_LEVELS,
   COLOR_TOKENS,
+  isRichTextQuestion,
   usableAnswer,
   defaultBookingFormTemplate,
   flattenBlocks,
@@ -156,8 +157,8 @@ const furniture = [
  * branch carry a branch would leave it to the editor to remember.
  */
 const leafBlockSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("short"), ...questionBase }),
-  z.object({ kind: z.literal("long"), ...questionBase }),
+  z.object({ kind: z.literal("short"), rich: z.boolean().optional(), ...questionBase }),
+  z.object({ kind: z.literal("long"), rich: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("multi"), ...choiceBase, allowOwn: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
@@ -170,8 +171,8 @@ const followUpsSchema = z.record(z.string().trim().min(1).max(120), z.array(leaf
 
 /** One block of a brief, which is also the shape a saved block is kept in. */
 export const bookingBlockSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("short"), ...questionBase }),
-  z.object({ kind: z.literal("long"), ...questionBase }),
+  z.object({ kind: z.literal("short"), rich: z.boolean().optional(), ...questionBase }),
+  z.object({ kind: z.literal("long"), rich: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("multi"), ...choiceBase, allowOwn: z.boolean().optional(), ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, followUps: followUpsSchema, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
@@ -563,7 +564,7 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
         // paragraph and the question runs into its own answer.
         const number = numbers.get(block.id);
         lines.push("", `${pad(depth)}## ${number ? `${number}. ` : ""}${plain(block.label)}`);
-        lines.push(...answerLines(answer!, depth));
+        lines.push(...(isRichTextQuestion(block) && answer!.kind === "text" ? richAnswerLines(answer!.text, depth) : answerLines(answer!, depth)));
       }
       // Under its own question, and a step further in. A follow-up whose
       // question was left blank was never opened, so `openFollowUps` returns
@@ -573,6 +574,24 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
   };
   walk(service?.blocks ?? [], 0);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * A formatted answer as the lines of the brief: the requester's own markup,
+ * kept as they wrote it, each line pushed in to the depth of its question.
+ *
+ * Not escaped, unlike a plain answer: the formatting is the point, and it is
+ * the same small markup the brief is written in (src/lib/rich-text.ts), which
+ * renders to React elements and never to HTML. Blank lines stay blank, as they
+ * separate one paragraph from the next.
+ */
+function richAnswerLines(text: string, depth: number): string[] {
+  const prefix = pad(depth);
+  return text
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .split("\n")
+    .map((line) => (line.trim() ? `${prefix}${line}` : ""));
 }
 
 /** One answer as the lines of the brief it becomes, at the depth its question sits. */

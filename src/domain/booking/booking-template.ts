@@ -56,10 +56,19 @@ interface BookingQuestionBase extends BookingBlockBase {
 
 export interface BookingShortBlock extends BookingQuestionBase {
   kind: "short";
+  /** Answered in the formatting editor the Brief column uses, and kept formatted in the brief. Absent means plain text. */
+  rich?: boolean;
 }
 
 export interface BookingLongBlock extends BookingQuestionBase {
   kind: "long";
+  /** As on a short question. */
+  rich?: boolean;
+}
+
+/** True when this question is answered with formatting (bold, lists, links…) that the brief keeps. */
+export function isRichTextQuestion(block: BookingBlock): boolean {
+  return (block.kind === "short" || block.kind === "long") && block.rich === true;
 }
 
 /**
@@ -194,7 +203,9 @@ export function convertBlock(block: BookingBlock, kind: BookingBlockKind): Block
     }
     return { block: next, dropped };
   }
-  return { block: { ...base, kind } as BookingQuestionBlock, dropped: [] };
+  // Formatting crosses between a short and a long answer; a link has none.
+  const rich = (kind === "short" || kind === "long") && isRichTextQuestion(block);
+  return { block: { ...base, kind, ...(rich ? { rich: true } : {}) } as BookingQuestionBlock, dropped: [] };
 }
 
 /** True when the block expects an answer — which is also what earns it a number and a "required" switch. */

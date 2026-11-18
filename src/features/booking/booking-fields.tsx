@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, CircleCheck, LoaderCircle, Plus, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { AssetComposerRow } from "@/features/assets/asset-composer";
 import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
-import { MAX_OWN_CHOICES, MAX_OWN_CHOICE_LENGTH, allowsOwnChoices, emptyAnswerFor, priorityStrength, usableAnswer } from "@/domain";
+import { MAX_OWN_CHOICES, MAX_OWN_CHOICE_LENGTH, allowsOwnChoices, emptyAnswerFor, isRichTextQuestion, priorityStrength, usableAnswer } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -317,6 +318,18 @@ export interface BlockFieldProps {
   idPrefix?: string;
 }
 
+/**
+ * The formatting editor, fetched only when a question asks for it: most forms
+ * have none, and the public form should not carry an editor nobody uses.
+ */
+const RichTextEditor = dynamic(() => import("@/components/shared/rich-text-editor").then((m) => m.RichTextEditor), {
+  ssr: false,
+  loading: () => <div className="h-24 animate-pulse rounded-lg border border-border/60 bg-surface/40" />,
+});
+
+/** Nobody to mention on a booking form: the workspace's people are not the requester's to see. */
+const NO_PEOPLE: readonly never[] = [];
+
 /** One question of a service's brief, rendered by kind. */
 export function BlockField({ block, number, value, onChange, error, preview, hideLabel, idPrefix = "booking-answer" }: BlockFieldProps) {
   // An answer left from before the question changed kind shows as none.
@@ -326,6 +339,22 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
   const shell = { label: block.label, required: block.required, description: block.description, error, number, hideLabel };
   const text = answer.kind === "text" ? answer.text : "";
   const values = answer.kind === "choice" ? answer.values : [];
+  if (isRichTextQuestion(block)) {
+    return (
+      <Field id={id} {...shell}>
+        <div className={cn("rounded-lg", error && "ring-1 ring-destructive/60")} data-testid={testId}>
+          <RichTextEditor
+            value={text}
+            onChange={(next) => onChange({ kind: "text", text: next })}
+            people={NO_PEOPLE}
+            rows={block.kind === "long" ? 5 : 2}
+            ariaLabel={block.label}
+            testId={testId ? `${testId}-rich` : undefined}
+          />
+        </div>
+      </Field>
+    );
+  }
   switch (block.kind) {
     case "short":
       return (
