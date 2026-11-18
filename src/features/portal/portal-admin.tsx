@@ -338,7 +338,7 @@ export function LinkTile({
 
       {/* What this link's settings are, where its link is; the gear beside the
           switch is where they are changed. */}
-      <div className={cn("cursor-default", dim)} data-testid={`${testId}-settings-list`}>
+      <div className={cn(dim)} data-testid={`${testId}-settings-list`}>
         <p className="mb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase">Settings</p>
         <dl className="divide-y divide-border/50">
           {settings.map((row) => (

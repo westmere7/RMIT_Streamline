@@ -41,6 +41,13 @@ describe("the portal's link tiles", () => {
     expect(open).toHaveBeenCalledWith("/portal/abc", "_blank", "noopener,noreferrer");
   });
 
+  it("opens the link from the settings list too, which is part of the card's blank space", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    tile();
+    await userEvent.click(screen.getByText("Opens on"));
+    expect(open).toHaveBeenCalledWith("/portal/abc", "_blank", "noopener,noreferrer");
+  });
+
   it("lists its settings on the card, and the gear opens them", async () => {
     const props = tile();
     const list = screen.getByTestId("portal-link-settings-list");

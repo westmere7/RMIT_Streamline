@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.102.2",
+    date: "2026-11-18",
+    title: "Whole cards open their links",
+    changes: ["Portal and Booking: anywhere on a card opens its link, settings list included."],
+  },
+  {
     version: "0.102.1",
     date: "2026-11-18",
     title: "Pictures upload from Safari",
