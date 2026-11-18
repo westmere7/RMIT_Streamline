@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.3",
+    date: "2026-11-18",
+    title: "Team counts are task counts",
+    changes: ["The count beside a team in the sidebar is the tasks across its boards, in the team's colour.", "Count badges have squarer corners."],
+  },
+  {
     version: "0.103.2",
     date: "2026-11-18",
     title: "Switch off board counts",

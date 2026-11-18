@@ -36,7 +36,7 @@ interface UiState {
   expandedTeamIds: string[];
   /** Whether the Favourites section is expanded. */
   favouritesExpanded: boolean;
-  /** Show the board/tracker tally beside each team in the sidebar. */
+  /** Show beside each team in the sidebar how many tasks its boards hold between them. */
   showTeamCounts: boolean;
   setShowTeamCounts: (show: boolean) => void;
   /** Show how many tasks each board holds, beside its name (the sidebar, a team's boards). On unless switched off. */

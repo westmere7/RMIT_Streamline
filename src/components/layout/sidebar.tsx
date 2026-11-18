@@ -23,7 +23,7 @@ import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { ShareBoardDialog } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
-import { BoardItemCount } from "@/features/boards/board-item-count";
+import { BoardItemCount, TeamItemCount } from "@/features/boards/board-item-count";
 import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import type { UnreadCounts } from "@/domain";
@@ -972,7 +972,8 @@ function TeamNode({
           <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
           <span className="truncate">{team.name}</span>
         </Link>
-        {showCounts && <span className="text-2xs text-muted-foreground tabular transition-opacity group-hover/menu:opacity-0">{boards.length + trackers.length + docs.length}</span>}
+        {/* Tasks across the team's boards, in the team's colour; the … takes its place on hover. */}
+        {showCounts && <TeamItemCount boardIds={boards.map((b) => b.id)} color={team.color} className="transition-opacity group-hover/menu:opacity-0" />}
       </div>
       </RowMenu>
       {expanded && (

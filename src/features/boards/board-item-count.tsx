@@ -1,7 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import type { ColorToken } from "@/domain";
 import { useServices } from "@/features/data/data-context";
+import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
@@ -29,11 +31,38 @@ export function BoardItemCount({ boardId, className }: { boardId: string; classN
   if (!show || count.data === undefined) return null;
   return (
     <span
-      className={cn("shrink-0 rounded-md bg-muted px-1.5 py-px text-2xs leading-4 font-medium tabular text-muted-foreground", className)}
+      className={cn("shrink-0 rounded bg-muted px-1.5 py-px text-2xs leading-4 font-medium tabular text-muted-foreground", className)}
       aria-label={`${count.data} ${count.data === 1 ? "task" : "tasks"}`}
       data-testid="board-item-count"
     >
       {count.data}
+    </span>
+  );
+}
+
+/**
+ * How many tasks a team's boards hold between them, in the team's colour: the
+ * sum of the same per-board counts the board badges read, so it costs nothing
+ * more. Shown once every board has answered, so it never counts up.
+ */
+export function TeamItemCount({ boardIds, color, className }: { boardIds: readonly string[]; color: ColorToken; className?: string }) {
+  const services = useServices();
+  const counts = useQueries({
+    queries: boardIds.map((boardId) => ({
+      queryKey: queryKeys.boardItemCount(boardId),
+      queryFn: () => services.items.countLive(boardId),
+      staleTime: 60_000,
+    })),
+  });
+  if (counts.some((count) => count.data === undefined)) return null;
+  const total = counts.reduce((sum, count) => sum + (count.data ?? 0), 0);
+  return (
+    <span
+      className={cn("shrink-0 rounded px-1.5 py-px text-2xs leading-4 font-medium tabular", colorClasses(color).soft, className)}
+      aria-label={`${total} ${total === 1 ? "task" : "tasks"} on the team's boards`}
+      data-testid="team-item-count"
+    >
+      {total}
     </span>
   );
 }

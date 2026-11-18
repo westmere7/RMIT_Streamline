@@ -655,9 +655,9 @@ function AppearanceSection() {
       <SettingsCard title="Sidebar">
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="show-team-counts" className="text-[13px] font-medium">
-            Item counts beside teams
+            Task counts beside teams
           </Label>
-          <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
+          <Switch id="show-team-counts" aria-label="Task counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
         </div>
         <div className="mt-4 flex items-center justify-between gap-4">
           <Label htmlFor="show-board-counts" className="text-[13px] font-medium">
