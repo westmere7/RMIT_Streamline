@@ -19,6 +19,10 @@ function tile(overrides: Partial<React.ComponentProps<typeof LinkTile>> = {}) {
     copyTestId: "portal-copy",
     onCopy: vi.fn(),
     onSettings: vi.fn(),
+    settings: [
+      { label: "Opens on", value: "Table" },
+      { label: "Theme", value: "Light" },
+    ],
     open: true,
     toggle: { on: true, pending: false, onChange: vi.fn(), label: "Close the portal", testId: "portal-toggle" },
     ...overrides,
@@ -35,6 +39,15 @@ describe("the portal's link tiles", () => {
     tile();
     await userEvent.click(screen.getByTestId("portal-link-figure"));
     expect(open).toHaveBeenCalledWith("/portal/abc", "_blank", "noopener,noreferrer");
+  });
+
+  it("lists its settings on the card, and the gear opens them", async () => {
+    const props = tile();
+    const list = screen.getByTestId("portal-link-settings-list");
+    expect(list).toHaveTextContent("Opens on");
+    expect(list).toHaveTextContent("Table");
+    await userEvent.click(screen.getByRole("button", { name: "Portal settings" }));
+    expect(props.onSettings).toHaveBeenCalled();
   });
 
   it("leaves the switch, settings and copy to themselves", async () => {

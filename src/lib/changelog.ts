@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.102.0",
+    date: "2026-11-18",
+    title: "A simpler Portal and Booking page",
+    changes: [
+      "The Portal and Booking form cards sit side by side with their settings listed on them; the gear beside each switch changes them.",
+      "The Booking form card says which form is live: its name, questions and services, and when it was published.",
+      "Editing the form has its own page: Edit form on the Booking form card.",
+      "Leaving the form editor with unsaved changes asks first.",
+      "New link moves into each card's settings. Portal passwords are no longer set here.",
+    ],
+  },
+  {
     version: "0.101.24",
     date: "2026-11-18",
     title: "Clearer card titles",

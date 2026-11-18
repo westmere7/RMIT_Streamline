@@ -104,10 +104,10 @@ async function editSettings(page: Page, link: "portal" | "booking", edit: (panel
 /** Opens the portal from the management screen and returns its link. */
 async function openPortal(page: Page): Promise<string> {
   const card = await portalCard(page);
-  if ((await card.getByTestId("portal-state").innerText()) !== "Open") {
+  if ((await card.getByTestId("portal-toggle").getAttribute("aria-checked")) !== "true") {
     await card.getByTestId("portal-toggle").click();
   }
-  await expect(card.getByTestId("portal-state")).toHaveText("Open");
+  await expect(card.getByTestId("portal-toggle")).toHaveAttribute("aria-checked", "true");
   const link = await card.getByTestId("portal-link").innerText();
   expect(link).toContain("/portal/");
   return new URL(link).pathname;
@@ -135,7 +135,8 @@ test.describe("the stakeholder portal", () => {
 
     await nav.click();
     await expect(page).toHaveURL(/\/workspace\/rmit\/book$/);
-    await page.getByTestId("portal-tab-book").click();
+    await page.getByTestId("booking-edit-form").click();
+    await expect(page).toHaveURL(/\/workspace\/rmit\/book\/form$/);
     await expect(page.getByTestId("book-task-card")).toBeVisible();
   });
 
@@ -145,7 +146,7 @@ test.describe("the stakeholder portal", () => {
     // One portal, not one per stakeholder.
     expect(await page.getByTestId("portal-card").count()).toBe(1);
     // Nothing is published by existing: the portal starts shut.
-    await expect(page.getByTestId("portal-state")).toHaveText("Closed");
+    await expect(page.getByTestId("portal-toggle")).toHaveAttribute("aria-checked", "false");
     // And the stakeholders it carries are listed, for reference only.
     const rows = page.getByTestId("portal-stakeholder-row");
     expect(await rows.count()).toBeGreaterThan(1);
@@ -243,14 +244,16 @@ test.describe("the stakeholder portal", () => {
     await expect(form.getByText(/school or department is required/i)).toBeVisible();
   });
 
-  test("stops opening the moment the link is replaced", async ({ page }) => {
+  test("stops opening the moment the link is replaced, from either card's settings", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
     await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
 
     const card = await portalCard(page);
-    await card.getByTestId("portal-regenerate").click();
+    await card.getByTestId("portal-booking-link-settings").click();
+    await page.getByTestId("portal-regenerate-booking").click();
     await page.getByRole("alertdialog").getByRole("button", { name: /issue new link/i }).click();
+    await page.keyboard.press("Escape");
     await expect(card.getByTestId("portal-link")).not.toHaveText(new RegExp(portalPath.split("/").pop()!));
 
     // The old address is dead, and says so without naming the department.
@@ -263,35 +266,10 @@ test.describe("the stakeholder portal", () => {
     const portalPath = await openPortal(page);
     const card = await portalCard(page);
     await card.getByTestId("portal-toggle").click();
-    await expect(card.getByTestId("portal-state")).toHaveText("Closed");
+    await expect(card.getByTestId("portal-toggle")).toHaveAttribute("aria-checked", "false");
 
     await page.goto(portalPath);
     await expect(page.getByRole("heading", { name: "This link does not open a portal" })).toBeVisible();
-  });
-
-  test("asks for a password on the way in, and refuses a wrong one", async ({ page }) => {
-    const portalPath = await openPortal(page);
-    const card = await portalCard(page);
-    await card.getByTestId("portal-password-toggle").click();
-    await page.getByTestId("portal-password-input").fill("open sesame");
-    await page.getByRole("button", { name: "Set password" }).click();
-    // The badge is the evidence the write landed, not the form closing.
-    await expect(card.getByText("Password", { exact: true })).toBeVisible();
-
-    // The address is unchanged — a password is not a new link — but every grant
-    // issued before it was set is dead, so the page asks again.
-    const freshPath = new URL(await card.getByTestId("portal-link").innerText()).pathname;
-    expect(freshPath).toBe(portalPath);
-    await page.goto(freshPath);
-    await expect(page.getByTestId("portal-password")).toBeVisible();
-
-    await page.getByTestId("portal-password").fill("wrong");
-    await page.getByRole("button", { name: "Open the portal" }).click();
-    await expect(page.getByRole("alert")).toBeVisible();
-
-    await page.getByTestId("portal-password").fill("open sesame");
-    await page.getByRole("button", { name: "Open the portal" }).click();
-    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
   });
 
   test("carries the team's settings through to the link", async ({ page }) => {

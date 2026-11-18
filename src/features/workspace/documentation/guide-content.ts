@@ -69,7 +69,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "In Settings → Departments, list the departments you work for. Only these can be chosen on a booking or a task. In Settings → Asset & Work types, list the deliverable types and their output rates.",
         "In Settings → Tickets, check the ticket prefix. Every task's ticket starts with it.",
         "For each team, choose where its bookings land: a receiving board, or Task Allocation for central triage.",
-        "In Portal and Booking, shape the booking form in the Form Editor and publish it. Then open the portal, set each link's settings and password, and share the links.",
+        "In Portal and Booking, open Edit form on the Booking form card, shape the form and publish it. Then switch the portal on, set each link's settings with its gear, and share the links.",
       ], note: { title: "Manager is a responsibility, not a workspace role", text: "Workspace roles are Owner, Admin, Member, and Guest. Team membership and board roles decide what a manager can do. Grant Admin only when someone needs workspace-wide administration." } },
       { title: "Route work and hand it to a manager", steps: [
         "Review Task Allocation for new requests. Clarify incomplete briefs and agree the receiving team with its manager.",
@@ -471,7 +471,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "The task shows Moving… until it has left the queue, then arrives on the board with its ticket, brief, deliverables, department, and due date.",
       ] },
       { title: "Shape the booking form", steps: [
-        "Admins: open Portal and Booking → Form Editor.",
+        "Admins: open Portal and Booking, then Edit form on the Booking form card. Back returns to the two links; leaving with unsaved changes asks first.",
         "Edit each step: the details asked for, the kinds of work (each with its own questions, the work types it offers, and the team it goes to), the deliverables step, and the confirmation.",
         "Use Preview to try it; nothing is sent.",
         "Save templates of the form, and reusable question blocks. Pick a template from the dropdown to load it; the save button sits beside it.",
@@ -496,10 +496,10 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "One portal for every department", paragraphs: ["The portal shows departments the work being done for them, and lets them book more, without a workspace account. There is one link for the whole workspace; visitors choose a department and a period. A department filter is a way to browse, not a private link."] },
       { title: "Set up the portal", steps: [
         "Keep the department list current in Settings → Departments, and set each task's Department.",
-        "Open Portal and Booking. Switch the portal on, and add a password if it needs one.",
-        "Open each link's settings with its gear: for the portal, the team name, the opening view, the default period, the theme, and which columns show; for the booking form, whether it takes requests, its theme, its headline and lead, the sign-in offer, and its size.",
+        "Open Portal and Booking. The Portal and Booking form cards sit side by side, each with its switch, its settings listed, and its buttons. Switch the portal on; switching it off closes the booking form too.",
+        "Change a link's settings with the gear beside its switch: for the portal, the team name, the opening view, the default period, the theme, and which columns show; for the booking form, whether it takes requests, its theme, its headline and lead, the sign-in offer, and its size.",
         "Save each dialog; Discard throws its changes away.",
-        "Open both links to check what visitors see, then share them. New link replaces both links if they spread too far.",
+        "Open both links to check what visitors see, then share them.",
       ] },
       { title: "Help a department find work", steps: [
         "Open the portal link, with its password if asked.",
@@ -884,7 +884,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Check you are still signed in and have access, then try again.",
         "For images, check the size and type. For a booking, check whether it arrived before booking again.",
       ] },
-      { title: "A link no longer opens", paragraphs: ["Join links expire, and are replaced when renewed; share links can end, stop, or be replaced; the portal can be closed or given a new password. Ask for the current link. A members-only share also needs you to be signed in."] },
+      { title: "A link no longer opens", paragraphs: ["Join links expire, and are replaced when renewed; share links can end, stop, or be replaced; the portal can be switched off. Ask for the current link. A members-only share also needs you to be signed in."] },
       { title: "Report a bug", paragraphs: ["Choose Report a bug from your account menu, About, or More on a phone. Pick a category, say what happened, and add up to three screenshots. It becomes a BUG_ ticket for the people who look after the app."] },
       { title: "What to include when asking for help", bullets: [
         "The workspace, board or tracker, the ticket if there is one, and what you did.",

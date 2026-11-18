@@ -28,10 +28,12 @@ async function openBookingForm(page: Page) {
   await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });
 }
 
-/** The Form Editor tab, for anyone who may shape the form. */
+/** The form editor, opened from the Booking form card, for anyone who may shape the form. */
 async function openEditorTab(page: Page) {
-  const bookTab = page.getByTestId("portal-tab-book");
-  if (await bookTab.isVisible().catch(() => false)) await bookTab.click();
+  const edit = page.getByTestId("booking-edit-form");
+  await expect(edit).toBeVisible({ timeout: 15_000 });
+  await edit.click();
+  await expect(page).toHaveURL(/\/workspace\/rmit\/book\/form$/);
 }
 
 /** A stakeholder has no account here: signed in, the session answers for them and the form asks no name. */
@@ -117,7 +119,7 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-priority-high").click();
     await page.getByTestId("booking-due").fill("2026-12-01");
     await page.getByTestId("booking-service-design").click();
-    await page.getByTestId("booking-sub-print").click();
+    if (await page.getByTestId("booking-sub-print").count()) await page.getByTestId("booking-sub-print").click(); // only when the service offers work types (v0.99)
     await expect(page.getByTestId("booking-routing")).toContainText("allocation queue");
     await page.getByTestId("booking-next").click();
 
@@ -148,7 +150,8 @@ test.describe("task booking", () => {
     // Step four: the recap, and only then is anything sent.
     const review = page.getByTestId("booking-step-review");
     await expect(review).toBeVisible();
-    await expect(review).toContainText("Design — Print");
+    // "Design — Print" when the service offers work types (v0.99), "Design" when it offers none.
+    await expect(review).toContainText(/Design( — Print)?/);
     await expect(review).toContainText("Six A1 posters for the Brunswick campus");
     // The ticket is a number in the team's series, so it cannot be known before
     // the booking lands. The receipt is where the stakeholder first sees it.
@@ -191,7 +194,7 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
     await fillRequestBasics(page);
     await page.getByTestId("booking-service-design").click();
-    await page.getByTestId("booking-sub-print").click();
+    if (await page.getByTestId("booking-sub-print").count()) await page.getByTestId("booking-sub-print").click(); // only when the service offers work types (v0.99)
     await page.getByTestId("booking-next").click();
     await page.getByTestId("booking-answer-design-what").fill("Cover artwork for the spring alumni magazine.");
     await page.getByTestId("booking-answer-design-specs").fill("Portrait, with masthead space at the top.");
@@ -225,7 +228,7 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-title").fill("Alumni magazine cover");
     await fillRequestBasics(page);
     await page.getByTestId("booking-service-design").click();
-    await page.getByTestId("booking-sub-print").click();
+    if (await page.getByTestId("booking-sub-print").count()) await page.getByTestId("booking-sub-print").click(); // only when the service offers work types (v0.99)
     await page.getByTestId("booking-next").click();
     await page.getByTestId("booking-answer-design-what").fill("Cover artwork for the spring alumni magazine.");
     await page.getByTestId("booking-answer-design-specs").fill("Portrait, with masthead space at the top.");
@@ -262,12 +265,8 @@ test.describe("task booking", () => {
     const panel = page.getByTestId("editor-service-panel-new-service");
     await expect(panel).toBeVisible();
     await panel.getByTestId("editor-service-name-new-service").fill("Web");
-    await page.getByTestId("editor-service-subs-web-add").click();
-    await page.getByLabel("Choice", { exact: true }).last().fill("Landing page");
-    // Enter finishes a choice rather than starting another, so a second one is
-    // added the way a person adds it.
-    await page.getByTestId("editor-service-subs-web-add").click();
-    await page.getByLabel("Choice", { exact: true }).last().fill("Microsite");
+    // A service's work types are switched on from the workspace's own list (v0.99);
+    // the demo has none, so this service offers none.
     await page.getByTestId("editor-service-brief-web").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();
     // Step two shows the branches as tabs, and Web is the one open.
@@ -286,7 +285,6 @@ test.describe("task booking", () => {
 
     // Published, and now everybody has it.
     await page.goto("/workspace/rmit/book");
-    await expect(page.getByTestId("portal-tab-book")).toBeVisible({ timeout: 15_000 });
     await openEditorTab(page);
     await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("booking-editor-publish").click();
@@ -300,7 +298,7 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-title").fill("Open Day landing page");
     await fillRequestBasics(page);
     await page.getByTestId("booking-service-web").click();
-    await page.getByTestId("booking-sub-landing-page").click();
+    if (await page.getByTestId("booking-sub-landing-page").count()) await page.getByTestId("booking-sub-landing-page").click(); // only when the service offers work types (v0.99)
     await page.getByTestId("booking-next").click();
 
     // Its one question is required, and its answer becomes the brief.

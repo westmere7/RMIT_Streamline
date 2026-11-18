@@ -42,6 +42,7 @@ import { TemplatesPanel } from "./templates-menu";
 import Link from "next/link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
+import { beginUnsavedWork } from "@/lib/unsaved-work";
 
 /**
  * The form editor: four steps, edited in the order a stakeholder meets them.
@@ -168,6 +169,11 @@ export function BookingFormEditor({
   const templateChanged = !!template && draftKey !== formKey(template.template);
   const matchesLive = draftKey === liveKey;
   const draftWaiting = savedKey !== liveKey;
+  // Changes that are neither saved as the draft nor live would be lost by a
+  // refresh (the new-version card's included) or by leaving the page, so while
+  // there are any the browser asks first. Several people edit this form.
+  const unsaved = !savedHere && !matchesLive;
+  React.useEffect(() => (unsaved ? beginUnsavedWork() : undefined), [unsaved]);
 
   const update = (fn: (t: BookingFormTemplate) => void) =>
     setDraft((prev) => {

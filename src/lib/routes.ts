@@ -46,6 +46,8 @@ export const routes = {
   dashboardShare: (token: string) => `/dashboard/${encodeURIComponent(token)}`,
   /** Booking from inside the app, for members. */
   book: (slug: string) => `/workspace/${slug}/book`,
+  /** The booking form's editor, opened from the Booking form card on the page above. */
+  bookFormEditor: (slug: string) => `/workspace/${slug}/book/form`,
   members: (slug: string) => `/workspace/${slug}/members`,
   person: (slug: string, userId: string) => `/workspace/${slug}/people/${userId}`,
   messages: (slug: string, withUserId?: string | null) => `/workspace/${slug}/messages${withUserId ? `?to=${withUserId}` : ""}`,

@@ -168,8 +168,7 @@ test.describe("on a phone", () => {
   });
 
   test("the form's save and publish controls sit above the form, not under it", async ({ page }) => {
-    await page.goto("/workspace/rmit/book");
-    await page.getByTestId("portal-tab-book").click();
+    await page.goto("/workspace/rmit/book/form");
     await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
     const publish = page.getByRole("button", { name: "Publish the form" });
     await expect(publish).toBeVisible();
@@ -179,8 +178,7 @@ test.describe("on a phone", () => {
   });
 
   test("a stakeholder books through all four steps on a phone", async ({ page }) => {
-    await page.goto("/workspace/rmit/book");
-    await page.getByTestId("portal-tab-book").click();
+    await page.goto("/workspace/rmit/book/form");
     const link = page.getByTestId("booking-public-link");
     await expect(link).toHaveAttribute("href", /\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
     const publicUrl = (await link.getAttribute("href"))!;
@@ -201,7 +199,7 @@ test.describe("on a phone", () => {
     await page.getByTestId("booking-priority-high").click();
     await page.getByTestId("booking-due").fill("2026-12-01");
     await page.getByTestId("booking-service-design").click();
-    await page.getByTestId("booking-sub-print").click();
+    if (await page.getByTestId("booking-sub-print").count()) await page.getByTestId("booking-sub-print").click(); // only when the service offers work types (v0.99)
     await page.getByTestId("booking-next").click();
 
     await expect(page.getByTestId("booking-step-brief")).toBeVisible();

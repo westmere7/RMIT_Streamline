@@ -1,10 +1,13 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, Globe, GripVertical, KeyRound, Loader2, Lock, RefreshCw, Settings2, Users } from "lucide-react";
+import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, RefreshCw, Settings2, Users } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -35,17 +38,20 @@ import {
   parsePortalRange,
   portalRangeLabel,
   resolvePortalColumnLayout,
+  templateQuestionCount,
   type PortalColumnCandidate,
   type PortalColumnEntry,
   type PortalPresentation,
   type StakeholderPortal,
 } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
+import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canManageWorkspace } from "@/lib/permissions/permissions";
+import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
@@ -53,10 +59,10 @@ import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
 /**
  * The management side of the portal.
  *
- * One portal, two links, and the page is built around handing them out: each
- * link is a tile with its figure, its copy and open buttons, and its own
- * settings behind a button of its own. What belongs to both links at once —
- * the password and the token itself — sits in the card's header.
+ * One portal, two links, side by side, and the page is built around handing them
+ * out: each link is a card with its figure, its open and copy buttons, and its
+ * own settings listed on it and its switch. Closing the portal closes the form
+ * inside it too. The booking form's questions are on their own page (Edit form).
  */
 export function PortalAdmin() {
   const ws = useWorkspace();
@@ -64,7 +70,7 @@ export function PortalAdmin() {
   const admin = canManageWorkspace(ws.permissions);
 
   if (!admin) {
-    return <EmptyState icon={Lock} title="The portal is managed by workspace admins" description="You can still book a task from the tab beside this one." />;
+    return <EmptyState icon={Lock} title="The portal is managed by workspace admins" description="You can still book a task from the booking page." />;
   }
 
   return (
@@ -83,7 +89,8 @@ export function PortalAdmin() {
 
 /** The portal: whether it is open, its credentials, and its two links. */
 function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows: DepartmentOverview[]; columns: PortalColumnCandidate[] }) {
-  const { setEnabled, setPresentation } = usePortalMutations();
+  const ws = useWorkspace();
+  const { setEnabled, setPresentation, setPassword } = usePortalMutations();
   const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
   const open = portal.enabled;
   const url = portalUrl(portal.token);
@@ -95,27 +102,6 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
     // No box of its own: a heading row over the two link cards, so each card is
     // the only edge around what it holds.
     <section data-testid="portal-card">
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
-        <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[16px] font-semibold tracking-tight">
-          Portal
-          <Badge variant={open ? "success" : "muted"} className="gap-1.5" data-testid="portal-state">
-            {open && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
-            {open ? "Open" : "Closed"}
-          </Badge>
-          {portal.passwordHash && (
-            <Badge variant="outline" className="gap-1">
-              <Lock className="size-3" aria-hidden /> Password
-            </Badge>
-          )}
-        </h3>
-        <div className="flex shrink-0 items-center gap-1.5 max-md:w-full max-md:flex-wrap">
-          {/* Both links share one credential, so what guards it is here rather
-              than in either link's settings. */}
-          <PasswordButton portal={portal} />
-          <RegenerateButton />
-        </div>
-      </div>
-
       {/* Two doors into the same portal. The first is where somebody looks at
           the work being done for them; the second opens straight on the form,
           for when what you want from them is a request rather than a visit.
@@ -125,13 +111,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
         <LinkTile
           icon={Globe}
           label="Portal"
-          lead={
-            <>
-              Departments see their work. Opens on the {portal.defaultView} view
-              {portal.showRecap ? ", with the figures" : ""}
-              {portal.passwordHash ? ", behind the password" : ""}.
-            </>
-          }
+          lead={<>Departments see their work{portal.passwordHash ? ", behind the password" : ""}.</>}
           figure={rows.length}
           figureLabel={rows.length === 1 ? "department" : "departments"}
           aside={rows.length > 0 ? `${active} of ${rows.length} have booked` : "none set up yet"}
@@ -142,6 +122,15 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           copyTestId="portal-copy"
           onCopy={() => void copyToClipboard(url, "Link copied")}
           onSettings={() => setEditing("portal")}
+          settings={portalSettingsRows(portal, columns)}
+          // Passwords are no longer set here; one set before then can still be taken off.
+          action={
+            portal.passwordHash ? (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={setPassword.isPending} onClick={() => setPassword.mutate({ password: null })} data-testid="portal-password-remove">
+                <Lock /> Remove password
+              </Button>
+            ) : undefined
+          }
           open={open}
           // The portal's own switch: its address, and the form behind it, answer or do not.
           toggle={{
@@ -166,9 +155,6 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
               <>Not taking requests.</>
             )
           }
-          figure={booked}
-          figureLabel={booked === 1 ? "request booked" : "requests booked"}
-          aside="so far"
           url={bookingUrl}
           href={`${routes.portal(portal.token)}/book`}
           openLabel="Open Form"
@@ -176,6 +162,14 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           copyTestId="portal-booking-link-copy"
           onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
           onSettings={() => setEditing("booking")}
+          settings={bookingSettingsRows(portal)}
+          action={
+            <Button variant="outline" size="sm" asChild>
+              <Link href={routes.bookFormEditor(ws.slug)} data-testid="booking-edit-form">
+                <Pencil /> Edit form
+              </Link>
+            </Button>
+          }
           open={open && portal.allowBooking}
           // Taking requests is the form's own switch. It waits on the portal's.
           toggle={{
@@ -188,7 +182,9 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
             hint: open ? undefined : "Open the portal first",
             testId: "portal-allow-booking",
           }}
-        />
+        >
+          <PublishedFormSummary booked={booked} />
+        </LinkTile>
       </div>
 
       <SettingsDialog kind="portal" portal={portal} columns={columns} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
@@ -197,89 +193,31 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
   );
 }
 
-/** Sets, changes or removes the password both links ask for. */
-function PasswordButton({ portal }: { portal: StakeholderPortal }) {
-  const { setPassword } = usePortalMutations();
-  const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState("");
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setValue("");
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" data-testid="portal-password-toggle">
-          <KeyRound /> {portal.passwordHash ? "Change password" : "Add password"}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72">
-        <form
-          className="grid gap-2"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!value.trim()) return;
-            // Closed only once the write has landed. Hashing is deliberately
-            // slow, and closing first made the form look finished while it
-            // was not; navigate in that window and the password was lost.
-            await setPassword.mutateAsync({ password: value });
-            setValue("");
-            setOpen(false);
-          }}
-        >
-          <p className="text-[13px] font-medium">{portal.passwordHash ? "Change the password" : "Ask for a password"}</p>
-          <Input type="password" value={value} onChange={(e) => setValue(e.target.value)} placeholder="New password" aria-label="Portal password" autoComplete="new-password" autoFocus data-testid="portal-password-input" />
-          <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" disabled={!value.trim() || setPassword.isPending}>
-              {setPassword.isPending ? "Setting…" : "Set password"}
-            </Button>
-            {portal.passwordHash && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                disabled={setPassword.isPending}
-                onClick={async () => {
-                  await setPassword.mutateAsync({ password: null });
-                  setOpen(false);
-                }}
-                data-testid="portal-password-remove"
-              >
-                Remove
-              </Button>
-            )}
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
-  );
+const capitalise = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+const themeWord = (theme: string, canSwitch: boolean) => `${capitalise(theme)}${canSwitch ? ", visitors can switch" : ""}`;
+
+/** The portal's settings as the card lists them, in the order its dialog asks them. */
+function portalSettingsRows(portal: StakeholderPortal, columns: PortalColumnCandidate[]): Array<{ label: string; value: string }> {
+  const layout = resolvePortalColumnLayout(portal.columnLayout, portal.hiddenColumns, columns);
+  const range = parsePortalRange(portal.defaultRange);
+  const shows = [portal.showRecap && "The figures", portal.showItemGroups && "Board groups"].filter(Boolean).join(", ");
+  return [
+    { label: "Opens on", value: capitalise(portal.defaultView) },
+    { label: "Default span", value: range ? portalRangeLabel(range) : portal.defaultRange },
+    { label: "Theme", value: themeWord(portal.defaultTheme, portal.themeSwitch) },
+    { label: "Columns", value: `${layout.filter((entry) => !entry.hidden).length} of ${layout.length}` },
+    { label: "Shows", value: shows || "Requests only" },
+  ];
 }
 
-/** A new token for both links. The old one stops working at once, so it asks first. */
-function RegenerateButton() {
-  const { regenerate } = usePortalMutations();
-  const [confirm, setConfirm] = React.useState(false);
-  return (
-    <>
-      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirm(true)} data-testid="portal-regenerate">
-        <RefreshCw /> New link
-      </Button>
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title="Issue a new link?"
-        description="Both links stop working straight away, including for anyone reading the portal right now. Their requests are untouched."
-        confirmLabel="Issue new link"
-        destructive
-        onConfirm={async () => {
-          await regenerate.mutateAsync();
-        }}
-      />
-    </>
-  );
+/** The booking page's settings as the card lists them. Its questions are the editor's. */
+function bookingSettingsRows(portal: StakeholderPortal): Array<{ label: string; value: string }> {
+  return [
+    { label: "Theme", value: themeWord(portal.bookingTheme, portal.bookingThemeSwitch) },
+    { label: "Headline and intro", value: portal.bookingHeadline?.trim() || portal.bookingLead?.trim() ? "Your own" : "Built in" },
+    { label: "Size", value: `${portal.bookingScale ?? 100}%${(portal.bookingScaleSwitch ?? true) ? ", visitors can change" : ""}` },
+    { label: "Staff sign-in", value: portal.bookingSignIn ? "Offered" : "Not offered" },
+  ];
 }
 
 /**
@@ -302,6 +240,8 @@ export function LinkTile({
   copyTestId,
   onCopy,
   onSettings,
+  settings,
+  action,
   open,
   toggle,
   children,
@@ -309,9 +249,10 @@ export function LinkTile({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   lead: React.ReactNode;
-  figure: number;
-  figureLabel: string;
-  aside: string;
+  /** The headline number; left out where the card says it elsewhere. */
+  figure?: number;
+  figureLabel?: string;
+  aside?: string;
   url: string;
   href: string;
   /** The words on the Open button. */
@@ -320,6 +261,10 @@ export function LinkTile({
   copyTestId: string;
   onCopy: () => void;
   onSettings: () => void;
+  /** The link's settings as they stand, listed on the card; the gear opens them to change. */
+  settings: Array<{ label: string; value: string }>;
+  /** A further button beside Open and Copy link (the form's editor). */
+  action?: React.ReactNode;
   open: boolean;
   /** The link's on/off switch, top right where it is seen first. */
   toggle: { on: boolean; pending: boolean; disabled?: boolean; onChange: (next: boolean) => void; label: string; hint?: string; testId: string };
@@ -343,11 +288,11 @@ export function LinkTile({
   };
 
   return (
-    // One card, one thin edge, on the page's own background: no fill a step up,
-    // no boxed icon, no ruled-off footer. The edge warms on hover to say the
-    // blank space opens the link.
+    // One card, one thin edge, on the page's own background: no boxed icon, no
+    // ruled-off footer. Hovered, it lifts, its edge takes the accent and a faint
+    // wash, to say the blank space opens the link.
     <div
-      className="flex min-w-0 cursor-pointer flex-col gap-4 rounded-xl border border-border/70 bg-card p-5 transition-colors hover:border-ring/50 max-md:p-4"
+      className="flex min-w-0 cursor-pointer flex-col gap-6 rounded-xl border border-border/70 bg-card p-5 transition-[border-color,background-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-ring hover:bg-accent/25 hover:shadow-lg hover:shadow-ring/10 max-md:p-4"
       onClick={openFromTile}
       title={`Open the ${label.toLowerCase()} in a new tab`}
       data-testid={`${testId}-block`}
@@ -355,8 +300,8 @@ export function LinkTile({
       <div className="flex items-start gap-3">
         <div className={cn("min-w-0 flex-1", dim)}>
           <div className="flex items-center gap-2">
-            <Icon className="size-5 shrink-0 text-foreground/80" />
-            <h4 className="text-[18px] leading-tight font-semibold tracking-tight">{label}</h4>
+            <Icon className="size-[22px] shrink-0 text-foreground/85" />
+            <h4 className="text-[20px] leading-tight font-semibold tracking-tight">{label}</h4>
             {!open && (
               <Badge variant="muted" className="gap-1">
                 <EyeOff className="size-3" aria-hidden /> Not serving
@@ -372,24 +317,40 @@ export function LinkTile({
             <span>{toggle.on ? "On" : "Off"}</span>
             <Switch size="sm" checked={toggle.on} disabled={toggle.disabled || toggle.pending} onCheckedChange={toggle.onChange} aria-label={toggle.label} data-testid={toggle.testId} />
           </label>
-          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} data-testid={`${testId}-settings`}>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onSettings} aria-label={`${label} settings`} title={`${label} settings`} data-testid={`${testId}-settings`}>
             <Settings2 className="size-4" />
           </Button>
         </div>
       </div>
 
       <div className={cn("flex-1", dim)}>
-        <p className="flex items-baseline gap-1.5">
-          <span className="text-[22px] leading-none font-semibold tabular" data-testid={`${testId}-figure`}>
-            {figure}
-          </span>
-          <span className="text-[13px] font-medium">{figureLabel}</span>
-          <span className="text-2xs text-muted-foreground">· {aside}</span>
-        </p>
-        {children && <div className="mt-3">{children}</div>}
+        {figure !== undefined && (
+          <p className="flex items-baseline gap-1.5">
+            <span className="text-[22px] leading-none font-semibold tabular" data-testid={`${testId}-figure`}>
+              {figure}
+            </span>
+            <span className="text-[13px] font-medium">{figureLabel}</span>
+            {aside && <span className="text-2xs text-muted-foreground">· {aside}</span>}
+          </p>
+        )}
+        {children && <div className={cn(figure !== undefined && "mt-3")}>{children}</div>}
       </div>
 
-      <div className="flex items-center gap-1.5">
+      {/* What this link's settings are, where its link is; the gear beside the
+          switch is where they are changed. */}
+      <div className={cn("cursor-default", dim)} data-testid={`${testId}-settings-list`}>
+        <p className="mb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase">Settings</p>
+        <dl className="divide-y divide-border/50">
+          {settings.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
+              <dt className="text-muted-foreground">{row.label}</dt>
+              <dd className="truncate text-right font-medium">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" asChild>
           <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
             <ExternalLink /> {openLabel}
@@ -408,11 +369,77 @@ export function LinkTile({
         >
           {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy link"}
         </Button>
+        {action}
       </div>
       {/* The address, for anything that has to read it: a test, a screen reader. Nobody else. */}
       <span className="sr-only" data-testid={testId}>
         {url}
       </span>
+    </div>
+  );
+}
+
+/** A new token for both links. The old one stops working at once, so it asks first. */
+function RegenerateButton({ testId }: { testId: string }) {
+  const { regenerate } = usePortalMutations();
+  const [confirm, setConfirm] = React.useState(false);
+  return (
+    <>
+      <Button variant="outline" size="sm" className="shrink-0 hover:text-destructive" onClick={() => setConfirm(true)} data-testid={testId}>
+        <RefreshCw /> New link
+      </Button>
+      <ConfirmDialog
+        open={confirm}
+        onOpenChange={setConfirm}
+        title="Issue a new link?"
+        description="Both links stop working straight away, including for anyone reading the portal right now. Their requests are untouched."
+        confirmLabel="Issue new link"
+        destructive
+        onConfirm={async () => {
+          await regenerate.mutateAsync();
+        }}
+      />
+    </>
+  );
+}
+
+/**
+ * The form the booking link serves: its name, what it asks and when it went
+ * live, and how many requests the portal has taken. The same read as the editor's Published form card, and
+ * the same cache, so opening Edit form costs nothing more.
+ */
+function PublishedFormSummary({ booked }: { booked: number }) {
+  const ws = useWorkspace();
+  const services = useServices();
+  const form = useQuery({
+    queryKey: queryKeys.bookingForm(ws.slug, null),
+    queryFn: () => services.booking.getForm({ workspaceSlug: ws.slug, key: null }),
+    staleTime: 60_000,
+  });
+  // A form is published as "<team> · 18 Nov 2026, 11:57" unless someone names it;
+  // the time is said on the line below, so the name drops its copy of it.
+  const name = (ws.workspace.bookingFormName ?? (ws.workspace.bookingForm ? "Published form" : "Built-in form")).replace(/\s+·\s+\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/, "");
+  const at = ws.workspace.bookingFormPublishedAt ? new Date(ws.workspace.bookingFormPublishedAt) : null;
+  const template = form.data?.template ?? null;
+  const serviceCount = template?.services.length ?? 0;
+  return (
+    <div className="min-w-0">
+      <p className="mb-1.5 text-2xs font-medium tracking-wide text-muted-foreground uppercase">Current published form</p>
+      <div className="min-w-0 rounded-lg border border-border/60 px-3 py-2" data-testid="portal-booking-form-summary">
+        <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium">
+          <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="truncate" title={name}>
+            {name}
+          </span>
+        </p>
+        <p className="mt-0.5 truncate text-2xs text-muted-foreground">
+          {template ? `${templateQuestionCount(template)} questions · ${serviceCount === 1 ? "1 service" : `${serviceCount} services`}` : "Reading the form…"}
+          {at && !Number.isNaN(at.getTime()) ? ` · published ${format(at, "d MMM yyyy, HH:mm")}` : ""}
+        </p>
+        <p className="mt-1.5 text-[13px]" data-testid="portal-link-booking-figure">
+          <span className="font-semibold tabular">{booked}</span> <span className="text-muted-foreground">{booked === 1 ? "request booked through the portal" : "requests booked through the portal"}</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -574,6 +601,16 @@ function SettingsDialog({ kind, portal, columns, open, onOpenChange }: { kind: k
 
           <div className="scrollbar-thin grid content-start gap-5 overflow-y-auto px-6 py-5">
             {kind === "portal" ? <PortalFields draft={draft} set={set} placeholder={ws.workspace.name} columns={columns} /> : <BookingFields draft={draft} set={set} />}
+            {/* Kept out of the card: replacing a link is rare, and it is final. It
+                takes effect at once (after asking), not on Save, because the old
+                address must stop working the moment it is replaced. */}
+            <div className="grid gap-1.5 border-t border-border/60 pt-4" data-testid={`portal-link-section-${kind}`}>
+              <p className="text-[13px] font-medium">Link</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-2xs text-muted-foreground">Replace the address if it has spread too far. The portal and the booking form share it, so both change.</p>
+                <RegenerateButton testId={`portal-regenerate-${kind}`} />
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="items-center border-t border-border/60 px-6 py-3.5">
