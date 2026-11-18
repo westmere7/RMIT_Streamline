@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.6",
+    date: "2026-11-18",
+    title: "Fewer database reads",
+    changes: ["Opening a workspace page no longer asks the database for the workspace's name once for every link on the page."],
+  },
+  {
     version: "0.103.5",
     date: "2026-11-18",
     title: "Faster profiles and My Work",
