@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.11",
+    date: "2026-11-18",
+    title: "Deleting a team",
+    changes: [
+      "Only workspace admins see Delete team. Members who manage a team can still archive it.",
+      "A team delete that is refused now says so, and takes none of the team's boards, trackers or docs with it.",
+    ],
+  },
+  {
     version: "0.103.10",
     date: "2026-11-18",
     title: "One share dialog",

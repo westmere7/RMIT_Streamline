@@ -159,6 +159,20 @@ describe("deleting a team", () => {
     // so a busy full run needs the headroom.
   }, 60_000);
 
+  it("takes nothing with it when the team's own delete is refused", async () => {
+    // As the database does for anyone but a workspace admin.
+    const teamId = SEED_TEAM_IDS.vietnam;
+    services.repos.teams.delete = async () => {
+      throw new Error("Only workspace admins can delete a team.");
+    };
+    const boards = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => b.teamId === teamId);
+    expect(boards.length).toBeGreaterThan(0);
+    await expect(services.workspace.deleteTeam(teamId, { deleteBoards: true })).rejects.toThrow(/workspace admins/);
+    const after = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => b.teamId === teamId);
+    expect(after.map((b) => b.id).sort()).toEqual(boards.map((b) => b.id).sort());
+    expect(await services.repos.teams.getById(teamId)).not.toBeNull();
+  });
+
   it("refuses to delete a built-in team", async () => {
     const { team } = await services.workspace.ensureSystemEntities(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
     await expect(services.workspace.deleteTeam(team.id, { deleteBoards: true })).rejects.toThrow(/built in/);

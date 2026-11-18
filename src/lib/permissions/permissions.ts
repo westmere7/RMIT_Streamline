@@ -82,6 +82,14 @@ export function canCreateTeam(ctx: PermissionContext): boolean {
   return ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN" || ctx.workspaceRole === "MEMBER";
 }
 
+/**
+ * Deleting a team for good is the workspace admins' alone, as teams_delete says.
+ * Members who manage a team can archive it, which can be undone.
+ */
+export function canDeleteTeam(ctx: PermissionContext): boolean {
+  return isWorkspaceAdmin(ctx);
+}
+
 /** A team row outlives deactivation, so it counts only with an active seat (0112). */
 export function canManageTeam(ctx: PermissionContext, teamId: string): boolean {
   return isWorkspaceAdmin(ctx) || (ctx.workspaceRole !== null && ctx.teamIds.has(teamId));

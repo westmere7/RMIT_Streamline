@@ -48,7 +48,10 @@ export class SupabaseTeamRepository implements TeamRepository {
 
   /** Members cascade; boards keep existing with `team_id` set to null by the FK. */
   async delete(id: string): Promise<void> {
-    assertOk(await db().from("teams").delete().eq("id", id), "teams.delete");
+    // A delete the policy refuses removes nothing and says nothing; ask for the
+    // row back so a refusal is an error rather than a quiet success.
+    const result = await db().from("teams").delete().eq("id", id).select("id");
+    if (unwrapList<{ id: string }>(result, "teams.delete").length === 0) throw new Error("Only workspace admins can delete a team.");
   }
 
   async listMembersByWorkspace(workspaceId: string): Promise<TeamMember[]> {

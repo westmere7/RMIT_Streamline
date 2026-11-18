@@ -40,7 +40,7 @@ import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canEditDocs, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
@@ -938,7 +938,9 @@ function TeamNode({
       ? [
           { type: "separator" } satisfies MenuAction,
           { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction,
-          { type: "item", label: "Delete team…", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.deleteTeam(team) } satisfies MenuAction,
+          ...(canDeleteTeam(ws.permissions)
+            ? [{ type: "item", label: "Delete team…", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.deleteTeam(team) } satisfies MenuAction]
+            : []),
         ]
       : []),
   ];

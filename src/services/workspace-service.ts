@@ -389,25 +389,24 @@ export class WorkspaceService {
     if (!team) throw new NotFoundError("Team", teamId);
     if (team.system) throw new Error(`${team.name} is built in and cannot be deleted. You can rename it instead.`);
 
-    let deletedBoards = 0;
-    let deletedTrackers = 0;
-    if (options.deleteBoards) {
-      const boards = (await this.repos.boards.listByWorkspace(team.workspaceId)).filter((b) => b.teamId === teamId && !b.system);
-      for (const board of boards) {
-        await this.repos.boards.delete(board.id);
-        deletedBoards += 1;
-      }
-      const trackers = (await this.repos.trackers.listByWorkspace(team.workspaceId)).filter((t) => t.teamId === teamId);
-      for (const tracker of trackers) {
-        await this.repos.trackers.delete(tracker.id);
-        deletedTrackers += 1;
-      }
-      // Its docs too: the team's writing goes with its work. Kept, they would be
-      // in no team and so in no sidebar, only on the Docs page.
-      for (const doc of (await this.repos.docs.listByWorkspace(team.workspaceId)).filter((d) => d.teamId === teamId)) await this.repos.docs.delete(doc.id);
-    }
+    // What goes with it is noted first and removed after the team itself: the
+    // team's delete is the one only an admin may make, so a refusal stops here
+    // with all its work still in place.
+    const [boards, trackers, docs] = options.deleteBoards
+      ? await Promise.all([
+          this.repos.boards.listByWorkspace(team.workspaceId).then((all) => all.filter((b) => b.teamId === teamId && !b.system)),
+          this.repos.trackers.listByWorkspace(team.workspaceId).then((all) => all.filter((t) => t.teamId === teamId)),
+          // Its docs too: the team's writing goes with its work. Kept, they would
+          // be in no team and so in no sidebar, only on the Docs page.
+          this.repos.docs.listByWorkspace(team.workspaceId).then((all) => all.filter((d) => d.teamId === teamId)),
+        ])
+      : [[], [], []];
     await this.repos.teams.delete(teamId);
-    return { deletedBoards, deletedTrackers };
+
+    for (const board of boards) await this.repos.boards.delete(board.id);
+    for (const tracker of trackers) await this.repos.trackers.delete(tracker.id);
+    for (const doc of docs) await this.repos.docs.delete(doc.id);
+    return { deletedBoards: boards.length, deletedTrackers: trackers.length };
   }
 
   // ---- Built-in team and board -----------------------------------------------
