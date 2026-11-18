@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.8",
+    date: "2026-11-18",
+    title: "Lighter join link",
+    changes: ["Add member: the join link sits on the dialog itself instead of in a box."],
+  },
+  {
     version: "0.101.7",
     date: "2026-11-18",
     title: "Asset & Work types",

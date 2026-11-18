@@ -47,7 +47,7 @@ export function JoinLinkPanel() {
   };
 
   return (
-    <section className={cn("space-y-3 rounded-xl border p-3.5 transition-colors", key ? "border-accent-soft-foreground/40 bg-accent-soft/60" : "border-border/70 bg-surface-strong/30")} data-testid="join-link-panel">
+    <section className="space-y-3" data-testid="join-link-panel">
       <div className="flex items-center gap-3">
         <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", key ? "bg-accent-soft text-accent-soft-foreground" : "bg-surface-strong text-muted-foreground")}>
           <Link2 className="size-4.5" />
