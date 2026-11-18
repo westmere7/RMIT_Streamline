@@ -18,10 +18,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.101.18",
+    version: "0.101.19",
     date: "2026-11-18",
     title: "Cleaner portal links",
-    changes: ["Portal and Booking: the portal and booking form links sit side by side in one card instead of two boxed cards."],
+    changes: ["Portal and Booking: the portal and booking form are two simple cards under the portal's heading, no longer boxed inside another card."],
   },
   {
     version: "0.101.17",

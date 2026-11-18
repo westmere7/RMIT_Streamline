@@ -92,8 +92,10 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
   const active = rows.filter((row) => row.requests > 0).length;
 
   return (
-    <section className="rounded-2xl border border-border/70 bg-card" data-testid="portal-card">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-5 py-4 max-md:px-4">
+    // No box of its own: a heading row over the two link cards, so each card is
+    // the only edge around what it holds.
+    <section data-testid="portal-card">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
         <h3 className="flex min-w-0 flex-1 items-center gap-2.5 text-[16px] font-semibold tracking-tight">
           Portal
           <Badge variant={open ? "success" : "muted"} className="gap-1.5" data-testid="portal-state">
@@ -119,9 +121,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           for when what you want from them is a request rather than a visit.
           The addresses themselves stay out of sight: nobody reads a token, they
           copy it, and the two buttons are what they come here for. */}
-      {/* Two columns of the one card, a rule between them, rather than two
-          boxed cards inside it. */}
-      <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+      <div className="grid gap-4 sm:grid-cols-2">
         <LinkTile
           icon={Globe}
           label="Portal"
@@ -343,10 +343,11 @@ export function LinkTile({
   };
 
   return (
-    // A column of the portal card, not a card of its own: no border, no fill,
-    // just a faint wash on hover to say the blank space opens the link.
+    // One card, one thin edge, on the page's own background: no fill a step up,
+    // no boxed icon, no ruled-off footer. The edge warms on hover to say the
+    // blank space opens the link.
     <div
-      className="flex min-w-0 cursor-pointer flex-col gap-4 p-5 transition-colors hover:bg-accent/30 max-md:p-4"
+      className="flex min-w-0 cursor-pointer flex-col gap-4 rounded-xl border border-border/70 bg-card p-5 transition-colors hover:border-ring/50 max-md:p-4"
       onClick={openFromTile}
       title={`Open the ${label.toLowerCase()} in a new tab`}
       data-testid={`${testId}-block`}
