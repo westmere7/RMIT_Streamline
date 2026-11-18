@@ -571,10 +571,10 @@ function BasicsPane({
         {/* The chooser as the form shows it. Pick a card and its settings open underneath. */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onServiceDrag}>
           <SortableContext items={draft.services.map((x) => x.id)} strategy={rectSortingStrategy}>
-            {/* Four to a row on a wide screen: most workspaces run three or
-                four kinds of work, and at three columns the fourth one and the
-                "Add a service" card fall onto a second row that is mostly gap. */}
-            <div className="mt-1 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" data-testid="editor-services">
+            {/* The form's own grid: as many to a row as fit at a width that
+                holds the name, then another row. Counting columns by the
+                window squeezed four into the editor's card and cut the names. */}
+            <div className="mt-1 grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-2" data-testid="editor-services">
               {draft.services.map((s) => (
                 <ServiceCard key={s.id} service={s} selected={s.id === shown?.id} onSelect={() => onSelect(s.id)} />
               ))}
@@ -640,8 +640,8 @@ function ServiceCard({ service, selected, onSelect }: { service: BookingServiceT
         onSelect={onSelect}
         testId={`editor-service-${slug(service.name)}`}
         className="pr-8"
-        name={<span className="block truncate">{service.name || "Untitled"}</span>}
-        description={service.description ? <span className="line-clamp-2 text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
+        name={<span className="block break-words">{service.name || "Untitled"}</span>}
+        description={service.description ? <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
         chrome={<DragHandle label={`Reorder ${service.name}`} testId={`editor-service-drag-${slug(service.name)}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} className="absolute top-2 right-1.5" />}
       />
     </div>
