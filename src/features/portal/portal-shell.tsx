@@ -2,7 +2,7 @@
 
 import { CalendarRange, Check, ChevronDown, LoaderCircle, Moon, Sun, SunMoon, Users } from "lucide-react";
 import * as React from "react";
-import { BrandMark } from "@/features/auth/components/auth-shell";
+import { BrandMark, RmitLogo } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
 import { isPortalTheme, PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
@@ -377,7 +377,8 @@ export function PortalHeader({
           the other ways of narrowing the board are. Nothing here explains
           itself in small print. */}
       <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6">
-        <BrandMark className="size-9 shrink-0 rounded-xl" />
+        {/* RMIT's logo leads: the portal is the RMIT team's. Streamline signs off at the far end. */}
+        <RmitLogo className="h-8" />
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {onStakeholder ? (
             <DropdownMenu>
@@ -442,6 +443,9 @@ export function PortalHeader({
             Staff sign in
           </a>
         )}
+        <span title="Streamline" className="shrink-0">
+          <BrandMark className="size-7 rounded-lg shadow-none" />
+        </span>
         </div>
       </div>
     </header>
