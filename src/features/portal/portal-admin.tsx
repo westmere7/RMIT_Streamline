@@ -135,6 +135,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           aside={rows.length > 0 ? `${active} of ${rows.length} have booked` : "none set up yet"}
           url={url}
           href={routes.portal(portal.token)}
+          openLabel="Open Portal"
           testId="portal-link"
           copyTestId="portal-copy"
           onCopy={() => void copyToClipboard(url, "Link copied")}
@@ -168,6 +169,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           aside="so far"
           url={bookingUrl}
           href={`${routes.portal(portal.token)}/book`}
+          openLabel="Open Form"
           testId="portal-booking-link"
           copyTestId="portal-booking-link-copy"
           onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
@@ -293,6 +295,7 @@ export function LinkTile({
   aside,
   url,
   href,
+  openLabel = "Open",
   testId,
   copyTestId,
   onCopy,
@@ -309,6 +312,8 @@ export function LinkTile({
   aside: string;
   url: string;
   href: string;
+  /** The words on the Open button. */
+  openLabel?: string;
   testId: string;
   copyTestId: string;
   onCopy: () => void;
@@ -384,9 +389,9 @@ export function LinkTile({
       </div>
 
       <div className="flex items-center justify-end gap-1.5 border-t border-border/60 px-4 py-2.5">
-        <Button variant="ghost" size="sm" asChild>
+        <Button size="sm" asChild>
           <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
-            Open <ExternalLink className="size-3.5" />
+            <ExternalLink /> {openLabel}
           </a>
         </Button>
         <Button

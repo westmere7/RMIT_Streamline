@@ -164,13 +164,6 @@ export function BookTaskPage() {
                 : "Shape the form everybody books through. Save as you go; nothing changes for anyone until you publish."}
             </span>
           }
-          actions={
-            <Button type="button" variant={tab === "book" ? "outline" : "default"} asChild>
-              <a href={routes.bookForm(ws.slug)} target="_blank" rel="noreferrer noopener" data-testid="booking-open-form">
-                <ExternalLink /> Open the form
-              </a>
-            </Button>
-          }
         />
         <div role="tablist" aria-label="Portal and Booking" className="mb-4 flex items-end gap-0.5 border-b border-border/70 px-4 sm:px-7">
           {(

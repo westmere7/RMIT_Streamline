@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.5",
+    date: "2026-11-18",
+    title: "Portal links open from their cards",
+    changes: ["Portal and Booking: the portal and booking form open from their own cards (Open Portal, Open Form); the button at the top is gone."],
+  },
+  {
     version: "0.101.4",
     date: "2026-10-30",
     title: "About keeps its feature list",
