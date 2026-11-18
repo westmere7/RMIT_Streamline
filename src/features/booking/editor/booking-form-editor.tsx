@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { Boxes, Check, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -793,13 +793,15 @@ function WorkTypeToggles({ selected, onChange, testIdPrefix }: { selected: reado
             type="button"
             aria-pressed={on}
             onClick={() => toggle(w.name)}
+            // On is a solid pill in the work type's colour with a tick, so what
+            // the service offers reads at a glance against the outlined rest.
             className={cn(
               "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
-              on ? cn("border-transparent", colorClasses(w.color).soft) : "border-border/70 text-muted-foreground hover:bg-accent/60",
+              on ? cn("border-transparent font-semibold shadow-xs", colorClasses(w.color).solid, colorClasses(w.color).solidHover) : "border-border/70 text-muted-foreground hover:bg-accent/60",
             )}
             data-testid={`${testIdPrefix}-${slug(w.name)}`}
           >
-            <span aria-hidden className={cn("size-1.5 rounded-full", colorClasses(w.color).dot, !on && "opacity-40")} />
+            {on ? <Check aria-hidden className="-ml-0.5 size-3.5" strokeWidth={3} /> : <span aria-hidden className={cn("size-1.5 rounded-full opacity-40", colorClasses(w.color).dot)} />}
             {w.name}
           </button>
         );
