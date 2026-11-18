@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.105.1",
+    date: "2026-11-18",
+    title: "Essentials",
+    changes: [
+      "The booking form's first step is called Essentials, on the form and in its editor.",
+    ],
+  },
+  {
     version: "0.105.0",
     date: "2026-11-18",
     title: "Add your own choice",

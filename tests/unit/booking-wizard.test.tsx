@@ -90,7 +90,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     renderWizard();
     const bar = screen.getByTestId("booking-progress");
     expect(within(bar).getAllByRole("button")).toHaveLength(4);
-    expect(bar).toHaveAccessibleName("Step 1 of 4: Details");
+    expect(bar).toHaveAccessibleName("Step 1 of 4: Essentials");
     expect(screen.getByTestId("booking-step-basics")).toBeInTheDocument();
     // Nothing ahead is reachable until it is earned.
     expect(screen.getByTestId("booking-progress-brief")).toBeDisabled();
@@ -454,7 +454,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     renderWizard({ form: formWith(template) });
     const bar = screen.getByTestId("booking-progress");
     expect(within(bar).getAllByRole("button")).toHaveLength(3);
-    expect(bar).toHaveAccessibleName("Step 1 of 3: Details");
+    expect(bar).toHaveAccessibleName("Step 1 of 3: Essentials");
   });
 
   it("fills in the name the workspace has for a known email, and leaves a name corrected afterwards alone", async () => {

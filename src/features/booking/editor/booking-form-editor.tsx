@@ -90,7 +90,7 @@ export interface BookingFormEditorProps {
 }
 
 const STEP_TABS = [
-  { key: "basics", label: "1 · Details", icon: ClipboardList },
+  { key: "basics", label: "1 · Essentials", icon: ClipboardList },
   { key: "brief", label: "2 · Brief", icon: ListPlus },
   { key: "assets", label: "3 · Deliverables", icon: Boxes },
   { key: "review", label: "4 · Confirm", icon: FileCheck2 },

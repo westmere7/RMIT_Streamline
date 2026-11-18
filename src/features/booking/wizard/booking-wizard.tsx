@@ -130,7 +130,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
   const steps = React.useMemo<StepDef[]>(
     () =>
       [
-        { key: "basics" as const, label: "Details" },
+        { key: "basics" as const, label: "Essentials" },
         { key: "brief" as const, label: "Brief" },
         ...(template.assets.enabled ? [{ key: "assets" as const, label: "Deliverables" }] : []),
         { key: "review" as const, label: "Confirm" },

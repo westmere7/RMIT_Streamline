@@ -105,7 +105,7 @@ test.describe("task booking", () => {
 
     // Step one: who is asking, and what kind of work it is. Nothing moves on
     // until the questions the form insists on are answered.
-    await expect(page.getByTestId("booking-progress")).toHaveAccessibleName("Step 1 of 4: Details");
+    await expect(page.getByTestId("booking-progress")).toHaveAccessibleName("Step 1 of 4: Essentials");
     await page.getByTestId("booking-next").click();
     await expect(page.getByText("Pick the kind of work this is")).toBeVisible();
     await page.getByTestId("booking-name").fill("Priya Nair");
