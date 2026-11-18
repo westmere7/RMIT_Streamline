@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.11",
+    date: "2026-11-18",
+    title: "Work type chips match the form",
+    changes: ["Form Editor: the work types a service offers use the same chips as the booking form."],
+  },
+  {
     version: "0.101.10",
     date: "2026-11-18",
     title: "Clearer work type picks",

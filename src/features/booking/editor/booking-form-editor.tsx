@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -32,7 +32,7 @@ import {
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema, normaliseBookingTemplate } from "@/services/booking";
-import { AssetList, AssetTypePicker, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
+import { AssetList, AssetTypePicker, Chip, ChipGroup, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
@@ -783,30 +783,16 @@ function WorkTypeToggles({ selected, onChange, testIdPrefix }: { selected: reado
     else next.add(key);
     onChange(workTypes.filter((w) => next.has(w.name.toLowerCase())).map((w) => ({ name: w.name, color: w.color })));
   };
+  // The booking form's own chips, so an offered work type looks here the way a
+  // picked one looks to whoever books.
   return (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Work types offered">
-      {workTypes.map((w) => {
-        const on = chosen.has(w.name.toLowerCase());
-        return (
-          <button
-            key={w.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => toggle(w.name)}
-            // On is a solid pill in the work type's colour with a tick, so what
-            // the service offers reads at a glance against the outlined rest.
-            className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium transition-colors",
-              on ? cn("border-transparent font-semibold shadow-xs", colorClasses(w.color).solid, colorClasses(w.color).solidHover) : "border-border/70 text-muted-foreground hover:bg-accent/60",
-            )}
-            data-testid={`${testIdPrefix}-${slug(w.name)}`}
-          >
-            {on ? <Check aria-hidden className="-ml-0.5 size-3.5" strokeWidth={3} /> : <span aria-hidden className={cn("size-1.5 rounded-full opacity-40", colorClasses(w.color).dot)} />}
-            {w.name}
-          </button>
-        );
-      })}
-    </div>
+    <ChipGroup ariaLabel="Work types offered">
+      {workTypes.map((w) => (
+        <Chip key={w.id} color={w.color} active={chosen.has(w.name.toLowerCase())} onClick={() => toggle(w.name)} testId={`${testIdPrefix}-${slug(w.name)}`}>
+          {w.name}
+        </Chip>
+      ))}
+    </ChipGroup>
   );
 }
 
