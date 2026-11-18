@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.9",
+    date: "2026-11-18",
+    title: "Workspace menu counts",
+    changes: ["The number beside another workspace in the menu counts only notifications its inbox shows, so one about a deleted task no longer sticks there."],
+  },
+  {
     version: "0.101.8",
     date: "2026-11-18",
     title: "Lighter join link",

@@ -96,6 +96,48 @@ function targetBoard(n: Notification, ws: WorkspaceContextValue, boardOfItem: Ma
   return ws.boardById(n.boardId);
 }
 
+/**
+ * Unread Notifications (the loud kind, never Updates) waiting in each of this
+ * person's other workspaces, for the workspace menu to show beside their names.
+ *
+ * The same rule as that workspace's own inbox: a notification counts only while
+ * what it is about can still be opened. The menu counted every unread row, so a
+ * booking whose task had since been deleted kept a "1" beside a workspace whose
+ * inbox showed nothing, with no way to clear it. Another workspace's boards are
+ * not loaded here, so each one a notification needs is read on its own; a board
+ * the reader may no longer see does not come back, which leaves it out too.
+ */
+export function useOtherWorkspacesUnread(userId: string, currentWorkspaceId: string): (workspaceId: string) => number {
+  const services = useServices();
+  const all = useQuery({ queryKey: queryKeys.notifications(userId), queryFn: () => services.repos.notifications.listByUser(userId), staleTime: 10_000 });
+  const waiting = React.useMemo(
+    () => (all.data ?? []).filter((n) => n.readAt === null && n.delivery === "NOTIFICATION" && !!n.workspaceId && n.workspaceId !== currentWorkspaceId),
+    [all.data, currentWorkspaceId],
+  );
+  const itemIds = React.useMemo(() => [...new Set(waiting.filter((n) => n.entityType === "ITEM").map((n) => n.entityId))].sort(), [waiting]);
+  const reachable = useQuery({
+    queryKey: ["notification-reach", userId, waiting.map((n) => n.id).sort()],
+    queryFn: async () => {
+      const boardOfItem = new Map((itemIds.length > 0 ? await services.repos.items.listByIds(itemIds) : []).map((item) => [item.id, item.boardId]));
+      const boardFor = (n: Notification) => (n.entityType === "ITEM" ? boardOfItem.get(n.entityId) : n.entityType === "BOARD" ? n.entityId : n.boardId) ?? null;
+      const boardIds = [...new Set(waiting.map(boardFor).filter((id): id is string => !!id))];
+      const open = new Set((await Promise.all(boardIds.map((id) => services.repos.boards.getById(id)))).filter((b): b is Board => !!b).map((b) => b.id));
+      return waiting.filter((n) => {
+        const board = boardFor(n);
+        return !!board && open.has(board);
+      });
+    },
+    enabled: waiting.length > 0,
+    staleTime: 60_000,
+  });
+  const counts = React.useMemo(() => {
+    const byWorkspace = new Map<string, number>();
+    for (const n of waiting.length > 0 ? (reachable.data ?? []) : []) byWorkspace.set(n.workspaceId!, (byWorkspace.get(n.workspaceId!) ?? 0) + 1);
+    return byWorkspace;
+  }, [waiting.length, reachable.data]);
+  return (workspaceId) => counts.get(workspaceId) ?? 0;
+}
+
 /** Unread split the way the two badges show it: loud ones and quiet ones. */
 export function useUnreadCounts(userId: string): UnreadCounts {
   const { data } = useInboxNotifications(userId);

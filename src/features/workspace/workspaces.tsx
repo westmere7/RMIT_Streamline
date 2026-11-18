@@ -18,9 +18,9 @@ import { SkeletonLine } from "@/components/ui/skeleton";
 import type { Workspace } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
+import { useOtherWorkspacesUnread } from "@/features/notifications/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canManageWorkspaces } from "@/lib/permissions/permissions";
-import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { slugify } from "@/lib/slug";
 import { cn } from "@/lib/utils";
@@ -148,11 +148,9 @@ export function WorkspaceMenuItems() {
   const ws = useWorkspace();
   const router = useRouter();
   const mine = useMyWorkspaces();
-  const services = useServices();
-  // Every workspace's notifications: the inbox shows this one's, so the menu is
-  // where the others say something is waiting. The same cached read as the inbox.
-  const all = useQuery({ queryKey: queryKeys.notifications(ws.currentUser.id), queryFn: () => services.repos.notifications.listByUser(ws.currentUser.id), staleTime: 10_000 });
-  const unreadIn = (workspaceId: string) => (all.data ?? []).filter((n) => n.workspaceId === workspaceId && n.readAt === null && n.delivery === "NOTIFICATION").length;
+  // The inbox shows this workspace's notifications, so the menu is where the
+  // others say something is waiting: what their own inboxes would show.
+  const unreadIn = useOtherWorkspacesUnread(ws.currentUser.id, ws.workspace.id);
   const showNew = useNewWorkspaceDialog((s) => s.show);
   const list = mine.data ?? [ws.workspace];
   const owner = canManageWorkspaces(ws.ownPermissions);
