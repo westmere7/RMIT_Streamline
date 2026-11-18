@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.18",
+    date: "2026-11-18",
+    title: "Cleaner portal links",
+    changes: ["Portal and Booking: the portal and booking form links sit side by side in one card instead of two boxed cards."],
+  },
+  {
     version: "0.101.17",
     date: "2026-11-18",
     title: "Calmer All time",

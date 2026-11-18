@@ -119,7 +119,9 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           for when what you want from them is a request rather than a visit.
           The addresses themselves stay out of sight: nobody reads a token, they
           copy it, and the two buttons are what they come here for. */}
-      <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+      {/* Two columns of the one card, a rule between them, rather than two
+          boxed cards inside it. */}
+      <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         <LinkTile
           icon={Globe}
           label="Portal"
@@ -341,20 +343,18 @@ export function LinkTile({
   };
 
   return (
-    // A solid fill a step up from the section and a full border, so the two
-    // doors read as things to pick up rather than as part of the page. No shadow.
+    // A column of the portal card, not a card of its own: no border, no fill,
+    // just a faint wash on hover to say the blank space opens the link.
     <div
-      className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border bg-surface transition-colors hover:border-ring/50 dark:border-white/10 dark:bg-surface-strong dark:hover:border-ring/50"
+      className="flex min-w-0 cursor-pointer flex-col gap-4 p-5 transition-colors hover:bg-accent/30 max-md:p-4"
       onClick={openFromTile}
       title={`Open the ${label.toLowerCase()} in a new tab`}
       data-testid={`${testId}-block`}
     >
-      <div className="flex items-start gap-3 p-4">
-        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground", dim)}>
-          <Icon className="size-4" />
-        </span>
+      <div className="flex items-start gap-3">
         <div className={cn("min-w-0 flex-1", dim)}>
           <div className="flex items-center gap-2">
+            <Icon className="size-4 shrink-0 text-muted-foreground" />
             <h4 className="text-[14px] font-semibold">{label}</h4>
             {!open && (
               <Badge variant="muted" className="gap-1">
@@ -377,7 +377,7 @@ export function LinkTile({
         </div>
       </div>
 
-      <div className={cn("flex-1 px-4 pb-4", dim)}>
+      <div className={cn("flex-1", dim)}>
         <p className="flex items-baseline gap-1.5">
           <span className="text-[22px] leading-none font-semibold tabular" data-testid={`${testId}-figure`}>
             {figure}
@@ -388,7 +388,7 @@ export function LinkTile({
         {children && <div className="mt-3">{children}</div>}
       </div>
 
-      <div className="flex items-center justify-end gap-1.5 border-t border-border/60 px-4 py-2.5">
+      <div className="flex items-center gap-1.5">
         <Button size="sm" asChild>
           <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
             <ExternalLink /> {openLabel}
