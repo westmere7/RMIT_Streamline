@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
-import { BrandMark, AuthShell } from "@/features/auth/components/auth-shell";
+import { RmitPixel, AuthShell } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
         <>
           {/* The header stays put; only the form underneath scrolls. */}
           <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
-            <BrandMark className="size-9 rounded-lg text-sm" />
+            <RmitPixel className="size-9" />
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-[15px] font-semibold tracking-tight">{form.data.workspaceName}</p>
               <p className="text-xs text-muted-foreground">Task booking{signedIn ? ` · signed in as ${user.firstName}` : ""}</p>

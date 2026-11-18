@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/domain";
 import { BOOKING_SCALE_MAX, BOOKING_SCALE_MIN, DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD, clampBookingScale } from "@/domain";
-import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
+import { AuthShell, RmitPixel } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -131,7 +131,7 @@ export function PortalBookingScreen({
       extras={(tone) => <ViewControls tone={tone} scale={scale} teamScale={teamScale} allowScale={scaleSwitch} onScale={setScale} />}
     >
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
-        <BrandMark className="size-9 rounded-lg text-sm" />
+        <RmitPixel className="size-9" />
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-[15px] font-semibold tracking-tight">{portalName}</p>
           <p className="text-xs text-muted-foreground">Task booking{account ? ` · signed in as ${account.name}` : ""}</p>

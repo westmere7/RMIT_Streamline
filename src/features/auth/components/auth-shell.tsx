@@ -1,6 +1,5 @@
 "use client";
 
-import { ClipboardList, LayoutDashboard, SquareKanban } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { CURRENT_VERSION } from "@/lib/version";
@@ -75,11 +74,6 @@ export function AuthShell({
         <div aria-hidden className="relative space-y-6">
           <h1 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">{headline}</h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-white/70">{lead}</p>
-          <ul className="grid gap-2.5 pt-1 text-[13px] text-white/75">
-            <Feature icon={SquareKanban}>Boards and trackers instead of spreadsheets</Feature>
-            <Feature icon={LayoutDashboard}>Dashboards on workload and delivery</Feature>
-            <Feature icon={ClipboardList}>Approvals, updates and mentions in one inbox</Feature>
-          </ul>
         </div>
 
         <div className="relative flex items-center justify-between gap-4">
@@ -126,6 +120,19 @@ function AuthVersion({ className }: { className?: string }) {
 }
 
 /** The Streamline mark: the two slashes, in white on the brand red. */
+/**
+ * RMIT's red pixel, for where a page speaks for the RMIT team rather than for
+ * Streamline: the booking card. The path is the pixel from RMIT's own logo file
+ * (RMIT_RedPixel.svg), unaltered, in RMIT red.
+ */
+export function RmitPixel({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 52.14 50.19" className={cn("size-9 shrink-0", className)} role="img" aria-label="RMIT">
+      <path fill="#e61e2a" d="M26.21,0h-6.68v5.43h-11.15v11.34H0v16.65h8.37v11.34h11.13v5.43h5.91c13.78,0,25.93-11.13,25.93-25.02S40.03,0,26.21,0" />
+    </svg>
+  );
+}
+
 export function BrandMark({ className, pulse }: { className?: string; pulse?: boolean }) {
   return (
     <span className={cn("relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary shadow-[0_8px_20px_-8px_rgba(230,30,42,0.8)]", className)}>
@@ -159,13 +166,3 @@ export function BrandLogo({ className, tone = "auto" }: { className?: string; to
   );
 }
 
-function Feature({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
-  return (
-    <li className="flex items-center gap-2.5">
-      <span className="flex size-6 items-center justify-center rounded-md bg-white/10">
-        <Icon className="size-3.5" />
-      </span>
-      {children}
-    </li>
-  );
-}
