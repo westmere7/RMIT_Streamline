@@ -8,12 +8,11 @@ async function createShareLink(page: Page): Promise<string> {
   await page.getByTestId("board-share").click();
   const dialog = page.getByTestId("share-dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByTestId("share-create").click();
+  // The same panel with or without a link: turning it on creates one in place.
+  await dialog.getByTestId("share-enabled").click();
   const link = dialog.getByTestId("share-link");
-  await expect(link).toBeVisible({ timeout: 15000 });
-  const url = await link.inputValue();
-  expect(url).toMatch(/\/share\/[a-z0-9]{16,}$/);
-  return url;
+  await expect(link).toHaveValue(/\/share\/[a-z0-9]{16,}$/, { timeout: 15000 });
+  return link.inputValue();
 }
 
 test.describe("sharing a board by link", () => {
@@ -161,7 +160,7 @@ test.describe("sharing a board by link", () => {
     await expect(guest.getByTestId("shared-board")).toBeVisible({ timeout: 20000 });
 
     await dialog.getByTestId("share-stop").click();
-    await expect(dialog.getByTestId("share-create")).toBeVisible({ timeout: 15000 });
+    await expect(dialog.getByTestId("share-link")).toHaveValue("", { timeout: 15000 });
     await guest.goto(url);
     await expect(guest.getByTestId("share-closed")).toBeVisible({ timeout: 20000 });
 
@@ -179,7 +178,7 @@ test.describe("sharing a board by link", () => {
     await page.getByTestId("board-menu").click();
     await page.getByRole("menuitem", { name: /Board settings/ }).click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
-    await expect(page.getByTestId("share-create")).toBeVisible();
+    await expect(page.getByTestId("share-enabled")).toBeVisible();
   });
 });
 

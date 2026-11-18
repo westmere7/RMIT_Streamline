@@ -108,27 +108,30 @@ export function BoardSharePanel({ board }: { board: Board }) {
       </div>
     );
   }
-  if (!current) {
-    return (
-      <div className="py-1">
-        <Button onClick={() => save.mutate({ enabled: true })} disabled={busy} data-testid="share-create">
-          {save.isPending ? <LoaderCircle className="animate-spin" /> : null} Create a share link
-        </Button>
-      </div>
-    );
-  }
   return (
     <ShareControls
       share={current}
       what="board"
-      url={shareUrl(routes.share(current.token))}
+      url={current ? shareUrl(routes.share(current.token)) : null}
       busy={busy}
-      onSave={(settings) => save.mutate(settings)}
+      onSave={(settings) => save.mutate(firstSave(current, settings))}
       onRegenerate={() => regenerate.mutate()}
       onStop={() => stop.mutate()}
     />
   );
 }
+
+/**
+ * Settings for a board or task with no link yet. The panel looks the same
+ * either way: turning the link on creates it, and any other choice made first
+ * creates it switched off, so nothing opens until someone says so.
+ */
+export function firstSave(current: ShareLike | null, settings: ShareSettings): ShareSettings {
+  return current ? settings : { enabled: false, ...settings };
+}
+
+/** How a link that does not exist yet reads in the panel. */
+const NO_LINK: ShareLike = { enabled: false, expiresAt: null, passwordHash: null, access: "PRIVATE" };
 
 /** The address a visitor would paste. Only ever read in the browser. */
 export function shareUrl(path: string): string {
@@ -178,7 +181,7 @@ export function ShareAccessChoice({ access, busy, what, onChange }: { access: Sh
 
 /** The one set of controls behind both kinds of link: the address, who it opens for, and when it stops. */
 export function ShareControls({
-  share,
+  share: current,
   what,
   url,
   busy,
@@ -186,15 +189,18 @@ export function ShareControls({
   onRegenerate,
   onStop,
 }: {
-  share: ShareLike;
+  /** Null before there is a link: the same controls, and the first change creates it. */
+  share: ShareLike | null;
   /** "board" or "task" — the wording changes, the controls do not. */
   what: string;
-  url: string;
+  url: string | null;
   busy: boolean;
   onSave: (settings: ShareSettings) => void;
   onRegenerate: () => void;
   onStop: () => void;
 }) {
+  const share = current ?? NO_LINK;
+  const linked = current !== null && url !== null;
   const [password, setPassword] = React.useState("");
   const [confirmingNew, setConfirmingNew] = React.useState(false);
   const expired = !!share.expiresAt && share.expiresAt < todayISO();
@@ -205,15 +211,29 @@ export function ShareControls({
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Input aria-label="Share link" readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" data-testid="share-link" />
-        <Button variant="outline" size="icon" aria-label="Copy link" onClick={() => void copyToClipboard(url)} data-testid="share-copy">
+        <Input
+          aria-label="Share link"
+          readOnly
+          value={url ?? ""}
+          placeholder="Turn the link on to get its address"
+          onFocus={(e) => e.currentTarget.select()}
+          className="font-mono text-xs"
+          data-testid="share-link"
+        />
+        <Button variant="outline" size="icon" aria-label="Copy link" disabled={!linked} onClick={() => url && void copyToClipboard(url)} data-testid="share-copy">
           <Copy />
         </Button>
-        <Button variant="outline" size="icon" aria-label="Open link" asChild>
-          <a href={url} target="_blank" rel="noreferrer">
+        {linked ? (
+          <Button variant="outline" size="icon" aria-label="Open link" asChild>
+            <a href={url} target="_blank" rel="noreferrer">
+              <ExternalLink />
+            </a>
+          </Button>
+        ) : (
+          <Button variant="outline" size="icon" aria-label="Open link" disabled>
             <ExternalLink />
-          </a>
-        </Button>
+          </Button>
+        )}
       </div>
 
       <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border/60 bg-surface/40 px-3.5 py-3 text-[13px] font-medium">
@@ -295,7 +315,7 @@ export function ShareControls({
       </div>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={busy} onClick={onStop} data-testid="share-stop">
+        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={busy || !linked} onClick={onStop} data-testid="share-stop">
           <Trash2 /> Stop sharing
         </Button>
         {confirmingNew ? (
@@ -317,7 +337,7 @@ export function ShareControls({
             </Button>
           </span>
         ) : (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirmingNew(true)} data-testid="share-regenerate">
+          <Button variant="outline" size="sm" disabled={busy || !linked} onClick={() => setConfirmingNew(true)} data-testid="share-regenerate">
             <RefreshCw /> New link
           </Button>
         )}

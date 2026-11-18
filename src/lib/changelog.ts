@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.10",
+    date: "2026-11-18",
+    title: "One share dialog",
+    changes: [
+      "Sharing a board or a task shows the same dialog before and after there is a link. Turning the link on creates it in place.",
+    ],
+  },
+  {
     version: "0.103.9",
     date: "2026-11-18",
     title: "Phone fixes",

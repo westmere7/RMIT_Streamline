@@ -4,11 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Item } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
-import { ShareControls, shareUrl } from "@/features/boards/components/dialogs/share-board-dialog";
+import { firstSave, ShareControls, shareUrl } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
@@ -95,22 +94,13 @@ function ItemSharePanel({ item }: { item: Item }) {
       </div>
     );
   }
-  if (!current) {
-    return (
-      <div className="py-1">
-        <Button onClick={() => save.mutate({ enabled: true })} disabled={busy} data-testid="item-share-create">
-          {save.isPending ? <LoaderCircle className="animate-spin" /> : null} Create a share link
-        </Button>
-      </div>
-    );
-  }
   return (
     <ShareControls
       share={current}
       what="task"
-      url={shareUrl(routes.itemShare(current.token))}
+      url={current ? shareUrl(routes.itemShare(current.token)) : null}
       busy={busy}
-      onSave={(settings) => save.mutate(settings)}
+      onSave={(settings) => save.mutate(firstSave(current, settings))}
       onRegenerate={() => regenerate.mutate()}
       onStop={() => stop.mutate()}
     />
