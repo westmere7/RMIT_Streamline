@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.104.1",
+    date: "2026-11-18",
+    title: "Question menus in one column",
+    changes: [
+      "Booking form editor: the menus for adding a question or a follow-up list the kinds in one column, so no name is cut off.",
+    ],
+  },
+  {
     version: "0.104.0",
     date: "2026-11-18",
     title: "Switch question kinds, and acknowledgements",

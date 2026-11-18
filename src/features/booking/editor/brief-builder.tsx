@@ -252,8 +252,8 @@ function InsertLine({ position, saved, onInsert, testId }: { position: "top" | "
               <Plus className="size-3" />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="center" className="w-72 p-1.5">
-            <div className="grid grid-cols-2 gap-0.5">
+          <PopoverContent align="center" className="w-56 p-1.5">
+            <div className="grid gap-0.5">
               {ADD_ORDER.map((kind) => {
                 const Icon = BLOCK_ICONS[kind];
                 return (
@@ -508,11 +508,11 @@ function AddFollowUp({ count, optionName, onAdd, testId }: { count: number; opti
           {count > 0 && <span className="tabular">{count}</span>}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(16rem,calc(100vw-2rem))] p-1.5">
+      <PopoverContent align="start" className="w-[min(14rem,calc(100vw-2rem))] p-1.5">
         <p className="px-2 pt-1 pb-1.5 label-quiet">
           <span className="truncate">Asked after “{optionName}”</span>
         </p>
-        <div className="grid grid-cols-2 gap-0.5">
+        <div className="grid gap-0.5">
           {FOLLOW_UP_ORDER.map((kind) => {
             const Icon = BLOCK_ICONS[kind];
             return (
