@@ -355,15 +355,15 @@ export function LinkTile({
       <div className="flex items-start gap-3">
         <div className={cn("min-w-0 flex-1", dim)}>
           <div className="flex items-center gap-2">
-            <Icon className="size-4 shrink-0 text-muted-foreground" />
-            <h4 className="text-[14px] font-semibold">{label}</h4>
+            <Icon className="size-5 shrink-0 text-foreground/80" />
+            <h4 className="text-[18px] leading-tight font-semibold tracking-tight">{label}</h4>
             {!open && (
               <Badge variant="muted" className="gap-1">
                 <EyeOff className="size-3" aria-hidden /> Not serving
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{lead}</p>
+          <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{lead}</p>
         </div>
         {/* Always at full strength, even on a link that is not serving: this is how it gets turned back on. */}
         <div className="flex shrink-0 items-center gap-1">
