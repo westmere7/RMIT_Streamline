@@ -152,7 +152,7 @@ export function isPortalTheme(value: unknown): value is PortalTheme {
 
 /** What the booking page says when the team has not written its own words. */
 export const DEFAULT_BOOKING_HEADLINE = "Book a task with the creative team.";
-export const DEFAULT_BOOKING_LEAD = "Tell us what you need and when. We route it to the right people and keep you posted — no account needed.";
+export const DEFAULT_BOOKING_LEAD = "Tell Vietnam marketing what you need and by when. You get a ticket straight away, and can follow the work as it moves.";
 export const MAX_BOOKING_HEADLINE = 80;
 export const MAX_BOOKING_LEAD = 240;
 

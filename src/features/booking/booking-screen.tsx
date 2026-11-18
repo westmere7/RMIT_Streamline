@@ -5,6 +5,7 @@ import { ArrowLeft, LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { BrandMark, AuthShell } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
+import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -39,8 +40,8 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
 
   return (
     <AuthShell
-      headline="Book a task with the creative team."
-      lead="Tell us what you need and when. We route it to the right people and keep you posted — no account needed."
+      headline={DEFAULT_BOOKING_HEADLINE}
+      lead={DEFAULT_BOOKING_LEAD}
       footnote={`${form.data?.workspaceName ?? "RMIT Creative Team"} · Streamline`}
       cardTestId="booking-card"
       progress={form.isLoading || status === "loading"}
