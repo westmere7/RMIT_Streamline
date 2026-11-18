@@ -39,7 +39,7 @@ export type BookingTextLevel = (typeof BOOKING_TEXT_LEVELS)[number];
 
 export const BOOKING_TEXT_LEVEL_LABELS: Record<BookingTextLevel, string> = { heading: "Heading", subheading: "Subheading", body: "Body" };
 
-export const BOOKING_BLOCK_KINDS = ["short", "long", "multi", "single", "link", "separator", "text"] as const;
+export const BOOKING_BLOCK_KINDS = ["short", "long", "multi", "single", "link", "ack", "separator", "text"] as const;
 export type BookingBlockKind = (typeof BOOKING_BLOCK_KINDS)[number];
 
 interface BookingBlockBase {
@@ -96,6 +96,16 @@ export interface BookingLinkBlock extends BookingQuestionBase {
   kind: "link";
 }
 
+/**
+ * One statement the requester ticks to confirm: "The logo files attached are
+ * the approved ones." Always required (a confirmation that may be skipped
+ * confirms nothing), so the editor offers no switch for it and the server sets
+ * it whatever the stored form says.
+ */
+export interface BookingAckBlock extends BookingQuestionBase {
+  kind: "ack";
+}
+
 /** A rule between two groups of questions. Asks nothing, so it is never required. */
 export interface BookingSeparatorBlock extends BookingBlockBase {
   kind: "separator";
@@ -108,7 +118,7 @@ export interface BookingTextBlock extends BookingBlockBase {
   text: string;
 }
 
-export type BookingQuestionBlock = BookingShortBlock | BookingLongBlock | BookingChoiceBlock | BookingLinkBlock;
+export type BookingQuestionBlock = BookingShortBlock | BookingLongBlock | BookingChoiceBlock | BookingLinkBlock | BookingAckBlock;
 export type BookingBlock = BookingQuestionBlock | BookingSeparatorBlock | BookingTextBlock;
 
 export const BOOKING_BLOCK_LABELS: Record<BookingBlockKind, string> = {
@@ -117,9 +127,61 @@ export const BOOKING_BLOCK_LABELS: Record<BookingBlockKind, string> = {
   multi: "Multiple choice",
   single: "Single choice",
   link: "Link",
+  ack: "Acknowledgement",
   separator: "Separator",
   text: "Text",
 };
+
+// ---- switching a block's kind ----------------------------------------------------
+
+/**
+ * Kinds a block can become without being rebuilt: those whose wording carries
+ * across whole. A short answer, a long one and a link are all "the question and
+ * its line under it"; a single and a multiple choice are that plus the options.
+ * Between the two groups the options would be lost or invented, so a switch
+ * across is a new block, as it always was.
+ */
+const KIND_FAMILIES: readonly (readonly BookingBlockKind[])[] = [
+  ["short", "long", "link"],
+  ["single", "multi"],
+];
+
+/** The kinds this block can switch to, itself included, or just itself when it has no family. */
+export function switchableKinds(kind: BookingBlockKind): readonly BookingBlockKind[] {
+  return KIND_FAMILIES.find((family) => family.includes(kind)) ?? [kind];
+}
+
+export interface BlockConversion {
+  block: BookingBlock;
+  /** What the switch threw away that somebody had written, as a prompt would say it; empty when nothing. */
+  dropped: string[];
+}
+
+/**
+ * `block` as another kind of its family: same id, question, line under it,
+ * required and options. The id staying is the point: an answer already given
+ * still belongs to it, wherever its shape still fits (see `usableAnswer`).
+ *
+ * What does not cross is said in `dropped` when someone wrote it, so the editor
+ * can ask first: a single choice's follow-up questions have nowhere to go on a
+ * multiple choice. Its dropdown display goes too, but that is a setting, not
+ * anything typed, and is not worth a prompt.
+ */
+export function convertBlock(block: BookingBlock, kind: BookingBlockKind): BlockConversion {
+  if (block.kind === kind || !isQuestionBlock(block) || !switchableKinds(block.kind).includes(kind)) return { block, dropped: [] };
+  const base = { id: block.id, label: block.label, description: block.description, required: block.required };
+  if (kind === "single" || kind === "multi") {
+    const options = block.kind === "single" || block.kind === "multi" ? block.options : [];
+    const next: BookingChoiceBlock = { ...base, kind, options };
+    const dropped: string[] = [];
+    if (block.kind === "single") {
+      const follows = allFollowUps(block).length;
+      if (follows > 0) dropped.push(`${follows} follow-up ${follows === 1 ? "question" : "questions"}`);
+    }
+    return { block: next, dropped };
+  }
+  return { block: { ...base, kind } as BookingQuestionBlock, dropped: [] };
+}
 
 /** True when the block expects an answer — which is also what earns it a number and a "required" switch. */
 export function isQuestionBlock(block: BookingBlock): block is BookingQuestionBlock {
@@ -261,12 +323,33 @@ export function questionNumbers(blocks: readonly BookingBlock[]): Map<string, st
  * giving them a shape of their own means a service's brief can be rebuilt
  * without anything on a board having to agree to it.
  */
-export type BookingAnswer = { kind: "text"; text: string } | { kind: "choice"; values: string[] } | { kind: "link"; url: string; label: string };
+export type BookingAnswer =
+  | { kind: "text"; text: string }
+  | { kind: "choice"; values: string[] }
+  | { kind: "link"; url: string; label: string }
+  | { kind: "ack"; agreed: boolean };
 
 /** The answer shape a block expects; anything else is a mismatch worth refusing. */
 export function answerKindFor(kind: BookingQuestionBlock["kind"]): BookingAnswer["kind"] {
   if (kind === "link") return "link";
+  if (kind === "ack") return "ack";
   return kind === "multi" || kind === "single" ? "choice" : "text";
+}
+
+/**
+ * The answer to `block` when it still fits it, else nothing.
+ *
+ * A question can change kind after somebody answered it: a form republished
+ * while they were filling it in, or a past booking opened again to book the
+ * same thing. An answer of the old shape is then no answer: shown empty, asked
+ * again if required, and left out of the brief, rather than refused with an
+ * error whose cause the requester cannot see. A question that became a single
+ * choice keeps the first of the choices made.
+ */
+export function usableAnswer(block: BookingQuestionBlock, answer: BookingAnswer | undefined): BookingAnswer | undefined {
+  if (!answer || answer.kind !== answerKindFor(block.kind)) return undefined;
+  if (block.kind === "single" && answer.kind === "choice" && answer.values.length > 1) return { kind: "choice", values: answer.values.slice(0, 1) };
+  return answer;
 }
 
 /** A blank answer of the shape `kind` expects, so a control always has something to render. */
@@ -274,6 +357,7 @@ export function emptyAnswerFor(kind: BookingQuestionBlock["kind"]): BookingAnswe
   const shape = answerKindFor(kind);
   if (shape === "choice") return { kind: "choice", values: [] };
   if (shape === "link") return { kind: "link", url: "", label: "" };
+  if (shape === "ack") return { kind: "ack", agreed: false };
   return { kind: "text", text: "" };
 }
 
@@ -281,6 +365,7 @@ export function isAnswerEmpty(answer: BookingAnswer | undefined | null): boolean
   if (!answer) return true;
   if (answer.kind === "text") return answer.text.trim() === "";
   if (answer.kind === "choice") return answer.values.length === 0;
+  if (answer.kind === "ack") return !answer.agreed;
   return answer.url.trim() === "";
 }
 
@@ -288,6 +373,7 @@ export function isAnswerEmpty(answer: BookingAnswer | undefined | null): boolean
 export function formatBookingAnswer(answer: BookingAnswer): string {
   if (answer.kind === "text") return answer.text.trim();
   if (answer.kind === "choice") return answer.values.join(", ");
+  if (answer.kind === "ack") return answer.agreed ? "Confirmed" : "";
   const url = answer.url.trim();
   const label = answer.label.trim();
   return label ? `${label} — ${url}` : url;
@@ -558,6 +644,8 @@ export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
       return { ...base, kind, label: "Pick one", options: [{ name: "First choice", color: "blue" }, { name: "Second choice", color: "violet" }] };
     case "link":
       return { ...base, kind, label: "A link" };
+    case "ack":
+      return { ...base, kind, label: "I confirm that…", required: true };
     case "separator":
       return { id: base.id, kind };
     case "text":

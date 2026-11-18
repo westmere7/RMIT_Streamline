@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlignLeft, Bookmark, BookmarkPlus, ChevronDown, CircleDot, Copy, CornerDownRight, Link2, ListChecks, LoaderCircle, Minus, Plus, TextCursorInput, Trash2, Type } from "lucide-react";
+import { AlignLeft, Bookmark, BookmarkPlus, ChevronDown, CircleDot, Copy, CornerDownRight, Link2, ListChecks, LoaderCircle, Minus, Plus, SquareCheck, TextCursorInput, Trash2, Type } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, ColorToken, TagOption } from "@/domain";
-import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, copyBlockWithNewIds, isQuestionBlock, newBookingBlock, questionNumbers, renameFollowUpKey } from "@/domain";
+import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingQuestionBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, ColorToken, TagOption } from "@/domain";
+import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, convertBlock, copyBlockWithNewIds, isQuestionBlock, newBookingBlock, questionNumbers, renameFollowUpKey, switchableKinds } from "@/domain";
 import { cn } from "@/lib/utils";
 import { NumberBadge, slug } from "../booking-fields";
 import { ChoiceChips } from "./choice-chips";
@@ -40,12 +40,13 @@ export const BLOCK_ICONS: Record<BookingBlockKind, React.ComponentType<{ classNa
   multi: ListChecks,
   single: CircleDot,
   link: Link2,
+  ack: SquareCheck,
   separator: Minus,
   text: Type,
 };
 
 /** The order the "add" row offers them in: the two that carry most briefs first. */
-const ADD_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "text", "separator"];
+const ADD_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "ack", "text", "separator"];
 
 export interface BriefBuilderProps {
   service: BookingServiceType;
@@ -64,6 +65,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
 
   const setBlocks = (next: BookingBlock[]) => onPatch({ blocks: next });
   const patchBlock = (id: string, patch: Partial<BookingBlock>) => setBlocks(blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as BookingBlock) : b)));
+  const replaceBlock = (next: BookingBlock) => setBlocks(blocks.map((b) => (b.id === next.id ? next : b)));
   const removeBlock = (id: string) => setBlocks(blocks.filter((b) => b.id !== id));
   const duplicateBlock = (id: string) => {
     const at = blocks.findIndex((b) => b.id === id);
@@ -109,6 +111,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
                 block={block}
                 number={numbers.get(block.id) ?? null}
                 onPatch={(patch) => patchBlock(block.id, patch)}
+                onReplace={replaceBlock}
                 onDuplicate={() => duplicateBlock(block.id)}
                 onRemove={() => removeBlock(block.id)}
                 onSave={() => setSaving(block)}
@@ -152,6 +155,7 @@ function BlockEditor({
   block,
   number,
   onPatch,
+  onReplace,
   onDuplicate,
   onRemove,
   onSave,
@@ -161,6 +165,7 @@ function BlockEditor({
   block: BookingBlock;
   number: string | null;
   onPatch: (patch: Partial<BookingBlock>) => void;
+  onReplace: (block: BookingBlock) => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onSave: () => void;
@@ -169,7 +174,6 @@ function BlockEditor({
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const question = isQuestionBlock(block);
-  const Icon = BLOCK_ICONS[block.kind];
   const name = question ? block.label || "this question" : BOOKING_BLOCK_LABELS[block.kind];
 
   return (
@@ -184,8 +188,7 @@ function BlockEditor({
         <>
           <DragHandle label={`Reorder ${name}`} testId={`editor-block-drag-${block.id}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} className="-ml-1" />
           {number !== null && <NumberBadge n={number} />}
-          <Icon className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">{BOOKING_BLOCK_LABELS[block.kind]}</span>
+          <KindSwitch block={block} onReplace={onReplace} />
         </>
       }
       aside={
@@ -204,12 +207,7 @@ function BlockEditor({
               </SelectContent>
             </Select>
           )}
-          {question && (
-            <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={block.required} aria-label="Required" onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
-              Required
-            </label>
-          )}
+          {question && <RequiredSwitch block={block} onPatch={onPatch} />}
           {block.kind !== "separator" && (
             <Handle label="Save as a block" onClick={onSave} testId={`editor-block-save-${block.id}`}>
               <BookmarkPlus />
@@ -320,7 +318,14 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
 
   return (
     <>
-      <TextBox value={block.label} onChange={(v) => onPatch({ label: v } as Partial<BookingBlock>)} ariaLabel="Question" placeholder="What are you asking?" className="text-[13px] font-medium" testId={`editor-block-label-${block.id}`} />
+      <TextBox
+        value={block.label}
+        onChange={(v) => onPatch({ label: v } as Partial<BookingBlock>)}
+        ariaLabel={block.kind === "ack" ? "Statement" : "Question"}
+        placeholder={block.kind === "ack" ? "What are they confirming?" : "What are you asking?"}
+        className="text-[13px] font-medium"
+        testId={`editor-block-label-${block.id}`}
+      />
       <TextBox
         value={block.description ?? ""}
         onChange={(v) => onPatch({ description: v || null } as Partial<BookingBlock>)}
@@ -401,7 +406,7 @@ function patchOptions(block: BookingChoiceBlock, next: TagOption[]): Partial<Boo
 }
 
 /** The kinds a follow-up may be. A rule inside a two-question branch is furniture nobody needs. */
-const FOLLOW_UP_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "text"];
+const FOLLOW_UP_ORDER: BookingBlockKind[] = ["short", "long", "multi", "single", "link", "ack", "text"];
 
 /**
  * The questions each choice opens, under the choices themselves.
@@ -460,6 +465,7 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
                       block={child}
                       color={option.color}
                       onPatch={(patch) => setFor(option.name, branch.map((b) => (b.id === child.id ? ({ ...b, ...patch } as BookingBlock) : b)))}
+                      onReplace={(next) => setFor(option.name, branch.map((b) => (b.id === next.id ? next : b)))}
                       onDuplicate={() => setFor(option.name, [...branch.slice(0, index + 1), copyBlockWithNewIds(child), ...branch.slice(index + 1)])}
                       onRemove={() => setFor(option.name, branch.filter((b) => b.id !== child.id))}
                     />
@@ -539,8 +545,21 @@ function AddFollowUp({ count, optionName, onAdd, testId }: { count: number; opti
  * reordering or saving one of them is not worth four more controls on a card
  * that is already indented twice.
  */
-function FollowUpBlockEditor({ block, color, onPatch, onDuplicate, onRemove }: { block: BookingBlock; color: ColorToken; onPatch: (patch: Partial<BookingBlock>) => void; onDuplicate: () => void; onRemove: () => void }) {
-  const Icon = BLOCK_ICONS[block.kind];
+function FollowUpBlockEditor({
+  block,
+  color,
+  onPatch,
+  onReplace,
+  onDuplicate,
+  onRemove,
+}: {
+  block: BookingBlock;
+  color: ColorToken;
+  onPatch: (patch: Partial<BookingBlock>) => void;
+  onReplace: (block: BookingBlock) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
   return (
     <EditorSection
       className="bg-card"
@@ -550,12 +569,7 @@ function FollowUpBlockEditor({ block, color, onPatch, onDuplicate, onRemove }: {
       // that while you can see the chip at the top of it.
       headerClassName={colorClasses(color).soft}
       testId={`editor-block-${block.id}`}
-      title={
-        <>
-          <Icon className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">{BOOKING_BLOCK_LABELS[block.kind]}</span>
-        </>
-      }
+      title={<KindSwitch block={block} onReplace={onReplace} />}
       aside={
         <>
           {block.kind === "text" && (
@@ -572,12 +586,7 @@ function FollowUpBlockEditor({ block, color, onPatch, onDuplicate, onRemove }: {
               </SelectContent>
             </Select>
           )}
-          {isQuestionBlock(block) && (
-            <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
-              <Switch size="sm" checked={block.required} aria-label="Required" onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)} data-testid={`editor-block-required-${block.id}`} />
-              Required
-            </label>
-          )}
+          {isQuestionBlock(block) && <RequiredSwitch block={block} onPatch={onPatch} />}
           <Handle label="Duplicate" onClick={onDuplicate} testId={`editor-block-copy-${block.id}`}>
             <Copy />
           </Handle>
@@ -589,6 +598,87 @@ function FollowUpBlockEditor({ block, color, onPatch, onDuplicate, onRemove }: {
     >
       <BlockBody block={block} onPatch={onPatch} nested />
     </EditorSection>
+  );
+}
+
+/**
+ * The kind in a block's title bar, and the way to change it.
+ *
+ * Kinds that carry the same wording switch in place (convertBlock): a short
+ * answer that turned out to need a paragraph is not a question to type again.
+ * When the switch would throw away something written, the follow-ups of a
+ * single choice, it asks first. A kind with nothing to switch to is a label.
+ */
+function KindSwitch({ block, onReplace }: { block: BookingBlock; onReplace: (block: BookingBlock) => void }) {
+  const [asking, setAsking] = React.useState<{ kind: BookingBlockKind; next: BookingBlock; dropped: string[] } | null>(null);
+  const kinds = switchableKinds(block.kind);
+  const Icon = BLOCK_ICONS[block.kind];
+  if (kinds.length < 2) {
+    return (
+      <>
+        <Icon className="size-3 shrink-0" aria-hidden />
+        <span className="truncate">{BOOKING_BLOCK_LABELS[block.kind]}</span>
+      </>
+    );
+  }
+  const choose = (kind: BookingBlockKind) => {
+    if (kind === block.kind) return;
+    const { block: next, dropped } = convertBlock(block, kind);
+    if (dropped.length) setAsking({ kind, next, dropped });
+    else onReplace(next);
+  };
+  return (
+    <>
+      <Select value={block.kind} onValueChange={(v) => choose(v as BookingBlockKind)}>
+        <SelectTrigger className="h-6 w-auto min-w-11 shrink gap-1 border-transparent bg-transparent px-1 text-2xs font-medium shadow-none hover:bg-accent/60" aria-label="Question kind" data-testid={`editor-block-kind-${block.id}`}>
+          <Icon className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{BOOKING_BLOCK_LABELS[block.kind]}</span>
+        </SelectTrigger>
+        <SelectContent>
+          {kinds.map((kind) => {
+            const KindIcon = BLOCK_ICONS[kind];
+            return (
+              <SelectItem key={kind} value={kind} data-testid={`editor-block-kind-${block.id}-${kind}`}>
+                <span className="flex items-center gap-2">
+                  <KindIcon className="size-3.5 text-muted-foreground" aria-hidden />
+                  {BOOKING_BLOCK_LABELS[kind]}
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      <ConfirmDialog
+        open={asking !== null}
+        onOpenChange={(open) => !open && setAsking(null)}
+        title={`Switch to ${asking ? BOOKING_BLOCK_LABELS[asking.kind] : ""}?`}
+        description={asking ? `Its ${asking.dropped.join(" and ")} will be removed.` : undefined}
+        confirmLabel="Switch"
+        destructive
+        onConfirm={() => {
+          if (asking) onReplace(asking.next);
+          setAsking(null);
+        }}
+      />
+    </>
+  );
+}
+
+/** The Required switch of a question; an acknowledgement is always required, so its switch stays on. */
+function RequiredSwitch({ block, onPatch }: { block: BookingQuestionBlock; onPatch: (patch: Partial<BookingBlock>) => void }) {
+  const always = block.kind === "ack";
+  return (
+    <label className="mr-1 flex items-center gap-1.5 text-2xs text-muted-foreground" title={always ? "Always required" : undefined}>
+      <Switch
+        size="sm"
+        checked={always || block.required}
+        disabled={always}
+        aria-label="Required"
+        onCheckedChange={(on) => onPatch({ required: on } as Partial<BookingBlock>)}
+        data-testid={`editor-block-required-${block.id}`}
+      />
+      Required
+    </label>
   );
 }
 

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.104.0",
+    date: "2026-11-18",
+    title: "Switch question kinds, and acknowledgements",
+    changes: [
+      "Booking form editor: change a question between short, long and link, or between single and multiple choice, from its title bar. The wording and choices stay; you are asked first if follow-up questions would go.",
+      "New question kind: Acknowledgement, a statement the requester ticks to confirm. Always required.",
+    ],
+  },
+  {
     version: "0.103.13",
     date: "2026-11-18",
     title: "Typing on a phone",

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichText } from "@/components/shared/rich-text";
 import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
-import { isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, visibleBlocks } from "@/domain";
+import { isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, usableAnswer, visibleBlocks } from "@/domain";
 import { SPAN } from "../booking-fields";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
@@ -301,7 +301,7 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
   const named = assets.filter((a) => a.name.trim());
   const answered = visibleBlocks(service?.blocks ?? [], request.answers)
     .filter(isQuestionBlock)
-    .filter((b) => !isAnswerEmpty(request.answers[b.id])).length;
+    .filter((b) => !isAnswerEmpty(usableAnswer(b, request.answers[b.id]))).length;
   const brief = composeBrief(request, template);
 
   const rows: Array<[string, React.ReactNode]> = [];

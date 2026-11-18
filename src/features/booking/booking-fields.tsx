@@ -5,6 +5,7 @@ import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { AssetComposerRow } from "@/features/assets/asset-composer";
 import type { BookingAnswer, BookingFieldWidth, BookingForm as BookingFormData, BookingQuestionBlock, BookingRequest, BookingStandardField, BookingTextBlock, ColorToken, TagOption } from "@/domain";
-import { emptyAnswerFor, priorityStrength } from "@/domain";
+import { emptyAnswerFor, priorityStrength, usableAnswer } from "@/domain";
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -318,7 +319,8 @@ export interface BlockFieldProps {
 
 /** One question of a service's brief, rendered by kind. */
 export function BlockField({ block, number, value, onChange, error, preview, hideLabel, idPrefix = "booking-answer" }: BlockFieldProps) {
-  const answer = value ?? emptyAnswerFor(block.kind);
+  // An answer left from before the question changed kind shows as none.
+  const answer = usableAnswer(block, value) ?? emptyAnswerFor(block.kind);
   const id = `${preview ? "preview-" : ""}${idPrefix}-${block.id}`;
   const testId = preview ? undefined : `${idPrefix}-${block.id}`;
   const shell = { label: block.label, required: block.required, description: block.description, error, number, hideLabel };
@@ -403,6 +405,50 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
           </ChipGroup>
         </Field>
       );
+    case "ack": {
+      // The statement is the label, beside its box: ticking it is saying it.
+      const agreed = answer.kind === "ack" && answer.agreed;
+      const hint = block.description?.trim() || null;
+      return (
+        <div className="grid gap-1.5">
+          <label
+            htmlFor={id}
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-xl border bg-surface/40 px-3.5 py-3 text-[13px] transition-colors",
+              agreed ? "border-ring/50 bg-accent-soft/40" : error ? "border-destructive/60" : "border-border/70",
+              preview && "cursor-default",
+            )}
+          >
+            <Checkbox
+              id={id}
+              checked={agreed}
+              disabled={preview}
+              onCheckedChange={(on) => onChange({ kind: "ack", agreed: on === true })}
+              aria-invalid={!!error}
+              className="mt-0.5"
+              data-testid={testId}
+            />
+            <span className="grid min-w-0 gap-0.5">
+              <span className="flex items-start gap-1.5 font-medium">
+                {number && <NumberBadge n={number} />}
+                <span className="min-w-0">
+                  {block.label}
+                  <span aria-hidden className="ml-0.5 text-primary">
+                    *
+                  </span>
+                </span>
+              </span>
+              {hint && <span className="text-2xs text-muted-foreground">{hint}</span>}
+            </span>
+          </label>
+          {error && (
+            <p className="text-2xs text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+      );
+    }
     case "link": {
       const link = answer.kind === "link" ? answer : { url: "", label: "" };
       return (

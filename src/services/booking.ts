@@ -25,7 +25,7 @@ import {
   BOOKING_STANDARD_KEYS,
   BOOKING_TEXT_LEVELS,
   COLOR_TOKENS,
-  answerKindFor,
+  usableAnswer,
   defaultBookingFormTemplate,
   flattenBlocks,
   formatAssetLine,
@@ -71,6 +71,7 @@ const bookingAnswerSchema: z.ZodType<BookingAnswer> = z.union([
   z.object({ kind: z.literal("text"), text: z.string().max(10000) }),
   z.object({ kind: z.literal("choice"), values: z.array(z.string().trim().min(1).max(120)).max(40) }),
   z.object({ kind: z.literal("link"), url: z.string().max(2000), label: z.string().max(120) }),
+  z.object({ kind: z.literal("ack"), agreed: z.boolean() }),
 ]) as z.ZodType<BookingAnswer>;
 
 export const bookingRequestSchema = z.object({
@@ -160,6 +161,7 @@ const leafBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
+  z.object({ kind: z.literal("ack"), ...questionBase }),
   ...furniture,
 ]);
 
@@ -173,13 +175,16 @@ export const bookingBlockSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("multi"), ...choiceBase, ...questionBase }),
   z.object({ kind: z.literal("single"), ...choiceBase, followUps: followUpsSchema, ...questionBase }),
   z.object({ kind: z.literal("link"), ...questionBase }),
+  z.object({ kind: z.literal("ack"), ...questionBase }),
   ...furniture,
 ]);
 const blockSchema = bookingBlockSchema;
 
 /** A block as the editor may keep it under a name, or reject it with the reason. */
 export function readBookingBlock(input: unknown): BookingBlock {
-  return bookingBlockSchema.parse(input) as BookingBlock;
+  const block = bookingBlockSchema.parse(input) as BookingBlock;
+  for (const each of flattenBlocks([block])) if (each.kind === "ack") each.required = true;
+  return block;
 }
 
 const standardFieldSchema = z.object({
@@ -280,6 +285,8 @@ export function normaliseBookingTemplate(input: unknown): BookingFormTemplate {
       field.width = "third";
     }
   }
+  // An acknowledgement that may be left unticked acknowledges nothing.
+  for (const service of template.services) for (const block of flattenBlocks(service.blocks)) if (block.kind === "ack") block.required = true;
   return template;
 }
 
@@ -476,9 +483,9 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
     // behind a choice nobody made is not a question anybody has failed to answer.
     for (const block of visibleBlocks(service.blocks, request.answers)) {
       if (!isQuestionBlock(block)) continue;
-      const answer = request.answers[block.id];
-      if (answer && answer.kind !== answerKindFor(block.kind)) errors[block.id] = `${block.label} has an answer of the wrong kind`;
-      else if (block.required && isAnswerEmpty(answer)) errors[block.id] = `${block.label} is required`;
+      // An answer of another shape (the question changed kind since) counts as none.
+      const answer = usableAnswer(block, request.answers[block.id]);
+      if (block.required && isAnswerEmpty(answer)) errors[block.id] = block.kind === "ack" ? `Tick “${block.label}” to go on` : `${block.label} is required`;
     }
     return errors;
   }
@@ -548,7 +555,7 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
         lines.push("", `${pad(depth)}${block.level === "heading" ? "#" : "##"} ${plain(block.text.trim())}`);
         continue;
       }
-      const answer = request.answers[block.id];
+      const answer = isQuestionBlock(block) ? usableAnswer(block, request.answers[block.id]) : undefined;
       if (!isAnswerEmpty(answer)) {
         // The question is a subheading and the answer the body under it. Bold
         // on its own would not do: a heading ends its block, so the answer
@@ -577,6 +584,7 @@ function answerLines(answer: BookingAnswer, depth: number): string[] {
   if (answer.kind === "choice") {
     return answer.values.length > 1 ? answer.values.map((value) => `${prefix}- ${plain(value)}`) : [`${prefix}${plain(answer.values.join(""))}`];
   }
+  if (answer.kind === "ack") return [`${prefix}Confirmed`];
   if (answer.kind === "link") {
     const url = answer.url.trim();
     const label = answer.label.trim();

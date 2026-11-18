@@ -475,8 +475,10 @@ describe("what a step will not let a stakeholder past", () => {
     expect(validateBookingStep("brief", request(), template)).toEqual({});
     const missing = validateBookingStep("brief", request({ answers: { ...DESIGN_ANSWERS, "design-specs": { kind: "text", text: "" } } }), template);
     expect(missing).toEqual({ "design-specs": "Sizes, formats and where it will run is required" });
+    // An answer of another shape (the question changed kind since) is no answer:
+    // asked again, not refused with an error the requester cannot see the cause of.
     const wrong = validateBookingStep("brief", request({ answers: { ...DESIGN_ANSWERS, "design-copy": { kind: "text", text: "yes" } } }), template);
-    expect(wrong).toEqual({ "design-copy": "Is the copy written? has an answer of the wrong kind" });
+    expect(wrong).toEqual({ "design-copy": "Is the copy written? is required" });
     // Production asks other questions entirely, so Design's answers do not satisfy it.
     const production = validateBookingStep("brief", request({ serviceTypeId: "svc-production" }), template);
     expect(Object.keys(production).sort()).toEqual(["prod-people", "prod-what", "prod-when", "prod-where"]);
