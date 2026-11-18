@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Check, ChevronDown, LoaderCircle, Moon, Sun, SunMoon, TriangleAlert, Users } from "lucide-react";
+import { CalendarRange, Check, ChevronDown, LoaderCircle, Moon, Sun, SunMoon, Users } from "lucide-react";
 import * as React from "react";
 import { BrandMark } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -294,17 +294,13 @@ export function usePortalTheme() {
  * and looks everywhere.
  */
 export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { range: PortalRange; onRange: (range: PortalRange) => void; years?: number[]; rangeOverridden?: boolean }) {
-  const all = range.kind === "all" && !rangeOverridden;
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className={cn(
-              "flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring/50 sm:h-8",
-              all ? "border-amber-400/60 text-amber-800 hover:bg-amber-100/60 dark:text-amber-200 dark:hover:bg-amber-500/15" : "border-border/70 bg-card hover:bg-surface-strong/70",
-            )}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-strong/70 focus-visible:outline-2 focus-visible:outline-ring/50 sm:h-8"
             data-testid="portal-range-picker"
           >
             <CalendarRange className="size-3.5 text-muted-foreground" />
@@ -334,29 +330,17 @@ export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { 
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          {/* The expensive one, and it says so. Everything the team has ever
-              taken for every stakeholder is a long read on a portal this
-              size, and somebody reaching for it should know before they
-              wait rather than afterwards. */}
+          {/* An option like the rest, with a line under it saying it reads
+              everything and so takes longer. */}
           <DropdownMenuItem onSelect={() => onRange({ kind: "all" })} className="items-start" data-testid="portal-range-all">
-            <TriangleAlert className="mt-0.5 size-3.5 text-amber-600 dark:text-amber-400" />
             <span className="flex min-w-0 flex-1 flex-col">
               <span>All time</span>
-              <span className="text-2xs text-muted-foreground">Loads every request the team has taken. Slow on a busy portal.</span>
+              <span className="text-2xs text-muted-foreground">Loads every request the team has taken. Slower on a busy portal.</span>
             </span>
             {range.kind === "all" && <Check className="mt-0.5 size-3.5" />}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Up while it is actually loading everything, so the cost is visible
-          where the choice was made. */}
-      {all && (
-        <span className="flex shrink-0 items-center gap-1.5 text-2xs font-medium text-amber-700 dark:text-amber-300" data-testid="portal-all-time-warning">
-          <TriangleAlert className="size-3" aria-hidden />
-          Loading every request
-        </span>
-      )}
     </>
   );
 }

@@ -203,12 +203,11 @@ test.describe("the stakeholder portal", () => {
     await expect(page.getByTestId("portal-range-1m")).toBeVisible();
     await expect(page.getByTestId("portal-range-6m")).toBeVisible();
 
-    // All time is offered, and says what it costs before it is chosen.
+    // All time is offered, with a line saying what it loads.
     const everything = page.getByTestId("portal-range-all");
     await expect(everything).toContainText(/Loads every request/i);
     await everything.click();
-    // Chosen, it keeps saying so, because the cost is being paid.
-    await expect(page.getByTestId("portal-all-time-warning")).toBeVisible();
+    await expect(page.getByTestId("portal-range-picker")).toHaveText(/All time/);
     await expect(page).toHaveURL(/range=all/);
   });
 

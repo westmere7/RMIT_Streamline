@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.17",
+    date: "2026-11-18",
+    title: "Calmer All time",
+    changes: ["Portal: All time is an ordinary choice in the date menu, without the warning colours."],
+  },
+  {
     version: "0.101.16",
     date: "2026-11-18",
     title: "Quieter board access",
