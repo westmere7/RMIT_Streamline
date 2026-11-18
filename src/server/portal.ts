@@ -1,6 +1,6 @@
 import { serverRequesterDirectory } from "./requesters";
 import { z } from "zod";
-import { DEFAULT_PORTAL_RANGE, parsePortalRange, type PortalScope } from "@/domain";
+import { DEFAULT_PORTAL_RANGE, formatPortalRange, parsePortalRange, type PortalScope } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -9,6 +9,7 @@ import { PortalAccessError, PortalSubmissionError, type PortalViewer, type Resol
 import { bookingRequestSchema } from "@/services/booking";
 import { asBookingHttpError } from "./booking";
 import { HttpError } from "./http";
+import { readWorkspaceRevision } from "./workspace-revision";
 
 /**
  * The stakeholder portal for the Supabase provider.
@@ -56,7 +57,38 @@ export const portalTasksSchema = portalGrantSchema.extend({
   search: z.string().max(200).optional(),
 }).merge(portalScopeSchema);
 
-export const portalBoardSchema = portalGrantSchema.merge(portalScopeSchema);
+export const portalBoardSchema = portalGrantSchema.merge(portalScopeSchema).extend({
+  /** The revision of the board the page already holds (portalBoardRevision), if any. */
+  revision: z.string().max(300).nullable().optional(),
+});
+
+/**
+ * What a portal board answer depends on, as one string the page hands back
+ * with its next refresh: when it matches, nothing on the board can have
+ * changed and the route answers "unchanged" instead of reading it again.
+ *
+ * - the workspace's revision, which every table the portal reads bumps
+ *   (0109, 0116);
+ * - the hour, so "today" and everything overdue is worked out afresh at least
+ *   hourly however quiet the workspace is;
+ * - who is looking, and whether they are a member, which the context shows;
+ * - what they asked for (stakeholder and range) and the credential version.
+ *
+ * Null when the revision cannot be read: the board is then read in full, as
+ * it always was.
+ */
+export async function portalBoardRevision(resolved: ResolvedPortal, viewer: PortalViewer | null, scope: PortalScope): Promise<string | null> {
+  const revision = await readWorkspaceRevision(resolved.workspaceId);
+  if (revision === null) return null;
+  return [
+    revision,
+    new Date().toISOString().slice(0, 13),
+    viewer ? `${viewer.userId}:${viewer.isWorkspaceMember ? 1 : 0}` : "-",
+    scope.stakeholderId ?? "*",
+    formatPortalRange(scope.range),
+    `v${resolved.portal.credentialVersion}`,
+  ].join("|");
+}
 
 export const portalBookSchema = portalGrantSchema.extend({
   submissionKey: z.string().min(8).max(100),

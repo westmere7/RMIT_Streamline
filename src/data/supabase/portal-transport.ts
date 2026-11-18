@@ -14,13 +14,52 @@ import { getSupabaseClient } from "@/lib/supabase/client";
  * than the query string, so none of them reaches a server log, a browser
  * history entry or a referrer header.
  */
+type PortalBoardAnswer = PortalBoardPayload & { context: PortalContext };
+
+/** What the board route answers: the board and its revision, or word that the one held is still current. */
+type BoardReply = (PortalBoardAnswer & { revision?: string | null }) | { unchanged: true; revision: string; servedAt: string };
+
+/** Boards kept for their revision: one per stakeholder and range a visitor has looked at, the latest few. */
+const BOARDS_KEPT = 8;
+
 export class HttpPortalTransport implements PortalTransport {
+  /**
+   * The last board read for each request, with its revision. The portal page
+   * refreshes every few seconds; sending the revision back lets the route
+   * answer "unchanged" in a few bytes instead of reading the whole portal
+   * again, and the board held here is handed back with its new servedAt.
+   */
+  private readonly boards = new Map<string, { revision: string; board: PortalBoardAnswer }>();
+
   async gate(token: string): Promise<PortalGate> {
     return call<PortalGate>(`/api/portal/${encodeURIComponent(token)}`, { method: "GET" });
   }
 
-  async board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardPayload & { context: PortalContext }> {
-    return call(`/api/portal/${encodeURIComponent(grant.token)}/board`, { method: "POST", body: JSON.stringify({ ...body(grant), ...wire(scope) }) });
+  async board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardAnswer> {
+    const key = JSON.stringify([grant.token, grant.credentialVersion ?? null, grant.password ?? null, wire(scope)]);
+    const ask = (revision: string | null) =>
+      call<BoardReply>(`/api/portal/${encodeURIComponent(grant.token)}/board`, { method: "POST", body: JSON.stringify({ ...body(grant), ...wire(scope), revision }) });
+
+    const held = this.boards.get(key);
+    let reply = await ask(held?.revision ?? null);
+    if ("unchanged" in reply) {
+      if (held) {
+        const board = { ...held.board, servedAt: reply.servedAt };
+        this.boards.set(key, { revision: reply.revision, board });
+        return board;
+      }
+      // Nothing held to stand for it (never expected): ask for the board itself.
+      reply = await ask(null);
+      if ("unchanged" in reply) throw new PortalAccessError("unknown", "The portal could not be read.");
+    }
+
+    const { revision, ...board } = reply;
+    this.boards.delete(key);
+    if (revision) {
+      this.boards.set(key, { revision, board });
+      if (this.boards.size > BOARDS_KEPT) this.boards.delete(this.boards.keys().next().value as string);
+    }
+    return board;
   }
 
   async tasks(grant: PortalGrant, options: { cursor?: string | null; limit?: number; search?: string; scope?: PortalScope }): Promise<PortalTaskPage & { context: PortalContext }> {

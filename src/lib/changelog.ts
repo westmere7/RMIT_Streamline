@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.7",
+    date: "2026-11-18",
+    title: "Lighter portal refreshes",
+    changes: ["An open portal checks whether anything has changed before reading its board again, so a portal left on screen costs a fraction of what it did."],
+  },
+  {
     version: "0.103.6",
     date: "2026-11-18",
     title: "Fewer database reads",
