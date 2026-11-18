@@ -128,10 +128,46 @@ function isWellFormed(href: string): boolean {
 const BARE_URL = /(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/gi;
 
 /**
+ * A backslash before a markup character means that character, as it is. The
+ * booking form escapes everything a requester types this way (composeBrief), so
+ * "#RMITGrad2027" is stored as "\#RMITGrad2027" and must read as the hashtag,
+ * not with the backslash, and "\*note\*" must stay asterisks rather than turn
+ * italic. An escaped character is swapped for a private-use stand-in while the
+ * markup is matched, so no pattern can see it, and swapped back in the result.
+ */
+const ESCAPED = /\\([\\*_#[\](){}`~|>-])/g;
+const STAND_IN = 0xe000;
+function hideEscapes(text: string): string {
+  return text.includes("\\") ? text.replace(ESCAPED, (_, char: string) => String.fromCharCode(STAND_IN + char.charCodeAt(0))) : text;
+}
+function restoreEscapes(text: string): string {
+  return text.replace(/[\ue000-\ue07f]/g, (char) => String.fromCharCode(char.charCodeAt(0) - STAND_IN));
+}
+function restoreInline(nodes: InlineNode[]): InlineNode[] {
+  return nodes.map((node) => {
+    switch (node.type) {
+      case "text":
+        return { ...node, text: restoreEscapes(node.text) };
+      case "link":
+        return { ...node, href: restoreEscapes(node.href), label: restoreEscapes(node.label) };
+      case "mention":
+        return { ...node, name: restoreEscapes(node.name) };
+      default:
+        return { ...node, children: restoreInline(node.children) };
+    }
+  });
+}
+
+/**
  * Splits one line into inline nodes. The order matters: links are taken before
  * bare addresses so the label of a link is not itself scanned for one.
  */
 export function parseInline(line: string, mentionNames: readonly string[] = []): InlineNode[] {
+  if (!line) return [];
+  return restoreInline(parseMarkup(hideEscapes(line), mentionNames));
+}
+
+function parseMarkup(line: string, mentionNames: readonly string[]): InlineNode[] {
   if (!line) return [];
 
   // Longest names first, so "Danh Nguyen" wins over a colleague called "Danh".
@@ -139,21 +175,21 @@ export function parseInline(line: string, mentionNames: readonly string[] = []):
   const patterns: Array<{ re: RegExp; build: (m: RegExpExecArray) => InlineNode | null }> = [
     {
       re: /\*\*([^*]+)\*\*/,
-      build: (m) => ({ type: "bold", children: parseInline(m[1]!, mentionNames) }),
+      build: (m) => ({ type: "bold", children: parseMarkup(m[1]!, mentionNames) }),
     },
     {
       re: /(?<!\*)\*([^*\n]+)\*(?!\*)/,
-      build: (m) => ({ type: "italic", children: parseInline(m[1]!, mentionNames) }),
+      build: (m) => ({ type: "italic", children: parseMarkup(m[1]!, mentionNames) }),
     },
     {
       // Two underscores, which this markup uses for nothing else. Standard
       // Markdown spends them on bold; here bold is ** and only **.
       re: /__([^_\n]+)__/,
-      build: (m) => ({ type: "underline", children: parseInline(m[1]!, mentionNames) }),
+      build: (m) => ({ type: "underline", children: parseMarkup(m[1]!, mentionNames) }),
     },
     {
       re: /\{c:([a-z]+)\}([\s\S]*?)\{\/c\}/,
-      build: (m) => (isRichTextColor(m[1]!) ? { type: "color", color: m[1]!, children: parseInline(m[2]!, mentionNames) } : null),
+      build: (m) => (isRichTextColor(m[1]!) ? { type: "color", color: m[1]!, children: parseMarkup(m[2]!, mentionNames) } : null),
     },
     {
       re: /\[([^\]]+)\]\(([^)\s]+)\)/,
@@ -179,7 +215,7 @@ export function parseInline(line: string, mentionNames: readonly string[] = []):
   if (!earliest) return [{ type: "text", text: line }];
   const before = line.slice(0, earliest.index);
   const after = line.slice(earliest.index + earliest.length);
-  return [...(before ? [{ type: "text" as const, text: before }] : []), earliest.node, ...parseInline(after, mentionNames)];
+  return [...(before ? [{ type: "text" as const, text: before }] : []), earliest.node, ...parseMarkup(after, mentionNames)];
 }
 
 function escapeRegExp(value: string): string {
@@ -302,7 +338,7 @@ export function parseRichText(body: string, mentionNames: readonly string[] = []
  * real list still loses its markers and a numbered question keeps its number.
  */
 export function richTextToPlain(body: string): string {
-  return body
+  return restoreEscapes(hideEscapes(body)
     .replace(/^[ \t]*-{3,}[ \t]*$/gm, "")
     .replace(/^[ \t]+/gm, "")
     .replace(/^\s*[-*]\s+\[[ xX]?\](\s+|$)/gm, "")
@@ -314,7 +350,7 @@ export function richTextToPlain(body: string): string {
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
     .replace(/__([^_\n]+)__/g, "$1")
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1")
-    .trim();
+    .trim());
 }
 
 /**

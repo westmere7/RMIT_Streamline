@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.101.23",
+    date: "2026-11-18",
+    title: "Briefs show what was typed",
+    changes: ["A # or * typed in a booking shows as itself in the brief, without a stray backslash."],
+  },
+  {
     version: "0.101.22",
     date: "2026-11-18",
     title: "RMIT logo on the portal",

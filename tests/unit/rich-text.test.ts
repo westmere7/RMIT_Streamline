@@ -178,3 +178,35 @@ describe("typing helpers", () => {
     expect(togglePrefix("one\ntwo\nthree", 0, 13, (i) => `${i + 1}. `).value).toBe("1. one\n2. two\n3. three");
   });
 });
+
+describe("escaped characters", () => {
+  // The booking form escapes every markup character a requester types
+  // (composeBrief), so these are what a brief's answers look like stored.
+  it("reads an escaped character as itself, without the backslash", () => {
+    expect(parseInline(String.raw`Share with \#RMITGrad2027`)).toEqual([{ type: "text", text: "Share with #RMITGrad2027" }]);
+    expect(parseInline(String.raw`file\_name and \[draft\]`)).toEqual([{ type: "text", text: "file_name and [draft]" }]);
+  });
+
+  it("keeps escaped asterisks as asterisks rather than formatting", () => {
+    expect(parseInline(String.raw`\*note\* and \*\*not bold\*\*`)).toEqual([{ type: "text", text: "*note* and **not bold**" }]);
+  });
+
+  it("still reads real markup beside an escaped character", () => {
+    expect(parseInline(String.raw`**Service:** \#grad`)).toEqual([
+      { type: "bold", children: [{ type: "text", text: "Service:" }] },
+      { type: "text", text: " #grad" },
+    ]);
+  });
+
+  it("does not make a heading of an escaped # at the start of a line", () => {
+    expect(parseRichText(String.raw`\# not a heading`)).toEqual([{ type: "paragraph", children: [{ type: "text", text: "# not a heading" }] }]);
+  });
+
+  it("reads a doubled backslash as one, and leaves a lone one alone", () => {
+    expect(parseInline(String.raw`C:\files and a\b`)).toEqual([{ type: "text", text: String.raw`C:\files and a\b` }]);
+  });
+
+  it("drops the backslashes in plain text too", () => {
+    expect(richTextToPlain(String.raw`Share with \#RMITGrad2027 and \*star\*`)).toBe("Share with #RMITGrad2027 and *star*");
+  });
+});
