@@ -46,6 +46,8 @@ export const queryKeys = {
   boardArchive: (boardId: string, request: string) => ["board-archive", boardId, request] as const,
   /** How many items a board has in its archive, for the count beside its Archive entry. */
   boardArchiveCount: (boardId: string) => ["board-archive-count", boardId] as const,
+  /** Tasks on a board now, for the sidebar's badge. */
+  boardItemCount: (boardId: string) => ["board-item-count", boardId] as const,
   boardGroups: (boardId: string) => ["board-groups", boardId] as const,
   boardColumns: (boardId: string) => ["board-columns", boardId] as const,
   boardItems: (boardId: string) => ["board-items", boardId] as const,

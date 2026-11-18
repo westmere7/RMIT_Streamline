@@ -37,7 +37,7 @@ export function useBoardRealtime(boardId: string | null): void {
     const snapshot = queryKeys.boardSnapshot(boardId);
     // Archiving or deleting a row moves it between the board and its archive,
     // so both the count beside Archive and any open archive page follow it.
-    const archive = [queryKeys.boardArchiveCount(boardId), ["board-archive"] as const];
+    const archive = [queryKeys.boardArchiveCount(boardId), ["board-archive"] as const, queryKeys.boardItemCount(boardId)];
     return [
       { table: "items", filter: board, keys: [snapshot, ...archive] },
       // A value is keyed by item and column, neither of which is a board, so the

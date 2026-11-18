@@ -49,6 +49,12 @@ export class LocalItemRepository implements ItemRepository {
     return (await this.archivedOf(boardId)).length;
   }
 
+  async countLive(boardId: string): Promise<number> {
+    const db = await this.conn.getDb();
+    const items = await db.getAllFromIndex("items", "byBoard", boardId);
+    return items.filter((i) => i.archivedAt === null && i.parentItemId === null).length;
+  }
+
   private async archivedOf(boardId: string): Promise<Item[]> {
     const db = await this.conn.getDb();
     const items = await db.getAllFromIndex("items", "byBoard", boardId);

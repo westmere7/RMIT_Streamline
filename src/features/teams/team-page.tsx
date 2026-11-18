@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { BoardItemCount } from "@/features/boards/board-item-count";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SectionHeading } from "@/components/shared/page-header";
@@ -134,7 +135,10 @@ export function TeamPage() {
                     <Link href={ws.boardPath(board)} className="flex h-11 items-center gap-3 px-3 text-[13px] hover:bg-accent">
                       <DynamicIcon name={board.icon} className={cn("size-4", colorClasses(board.color).text)} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{board.name}</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium">{board.name}</span>
+                          <BoardItemCount boardId={board.id} />
+                        </span>
                         {board.description && <span className="block truncate text-2xs text-muted-foreground">{board.description}</span>}
                       </span>
                       <Badge variant="muted">{board.visibility.toLowerCase()}</Badge>

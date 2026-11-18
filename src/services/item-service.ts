@@ -454,6 +454,11 @@ export class ItemService {
     return this.repos.items.countArchived(boardId);
   }
 
+  /** How many tasks are on a board now, for the sidebar beside its name. */
+  countLive(boardId: EntityId): Promise<number> {
+    return this.repos.items.countLive(boardId);
+  }
+
   /**
    * What archiving these items would do to the links they carry.
    *

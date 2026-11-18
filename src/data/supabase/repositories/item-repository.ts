@@ -123,6 +123,18 @@ export class SupabaseItemRepository implements ItemRepository {
     return result.count ?? 0;
   }
 
+  /** A head request: the count comes back in a header and no rows travel. */
+  async countLive(boardId: string): Promise<number> {
+    const result = await db()
+      .from("items")
+      .select("id", { count: "exact", head: true })
+      .eq("board_id", boardId)
+      .is("archived_at", null)
+      .is("parent_item_id", null);
+    assertOk(result, "items.countLive");
+    return result.count ?? 0;
+  }
+
   async listByTicket(boardIds: string[], ticket: string): Promise<Item[]> {
     if (boardIds.length === 0) return [];
     const rows = await unwrapAll<ItemRow>(

@@ -248,6 +248,8 @@ export interface ItemRepository {
   listArchivedPage(query: ArchiveQuery): Promise<ArchivePage<Item>>;
   /** How many items sit in a board's archive, filters aside. For the badge on the board. */
   countArchived(boardId: EntityId): Promise<number>;
+  /** Tasks on the board now: top-level and not archived. A count only, no rows. */
+  countLive(boardId: EntityId): Promise<number>;
   listByIds(ids: EntityId[]): Promise<Item[]>;
   /** Whoever already holds this ticket, across the boards given. For the uniqueness check. */
   listByTicket(boardIds: EntityId[], ticket: string): Promise<Item[]>;

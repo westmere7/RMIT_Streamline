@@ -139,6 +139,7 @@ export function createMemoryRepositories(
         return { rows: matched.slice(query.offset, query.offset + query.limit), total: matched.length };
       },
       countArchived: async (boardId) => items(boardId).filter((i) => i.archivedAt !== null && i.parentItemId === null).length,
+      countLive: async (boardId) => items(boardId).filter((i) => i.archivedAt === null && i.parentItemId === null).length,
       listByIds: async (ids) => payload().items.filter((i) => ids.includes(i.id)),
       listByTicket: async (boardIds, ticket) => payload().items.filter((i) => boardIds.includes(i.boardId) && i.ticket === ticket),
       listTicketed: async (boardIds) => payload().items.filter((i) => boardIds.includes(i.boardId) && !!i.ticket),

@@ -23,6 +23,7 @@ import { DeleteTeamDialog } from "@/features/teams/components/delete-team-dialog
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
 import { ShareBoardDialog } from "@/features/boards/components/dialogs/share-board-dialog";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
+import { BoardItemCount } from "@/features/boards/board-item-count";
 import { useServices } from "@/features/data/data-context";
 import { InviteMemberDialog } from "@/features/members/components/invite-member-dialog";
 import type { UnreadCounts } from "@/domain";
@@ -798,7 +799,8 @@ function BoardLink({
           className={cn(
             navItemClasses(active),
             "h-8 font-normal",
-            collapsed ? "justify-center px-0" : "pr-7",
+            // Archived rows keep room for the "…"; the others put their count there, and the "…" takes its place on hover.
+            collapsed ? "justify-center px-0" : archived ? "pr-7" : "pr-1.5",
             nested && !collapsed && "pl-2",
             archived && "text-muted-foreground italic",
           )}
@@ -809,6 +811,11 @@ function BoardLink({
             <SquareKanban className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
           )}
           {!collapsed && <span className="truncate">{board.name}</span>}
+          {!collapsed && !archived && (
+            <span className="ml-auto flex min-w-6 shrink-0 justify-end transition-opacity group-focus-within/menu:opacity-0 group-hover/menu:opacity-0 group-has-[[data-state=open]]/menu:opacity-0">
+              <BoardItemCount boardId={board.id} className="bg-sidebar-accent" />
+            </span>
+          )}
         </Link>
       </SimpleTooltip>
   );

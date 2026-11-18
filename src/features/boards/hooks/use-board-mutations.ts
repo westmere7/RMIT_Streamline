@@ -54,6 +54,8 @@ export function useBoardMutations(boardId: string) {
     // Archiving and deleting change what the archive holds, and its count.
     void queryClient.invalidateQueries({ queryKey: ["board-archive"] });
     void queryClient.invalidateQueries({ queryKey: ["board-archive-count"] });
+    // Adding, archiving, deleting or moving a task changes how many each board holds.
+    void queryClient.invalidateQueries({ queryKey: ["board-item-count"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.myWork(ws.workspace.id, user.id) });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
