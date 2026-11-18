@@ -133,6 +133,7 @@ export function withFollowers(repos: Repositories, subscriptions: SubscriptionSe
       ...activities,
       listByWorkspace: (workspaceId, limit) => activities.listByWorkspace(workspaceId, limit),
       listByBoard: (boardId, limit) => activities.listByBoard(boardId, limit),
+      listByActor: (workspaceId, actorId, limit) => activities.listByActor(workspaceId, actorId, limit),
       listByItem: (itemId) => activities.listByItem(itemId),
       listStatusChanges: (workspaceId) => activities.listStatusChanges(workspaceId),
       // Named one by one: the spread above copies no methods off a class instance.

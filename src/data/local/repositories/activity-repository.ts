@@ -15,6 +15,11 @@ export class LocalActivityRepository implements ActivityRepository {
     return newestFirst(await db.getAllFromIndex("activities", "byWorkspace", workspaceId)).slice(0, limit);
   }
 
+  async listByActor(workspaceId: string, actorId: string, limit: number): Promise<Activity[]> {
+    const db = await this.conn.getDb();
+    return newestFirst((await db.getAllFromIndex("activities", "byWorkspace", workspaceId)).filter((a) => a.actorId === actorId)).slice(0, limit);
+  }
+
   async listByBoard(boardId: string, limit: number): Promise<Activity[]> {
     const db = await this.conn.getDb();
     return newestFirst(await db.getAllFromIndex("activities", "byBoard", boardId)).slice(0, limit);

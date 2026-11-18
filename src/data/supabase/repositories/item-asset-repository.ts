@@ -1,7 +1,7 @@
 import type { AssetLink, ItemAsset, ItemAssetInput, ItemAssetPatch } from "@/domain";
 import { normalizeAssetLinks } from "@/domain";
 import type { ItemAssetRepository } from "@/data/repositories";
-import { assertOk, chunk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
+import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from "../client";
 
 const ASSET =
   "id, item_id, board_id, name, asset_type, quantity, assignee_ids, due_date, completed_at, notes, links, block_id, block_name, block_links, position, tracker_sheet_id, tracker_row_id, created_by, created_at, updated_at";
@@ -87,6 +87,29 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
   async listByBoard(boardId: string): Promise<ItemAsset[]> {
     const result = await db().from("item_assets").select(ASSET).eq("board_id", boardId).order("position", { ascending: true }).order("created_at", { ascending: true });
     return unwrapList<ItemAssetRow>(result, "item_assets.listByBoard").map(toItemAsset);
+  }
+
+  /** `assignee_ids @> {id}`, which the GIN index on assignee_ids answers. Paged, in the order listByBoard reads. */
+  async listAssignedTo(boardIds: string[], userId: string): Promise<ItemAsset[]> {
+    if (boardIds.length === 0) return [];
+    const pages = await Promise.all(
+      chunk(boardIds).map((part) =>
+        unwrapAll<ItemAssetRow>(
+          (from, to) =>
+            db()
+              .from("item_assets")
+              .select(ASSET)
+              .in("board_id", part)
+              .contains("assignee_ids", [userId])
+              .order("position", { ascending: true })
+              .order("created_at", { ascending: true })
+              .order("id", { ascending: true })
+              .range(from, to),
+          "item_assets.listAssignedTo",
+        ),
+      ),
+    );
+    return pages.flat().map(toItemAsset);
   }
 
   async create(input: ItemAssetInput): Promise<ItemAsset> {

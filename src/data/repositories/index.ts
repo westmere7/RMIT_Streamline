@@ -304,6 +304,13 @@ export interface ItemRepository {
    */
   listValuesByItems(itemIds: EntityId[]): Promise<ItemColumnValue[]>;
   listValuesByColumns(columnIds: EntityId[]): Promise<ItemColumnValue[]>;
+  /**
+   * The values on these boards that name this person: every cell whose
+   * `userIds` holds them. Asked by the database, so a person's tasks are found
+   * without reading every cell of every board. Which column a value sits in is
+   * not checked here; the caller holds the columns and decides which count.
+   */
+  listValuesNamingUser(boardIds: EntityId[], userId: EntityId): Promise<ItemColumnValue[]>;
   setValue(itemId: EntityId, columnId: EntityId, value: ColumnValue): Promise<ItemColumnValue>;
   setValues(values: Array<{ itemId: EntityId; columnId: EntityId; value: ColumnValue }>): Promise<ItemColumnValue[]>;
   /**
@@ -427,6 +434,8 @@ export interface ItemAssetRepository {
   listByItems(itemIds: EntityId[]): Promise<ItemAsset[]>;
   /** Every line on a board, for the recap cells. */
   listByBoard(boardId: EntityId): Promise<ItemAsset[]>;
+  /** The lines on these boards that this person is in charge of, in board order (position, then age). */
+  listAssignedTo(boardIds: EntityId[], userId: EntityId): Promise<ItemAsset[]>;
   create(input: ItemAssetInput): Promise<ItemAsset>;
   update(id: EntityId, patch: ItemAssetPatch): Promise<ItemAsset>;
   delete(id: EntityId): Promise<void>;
@@ -562,6 +571,8 @@ export interface MessageRepository {
 export interface ActivityRepository {
   listByWorkspace(workspaceId: EntityId, limit: number): Promise<Activity[]>;
   listByBoard(boardId: EntityId, limit: number): Promise<Activity[]>;
+  /** One person's latest moves in a workspace, newest first. */
+  listByActor(workspaceId: EntityId, actorId: EntityId, limit: number): Promise<Activity[]>;
   listByItem(itemId: EntityId): Promise<Activity[]>;
   /** Every change of a status in the workspace, oldest first, trimmed to what the dashboard reads. */
   listStatusChanges(workspaceId: EntityId): Promise<StatusChange[]>;

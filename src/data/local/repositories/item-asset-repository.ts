@@ -54,6 +54,11 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     return (await db.getAllFromIndex("itemAssets", "byBoard", boardId)).map(normalize).sort(byPosition);
   }
 
+  async listAssignedTo(boardIds: string[], userId: string): Promise<ItemAsset[]> {
+    const perBoard = await Promise.all(boardIds.map((boardId) => this.listByBoard(boardId)));
+    return perBoard.flat().filter((line) => line.assigneeIds.includes(userId));
+  }
+
   async create(input: ItemAssetInput): Promise<ItemAsset> {
     const db = await this.conn.getDb();
     // The board is the item's, whatever the caller said — the same rule the database enforces.

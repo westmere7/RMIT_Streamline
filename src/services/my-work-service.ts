@@ -48,6 +48,13 @@ export function sectionFor(entry: Pick<MyWorkItem, "isDone" | "dueDate">, now: D
   return bucketDate(entry.dueDate, now);
 }
 
+type RowFilter = (item: Item, itemValues: ItemColumnValue[], personColumnIds: ReadonlySet<EntityId>) => boolean;
+
+/** A board's own order for its tasks: by position, the id breaking a tie, as the board reads them. */
+function byBoardOrder(a: Item, b: Item): number {
+  return a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 /** Soonest due first, undated last, then by name. */
 function sortByDue(entries: MyWorkItem[]): MyWorkItem[] {
   return entries.sort((a, b) => {
@@ -61,14 +68,45 @@ function sortByDue(entries: MyWorkItem[]): MyWorkItem[] {
 export class MyWorkService {
   constructor(private readonly repos: Repositories) {}
 
-  /** All non-archived items across the workspace where a PERSON column includes the user. */
-  async listAssigned(workspaceId: EntityId, userId: EntityId): Promise<MyWorkItem[]> {
-    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
+  /**
+   * All non-archived items across the workspace where a PERSON column includes the user.
+   *
+   * The database finds the cells that name them first (listValuesNamingUser),
+   * so only their own tasks are read, with their values, and only the boards
+   * those sit on have their columns and groups read. Reading every board in
+   * full and filtering here moved the whole workspace — thousands of cells —
+   * to find a person's few dozen tasks, and made the profile page and My Work
+   * slow to open. `boards` spares the read when the caller holds them already.
+   */
+  async listAssigned(workspaceId: EntityId, userId: EntityId, boards?: readonly Board[]): Promise<MyWorkItem[]> {
+    const live = (boards ?? (await this.repos.boards.listByWorkspace(workspaceId))).filter((b) => b.archivedAt === null);
+    if (live.length === 0) return [];
+    const named = await this.repos.items.listValuesNamingUser(
+      live.map((b) => b.id),
+      userId,
+    );
+    const itemIds = [...new Set(named.map((v) => v.itemId))];
+    if (itemIds.length === 0) return [];
+    const [items, values] = await Promise.all([this.repos.items.listByIds(itemIds), this.repos.items.listValuesByItems(itemIds)]);
+
+    const itemsByBoard = new Map<EntityId, Item[]>();
+    for (const item of items) {
+      if (item.archivedAt) continue;
+      itemsByBoard.set(item.boardId, [...(itemsByBoard.get(item.boardId) ?? []), item]);
+    }
+    const isTheirs = (_item: Item, itemValues: ItemColumnValue[], personColumnIds: ReadonlySet<EntityId>) =>
+      itemValues.some((v) => personColumnIds.has(v.columnId) && v.value.type === "PERSON" && v.value.userIds.includes(userId));
+    // Board by board in the workspace's order, each board's tasks in its own
+    // order, as reading the boards whole did: the sort below is stable, so this
+    // is what decides between tasks due the same day with the same name.
     const results = (
       await Promise.all(
-        boards.map((board) =>
-          this.entriesOn(board, (_item, itemValues, personColumnIds) => itemValues.some((v) => personColumnIds.has(v.columnId) && v.value.type === "PERSON" && v.value.userIds.includes(userId))),
-        ),
+        live
+          .filter((board) => itemsByBoard.has(board.id))
+          .map(async (board) => {
+            const [columns, groups] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id)]);
+            return this.rowsFor(board, columns, groups, (itemsByBoard.get(board.id) ?? []).sort(byBoardOrder), values, isTheirs);
+          }),
       )
     ).flat();
     return this.collapseLinked(sortByDue(results));
@@ -106,13 +144,18 @@ export class MyWorkService {
   }
 
   /** One board's tasks that `include` picks, as My Work rows. */
-  private async entriesOn(board: Board, include: (item: Item, itemValues: ItemColumnValue[], personColumnIds: ReadonlySet<EntityId>) => boolean): Promise<MyWorkItem[]> {
+  private async entriesOn(board: Board, include: RowFilter): Promise<MyWorkItem[]> {
     const [columns, groups, items, values] = await Promise.all([
       this.repos.boards.listColumns(board.id),
       this.repos.boards.listGroups(board.id),
       this.repos.items.listByBoard(board.id),
       this.repos.items.listValuesByBoard(board.id),
     ]);
+    return this.rowsFor(board, columns, groups, items, values, include);
+  }
+
+  /** These tasks of one board that `include` picks, as My Work rows, read through the board's column roles. */
+  private rowsFor(board: Board, columns: BoardColumn[], groups: BoardGroup[], items: readonly Item[], values: readonly ItemColumnValue[], include: RowFilter): MyWorkItem[] {
     const roles = resolveColumnRoles(columns);
     const personColumnIds = new Set(columns.filter((c) => c.type === "PERSON").map((c) => c.id));
     const statusColumn = roles.status;
@@ -150,24 +193,33 @@ export class MyWorkService {
    * that are not archived, soonest due first.
    *
    * A line shared between linked tasks is stored on one of them and listed
-   * once, against that one. Only boards with such a line read their items.
+   * once, against that one. The database picks the lines (listAssignedTo);
+   * only their tasks are read, and only their boards' groups.
    */
   async listAssignedAssets(workspaceId: EntityId, userId: EntityId): Promise<MyWorkAsset[]> {
     const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
-    const results: MyWorkAsset[] = [];
-    await Promise.all(
-      boards.map(async (board) => {
-        const lines = (await this.repos.itemAssets.listByBoard(board.id)).filter((line) => line.assigneeIds.includes(userId));
-        if (lines.length === 0) return;
-        const [items, groups] = await Promise.all([this.repos.items.listByBoard(board.id), this.repos.boards.listGroups(board.id)]);
-        const byId = new Map(items.map((item) => [item.id, item]));
-        for (const asset of lines) {
-          const item = byId.get(asset.itemId);
-          if (!item || item.archivedAt) continue;
-          results.push({ asset, item, board, group: groups.find((g) => g.id === item.groupId) ?? null, isDone: asset.completedAt !== null, dueDate: asset.dueDate });
-        }
-      }),
+    const lines = await this.repos.itemAssets.listAssignedTo(
+      boards.map((b) => b.id),
+      userId,
     );
+    if (lines.length === 0) return [];
+    const withLines = boards.filter((board) => lines.some((line) => line.boardId === board.id));
+    const [items, groupLists] = await Promise.all([
+      this.repos.items.listByIds([...new Set(lines.map((line) => line.itemId))]),
+      Promise.all(withLines.map((board) => this.repos.boards.listGroups(board.id))),
+    ]);
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const results: MyWorkAsset[] = [];
+    withLines.forEach((board, index) => {
+      const groups = groupLists[index] ?? [];
+      for (const asset of lines) {
+        if (asset.boardId !== board.id) continue;
+        const item = byId.get(asset.itemId);
+        // The task as its board lists it: on that board and not archived.
+        if (!item || item.boardId !== board.id || item.archivedAt) continue;
+        results.push({ asset, item, board, group: groups.find((g) => g.id === item.groupId) ?? null, isDone: asset.completedAt !== null, dueDate: asset.dueDate });
+      }
+    });
     results.sort((a, b) => {
       if (a.dueDate !== b.dueDate) return !a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.localeCompare(b.dueDate);
       return a.item.name.localeCompare(b.item.name) || a.asset.position - b.asset.position;

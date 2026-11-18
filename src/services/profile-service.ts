@@ -30,7 +30,8 @@ export interface ProfileAssets {
   dueThisWeek: number;
 }
 
-export interface ProfileView {
+/** Who the person is and where they sit: the head of the profile page. */
+export interface ProfileSummary {
   user: User;
   /** Their membership of this workspace, or null for someone outside it. */
   member: WorkspaceMember | null;
@@ -38,6 +39,10 @@ export interface ProfileView {
   joinedAt: string;
   teams: Team[];
   boards: ProfileBoard[];
+}
+
+/** What they are carrying and have done: the figures and lists under the head. */
+export interface ProfileWork {
   /** Open items assigned to them, newest deadline first (see MyWorkService). */
   tasks: MyWorkItem[];
   /** The deliverables they are in charge of. */
@@ -46,8 +51,8 @@ export interface ProfileView {
   activity: Activity[];
 }
 
-/** Enough of the workspace's recent activity to find this person's last few moves in. */
-const ACTIVITY_WINDOW = 300;
+export type ProfileView = ProfileSummary & ProfileWork;
+
 const ACTIVITY_SHOWN = 12;
 /** A person's asset list can be long; the page shows the head of it. */
 const ASSETS_SHOWN = 12;
@@ -55,6 +60,12 @@ const ASSETS_SHOWN = 12;
 /**
  * Everything the profile page shows about one person: who they are, the teams
  * they belong to, the boards they can reach and the work assigned to them.
+ *
+ * In two parts, so the page can show who someone is while their work is still
+ * being read. Each part asks the database for this person's rows only: their
+ * cells, their deliverables, their activity. Reading the whole workspace and
+ * filtering here made the page slow to open (a workspace of 17 boards moved
+ * some 2 MB and a hundred requests to show one person).
  */
 export class ProfileService {
   constructor(
@@ -62,26 +73,29 @@ export class ProfileService {
     private readonly myWork: MyWorkService,
   ) {}
 
+  /** The whole profile at once. */
   async load(workspaceId: EntityId, userId: EntityId): Promise<ProfileView> {
-    const user = await this.repos.users.getById(userId);
-    if (!user) throw new NotFoundError("User", userId);
+    const [summary, work] = await Promise.all([this.loadSummary(workspaceId, userId), this.loadWork(workspaceId, userId)]);
+    return { ...summary, ...work };
+  }
 
-    const [members, teams, teamMembers, boards, boardMembers, tasks, recent] = await Promise.all([
+  async loadSummary(workspaceId: EntityId, userId: EntityId): Promise<ProfileSummary> {
+    const [user, members, teams, teamMembers, boards, boardMembers] = await Promise.all([
+      this.repos.users.getById(userId),
       this.repos.workspaces.listMembers(workspaceId),
       this.repos.teams.listByWorkspace(workspaceId),
       this.repos.teams.listMembersByWorkspace(workspaceId),
       this.repos.boards.listByWorkspace(workspaceId),
       this.repos.boards.listMembersByWorkspace(workspaceId),
-      this.myWork.listAssigned(workspaceId, userId),
-      this.repos.activities.listByWorkspace(workspaceId, ACTIVITY_WINDOW),
     ]);
+    if (!user) throw new NotFoundError("User", userId);
 
     const theirTeamIds = new Set(teamMembers.filter((m) => m.userId === userId).map((m) => m.teamId));
     const theirBoardIds = new Set(boardMembers.filter((m) => m.userId === userId).map((m) => m.boardId));
 
-    const visible = boards.filter((b) => b.archivedAt === null);
     const profileBoards: ProfileBoard[] = [];
-    for (const board of visible) {
+    for (const board of boards) {
+      if (board.archivedAt !== null) continue;
       if (board.ownerId === userId) profileBoards.push({ board, relation: "owner" });
       else if (theirBoardIds.has(board.id)) profileBoards.push({ board, relation: "member" });
       else if (board.teamId && theirTeamIds.has(board.teamId)) profileBoards.push({ board, relation: "team" });
@@ -94,40 +108,24 @@ export class ProfileService {
       joinedAt: member?.joinedAt ?? user.createdAt,
       teams: teams.filter((t) => theirTeamIds.has(t.id) && t.archivedAt === null),
       boards: profileBoards,
-      tasks,
-      assets: await this.assetsFor(visible, userId),
-      activity: recent.filter((a) => a.actorId === userId).slice(0, ACTIVITY_SHOWN),
     };
   }
 
-  /** Every deliverable across the workspace's live boards that names this person. */
-  private async assetsFor(boards: readonly Board[], userId: EntityId): Promise<ProfileAssets> {
-    const perBoard = await Promise.all(boards.map((board) => this.repos.itemAssets.listByBoard(board.id)));
-    const today = new Date().toISOString().slice(0, 10);
-    const theirs = perBoard.flat().filter((asset) => asset.assigneeIds.includes(userId));
-    const done = theirs.filter((a) => a.completedAt !== null).length;
-    return {
-      // What is still to do comes first, and the finished ones trail it newest first.
-      lines: theirs
-        .slice()
-        .sort((a, b) => {
-          const open = Number(a.completedAt !== null) - Number(b.completedAt !== null);
-          if (open !== 0) return open;
-          if (a.completedAt && b.completedAt) return b.completedAt.localeCompare(a.completedAt);
-          return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999");
-        })
-        .slice(0, ASSETS_SHOWN),
-      total: theirs.length,
-      done,
-      units: theirs.reduce((sum, asset) => sum + assetCount(asset), 0),
-      openUnits: theirs.filter((a) => !a.completedAt).reduce((sum, asset) => sum + assetCount(asset), 0),
-      overdue: theirs.filter((a) => !a.completedAt && a.dueDate && a.dueDate < today).length,
-      dueThisWeek: theirs.filter((a) => {
-        if (a.completedAt || !a.dueDate) return false;
-        const bucket = bucketDate(a.dueDate);
-        return bucket === "today" || bucket === "thisWeek";
-      }).length,
-    };
+  async loadWork(workspaceId: EntityId, userId: EntityId): Promise<ProfileWork> {
+    const live = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
+    const [tasks, lines, activity] = await Promise.all([
+      this.myWork.listAssigned(workspaceId, userId, live),
+      this.repos.itemAssets.listAssignedTo(
+        live.map((b) => b.id),
+        userId,
+      ),
+      this.repos.activities.listByActor(workspaceId, userId, ACTIVITY_SHOWN),
+    ]);
+    // Board by board, as the boards list them, so lines that tie in the sort
+    // below keep the order they always had.
+    const boardOrder = new Map(live.map((board, index) => [board.id, index]));
+    const inBoardOrder = lines.slice().sort((a, b) => (boardOrder.get(a.boardId) ?? 0) - (boardOrder.get(b.boardId) ?? 0));
+    return { tasks, assets: summariseAssets(inBoardOrder), activity };
   }
 
   /**
@@ -173,4 +171,32 @@ export class ProfileService {
     if (seats.some((m) => m.status !== "INVITED")) return true;
     return (await this.repos.workspaces.listDirectory()).includes(userId);
   }
+}
+
+/** Their deliverables across the workspace's live boards, and what they add up to. */
+function summariseAssets(theirs: readonly ItemAsset[]): ProfileAssets {
+  const today = new Date().toISOString().slice(0, 10);
+  const done = theirs.filter((a) => a.completedAt !== null).length;
+  return {
+    // What is still to do comes first, and the finished ones trail it newest first.
+    lines: theirs
+      .slice()
+      .sort((a, b) => {
+        const open = Number(a.completedAt !== null) - Number(b.completedAt !== null);
+        if (open !== 0) return open;
+        if (a.completedAt && b.completedAt) return b.completedAt.localeCompare(a.completedAt);
+        return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999");
+      })
+      .slice(0, ASSETS_SHOWN),
+    total: theirs.length,
+    done,
+    units: theirs.reduce((sum, asset) => sum + assetCount(asset), 0),
+    openUnits: theirs.filter((a) => !a.completedAt).reduce((sum, asset) => sum + assetCount(asset), 0),
+    overdue: theirs.filter((a) => !a.completedAt && a.dueDate && a.dueDate < today).length,
+    dueThisWeek: theirs.filter((a) => {
+      if (a.completedAt || !a.dueDate) return false;
+      const bucket = bucketDate(a.dueDate);
+      return bucket === "today" || bucket === "thisWeek";
+    }).length,
+  };
 }

@@ -17,7 +17,7 @@ import { describeActivity } from "@/features/activity/format-activity";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
-import { useProfile } from "@/features/profile/hooks";
+import { useProfile, useProfileWork } from "@/features/profile/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -26,12 +26,14 @@ import { bucketDate, formatShortDate, isOverdue } from "@/lib/dates/dates";
 import { canChangeEmail, canEditProfile } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-import type { BoardRelation } from "@/services";
+import type { BoardRelation, ProfileWork } from "@/services";
 
 const ROLE_LABEL: Record<WorkspaceRole, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member", GUEST: "Guest" };
 const RELATION_LABEL: Record<BoardRelation, string> = { owner: "Owner", member: "Member", team: "Via team" };
 /** Past this many the task list folds, with a button to show the rest. */
 const TASKS_SHOWN = 15;
+/** Their work before it has been read: nothing is shown from it, the figures stand as placeholders. */
+const NO_WORK: ProfileWork = { tasks: [], assets: { lines: [], total: 0, done: 0, units: 0, openUnits: 0, overdue: 0, dueThisWeek: 0 }, activity: [] };
 
 /**
  * One person, in full: who they are and how to reach them, what they are
@@ -46,6 +48,7 @@ export function ProfilePage({ userId }: { userId: string }) {
   const ws = useWorkspace();
   const me = useCurrentUser();
   const profile = useProfile(userId);
+  const work = useProfileWork(userId);
   const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const links = useMentionLinks();
@@ -77,7 +80,9 @@ export function ProfilePage({ userId }: { userId: string }) {
     );
   }
 
-  const { user, member, joinedAt, teams, boards, tasks, assets, activity } = profile.data;
+  const { user, member, joinedAt, teams, boards } = profile.data;
+  // The head shows as soon as it is read; the figures and lists wait for their work.
+  const { tasks, assets, activity } = work.data ?? NO_WORK;
   // Your own details; anybody's as an admin, but an Owner's only as an Owner.
   const isOwnerProfile = member?.role === "OWNER";
   const canEdit = canEditProfile(ws.permissions, { userId, isOwner: isOwnerProfile });
@@ -158,149 +163,168 @@ export function ProfilePage({ userId }: { userId: string }) {
           </div>
         </section>
 
-        {/* ---- What they are carrying, in figures: tasks, then deliverables ------ */}
-        <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-4" data-testid="profile-figures">
-          <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} />
-          <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today} due today`} />
-          <Figure label="Due this week" value={buckets.today + buckets.thisWeek} hint={`${buckets.later} later · ${buckets.noDate} no date`} />
-          <Figure label="In progress" value={inProgress} hint={`${stuck} stuck · ${urgent} high priority`} />
-          <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} />
-          <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" />
-          <Figure label="Assets due this week" value={assets.dueThisWeek} hint={`${assets.total - assets.done - assets.overdue - assets.dueThisWeek} later or undated`} />
-          <Figure label="Units to make" value={assets.openUnits} hint={`of ${assets.units} in total`} />
-        </div>
+        {!work.data ? (
+          work.isError ? (
+            <div className="mt-3 rounded-xl border border-border/70 bg-card shadow-xs">
+              <Muted>Their work could not be loaded.</Muted>
+            </div>
+          ) : (
+            <div data-testid="profile-work-loading">
+              <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24" />
+                ))}
+              </div>
+              <Skeleton className="mt-3 h-48" />
+            </div>
+          )
+        ) : (
+          <>
+            {/* ---- What they are carrying, in figures: tasks, then deliverables ------ */}
+            <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-4" data-testid="profile-figures">
+              <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} />
+              <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today} due today`} />
+              <Figure label="Due this week" value={buckets.today + buckets.thisWeek} hint={`${buckets.later} later · ${buckets.noDate} no date`} />
+              <Figure label="In progress" value={inProgress} hint={`${stuck} stuck · ${urgent} high priority`} />
+              <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} />
+              <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" />
+              <Figure label="Assets due this week" value={assets.dueThisWeek} hint={`${assets.total - assets.done - assets.overdue - assets.dueThisWeek} later or undated`} />
+              <Figure label="Units to make" value={assets.openUnits} hint={`of ${assets.units} in total`} />
+            </div>
 
-        {/* ---- The lists, one at a time ------------------------------------------ */}
-        <Tabs defaultValue="tasks" className="mt-3 rounded-xl border border-border/70 bg-card shadow-xs">
-          <UnderlineTabsList className="px-3">
-            <TabLabel value="tasks" icon={ListChecks} label="Tasks" count={tasks.length} />
-            <TabLabel value="assets" icon={Boxes} label="Assets" count={assets.total} />
-            <TabLabel value="boards" icon={SquareKanban} label="Boards" count={boards.length} />
-            <TabLabel value="activity" icon={History} label="Activity" count={activity.length} />
-          </UnderlineTabsList>
+            {/* ---- The lists, one at a time ------------------------------------------ */}
+            <Tabs defaultValue="tasks" className="mt-3 rounded-xl border border-border/70 bg-card shadow-xs">
+              <UnderlineTabsList className="px-3">
+                <TabLabel value="tasks" icon={ListChecks} label="Tasks" count={tasks.length} />
+                <TabLabel value="assets" icon={Boxes} label="Assets" count={assets.total} />
+                <TabLabel value="boards" icon={SquareKanban} label="Boards" count={boards.length} />
+                <TabLabel value="activity" icon={History} label="Activity" count={activity.length} />
+              </UnderlineTabsList>
 
-          <TabsContent value="tasks" className="p-3">
-            {tasks.length === 0 ? (
-              <Muted>Nothing assigned right now.</Muted>
-            ) : (
-              <>
-                <div role="radiogroup" aria-label="Which tasks" className="mb-2 inline-flex items-center rounded-full border border-border/70 p-0.5">
-                  {(["open", "done"] as const).map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      role="radio"
-                      aria-checked={taskFilter === key}
-                      onClick={() => {
-                        setTaskFilter(key);
-                        setShowAll(false);
-                      }}
-                      className={cn("h-7 rounded-full px-3 text-2xs font-medium transition-colors", taskFilter === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-                      data-testid={`profile-tasks-${key}`}
-                    >
-                      {key === "open" ? `Open ${open.length}` : `Done ${done.length}`}
-                    </button>
-                  ))}
-                </div>
-                {listed.length === 0 ? (
-                  <Muted>{taskFilter === "open" ? "Nothing open right now." : "Nothing finished yet."}</Muted>
+              <TabsContent value="tasks" className="p-3">
+                {tasks.length === 0 ? (
+                  <Muted>Nothing assigned right now.</Muted>
                 ) : (
-                  <ul className="divide-y divide-border/50">
-                    {(showAll ? listed : listed.slice(0, TASKS_SHOWN)).map((task) => {
-                      const late = !task.isDone && isOverdue(task.dueDate);
+                  <>
+                    <div role="radiogroup" aria-label="Which tasks" className="mb-2 inline-flex items-center rounded-full border border-border/70 p-0.5">
+                      {(["open", "done"] as const).map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          role="radio"
+                          aria-checked={taskFilter === key}
+                          onClick={() => {
+                            setTaskFilter(key);
+                            setShowAll(false);
+                          }}
+                          className={cn("h-7 rounded-full px-3 text-2xs font-medium transition-colors", taskFilter === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                          data-testid={`profile-tasks-${key}`}
+                        >
+                          {key === "open" ? `Open ${open.length}` : `Done ${done.length}`}
+                        </button>
+                      ))}
+                    </div>
+                    {listed.length === 0 ? (
+                      <Muted>{taskFilter === "open" ? "Nothing open right now." : "Nothing finished yet."}</Muted>
+                    ) : (
+                      <ul className="divide-y divide-border/50">
+                        {(showAll ? listed : listed.slice(0, TASKS_SHOWN)).map((task) => {
+                          const late = !task.isDone && isOverdue(task.dueDate);
+                          return (
+                            <li key={task.item.id}>
+                              <Link
+                                href={routes.board(ws.slug, task.board.slug, { itemId: task.item.id })}
+                                className="flex items-center gap-3 rounded-lg px-2 py-2 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]"
+                                data-testid="profile-task"
+                              >
+                                <span aria-hidden className={cn("size-2 shrink-0 rounded-full", colorClasses(task.board.color).dot)} />
+                                <span className="min-w-0 flex-1 truncate">{task.item.name}</span>
+                                <span className="hidden shrink-0 text-2xs text-muted-foreground md:inline">{task.board.name}</span>
+                                {task.dueDate && (
+                                  <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                                    {formatShortDate(task.dueDate)}
+                                  </span>
+                                )}
+                                {task.status && <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium ${colorClasses(task.status.color).soft}`}>{task.status.name}</span>}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {listed.length > TASKS_SHOWN && (
+                      <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 px-2 text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline">
+                        {showAll ? "Show fewer" : `Show all ${listed.length}`}
+                      </button>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+
+              {/* ---- The deliverables with their name on them --------------------- */}
+              <TabsContent value="assets" className="p-3">
+                {assets.total === 0 ? (
+                  <Muted>No deliverables assigned.</Muted>
+                ) : (
+                  <ul className="divide-y divide-border/50" data-testid="profile-assets">
+                    {assets.lines.map((asset) => {
+                      const type = assetTypeLabel(asset.assetType, assetTypes);
+                      const finished = asset.completedAt !== null;
+                      const late = !finished && isOverdue(asset.dueDate);
                       return (
-                        <li key={task.item.id}>
-                          <Link
-                            href={routes.board(ws.slug, task.board.slug, { itemId: task.item.id })}
-                            className="flex items-center gap-3 rounded-lg px-2 py-2 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]"
-                            data-testid="profile-task"
-                          >
-                            <span aria-hidden className={cn("size-2 shrink-0 rounded-full", colorClasses(task.board.color).dot)} />
-                            <span className="min-w-0 flex-1 truncate">{task.item.name}</span>
-                            <span className="hidden shrink-0 text-2xs text-muted-foreground md:inline">{task.board.name}</span>
-                            {task.dueDate && (
-                              <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-                                {formatShortDate(task.dueDate)}
-                              </span>
-                            )}
-                            {task.status && <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium ${colorClasses(task.status.color).soft}`}>{task.status.name}</span>}
-                          </Link>
+                        <li key={asset.id} className="flex items-center gap-2 px-2 py-2 text-[13px]">
+                          <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{asset.name}</span>
+                          {type && <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(type.color).soft)}>{type.name}</span>}
+                          <span className="shrink-0 text-2xs text-muted-foreground tabular">×{assetCount(asset)}</span>
+                          {asset.dueDate && (
+                            <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                              {formatShortDate(asset.dueDate)}
+                            </span>
+                          )}
                         </li>
                       );
                     })}
+                    {assets.total > assets.lines.length && <li className="px-2 pt-2 text-2xs text-muted-foreground">and {assets.total - assets.lines.length} more</li>}
                   </ul>
                 )}
-                {listed.length > TASKS_SHOWN && (
-                  <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 px-2 text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline">
-                    {showAll ? "Show fewer" : `Show all ${listed.length}`}
-                  </button>
+              </TabsContent>
+
+              <TabsContent value="boards" className="p-3">
+                {boards.length === 0 ? (
+                  <Muted>No boards yet.</Muted>
+                ) : (
+                  <ul className="grid gap-x-4 sm:grid-cols-2">
+                    {boards.map(({ board, relation }) => (
+                      <li key={board.id}>
+                        <Link href={routes.board(ws.slug, board.slug)} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]">
+                          <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${colorClasses(board.color).dot}`} />
+                          <span className="truncate">{board.name}</span>
+                          <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{RELATION_LABEL[relation]}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </>
-            )}
-          </TabsContent>
+              </TabsContent>
 
-          {/* ---- The deliverables with their name on them --------------------- */}
-          <TabsContent value="assets" className="p-3">
-            {assets.total === 0 ? (
-              <Muted>No deliverables assigned.</Muted>
-            ) : (
-              <ul className="divide-y divide-border/50" data-testid="profile-assets">
-                {assets.lines.map((asset) => {
-                  const type = assetTypeLabel(asset.assetType, assetTypes);
-                  const finished = asset.completedAt !== null;
-                  const late = !finished && isOverdue(asset.dueDate);
-                  return (
-                    <li key={asset.id} className="flex items-center gap-2 px-2 py-2 text-[13px]">
-                      <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{asset.name}</span>
-                      {type && <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(type.color).soft)}>{type.name}</span>}
-                      <span className="shrink-0 text-2xs text-muted-foreground tabular">×{assetCount(asset)}</span>
-                      {asset.dueDate && (
-                        <span className={cn("hidden w-20 shrink-0 whitespace-nowrap text-right text-2xs tabular sm:inline", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-                          {formatShortDate(asset.dueDate)}
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-                {assets.total > assets.lines.length && <li className="px-2 pt-2 text-2xs text-muted-foreground">and {assets.total - assets.lines.length} more</li>}
-              </ul>
-            )}
-          </TabsContent>
-
-          <TabsContent value="boards" className="p-3">
-            {boards.length === 0 ? (
-              <Muted>No boards yet.</Muted>
-            ) : (
-              <ul className="grid gap-x-4 sm:grid-cols-2">
-                {boards.map(({ board, relation }) => (
-                  <li key={board.id}>
-                    <Link href={routes.board(ws.slug, board.slug)} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] transition-colors hover:bg-accent/70 max-md:min-h-11 max-md:text-[15px]">
-                      <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${colorClasses(board.color).dot}`} />
-                      <span className="truncate">{board.name}</span>
-                      <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{RELATION_LABEL[relation]}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </TabsContent>
-
-          {/* ---- And what they have been up to -------------------------------- */}
-          <TabsContent value="activity" className="p-3">
-            {activity.length === 0 ? (
-              <Muted>Nothing recorded lately.</Muted>
-            ) : (
-              <ol className="divide-y divide-border/50" data-testid="profile-activity">
-                {activity.map((entry) => (
-                  <li key={entry.id} className="flex flex-wrap items-baseline gap-x-2 px-2 py-2 text-[13px] text-muted-foreground">
-                    <span className="min-w-0">{describeActivity(entry, ws.users, true, links)}</span>
-                    <RelativeTime iso={entry.createdAt} className="ml-auto shrink-0 text-2xs" />
-                  </li>
-                ))}
-              </ol>
-            )}
-          </TabsContent>
-        </Tabs>
+              {/* ---- And what they have been up to -------------------------------- */}
+              <TabsContent value="activity" className="p-3">
+                {activity.length === 0 ? (
+                  <Muted>Nothing recorded lately.</Muted>
+                ) : (
+                  <ol className="divide-y divide-border/50" data-testid="profile-activity">
+                    {activity.map((entry) => (
+                      <li key={entry.id} className="flex flex-wrap items-baseline gap-x-2 px-2 py-2 text-[13px] text-muted-foreground">
+                        <span className="min-w-0">{describeActivity(entry, ws.users, true, links)}</span>
+                        <RelativeTime iso={entry.createdAt} className="ml-auto shrink-0 text-2xs" />
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
 
       <EditProfileDialog user={user} open={editing} onOpenChange={setEditing} canChangeEmail={canChangeEmail(ws.permissions, { userId, isOwner: isOwnerProfile })} />

@@ -145,6 +145,17 @@ export class SupabaseActivityRepository implements ActivityRepository {
     return unwrapList<ActivityRow>(result, "activities.listByBoard").map(toActivity);
   }
 
+  async listByActor(workspaceId: string, actorId: string, limit: number): Promise<Activity[]> {
+    const result = await db()
+      .from("activities")
+      .select(ACTIVITY)
+      .eq("workspace_id", workspaceId)
+      .eq("actor_id", actorId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return unwrapList<ActivityRow>(result, "activities.listByActor").map(toActivity);
+  }
+
   async listByItem(itemId: string): Promise<Activity[]> {
     const result = await db().from("activities").select(ACTIVITY).eq("item_id", itemId).order("created_at", { ascending: false });
     return unwrapList<ActivityRow>(result, "activities.listByItem").map(toActivity);

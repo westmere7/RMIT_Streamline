@@ -9,12 +9,25 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { uploadAvatar } from "./avatar-upload";
 
+/** Who the person is: the head of their profile, which shows before their work has been read. */
 export function useProfile(userId: string | null) {
   const services = useServices();
   const ws = useWorkspace();
   return useQuery({
     queryKey: queryKeys.profile(ws.workspace.id, userId ?? ""),
-    queryFn: () => services.profiles.load(ws.workspace.id, userId!),
+    queryFn: () => services.profiles.loadSummary(ws.workspace.id, userId!),
+    enabled: !!userId,
+    staleTime: 10_000,
+  });
+}
+
+/** Their tasks, deliverables and activity. Under the profile's key, so refreshing the profile refreshes this too. */
+export function useProfileWork(userId: string | null) {
+  const services = useServices();
+  const ws = useWorkspace();
+  return useQuery({
+    queryKey: queryKeys.profileWork(ws.workspace.id, userId ?? ""),
+    queryFn: () => services.profiles.loadWork(ws.workspace.id, userId!),
     enabled: !!userId,
     staleTime: 10_000,
   });

@@ -148,7 +148,7 @@ export type { CreateDocInput } from "./doc-service";
 export type { ImportedWorkbook } from "./tracker-xlsx";
 export type { MyWorkItem, MyWorkSection } from "./my-work-service";
 export type { DirectThreadView } from "./message-service";
-export type { BoardRelation, ProfileBoard, ProfileView } from "./profile-service";
+export type { BoardRelation, ProfileBoard, ProfileSummary, ProfileView, ProfileWork } from "./profile-service";
 export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";

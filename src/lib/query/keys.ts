@@ -82,6 +82,8 @@ export const queryKeys = {
   subscriptions: (workspaceId: string, userId: string) => ["subscriptions", workspaceId, userId] as const,
 
   profile: (workspaceId: string, userId: string) => ["profile", workspaceId, userId] as const,
+  /** Under profile(), so invalidating a profile reaches its work as well. */
+  profileWork: (workspaceId: string, userId: string) => ["profile", workspaceId, userId, "work"] as const,
   messageThreads: (workspaceId: string, userId: string) => ["message-threads", workspaceId, userId] as const,
   messageThread: (workspaceId: string, userId: string, otherUserId: string) => ["message-thread", workspaceId, userId, otherUserId] as const,
   unreadMessages: (workspaceId: string, userId: string) => ["unread-messages", workspaceId, userId] as const,

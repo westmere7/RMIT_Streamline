@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.5",
+    date: "2026-11-18",
+    title: "Faster profiles and My Work",
+    changes: [
+      "A person's profile and My Work read only that person's tasks, deliverables and activity, not the whole workspace, so they open much faster.",
+      "A profile shows who the person is straight away; their figures and lists follow.",
+      "A profile's Activity tab lists the person's latest twelve moves, however long ago.",
+    ],
+  },
+  {
     version: "0.103.4",
     date: "2026-11-18",
     title: "Photos are your own",

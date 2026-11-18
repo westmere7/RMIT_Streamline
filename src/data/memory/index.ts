@@ -159,6 +159,13 @@ export function createMemoryRepositories(
       listValuesByItem: async (itemId) => payload().values.filter((v) => v.itemId === itemId),
       listValuesByItems: async (itemIds) => payload().values.filter((v) => itemIds.includes(v.itemId)),
       listValuesByColumns: async (columnIds) => payload().values.filter((v) => columnIds.includes(v.columnId)),
+      listValuesNamingUser: async (boardIds, userId) =>
+        boardIds.some(onBoard)
+          ? payload().values.filter((v) => {
+              const userIds = (v.value as { userIds?: unknown }).userIds;
+              return Array.isArray(userIds) && userIds.includes(userId);
+            })
+          : [],
       setValue: readOnly("editing a cell"),
       setValues: readOnly("editing cells"),
       setValuesIfAbsent: readOnly("editing cells"),
@@ -243,6 +250,7 @@ export function createMemoryRepositories(
       // reaching across to a board this link does not publish.
       listByItems: async (ids) => payload().assets.filter((a) => ids.includes(a.itemId)).sort((a, b) => a.position - b.position),
       listByBoard: async (boardId) => (onBoard(boardId) ? payload().assets : []),
+      listAssignedTo: async (boardIds, userId) => (boardIds.some(onBoard) ? payload().assets.filter((a) => a.assigneeIds.includes(userId)) : []),
       create: readOnly("adding an asset"),
       update: readOnly("editing an asset"),
       delete: readOnly("deleting an asset"),
@@ -329,6 +337,7 @@ export function createMemoryRepositories(
     activities: {
       listByWorkspace: async () => [],
       listByBoard: async (boardId, limit) => (onBoard(boardId) ? payload().activities.slice(0, limit) : []),
+      listByActor: async () => [],
       listByItem: async (itemId) => (options.activityFor ? options.activityFor(itemId) : payload().activities.filter((a) => a.itemId === itemId)),
       listStatusChanges: async () => [],
       listLastByBoard: async () => [],

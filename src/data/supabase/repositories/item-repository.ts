@@ -345,6 +345,31 @@ export class SupabaseItemRepository implements ItemRepository {
     return pages.flat().map(toItemColumnValue);
   }
 
+  /**
+   * jsonb containment (`value_json @> {"userIds":[id]}`) on the boards asked
+   * about, so only the cells that name the person leave the database. Paged:
+   * someone on hundreds of tasks passes a thousand rows.
+   */
+  async listValuesNamingUser(boardIds: string[], userId: string): Promise<ItemColumnValue[]> {
+    if (boardIds.length === 0) return [];
+    const pages = await Promise.all(
+      chunk(boardIds).map((part) =>
+        unwrapAll<ItemColumnValueRow>(
+          (from, to) =>
+            db()
+              .from("item_column_values")
+              .select(VALUE)
+              .in("board_id", part)
+              .contains("value_json", { userIds: [userId] })
+              .order("id", { ascending: true })
+              .range(from, to),
+          "item_column_values.listValuesNamingUser",
+        ),
+      ),
+    );
+    return pages.flat().map(toItemColumnValue);
+  }
+
   async listValuesByColumns(columnIds: string[]): Promise<ItemColumnValue[]> {
     if (columnIds.length === 0) return [];
     const pages = await Promise.all(
