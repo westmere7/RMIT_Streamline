@@ -351,7 +351,7 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
       </RecapCard>
 
       {template.assets.enabled && (
-        <RecapCard title="Deliverables" onEdit={() => onEditStep(2)} count={named.length}>
+        <RecapCard title="Assets" onEdit={() => onEditStep(2)} count={named.length}>
           {named.length === 0 && !request.referenceUrl && !request.assetTypes.length ? (
             <p className="text-[13px] text-muted-foreground">Skipped — we will work this out with you.</p>
           ) : (

@@ -92,7 +92,7 @@ export interface BookingFormEditorProps {
 const STEP_TABS = [
   { key: "basics", label: "1 · Essentials", icon: ClipboardList },
   { key: "brief", label: "2 · Brief", icon: ListPlus },
-  { key: "assets", label: "3 · Deliverables", icon: Boxes },
+  { key: "assets", label: "3 · Assets", icon: Boxes },
   { key: "review", label: "4 · Confirm", icon: FileCheck2 },
 ] as const;
 
@@ -825,8 +825,8 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           }
           testId="editor-assets-heading"
         >
-          <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Deliverables title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
-          <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Deliverables hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
+          <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Assets title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
+          <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Assets hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
         </EditorSection>
 
         <div className="pointer-events-none px-1" aria-hidden>
@@ -885,7 +885,7 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
       {/* What the recap looks like: the step's own cards, so the heading above
           is read in the place it will be read. */}
       <div className="pointer-events-none space-y-2 px-1 opacity-70" aria-hidden>
-        {["The request", "The brief", "Deliverables"].map((title) => (
+        {["The request", "The brief", "Assets"].map((title) => (
           <section key={title} className="rounded-xl border border-border/60 bg-surface/40 p-3">
             <div className="mb-1.5 flex items-center gap-2">
               <h3 className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{title}</h3>

@@ -132,7 +132,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       [
         { key: "basics" as const, label: "Essentials" },
         { key: "brief" as const, label: "Brief" },
-        ...(template.assets.enabled ? [{ key: "assets" as const, label: "Deliverables" }] : []),
+        ...(template.assets.enabled ? [{ key: "assets" as const, label: "Assets" }] : []),
         { key: "review" as const, label: "Confirm" },
       ] satisfies StepDef[],
     [template.assets.enabled],

@@ -36,9 +36,9 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       ] },
       { title: "Make your first request", steps: [
         "Open the portal and choose Book a task, or open the booking link the team gave you.",
-        "Step 1, Details: your name and email, your department from the list, a title, when you need it, and the kind of work. If the workspace already knows your email, your name is filled in for you.",
+        "Step 1, Essentials: your name and email, your department from the list, a title, when you need it, and the kind of work. If the workspace already knows your email, your name is filled in for you.",
         "Step 2, Brief: answer the questions for the kind of work you chose. Follow-up questions appear when an answer needs more detail.",
-        "Step 3, Deliverables: list each item with its type, quantity and size or format. You can skip this step and describe them in the brief instead.",
+        "Step 3, Assets: list each item with its type, quantity and size or format. You can skip this step and describe them in the brief instead.",
         "Step 4, Confirm: check everything, change anything that is wrong, then book. Keep the receipt and its ticket, such as CP_014. If the response is unclear, ask the team whether it arrived before booking again.",
       ] },
       { title: "Follow progress and review the output", steps: [
@@ -458,9 +458,9 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     sections: [
       { title: "Book a task", steps: [
         "Open the portal and choose Book a task, the booking link, or Portal and Booking inside the app.",
-        "Details: your name, email, and department, a title, when you need it, and the kind of work. A known email fills in its name; signed in, your own details are filled in, and Booking for someone else? clears them.",
+        "Essentials: your name, email, and department, a title, when you need it, and the kind of work. A known email fills in its name; signed in, your own details are filled in, and Booking for someone else? clears them.",
         "Brief: the questions for the kind of work you chose.",
-        "Deliverables: each output with its type, quantity, and size or format.",
+        "Assets: each output with its type, quantity, and size or format.",
         "Confirm: review and book. The receipt shows the ticket.",
       ] },
       { title: "Who the requester is", paragraphs: ["The requester is a person on the task. Booking while signed in, it is you. From a public link, a known email is that person; a new one is added as a pending member, whom an admin can later invite with a join link. A booking never renames anyone already in the member list; the name typed is used only for someone new."] },
