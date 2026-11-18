@@ -13,7 +13,8 @@ import { HttpError } from "./http";
  *
  * The board a report lands on has one member, so the route under
  * src/app/api/bugs runs the ordinary services with the service role, and
- * stores the screenshots itself: the browser sends each as a WebP data URL and
+ * stores the screenshots itself: the browser sends each as a WebP (or, from
+ * Safari, JPEG) data URL and
  * gets back a task whose Screenshot columns link to the stored files. Only a
  * signed-in, active member of the workspace may report.
  */
@@ -35,13 +36,14 @@ export async function submitBugReport(request: Request, slug: string, raw: BugRe
 
 /** A data URL in, a public link out. Anything that is already a link is not ours to have been sent. */
 async function storeScreenshot(workspaceId: string, dataUrl: string): Promise<string> {
-  const match = /^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  const match = /^data:image\/(webp|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!match) throw new HttpError(400, "Screenshots have to be sent as images.");
-  const bytes = Buffer.from(match[1]!, "base64");
+  const kind = match[1] as "webp" | "jpeg";
+  const bytes = Buffer.from(match[2]!, "base64");
   if (bytes.length > MAX_SCREENSHOT_BYTES) throw new HttpError(413, "One of the screenshots is too big. Try a smaller one.");
-  const path = `${workspaceId}/${newId()}.webp`;
+  const path = `${workspaceId}/${newId()}.${kind === "jpeg" ? "jpg" : "webp"}`;
   const storage = getSupabaseAdminClient().storage.from(BUG_SCREENSHOT_BUCKET);
-  const { error } = await storage.upload(path, bytes, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
+  const { error } = await storage.upload(path, bytes, { contentType: `image/${kind}`, upsert: false, cacheControl: "31536000" });
   if (error) throw new HttpError(500, /bucket/i.test(error.message) ? "The bug-screenshots bucket is missing: run the database migrations or create it in Supabase → Storage." : `The screenshot could not be stored: ${error.message}`);
   return storage.getPublicUrl(path).data.publicUrl;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import type { DataProviderKind } from "@/lib/config";
+import { encodeCanvas, type EncodedImage } from "@/lib/image-encode";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 /** Covers are shown at card and panel width; 1600px keeps them crisp on any screen without wasting bytes. */
@@ -13,11 +14,12 @@ export const COVER_BUCKET = "item-covers";
 export class CoverError extends Error {}
 
 /**
- * Re-encodes any image the browser can decode as WebP, scaled so its longer
- * edge is at most 1600px. The source must be under 3MB; the result is usually
- * a tenth of that. Everything happens on the client before upload.
+ * Re-encodes any image the browser can decode as WebP (JPEG where the browser
+ * cannot write WebP: see encodeCanvas), scaled so its longer edge is at most
+ * 1600px. The source must be under 3MB; the result is usually a tenth of that.
+ * Everything happens on the client before upload.
  */
-export async function toWebpCover(file: File): Promise<Blob> {
+export async function toCoverImage(file: File): Promise<EncodedImage> {
   if (!file.type.startsWith("image/")) throw new CoverError("That file is not an image.");
   if (file.size > MAX_COVER_SOURCE_BYTES) throw new CoverError("Cover images must be under 3MB.");
 
@@ -33,9 +35,9 @@ export async function toWebpCover(file: File): Promise<Blob> {
     if (!context) throw new CoverError("Your browser could not process the image.");
     context.imageSmoothingQuality = "high";
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", WEBP_QUALITY));
-    if (!blob) throw new CoverError("Your browser could not encode WebP.");
-    return blob;
+    const encoded = await encodeCanvas(canvas, WEBP_QUALITY);
+    if (!encoded) throw new CoverError("Your browser could not encode the image.");
+    return encoded;
   } finally {
     bitmap.close();
   }
@@ -43,21 +45,21 @@ export async function toWebpCover(file: File): Promise<Blob> {
 
 /**
  * Stores the cover and returns the URL to save on the item. Supabase keeps it
- * in the public `item-covers` bucket at `<item-id>/cover.webp` (writable by
+ * in the public `item-covers` bucket at `<item-id>/cover.webp` or `.jpg` (writable by
  * anyone who can edit the item); local mode inlines it as a data URL.
  */
 export async function uploadCover(provider: DataProviderKind, itemId: string, file: File): Promise<{ url: string; bytes: number }> {
-  const webp = await toWebpCover(file);
-  if (provider !== "supabase") return { url: await blobToDataUrl(webp), bytes: webp.size };
+  const image = await toCoverImage(file);
+  if (provider !== "supabase") return { url: await blobToDataUrl(image.blob), bytes: image.blob.size };
 
-  const path = `${itemId}/cover.webp`;
+  const path = `${itemId}/cover.${image.extension}`;
   const storage = getSupabaseClient().storage.from(COVER_BUCKET);
-  const { error } = await storage.upload(path, webp, { contentType: "image/webp", upsert: true, cacheControl: "3600" });
+  const { error } = await storage.upload(path, image.blob, { contentType: image.type, upsert: true, cacheControl: "3600" });
   if (error) {
     throw new CoverError(/bucket/i.test(error.message) ? "The item-covers bucket is missing — run the database migrations or create it in Supabase → Storage." : `Upload failed: ${error.message}`);
   }
   const { data } = storage.getPublicUrl(path);
-  return { url: `${data.publicUrl}?v=${Date.now()}`, bytes: webp.size };
+  return { url: `${data.publicUrl}?v=${Date.now()}`, bytes: image.blob.size };
 }
 
 /** Deletes the stored file; the item's cover_url is cleared separately. Never throws: a stray file is harmless. */
@@ -65,7 +67,7 @@ export async function deleteCoverFile(provider: DataProviderKind, itemId: string
   if (provider !== "supabase") return;
   await getSupabaseClient()
     .storage.from(COVER_BUCKET)
-    .remove([`${itemId}/cover.webp`])
+    .remove([`${itemId}/cover.webp`, `${itemId}/cover.jpg`])
     .catch(() => undefined);
 }
 

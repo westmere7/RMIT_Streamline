@@ -1,5 +1,7 @@
 "use client";
 
+import { encodeCanvas } from "@/lib/image-encode";
+
 /** A screenshot is read at full width; 1920px keeps text legible without sending a phone's worth of pixels. */
 const MAX_EDGE = 1920;
 /** What one screenshot may weigh once encoded. Three of them fit a request the host will take. */
@@ -10,7 +12,8 @@ const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 export class ScreenshotError extends Error {}
 
 /**
- * Re-encodes a pasted or chosen image as WebP, as a data URL.
+ * Re-encodes a pasted or chosen image as WebP (JPEG where the browser cannot
+ * write WebP: see encodeCanvas), as a data URL.
  *
  * Tries a few qualities, then a smaller size, until it is under a megabyte. The
  * server stores it as a file (Supabase); local mode keeps the data URL itself.
@@ -32,9 +35,9 @@ export async function toScreenshot(file: Blob): Promise<{ dataUrl: string; bytes
       context.imageSmoothingQuality = "high";
       context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
       for (const quality of [0.85, 0.7, 0.55]) {
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
-        if (!blob || blob.type !== "image/webp") throw new ScreenshotError("Your browser could not encode the image.");
-        if (blob.size <= MAX_SCREENSHOT_BYTES) return { dataUrl: await blobToDataUrl(blob), bytes: blob.size };
+        const encoded = await encodeCanvas(canvas, quality);
+        if (!encoded) throw new ScreenshotError("Your browser could not encode the image.");
+        if (encoded.blob.size <= MAX_SCREENSHOT_BYTES) return { dataUrl: await blobToDataUrl(encoded.blob), bytes: encoded.blob.size };
       }
     }
     throw new ScreenshotError("That image is too detailed to send. Try a smaller part of the screen.");

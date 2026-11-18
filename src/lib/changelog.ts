@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.102.1",
+    date: "2026-11-18",
+    title: "Pictures upload from Safari",
+    changes: ["Avatars, task covers and bug-report screenshots upload from Safari, iPhone and iPad again."],
+  },
+  {
     version: "0.102.0",
     date: "2026-11-18",
     title: "A simpler Portal and Booking page",
