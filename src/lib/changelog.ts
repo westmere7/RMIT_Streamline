@@ -18,10 +18,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.101.13",
+    version: "0.101.14",
     date: "2026-11-18",
     title: "Wider service cards in the editor",
-    changes: ["Form Editor: the kinds of work show in wider cards, with more rows when needed, so names are no longer cut off."],
+    changes: ["Form Editor: the kinds of work show in wider cards, with more rows when needed, so names are no longer cut off.", "Cards in the same row are the same height."],
   },
   {
     version: "0.101.12",

@@ -639,7 +639,8 @@ function ServiceCard({ service, selected, onSelect }: { service: BookingServiceT
         selected={selected}
         onSelect={onSelect}
         testId={`editor-service-${slug(service.name)}`}
-        className="pr-8"
+        // The sortable wrapper is what the grid stretches; the card fills it, so a row's cards match.
+        className="h-full pr-8"
         name={<span className="block break-words">{service.name || "Untitled"}</span>}
         description={service.description ? <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
         chrome={<DragHandle label={`Reorder ${service.name}`} testId={`editor-service-drag-${slug(service.name)}`} setRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} className="absolute top-2 right-1.5" />}
