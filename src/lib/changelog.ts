@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.2",
+    date: "2026-11-18",
+    title: "Switch off board counts",
+    changes: ["Settings → Appearance: Task counts beside boards can be switched off, for this browser only."],
+  },
+  {
     version: "0.103.1",
     date: "2026-11-18",
     title: "Tidier team pages",

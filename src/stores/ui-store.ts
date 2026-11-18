@@ -39,6 +39,9 @@ interface UiState {
   /** Show the board/tracker tally beside each team in the sidebar. */
   showTeamCounts: boolean;
   setShowTeamCounts: (show: boolean) => void;
+  /** Show how many tasks each board holds, beside its name (the sidebar, a team's boards). On unless switched off. */
+  showBoardCounts: boolean;
+  setShowBoardCounts: (show: boolean) => void;
   /** Whether the asset recap above an item's tabs is open past its one-line form. */
   assetRecapExpanded: boolean;
   toggleAssetRecap: () => void;
@@ -106,6 +109,8 @@ export const useUiStore = create<UiState>()(
       favouritesExpanded: true,
       showTeamCounts: false,
       setShowTeamCounts: (showTeamCounts) => set({ showTeamCounts }),
+      showBoardCounts: true,
+      setShowBoardCounts: (showBoardCounts) => set({ showBoardCounts }),
       assetRecapExpanded: false,
       toggleAssetRecap: () => set((s) => ({ assetRecapExpanded: !s.assetRecapExpanded })),
       itemPanelSize: "default",
@@ -190,6 +195,7 @@ export const useUiStore = create<UiState>()(
         expandedTeamIds: s.expandedTeamIds,
         favouritesExpanded: s.favouritesExpanded,
         showTeamCounts: s.showTeamCounts,
+        showBoardCounts: s.showBoardCounts,
         assetRecapExpanded: s.assetRecapExpanded,
         itemPanelSize: s.itemPanelSize,
         itemColumnWidths: s.itemColumnWidths,

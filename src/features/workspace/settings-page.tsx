@@ -622,6 +622,8 @@ function PortalMenuSetting() {
 function AppearanceSection() {
   const showTeamCounts = useUiStore((s) => s.showTeamCounts);
   const setShowTeamCounts = useUiStore((s) => s.setShowTeamCounts);
+  const showBoardCounts = useUiStore((s) => s.showBoardCounts);
+  const setShowBoardCounts = useUiStore((s) => s.setShowBoardCounts);
   const [theme, setTheme] = useThemePreference();
   const [appUpdated, setAppUpdated] = useAppUpdatedNoticeSetting();
 
@@ -656,6 +658,12 @@ function AppearanceSection() {
             Item counts beside teams
           </Label>
           <Switch id="show-team-counts" aria-label="Item counts beside teams" checked={showTeamCounts} onCheckedChange={setShowTeamCounts} data-testid="setting-team-counts" />
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <Label htmlFor="show-board-counts" className="text-[13px] font-medium">
+            Task counts beside boards
+          </Label>
+          <Switch id="show-board-counts" aria-label="Task counts beside boards" checked={showBoardCounts} onCheckedChange={setShowBoardCounts} data-testid="setting-board-counts" />
         </div>
       </SettingsCard>
       <SettingsCard title="Updates">
