@@ -554,7 +554,7 @@ function PortalEmpty({ search, filtered, onShowAll, bookHref }: { search: string
                 <CalendarSearch /> Show all time
               </Button>
             )}
-            {bookHref && <BookButton href={bookHref} />}
+            {bookHref && <BookButton href={bookHref} testId="portal-empty-book" />}
           </div>
         )}
       </div>
@@ -562,11 +562,12 @@ function PortalEmpty({ search, filtered, onShowAll, bookHref }: { search: string
   );
 }
 
-function BookButton({ href }: { href: string }) {
+/** The toolbar's is `portal-book-button`; the empty state's, drawn beside it, has its own id. */
+function BookButton({ href, testId = "portal-book-button" }: { href: string; testId?: string }) {
   return (
     // A new tab: the form is a page of its own, and the board stays where it was.
     <Button asChild className="shrink-0 gap-2 px-4 text-[13px] font-semibold shadow-sm shadow-primary/25">
-      <a href={href} target="_blank" rel="noreferrer noopener" data-testid="portal-book-button">
+      <a href={href} target="_blank" rel="noreferrer noopener" data-testid={testId}>
         <ClipboardPen className="size-4" /> Book a task
       </a>
     </Button>

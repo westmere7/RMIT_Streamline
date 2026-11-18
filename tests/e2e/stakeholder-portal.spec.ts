@@ -42,7 +42,10 @@ async function bookThroughPortal(page: Page, title: string, brief: string, depar
   await form.getByTestId("booking-priority-high").click();
   await form.getByTestId("booking-due").fill("2026-12-01");
   await form.getByTestId("booking-service-design").click();
-  await form.getByTestId("booking-sub-print").click();
+  // Work types are the ones the team switched on for the service (Form Editor,
+  // v0.99); with none on, the form does not ask.
+  const print = form.getByTestId("booking-sub-print");
+  if (await print.count()) await print.click();
   await form.getByTestId("booking-next").click();
 
   await expect(form.getByTestId("booking-step-brief")).toBeVisible();
