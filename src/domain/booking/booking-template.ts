@@ -632,7 +632,9 @@ export function copyBlockWithNewIds(block: BookingBlock): BookingBlock {
 
 /** A fresh block of `kind`, with sensible blanks, ready for the editor. */
 export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
-  const base = { id: newBlockId(), description: null, required: false };
+  // Required unless someone says otherwise: an optional question is the one
+  // that gets skipped, so leaving it optional should be the deliberate choice.
+  const base = { id: newBlockId(), description: null, required: true };
   switch (kind) {
     case "short":
       return { ...base, kind, label: "Short question" };
@@ -645,7 +647,7 @@ export function newBookingBlock(kind: BookingBlockKind): BookingBlock {
     case "link":
       return { ...base, kind, label: "A link" };
     case "ack":
-      return { ...base, kind, label: "I confirm that…", required: true };
+      return { ...base, kind, label: "I confirm that…" };
     case "separator":
       return { id: base.id, kind };
     case "text":
@@ -847,9 +849,9 @@ export function missingStandardKeys(template: BookingFormTemplate): BookingStand
   return BOOKING_STANDARD_KEYS.filter((key) => !present.has(key));
 }
 
-/** A standard question added back with its default wording. */
+/** A standard question added back with its default wording, required like every question added. */
 export function newStandardField(key: BookingStandardKey): BookingStandardField {
-  return standardFieldFor(defaultBookingFormTemplate(), key) ?? std(key, BOOKING_STANDARD_KEY_LABELS[key]);
+  return { ...(standardFieldFor(defaultBookingFormTemplate(), key) ?? std(key, BOOKING_STANDARD_KEY_LABELS[key])), required: true };
 }
 
 /**

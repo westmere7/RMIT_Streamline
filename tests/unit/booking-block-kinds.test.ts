@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BookingBlock, BookingChoiceBlock, BookingRequest } from "@/domain";
-import { convertBlock, defaultBookingFormTemplate, newBookingBlock, switchableKinds, usableAnswer } from "@/domain";
+import { BOOKING_STANDARD_KEYS, convertBlock, defaultBookingFormTemplate, newBookingBlock, newStandardField, switchableKinds, usableAnswer } from "@/domain";
 import { composeBrief, normaliseBookingTemplate, readBookingBlock, validateBookingStep } from "@/services/booking";
 import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 
@@ -53,6 +53,13 @@ describe("switching a question's kind", () => {
     expect(convertBlock(short, "multi").block).toBe(short);
     const text = newBookingBlock("text");
     expect(convertBlock(text, "short").block).toBe(text);
+  });
+});
+
+describe("a question added to the form", () => {
+  it("is required until someone says otherwise", () => {
+    for (const kind of ["short", "long", "multi", "single", "link", "ack"] as const) expect(newBookingBlock(kind)).toMatchObject({ required: true });
+    for (const key of BOOKING_STANDARD_KEYS) expect(newStandardField(key).required).toBe(true);
   });
 });
 

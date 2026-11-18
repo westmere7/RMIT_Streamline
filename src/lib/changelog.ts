@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.104.2",
+    date: "2026-11-18",
+    title: "New questions start required",
+    changes: [
+      "Booking form editor: a question you add, or a step-one question you add back, starts as required. Switch it off to make it optional.",
+    ],
+  },
+  {
     version: "0.104.1",
     date: "2026-11-18",
     title: "Question menus in one column",
