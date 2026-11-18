@@ -89,36 +89,41 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
     <form onSubmit={(event) => void submit(event)} className="grid gap-5">
       <DialogHeader>
         <DialogTitle>{isSelf ? "Edit profile" : `Edit ${user.displayName}`}</DialogTitle>
-        <DialogDescription>Name, contact details and photo.</DialogDescription>
+        <DialogDescription>{isSelf ? "Name, contact details and photo." : "Name and contact details."}</DialogDescription>
       </DialogHeader>
 
       <div className="flex items-center gap-4">
         <UserAvatar user={user} size="xl" tooltip={false} className="size-16 text-base" />
-        <div className="space-y-1.5">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            hidden
-            aria-label="Choose a profile photo"
-            data-testid="avatar-input"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) changeAvatar.mutate(file);
-            }}
-          />
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={changeAvatar.isPending} onClick={() => fileRef.current?.click()} data-testid="avatar-upload">
-              {changeAvatar.isPending ? <Loader2 className="animate-spin" /> : <ImagePlus />} {user.avatarUrl ? "Replace photo" : "Upload photo"}
-            </Button>
-            {user.avatarUrl && (
-              <Button type="button" variant="ghost" size="sm" disabled={removeAvatar.isPending} onClick={() => removeAvatar.mutate()} aria-label="Remove photo">
-                <Trash2 />
+        {/* A photo is the person's own to change: the avatars bucket takes writes
+            only into the uploader's own folder, so an admin editing someone else
+            sees the photo but no way to change it. */}
+        {isSelf && (
+          <div className="space-y-1.5">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              aria-label="Choose a profile photo"
+              data-testid="avatar-input"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) changeAvatar.mutate(file);
+              }}
+            />
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={changeAvatar.isPending} onClick={() => fileRef.current?.click()} data-testid="avatar-upload">
+                {changeAvatar.isPending ? <Loader2 className="animate-spin" /> : <ImagePlus />} {user.avatarUrl ? "Replace photo" : "Upload photo"}
               </Button>
-            )}
+              {user.avatarUrl && (
+                <Button type="button" variant="ghost" size="sm" disabled={removeAvatar.isPending} onClick={() => removeAvatar.mutate()} aria-label="Remove photo">
+                  <Trash2 />
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

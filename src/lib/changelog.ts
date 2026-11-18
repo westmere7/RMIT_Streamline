@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.4",
+    date: "2026-11-18",
+    title: "Photos are your own",
+    changes: ["Editing someone else's profile no longer offers to replace their photo, which only they can change."],
+  },
+  {
     version: "0.103.3",
     date: "2026-11-18",
     title: "Team counts are task counts",
