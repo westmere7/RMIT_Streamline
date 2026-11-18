@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.13",
+    date: "2026-11-18",
+    title: "Typing on a phone",
+    changes: [
+      "Sheets and dialogs on a phone rise above the keyboard, and the field you are typing in is brought to the middle of what is left of the screen.",
+    ],
+  },
+  {
     version: "0.103.12",
     date: "2026-11-18",
     title: "Delete teams in Settings",

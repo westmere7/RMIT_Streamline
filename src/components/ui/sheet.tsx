@@ -41,7 +41,8 @@ function SheetContent({ title, description, hideTitle, footer, className, childr
         className={cn(
           // dvh, not vh: the browser chrome on a phone shrinks the viewport as
           // it scrolls, and vh would leave the sheet running under it.
-          "fixed inset-x-0 bottom-0 z-50 flex max-h-[88dvh] flex-col rounded-t-2xl border-t border-border/70 bg-popover shadow-2xl",
+          // --keyboard-inset (KeyboardInset) lifts it clear of an open keyboard.
+          "fixed inset-x-0 bottom-[var(--keyboard-inset,0px)] z-50 flex max-h-[calc(88dvh-var(--keyboard-inset,0px))] flex-col rounded-t-2xl border-t border-border/70 bg-popover shadow-2xl",
           "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           "motion-reduce:duration-0 motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none",
           className,

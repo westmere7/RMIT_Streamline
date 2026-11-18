@@ -5,6 +5,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { useState } from "react";
 import { Toaster } from "sonner";
 import { ConnectionGuard } from "@/components/shared/connection-guard";
+import { KeyboardInset } from "@/components/shared/keyboard-inset";
 import { AuthProviderContext } from "@/features/auth/auth-context";
 import { DataProviderContext } from "@/features/data/data-context";
 import { LocalRealtimeSync } from "@/features/data/local-realtime-sync";
@@ -55,6 +56,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               }}
             />
             <ConnectionGuard />
+            <KeyboardInset />
           </TooltipPrimitive.Provider>
         </AuthProviderContext>
       </DataProviderContext>

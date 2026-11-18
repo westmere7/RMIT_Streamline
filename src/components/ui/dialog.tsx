@@ -34,7 +34,7 @@ interface DialogContentProps extends React.ComponentProps<typeof DialogPrimitive
  * each dialog's own, because several lay themselves out edge to edge.
  */
 const PHONE_SHEET =
-  "max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:max-h-[92dvh] max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:duration-200 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom";
+  "max-md:top-auto max-md:bottom-[var(--keyboard-inset,0px)] max-md:left-0 max-md:max-h-[calc(92dvh-var(--keyboard-inset,0px))] max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:duration-200 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100 max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom";
 
 const sizeClasses: Record<NonNullable<DialogContentProps["size"]>, string> = {
   sm: "max-w-sm",
@@ -54,7 +54,8 @@ function DialogContent({ className, children, size = "md", hideClose, overlayCla
           // nobody could reach. It scrolls inside itself instead.
           "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto overscroll-contain rounded-2xl border border-border/70 bg-popover p-6 shadow-2xl duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           // On a phone every dialog is a sheet from the bottom edge: the full
-          // width, within the thumb's reach, clear of the home indicator.
+          // width, within the thumb's reach, clear of the home indicator, and
+          // standing on the keyboard while one is open (KeyboardInset).
           PHONE_SHEET,
           sizeClasses[size],
           className,

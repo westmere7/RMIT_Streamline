@@ -60,7 +60,7 @@ function DeleteTeamBody({ team, boardCount, trackerCount, busy, onOpenChange, on
               <span className="mt-0.5 block text-muted-foreground">
                 {withBoards
                   ? "Every item, update, asset line and file on them goes with the team. Nothing here can bring them back."
-                  : `Left unticked, the ${contents} stay in the workspace without a team, and you can file them under another one later.`}
+                  : "Left unticked, they stay in the workspace without a team, to file under another later."}
               </span>
             </span>
           </label>
