@@ -13,7 +13,7 @@ import { AppReady, createTestApp } from "../helpers/render-app";
 describe("Share panel before a link exists", () => {
   it("shows the same controls, and turning the link on creates it", async () => {
     const app = await createTestApp();
-    const board = (await app.data.services.boards.listBoards(SEED_WORKSPACE_ID))[0];
+    const board = (await app.data.services.boards.listBoards(SEED_WORKSPACE_ID))[0]!;
     await app.render(
       <AppReady>
         <BoardSharePanel board={board} />
@@ -32,7 +32,7 @@ describe("Share panel before a link exists", () => {
 
   it("creates the link switched off when another choice comes first", async () => {
     const app = await createTestApp();
-    const board = (await app.data.services.boards.listBoards(SEED_WORKSPACE_ID))[0];
+    const board = (await app.data.services.boards.listBoards(SEED_WORKSPACE_ID))[0]!;
     await app.render(
       <AppReady>
         <BoardSharePanel board={board} />
