@@ -32,6 +32,7 @@
 --      And that it is working:  select * from cron.job_run_details order by start_time desc limit 10;
 --
 -- To stop it:  select cron.unschedule('streamline-automations');
+-- (The two run-log jobs, streamline-cron-log-cleanup and -vacuum, can stay.)
 --
 -- A NOTE ON THE SECRET
 --
@@ -81,27 +82,29 @@ begin
   perform cron.unschedule('streamline-automations')
   where exists (select 1 from cron.job where jobname = 'streamline-automations');
 
+  -- Fire and forget. pg_net queues the request and the cron job ends; a slow
+  -- drain must never hold a database worker open, and the reply is of no
+  -- interest here. What the run did is in automation_runs, and whether it ran
+  -- at all is in automation_heartbeat.
+  --
+  -- One line, no comments: pg_cron copies the command into the row it logs for
+  -- every run, 1,440 times a day (migration 0114).
   perform cron.schedule(
     'streamline-automations',
     '* * * * *',
     format(
-      $job$
-        select %I.http_post(
-          url     := %L,
-          headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', %L),
-          body    := '{}'::jsonb,
-          -- Fire and forget. pg_net queues the request and the cron job ends; a
-          -- slow drain must never hold a database worker open, and the reply is
-          -- of no interest here. What the run did is in automation_runs, and
-          -- whether it ran at all is in automation_heartbeat.
-          timeout_milliseconds := 5000
-        );
-      $job$,
+      $job$select %I.http_post(url := %L, headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', %L), body := '{}'::jsonb, timeout_milliseconds := 5000);$job$,
       v_net,
       v_url,
       'Bearer ' || v_secret
     )
   );
 
-  raise notice 'Scheduled streamline-automations, every minute, against % via %.http_post.', v_url, v_net;
+  -- pg_cron never clears its own run log, and nothing vacuumed it: left alone
+  -- it reached 337 MB in two months. Keep a week, and reuse the space freed.
+  -- Migration 0114 schedules the same two jobs on any database with pg_cron.
+  perform cron.schedule('streamline-cron-log-cleanup', '17 20 * * *', $job$delete from cron.job_run_details where end_time < now() - interval '7 days'$job$);
+  perform cron.schedule('streamline-cron-log-vacuum', '27 20 * * *', $job$vacuum cron.job_run_details$job$);
+
+  raise notice 'Scheduled streamline-automations, every minute, against % via %.http_post, and a daily trim of its run log.', v_url, v_net;
 end $$;

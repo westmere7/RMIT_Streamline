@@ -26,6 +26,8 @@ select * from cron.job;
 select status, start_time from cron.job_run_details order by start_time desc limit 10;
 ```
 
+pg_cron logs every run and never clears the log; by November 2026 it was 337 MB of a 381 MB database. Two daily jobs keep it to a week: `streamline-cron-log-cleanup` deletes older runs and `streamline-cron-log-vacuum` reuses the space (migration 0114, which adds them to any database with pg_cron).
+
 ### 2. Vercel's scheduler — Pro plan and above
 
 Add this to `vercel.json` and set `CRON_SECRET` in the project's environment variables:
