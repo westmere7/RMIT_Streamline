@@ -652,7 +652,7 @@ function AppearanceSection() {
           ))}
         </div>
       </SettingsCard>
-      <SettingsCard title="Sidebar">
+      <SettingsCard title="Board lists">
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="show-team-counts" className="text-[13px] font-medium">
             Task counts beside teams

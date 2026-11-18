@@ -299,11 +299,13 @@ export function LinkTile({
     >
       <div className="flex items-start gap-3">
         <div className={cn("min-w-0 flex-1", dim)}>
-          <div className="flex items-center gap-2">
+          {/* Wraps rather than squeezes: on a phone "Booking form" and its badge
+              do not fit beside the switch, and the badge used to run into it. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <Icon className="size-[22px] shrink-0 text-foreground/85" />
-            <h4 className="text-[20px] leading-tight font-semibold tracking-tight">{label}</h4>
+            <h4 className="text-[20px] leading-tight font-semibold tracking-tight whitespace-nowrap">{label}</h4>
             {!open && (
-              <Badge variant="muted" className="gap-1">
+              <Badge variant="muted" className="shrink-0 gap-1">
                 <EyeOff className="size-3" aria-hidden /> Not serving
               </Badge>
             )}

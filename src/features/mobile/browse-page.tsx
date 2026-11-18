@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Board, Team } from "@/domain";
+import { BoardItemCount, TeamItemCount } from "@/features/boards/board-item-count";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { useTrackers } from "@/features/trackers/hooks";
 import { useDocs } from "@/features/docs/hooks";
@@ -16,6 +17,7 @@ import { colorClasses } from "@/lib/colors";
 import { canCreateBoard, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
+import { useUiStore } from "@/stores/ui-store";
 
 /**
  * The workspace's directory, as a screen rather than a sidebar.
@@ -30,6 +32,8 @@ export function BrowsePage() {
   const docs = useDocs().data ?? [];
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+  // The same switches as the sidebar's (Settings → Appearance), on this device.
+  const showTeamCounts = useUiStore((s) => s.showTeamCounts);
 
   const needle = query.trim().toLowerCase();
   const matches = (name: string) => !needle || name.toLowerCase().includes(needle);
@@ -82,17 +86,20 @@ export function BrowsePage() {
         {teams.map((team) => {
           const teamBoards = boardsForTeam(team);
           if (teamBoards.length === 0 && !matches(team.name)) return null;
+          // Counted over all the team's boards, not just those the filter leaves.
+          const allTeamBoards = boards.filter((b) => b.teamId === team.id);
           return (
             <Section
               key={team.id}
               title={team.name}
               iconNode={<DynamicIcon name={team.icon} className={cn("size-4", colorClasses(team.color).text)} />}
+              badge={showTeamCounts && allTeamBoards.length > 0 ? <TeamItemCount boardIds={allTeamBoards.map((b) => b.id)} color={team.color} /> : undefined}
               action={{ href: routes.team(ws.slug, team.id), label: "Open team" }}
+              empty={teamBoards.length === 0 ? "No boards yet" : undefined}
             >
               {teamBoards.map((board) => (
                 <BoardRow key={board.id} board={board} />
               ))}
-              {teamBoards.length === 0 && <p className="px-3 py-2.5 text-[13px] text-muted-foreground">No boards here yet.</p>}
             </Section>
           );
         })}
@@ -149,27 +156,41 @@ function Section({
   title,
   icon: Icon,
   iconNode,
+  badge,
   action,
+  empty,
   children,
 }: {
   title: string;
   icon?: React.ComponentType<{ className?: string }>;
   iconNode?: React.ReactNode;
+  /** Beside the title: a team's task count. */
+  badge?: React.ReactNode;
   action?: { href: string; label: string };
+  /** Said on one dashed line, as on a team's page, when there is nothing to list. */
+  empty?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="mb-5">
       <div className="mb-1.5 flex items-center gap-2 px-1">
         {iconNode ?? (Icon ? <Icon className="size-4 text-muted-foreground" /> : null)}
-        <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight">{title}</h2>
+        <h2 className="min-w-0 truncate text-[13px] font-semibold tracking-tight">{title}</h2>
+        {badge}
+        <span className="flex-1" />
         {action && (
           <Link href={action.href} className="flex h-11 items-center px-1 text-2xs font-medium text-muted-foreground">
             {action.label}
           </Link>
         )}
       </div>
-      <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">{children}</ul>
+      {empty ? (
+        <p className="rounded-xl border border-dashed border-border/70 px-3 py-2.5 text-[13px] text-muted-foreground" data-testid="browse-empty">
+          {empty}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">{children}</ul>
+      )}
     </section>
   );
 }
@@ -177,7 +198,7 @@ function Section({
 function BoardRow({ board }: { board: Board }) {
   const ws = useWorkspace();
   return (
-    <Row href={ws.boardPath(board)} title={board.name} meta={board.description ?? undefined}>
+    <Row href={ws.boardPath(board)} title={board.name} meta={board.description ?? undefined} trailing={<BoardItemCount boardId={board.id} />}>
       <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", colorClasses(board.color).solid)}>
         <DynamicIcon name={board.icon} className="size-4" />
       </span>
@@ -186,7 +207,7 @@ function BoardRow({ board }: { board: Board }) {
 }
 
 /** One tappable line: 56px tall, the whole width of it a target. */
-function Row({ href, title, meta, children }: { href: string; title: string; meta?: string; children?: React.ReactNode }) {
+function Row({ href, title, meta, trailing, children }: { href: string; title: string; meta?: string; trailing?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <li>
       <Link href={href} className="flex min-h-14 items-center gap-3 px-3 py-2 active:bg-accent/70">
@@ -195,6 +216,7 @@ function Row({ href, title, meta, children }: { href: string; title: string; met
           <span className="block truncate text-[15px] font-medium">{title}</span>
           {meta && <span className="block truncate text-[13px] text-muted-foreground">{meta}</span>}
         </span>
+        {trailing}
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
       </Link>
     </li>

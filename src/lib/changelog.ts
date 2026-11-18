@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.9",
+    date: "2026-11-18",
+    title: "Phone fixes",
+    changes: [
+      "Browse shows how many tasks each board and team holds, like the sidebar, and an empty team is one line.",
+      "Portal and Booking: a card's name and Not serving badge no longer run into its switch on a phone.",
+      "Portal on a phone: the period and Book a task sit on their own row, and grouping joins the chips, so nothing overlaps.",
+      "Settings → Appearance: the counts' section is called Board lists, since it covers Browse too.",
+    ],
+  },
+  {
     version: "0.103.8",
     date: "2026-11-18",
     title: "Lighter shared links",

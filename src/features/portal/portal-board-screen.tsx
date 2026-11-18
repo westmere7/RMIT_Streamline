@@ -283,17 +283,27 @@ function PortalBoard({
     <BoardContextProvider value={contextValue}>
       {isMobile ? (
         <>
-          <div className="shrink-0 border-b border-border/70 px-3 py-2">
+          <div className="shrink-0 space-y-2 border-b border-border/70 px-3 py-2">
+            {/* On a phone the period and Book a task get a row of their own, and
+                the grouping joins the chips, which scroll. All of them beside the
+                chips were one unbreakable block wider than the screen, which
+                wrapped over the chips. */}
+            <div className="flex items-center gap-2" data-testid="portal-mobile-controls">
+              {rangePicker}
+              <AllYearsMark on={searchingAllYears} />
+              {bookHref && (
+                <span className="ml-auto">
+                  <BookButton href={bookHref} />
+                </span>
+              )}
+            </div>
             <MobileBoardTools
               view={view}
               onViewChange={(next) => replaceParams({ view: next })}
-              actions={
+              extraChips={
                 <>
-                  {rangePicker}
-                  <AllYearsMark on={searchingAllYears} />
                   <GroupByControl grouping={grouping} groupings={groupings} onChange={(next) => replaceParams({ group: next })} />
                   {statusOrder && <StatusOrderControl labels={statusOrder.labels} onApply={statusOrder.onApply} />}
-                  {bookHref && <BookButton href={bookHref} />}
                 </>
               }
             />
