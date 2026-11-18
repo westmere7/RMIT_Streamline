@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.103.1",
+    date: "2026-11-18",
+    title: "Tidier team pages",
+    changes: ["A team page's empty Boards, Trackers or Docs section is one quiet line instead of a large placeholder."],
+  },
+  {
     version: "0.103.0",
     date: "2026-11-18",
     title: "Task counts beside boards",

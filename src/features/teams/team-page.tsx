@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, FileSpreadsheet, FileText, SquareKanban, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
+import { Archive, FileSpreadsheet, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -127,7 +127,7 @@ export function TeamPage() {
               Boards
             </SectionHeading>
             {boards.length === 0 ? (
-              <EmptyState icon={SquareKanban} title="No boards yet" description="Create a board for this team to start tracking work." compact />
+              <EmptyLine testId="team-boards-empty">No boards yet</EmptyLine>
             ) : (
               <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                 {boards.map((board) => (
@@ -161,7 +161,7 @@ export function TeamPage() {
                 Trackers
               </SectionHeading>
               {teamTrackers.length === 0 ? (
-                <EmptyState icon={FileSpreadsheet} title="No trackers yet" description="Spreadsheets for this team — asset trackers, production logs — that used to live in Excel." compact />
+                <EmptyLine testId="team-trackers-empty">No trackers yet</EmptyLine>
               ) : (
                 <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                   {teamTrackers.map((tracker) => (
@@ -193,7 +193,7 @@ export function TeamPage() {
                 Docs
               </SectionHeading>
               {teamDocs.length === 0 ? (
-                <EmptyState icon={FileText} title="No docs yet" description="Briefs, processes and notes for this team, or a Word or PDF file it already has." compact />
+                <EmptyLine testId="team-docs-empty">No docs yet</EmptyLine>
               ) : (
                 <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
                   {teamDocs.map((doc) => (
@@ -295,5 +295,17 @@ export function TeamPage() {
         onConfirm={() => archive.mutateAsync().then(() => undefined)}
       />
     </div>
+  );
+}
+
+/**
+ * A section with nothing in it, as one quiet line rather than an icon and a
+ * paragraph: the section's own New button, beside its heading, is the way in.
+ */
+function EmptyLine({ children, testId }: { children: React.ReactNode; testId: string }) {
+  return (
+    <p className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-[13px] text-muted-foreground" data-testid={testId}>
+      {children}
+    </p>
   );
 }
