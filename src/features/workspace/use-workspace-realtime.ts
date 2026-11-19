@@ -20,6 +20,9 @@ import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
  *
  * Mounted once, by WorkspaceProvider.
  */
+/** The activity that changes how many tasks a board holds. */
+const COUNT_EVENTS = ["ITEM_CREATED", "ITEM_MOVED", "ITEM_ARCHIVED", "ITEM_RESTORED", "ITEM_DELETED"] as const;
+
 export function useWorkspaceRealtime(workspaceId: string, userId: string): void {
   const bindings = useMemo<RealtimeBinding[]>(() => {
     const ws = `workspace_id=eq.${workspaceId}`;
@@ -75,4 +78,25 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
   }, [workspaceId, userId]);
 
   useRealtime(workspaceId && userId ? `workspace:${workspaceId}:${userId}` : null, bindings);
+
+  // The task counts beside each board in the sidebar. A board's own channel
+  // refreshes its count only while it is open, so a task allocated to a board
+  // nobody here has open never moved the number. Items are far too busy to
+  // follow workspace-wide; the activity log is not, once narrowed to the five
+  // things that change how many tasks a board holds. RLS sends each person only
+  // the rows on boards they can see. Its own channel, so a burst of moves (an
+  // allocation run, an import) is one recount, at most every two seconds.
+  const countBindings = useMemo<RealtimeBinding[]>(
+    () => [
+      {
+        table: "activities",
+        filter: `event_type=in.(${COUNT_EVENTS.join(",")})`,
+        insertsOnly: true,
+        accept: (row) => row.workspace_id === workspaceId,
+        keys: [["board-item-count"]],
+      },
+    ],
+    [workspaceId],
+  );
+  useRealtime(workspaceId ? `board-counts:${workspaceId}` : null, countBindings, { coalesceMs: 800, minIntervalMs: 2_000 });
 }

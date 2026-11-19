@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.1",
+    date: "2026-11-19",
+    title: "Board counts stay current",
+    changes: ["The task count beside each board in the sidebar updates as tasks are added, allocated, archived or deleted, whoever does it."],
+  },
+  {
     version: "0.110.0",
     date: "2026-11-19",
     title: "Portal: filter by team",

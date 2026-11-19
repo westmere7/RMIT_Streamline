@@ -36,6 +36,13 @@ export interface RealtimeBinding {
    * close over state that changes: only the latest one given is used.
    */
   accept?: (row: Record<string, unknown>) => boolean;
+  /**
+   * Hear new rows only. For an append-only log read as a signal (activities),
+   * where an update or a deletion says nothing, and where the unfiltered
+   * deletion listener a filtered binding otherwise gets would hear every
+   * deletion on the table.
+   */
+  insertsOnly?: boolean;
 }
 
 export interface RealtimeOptions {
@@ -92,7 +99,7 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
   // What the subscription is, rather than which array described it: the effect
   // re-runs when a table, a filter or a key changes, and not when a caller
   // rebuilds the same list on a render.
-  const signature = JSON.stringify(bindings.map((b) => [b.table, b.filter ?? null, b.keys]));
+  const signature = JSON.stringify(bindings.map((b) => [b.table, b.filter ?? null, b.keys, b.insertsOnly ?? false]));
   // The subscription outlives renders; the checks it runs are always this render's.
   const latest = useRef(bindings);
   useEffect(() => {
@@ -155,7 +162,12 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
     };
     for (const [index, binding] of bindings.entries()) {
       const { keys } = binding;
-      if (binding.filter) {
+      if (binding.insertsOnly) {
+        const on = binding.filter ? { event: "INSERT" as const, schema: "public", table: binding.table, filter: binding.filter } : { event: "INSERT" as const, schema: "public", table: binding.table };
+        subscription.on("postgres_changes", on, (payload) => {
+          if (accepted(index, payload)) schedule(keys);
+        });
+      } else if (binding.filter) {
         subscription.on("postgres_changes", { event: "*", schema: "public", table: binding.table, filter: binding.filter }, (payload) => {
           if (accepted(index, payload)) schedule(keys);
         });
