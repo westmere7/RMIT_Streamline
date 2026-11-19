@@ -237,6 +237,32 @@ export function indentPrefix(indent: number | undefined): string {
   return " ".repeat(Math.min(MAX_INDENT, Math.max(0, indent ?? 0)) * INDENT_SPACES);
 }
 
+/**
+ * Text written as plain lines, read as markup without losing its line breaks.
+ *
+ * The markup joins lines that follow one another into one paragraph, which is
+ * right for what the editor writes (it puts a blank line between paragraphs)
+ * and wrong for text typed into a plain box, where a new line was a new line.
+ * This puts a blank line between two plain lines in a row, so each stays its
+ * own; lists, headings, rules and checklists are left as they are. Text the
+ * editor wrote comes back unchanged.
+ */
+export function keepLineBreaks(body: string): string {
+  const lines = body.replace(/\r\n?/g, "\n").split("\n");
+  const plain = (line: string | undefined): boolean => {
+    if (line === undefined) return false;
+    const rest = readIndent(line).rest;
+    if (!rest.trim()) return false;
+    return !(/^-{3,}$/.test(rest.trim()) || CHECKLIST_LINE.test(rest) || /^#{1,2}\s+/.test(rest) || /^[-*]\s+/.test(rest) || /^\d+[.)]\s+/.test(rest));
+  };
+  const out: string[] = [];
+  lines.forEach((line, index) => {
+    if (index > 0 && plain(lines[index - 1]) && plain(line)) out.push("");
+    out.push(line);
+  });
+  return out.join("\n");
+}
+
 /** Splits the whole update into blocks: headings, lists, rules and paragraphs. */
 export function parseRichText(body: string, mentionNames: readonly string[] = []): BlockNode[] {
   const lines = body.replace(/\r\n?/g, "\n").split("\n");

@@ -294,27 +294,30 @@ export function LinkTile({
     return () => clearTimeout(timer);
   }, [copied]);
   const dim = !open && "opacity-60";
-  // The tile's own blank space opens the link, as its Open button does. A
-  // click that lands on anything with a job of its own (the switch, settings,
-  // the buttons below, a link) is left to that.
-  const openFromTile = (event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (target.closest("a, button, input, label, [role=switch], [role=dialog]")) return;
-    if (window.getSelection()?.toString()) return;
-    window.open(href, "_blank", "noopener,noreferrer");
-  };
 
   return (
     // One card, one thin edge, on the page's own background: no boxed icon, no
     // ruled-off footer. Hovered, it lifts, its edge takes the accent and a faint
     // wash, to say the blank space opens the link.
     <div
-      className="flex min-w-0 cursor-pointer flex-col gap-6 rounded-xl border border-border/70 bg-card p-5 transition-[border-color,background-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-ring hover:bg-accent/25 hover:shadow-lg hover:shadow-ring/10 max-md:p-4"
-      onClick={openFromTile}
-      title={`Open the ${label.toLowerCase()} in a new tab`}
+      className="relative flex min-w-0 cursor-pointer flex-col gap-6 rounded-xl border border-border/70 bg-card p-5 transition-[border-color,background-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-ring hover:bg-accent/25 hover:shadow-lg hover:shadow-ring/10 max-md:p-4"
       data-testid={`${testId}-block`}
     >
-      <div className="flex items-start gap-3">
+      {/* The tile's blank space opens the link, as its Open button does: a real
+          link under everything else, so a click, a middle click or a
+          Ctrl-click all do what they do on any link. The rest of the tile lets
+          clicks through to it, except the things with jobs of their own. */}
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        tabIndex={-1}
+        aria-hidden
+        title={`Open the ${label.toLowerCase()} in a new tab`}
+        className="absolute inset-0 rounded-xl"
+        data-testid={`${testId}-tile-link`}
+      />
+      <div className={cn("flex items-start gap-3", OVER_TILE_LINK)}>
         <div className={cn("min-w-0 flex-1", dim)}>
           {/* Wraps rather than squeezes: on a phone "Booking form" and its badge
               do not fit beside the switch, and the badge used to run into it. */}
@@ -348,7 +351,7 @@ export function LinkTile({
         )}
       </div>
 
-      <div className={cn("flex-1", dim)}>
+      <div className={cn("flex-1", OVER_TILE_LINK, dim)}>
         {figure !== undefined && (
           <p className="flex items-baseline gap-1.5">
             <span className="text-[22px] leading-none font-semibold tabular" data-testid={`${testId}-figure`}>
@@ -363,7 +366,7 @@ export function LinkTile({
 
       {/* What this link's settings are, where its link is; the gear beside the
           switch is where they are changed. */}
-      <div className={cn(dim)} data-testid={`${testId}-settings-list`}>
+      <div className={cn(OVER_TILE_LINK, dim)} data-testid={`${testId}-settings-list`}>
         <p className="mb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase">Settings</p>
         <dl className="divide-y divide-border/50">
           {settings.map((row) => (
@@ -375,7 +378,7 @@ export function LinkTile({
         </dl>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className={cn("flex flex-wrap items-center gap-1.5", OVER_TILE_LINK)}>
         <Button size="sm" asChild>
           <a href={href} target="_blank" rel="noreferrer noopener" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={`${testId}-open`}>
             <ExternalLink /> {openLabel}
@@ -403,6 +406,9 @@ export function LinkTile({
     </div>
   );
 }
+
+/** A tile's contents, over the link under it: clicks pass through, except to what has a job of its own. */
+const OVER_TILE_LINK = "relative pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto [&_label]:pointer-events-auto [&_input]:pointer-events-auto";
 
 /** A new token for both links. The old one stops working at once, so it asks first. */
 function RegenerateButton({ testId }: { testId: string }) {

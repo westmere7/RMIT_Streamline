@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Moon, Plus, Sun, SunMoon } from "lucide-react";
+import { Minus, Moon, Plus, Sun } from "lucide-react";
 import * as React from "react";
 import { BOOKING_SCALE_MAX, BOOKING_SCALE_MIN, clampBookingScale } from "@/domain";
 import { useThemePreference } from "@/lib/theme";
@@ -27,7 +27,20 @@ export interface ViewScaleControl {
   set: (scale: number) => void;
 }
 
-const THEME_ICONS: Record<ViewTheme, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
+const THEME_ICONS: Record<"light" | "dark", React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon };
+
+/** Whether the device asks for dark, kept in step with it. */
+function usePrefersDark(): boolean {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
+    () => false,
+  );
+}
 
 /** How far one press of − or + moves the size. */
 export const VIEW_SCALE_STEP = 10;
@@ -47,7 +60,11 @@ export function ViewControls({
   tone?: "navy" | "canvas";
   className?: string;
 }) {
+  const prefersDark = usePrefersDark();
   if (!theme && !scale) return null;
+  // Two choices only, light and dark: a page still set to follow the device
+  // shows whichever that is, and picking one settles it.
+  const shown = theme ? (theme.value === "system" ? (prefersDark ? "dark" : "light") : theme.value) : null;
   const navy = tone === "navy";
   const hover = navy ? "hover:bg-white/10 hover:text-white" : "hover:bg-accent hover:text-foreground";
   const button = cn("flex size-7 items-center justify-center rounded-full transition-colors disabled:pointer-events-none disabled:opacity-35", hover);
@@ -59,18 +76,18 @@ export function ViewControls({
     >
       {theme && (
         <div role="radiogroup" aria-label="Theme" className="flex items-center gap-0.5">
-          {(["light", "dark", "system"] as const).map((option) => {
+          {(["light", "dark"] as const).map((option) => {
             const Icon = THEME_ICONS[option];
             return (
               <button
                 key={option}
                 type="button"
                 role="radio"
-                aria-checked={theme.value === option}
+                aria-checked={shown === option}
                 aria-label={`${option} theme`}
                 title={`${option[0]!.toUpperCase()}${option.slice(1)} theme`}
                 onClick={() => theme.set(option)}
-                className={cn(button, theme.value === option && active)}
+                className={cn(button, shown === option && active)}
                 data-testid={`view-theme-${option}`}
               >
                 <Icon className="size-3.5" />
@@ -106,8 +123,7 @@ export function ViewControls({
 
 /**
  * The viewer's own app theme as a view control, for pages whose link carries no
- * theme of its own. Dim shows as dark: a visitor is offered light, dark or the
- * device's own.
+ * theme of its own. Dim shows as dark: a visitor is offered light or dark.
  */
 export function useAppThemeControl(): ViewThemeControl {
   const [preference, setPreference] = useThemePreference();

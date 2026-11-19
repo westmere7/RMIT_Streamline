@@ -29,7 +29,9 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { Textarea } from "@/components/ui/textarea";
+import { RichText } from "@/components/shared/rich-text";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
+import { keepLineBreaks } from "@/lib/rich-text";
 import type { BoardColumn, ColorToken, Item, ItemAsset } from "@/domain";
 import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
@@ -843,15 +845,21 @@ function TicketField({
  */
 function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const { mutations } = useBoardContext();
+  const mentionLinks = useMentionLinks();
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
-  const text = item.description ?? "";
+  // Whether anything was changed: opened and left untouched writes nothing.
+  const [typed, setTyped] = React.useState(false);
+  // Descriptions were plain text until now: their line breaks are kept as
+  // they were written, both when read and when opened in the editor.
+  const text = keepLineBreaks(item.description ?? "");
 
   // The draft is filled at the moment editing starts rather than kept in step
   // with the item, so a different task in the panel — or someone else's edit
   // arriving — never has to be reconciled with what is in the box.
   const startEditing = () => {
     setDraft(text);
+    setTyped(false);
     setEditing(true);
   };
 
@@ -863,46 +871,72 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
     // Emptied means gone, not an empty string: stored as "" it would never
     // again match the guard below, and every blur would write it out afresh.
     const next = draft.trim() || null;
+    // Opened and left untouched is no change, even if the editor tidied the markup.
+    if (!typed) return;
     if (next !== (item.description ?? null)) void mutations.updateDescription(item.id, next);
   };
-
-  // Nothing to read and no way to add it: no section, rather than an invitation that does nothing.
-  if (!text && !editing && !canEdit) return null;
 
   return (
     <section>
       <h3 className="mb-1.5 label-quiet">Description</h3>
       {editing ? (
-        <Textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setDraft(item.description ?? "");
-              setEditing(false);
-            }
+        // Saved on leaving the box, as before. Leaving for the editor's own
+        // dialogs and menus (a link, a colour), which are portalled outside
+        // it, is still writing; so are keys pressed in them.
+        <div
+          onBlur={(event) => {
+            const next = event.relatedTarget as HTMLElement | null;
+            if (!event.currentTarget.contains(event.target as Node)) return;
+            if (next && (event.currentTarget.contains(next) || next.closest("[role=dialog], [data-radix-popper-content-wrapper]"))) return;
+            commit();
           }}
-          placeholder="Add a description, brief or links…"
-          rows={3}
-          aria-label="Description"
-          className="resize-y"
-        />
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !event.currentTarget.contains(event.target as Node)) return;
+            setDraft(item.description ?? "");
+            setEditing(false);
+          }}
+          data-testid="panel-description-editor"
+        >
+          {/* The formatting bar comes with the box: it is only here while it is focused. */}
+          <RichTextEditor
+            autoFocus
+            value={draft}
+            onChange={(next) => {
+              setDraft(next);
+              setTyped(true);
+            }}
+            // Nobody is told about a name in a description, so no picker offers one.
+            people={NO_PEOPLE}
+            placeholder="Add a description, brief or links…"
+            rows={3}
+            ariaLabel="Description"
+          />
+        </div>
       ) : text ? (
-        <button
-          type="button"
-          onClick={() => canEdit && startEditing()}
+        // A div, not a button: the description can hold links of its own,
+        // and those open rather than starting an edit.
+        <div
+          role={canEdit ? "button" : undefined}
+          tabIndex={canEdit ? 0 : undefined}
+          onClick={(event) => {
+            if (!canEdit || (event.target as HTMLElement).closest("a")) return;
+            if (window.getSelection()?.toString()) return;
+            startEditing();
+          }}
+          onKeyDown={(event) => {
+            if (!canEdit || event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault();
+            startEditing();
+          }}
           aria-label={canEdit ? "Edit description" : undefined}
           className={cn(
-            "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left whitespace-pre-wrap text-[13px] text-foreground/90 shadow-xs",
-            canEdit && "hover:border-border",
-            !canEdit && "cursor-default",
+            "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left text-[13px] text-foreground/90 shadow-xs",
+            canEdit && "cursor-text hover:border-border focus-visible:outline-2 focus-visible:outline-ring",
           )}
           data-testid="panel-description"
         >
-          {text}
-        </button>
+          <RichText body={text} mentionHref={mentionLinks.personNamed} />
+        </div>
       ) : (
         <button
           type="button"
@@ -916,6 +950,9 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
     </section>
   );
 }
+
+/** Nobody to mention in a description. */
+const NO_PEOPLE: readonly never[] = [];
 
 function Overview({ item }: { item: Item }) {
   // Below 768 the field rows stack; the cell fills the row rather than holding

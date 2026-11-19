@@ -34,18 +34,22 @@ function tile(overrides: Partial<React.ComponentProps<typeof LinkTile>> = {}) {
 describe("the portal's link tiles", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("opens the link in a new tab from the tile's blank space", async () => {
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+  // The blank space is a real link laid under the tile's contents, which let
+  // clicks through (pointer-events) to everything but their own controls. The
+  // test DOM does no hit testing, so this checks that arrangement.
+  it("lays a new-tab link under the whole tile, with its contents letting clicks through", () => {
     tile();
-    await userEvent.click(screen.getByTestId("portal-link-figure"));
-    expect(open).toHaveBeenCalledWith("/portal/abc", "_blank", "noopener,noreferrer");
-  });
-
-  it("opens the link from the settings list too, which is part of the card's blank space", async () => {
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    tile();
-    await userEvent.click(screen.getByText("Opens on"));
-    expect(open).toHaveBeenCalledWith("/portal/abc", "_blank", "noopener,noreferrer");
+    const block = screen.getByTestId("portal-link-block");
+    const link = screen.getByTestId("portal-link-tile-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/portal/abc");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.className).toContain("absolute inset-0");
+    expect(link.parentElement).toBe(block);
+    const contents = [...block.children].filter((child) => child !== link && !child.classList.contains("sr-only"));
+    expect(contents.length).toBeGreaterThan(0);
+    for (const child of contents) expect(child.className).toContain("pointer-events-none");
+    expect(screen.getByTestId("portal-link-settings-list").className).toContain("pointer-events-none");
   });
 
   it("lists its settings on the card, and the gear opens them", async () => {

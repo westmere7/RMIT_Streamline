@@ -126,7 +126,7 @@ export function PortalBookingScreen({
           <p className="text-xs text-muted-foreground">Task booking{account ? ` · signed in as ${account.name}` : ""}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
-          <ArrowLeft /> Back to our tasks
+          <ArrowLeft /> Back to Portal
         </Button>
       </div>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-7 py-6 sm:px-8">
@@ -187,7 +187,7 @@ export function PortalBookingScreen({
                   View request
                 </Button>
                 <Button variant="outline" onClick={onClose} data-testid="portal-back-to-tasks">
-                  Back to our tasks
+                  Back to Portal
                 </Button>
               </div>
             )}

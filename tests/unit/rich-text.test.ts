@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { continueList, MAX_INDENT, parseInline, parseRichText, richTextToPlain, togglePrefix, wrapSelection } from "@/lib/rich-text";
+import { continueList, keepLineBreaks, MAX_INDENT, parseInline, parseRichText, richTextToPlain, togglePrefix, wrapSelection } from "@/lib/rich-text";
 
 describe("inline markup", () => {
   it("leaves plain text alone", () => {
@@ -208,5 +208,18 @@ describe("escaped characters", () => {
 
   it("drops the backslashes in plain text too", () => {
     expect(richTextToPlain(String.raw`Share with \#RMITGrad2027 and \*star\*`)).toBe("Share with #RMITGrad2027 and *star*");
+  });
+});
+
+// A description typed into the old plain box keeps its line breaks once it is
+// read as markup; what the editor writes comes back as it was.
+describe("keepLineBreaks", () => {
+  it("keeps plain lines apart and leaves lists, headings and editor output alone", () => {
+    expect(keepLineBreaks("Line one\nLine two")).toBe("Line one\n\nLine two");
+    expect(parseRichText(keepLineBreaks("Line one\nLine two")).filter((block) => block.type === "paragraph")).toHaveLength(2);
+    expect(keepLineBreaks("Intro\n- a\n- b\n## Head\nText")).toBe("Intro\n- a\n- b\n## Head\nText");
+    const written = "Para one\n\n**Para** two\n- item";
+    expect(keepLineBreaks(written)).toBe(written);
+    expect(keepLineBreaks(keepLineBreaks("a\nb\nc"))).toBe("a\n\nb\n\nc");
   });
 });

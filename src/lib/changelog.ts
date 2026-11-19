@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.112.0",
+    date: "2026-11-19",
+    title: "Rich text descriptions",
+    changes: [
+      "A task's description takes rich text: headings, bold, lists, links and colour, with the formatting bar shown while the box is focused. Descriptions written before keep their line breaks.",
+      "Portal and Booking: clicking a link card's blank space opens it in a new tab through a real link, so middle-click and Ctrl-click work too.",
+      "The booking page's \"Back to our tasks\" reads \"Back to Portal\".",
+      "The theme switch on portal, booking, shared and dashboard pages offers light and dark only; a page set to follow the device shows whichever that is.",
+    ],
+  },
+  {
     version: "0.111.2",
     date: "2026-11-19",
     title: "Who published the form, with a face",
