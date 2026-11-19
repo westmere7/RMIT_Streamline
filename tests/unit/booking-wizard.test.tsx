@@ -140,6 +140,23 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     expect(screen.getByTestId("booking-sub-photography")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("picks a service's only work type by itself, and will not let it go", async () => {
+    const template = fixtureBookingFormTemplate();
+    const production = template.services.find((s) => s.id === "svc-production")!;
+    production.subServices = production.subServices.slice(0, 1);
+    const { user } = renderWizard({ form: formWith(template) });
+    await user.click(screen.getByTestId("booking-service-production"));
+    const only = screen.getByTestId("booking-sub-photography");
+    expect(only).toHaveAttribute("aria-pressed", "true");
+    expect(only).toHaveAttribute("aria-disabled", "true");
+    await user.click(only);
+    expect(only).toHaveAttribute("aria-pressed", "true");
+    // A service with several still starts with none picked.
+    await user.click(screen.getByTestId("booking-service-design"));
+    expect(screen.getByTestId("booking-sub-print")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("booking-sub-print")).not.toHaveAttribute("aria-disabled");
+  });
+
   it("numbers the questions of a brief and skips the furniture", async () => {
     const { user } = renderWizard();
     await fillBasics(user);

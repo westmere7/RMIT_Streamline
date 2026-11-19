@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.117.3",
+    date: "2026-11-19",
+    title: "One work type, picked for you",
+    changes: [
+      "When a service on the booking form offers a single work type, it is picked already and stays picked.",
+      "Picked chips on the booking form and in its editor share the picked service card's fill.",
+    ],
+  },
+  {
     version: "0.117.2",
     date: "2026-11-19",
     title: "Quieter buttons and cards",

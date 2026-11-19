@@ -59,6 +59,13 @@ export function StepBasics({
   const besideCard = accountRow ? (fields.find((f) => f.key === "department") ?? null) : null;
   const gridFields = besideCard ? fields.filter((f) => f !== besideCard) : fields;
   const service = serviceById(template, request.serviceTypeId);
+  // A service with one work type: that one is the answer, picked and kept.
+  const lone = service?.subServices.length === 1 ? (service.subServices[0]?.name ?? null) : null;
+  const loneMissing = !!lone && !request.subServices.includes(lone);
+  React.useEffect(() => {
+    // A form that opens on such a service already (a restored draft) picks it too.
+    if (loneMissing && lone) patch({ subServices: [lone] });
+  }, [loneMissing, lone, patch]);
   return (
     <div className="space-y-7" data-testid="booking-step-basics">
       {/* The step's own heading, in the workspace's words. Shown only when
@@ -106,7 +113,10 @@ export function StepBasics({
                     serviceTypeId: option.id,
                     // Sub-services belong to the service that offered them; a
                     // switch keeps nothing the new one does not recognise.
-                    subServices: prev.subServices.filter((name) => option.subServices.some((s) => s.name === name)),
+                    subServices:
+                      option.subServices.length === 1
+                        ? option.subServices.map((s) => s.name)
+                        : prev.subServices.filter((name) => option.subServices.some((s) => s.name === name)),
                   }))
                 }
               />
@@ -118,7 +128,14 @@ export function StepBasics({
           <Field label={service.subServiceLabel} required description={service.subServiceHint} error={errors[SUBSERVICE_ERROR_KEY]}>
             <ChipGroup ariaLabel={service.subServiceLabel}>
               {service.subServices.map((option) => (
-                <Chip key={option.name} color={option.color} active={request.subServices.includes(option.name)} onClick={() => patch((prev) => ({ subServices: toggle(prev.subServices, option.name) }))} testId={`booking-sub-${slug(option.name)}`}>
+                <Chip
+                  key={option.name}
+                  color={option.color}
+                  active={option.name === lone || request.subServices.includes(option.name)}
+                  locked={option.name === lone}
+                  onClick={() => patch((prev) => ({ subServices: toggle(prev.subServices, option.name) }))}
+                  testId={`booking-sub-${slug(option.name)}`}
+                >
                   {option.name}
                 </Chip>
               ))}

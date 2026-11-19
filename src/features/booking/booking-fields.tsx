@@ -797,17 +797,37 @@ function OwnChoiceAdder({ onAdd, disabled, testId }: { onAdd: (value: string) =>
   );
 }
 
-export function Chip({ active, onClick, color, testId, disabled, children }: { active: boolean; onClick: () => void; color?: Parameters<typeof ColorDot>[0]["color"]; testId?: string; disabled?: boolean; children: React.ReactNode }) {
+export function Chip({
+  active,
+  onClick,
+  color,
+  testId,
+  disabled,
+  locked = false,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color?: Parameters<typeof ColorDot>[0]["color"];
+  testId?: string;
+  disabled?: boolean;
+  /** The only choice there is: shown picked, at full strength, and not to be cleared. */
+  locked?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       aria-pressed={active}
-      onClick={onClick}
+      aria-disabled={locked || undefined}
+      onClick={locked ? undefined : onClick}
       disabled={disabled}
       data-testid={testId}
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-70 max-md:h-11 max-md:text-[15px]",
-        active ? "border-foreground/80 bg-foreground text-background" : "border-border bg-card text-foreground enabled:hover:border-foreground/40 enabled:hover:bg-accent",
+        // Picked: the same fill as a picked service card.
+        active ? "state-on border-transparent" : "border-border bg-card text-foreground enabled:hover:border-foreground/40 enabled:hover:bg-accent",
+        locked && "cursor-default",
       )}
     >
       {color && <ColorDot color={color} />}
