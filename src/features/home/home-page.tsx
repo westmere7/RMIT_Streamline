@@ -1,15 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Clock, ListTodo, Star, Users } from "lucide-react";
+import { ArrowRight, Clock, ListTodo } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LabelPill } from "@/components/shared/label-pill";
 import { SectionHeading } from "@/components/shared/page-header";
-import { UserAvatar } from "@/components/shared/user-avatar";
-import { Skeleton, SkeletonLine } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Board } from "@/domain";
 import { isStuckLabel } from "@/domain";
 import { ActivityFeed } from "@/features/activity/activity-feed";
@@ -17,7 +16,6 @@ import { ActivitySkeleton } from "@/features/activity/activity-skeleton";
 import { useWorkspaceActivity } from "@/features/activity/hooks";
 import { useServices } from "@/features/data/data-context";
 import { useMyWork } from "@/features/my-work/hooks";
-import { useTrackers } from "@/features/trackers/hooks";
 import { HomeMobile } from "@/features/mobile/home-mobile";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -26,7 +24,7 @@ import { formatShortDate, isOverdue, isToday } from "@/lib/dates/dates";
 import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
-import { cn, pluralize } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { sectionFor } from "@/services/my-work-service";
 import { NotificationPrompt } from "@/features/notifications/notification-prompt";
 import { PortalLinks } from "@/features/portal/portal-links";
@@ -50,12 +48,6 @@ export function HomePage() {
 
 function HomeDesktop() {
   const ws = useWorkspace();
-  // The board count is already in hand; the tracker count is a read, so the
-  // line waits for both rather than saying "2 boards" and then "2 boards ·
-  // 1 tracker" a moment later.
-  const trackerQuery = useTrackers();
-  const trackers = trackerQuery.data ?? [];
-  const trackersLoaded = !!trackerQuery.data;
   const services = useServices();
   const now = React.useMemo(() => new Date(), []);
 
@@ -65,7 +57,7 @@ function HomeDesktop() {
     queryFn: () => services.repos.admin.listRecentBoardIds(ws.currentUser.id, 60),
   });
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
-  const activity = useWorkspaceActivity(ws.workspace.id, 12);
+  const activity = useWorkspaceActivity(ws.workspace.id, 25);
 
   const visible = (b: Board | undefined): b is Board => !!b && b.archivedAt === null && canViewBoard(ws.permissions, b);
   const recentBoards = (recent.data ?? []).map((id) => ws.boardById(id)).filter(visible).slice(0, 6);
@@ -94,6 +86,37 @@ function HomeDesktop() {
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-8">
+            {/* The two links people are handed most, up front and large. */}
+            <PortalLinks
+              variant="cards"
+              heading={
+                <SectionHeading
+                  action={
+                    <Link href={routes.book(ws.slug)} className="flex items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground">
+                      Manage <ArrowRight className="size-3" />
+                    </Link>
+                  }
+                >
+                  Portal and Booking
+                </SectionHeading>
+              }
+            />
+
+            <section>
+              <SectionHeading>Favourites</SectionHeading>
+              {favouriteBoards.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border/70 px-4 py-3 text-[13px] text-muted-foreground">Star a board to pin it here and in the sidebar.</p>
+              ) : (
+                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {favouriteBoards.map((board) => (
+                    <li key={board.id}>
+                      <BoardCard board={board} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <section>
               <SectionHeading>Recently visited</SectionHeading>
               {recent.isLoading ? (
@@ -172,63 +195,8 @@ function HomeDesktop() {
             </section>
           </div>
 
+          {/* The whole right side is what is happening across the workspace. */}
           <aside className="space-y-8">
-            <PortalLinks
-              heading={
-                <SectionHeading
-                  action={
-                    <Link href={routes.book(ws.slug)} className="flex items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground">
-                      Manage <ArrowRight className="size-3" />
-                    </Link>
-                  }
-                >
-                  Portal and Booking
-                </SectionHeading>
-              }
-            />
-
-            <section>
-              <SectionHeading>Favourites</SectionHeading>
-              {favouriteBoards.length === 0 ? (
-                <EmptyState icon={Star} title="No favourites yet" description="Star a board to pin it here and in the sidebar." compact />
-              ) : (
-                <ul className="space-y-1">
-                  {favouriteBoards.map((board) => (
-                    <li key={board.id}>
-                      <BoardRow board={board} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section>
-              <SectionHeading>Your teams</SectionHeading>
-              {ws.myTeams.length === 0 ? (
-                <EmptyState icon={Users} title="You are not in a team yet" compact />
-              ) : (
-                <ul className="space-y-1">
-                  {ws.myTeams.map((team) => {
-                    const members = ws.teamMembers.filter((m) => m.teamId === team.id);
-                    return (
-                      <li key={team.id}>
-                        <Link href={routes.team(ws.slug, team.id)} className="flex h-9 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-accent">
-                          <DynamicIcon name={team.icon} className={cn("size-4", colorClasses(team.color).text)} />
-                          <span className="flex-1 truncate font-medium">{team.name}</span>
-                          <span className="flex -space-x-1.5">
-                            {members.slice(0, 4).map((m) => (
-                              <UserAvatar key={m.id} user={ws.userById(m.userId)} size="xs" />
-                            ))}
-                          </span>
-                          <span className="text-2xs text-muted-foreground tabular">{trackersLoaded ? teamContentsLabel(ws.boardsForTeam(team.id).length, trackers.filter((t) => t.teamId === team.id).length) : <SkeletonLine className="w-16" />}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-
             <section>
               <SectionHeading>Recent activity</SectionHeading>
               {activity.isLoading ? (
@@ -279,20 +247,4 @@ function BoardCard({ board }: { board: Board }) {
   );
 }
 
-function BoardRow({ board }: { board: Board }) {
-  const ws = useWorkspace();
-  return (
-    <Link href={ws.boardPath(board)} className="flex h-9 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-accent">
-      <DynamicIcon name={board.icon} className={cn("size-4", colorClasses(board.color).text)} />
-      <span className="flex-1 truncate font-medium">{board.name}</span>
-      <span className="truncate text-2xs text-muted-foreground">{ws.teamById(board.teamId)?.name}</span>
-    </Link>
-  );
-}
 
-/** "2 boards · 1 tracker" — the same things the sidebar counts for a team. */
-function teamContentsLabel(boards: number, trackers: number): string {
-  const parts = [pluralize(boards, "board")];
-  if (trackers > 0) parts.push(pluralize(trackers, "tracker"));
-  return parts.join(" · ");
-}

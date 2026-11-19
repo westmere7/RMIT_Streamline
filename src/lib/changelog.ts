@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.5",
+    date: "2026-11-19",
+    title: "Home, rearranged",
+    changes: [
+      "Home leads with Portal and Booking as two cards (open, copy), then Favourites as board cards, Recently visited and My work.",
+      "The right side of Home is Recent activity alone, showing more of it. Your teams is gone from Home.",
+    ],
+  },
+  {
     version: "0.116.4",
     date: "2026-11-19",
     title: "About in the account menu",
