@@ -8,6 +8,7 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { buildPermissionContext, canSeeSystemEntities, canViewBoard, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
+import { usePresence } from "@/lib/realtime/presence";
 import { routes } from "@/lib/routes";
 import { useUiStore } from "@/stores/ui-store";
 import { useWorkspaceRealtime } from "./use-workspace-realtime";
@@ -63,6 +64,8 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   // The shell's own live wiring: members, teams, boards, names, badges. Called
   // here so it covers every page inside the workspace rather than one of them.
   useWorkspaceRealtime(workspace.id, currentUser.id);
+  // Who else is online: the dot on everyone's avatar. The person signed in, not whoever they are viewing as.
+  usePresence(currentUser.id);
 
   const contextQuery = useQuery({
     queryKey: queryKeys.workspaceContext(workspace.id),

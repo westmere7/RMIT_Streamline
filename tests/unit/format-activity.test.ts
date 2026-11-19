@@ -48,4 +48,18 @@ describe("describeActivityText", () => {
     // With nowhere recorded at all, it stops at the task rather than at "to".
     expect(describeActivityText(activity({ eventType: "ITEM_MOVED", metadata: {} }), users)).toBe("Danh moved the item");
   });
+
+  // An asset's PIC is recorded as people put on and taken off. The feed read
+  // only `to`, which these entries never carry, so every one said "to empty".
+  it("says who was put in charge of an asset, and who was taken off", () => {
+    const pic = (metadata: Activity["metadata"]) => activity({ eventType: "ASSET_UPDATED", metadata: { itemName: "Holiday social posts", assetName: "Key visual", assetField: "who is in charge", ...metadata } });
+    expect(describeActivityText(pic({ addedUserIds: ["jun"], removedUserIds: [] }), users)).toBe("Danh put Jun in charge of Key visual");
+    expect(describeActivityText(pic({ addedUserIds: [], removedUserIds: ["jun"] }), users)).toBe("Danh took Jun off Key visual");
+    expect(describeActivityText(pic({ addedUserIds: ["jun"], removedUserIds: ["danh"] }), users)).toBe("Danh put Jun in charge of Key visual and took Danh off it");
+    const html = renderToStaticMarkup(React.createElement(React.Fragment, null, describeActivity(pic({ addedUserIds: ["jun"], removedUserIds: [] }), users)));
+    expect(html.replace(/<[^>]+>/g, "")).toMatch(/^Danh put Jun in charge of Key visual/);
+    expect(html).not.toContain("empty");
+    // Any other field still reads from and to.
+    expect(describeActivityText(pic({ assetField: "quantity", from: "1", to: "7" }), users)).toBe("Danh set quantity on Key visual to 7");
+  });
 });

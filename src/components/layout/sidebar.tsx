@@ -29,7 +29,6 @@ import { InviteMemberDialog } from "@/features/members/components/invite-member-
 import type { UnreadCounts } from "@/domain";
 import { useUnreadCounts } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
-import { AboutDialog } from "@/features/version/about-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { CreateDocDialog } from "@/features/docs/create-doc-dialog";
 import { useDocMutations, useDocs } from "@/features/docs/hooks";
@@ -111,7 +110,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
   const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
   const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
-  const [aboutOpen, setAboutOpen] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [boardSettings, setBoardSettings] = React.useState<{ board: Board; section: BoardSettingsSection } | null>(null);
   const [createTrackerTeamId, setCreateTrackerTeamId] = React.useState<string | null>(null);
@@ -246,20 +244,19 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
       onClick={drawer ? (event) => { if ((event.target as HTMLElement).closest("a[href]")) onNavigate?.(); } : undefined}
       onKeyDown={drawer ? (event) => { if (event.key === "Escape") onNavigate?.(); } : undefined}
     >
-      {/* The product, and what it is: the logo opens About. Which workspace this
-          is sits under it, and switches to the others. */}
+      {/* The logo goes home, as a logo does; About is in Settings. Which
+          workspace this is sits under it, and switches to the others. */}
       <div className={cn("flex h-14 shrink-0 items-center px-3", collapsed && "justify-center px-0")}>
         <div className={cn("flex w-full items-center gap-2", collapsed && "w-auto justify-center")}>
-          <SimpleTooltip label="About Streamline" side="right">
-            <button
-              type="button"
-              onClick={() => setAboutOpen(true)}
-              aria-label="About Streamline"
+          <SimpleTooltip label="Home" side="right">
+            <Link
+              href={routes.workspace(ws.slug)}
+              aria-label="Home"
               className={cn("flex min-w-0 items-center rounded-md focus-visible:outline-2 focus-visible:outline-ring", !collapsed && "ml-2")}
-              data-testid="sidebar-about"
+              data-testid="sidebar-home-logo"
             >
               {collapsed ? <BrandMark className="size-8 rounded-xl shadow-xs" /> : <BrandLogo className="h-6" />}
-            </button>
+            </Link>
           </SimpleTooltip>
           {!collapsed && (
             <SimpleTooltip label="Search (Ctrl/⌘ F)" side="bottom">
@@ -510,7 +507,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           if (activeDocId === deletingDoc.id) router.push(routes.docs(ws.slug));
         }}
       />
-      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <CreateTeamDialog open={createTeamOpen} onOpenChange={setCreateTeamOpen} />
       <CreateTeamDialog open={editingTeam !== null} onOpenChange={(open) => !open && setEditingTeam(null)} team={editingTeam} />
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />

@@ -5,6 +5,7 @@ import type { User } from "@/domain";
 import { userInitials } from "@/domain";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { avatarColorFor, colorClasses } from "@/lib/colors";
+import { useIsOnline } from "@/lib/realtime/presence";
 import { cn } from "@/lib/utils";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
@@ -40,13 +41,26 @@ export function PersonHover({ user, children }: { user: Pick<User, "id" | "displ
   return render ? render(user.id, children) : <SimpleTooltip label={user.displayName}>{children}</SimpleTooltip>;
 }
 
+/** The online dot, scaled to the avatar it sits on. */
+const DOT_CLASSES: Record<AvatarSize, string> = {
+  xs: "size-1.5 ring-1",
+  sm: "size-2 ring-[1.5px]",
+  md: "size-2 ring-2",
+  lg: "size-2.5 ring-2",
+  xl: "size-3 ring-2",
+};
+
 export function UserAvatar({ user, size = "md", className, tooltip = true }: UserAvatarProps) {
+  // Only inside the workspace: elsewhere (shared pages, sign-in) nobody is joined, so nobody is online.
+  // The name stays the accessible name (buttons and pickers are found by it); data-online marks the state.
+  const online = useIsOnline(user?.id);
   const content = (
     <span
       role="img"
       aria-label={user?.displayName ?? "Unassigned"}
+      data-online={online || undefined}
       className={cn(
-        "inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold leading-none ring-2 ring-background",
+        "relative inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold leading-none ring-2 ring-background",
         SIZE_CLASSES[size],
         user ? colorClasses(avatarColorFor(user.id)).solid : "border border-dashed border-input bg-transparent text-muted-foreground",
         className,
@@ -62,6 +76,7 @@ export function UserAvatar({ user, size = "md", className, tooltip = true }: Use
       ) : (
         "?"
       )}
+      {online && <span aria-hidden className={cn("absolute -bottom-px -right-px rounded-full bg-emerald-500 ring-background", DOT_CLASSES[size])} data-testid="avatar-online" />}
     </span>
   );
   if (!tooltip || !user) return content;

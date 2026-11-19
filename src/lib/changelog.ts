@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.108.0",
+    date: "2026-11-19",
+    title: "Who is online",
+    changes: [
+      "A green dot on someone's picture means they have Streamline open, wherever their picture appears.",
+      "A tab left in the background for a minute stops counting as online.",
+      "The Streamline logo in the sidebar goes to Home; About is in Settings.",
+      "Changing who is in charge of an asset no longer reads \"to empty\" in the activity feed: it names who was put on or taken off.",
+      "About says it was built by the RMIT marketing team.",
+    ],
+  },
+  {
     version: "0.107.1",
     date: "2026-11-19",
     title: "RMIT logo on the shared dashboard",

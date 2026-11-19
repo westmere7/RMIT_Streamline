@@ -180,6 +180,28 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
         </>
       );
     case "ASSET_UPDATED":
+      // Who is in charge is recorded as people put on and taken off, not as a from and a to.
+      if (m.addedUserIds || m.removedUserIds) {
+        const added = m.addedUserIds ?? [];
+        const removed = m.removedUserIds ?? [];
+        return (
+          <>
+            <Mention href={links?.person(activity.actorId)}>{actor}</Mention>
+            {added.length > 0 && (
+              <>
+                {" "}put <People ids={added} users={users} links={links} /> in charge of <Mention>{m.assetName}</Mention>
+              </>
+            )}
+            {added.length > 0 && removed.length > 0 && " and"}
+            {removed.length > 0 && (
+              <>
+                {" "}took <People ids={removed} users={users} links={links} /> off {added.length > 0 ? "it" : <Mention>{m.assetName}</Mention>}
+              </>
+            )}
+            {item}
+          </>
+        );
+      }
       return (
         <>
           <Mention href={links?.person(activity.actorId)}>{actor}</Mention> set {m.assetField} on <Mention>{m.assetName}</Mention>
@@ -299,8 +321,15 @@ export function describeActivityText(activity: Activity, users: readonly User[])
       return `${actor} unlinked ${m.itemName} from ${m.linkedItemName}`;
     case "ASSET_ADDED":
       return m.assetName ? `${actor} added ${m.assetName} to the asset list` : `${actor} added ${m.count ?? 0} assets`;
-    case "ASSET_UPDATED":
+    case "ASSET_UPDATED": {
+      if (m.addedUserIds || m.removedUserIds) {
+        const names = (ids: readonly string[] | undefined) => (ids ?? []).map((id) => users.find((u) => u.id === id)?.firstName ?? "someone").join(", ");
+        const put = m.addedUserIds?.length ? `put ${names(m.addedUserIds)} in charge of ${m.assetName}` : "";
+        const took = m.removedUserIds?.length ? `took ${names(m.removedUserIds)} off ${put ? "it" : m.assetName}` : "";
+        return `${actor} ${[put, took].filter(Boolean).join(" and ")}`;
+      }
       return `${actor} set ${m.assetField} on ${m.assetName} to ${m.to ?? "empty"}`;
+    }
     case "ASSET_REMOVED":
       return `${actor} removed ${m.assetName} from the asset list`;
     case "ASSET_COMPLETED":

@@ -1,14 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { resetLocalData, signInAs } from "./helpers";
 
-/** About is a dialog, opened from Settings or from the logo in the sidebar. */
-async function openAbout(page: Page, from: "settings" | "logo" = "settings") {
-  if (from === "settings") {
-    await page.goto("/workspace/rmit/settings");
-    await page.getByTestId("settings-about").click();
-  } else {
-    await page.getByTestId("sidebar-about").click();
-  }
+/** About is a dialog, opened from Settings. */
+async function openAbout(page: Page) {
+  await page.goto("/workspace/rmit/settings");
+  await page.getByTestId("settings-about").click();
   await expect(page.getByTestId("about-dialog")).toBeVisible({ timeout: 15000 });
 }
 
@@ -30,11 +26,12 @@ test.describe("version check", () => {
     await expect(page.getByTestId("about-version")).toHaveText(/^v\d+\.\d+\.\d+$/);
     await page.keyboard.press("Escape");
 
-    // The version is nowhere else until asked for; the logo opens the same dialog.
-    await page.goto("/workspace/rmit");
+    // The version is nowhere else until asked for, and the logo goes home rather than to About.
+    await page.goto("/workspace/rmit/settings");
     await expect(page.getByTestId("about-version")).toHaveCount(0);
-    await openAbout(page, "logo");
-    await expect(page.getByTestId("about-version")).toHaveText(/^v\d+\.\d+\.\d+$/);
+    await page.getByTestId("sidebar-home-logo").click();
+    await expect(page).toHaveURL(/\/workspace\/rmit$/);
+    await expect(page.getByTestId("about-dialog")).toHaveCount(0);
   });
 
   test("a newer build on the server raises a pop-up that does not force a reload", async ({ page }) => {

@@ -102,7 +102,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Fact label="Backend region" value={BACKEND_REGION ?? (projectRef ? `${projectRef} · region not set` : "—")} />
             <Fact label="Built" value={built && !Number.isNaN(built.getTime()) ? built.toLocaleDateString() : "—"} />
           </dl>
-          <p className="mt-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">Built by Nguyen Tuan Danh</p>
+          <p className="mt-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">Built by RMIT marketing team</p>
         </footer>
       </DialogContent>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
