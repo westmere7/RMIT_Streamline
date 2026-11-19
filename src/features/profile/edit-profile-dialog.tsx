@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { User } from "@/domain";
 import { ChangePasswordDialog } from "@/features/auth/components/change-password-dialog";
+import { AvatarCropDialog } from "@/features/profile/avatar-crop-dialog";
 import { useProfileMutations } from "@/features/profile/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -45,6 +46,8 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
   const [email, setEmail] = React.useState(user.email);
   const emailChanged = canChangeEmail && email.trim().toLowerCase() !== user.email.toLowerCase();
   const fileRef = React.useRef<HTMLInputElement>(null);
+  // A chosen photo, being framed before it is uploaded.
+  const [cropping, setCropping] = React.useState<File | null>(null);
   const [form, setForm] = React.useState({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -109,7 +112,7 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
-                if (file) changeAvatar.mutate(file);
+                if (file) setCropping(file);
               }}
             />
             <div className="flex gap-2">
@@ -212,6 +215,14 @@ function ProfileForm({ user, canChangeEmail, onClose }: { user: User; canChangeE
     </form>
     {/* Outside the form: React carries a submit up through portals, and the password form's must not save the profile. */}
     <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
+    <AvatarCropDialog
+      file={cropping}
+      onCancel={() => setCropping(null)}
+      onConfirm={async (cropped) => {
+        await changeAvatar.mutateAsync(cropped).catch(() => undefined);
+        setCropping(null);
+      }}
+    />
     </>
   );
 }

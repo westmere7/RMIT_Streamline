@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { matchDepartment, PASSWORD_MIN_LENGTH, invitationStatusMessage, type InvitationPreview } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
+import { AvatarCropDialog } from "@/features/profile/avatar-crop-dialog";
 import { AvatarError, uploadAvatar } from "@/features/profile/avatar-upload";
 import { formatDateTime } from "@/lib/dates/dates";
 import { queryKeys } from "@/lib/query/keys";
@@ -143,8 +144,10 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
       return;
     }
     setError(null);
-    setPhoto({ file, url: URL.createObjectURL(file) });
+    setCropping(file);
   };
+  // A chosen photo, being framed; what comes back is the photo kept.
+  const [cropping, setCropping] = React.useState<File | null>(null);
 
   const complete = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -243,9 +246,17 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
               </Button>
             )}
           </div>
-          <p className="text-2xs text-muted-foreground">Optional. Square crop, stored as WebP.</p>
+          <p className="text-2xs text-muted-foreground">Optional.</p>
         </div>
       </div>
+      <AvatarCropDialog
+        file={cropping}
+        onCancel={() => setCropping(null)}
+        onConfirm={(cropped) => {
+          setPhoto({ file: cropped, url: URL.createObjectURL(cropped) });
+          setCropping(null);
+        }}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

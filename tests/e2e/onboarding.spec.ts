@@ -117,6 +117,9 @@ test.describe("member onboarding", () => {
       // A 1x1 PNG is enough to exercise the resize and store path.
       buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==", "base64"),
     });
+    // Framed first: the crop dialog hands back the photo that is kept.
+    await page.getByTestId("avatar-crop-confirm").click();
+    await expect(page.getByTestId("avatar-crop-dialog")).toBeHidden();
     await page.getByTestId("onboarding-confirm").fill("correct horse battery");
     await page.getByTestId("onboarding-submit").click();
 

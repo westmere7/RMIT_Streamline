@@ -412,25 +412,27 @@ test.describe("supabase provider", () => {
     await expect(page.getByTestId("edit-profile-dialog")).toBeVisible({ timeout: 10_000 });
 
     // A real 512x512 PNG drawn in the page, so the test covers the downscale to
-    // 256 and the WebP re-encode, not just the upload call.
+    // 256 and the WebP re-encode, not just the upload call. It is framed in the
+    // crop dialog first, and uploaded on "Use photo".
+    await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#e61e2b";
+      context.fillRect(0, 0, 512, 512);
+      context.fillStyle = "#ffffff";
+      context.fillRect(128, 128, 256, 256);
+      const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      const input = document.querySelector('[data-testid="avatar-input"]') as HTMLInputElement;
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([png!], "avatar.png", { type: "image/png" }));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     const [upload] = await Promise.all([
       page.waitForRequest((r) => r.url().includes("/storage/v1/object/") && r.method() !== "GET", { timeout: 30_000 }),
-      page.evaluate(async () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 512;
-        const context = canvas.getContext("2d")!;
-        context.fillStyle = "#e61e2b";
-        context.fillRect(0, 0, 512, 512);
-        context.fillStyle = "#ffffff";
-        context.fillRect(128, 128, 256, 256);
-        const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-        const input = document.querySelector('[data-testid="avatar-input"]') as HTMLInputElement;
-        const transfer = new DataTransfer();
-        transfer.items.add(new File([png!], "avatar.png", { type: "image/png" }));
-        input.files = transfer.files;
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      }),
+      page.getByTestId("avatar-crop-confirm").click(),
     ]);
     // Stored in the avatars bucket, as a .webp file, and small: the source PNG is
     // 512x512 while what leaves the browser is a 256px WebP.
