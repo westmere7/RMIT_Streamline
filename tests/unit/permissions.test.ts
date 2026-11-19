@@ -11,6 +11,7 @@ import {
   canEditTeamAccess,
   canSeeTeam,
   canSeeTeamId,
+  canManageBoard,
   canManageMembers,
   canManageTeam,
   canManageWorkspace,
@@ -175,3 +176,43 @@ describe("board permissions", () => {
     expect(canEditComment(ctx({ userId: "u", role: "GUEST" }), { authorId: "u" })).toBe(true);
   });
 });
+
+describe("Task Allocation and the Admin team (policies/0031)", () => {
+  const ta = (overrides: Partial<Board> = {}) =>
+    ({ ...board({ id: "ta", ownerId: "former-admin", visibility: "PRIVATE", teamId: "admin-team" }), system: "TASK_ALLOCATION" as const, followsTeam: false, editScope: "ADDED" as const, ...overrides }) satisfies Partial<Board>;
+  // The Admin team is open to the workspace, which Task Allocation must never inherit.
+  const teams = [{ id: "admin-team", boardVisibility: "WORKSPACE" as const, boardEdit: "VIEWERS" as const, system: "ADMIN" as const }];
+
+  it("is for admins and the people added to it, whatever its team allows", () => {
+    expect(boardRoleFor(ctx({ userId: "a", role: "ADMIN", teams }), ta())).toBe("EDITOR");
+    expect(canViewBoard(ctx({ userId: "m", role: "MEMBER", teams }), ta())).toBe(false);
+    expect(boardRoleFor(ctx({ userId: "m", role: "MEMBER", teams, boardRoles: [["ta", "EDITOR"]] }), ta())).toBe("EDITOR");
+    // Even following the team, the board's own settings decide.
+    expect(canViewBoard(ctx({ userId: "m", role: "MEMBER", teams }), ta({ followsTeam: true }))).toBe(false);
+  });
+
+  it("owning the row is no more than a seat for someone who is no longer an admin", () => {
+    expect(boardRoleFor(ctx({ userId: "former-admin", role: "MEMBER", teams }), ta())).toBeNull();
+    expect(boardRoleFor(ctx({ userId: "former-admin", role: "MEMBER", teams, boardRoles: [["ta", "OWNER"]] }), ta())).toBe("EDITOR");
+  });
+
+  it("follows its own who can see and who can edit", () => {
+    const member = ctx({ userId: "m", role: "MEMBER", teams });
+    expect(boardRoleFor(member, ta({ visibility: "WORKSPACE" }))).toBe("VIEWER");
+    expect(boardRoleFor(member, ta({ visibility: "WORKSPACE", editScope: "VIEWERS" }))).toBe("EDITOR");
+    expect(canViewBoard(ctx({ userId: "g", role: "GUEST", teams }), ta({ visibility: "WORKSPACE" }))).toBe(false);
+  });
+
+  it("is run by admins alone, seats included", () => {
+    expect(canManageBoard(ctx({ userId: "a", role: "ADMIN", teams }), ta())).toBe(true);
+    expect(canManageBoard(ctx({ userId: "m", role: "MEMBER", teams, boardRoles: [["ta", "EDITOR"]] }), ta())).toBe(false);
+    expect(canManageBoard(ctx({ userId: "former-admin", role: "MEMBER", teams, boardRoles: [["ta", "OWNER"]] }), ta())).toBe(false);
+  });
+
+  it("keeps the Admin team's own things to admins", () => {
+    expect(canSeeTeam(ctx({ userId: "m", role: "MEMBER", teams }), { id: "admin-team", boardVisibility: "WORKSPACE", system: "ADMIN" })).toBe(false);
+    expect(canSeeTeamId(ctx({ userId: "m", role: "MEMBER", teams }), "admin-team")).toBe(false);
+    expect(canSeeTeamId(ctx({ userId: "a", role: "ADMIN", teams }), "admin-team")).toBe(true);
+  });
+});
+

@@ -211,7 +211,7 @@ export async function inviteMember(input: z.infer<typeof inviteSchema>, invitedB
     .single();
   if (member.error || !member.data) fail("workspace_members.insert", member.error);
 
-  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds);
+  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds, input.role);
 
   const invitation = await insertInvitation(admin, input.workspaceId, profile.id, invitedBy);
   return { user: toUser(profile), member: toWorkspaceMember(member.data as WorkspaceMemberRow), invitation };
@@ -255,16 +255,23 @@ async function addKnownAccount(admin: Admin, input: z.infer<typeof inviteSchema>
         .select(MEMBER_COLUMNS)
         .single();
   if (member.error || !member.data) fail("workspace_members.add", member.error);
-  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds);
+  await addToTeams(admin, input.workspaceId, profile.id, input.teamIds, input.role);
   return { user: toUser({ ...profile, deactivated_at: null }), member: toWorkspaceMember(member.data as WorkspaceMemberRow), invitation: null };
 }
 
-/** Only teams of this workspace; a stray id from another workspace is dropped, not an error. */
-async function addToTeams(admin: Admin, workspaceId: string, userId: string, teamIds: readonly string[]): Promise<void> {
+/**
+ * Only teams of this workspace; a stray id from another workspace is dropped,
+ * not an error. So is the Admin team for anyone joining below admin
+ * (policies/0031 would refuse the whole insert).
+ */
+async function addToTeams(admin: Admin, workspaceId: string, userId: string, teamIds: readonly string[], role: string): Promise<void> {
   if (!teamIds.length) return;
-  const teams = await admin.from("teams").select("id").eq("workspace_id", workspaceId).in("id", [...teamIds]);
+  const teams = await admin.from("teams").select("id, system").eq("workspace_id", workspaceId).in("id", [...teamIds]);
   if (teams.error) fail("teams.lookup", teams.error);
-  const rows = ((teams.data ?? []) as Array<{ id: string }>).map((t) => ({ team_id: t.id, user_id: userId, role: "MEMBER" }));
+  const adminRole = role === "OWNER" || role === "ADMIN";
+  const rows = ((teams.data ?? []) as Array<{ id: string; system: string | null }>)
+    .filter((t) => t.system !== "ADMIN" || adminRole)
+    .map((t) => ({ team_id: t.id, user_id: userId, role: "MEMBER" }));
   if (!rows.length) return;
   const inserted = await admin.from("team_members").upsert(rows, { onConflict: "team_id,user_id", ignoreDuplicates: true });
   if (inserted.error) fail("team_members.insert", inserted.error);

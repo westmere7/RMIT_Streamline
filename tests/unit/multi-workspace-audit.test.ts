@@ -145,12 +145,15 @@ describe("guards that keep things in their workspace", () => {
   it("a team, and a board seat, take only people in the workspace", async () => {
     const { services, repos } = fresh();
     const b = await second(services);
-    const [team] = await repos.teams.listByWorkspace(b.id);
-    await expect(services.workspace.addTeamMember(team!.id, jun)).rejects.toThrow(/Only people in this workspace/);
+    const team = await services.workspace.createTeam({ workspaceId: b.id, name: "B team", description: null, color: "blue", icon: "Users" }, danh);
+    await expect(services.workspace.addTeamMember(team.id, jun)).rejects.toThrow(/Only people in this workspace/);
     const bundle = await services.boards.createBoard({ workspaceId: b.id, name: "B board", teamId: null, visibility: "WORKSPACE", templateId: "blank" }, danh);
     await expect(services.boards.setMember(bundle.board.id, jun, "EDITOR", danh, "Jun")).rejects.toThrow(/Only people in this workspace/);
     await services.workspace.addExistingMember({ workspaceId: b.id, userId: jun, role: "MEMBER" });
-    await expect(services.workspace.addTeamMember(team!.id, jun)).resolves.toBeTruthy();
+    await expect(services.workspace.addTeamMember(team.id, jun)).resolves.toBeTruthy();
+    // The Admin team takes owners and admins only (policies/0031).
+    const adminTeam = (await repos.teams.listByWorkspace(b.id)).find((t) => t.system === "ADMIN");
+    if (adminTeam) await expect(services.workspace.addTeamMember(adminTeam.id, jun)).rejects.toThrow(/owners and admins/);
   });
 
   it("a board's team is one of its own workspace's", async () => {

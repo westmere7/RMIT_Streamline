@@ -98,6 +98,9 @@ const COLUMNS: Column[] = [
 /** Team chips a row shows before the rest fold into "+N". */
 const TEAM_CHIPS = 2;
 
+/** Owners and admins: the only people the Admin team takes. */
+const isAdminRole = (role: WorkspaceMember["role"]) => role === "OWNER" || role === "ADMIN";
+
 type Row = { member: WorkspaceMember; user: User; teams: Team[]; department: string | null; boards: number; workspaces: PoolWorkspace[] };
 
 function compareRows(a: Row, b: Row, key: SortKey): number {
@@ -623,7 +626,7 @@ function BulkBar({ rows, invitations, onClear }: { rows: Row[]; invitations: Map
             <DropdownMenuSubTrigger>Add to</DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-48">
               {liveTeams.map((team) => (
-                <DropdownMenuItem key={team.id} onSelect={() => void run(`Added to ${team.name}`, rows.filter((r) => !r.teams.some((t) => t.id === team.id)), (r) => services.workspace.addTeamMember(team.id, r.user.id))}>
+                <DropdownMenuItem key={team.id} onSelect={() => void run(`Added to ${team.name}`, rows.filter((r) => !r.teams.some((t) => t.id === team.id) && (team.system !== "ADMIN" || isAdminRole(r.member.role))), (r) => services.workspace.addTeamMember(team.id, r.user.id))}>
                   {team.name}
                 </DropdownMenuItem>
               ))}
@@ -1183,7 +1186,8 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
         <k.SubTrigger>Teams</k.SubTrigger>
         <k.SubContent className="w-48">
           {ws.teams
-            .filter((t) => t.archivedAt === null)
+            // The Admin team takes admins only (policies/0031).
+            .filter((t) => t.archivedAt === null && (t.system !== "ADMIN" || isAdminRole(member.role)))
             .map((team) => {
               const inTeam = teams.some((t) => t.id === team.id);
               return (

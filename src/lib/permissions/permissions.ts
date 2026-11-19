@@ -17,6 +17,8 @@ export interface PermissionContext {
    * here shows its boards to the workspace and gives its members no editing.
    */
   teamAccess?: ReadonlyMap<string, TeamAccess>;
+  /** Built-in teams (the Admin team), whose trackers and docs are for workspace admins alone. */
+  systemTeamIds?: ReadonlySet<string>;
 }
 
 /** A team's settings for its boards. */
@@ -37,7 +39,7 @@ export function buildPermissionContext(input: {
   teamMembers: readonly TeamMember[];
   boardMembers: readonly BoardMember[];
   /** The workspace's teams, for what each allows on its boards. */
-  teams?: readonly Pick<Team, "id" | "boardVisibility" | "boardEdit" | "membersCanEdit">[];
+  teams?: readonly (Pick<Team, "id" | "boardVisibility" | "boardEdit" | "membersCanEdit"> & Partial<Pick<Team, "system">>)[];
 }): PermissionContext {
   const membership = input.workspaceMembers.find((m) => m.userId === input.userId && m.status === "ACTIVE");
   return {
@@ -50,6 +52,7 @@ export function buildPermissionContext(input: {
     // Only when the teams were given: then a team missing from them is one this
     // person may not read, which is a team kept to itself.
     teamAccess: input.teams ? new Map(input.teams.map((team) => [team.id, teamAccessFor(team)] as const)) : undefined,
+    systemTeamIds: input.teams ? new Set(input.teams.filter((team) => !!team.system).map((team) => team.id)) : undefined,
   };
 }
 
@@ -58,14 +61,18 @@ export function buildPermissionContext(input: {
  * itself is hidden, with its trackers and docs, from everyone but its members
  * and workspace admins (policies/0028 can_see_team).
  */
-export function canSeeTeam(ctx: PermissionContext, team: Pick<Team, "id" | "boardVisibility"> | null | undefined): boolean {
+export function canSeeTeam(ctx: PermissionContext, team: (Pick<Team, "id" | "boardVisibility"> & Partial<Pick<Team, "system">>) | null | undefined): boolean {
   if (!team) return true;
+  // A built-in team is its admins' (policies/0031); someone seated on one of
+  // its boards sees it by name only, holding that board.
+  if (team.system) return isWorkspaceAdmin(ctx);
   return team.boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(team.id);
 }
 
 /** The same, for something filed under a team by id (a tracker, a doc). */
 export function canSeeTeamId(ctx: PermissionContext, teamId: string | null | undefined): boolean {
   if (!teamId) return true;
+  if (ctx.systemTeamIds?.has(teamId)) return isWorkspaceAdmin(ctx);
   return teamAccessOf(ctx, teamId).boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
 }
 
@@ -173,9 +180,9 @@ export function canSeeSystemEntities(ctx: PermissionContext): boolean {
 
 /** Effective board role considering ownership, explicit membership and visibility. */
 export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): BoardRole | null {
-  // Built-in boards are for workspace admins, except the members-only kind, which
-  // is decided by its seats below.
-  if (board.system && !isMembersOnlyBoard(board) && !canSeeSystemEntities(ctx)) return null;
+  // Built-in boards are for workspace admins, except the members-only kind and
+  // Task Allocation, which are decided by their seats below.
+  if (board.system && !isMembersOnlyBoard(board) && board.system !== "TASK_ALLOCATION" && !canSeeSystemEntities(ctx)) return null;
   // Membership first, before ownership and before an explicit seat.
   //
   // `workspaceRole` is null for somebody who is not an ACTIVE member — which
@@ -185,6 +192,18 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   // opposite of what the Members screen promises. Deactivation is the
   // offboarding control; it has to reach the boards. (Audit F-001.)
   if (ctx.workspaceRole === null) return null;
+  // Task Allocation, for anyone but an admin: the seat an admin gave them, and
+  // nothing else; owning the row adds nothing (policies/0031, step 1a).
+  if (board.system === "TASK_ALLOCATION" && !isWorkspaceAdmin(ctx)) {
+    const seat = ctx.boardRoles.get(board.id) ?? null;
+    if (seat) return seat === "OWNER" ? "EDITOR" : seat;
+    if (ctx.workspaceRole === "GUEST") return null;
+    // Then its own "who can see" and "who can edit", never the Admin team's.
+    const { see, edit } = boardAccessOf(board, null);
+    const inTeam = !!board.teamId && ctx.teamIds.has(board.teamId);
+    if (!(see === "WORKSPACE" || (see === "TEAM" && inTeam))) return null;
+    return edit === "VIEWERS" || (edit === "TEAM" && inTeam) ? "EDITOR" : "VIEWER";
+  }
   if (board.ownerId === ctx.userId) return "OWNER";
   const explicit = ctx.boardRoles.get(board.id);
   if (explicit) return explicit;
@@ -207,9 +226,13 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
  * it follows one, else its own. `fromTeam` says which.
  */
 export function boardAccessOf(
-  board: Pick<Board, "teamId" | "visibility"> & Partial<Pick<Board, "followsTeam" | "editScope">>,
+  board: Pick<Board, "teamId" | "visibility"> & Partial<Pick<Board, "followsTeam" | "editScope" | "system">>,
   team: TeamAccess | null | undefined,
 ): { see: Board["visibility"]; edit: BoardEditScope; fromTeam: boolean } {
+  // Task Allocation keeps its own settings: its team, the Admin team, is open
+  // to everyone by default, which would hand the board to every member (policies/0031).
+  // A board from before 0125 says TEAM, which for the Admin team meant its admins: people added, then.
+  if (board.system === "TASK_ALLOCATION") return { see: board.visibility === "TEAM" ? "PRIVATE" : board.visibility, edit: board.editScope ?? "ADDED", fromTeam: false };
   // Unset (a row from before migration 0123), a private board is its own and any other follows: what the migration wrote.
   if (board.teamId && (board.followsTeam ?? board.visibility !== "PRIVATE")) {
     return { see: team?.boardVisibility ?? "WORKSPACE", edit: team?.boardEdit ?? "ADDED", fromTeam: true };
@@ -231,6 +254,8 @@ export function canManageBoard(ctx: PermissionContext, board: BoardAccessInput):
   // A members-only board is its owner's to run. An admin seated on it is a
   // member like any other, or they could raise their own seat.
   if (isMembersOnlyBoard(board)) return role === "OWNER";
+  // Task Allocation is run by workspace admins alone, who it is open to included.
+  if (board.system === "TASK_ALLOCATION") return isWorkspaceAdmin(ctx) && role !== null;
   // Otherwise an admin manages what they can see, which is every other board.
   return role === "OWNER" || (isWorkspaceAdmin(ctx) && role !== null);
 }

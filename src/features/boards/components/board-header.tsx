@@ -128,7 +128,7 @@ export function BoardHeader({ board }: { board: Board }) {
               </SimpleTooltip>
             )}
             <BoardAccessBadge permissions={ws.permissions} board={board} />
-            {seeing !== "WORKSPACE" && !board.system && (
+            {seeing !== "WORKSPACE" && board.system !== "APP_DEVELOPMENT" && (
               <SimpleTooltip label={seeing === "PRIVATE" ? "Only people added to the board can see it." : `Only ${team?.name ?? "its team"} and people added to the board can see it.`}>
                 <Badge variant="outline" className="cursor-default" data-testid="board-visibility-badge">
                   {seeing === "PRIVATE" ? "Private" : "Team only"}

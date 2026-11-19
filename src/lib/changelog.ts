@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.118.0",
+    date: "2026-11-19",
+    title: "More people can allocate",
+    changes: [
+      "Task Allocation opens to the people workspace admins add under its Members, so more than the admins can allocate. Only admins add them.",
+      "Task Allocation has its own who can see and who can edit in its settings, starting at the people added. It no longer follows the Admin team.",
+      "The Admin team takes workspace owners and admins only; someone made a member leaves it.",
+    ],
+  },
+  {
     version: "0.117.4",
     date: "2026-11-19",
     title: "Where bookings land, shown right",

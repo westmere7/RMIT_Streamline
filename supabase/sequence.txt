@@ -163,3 +163,5 @@ migrations/0122_member_approval.sql
 migrations/0123_board_see_edit.sql
 policies/0030_board_see_edit_policies.sql
 migrations/0124_item_visits.sql
+migrations/0125_task_allocation_own_access.sql
+policies/0031_task_allocation_seats.sql

@@ -28,7 +28,9 @@ export function TeamMembersEditor({ team, heading }: { team: Team; heading?: (ad
   const [addOpen, setAddOpen] = React.useState(false);
   const manage = canManageTeam(ws.permissions, team.id);
   const members = ws.teamMembers.filter((m) => m.teamId === team.id).map((m) => ({ membership: m, user: ws.userById(m.userId) }));
-  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.user?.id === u.id));
+  // The Admin team takes workspace owners and admins only (policies/0031).
+  const admins = new Set(ws.members.filter((m) => m.role === "OWNER" || m.role === "ADMIN").map((m) => m.userId));
+  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.user?.id === u.id) && (team.system !== "ADMIN" || admins.has(u.id)));
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
   const addMember = useMutation({
@@ -56,7 +58,7 @@ export function TeamMembersEditor({ team, heading }: { team: Team; heading?: (ad
         <Command>
           <CommandInput placeholder="Search people…" />
           <CommandList>
-            <CommandEmpty>Everyone is already in this team.</CommandEmpty>
+            <CommandEmpty>{team.system === "ADMIN" ? "Every admin is already in this team." : "Everyone is already in this team."}</CommandEmpty>
             <CommandGroup>
               {candidates.map((user) => (
                 <CommandItem

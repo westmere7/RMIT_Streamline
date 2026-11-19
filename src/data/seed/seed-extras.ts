@@ -480,7 +480,10 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     slug: slugify(SYSTEM_BOARD.name),
     description: SYSTEM_BOARD.description,
     type: "MAIN",
-    visibility: "TEAM",
+    // Its own settings, never the Admin team's (policies/0031).
+    visibility: "PRIVATE",
+    followsTeam: false,
+    editScope: "ADDED",
     ownerId: users.danh,
     color: SYSTEM_BOARD.color,
     icon: SYSTEM_BOARD.icon,

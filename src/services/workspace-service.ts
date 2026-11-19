@@ -320,7 +320,14 @@ export class WorkspaceService {
   /** A role inside one workspace. Owner is not one of them: that is `grantOwner`, and an Owner's seat does not change here. */
   async changeMemberRole(memberId: EntityId, role: WorkspaceRole): Promise<WorkspaceMember> {
     if (role === "OWNER") throw new Error("Only Owners hold the Owner role. Make them an Owner from Members instead.");
-    return this.repos.workspaces.updateMember(memberId, { role });
+    const updated = await this.repos.workspaces.updateMember(memberId, { role });
+    // Below admin, they leave the Admin team. The database does this itself
+    // (policies/0031); the local store has no trigger, so it is done here too.
+    if (role !== "ADMIN") {
+      const adminTeam = (await this.repos.teams.listByWorkspace(updated.workspaceId)).find((t) => t.system === "ADMIN");
+      if (adminTeam && (await this.repos.teams.listMembers(adminTeam.id)).some((m) => m.userId === updated.userId)) await this.repos.teams.removeMember(adminTeam.id, updated.userId);
+    }
+    return updated;
   }
 
   /**
@@ -514,7 +521,10 @@ export class WorkspaceService {
       slug: uniqueSlug(slugify(SYSTEM_BOARD.name), existing.map((b) => b.slug)),
       description: SYSTEM_BOARD.description,
       type: "MAIN",
-      visibility: "TEAM",
+      // Its own settings, never the Admin team's (policies/0031): the people added, and admins.
+      visibility: "PRIVATE",
+      followsTeam: false,
+      editScope: "ADDED",
       ownerId,
       color: SYSTEM_BOARD.color,
       icon: SYSTEM_BOARD.icon,
@@ -581,6 +591,7 @@ export class WorkspaceService {
     if (!team) throw new NotFoundError("Team", teamId);
     const seat = (await this.repos.workspaces.listMembers(team.workspaceId)).find((m) => m.userId === userId);
     if (!seat || seat.status === "DEACTIVATED") throw new Error("Only people in this workspace can join its teams.");
+    if (team.system === "ADMIN" && seat.role !== "OWNER" && seat.role !== "ADMIN") throw new Error("Only workspace owners and admins can be in the Admin team.");
     return this.repos.teams.addMember(teamId, userId, role);
   }
 

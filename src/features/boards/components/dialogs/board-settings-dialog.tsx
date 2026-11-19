@@ -130,6 +130,8 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
 function AccessSection({ board, manage }: { board: Board; manage: boolean }) {
   const ws = useWorkspace();
   const actions = useBoardActions(board);
+  // Task Allocation has settings of its own and never follows the Admin team; only admins change them.
+  if (board.system === "TASK_ALLOCATION") return <BoardAccessField board={board} team={null} manage={manage} onChange={(patch) => actions.updateBoard.mutate(patch)} />;
   if (board.system) return <p className="text-[13px] text-muted-foreground">A built-in board: who can see and edit it is fixed.</p>;
   return <BoardAccessField board={board} team={ws.teamById(board.teamId)} manage={manage} onChange={(patch) => actions.updateBoard.mutate(patch)} />;
 }
@@ -152,7 +154,7 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
           {total} {total === 1 ? "member" : "members"}.{" "}
           {(() => {
             const access = boardAccessOf(board, team ? teamAccessFor(team) : null);
-            return access.see === "PRIVATE" ? "Only they can see it." : board.system ? "" : accessSummary(access.see, access.edit, team?.name ?? null);
+            return access.see === "PRIVATE" ? "Only they can see it." : board.system === "APP_DEVELOPMENT" ? "" : accessSummary(access.see, access.edit, board.system ? null : (team?.name ?? null));
           })()}
         </p>
         {manage && (
@@ -373,7 +375,7 @@ function BuiltInNote({ board }: { board: Board }) {
   return (
     <p className="rounded-xl border border-border/60 bg-surface/60 p-4 text-[13px] text-muted-foreground" data-testid="board-built-in">
       <span className="font-medium text-foreground">{board.name}</span> is built into the workspace:{" "}
-      {board.system === "APP_DEVELOPMENT" ? "every bug reported from the app lands here, and only its members can see it." : "every task booked through the form lands here, and only workspace admins can see it."} It can be renamed and recoloured, but not archived, moved or deleted.
+      {board.system === "APP_DEVELOPMENT" ? "every bug reported from the app lands here, and only its members can see it." : "every task booked through the form lands here, for workspace admins and the people they add."} It can be renamed and recoloured, but not archived, moved or deleted.
     </p>
   );
 }

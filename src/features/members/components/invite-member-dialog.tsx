@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check } from "lucide-react";
 import * as React from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,7 +77,9 @@ function InviteMemberBody({ onClose }: { onClose: () => void }) {
       { onSuccess: setResult },
     );
 
-  const activeTeams = ws.teams.filter((t) => t.archivedAt === null);
+  // The Admin team takes admins only (policies/0031).
+  const role = useWatch({ control: form.control, name: "role" });
+  const activeTeams = ws.teams.filter((t) => t.archivedAt === null && (t.system !== "ADMIN" || role === "ADMIN"));
 
   // Somebody who already had an account is in at once and needs no link.
   if (result && !result.invitation) {
