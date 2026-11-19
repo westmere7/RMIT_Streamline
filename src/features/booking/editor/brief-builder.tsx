@@ -58,15 +58,13 @@ export interface BriefBuilderProps {
 }
 
 /**
- * A list of blocks, each in full only while it is the one under the pointer:
- * the others step back, since a column of cards all showing every control at
- * once is a lot to read past. One being typed in, or with a menu open from it,
- * stays in full; with nothing hovered, everything is. Blocks mark themselves
- * with data-editor-block, and only the list's own children take part, so a
- * follow-up list fades among itself and leaves its parent alone.
+ * The block under the pointer, outlined in the accent, so in a column of cards
+ * that all show their controls the one being pointed at stands out. Only the
+ * innermost: a follow-up under the pointer is outlined, not the question it
+ * hangs from. Drawn as an outline over the card's own border, so nothing moves.
  */
-const FADE_OTHER_BLOCKS =
-  "[&:has(>[data-editor-block]:hover)>[data-editor-block]:not(:hover):not(:focus-within):not(:has([data-state=open]))]:opacity-60";
+const HOVER_OUTLINE =
+  "rounded-xl outline-2 -outline-offset-1 outline-transparent transition-[outline-color] duration-150 [&:hover:not(:has([data-editor-block]:hover))]:outline-ring/60";
 
 export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDeleteSavedBlock }: BriefBuilderProps) {
   const blocks = service.blocks;
@@ -115,7 +113,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
         <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-          <div className={cn("space-y-2", FADE_OTHER_BLOCKS)}>
+          <div className="space-y-2">
             {blocks.map((block, index) => (
               <BlockEditor
                 key={block.id}
@@ -189,7 +187,7 @@ function BlockEditor({
 
   return (
     // The sortable node is the wrapper, so the insert lines in its margins move with the card.
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative transition-opacity duration-150", isDragging && "z-10 opacity-90")} data-editor-block>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative", HOVER_OUTLINE, isDragging && "z-10 opacity-90")} data-editor-block>
       {!isDragging && insertAbove}
       {!isDragging && insertBelow}
     <EditorSection
@@ -491,9 +489,9 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
                   below it, except the last, which stops at its own elbow. The
                   line therefore ends by pointing into the last question rather
                   than running on past it into nothing. */}
-              <div className={cn("relative grid gap-1.5 pl-7", FADE_OTHER_BLOCKS)}>
+              <div className="relative grid gap-1.5 pl-7">
                 {branch.map((child, index) => (
-                  <div key={child.id} className="relative transition-opacity duration-150" data-editor-block>
+                  <div key={child.id} className={cn("relative", HOVER_OUTLINE)} data-editor-block>
                     <span aria-hidden className={cn("absolute -left-4 top-0 w-0.5 rounded-full", line, index === branch.length - 1 ? "h-[1.1rem]" : "h-[calc(100%+0.375rem)]")} />
                     <span aria-hidden className={cn("absolute top-[1.1rem] -left-4 h-0.5 w-4 rounded-full", line)} />
                     <FollowUpBlockEditor

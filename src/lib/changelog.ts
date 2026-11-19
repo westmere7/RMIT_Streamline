@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.6",
+    date: "2026-11-19",
+    title: "Form editor: outline, not fade",
+    changes: ["In the booking form editor, the question under the pointer is outlined in the accent, and the others no longer fade."],
+  },
+  {
     version: "0.110.5",
     date: "2026-11-19",
     title: "Calmer form editor",
